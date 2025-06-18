@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Configuration files
+.env
+*.env
+src/main/resources/application.yml
