@@ -1,7 +1,6 @@
 package com.grun.calorietracker.entity;
 
-
-import com.grun.calorietracker.enums.Role;
+import com.grun.calorietracker.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,6 +33,6 @@ public class UserEntity {
     private Double weight;
 
     @Enumerated(EnumType.STRING)
-    private Role role;
+    private UserRole role;
 
 }

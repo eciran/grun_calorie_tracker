@@ -1,6 +1,6 @@
 package com.grun.calorietracker.enums;
 
-public enum Role {
+public enum UserRole {
     STANDARD,
     PRO,
     ADMIN
