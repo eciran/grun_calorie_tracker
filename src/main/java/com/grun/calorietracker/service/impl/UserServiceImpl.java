@@ -4,6 +4,8 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -43,4 +45,42 @@ public class UserServiceImpl implements UserService {
     public Optional<UserEntity> getById(Long id) {
         return userRepository.findById(id);
     }
+
+    @Override
+    public Optional<UserEntity> getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Optional.empty();
+        }
+
+        String email = authentication.getName();
+        return userRepository.findByEmail(email);
+    }
+
+    @Override
+    public Optional<UserEntity> updateCurrentUser(UserEntity updatedUser, String email) {
+        return userRepository.findByEmail(email).map(existingUser -> {
+            if (updatedUser.getName() != null) {
+                existingUser.setName(updatedUser.getName());
+            }
+            if (updatedUser.getBirthdate() != null) {
+                existingUser.setBirthdate(updatedUser.getBirthdate());
+            }
+            if (updatedUser.getGender() != null) {
+                existingUser.setGender(updatedUser.getGender());
+            }
+            if (updatedUser.getHeight() != null) {
+                existingUser.setHeight(updatedUser.getHeight());
+            }
+            if (updatedUser.getWeight() != null) {
+                existingUser.setWeight(updatedUser.getWeight());
+            }
+            return userRepository.save(existingUser);
+        });
+    }
+
 }
+
+
+

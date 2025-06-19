@@ -39,7 +39,7 @@ public class AuthController {
         try {
             if (userRepository.findByEmail(user.getEmail()).isPresent()) {
                 return ResponseEntity
-                        .status(HttpStatus.CONFLICT) // 409 Conflict
+                        .status(HttpStatus.CONFLICT)
                         .body("This email is already registered.");
             }
 
