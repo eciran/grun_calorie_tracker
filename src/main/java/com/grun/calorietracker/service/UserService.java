@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
+    String loginUser(String email, String password);
     UserEntity registerUser(UserEntity user);
     Optional<UserEntity> findByEmail(String email);
     List<UserEntity> getAllUsers();

@@ -35,7 +35,7 @@ class UserServiceImplTest {
         testUser.setEmail("test@example.com");
         testUser.setPassword("rawpassword");
         testUser.setName("Test User");
-        testUser.setBirthdate(LocalDate.of(1990, 1, 1));
+        testUser.setAge(30);
         testUser.setHeight(180.0);
         testUser.setWeight(75.0);
     }
