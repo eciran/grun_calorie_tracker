@@ -44,7 +44,6 @@ public class UserController {
         if (userOpt.isEmpty()) {
             throw new UsernameNotFoundException("Invalid credentials");
         }
-
         return ResponseEntity.ok(userOpt.get());
     }
 }

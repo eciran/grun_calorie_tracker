@@ -1,10 +1,9 @@
 package com.grun.calorietracker.entity;
 
-
+import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.GoalType;
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -24,11 +23,20 @@ public class UserGoalEntity {
     private UserEntity user;
 
     private Double targetWeight;
-
     private Integer dailyCalorieGoal;
     private Double dailyProteinGoal;
     private Double dailyFatGoal;
     private Double dailyCarbGoal;
 
+    private Double weeklyWeightChangeTargetKg;
+
+    @Enumerated(EnumType.STRING)
+    private GoalType goalType;
+
+    @Enumerated(EnumType.STRING)
+    private ActivityLevel activityLevel;
+
     private LocalDateTime createdAt;
+
+
 }

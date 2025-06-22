@@ -24,7 +24,7 @@ public class UserEntity {
 
     private String password;
 
-    private LocalDate birthdate;
+    private Integer age;
 
     private String gender;
 
@@ -32,7 +32,10 @@ public class UserEntity {
 
     private Double weight;
 
+    private Double bodyFatPercentage;
+
     @Enumerated(EnumType.STRING)
     private UserRole role;
+
 
 }
