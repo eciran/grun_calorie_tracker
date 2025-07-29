@@ -13,6 +13,7 @@ import org.springframework.security.authentication.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -30,10 +31,11 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody @Valid UserEntity user) {
         try {
             if (user.getEmail() == null) {
-                throw new InvalidCredentialsException("Invalid credentials"); // Varsayılan olarak RuntimeException'dan türediğini varsayıyorum
+                throw new InvalidCredentialsException("Invalid credentials");
             }
             UserEntity savedUser = userService.registerUser(user);
-            return ResponseEntity.ok(savedUser);
+            return ResponseEntity.ok(Map.of("message", "Registration completed successfully"));
+            // return ResponseEntity.ok(savedUser);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (InvalidCredentialsException e) {

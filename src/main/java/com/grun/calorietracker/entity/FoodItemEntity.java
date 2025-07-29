@@ -19,6 +19,9 @@ public class FoodItemEntity {
     private String name;
 
     private String barcode;
+    private String imageUrl;
+    private String allergens;
+    private String nutriScore;
 
     private Double calories;
     private Double protein;
