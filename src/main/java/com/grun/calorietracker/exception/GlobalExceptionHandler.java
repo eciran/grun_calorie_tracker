@@ -35,4 +35,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
 
+    @ExceptionHandler(ExerciseLogNotFoundException.class)
+    public ResponseEntity<String> handleExerciseLogNotFoundException(
+            ExerciseLogNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ExerciseItemNotFoundException.class)
+    public ResponseEntity<String> handleExerciseItemNotFoundException(
+            ExerciseItemNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+
 }

@@ -1,5 +1,7 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.BodyFatResultDto;
+import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -23,27 +25,50 @@ public class UserController {
     }
 
     @GetMapping
-    public List<UserEntity> getAllUsers() {
+    public List<UserProfileDto> getAllUsers() {
         return userService.getAllUsers();
     }
 
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-        return userService.findByEmail(userDetails.getUsername())
-                .<ResponseEntity<?>>map(ResponseEntity::ok)
-                .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials"));
+        try {
+            UserProfileDto profile = userService.getCurrentUser(userDetails.getUsername());
+            return ResponseEntity.ok(profile);
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+        }
     }
+
     @PutMapping("/me")
     public ResponseEntity<?> updateCurrentUser(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody UserEntity updatedUser
+            @RequestBody UserProfileDto updatedUserDto
     ) {
         String email = userDetails.getUsername();
-        Optional<UserEntity> userOpt = userService.updateCurrentUser(updatedUser, email);
-
-        if (userOpt.isEmpty()) {
-            throw new UsernameNotFoundException("Invalid credentials");
+        try {
+            UserProfileDto updatedProfile = userService.updateCurrentUser(updatedUserDto, email);
+            return ResponseEntity.ok(updatedProfile);
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
         }
-        return ResponseEntity.ok(userOpt.get());
+    }
+
+    @PostMapping("/calculate-body-fat-or-bmi")
+    public ResponseEntity<?> calculateBodyFatOrBmi(
+            @RequestBody BodyFatResultDto request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Optional<UserEntity> userOpt = userService.findByEmail(userDetails.getUsername());
+        if (userOpt.isPresent()) {
+            UserEntity user = userOpt.get();
+            BodyFatResultDto calculatedBodyFat = userService.calculateBodyFatAndBmi(request, user);
+            user.setBodyFatPercentage(calculatedBodyFat.getBodyFat());
+            user.setBmi(calculatedBodyFat.getBmi());
+            UserProfileDto updatedUserDto = new UserProfileDto();
+            updatedUserDto.setBodyFat(calculatedBodyFat.getBodyFat());
+            updatedUserDto.setBmi(calculatedBodyFat.getBmi());
+            userService.updateCurrentUser(updatedUserDto, userDetails.getUsername());
+            return ResponseEntity.ok(calculatedBodyFat);
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
     }
 }

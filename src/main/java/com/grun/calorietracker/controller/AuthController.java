@@ -1,5 +1,6 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -33,9 +34,8 @@ public class AuthController {
             if (user.getEmail() == null) {
                 throw new InvalidCredentialsException("Invalid credentials");
             }
-            UserEntity savedUser = userService.registerUser(user);
+            UserProfileDto savedUserDto = userService.registerUser(user);
             return ResponseEntity.ok(Map.of("message", "Registration completed successfully"));
-            // return ResponseEntity.ok(savedUser);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (InvalidCredentialsException e) {
@@ -55,7 +55,4 @@ public class AuthController {
                     .body("Invalid credentials");
         }
     }
-
-
 }
-

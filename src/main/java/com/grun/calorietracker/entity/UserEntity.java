@@ -34,6 +34,8 @@ public class UserEntity {
 
     private Double bodyFatPercentage;
 
+    private Double bmi;
+
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
