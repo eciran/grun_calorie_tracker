@@ -22,9 +22,14 @@ public class ExerciseLogsEntity {
     @JoinColumn(name = "user_id")
     private UserEntity user;
 
-    private String activityName;
+    @ManyToOne
+    @JoinColumn(name = "exercise_item_id")
+    private ExerciseItemEntity exerciseItem;
+
     private Integer durationMinutes;
     private Double caloriesBurned;
-
     private LocalDateTime logDate;
+    private String source;     // Data source (e.g., MANUAL, GOOGLE_FIT, APPLE_HEALTH)
+    private String externalId;
+    private String extraData;
 }
