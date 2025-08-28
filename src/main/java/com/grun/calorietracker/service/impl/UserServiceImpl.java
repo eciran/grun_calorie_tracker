@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.dto.BodyFatRequestDto;
 import com.grun.calorietracker.dto.BodyFatResultDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
@@ -130,7 +131,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public BodyFatResultDto calculateBodyFatAndBmi(BodyFatResultDto req, UserEntity user) {
+    public BodyFatResultDto calculateBodyFatAndBmi(BodyFatRequestDto req, UserEntity user) {
         BodyFatResultDto result = new BodyFatResultDto();
         Double bmi = null;
         Double bodyFat = null;

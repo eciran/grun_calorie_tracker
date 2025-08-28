@@ -6,8 +6,10 @@ import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.ExerciseItemNotFoundException;
 import com.grun.calorietracker.exception.ExerciseLogNotFoundException;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
+import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,9 +24,12 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
 
     private final ExerciseLogRepository exerciseLogsRepository;
     private final ExerciseItemRepository exerciseItemRepository;
+    private final UserRepository userRepository;
 
     @Override
-    public ExerciseLogsDto addExerciseLog(ExerciseLogsDto dto, UserEntity user) {
+    public ExerciseLogsDto addExerciseLog(ExerciseLogsDto dto, String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ExerciseItemEntity exerciseItem = exerciseItemRepository.findById(dto.getExerciseItemId())
                 .orElseThrow(() -> new ExerciseItemNotFoundException("Exercise item not found"));
 
@@ -44,7 +49,9 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
-    public List<ExerciseLogsDto> getExerciseLogs(UserEntity user, String date) {
+    public List<ExerciseLogsDto> getExerciseLogs(String email, String date) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         List<ExerciseLogsEntity> logs;
         if (date != null) {
             LocalDate targetDate = LocalDate.parse(date);
@@ -60,26 +67,34 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
-    public ExerciseLogsDto getExerciseLogById(Long id, UserEntity user) {
+    public ExerciseLogsDto getExerciseLogById(Long id, String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ExerciseLogsEntity entity = exerciseLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ExerciseLogNotFoundException("Exercise log not found"));
         return toDto(entity);
     }
 
     @Override
-    public void deleteExerciseLog(Long id, UserEntity user) {
+    public void deleteExerciseLog(Long id, String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ExerciseLogsEntity entity = exerciseLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ExerciseLogNotFoundException("Exercise log not found"));
         exerciseLogsRepository.delete(entity);
     }
 
     @Override
-    public ExerciseLogsDto addExerciseLogFromExternal(ExerciseLogsDto dto, UserEntity user) {
+    public ExerciseLogsDto addExerciseLogFromExternal(ExerciseLogsDto dto, String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         return null;
     }
 
     @Override
-    public List<ExerciseLogsDto> getExerciseLogsBySource(UserEntity user, String source) {
+    public List<ExerciseLogsDto> getExerciseLogsBySource(String email, String source) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         return List.of();
     }
 

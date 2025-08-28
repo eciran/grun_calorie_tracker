@@ -62,7 +62,7 @@ class FoodLogsServiceImplTest {
 
         when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenReturn(savedEntity);
 
-        FoodLogsDto result = foodLogsService.addFoodLog(dto, user);
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, user.getEmail());
 
         assertNotNull(result);
         assertEquals(1L, result.getId());
@@ -77,6 +77,6 @@ class FoodLogsServiceImplTest {
 
         when(foodItemRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> foodLogsService.addFoodLog(dto, user));
+        assertThrows(RuntimeException.class, () -> foodLogsService.addFoodLog(dto, user.getEmail()));
     }
 }

@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.GoalCalculationResponse;
+import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
@@ -67,7 +68,7 @@ class UserGoalControllerTest {
     @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
-        when(goalService.calculateGoal(any(UserGoalEntity.class), any(UserEntity.class))).thenReturn(new GoalCalculationResponse());
+        when(goalService.calculateGoal(any(UserGoalDto.class), any(String))).thenReturn(new GoalCalculationResponse());
 
         mockMvc.perform(post("/api/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)

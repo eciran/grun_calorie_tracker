@@ -1,37 +1,63 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.GoalCalculationResponse;
+import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.UserGoalService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class UserGoalServiceImpl implements UserGoalService {
 
     private final GoalRepository userGoalRepository;
-
-    public UserGoalServiceImpl(GoalRepository userGoalRepository) {
-        this.userGoalRepository = userGoalRepository;
-    }
+    private final UserServiceImpl userService;
+    private final UserGoalMapper userGoalMapper;
 
     @Override
-    public UserGoalEntity saveUserGoal(UserGoalEntity goalData){
-        goalData.setCreatedAt(LocalDateTime.now());
-        return userGoalRepository.save(goalData);
+    public UserGoalDto saveUserGoal(UserGoalDto goalData, String email) {
+        log.info("Saving new goal for user: {}", email);
+
+        UserEntity user = userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+
+        userGoalRepository.findByUser(user).ifPresent(existing -> {
+            log.info("Deleting existing goal for user: {}", email);
+            userGoalRepository.delete(existing);
+        });
+
+        UserGoalEntity newGoal = UserGoalMapper.toEntity(goalData, user);
+        UserGoalEntity saved = userGoalRepository.save(newGoal);
+
+        log.info("New goal saved for user: {} with id {}", email, saved.getId());
+
+        return UserGoalMapper.toDto(saved);
     }
 
+
     @Override
-    public GoalCalculationResponse calculateGoal(UserGoalEntity goalData, UserEntity user) {
+    public GoalCalculationResponse calculateGoal(UserGoalDto goalData, String email) {
+        UserEntity user = userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+
+        if (user.getEmail() == null) {
+            throw new InvalidCredentialsException("Invalid credential");
+        }
+
         double bmr = getBmrDetails(user);
 
         int goalCalories = getGoalCalories(goalData, user, bmr);
         
-        int proteinGrams = (int) Math.round(goalCalories * goalData.getGoalType().getProteinPercentage() / 4);
+        int proteinGrams = (int) Math.round(goalCalories * goalData.getGoalType(). getProteinPercentage() / 4);
         int fatGrams = (int) Math.round(goalCalories * goalData.getGoalType().getFatPercentage() / 9);
 
         int remainingCaloriesForCarbs = goalCalories - (proteinGrams * 4) - (fatGrams * 9);
@@ -58,7 +84,7 @@ public class UserGoalServiceImpl implements UserGoalService {
         return bmr;
     }
 
-    private static int getGoalCalories(UserGoalEntity goalData, UserEntity user, double bmr) {
+    private static int getGoalCalories(UserGoalDto goalData, UserEntity user, double bmr) {
         double activityMultiplier = goalData.getActivityLevel().getMultiplier();
         int maintenanceCalories = (int) Math.round(bmr * activityMultiplier);
 
@@ -81,11 +107,15 @@ public class UserGoalServiceImpl implements UserGoalService {
     }
 
     @Override
-    public void deleteGoalByUser(UserEntity user) {
+    public void deleteGoalByUser(String email) {
+        UserEntity user = userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+
+        if (user.getEmail() == null) {
+            throw new InvalidCredentialsException("Invalid credential");
+        }
         Optional<UserGoalEntity> existingGoal = userGoalRepository.findByUser(user);
         existingGoal.ifPresent(userGoalRepository::delete);
     }
-
-
-
 }
+

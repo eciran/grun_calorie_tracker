@@ -1,58 +1,60 @@
+// All comments are in English as requested in the project rules.
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AuthRequest;
+import com.grun.calorietracker.dto.AuthResponse;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
-import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.UserRepository;
-import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.security.JwtUtil;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    private final UserService userService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtUtil jwtUtil;
 
-    public AuthController(UserService userService, UserRepository userRepository, PasswordEncoder passwordEncoder) {
-        this.userService = userService;
-    }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody @Valid UserEntity user) {
-        try {
-            if (user.getEmail() == null) {
-                throw new InvalidCredentialsException("Invalid credentials");
-            }
-            UserProfileDto savedUserDto = userService.registerUser(user);
-            return ResponseEntity.ok(Map.of("message", "Registration completed successfully"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-        } catch (InvalidCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred: " + e.getMessage());
+    public ResponseEntity<AuthResponse> register(@RequestBody @Valid AuthRequest request) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            return ResponseEntity.badRequest().body(new AuthResponse(null, "Email already registered"));
         }
+
+        UserEntity newUser = new UserEntity();
+        newUser.setEmail(request.getEmail());
+        newUser.setPassword(passwordEncoder.encode(request.getPassword()));
+        newUser.setRole(UserRole.STANDARD);
+
+        userRepository.save(newUser);
+
+        String token = jwtUtil.generateToken(newUser.getEmail());
+        return ResponseEntity.ok(new AuthResponse(token, "User registered successfully"));
     }
 
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody UserEntity loginRequest) {
-        try {
-            String token = userService.loginUser(loginRequest.getEmail(), loginRequest.getPassword());
-            return ResponseEntity.ok(token);
-        } catch (BadCredentialsException ex) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid credentials");
-        }
+    public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest request) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
+
+        UserEntity user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+
+        String token = jwtUtil.generateToken(user.getEmail());
+        return ResponseEntity.ok(new AuthResponse(token, "Login successful"));
     }
 }
