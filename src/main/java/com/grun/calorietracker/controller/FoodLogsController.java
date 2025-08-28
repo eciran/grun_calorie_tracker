@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,25 +26,18 @@ public class FoodLogsController {
     private final FoodLogsService foodLogsService;
     private final UserService userService;
 
-    // Add new food log
     @PostMapping
-    public ResponseEntity<FoodLogsDto> addFoodLog(
-            @RequestBody FoodLogsDto request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        FoodLogsDto response = foodLogsService.addFoodLog(request, user);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<FoodLogsDto> addFoodLog(@AuthenticationPrincipal UserDetails userDetails,
+                                                  @RequestBody @Valid FoodLogsDto dto) {
+        FoodLogsDto created = foodLogsService.addFoodLog(dto, userDetails.getUsername());
+        return ResponseEntity.ok(created);
     }
 
-    // List all food logs for user, optionally filter by date
     @GetMapping
     public ResponseEntity<List<FoodLogsDto>> getFoodLogs(
             @RequestParam(required = false) String date,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        List<FoodLogsDto> logs = foodLogsService.getFoodLogs(user, date);
+        List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(),date);
         return ResponseEntity.ok(logs);
     }
 
@@ -52,9 +46,7 @@ public class FoodLogsController {
     public ResponseEntity<FoodLogsDto> getFoodLogById(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        FoodLogsDto log = foodLogsService.getFoodLogById(id, user);
+        FoodLogsDto log = foodLogsService.getFoodLogById(id, userDetails.getUsername());
         return ResponseEntity.ok(log);
     }
 
@@ -63,9 +55,7 @@ public class FoodLogsController {
     public ResponseEntity<Void> deleteFoodLog(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        foodLogsService.deleteFoodLog(id, user);
+        foodLogsService.deleteFoodLog(id, userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
 
@@ -81,7 +71,7 @@ public class FoodLogsController {
         LocalDateTime startDate = LocalDate.parse(start).atStartOfDay();
         LocalDateTime endDate = LocalDate.parse(end).plusDays(1).atStartOfDay().minusSeconds(1);
 
-        List<FoodLogDailyStatsDto> stats = foodLogsService.getDailyStats(user, startDate, endDate);
+        List<FoodLogDailyStatsDto> stats = foodLogsService.getDailyStats(user.getEmail(), startDate, endDate);
         return ResponseEntity.ok(stats);
     }
 

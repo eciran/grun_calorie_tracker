@@ -9,9 +9,9 @@ import java.util.List;
 
 // Service interface for managing food logs
 public interface FoodLogsService {
-        FoodLogsDto addFoodLog(FoodLogsDto dto, UserEntity user);
-        List<FoodLogsDto> getFoodLogs(UserEntity user, String date);
-        FoodLogsDto getFoodLogById(Long id, UserEntity user);
-        void deleteFoodLog(Long id, UserEntity user);
-        List<FoodLogDailyStatsDto> getDailyStats(UserEntity user, LocalDateTime start, LocalDateTime end);
+        FoodLogsDto addFoodLog(FoodLogsDto dto, String user);
+        List<FoodLogsDto> getFoodLogs(String email, String date);
+        FoodLogsDto getFoodLogById(Long id, String email);
+        void deleteFoodLog(Long id, String email);
+        List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end);
 }

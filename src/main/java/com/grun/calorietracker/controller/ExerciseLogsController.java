@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import com.grun.calorietracker.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,25 +22,18 @@ public class ExerciseLogsController {
     private final ExerciseLogsService exerciseLogsService;
     private final UserService userService;
 
-    // Add new exercise log for authenticated user
     @PostMapping
-    public ResponseEntity<ExerciseLogsDto> addExerciseLog(
-            @RequestBody ExerciseLogsDto request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        ExerciseLogsDto response = exerciseLogsService.addExerciseLog(request, user);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ExerciseLogsDto> addExerciseLog(@AuthenticationPrincipal UserDetails userDetails,
+                                                          @RequestBody @Valid ExerciseLogsDto dto) {
+        ExerciseLogsDto created = exerciseLogsService.addExerciseLog(dto, userDetails.getUsername());
+        return ResponseEntity.ok(created);
     }
 
-    // Get all exercise logs for authenticated user, optionally filter by date
+
     @GetMapping
-    public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogs(
-            @RequestParam(required = false) String date,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        List<ExerciseLogsDto> logs = exerciseLogsService.getExerciseLogs(user, date);
+    public ResponseEntity<List<ExerciseLogsDto>> getAllExerciseLogs(@AuthenticationPrincipal UserDetails userDetails,
+                                                                    @RequestParam(required = false) String date) {
+        List<ExerciseLogsDto> logs = exerciseLogsService.getExerciseLogs(userDetails.getUsername(),date);
         return ResponseEntity.ok(logs);
     }
 
@@ -48,9 +42,7 @@ public class ExerciseLogsController {
     public ResponseEntity<ExerciseLogsDto> getExerciseLogById(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        ExerciseLogsDto log = exerciseLogsService.getExerciseLogById(id, user);
+        ExerciseLogsDto log = exerciseLogsService.getExerciseLogById(id, userDetails.getUsername());
         return ResponseEntity.ok(log);
     }
 
@@ -59,9 +51,7 @@ public class ExerciseLogsController {
     public ResponseEntity<Void> deleteExerciseLog(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        exerciseLogsService.deleteExerciseLog(id, user);
+        exerciseLogsService.deleteExerciseLog(id, userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
 }

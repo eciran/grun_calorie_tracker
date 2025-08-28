@@ -5,10 +5,14 @@ import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -22,12 +26,14 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     private final FoodLogsRepository foodLogsRepository;
     private final FoodItemRepository foodItemRepository;
+    private final UserRepository userRepository;
 
     @Override
-    public FoodLogsDto addFoodLog(FoodLogsDto dto, UserEntity user) {
+    public FoodLogsDto addFoodLog(FoodLogsDto dto, String email) {
         FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
-                .orElseThrow(() -> new RuntimeException("Food item not found"));
-
+                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         FoodLogsEntity entity = new FoodLogsEntity();
         entity.setUser(user);
         entity.setFoodItem(foodItem);
@@ -40,8 +46,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
-    public List<FoodLogsDto> getFoodLogs(UserEntity user, String date) {
+    public List<FoodLogsDto> getFoodLogs(String email, String date) {
         List<FoodLogsEntity> logs;
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         if (date != null) {
             LocalDate targetDate = LocalDate.parse(date);
             logs = foodLogsRepository.findByUserAndLogDateBetween(
@@ -56,21 +64,27 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
-    public FoodLogsDto getFoodLogById(Long id, UserEntity user) {
+    public FoodLogsDto getFoodLogById(Long id, String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Food log not found"));
         return toDto(entity);
     }
 
     @Override
-    public void deleteFoodLog(Long id, UserEntity user) {
+    public void deleteFoodLog(Long id, String email) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new RuntimeException("Food log not found"));
         foodLogsRepository.delete(entity);
     }
 
     @Override
-    public List<FoodLogDailyStatsDto> getDailyStats(UserEntity user, LocalDateTime start, LocalDateTime end) {
+    public List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         return null;
        // return foodLogsRepository.getDailyStatsByUserAndDateBetween(user, start, end);
     }

@@ -79,7 +79,7 @@ class FoodLogsControllerTest {
         savedDto.setLogDate(dto.getLogDate());
 
         when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.of(user));
-        when(foodLogsService.addFoodLog(any(FoodLogsDto.class), eq(user))).thenReturn(savedDto);
+        when(foodLogsService.addFoodLog(any(FoodLogsDto.class), eq(user.getName()))).thenReturn(savedDto);
 
         // Act & Assert
         mockMvc.perform(post("/api/food-logs")
@@ -106,7 +106,7 @@ class FoodLogsControllerTest {
     @WithMockUser(username = "test@test.com", roles = "USER")
     void testGetFoodLogs_success() throws Exception {
         when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.of(user));
-        when(foodLogsService.getFoodLogs(eq(user), anyString()))
+        when(foodLogsService.getFoodLogs(eq(user.getEmail()), anyString()))
                 .thenReturn(Collections.emptyList());
 
         mockMvc.perform(get("/api/food-logs")
@@ -119,7 +119,7 @@ class FoodLogsControllerTest {
     @WithMockUser(username = "test@test.com", roles = "USER")
     void testDeleteFoodLog_success() throws Exception {
         when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.of(user));
-        Mockito.doNothing().when(foodLogsService).deleteFoodLog(eq(1L), eq(user));
+        Mockito.doNothing().when(foodLogsService).deleteFoodLog(eq(1L), eq(user.getEmail()));
 
         mockMvc.perform(delete("/api/food-logs/1"))
                 .andExpect(status().isNoContent());

@@ -1,9 +1,15 @@
 package com.grun.calorietracker.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserProfileDto {
     private Long id;
     private String email;
@@ -14,4 +20,5 @@ public class UserProfileDto {
     private Double weight;
     private Double bmi;
     private Double bodyFat;
+
 }
