@@ -1,4 +1,4 @@
-package com.grun.calorietracker.security;
+package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;

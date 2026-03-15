@@ -74,5 +74,4 @@ public class FoodLogsController {
         List<FoodLogDailyStatsDto> stats = foodLogsService.getDailyStats(user.getEmail(), startDate, endDate);
         return ResponseEntity.ok(stats);
     }
-
 }
