@@ -14,4 +14,5 @@ public interface FoodLogsService {
         FoodLogsDto getFoodLogById(Long id, String email);
         void deleteFoodLog(Long id, String email);
         List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end);
+
 }

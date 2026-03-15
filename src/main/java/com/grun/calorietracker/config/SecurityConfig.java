@@ -1,7 +1,7 @@
 package com.grun.calorietracker.config;
 
 import com.grun.calorietracker.security.JwtAuthenticationFilter;
-import com.grun.calorietracker.security.UserDetailsServiceImpl;
+import com.grun.calorietracker.service.impl.UserDetailsServiceImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -44,7 +44,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Profile("test") // Sadece test ortamı için
+    @Profile("test")
     public SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())

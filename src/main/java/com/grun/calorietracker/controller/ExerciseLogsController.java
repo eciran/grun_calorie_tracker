@@ -12,6 +12,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -30,14 +32,18 @@ public class ExerciseLogsController {
     }
 
 
-    @GetMapping
-    public ResponseEntity<List<ExerciseLogsDto>> getAllExerciseLogs(@AuthenticationPrincipal UserDetails userDetails,
-                                                                    @RequestParam(required = false) String date) {
-        List<ExerciseLogsDto> logs = exerciseLogsService.getExerciseLogs(userDetails.getUsername(),date);
-        return ResponseEntity.ok(logs);
+    @GetMapping("/report")
+    public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogsByDateAndUser(@AuthenticationPrincipal UserDetails userDetails,
+                                                                    @RequestParam String startDate,
+                                                                    @RequestParam String endDate,
+                                                                    @RequestParam(defaultValue = "day") String range) {
+        LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
+        LocalDateTime end = LocalDate.parse(endDate).atTime(23, 59, 59);
+
+        List<ExerciseLogsDto> stats = exerciseLogsService.getExerciseLogsByDateAndUser(userDetails.getUsername(), start, end, range);
+        return ResponseEntity.ok(stats);
     }
 
-    // Get specific exercise log by id for user
     @GetMapping("/{id}")
     public ResponseEntity<ExerciseLogsDto> getExerciseLogById(
             @PathVariable Long id,
