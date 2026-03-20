@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.BodyFatResultDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.service.UserService;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +33,7 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserProfileDto> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<UserProfileDto> getCurrentUser( @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         try {
             UserProfileDto profile = userService.getCurrentUser(userDetails.getUsername());
             return ResponseEntity.ok(profile);
@@ -42,7 +43,7 @@ public class UserController {
 }
     @PutMapping("/me")
     public ResponseEntity<UserProfileDto> updateCurrentUser(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid UserProfileDto updatedUserDto
     ) {
         String email = userDetails.getUsername();
@@ -57,7 +58,7 @@ public class UserController {
     @PostMapping("/calculate-body-fat-or-bmi")
     public ResponseEntity<BodyFatResultDto> calculateBodyFatOrBmi(
             @RequestBody @Valid BodyFatRequestDto request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
         return userService.findByEmail(userDetails.getUsername())
                 .map(user -> {

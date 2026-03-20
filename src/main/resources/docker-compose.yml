@@ -1,18 +1,25 @@
-version: '3.1'
+spring:
+  application:
+    name: grun-calorie-tracker
 
-services:
-  postgres:
-    image: postgres:16
-    container_name: grun-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    volumes:
-      - grun_pgdata:/var/lib/postgresql/data
+  datasource:
+    url: jdbc:postgresql://localhost:5432/grun_calorie_db
+    username: postgres
+    password: Magellan1!
+    driver-class-name: org.postgresql.Driver
 
-volumes:
-  grun_pgdata:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  jwt:
+    secret:  GRun_Calorie_Tracker_SecretKey_2025!@#ZK34mdgshv7238aWQxYz
+
+  openfoodfacts:
+    api:
+      base-url: "https://world.openfoodfacts.org"
+      search-path: "/cgi/search.pl"
+      product-path: "/api/v2/product/{barcode}.json"

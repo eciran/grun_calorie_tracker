@@ -7,6 +7,7 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.UserNotFoundException;
 import com.grun.calorietracker.service.UserGoalService;
 import com.grun.calorietracker.service.UserService;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,7 +27,7 @@ class UserGoalController {
     @PostMapping("/calculate")
     public ResponseEntity<GoalCalculationResponse> calculateGoal(
             @RequestBody @Valid UserGoalDto goalData,
-            @AuthenticationPrincipal UserDetails userDetails
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails
     ) {
         if (userDetails == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -40,17 +41,14 @@ class UserGoalController {
     }
 
     @PostMapping("/save")
-    public ResponseEntity<GoalCalculationResponse> saveGoal(@AuthenticationPrincipal UserDetails userDetails,
-                                                            @RequestBody @Valid UserGoalDto goalData) {
-
-        GoalCalculationResponse response = userGoalService.calculateGoal(goalData, userDetails.getUsername());
-        userGoalService.saveUserGoal(goalData, userDetails.getUsername());
-
+    public ResponseEntity<GoalCalculationResponse> saveGoal( @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+                                                            @RequestBody @Valid UserGoalDto goalRequest) {
+        GoalCalculationResponse response = userGoalService.calculateGoal(goalRequest, userDetails.getUsername());
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/delete")
-    public ResponseEntity<String> deleteGoal(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<String> deleteGoal( @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         userGoalService.deleteGoalByUser(userDetails.getUsername());
         return ResponseEntity.ok("User goal deleted successfully");
     }

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,10 +34,10 @@ class UserGoalControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private UserService userService;
 
-    @MockBean
+    @MockitoBean
     private UserGoalService goalService;
 
     @Autowired
@@ -68,7 +68,8 @@ class UserGoalControllerTest {
     @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
-        when(goalService.calculateGoal(any(UserGoalDto.class), any(String))).thenReturn(new GoalCalculationResponse());
+        when(goalService.calculateGoal(any(UserGoalDto.class), any(String.class)))
+                .thenReturn(new GoalCalculationResponse());
 
         mockMvc.perform(post("/api/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)

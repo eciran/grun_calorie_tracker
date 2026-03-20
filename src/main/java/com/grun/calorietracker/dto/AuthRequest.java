@@ -1,15 +1,16 @@
 package com.grun.calorietracker.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
 public class    AuthRequest {
-    @NotNull
     @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email format is invalid")
     private String email;
 
     @NotNull

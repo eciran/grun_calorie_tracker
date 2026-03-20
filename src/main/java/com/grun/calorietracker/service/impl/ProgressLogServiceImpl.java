@@ -23,20 +23,22 @@ public class ProgressLogServiceImpl implements ProgressLogService {
 
     @Override
     public void saveLog(ProgressLogDto log, String email) {
-        UserEntity user= getUserByEmail(email);
-        ProgressLogEntity entity= progressLogMapper.toEntity(log,user);
+        UserEntity user = getUserByEmail(email);
+        ProgressLogEntity entity = progressLogMapper.toEntity(log, user);
         progressLogRepository.save(entity);
     }
 
     @Override
     public List<ProgressLogDto> getUserLogs(String email) {
-        UserEntity user= getUserByEmail(email);
-        return progressLogRepository.findByUserOrderByLogDateAsc(user);
+        UserEntity user = getUserByEmail(email);
+        return progressLogRepository.findByUserOrderByLogDateAsc(user)
+                .stream()
+                .map(progressLogMapper::toDto)
+                .toList();
     }
 
     private UserEntity getUserByEmail(String email) {
         return userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
-
 }

@@ -4,8 +4,10 @@ import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.FoodLogsServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,8 +25,12 @@ class FoodLogsServiceImplTest {
 
     @Mock
     private FoodLogsRepository foodLogsRepository;
+
     @Mock
     private FoodItemRepository foodItemRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private FoodLogsServiceImpl foodLogsService;
@@ -35,8 +41,11 @@ class FoodLogsServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
         user = new UserEntity();
         user.setId(1L);
+        user.setEmail("test@example.com");
+
         foodItem = new FoodItemEntity();
         foodItem.setId(1L);
         foodItem.setName("Egg");
@@ -51,6 +60,7 @@ class FoodLogsServiceImplTest {
         dto.setLogDate(LocalDateTime.now());
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
         FoodLogsEntity savedEntity = new FoodLogsEntity();
         savedEntity.setId(1L);
@@ -62,7 +72,7 @@ class FoodLogsServiceImplTest {
 
         when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenReturn(savedEntity);
 
-        FoodLogsDto result = foodLogsService.addFoodLog(dto, user.getEmail());
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@example.com");
 
         assertNotNull(result);
         assertEquals(1L, result.getId());
@@ -77,6 +87,6 @@ class FoodLogsServiceImplTest {
 
         when(foodItemRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> foodLogsService.addFoodLog(dto, user.getEmail()));
+        assertThrows(ProductNotFoundException.class, () -> foodLogsService.addFoodLog(dto, "test@example.com"));
     }
 }
