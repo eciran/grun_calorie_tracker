@@ -35,14 +35,12 @@ public class FoodItemServiceImpl implements FoodItemService {
     @Override
     public List<FoodProductDto> searchFoodItems(FoodSearchCriteriaDto criteria) {
         String query = normalize(criteria.getQuery());
-        String nutriScore = normalize(criteria.getNutriScore());
 
         List<FoodProductDto> localResults = FoodItemMapper.mapEntityListToDtoList(
                 foodItemRepository.searchFoodItems(
                         query,
                         criteria.getMinCalories(),
-                        criteria.getMaxCalories(),
-                        nutriScore
+                        criteria.getMaxCalories()
                 )
         );
 
@@ -68,6 +66,75 @@ public class FoodItemServiceImpl implements FoodItemService {
         }
 
         return new ArrayList<>(merged.values());
+    }
+
+    @Override
+    public FoodProductDto addProduct(FoodProductDto dto) {
+        validateProduct(dto);
+
+        if (dto.getBarcode() != null && !dto.getBarcode().isBlank()
+                && foodItemRepository.existsByBarcode(dto.getBarcode().trim())) {
+            throw new IllegalArgumentException("A product with this barcode already exists");
+        }
+
+        FoodItemEntity entity = FoodItemMapper.mapDtoToEntity(dto);
+        entity.setId(null);
+        entity.setBarcode(normalize(dto.getBarcode()));
+        entity.setName(normalize(dto.getProductName()));
+        // entity.setBrand(normalize(dto.getBrand()));
+        entity.setImageUrl(normalize(dto.getImageUrl()));
+        // entity.setIngredientsText(normalize(dto.getIngredientsText()));
+        entity.setAllergens(normalize(dto.getAllergens()));
+        entity.setNutriScore(normalize(dto.getNutriScore()));
+
+        if (entity.getIsCustom() == null) {
+            entity.setIsCustom(Boolean.TRUE);
+        }
+
+        FoodItemEntity saved = foodItemRepository.save(entity);
+        return FoodItemMapper.mapEntityToDto(saved);
+    }
+
+    private void validateProduct(FoodProductDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Product request cannot be null");
+        }
+
+        if (dto.getProductName() == null || dto.getProductName().isBlank()) {
+            throw new IllegalArgumentException("Product name is required");
+        }
+
+        if (dto.getCalories() == null || dto.getCalories() < 0) {
+            throw new IllegalArgumentException("Calories must be 0 or greater");
+        }
+
+        if (dto.getProtein() != null && dto.getProtein() < 0) {
+            throw new IllegalArgumentException("Protein must be 0 or greater");
+        }
+
+        if (dto.getFat() != null && dto.getFat() < 0) {
+            throw new IllegalArgumentException("Fat must be 0 or greater");
+        }
+
+        if (dto.getCarbs() != null && dto.getCarbs() < 0) {
+            throw new IllegalArgumentException("Carbs must be 0 or greater");
+        }
+
+        if (dto.getFiber() != null && dto.getFiber() < 0) {
+            throw new IllegalArgumentException("Fiber must be 0 or greater");
+        }
+
+        if (dto.getSugar() != null && dto.getSugar() < 0) {
+            throw new IllegalArgumentException("Sugar must be 0 or greater");
+        }
+
+        if (dto.getSodium() != null && dto.getSodium() < 0) {
+            throw new IllegalArgumentException("Sodium must be 0 or greater");
+        }
+
+        if (dto.getServingSize() != null && dto.getServingSize() <= 0) {
+            throw new IllegalArgumentException("Serving size must be greater than 0");
+        }
     }
 
     private String normalize(String value) {

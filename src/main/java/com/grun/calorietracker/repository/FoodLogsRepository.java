@@ -34,5 +34,23 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
             @Param("userId") Long userId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+    @Query(value = """
+SELECT
+    COALESCE(SUM(fi.calories * f.portion_size / 100.0), 0),
+    COALESCE(SUM(fi.protein * f.portion_size / 100.0), 0),
+    COALESCE(SUM(fi.carbs * f.portion_size / 100.0), 0),
+    COALESCE(SUM(fi.fat * f.portion_size / 100.0), 0)
+FROM food_logs f
+JOIN food_items fi ON f.food_id = fi.id
+WHERE f.user_id = :userId
+  AND f.log_date >= :start
+  AND f.log_date < :end
+""", nativeQuery = true)
+    List<Object[]> getSummaryTotalsByUserAndDateBetween(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }
 

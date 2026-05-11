@@ -22,13 +22,15 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long> 
             WHERE (:query IS NULL OR LOWER(f.name) LIKE LOWER(CONCAT('%', :query, '%')))
               AND (:minCalories IS NULL OR f.calories >= :minCalories)
               AND (:maxCalories IS NULL OR f.calories <= :maxCalories)
-              AND (:nutriScore IS NULL OR LOWER(f.nutriScore) = LOWER(:nutriScore))
             ORDER BY f.name ASC
             """)
     List<FoodItemEntity> searchFoodItems(
             @Param("query") String query,
             @Param("minCalories") Double minCalories,
-            @Param("maxCalories") Double maxCalories,
-            @Param("nutriScore") String nutriScore
+            @Param("maxCalories") Double maxCalories
     );
+
+    List<FoodItemEntity> findAllByOrderByNameAsc();
+
+    boolean existsByBarcode(String barcode);
 }

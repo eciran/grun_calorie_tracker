@@ -35,4 +35,19 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
             @Param("endDate") LocalDateTime endDate,
             @Param("range") String range
     );
+
+    @Query(value = """
+    SELECT
+        COALESCE(SUM(e.calories_burned), 0),
+        COALESCE(SUM(e.duration_minutes), 0)
+    FROM exercise_logs e
+    WHERE e.user_id = :userId
+      AND e.log_date >= :start
+      AND e.log_date < :end
+    """, nativeQuery = true)
+    List<Object[]> getSummaryTotalsByUserAndDateBetween(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }

@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FoodProductDto {
 
+    private Long id;
     private String barcode;
     private String productName;
     private String brand;

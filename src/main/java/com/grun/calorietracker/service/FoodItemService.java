@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface FoodItemService {
     FoodItemEntity getOrSaveFoodItemByBarcode(String barcode);
     List<FoodProductDto> searchFoodItems(FoodSearchCriteriaDto criteria);
+    FoodProductDto addProduct(FoodProductDto dto);
 }

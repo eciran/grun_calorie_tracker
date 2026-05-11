@@ -32,14 +32,10 @@ public class FoodItemMapper {
     }
 
     public static FoodProductDto mapEntityToDto(FoodItemEntity entity) {
-        if (entity == null) {
-            return null;
-        }
         FoodProductDto dto = new FoodProductDto();
+            dto.setId(entity.getId());
         dto.setBarcode(entity.getBarcode());
         dto.setProductName(entity.getName());
-        //  dto.setBrand(entity.getBrand());
-        dto.setImageUrl(entity.getImageUrl());
         dto.setCalories(entity.getCalories());
         dto.setProtein(entity.getProtein());
         dto.setFat(entity.getFat());
@@ -47,8 +43,9 @@ public class FoodItemMapper {
         dto.setFiber(entity.getFiber());
         dto.setSugar(entity.getSugar());
         dto.setSodium(entity.getSodium());
-        // dto.setServingSize(entity.getServingSize());
-        // dto.setIngredientsText(entity.getIngredientsText());
+        dto.setImageUrl(entity.getImageUrl());
+       // dto.setBrand(entity.getBrand());
+       // dto.setIngredientsText(entity.getIngredientsText());
         dto.setAllergens(entity.getAllergens());
         dto.setNutriScore(entity.getNutriScore());
         return dto;

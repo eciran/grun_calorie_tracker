@@ -1,14 +1,16 @@
 package com.grun.calorietracker.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -17,11 +19,12 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -40,6 +43,7 @@ public class GlobalExceptionHandler {
                 .error(error)
                 .message(message)
                 .path(path)
+                .validationErrors(null)
                 .build();
 
         return ResponseEntity.status(status).body(body);
@@ -86,6 +90,19 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED,
                 "Invalid credentials",
                 ex.getMessage(),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleBadCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                "Invalid credentials",
+                "Username or password is incorrect",
                 request.getRequestURI()
         );
     }
@@ -236,6 +253,45 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex,
             HttpServletRequest request
     ) {
+        Throwable cause = ex.getCause();
+
+        if (cause instanceof InvalidFormatException invalidFormatException) {
+            Class<?> targetType = invalidFormatException.getTargetType();
+
+            if (targetType != null && targetType.isEnum()) {
+                String fieldName = invalidFormatException.getPath() != null && !invalidFormatException.getPath().isEmpty()
+                        ? invalidFormatException.getPath().get(invalidFormatException.getPath().size() - 1).getFieldName()
+                        : "unknown";
+
+                String invalidValue = invalidFormatException.getValue() != null
+                        ? invalidFormatException.getValue().toString()
+                        : "null";
+
+                String acceptedValues = Arrays.stream(targetType.getEnumConstants())
+                        .map(Object::toString)
+                        .collect(Collectors.joining(", "));
+
+                return buildResponse(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid enum value",
+                        "Invalid value '" + invalidValue + "' for field '" + fieldName
+                                + "'. Accepted values: [" + acceptedValues + "]",
+                        request.getRequestURI()
+                );
+            }
+
+            String fieldName = invalidFormatException.getPath() != null && !invalidFormatException.getPath().isEmpty()
+                    ? invalidFormatException.getPath().get(invalidFormatException.getPath().size() - 1).getFieldName()
+                    : "unknown";
+
+            return buildResponse(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid field format",
+                    "Invalid value for field '" + fieldName + "'",
+                    request.getRequestURI()
+            );
+        }
+
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
                 "Malformed JSON request",
@@ -243,7 +299,6 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
     }
-
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(
             DataIntegrityViolationException ex,
@@ -264,12 +319,10 @@ public class GlobalExceptionHandler {
             HttpRequestMethodNotSupportedException ex,
             HttpServletRequest request
     ) {
-        String message = "HTTP method not supported for this endpoint";
-
         return buildResponse(
                 HttpStatus.METHOD_NOT_ALLOWED,
                 "Method not allowed",
-                message,
+                "HTTP method not supported for this endpoint",
                 request.getRequestURI()
         );
     }
@@ -288,7 +341,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> handleGenericException(
+    public ResponseEntity<ApiErrorResponse> handleGeneric(
             Exception ex,
             HttpServletRequest request
     ) {
