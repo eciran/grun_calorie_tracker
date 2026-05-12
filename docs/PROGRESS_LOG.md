@@ -254,6 +254,37 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuç: 53 test geçti, 0 failure, 0 error.
 
+## 2026-05-12 - Local Secret ve Config Güvenliği
+
+### Yapılanlar
+
+- `src/main/resources/application.yml` Git tarafından takip edilmiyor olduğu doğrulandı.
+- Local `application.yml` env variable tabanlı hale getirildi:
+  - `SPRING_DATASOURCE_URL`
+  - `POSTGRES_USER`
+  - `POSTGRES_PASSWORD`
+  - `JWT_SECRET`
+  - `JWT_EXPIRATION_MS`
+  - `OPENFOODFACTS_BASE_URL`
+- Gerçek secret içermeyen örnek dosyalar eklendi:
+  - `.env.example`
+  - `src/main/resources/application-example.yml`
+- `scripts/run-local.ps1` ve `scripts/stop-local.ps1` hardcoded DB password kullanmayacak şekilde güncellendi.
+- Scriptler varsa `.env` dosyasını okuyarak environment variable set eder.
+- `.gitignore` içinde `.codex/`, `.env`, `*.env` ignore kalırken `.env.example` commit edilebilir hale getirildi.
+
+### Karar
+
+- Gerçek DB password, JWT secret ve provider key değerleri repository'ye eklenmeyecek.
+- Lokal geliştirme için `.env.example` kopyalanıp `.env` oluşturulacak.
+- Paylaşılan config dosyalarında gerçek secret yerine env variable placeholder kullanılacak.
+
+### Doğrulama
+
+- PowerShell script parse kontrolü yapıldı.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuç: 53 test geçti, 0 failure, 0 error.
+
 ## 2026-05-12 - Product Search Pagination ve Kalite Öncelikli Sıralama
 
 ### Yapılanlar

@@ -38,4 +38,5 @@ build/
 # Configuration files
 .env
 *.env
+!.env.example
 src/main/resources/application.yml

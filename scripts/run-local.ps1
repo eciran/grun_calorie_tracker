@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $projectRoot "src\main\resources\docker-compose.yml"
+$envFile = Join-Path $projectRoot ".env"
 
 function Test-Command {
     param([string] $Name)
@@ -18,9 +19,19 @@ try {
     Write-Error "Docker Desktop is not running. Start Docker Desktop, then run this script again."
 }
 
-$env:POSTGRES_USER = "postgres"
-$env:POSTGRES_PASSWORD = "Magellan1!"
-$env:POSTGRES_DB = "grun_calorie_db"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith("#") -and $line.Contains("=")) {
+            $key, $value = $line.Split("=", 2)
+            [Environment]::SetEnvironmentVariable($key.Trim(), $value.Trim().Trim('"'), "Process")
+        }
+    }
+}
+
+if (-not $env:POSTGRES_USER) { $env:POSTGRES_USER = "postgres" }
+if (-not $env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD = "postgres" }
+if (-not $env:POSTGRES_DB) { $env:POSTGRES_DB = "grun_calorie_db" }
 
 Push-Location $projectRoot
 try {
