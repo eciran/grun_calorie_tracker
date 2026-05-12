@@ -3,6 +3,7 @@ package com.grun.calorietracker.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,6 +37,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, "Invalid credentials", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.FORBIDDEN, "Access denied", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(ProductNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleProductNotFoundException(ProductNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "Product not found", ex.getMessage(), request.getRequestURI());
@@ -49,6 +55,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExerciseItemNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleExerciseItemNotFoundException(ExerciseItemNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "Exercise item not found", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(DuplicateExternalExerciseLogException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateExternalExerciseLogException(DuplicateExternalExerciseLogException ex,
+                                                                                           HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "Duplicate external exercise log", ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

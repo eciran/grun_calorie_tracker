@@ -17,7 +17,7 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
   //  List<ExerciseLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
     Optional<ExerciseLogsEntity> findByIdAndUser(Long id, UserEntity user);
     List<ExerciseLogsEntity> findByUserAndSource(UserEntity user, String source);
-    Optional<ExerciseLogsEntity> findByExternalIdAndUser(String externalId, UserEntity user);
+    Optional<ExerciseLogsEntity> findByUserAndSourceAndExternalId(UserEntity user, String source, String externalId);
 
     @Query(value = """
     SELECT date_trunc(:range, e.log_date) as bucket,

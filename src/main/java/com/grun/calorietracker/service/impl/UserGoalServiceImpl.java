@@ -8,6 +8,7 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.UserGoalService;
+import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,7 @@ import java.util.Optional;
 public class UserGoalServiceImpl implements UserGoalService {
 
     private final GoalRepository userGoalRepository;
-    private final UserServiceImpl userService;
-    private final UserGoalMapper userGoalMapper;
+    private final UserService userService;
 
     @Override
     public UserGoalDto saveUserGoal(UserGoalDto goalData, String email) {

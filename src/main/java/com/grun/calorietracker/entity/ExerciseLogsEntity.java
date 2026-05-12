@@ -8,7 +8,18 @@ import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "exercise_logs")
+@Table(
+        name = "exercise_logs",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_exercise_logs_user_source_external",
+                        columnNames = {"user_id", "source", "external_id"}
+                )
+        },
+        indexes = {
+                @Index(name = "idx_exercise_logs_user_source", columnList = "user_id, source")
+        }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

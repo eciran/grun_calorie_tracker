@@ -9,7 +9,7 @@ public class ExerciseLogsMapper {
 
     public ExerciseLogsDto toDto(ExerciseLogsEntity entity) {
         ExerciseLogsDto dto = new ExerciseLogsDto();
-        dto.setExerciseItemId(entity.getId());
+        dto.setId(entity.getId());
         if (entity.getExerciseItem() != null) {
             dto.setExerciseItemId(entity.getExerciseItem().getId());
             dto.setExerciseItemName(entity.getExerciseItem().getName());

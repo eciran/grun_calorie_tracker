@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.AuthRequest;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
@@ -16,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -64,11 +66,18 @@ class AuthControllerTest {
 
     @Test
     void testRegisterUser() throws Exception {
-        when(userService.registerUser(any(UserEntity.class))).thenReturn(sampleUserProfileDto);
+        AuthRequest request = new AuthRequest();
+        request.setEmail("testuser@example.com");
+        request.setPassword("Password1!");
+
+        when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.empty());
+        when(userRepository.save(any(UserEntity.class))).thenReturn(sampleUser);
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleUser)))
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
+
+        verify(userRepository).save(any(UserEntity.class));
     }
 }

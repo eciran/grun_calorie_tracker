@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -23,8 +24,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -78,8 +82,7 @@ class FoodLogsControllerTest {
         savedDto.setMealType("breakfast");
         savedDto.setLogDate(dto.getLogDate());
 
-        when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.of(user));
-        when(foodLogsService.addFoodLog(any(FoodLogsDto.class), eq(user.getName()))).thenReturn(savedDto);
+        when(foodLogsService.addFoodLog(any(FoodLogsDto.class), eq(user.getEmail()))).thenReturn(savedDto);
 
         // Act & Assert
         mockMvc.perform(post("/api/food-logs")
@@ -94,7 +97,8 @@ class FoodLogsControllerTest {
     @WithMockUser(username = "test@test.com", roles = "USER")
     void testAddFoodLog_invalidCredential() throws Exception {
         FoodLogsDto dto = new FoodLogsDto();
-        when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.empty());
+        doThrow(new InvalidCredentialsException("Invalid credential"))
+                .when(foodLogsService).addFoodLog(any(FoodLogsDto.class), eq(user.getEmail()));
 
         mockMvc.perform(post("/api/food-logs")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -123,5 +127,30 @@ class FoodLogsControllerTest {
 
         mockMvc.perform(delete("/api/food-logs/1"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void testGetDailyStats_success() throws Exception {
+        FoodLogDailyStatsDto stats = new FoodLogDailyStatsDto();
+        stats.setDate("2026-05-01");
+        stats.setTotalCalories(450.5);
+        stats.setTotalProtein(30.0);
+        stats.setTotalCarbs(55.25);
+        stats.setTotalFat(12.75);
+
+        when(userService.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(eq(user.getEmail()), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(stats));
+
+        mockMvc.perform(get("/api/food-logs/stats")
+                        .param("start", "2026-05-01")
+                        .param("end", "2026-05-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].date").value("2026-05-01"))
+                .andExpect(jsonPath("$[0].totalCalories").value(450.5))
+                .andExpect(jsonPath("$[0].totalProtein").value(30.0))
+                .andExpect(jsonPath("$[0].totalCarbs").value(55.25))
+                .andExpect(jsonPath("$[0].totalFat").value(12.75));
     }
 }

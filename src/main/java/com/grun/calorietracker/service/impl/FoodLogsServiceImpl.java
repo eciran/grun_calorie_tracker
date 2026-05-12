@@ -11,12 +11,15 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
+import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,6 +32,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private final UserRepository userRepository;
 
     @Override
+    @Transactional
     public FoodLogsDto addFoodLog(FoodLogsDto dto, String email) {
         FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
@@ -42,6 +46,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setLogDate(dto.getLogDate());
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
+        markFoodItemUsed(foodItem);
         return toDto(saved);
     }
 
@@ -85,8 +90,55 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     public List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
-        return null;
-       // return foodLogsRepository.getDailyStatsByUserAndDateBetween(user, start, end);
+
+        return foodLogsRepository.getDailyStatsByUserAndDateBetween(user.getId(), start, end)
+                .stream()
+                .map(this::toDailyStatsDto)
+                .collect(Collectors.toList());
+    }
+
+    private FoodLogDailyStatsDto toDailyStatsDto(Object[] row) {
+        FoodLogDailyStatsDto dto = new FoodLogDailyStatsDto();
+        dto.setDate(formatDate(row[0]));
+        dto.setTotalCalories(toDouble(row[1]));
+        dto.setTotalProtein(toDouble(row[2]));
+        dto.setTotalCarbs(toDouble(row[3]));
+        dto.setTotalFat(toDouble(row[4]));
+        return dto;
+    }
+
+    private String formatDate(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof java.sql.Date sqlDate) {
+            return sqlDate.toLocalDate().toString();
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toLocalDateTime().toLocalDate().toString();
+        }
+        if (value instanceof LocalDate localDate) {
+            return localDate.toString();
+        }
+        if (value instanceof LocalDateTime localDateTime) {
+            return localDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        }
+        return value.toString();
+    }
+
+    private Double toDouble(Object value) {
+        if (value == null) {
+            return 0.0;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        return Double.parseDouble(value.toString());
+    }
+
+    private void markFoodItemUsed(FoodItemEntity foodItem) {
+        FoodProductQualityRules.markUsed(foodItem);
+        foodItemRepository.save(foodItem);
     }
 
     private FoodLogsDto toDto(FoodLogsEntity entity) {

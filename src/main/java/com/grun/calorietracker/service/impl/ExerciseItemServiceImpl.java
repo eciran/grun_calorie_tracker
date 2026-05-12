@@ -31,8 +31,9 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     @Override
     public ExerciseItemDto addItem(ExerciseItemDto dto) {
         ExerciseItemEntity entity = exerciseItemMapper.toEntity(dto);
+        applyCatalogDefaults(entity);
         ExerciseItemEntity saved = exerciseItemRepository.save(entity);
-        return exerciseItemMapper. toDto(saved);
+        return exerciseItemMapper.toDto(saved);
     }
 
     @Override
@@ -45,6 +46,18 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
         existing.setCaloriesPerMinute(dto.getCaloriesPerMinute());
         existing.setDescription(dto.getDescription());
         existing.setIconUrl(dto.getIconUrl());
+        existing.setPrimaryMuscleGroup(dto.getPrimaryMuscleGroup());
+        existing.setSecondaryMuscleGroups(dto.getSecondaryMuscleGroups());
+        existing.setEquipment(dto.getEquipment());
+        existing.setDifficulty(dto.getDifficulty());
+        existing.setInstructions(dto.getInstructions());
+        existing.setSafetyNotes(dto.getSafetyNotes());
+        existing.setThumbnailUrl(dto.getThumbnailUrl());
+        existing.setVideoUrl(dto.getVideoUrl());
+        existing.setAnimationUrl(dto.getAnimationUrl());
+        existing.setAiEligible(dto.getAiEligible());
+        existing.setActive(dto.getActive());
+        applyCatalogDefaults(existing);
 
         ExerciseItemEntity updated = exerciseItemRepository.save(existing);
         return exerciseItemMapper.toDto(updated);
@@ -55,5 +68,14 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
         ExerciseItemEntity existing = exerciseItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Exercise item not found with id: " + id));
         exerciseItemRepository.delete(existing);
+    }
+
+    private void applyCatalogDefaults(ExerciseItemEntity entity) {
+        if (entity.getAiEligible() == null) {
+            entity.setAiEligible(true);
+        }
+        if (entity.getActive() == null) {
+            entity.setActive(true);
+        }
     }
 }
