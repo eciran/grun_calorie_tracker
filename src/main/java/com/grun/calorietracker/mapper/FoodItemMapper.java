@@ -14,8 +14,21 @@ public class FoodItemMapper {
         }
         FoodItemEntity entity = new FoodItemEntity();
         entity.setBarcode(dto.getBarcode());
+        entity.setNormalizedBarcode(dto.getNormalizedBarcode());
         entity.setName(dto.getProductName());
         entity.setImageUrl(dto.getImageUrl());
+        entity.setExternalImageUrl(dto.getExternalImageUrl());
+        entity.setDisplayImageUrl(dto.getDisplayImageUrl());
+        entity.setDataSource(dto.getDataSource());
+        entity.setVerificationStatus(dto.getVerificationStatus());
+        entity.setImageSource(dto.getImageSource());
+        entity.setImageStatus(dto.getImageStatus());
+        entity.setUsageCount(dto.getUsageCount());
+        entity.setQualityScore(dto.getQualityScore());
+        entity.setReviewPriority(dto.getReviewPriority());
+        entity.setLastExternalSyncAt(parseLocalDateTime(dto.getLastExternalSyncAt()));
+        entity.setLastReviewedAt(parseLocalDateTime(dto.getLastReviewedAt()));
+        entity.setReviewedBy(dto.getReviewedBy());
         entity.setCalories(dto.getCalories());
         entity.setProtein(dto.getProtein());
         entity.setFat(dto.getFat());
@@ -25,17 +38,35 @@ public class FoodItemMapper {
         entity.setSodium(dto.getSodium());
         entity.setAllergens(dto.getAllergens());
         entity.setNutriScore(dto.getNutriScore());
-        // dto.getServingSize() ve dto.getIngredientsText()
+        // FoodItemEntity does not currently store servingSize or ingredientsText.
         // entity.setServingSize(dto.getServingSize());
         // entity.setIngredientsText(dto.getIngredientsText());
         return entity;
     }
 
     public static FoodProductDto mapEntityToDto(FoodItemEntity entity) {
+        if (entity == null) {
+            return null;
+        }
         FoodProductDto dto = new FoodProductDto();
-            dto.setId(entity.getId());
+        dto.setId(entity.getId());
         dto.setBarcode(entity.getBarcode());
+        dto.setNormalizedBarcode(entity.getNormalizedBarcode());
         dto.setProductName(entity.getName());
+        // FoodItemEntity does not currently store brand.
+        dto.setImageUrl(entity.getImageUrl());
+        dto.setExternalImageUrl(entity.getExternalImageUrl());
+        dto.setDisplayImageUrl(entity.getDisplayImageUrl());
+        dto.setDataSource(entity.getDataSource());
+        dto.setVerificationStatus(entity.getVerificationStatus());
+        dto.setImageSource(entity.getImageSource());
+        dto.setImageStatus(entity.getImageStatus());
+        dto.setUsageCount(entity.getUsageCount());
+        dto.setQualityScore(entity.getQualityScore());
+        dto.setReviewPriority(entity.getReviewPriority());
+        dto.setLastExternalSyncAt(formatLocalDateTime(entity.getLastExternalSyncAt()));
+        dto.setLastReviewedAt(formatLocalDateTime(entity.getLastReviewedAt()));
+        dto.setReviewedBy(entity.getReviewedBy());
         dto.setCalories(entity.getCalories());
         dto.setProtein(entity.getProtein());
         dto.setFat(entity.getFat());
@@ -43,9 +74,9 @@ public class FoodItemMapper {
         dto.setFiber(entity.getFiber());
         dto.setSugar(entity.getSugar());
         dto.setSodium(entity.getSodium());
-        dto.setImageUrl(entity.getImageUrl());
-       // dto.setBrand(entity.getBrand());
-       // dto.setIngredientsText(entity.getIngredientsText());
+        // FoodItemEntity does not currently store servingSize or ingredientsText.
+        // dto.setServingSize(entity.getServingSize());
+        // dto.setIngredientsText(entity.getIngredientsText());
         dto.setAllergens(entity.getAllergens());
         dto.setNutriScore(entity.getNutriScore());
         return dto;
@@ -67,5 +98,16 @@ public class FoodItemMapper {
         return entities.stream()
                 .map(FoodItemMapper::mapEntityToDto)
                 .collect(Collectors.toList());
+    }
+
+    private static java.time.LocalDateTime parseLocalDateTime(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return java.time.LocalDateTime.parse(value.trim());
+    }
+
+    private static String formatLocalDateTime(java.time.LocalDateTime value) {
+        return value == null ? null : value.toString();
     }
 }

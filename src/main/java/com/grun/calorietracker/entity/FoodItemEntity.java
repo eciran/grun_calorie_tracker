@@ -1,9 +1,16 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.ImageSource;
+import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "food_items")
 @Data
@@ -15,58 +22,48 @@ public class FoodItemEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name")
     private String name;
 
-    @Column(name = "barcode")
     private String barcode;
-
-    @Column(name = "image_url")
+    private String normalizedBarcode;
     private String imageUrl;
-
-    @Column(name = "allergens")
+    private String externalImageUrl;
+    private String displayImageUrl;
     private String allergens;
-
-    @Column(name = "nutri_score")
     private String nutriScore;
 
-    @Column(name = "calories")
+    @Enumerated(EnumType.STRING)
+    private FoodDataSource dataSource;
+
+    @Enumerated(EnumType.STRING)
+    private VerificationStatus verificationStatus;
+
+    @Enumerated(EnumType.STRING)
+    private ImageSource imageSource;
+
+    @Enumerated(EnumType.STRING)
+    private ImageStatus imageStatus;
+
+    private Long usageCount;
+    private Integer qualityScore;
+    private Integer reviewPriority;
+    private LocalDateTime lastExternalSyncAt;
+    private LocalDateTime lastReviewedAt;
+    private String reviewedBy;
+
     private Double calories;
-
-    @Column(name = "protein")
     private Double protein;
-
-    @Column(name = "fat")
     private Double fat;
-
-    @Column(name = "carbs")
     private Double carbs;
-
-    @Column(name = "fiber")
     private Double fiber;
-
-    @Column(name = "sugar")
     private Double sugar;
 
-    @Column(name = "sodium")
     private Double sodium;
-
-    @Column(name = "potassium")
     private Double potassium;
-
-    @Column(name = "cholesterol")
     private Double cholesterol;
-
-    @Column(name = "calcium")
     private Double calcium;
-
-    @Column(name = "iron")
     private Double iron;
-
-    @Column(name = "magnesium")
     private Double magnesium;
-
-    @Column(name = "zinc")
     private Double zinc;
 
     @Column(name = "vitamin_a")
@@ -84,15 +81,9 @@ public class FoodItemEntity {
     @Column(name = "vitamin_b12")
     private Double vitaminB12;
 
-    @Column(name = "saturated_fat")
     private Double saturatedFat;
-
-    @Column(name = "trans_fat")
     private Double transFat;
-
-    @Column(name = "sugar_alcohol")
     private Double sugarAlcohol;
 
-    @Column(name = "is_custom")
     private Boolean isCustom;
 }

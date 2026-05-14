@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.ExerciseDifficulty;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,4 +21,23 @@ public class ExerciseItemEntity {
     private Double caloriesPerMinute;
     private String description;
     private String iconUrl;
+
+    private String primaryMuscleGroup;
+    private String secondaryMuscleGroups;
+    private String equipment;
+
+    @Enumerated(EnumType.STRING)
+    private ExerciseDifficulty difficulty;
+
+    @Column(length = 2000)
+    private String instructions;
+
+    @Column(length = 1000)
+    private String safetyNotes;
+
+    private String thumbnailUrl;
+    private String videoUrl;
+    private String animationUrl;
+    private Boolean aiEligible = true;
+    private Boolean active = true;
 }

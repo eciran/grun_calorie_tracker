@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:grun_calorie_tracker_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+jwt:
+  secret: R1J1bl9DYWxvcmllX1RyYWNrZXJfU2VjcmV0S2V5XzIwMjVfQmFzZTY0X1NhbXBsZV9LZXlfMTIzNDU2Nzg5
+  expiration-ms: 86400000
+
+openfoodfacts:
+  base-url: https://world.openfoodfacts.org

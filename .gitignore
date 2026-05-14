@@ -32,7 +32,11 @@ build/
 ### VS Code ###
 .vscode/
 
+### Codex local environment ###
+.codex/
+
 # Configuration files
 .env
 *.env
+!.env.example
 src/main/resources/application.yml

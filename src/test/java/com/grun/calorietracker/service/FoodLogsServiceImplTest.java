@@ -1,10 +1,13 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
-import com.grun.calorietracker.exception.ProductNotFoundException;
+import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -15,7 +18,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.sql.Date;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,10 +33,8 @@ class FoodLogsServiceImplTest {
 
     @Mock
     private FoodLogsRepository foodLogsRepository;
-
     @Mock
     private FoodItemRepository foodItemRepository;
-
     @Mock
     private UserRepository userRepository;
 
@@ -41,14 +47,18 @@ class FoodLogsServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-
         user = new UserEntity();
         user.setId(1L);
-        user.setEmail("test@example.com");
-
+        user.setEmail("test@test.com");
         foodItem = new FoodItemEntity();
         foodItem.setId(1L);
         foodItem.setName("Egg");
+        foodItem.setBarcode("123456789");
+        foodItem.setCalories(155.0);
+        foodItem.setProtein(13.0);
+        foodItem.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        foodItem.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        foodItem.setUsageCount(0L);
     }
 
     @Test
@@ -60,7 +70,7 @@ class FoodLogsServiceImplTest {
         dto.setLogDate(LocalDateTime.now());
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
 
         FoodLogsEntity savedEntity = new FoodLogsEntity();
         savedEntity.setId(1L);
@@ -72,12 +82,16 @@ class FoodLogsServiceImplTest {
 
         when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenReturn(savedEntity);
 
-        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@example.com");
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
 
         assertNotNull(result);
         assertEquals(1L, result.getId());
         assertEquals("Egg", result.getFoodName());
+        assertEquals(1L, foodItem.getUsageCount());
+        assertNotNull(foodItem.getQualityScore());
+        assertNotNull(foodItem.getReviewPriority());
         verify(foodLogsRepository, times(1)).save(any(FoodLogsEntity.class));
+        verify(foodItemRepository).save(foodItem);
     }
 
     @Test
@@ -87,6 +101,64 @@ class FoodLogsServiceImplTest {
 
         when(foodItemRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ProductNotFoundException.class, () -> foodLogsService.addFoodLog(dto, "test@example.com"));
+        assertThrows(RuntimeException.class, () -> foodLogsService.addFoodLog(dto, user.getEmail()));
+    }
+
+    @Test
+    void testGetDailyStats_success() {
+        LocalDateTime start = LocalDate.of(2026, 5, 1).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 2).atStartOfDay();
+
+        Object[] row = new Object[]{
+                Date.valueOf("2026-05-01"),
+                BigDecimal.valueOf(450.5),
+                BigDecimal.valueOf(30.0),
+                BigDecimal.valueOf(55.25),
+                BigDecimal.valueOf(12.75)
+        };
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.getDailyStatsByUserAndDateBetween(1L, start, end))
+                .thenReturn(Collections.singletonList(row));
+
+        List<FoodLogDailyStatsDto> result = foodLogsService.getDailyStats("test@test.com", start, end);
+
+        assertEquals(1, result.size());
+        assertEquals("2026-05-01", result.get(0).getDate());
+        assertEquals(450.5, result.get(0).getTotalCalories());
+        assertEquals(30.0, result.get(0).getTotalProtein());
+        assertEquals(55.25, result.get(0).getTotalCarbs());
+        assertEquals(12.75, result.get(0).getTotalFat());
+        verify(foodLogsRepository).getDailyStatsByUserAndDateBetween(1L, start, end);
+    }
+
+    @Test
+    void testGetDailyStats_whenValuesAreNull_mapsTotalsToZero() {
+        LocalDateTime start = LocalDate.of(2026, 5, 1).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 2).atStartOfDay();
+
+        Object[] row = new Object[]{Date.valueOf("2026-05-01"), null, null, null, null};
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.getDailyStatsByUserAndDateBetween(1L, start, end))
+                .thenReturn(Collections.singletonList(row));
+
+        List<FoodLogDailyStatsDto> result = foodLogsService.getDailyStats("test@test.com", start, end);
+
+        assertEquals(0.0, result.get(0).getTotalCalories());
+        assertEquals(0.0, result.get(0).getTotalProtein());
+        assertEquals(0.0, result.get(0).getTotalCarbs());
+        assertEquals(0.0, result.get(0).getTotalFat());
+    }
+
+    @Test
+    void testGetDailyStats_whenUserNotFound_throwsInvalidCredentials() {
+        LocalDateTime start = LocalDate.of(2026, 5, 1).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 2).atStartOfDay();
+
+        when(userRepository.findByEmail("missing@test.com")).thenReturn(Optional.empty());
+
+        assertThrows(InvalidCredentialsException.class,
+                () -> foodLogsService.getDailyStats("missing@test.com", start, end));
     }
 }

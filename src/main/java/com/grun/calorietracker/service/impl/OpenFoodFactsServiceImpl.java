@@ -1,177 +1,203 @@
 package com.grun.calorietracker.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.ImageSource;
+import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.OpenFoodFactsService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.client.RestClientException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final int DEFAULT_SEARCH_SIZE = 20;
 
-    @Value("${openfoodfacts.base-url:https://world.openfoodfacts.org}")
-    private String baseUrl;
+    private final RestClient restClient;
+
+    public OpenFoodFactsServiceImpl(@Value("${openfoodfacts.base-url}") String baseUrl,
+                                    RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder.baseUrl(baseUrl).build();
+    }
 
     @Override
     public List<FoodProductDto> searchProducts(String query) {
-        if (query == null || query.isBlank()) {
+        String normalizedQuery = normalize(query);
+        if (normalizedQuery == null) {
             return List.of();
         }
 
-        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .path("/cgi/search.pl")
-                .queryParam("search_terms", query.trim())
-                .queryParam("search_simple", 1)
-                .queryParam("action", "process")
-                .queryParam("json", 1)
-                .queryParam("page_size", 20)
-                .queryParam("fields", "code,product_name,brands,image_url,nutriments,allergens,nutrition_grades,ingredients_text")
-                .toUriString();
-
-        try {
-            String response = RestClient.create()
-                    .get()
-                    .uri(url)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
-                    .body(String.class);
-
-            JsonNode root = objectMapper.readTree(response);
-            JsonNode products = root.path("products");
-
-            if (!products.isArray()) {
-                return List.of();
-            }
-
-            List<FoodProductDto> result = new ArrayList<>();
-            for (JsonNode productNode : products) {
-                FoodProductDto dto = mapProductNode(productNode);
-                if (dto.getProductName() != null && !dto.getProductName().isBlank()) {
-                    result.add(dto);
-                }
-            }
-
-            return result;
-        } catch (Exception ex) {
-            return List.of();
-        }
+        return fetchSearchResults(normalizedQuery, null, null);
     }
 
     @Override
     public Optional<FoodProductDto> getProductByBarcode(String barcode) {
-        if (barcode == null || barcode.isBlank()) {
+        String normalizedBarcode = normalize(barcode);
+        if (normalizedBarcode == null) {
             return Optional.empty();
         }
 
-        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .path("/api/v2/product/{barcode}")
-                .queryParam("fields", "code,product_name,brands,image_url,nutriments,allergens,nutrition_grades,ingredients_text")
-                .buildAndExpand(barcode.trim())
-                .toUriString();
-
         try {
-            String response = RestClient.create()
-                    .get()
-                    .uri(url)
-                    .accept(MediaType.APPLICATION_JSON)
+            JsonNode response = restClient.get()
+                    .uri("/api/v2/product/{barcode}.json", normalizedBarcode)
                     .retrieve()
-                    .body(String.class);
+                    .body(JsonNode.class);
 
-            JsonNode root = objectMapper.readTree(response);
-
-            if (root.path("status").asInt() != 1) {
+            if (response == null || response.path("status").asInt(0) != 1) {
                 return Optional.empty();
             }
 
-            JsonNode productNode = root.path("product");
-            if (productNode.isMissingNode() || productNode.isNull()) {
-                return Optional.empty();
-            }
-
-            FoodProductDto dto = mapProductNode(productNode);
-            if (dto.getBarcode() == null || dto.getBarcode().isBlank()) {
-                dto.setBarcode(barcode.trim());
-            }
-
-            return Optional.of(dto);
-        } catch (Exception ex) {
+            FoodProductDto product = mapProduct(response.path("product"), normalizedBarcode);
+            return product.getProductName() == null ? Optional.empty() : Optional.of(product);
+        } catch (RestClientException ex) {
             return Optional.empty();
         }
     }
 
     @Override
     public List<FoodProductDto> searchProductsByCriteria(FoodSearchCriteriaDto criteria) {
-        List<FoodProductDto> results = searchProducts(criteria.getQuery());
+        if (criteria == null) {
+            return List.of();
+        }
 
-        return results.stream()
-                .filter(product -> criteria.getMinCalories() == null || safe(product.getCalories()) >= criteria.getMinCalories())
-                .filter(product -> criteria.getMaxCalories() == null || safe(product.getCalories()) <= criteria.getMaxCalories())
-                .filter(product -> criteria.getNutriScore() == null
-                        || criteria.getNutriScore().isBlank()
-                        || equalsIgnoreCase(product.getNutriScore(), criteria.getNutriScore()))
-                .toList();
+        String normalizedQuery = normalize(criteria.getQuery());
+        if (normalizedQuery == null) {
+            return List.of();
+        }
+
+        return fetchSearchResults(normalizedQuery, criteria.getBrand(), criteria.getNutriScore());
     }
 
-    private FoodProductDto mapProductNode(JsonNode productNode) {
-        JsonNode nutriments = productNode.path("nutriments");
+    private List<FoodProductDto> fetchSearchResults(String query, String brand, String nutriScore) {
+        try {
+            JsonNode response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/cgi/search.pl")
+                            .queryParam("search_terms", query)
+                            .queryParam("search_simple", 1)
+                            .queryParam("action", "process")
+                            .queryParam("json", 1)
+                            .queryParam("page_size", DEFAULT_SEARCH_SIZE)
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
 
+            JsonNode products = response == null ? null : response.path("products");
+            if (products == null || !products.isArray()) {
+                return List.of();
+            }
+
+            String normalizedBrand = normalizeLower(brand);
+            String normalizedNutriScore = normalizeLower(nutriScore);
+            List<FoodProductDto> result = new ArrayList<>();
+            for (JsonNode productNode : products) {
+                FoodProductDto product = mapProduct(productNode, text(productNode, "code"));
+                if (product.getProductName() == null) {
+                    continue;
+                }
+                if (normalizedBrand != null && !containsIgnoreCase(product.getBrand(), normalizedBrand)) {
+                    continue;
+                }
+                if (normalizedNutriScore != null && !normalizedNutriScore.equals(normalizeLower(product.getNutriScore()))) {
+                    continue;
+                }
+                result.add(product);
+            }
+            return result;
+        } catch (RestClientException ex) {
+            return List.of();
+        }
+    }
+
+    private FoodProductDto mapProduct(JsonNode productNode, String fallbackBarcode) {
         FoodProductDto dto = new FoodProductDto();
-        dto.setBarcode(readText(productNode, "code"));
-        dto.setProductName(readText(productNode, "product_name"));
-        dto.setBrand(readText(productNode, "brands"));
-        dto.setImageUrl(readText(productNode, "image_url"));
-        dto.setCalories(readDouble(nutriments, "energy-kcal_100g"));
-        dto.setProtein(readDouble(nutriments, "proteins_100g"));
-        dto.setFat(readDouble(nutriments, "fat_100g"));
-        dto.setCarbs(readDouble(nutriments, "carbohydrates_100g"));
-        dto.setFiber(readDouble(nutriments, "fiber_100g"));
-        dto.setSugar(readDouble(nutriments, "sugars_100g"));
-        dto.setSodium(readDouble(nutriments, "sodium_100g"));
-        dto.setServingSize(readDouble(productNode, "serving_quantity"));
-        dto.setIngredientsText(readText(productNode, "ingredients_text"));
-        dto.setAllergens(readText(productNode, "allergens"));
-        dto.setNutriScore(readText(productNode, "nutrition_grades"));
+        dto.setBarcode(firstText(productNode, fallbackBarcode, "code", "barcode"));
+        dto.setProductName(firstText(productNode, null, "product_name", "product_name_en", "generic_name"));
+        dto.setBrand(text(productNode, "brands"));
+        dto.setImageUrl(firstText(productNode, null, "image_front_url", "image_url"));
+        dto.setExternalImageUrl(dto.getImageUrl());
+        dto.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
+        dto.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        dto.setImageSource(ImageSource.OPEN_FOOD_FACTS);
+        dto.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        dto.setIngredientsText(firstText(productNode, null, "ingredients_text", "ingredients_text_en"));
+        dto.setAllergens(firstText(productNode, null, "allergens_from_ingredients", "allergens"));
+        dto.setNutriScore(normalizeLower(firstText(productNode, null, "nutriscore_grade", "nutri_score")));
+        dto.setServingSize(number(productNode, "serving_quantity"));
+
+        JsonNode nutriments = productNode.path("nutriments");
+        dto.setCalories(number(nutriments, "energy-kcal_100g", "energy-kcal_serving"));
+        dto.setProtein(number(nutriments, "proteins_100g", "proteins_serving"));
+        dto.setFat(number(nutriments, "fat_100g", "fat_serving"));
+        dto.setCarbs(number(nutriments, "carbohydrates_100g", "carbohydrates_serving"));
+        dto.setFiber(number(nutriments, "fiber_100g", "fiber_serving"));
+        dto.setSugar(number(nutriments, "sugars_100g", "sugars_serving"));
+        dto.setSodium(number(nutriments, "sodium_100g", "sodium_serving"));
         return dto;
     }
 
-    private String readText(JsonNode node, String fieldName) {
-        JsonNode field = node.path(fieldName);
-        if (field.isMissingNode() || field.isNull()) {
+    private String firstText(JsonNode node, String fallback, String... fields) {
+        for (String field : fields) {
+            String value = text(node, field);
+            if (value != null) {
+                return value;
+            }
+        }
+        return fallback;
+    }
+
+    private String text(JsonNode node, String field) {
+        if (node == null || node.path(field).isMissingNode() || node.path(field).isNull()) {
             return null;
         }
-        String value = field.asText();
-        return value == null || value.isBlank() ? null : value.trim();
+        String value = node.path(field).asText();
+        return normalize(value);
     }
 
-    private Double readDouble(JsonNode node, String fieldName) {
-        JsonNode field = node.path(fieldName);
-        if (field.isMissingNode() || field.isNull() || !field.isNumber()) {
+    private Double number(JsonNode node, String... fields) {
+        if (node == null) {
             return null;
         }
-        return field.asDouble();
-    }
-
-    private double safe(Double value) {
-        return value == null ? 0.0 : value;
-    }
-
-    private boolean equalsIgnoreCase(String left, String right) {
-        if (left == null || right == null) {
-            return false;
+        for (String field : fields) {
+            JsonNode value = node.path(field);
+            if (value.isNumber()) {
+                return value.asDouble();
+            }
+            String textValue = text(node, field);
+            if (textValue != null) {
+                try {
+                    return Double.parseDouble(textValue);
+                } catch (NumberFormatException ignored) {
+                    // Try the next candidate field.
+                }
+            }
         }
-        return left.trim().equalsIgnoreCase(right.trim());
+        return null;
+    }
+
+    private boolean containsIgnoreCase(String value, String normalizedExpected) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(normalizedExpected);
+    }
+
+    private String normalizeLower(String value) {
+        String normalized = normalize(value);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 }

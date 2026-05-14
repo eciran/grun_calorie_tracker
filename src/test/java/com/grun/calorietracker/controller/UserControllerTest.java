@@ -15,7 +15,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
@@ -67,6 +66,13 @@ class UserControllerTest {
         sampleUserProfileDto.setWeight(70.0);
         sampleUserProfileDto.setBmi(22.86);
         sampleUserProfileDto.setBodyFat(12.75);
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    void testGetUsersRoot_isNotExposedFromUserController() throws Exception {
+        mockMvc.perform(get("/api/users"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
