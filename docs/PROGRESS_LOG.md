@@ -875,3 +875,33 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Komut: `.\mvnw.cmd clean test "-Dtest=*Test,*Tests"`
 - Sonuc: 64 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Product Search Empty Result Kontrati
+
+### Yapilanlar
+
+- `GET /api/products/search` endpointinde bos sonuc davranisi duzeltildi.
+- Endpoint artik urun bulunamadiginda `204 No Content` yerine `200 OK` ve bos `FoodProductSearchPageDto` doner.
+- Swagger dokumantasyonundan product search icin `204` response kaldirildi.
+- Product controller testleri eklendi:
+  - Bos arama sonucunda `200` ve `content: []` doner.
+  - Urun bulunan aramada paginated product response doner.
+  - Barcode lookup product response doner.
+
+### Karar
+
+- Paginated liste endpointlerinde bos sonuc hata veya no-content degildir.
+- Mobil client her durumda ayni response kontratini kullanabilmeli:
+  - `content`
+  - `page`
+  - `size`
+  - `totalElements`
+  - `totalPages`
+- `204` sadece gercekten response body tasimamasi gereken delete gibi aksiyonlarda kullanilacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodItemControllerTest,FoodItemServiceImplTest" test`
+- Sonuc: 12 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test "-Dtest=*Test,*Tests"`
+- Sonuc: 67 test gecti, 0 failure, 0 error.

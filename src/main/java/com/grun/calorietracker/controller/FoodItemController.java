@@ -37,7 +37,6 @@ public class FoodItemController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Matching products returned."),
-            @ApiResponse(responseCode = "204", description = "No product matched the query."),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
     })
     public ResponseEntity<FoodProductSearchPageDto> searchProducts(
@@ -52,9 +51,6 @@ public class FoodItemController {
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 
-        if (products.getContent().isEmpty()) {
-            return ResponseEntity.noContent().build();
-        }
         return ResponseEntity.ok(products);
     }
 
