@@ -819,3 +819,59 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Sonuc: 58 test gecti, 0 failure, 0 error.
 - Lokal API: `GET /v3/api-docs` HTTP 200.
 - Flyway history: `V1` - `V7` success.
+
+## 2026-05-14 - User List Endpoint Admin Namespace'e Tasindi
+
+### Yapilanlar
+
+- Genel kullanici controller'i altindaki tum kullanicilari listeleme endpointi kaldirildi:
+  - Eski endpoint: `GET /api/users`
+- Kullanici listeleme islemi admin controller altina tasindi:
+  - Yeni endpoint: `GET /api/admin/users/userList`
+- Yeni `AdminUserController` eklendi.
+- Admin user endpointi `@PreAuthorize("hasRole('ADMIN')")` ile admin rolune kisitlandi.
+- Swagger dokumantasyonunda admin kullanici operasyonlari ayri `Admin Users` tag'i altina alindi.
+- 401 ve 403 Swagger response'lari icin gereksiz user list example payload'lari kaldirildi.
+- Kaldirilan `/api/users` route'u icin 500 yerine 404 donmesi amaciyla `NoResourceFoundException` handler'i eklendi.
+- Controller testleri admin ve normal kullanici yetki ayrimini kapsayacak sekilde guncellendi.
+
+### Karar
+
+- `/api/users` sadece login olan kullanicinin kendi profil ve vucut kompozisyon islemlerini tasir.
+- Tum kullanicilari listeleme gibi operasyonlar admin namespace altinda tutulur.
+- Normal kullanici, sistemdeki diger kullanicilari listeleyemez.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test "-Dtest=*Test,*Tests"`
+- Sonuc: 61 test gecti, 0 failure, 0 error.
+
+## 2026-05-14 - Swagger Error Response Standardizasyonu
+
+### Yapilanlar
+
+- Swagger UI'da hata response'larinin basarili response modeliyle ayni gorunmesine sebep olan genel OpenAPI response mirasi duzeltildi.
+- Standart hata response modeli eklendi:
+  - `ApiErrorResponseDto`
+  - Alanlar: `timestamp`, `status`, `error`, `message`, `path`
+- `OpenApiConfig` icine global customizer eklendi:
+  - `400+` HTTP response kodlari Swagger dokumaninda `ApiErrorResponseDto` semasina baglanir.
+  - Hata response example'lari endpoint path'i, status code'u ve ilgili response description'i kullanilarak uretilir.
+  - `204 No Content` response'lari Swagger'da body/example gostermeyecek sekilde temizlenir.
+- `GlobalExceptionHandler` artik map yerine standart `ApiErrorResponseDto` doner.
+- `AuthenticationException` icin 401 standart hata body handler'i eklendi.
+- Genel `IllegalArgumentException` response'u 409 yerine 400 olarak duzeltildi.
+- `POST /api/auth/register` duplicate email senaryosu artik `AuthResponse` yerine standart hata response body doner.
+- Auth controller testlerine hem gercek duplicate email hata body kontrolu hem de OpenAPI 400 schema kontrolu eklendi.
+- Product barcode endpointi icin 401/404 Swagger example'larinin endpoint'e ozel path ve mesajla uretildigi testle dogrulandi.
+
+### Karar
+
+- Basarili response DTO'lari ile hata response DTO'lari Swagger'da ayrik tutulacak.
+- Hata response'lari genel olarak standart `ApiErrorResponseDto` modeliyle temsil edilecek.
+- Gercek conflict durumlari icin ozel exception'lar 409 donmeye devam edecek; genel invalid request hatalari 400 doner.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test "-Dtest=*Test,*Tests"`
+- Sonuc: 64 test gecti, 0 failure, 0 error.

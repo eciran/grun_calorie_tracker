@@ -70,6 +70,13 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    void testGetUsersRoot_isNotExposedFromUserController() throws Exception {
+        mockMvc.perform(get("/api/users"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     @WithMockUser(username = "testuser@example.com")
     void testGetCurrentUser_Success() throws Exception {
         when(userService.getCurrentUser("testuser@example.com"))

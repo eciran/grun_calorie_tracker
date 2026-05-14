@@ -3,7 +3,6 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.BodyFatRequestDto;
 import com.grun.calorietracker.dto.BodyFatResultDto;
 import com.grun.calorietracker.dto.UserProfileDto;
-import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,32 +18,16 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Optional;
-
 @RestController
 @RequestMapping("/api/users")
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Users", description = "Authenticated user profile and body composition operations.")
+@Tag(name = "Users", description = "Authenticated user's own profile and body composition operations.")
 public class UserController {
 
     private final UserService userService;
 
     public UserController(UserService userService) {
         this.userService = userService;
-    }
-
-    @GetMapping
-    @Operation(
-            summary = "List all users",
-            description = "Returns all user profiles. This endpoint is intended for administrative or internal usage."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "User profiles returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
-    })
-    public List<UserProfileDto> getAllUsers() {
-        return userService.getAllUsers();
     }
 
     @GetMapping("/me")
@@ -64,7 +47,8 @@ public class UserController {
         } catch (UsernameNotFoundException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-}
+    }
+
     @PutMapping("/me")
     @Operation(
             summary = "Update current user profile",

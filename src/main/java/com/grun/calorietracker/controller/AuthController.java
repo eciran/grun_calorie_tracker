@@ -3,15 +3,18 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AuthRequest;
 import com.grun.calorietracker.dto.AuthResponse;
-import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,8 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -39,11 +44,21 @@ public class AuthController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User registered successfully."),
-            @ApiResponse(responseCode = "400", description = "Email is already registered or request validation failed.")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Email is already registered or request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            )
     })
-    public ResponseEntity<AuthResponse> register(@RequestBody @Valid AuthRequest request) {
+    public ResponseEntity<?> register(@RequestBody @Valid AuthRequest request, HttpServletRequest httpRequest) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().body(new AuthResponse(null, "Email already registered"));
+            return ResponseEntity.badRequest().body(new ApiErrorResponseDto(
+                    LocalDateTime.now(),
+                    400,
+                    "Validation error",
+                    "Email already registered",
+                    httpRequest.getRequestURI()
+            ));
         }
 
         UserEntity newUser = new UserEntity();
@@ -65,7 +80,16 @@ public class AuthController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Login successful."),
-            @ApiResponse(responseCode = "401", description = "Invalid email or password.")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Invalid email or password.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            )
     })
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest request) {
         authenticationManager.authenticate(
