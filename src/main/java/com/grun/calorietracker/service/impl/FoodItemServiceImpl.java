@@ -123,8 +123,8 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private Sort buildDefaultSearchSort() {
         return Sort.by(
-                Sort.Order.desc("qualityScore").nullsLast(),
-                Sort.Order.desc("usageCount").nullsLast(),
+                Sort.Order.desc("qualityScore"),
+                Sort.Order.desc("usageCount"),
                 Sort.Order.asc("name")
         );
     }

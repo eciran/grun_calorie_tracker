@@ -905,3 +905,64 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Sonuc: 12 test gecti, 0 failure, 0 error.
 - Komut: `.\mvnw.cmd clean test "-Dtest=*Test,*Tests"`
 - Sonuc: 67 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Food Catalog Manuel API Dogrulamasi ve Sort Duzeltmesi
+
+### Yapilan Kontroller
+
+- Lokal backend dogrulandi:
+  - `GET /v3/api-docs` HTTP 200 dondu.
+- PostgreSQL Docker container dogrulandi:
+  - `grun-postgres`
+  - `0.0.0.0:5432->5432/tcp`
+- Lokal test kullanicisi ile auth token alindi:
+  - `codex.foodtest@grun.local`
+- Barcode lookup manuel test edildi:
+  - `GET /api/products/barcode/3017620422003`
+  - Urun basariyla dondu.
+  - Urun `OPEN_FOOD_FACTS`, `RAW_IMPORTED`, `NEEDS_REVIEW` olarak gorundu.
+- DB cache kontrol edildi:
+  - `food_items.normalized_barcode = 3017620422003`
+  - Tek kayit bulundu.
+  - Review alanlari beklenen degerlerdeydi.
+- Product search bos sonuc kontrati canli API'de dogrulandi:
+  - `GET /api/products/search?q=unlikely-product-name-codex-000&page=0&size=25`
+  - HTTP 200 dondu.
+  - `content: []` ve pagination metadata dondu.
+- Admin product review endpointi manuel test edildi:
+  - `GET /api/admin/products/review?verificationStatus=RAW_IMPORTED&imageStatus=NEEDS_REVIEW&page=0&size=25`
+  - Nutella urunu admin review listesinde gorundu.
+
+### Bulunan Problem
+
+- Admin product review endpointi ilk manuel testte 500 dondu.
+- Hata mesaji:
+  - `Applying Null Precedence using Criteria Queries is not yet supported.`
+- Sebep:
+  - `Sort.Order.nullsLast()` JPA Criteria query ile bu Hibernate/PostgreSQL akisi icinde desteklenmiyordu.
+
+### Yapilanlar
+
+- `FoodProductReviewServiceImpl` icindeki review ve duplicate product sort'larindan `nullsLast()` kaldirildi.
+- `FoodItemServiceImpl` icindeki default product search sort'undan `nullsLast()` kaldirildi.
+- Sort davranisi native DB null handling'e birakildi.
+- Regression testleri eklendi:
+  - Review sort null handling `NATIVE`.
+  - Duplicate group sort null handling `NATIVE`.
+  - Product search default sort null handling `NATIVE`.
+
+### Karar
+
+- Criteria query ile calisan pageable/sort akislarda explicit `nullsLast/nullsFirst` kullanilmayacak.
+- Kalite/review alanlari import ve review akislari tarafindan dolduruldugu icin native null handling pratikte yeterli kabul edildi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,FoodItemServiceImplTest" test`
+- Sonuc: 13 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test "-Dtest=*Test,*Tests"`
+- Sonuc: 67 test gecti, 0 failure, 0 error.
+- Canli API:
+  - Barcode lookup HTTP 200.
+  - Product search empty page HTTP 200.
+  - Admin review HTTP 200.

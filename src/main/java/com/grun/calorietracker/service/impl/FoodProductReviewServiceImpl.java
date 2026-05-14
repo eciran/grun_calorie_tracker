@@ -254,8 +254,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     private Sort buildReviewSort() {
         return Sort.by(
-                Sort.Order.desc("reviewPriority").nullsLast(),
-                Sort.Order.desc("usageCount").nullsLast(),
+                Sort.Order.desc("reviewPriority"),
+                Sort.Order.desc("usageCount"),
                 Sort.Order.asc("id")
         );
     }
@@ -286,8 +286,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
         Sort productSort = Sort.by(
                 Sort.Order.asc("normalizedBarcode"),
-                Sort.Order.desc("qualityScore").nullsLast(),
-                Sort.Order.desc("usageCount").nullsLast(),
+                Sort.Order.desc("qualityScore"),
+                Sort.Order.desc("usageCount"),
                 Sort.Order.asc("id")
         );
         List<FoodItemEntity> duplicateProducts = foodItemRepository.findByNormalizedBarcodeIn(

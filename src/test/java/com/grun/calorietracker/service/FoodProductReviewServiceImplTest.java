@@ -16,6 +16,7 @@ import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.impl.FoodProductReviewServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -70,6 +71,16 @@ class FoodProductReviewServiceImplTest {
         assertEquals("Imported Product", result.getContent().get(0).getProductName());
         assertEquals(0, result.getPage());
         assertEquals(1L, result.getTotalElements());
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(foodItemRepository).findAll(any(Specification.class), pageableCaptor.capture());
+
+        Sort.Order reviewPriorityOrder = pageableCaptor.getValue().getSort().getOrderFor("reviewPriority");
+        Sort.Order usageCountOrder = pageableCaptor.getValue().getSort().getOrderFor("usageCount");
+        assertNotNull(reviewPriorityOrder);
+        assertNotNull(usageCountOrder);
+        assertEquals(Sort.NullHandling.NATIVE, reviewPriorityOrder.getNullHandling());
+        assertEquals(Sort.NullHandling.NATIVE, usageCountOrder.getNullHandling());
     }
 
     @Test
@@ -128,6 +139,16 @@ class FoodProductReviewServiceImplTest {
         assertEquals("3017620422003", result.getContent().get(0).getNormalizedBarcode());
         assertEquals(2, result.getContent().get(0).getProductCount());
         assertEquals("Nutella", result.getContent().get(0).getProducts().get(0).getProductName());
+
+        ArgumentCaptor<Sort> sortCaptor = ArgumentCaptor.forClass(Sort.class);
+        verify(foodItemRepository).findByNormalizedBarcodeIn(any(), sortCaptor.capture());
+
+        Sort.Order qualityScoreOrder = sortCaptor.getValue().getOrderFor("qualityScore");
+        Sort.Order usageCountOrder = sortCaptor.getValue().getOrderFor("usageCount");
+        assertNotNull(qualityScoreOrder);
+        assertNotNull(usageCountOrder);
+        assertEquals(Sort.NullHandling.NATIVE, qualityScoreOrder.getNullHandling());
+        assertEquals(Sort.NullHandling.NATIVE, usageCountOrder.getNullHandling());
     }
 
     @Test

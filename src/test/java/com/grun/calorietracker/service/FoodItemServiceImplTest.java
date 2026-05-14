@@ -175,6 +175,13 @@ class FoodItemServiceImplTest {
         Sort.Order order = pageableCaptor.getValue().getSort().getOrderFor("name");
         assertNotNull(order);
         assertEquals(Sort.Direction.ASC, order.getDirection());
+
+        Sort.Order qualityScoreOrder = pageableCaptor.getValue().getSort().getOrderFor("qualityScore");
+        Sort.Order usageCountOrder = pageableCaptor.getValue().getSort().getOrderFor("usageCount");
+        assertNotNull(qualityScoreOrder);
+        assertNotNull(usageCountOrder);
+        assertEquals(Sort.NullHandling.NATIVE, qualityScoreOrder.getNullHandling());
+        assertEquals(Sort.NullHandling.NATIVE, usageCountOrder.getNullHandling());
     }
 
     @Test
