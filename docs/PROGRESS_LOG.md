@@ -686,3 +686,136 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Komut: `.\mvnw.cmd clean test`
 - Sonuç: 35 test geçti, 0 failure, 0 error.
+
+## 2026-05-12 - Food Product Barcode Normalizasyonu
+
+### Yapilanlar
+
+- Food product duplicate riskini azaltmak icin `normalizedBarcode` alani eklendi.
+- `FoodProductNormalizationRules` destek sinifi eklendi:
+  - Barcode trim edilir.
+  - Bosluk ve tire karakterleri temizlenir.
+  - Alfanumerik barkodlar buyuk harfe normalize edilir.
+- Barcode lookup artik once `normalizedBarcode` uzerinden calisir.
+- Eski kayitlarla uyumluluk icin `barcode` alanina fallback lookup korunur.
+- Eski kayit fallback ile bulunursa `normalizedBarcode` eksikse otomatik backfill edilir.
+- OpenFoodFacts barcode fallback ve search cache akislari normalize barkodla duplicate kontrolu yapacak sekilde guncellendi.
+- Product search query artik `name`, `barcode` ve `normalizedBarcode` alanlarini birlikte tarar.
+- `FoodProductDto` ve mapper yapisi `normalizedBarcode` alanini destekleyecek sekilde guncellendi.
+- PostgreSQL icin `V6__add_normalized_barcode.sql` migration dosyasi eklendi:
+  - `normalized_barcode` kolonu
+  - Mevcut barcode degerleri icin backfill
+  - `idx_food_items_normalized_barcode` index'i
+
+### Karar
+
+- `barcode` alani ham/urun kaynagi degeri olarak korunabilir.
+- Lookup, duplicate kontrolu ve indexleme icin `normalizedBarcode` esas alinacak.
+- Su asamada unique constraint eklenmedi; once mevcut data icinde duplicate analizi yapilmasi daha guvenli.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 54 test gecti, 0 failure, 0 error.
+
+## 2026-05-12 - Food Product Duplicate Analiz Endpointi
+
+### Yapilanlar
+
+- Admin urun review modulu icine duplicate analiz endpointi eklendi:
+  - `GET /api/admin/products/duplicates?page=0&size=25`
+- Ayni `normalizedBarcode` degerini paylasan urunler grup halinde doner.
+- Yeni response DTO'lari eklendi:
+  - `FoodProductDuplicateGroupDto`
+  - `FoodProductDuplicateGroupPageDto`
+- `FoodItemRepository` icine duplicate normalized barcode gruplarini bulan paginated native query eklendi.
+- Duplicate gruptaki urunler kalite, kullanim ve id siralamasiyla doner.
+- Controller ve service testleri eklendi.
+
+### Karar
+
+- Bu endpoint sadece analiz ve admin gorunurlugu icindir.
+- Merge/silme gibi veri degistiren aksiyonlar bu adimda eklenmedi.
+- Unique constraint eklemeden once mevcut katalogdaki duplicate durumlari bu endpoint ile incelenmeli.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 56 test gecti, 0 failure, 0 error.
+
+## 2026-05-14 - Food Product Duplicate Merge Endpointi
+
+### Yapilanlar
+
+- Admin urun review modulu icine duplicate merge endpointi eklendi:
+  - `POST /api/admin/products/duplicates/merge`
+- Yeni request/response DTO'lari eklendi:
+  - `FoodProductMergeRequestDto`
+  - `FoodProductMergeResponseDto`
+- Merge akisi transaction icinde calisir.
+- Merge oncesi validasyonlar eklendi:
+  - Target product bulunmali.
+  - Duplicate product id listesi bos olmamali.
+  - Target id duplicate listesinde olmamali.
+  - Tum duplicate urunler bulunmali.
+  - Target ve duplicate urunler ayni `normalizedBarcode` degerini paylasmali.
+- `food_logs.food_id` referanslari duplicate urunlerden target urune tasinir.
+- `user_favorites.food_item_id` referanslari duplicate urunlerden target urune tasinir.
+- Favorilerde unique constraint cakismasini onlemek icin target urunu zaten favorileyen kullanicilarin duplicate favorite kayitlari merge oncesi silinir.
+- Target urunun `usageCount` degeri duplicate urunlerin `usageCount` toplamiyla guncellenir.
+- Target urunun kalite ve review skorleri merge sonrasinda yeniden hesaplanir.
+- Duplicate urun kayitlari referanslar tasindiktan sonra silinir.
+- `UserFavoriteRepository` eklendi.
+- `FoodLogsRepository` icine food item referans reassign metodu eklendi.
+- Controller ve service testleri eklendi.
+
+### Karar
+
+- Merge islemi sadece admin yetkisiyle calisir.
+- Merge sadece ayni `normalizedBarcode` grubundaki urunler icin izinlidir.
+- Kullanici log gecmisi korunur; sadece loglarin bagli oldugu urun kaydi target urune tasinir.
+- Favori kayitlarinda duplicate unique constraint sorunu veri kaybi yaratmadan, ayni kullanicinin zaten target favorite kaydi varsa duplicate favorite kaydini silerek cozulur.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 58 test gecti, 0 failure, 0 error.
+
+## 2026-05-14 - Normalized Barcode Unique Index Hazirligi
+
+### Yapilan Kontroller
+
+- Calisan lokal API uzerinden OpenAPI dokumani kontrol edildi:
+  - `GET /v3/api-docs` HTTP 200 dondu.
+  - `/api/admin/products/duplicates`
+  - `/api/admin/products/duplicates/merge`
+- PostgreSQL Docker container dogrulandi:
+  - `grun-postgres`
+  - `0.0.0.0:5432->5432/tcp`
+- Flyway migration history kontrol edildi:
+  - `V1` - `V6` basarili.
+- Gercek lokal DB icinde duplicate `normalized_barcode` kontrol edildi:
+  - Duplicate kayit bulunmadi.
+
+### Yapilanlar
+
+- `V7__add_unique_normalized_barcode_index.sql` migration dosyasi eklendi.
+- `normalized_barcode` icin partial unique index tanimlandi:
+  - `normalized_barcode IS NOT NULL` olan urunlerde tekillik zorunlu.
+  - Barcode'u olmayan urunler bu constraint disinda kalir.
+- Lokal calisan PostgreSQL uzerinde `V7` migration'in basariyla uygulandigi dogrulandi.
+- `uq_food_items_normalized_barcode` index'inin PostgreSQL'de olustugu dogrulandi.
+- Kod degisikligi sonrasi test seti yeniden calistirildi.
+
+### Karar
+
+- Duplicate analiz ve merge endpointleri eklendigi icin katalog artik unique index'e hazir hale getirildi.
+- Bu constraint, ayni normalized barcode'a sahip ikinci bir urunun DB'ye yazilmasini engeller.
+- Null barcode degerleri engellenmedi; manuel veya barkodsuz urunler ileride ayri kalite/review akisi ile yonetilebilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 58 test gecti, 0 failure, 0 error.
+- Lokal API: `GET /v3/api-docs` HTTP 200.
+- Flyway history: `V1` - `V7` success.

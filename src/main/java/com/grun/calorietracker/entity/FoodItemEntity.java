@@ -25,6 +25,7 @@ public class FoodItemEntity {
     private String name;
 
     private String barcode;
+    private String normalizedBarcode;
     private String imageUrl;
     private String externalImageUrl;
     private String displayImageUrl;

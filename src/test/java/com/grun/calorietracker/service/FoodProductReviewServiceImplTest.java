@@ -1,6 +1,9 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
+import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
@@ -8,6 +11,8 @@ import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.impl.FoodProductReviewServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
@@ -31,6 +37,12 @@ class FoodProductReviewServiceImplTest {
 
     @Mock
     private FoodItemRepository foodItemRepository;
+
+    @Mock
+    private FoodLogsRepository foodLogsRepository;
+
+    @Mock
+    private UserFavoriteRepository userFavoriteRepository;
 
     @InjectMocks
     private FoodProductReviewServiceImpl foodProductReviewService;
@@ -89,5 +101,66 @@ class FoodProductReviewServiceImplTest {
         assertNotNull(result.getQualityScore());
         assertNotNull(result.getReviewPriority());
         verify(foodItemRepository).save(product);
+    }
+
+    @Test
+    void getDuplicateProductGroups_returnsGroupedProductsByNormalizedBarcode() {
+        FoodItemEntity firstProduct = new FoodItemEntity();
+        firstProduct.setId(1L);
+        firstProduct.setName("Nutella");
+        firstProduct.setBarcode("3017620422003");
+        firstProduct.setNormalizedBarcode("3017620422003");
+
+        FoodItemEntity secondProduct = new FoodItemEntity();
+        secondProduct.setId(2L);
+        secondProduct.setName("Nutella Duplicate");
+        secondProduct.setBarcode("301-762-0422003");
+        secondProduct.setNormalizedBarcode("3017620422003");
+
+        when(foodItemRepository.findDuplicateNormalizedBarcodes(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of("3017620422003")));
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class)))
+                .thenReturn(List.of(firstProduct, secondProduct));
+
+        FoodProductDuplicateGroupPageDto result = foodProductReviewService.getDuplicateProductGroups(0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals("3017620422003", result.getContent().get(0).getNormalizedBarcode());
+        assertEquals(2, result.getContent().get(0).getProductCount());
+        assertEquals("Nutella", result.getContent().get(0).getProducts().get(0).getProductName());
+    }
+
+    @Test
+    void mergeDuplicateProducts_reassignsReferencesAndDeletesDuplicates() {
+        FoodItemEntity targetProduct = new FoodItemEntity();
+        targetProduct.setId(1L);
+        targetProduct.setName("Nutella");
+        targetProduct.setNormalizedBarcode("3017620422003");
+        targetProduct.setUsageCount(5L);
+
+        FoodItemEntity duplicateProduct = new FoodItemEntity();
+        duplicateProduct.setId(2L);
+        duplicateProduct.setName("Nutella Duplicate");
+        duplicateProduct.setNormalizedBarcode("3017620422003");
+        duplicateProduct.setUsageCount(3L);
+
+        FoodProductMergeRequestDto request = new FoodProductMergeRequestDto(1L, List.of(2L));
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(targetProduct));
+        when(foodItemRepository.findAllById(List.of(2L))).thenReturn(List.of(duplicateProduct));
+        when(userFavoriteRepository.deleteConflictingFavoritesBeforeMerge(1L, List.of(2L))).thenReturn(1);
+        when(userFavoriteRepository.reassignFoodItemReferences(targetProduct, List.of(2L))).thenReturn(2);
+        when(foodLogsRepository.reassignFoodItemReferences(targetProduct, List.of(2L))).thenReturn(4);
+        when(foodItemRepository.save(targetProduct)).thenReturn(targetProduct);
+
+        FoodProductMergeResponseDto result = foodProductReviewService.mergeDuplicateProducts(request);
+
+        assertEquals(1L, result.getTargetProduct().getId());
+        assertEquals(8L, result.getTargetProduct().getUsageCount());
+        assertEquals(List.of(2L), result.getMergedProductIds());
+        assertEquals(4, result.getReassignedFoodLogCount());
+        assertEquals(2, result.getReassignedFavoriteCount());
+        assertEquals(1, result.getRemovedConflictingFavoriteCount());
+        verify(foodItemRepository).deleteAll(List.of(duplicateProduct));
     }
 }

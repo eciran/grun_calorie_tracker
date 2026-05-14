@@ -14,6 +14,7 @@ public class FoodItemMapper {
         }
         FoodItemEntity entity = new FoodItemEntity();
         entity.setBarcode(dto.getBarcode());
+        entity.setNormalizedBarcode(dto.getNormalizedBarcode());
         entity.setName(dto.getProductName());
         entity.setImageUrl(dto.getImageUrl());
         entity.setExternalImageUrl(dto.getExternalImageUrl());
@@ -50,6 +51,7 @@ public class FoodItemMapper {
         FoodProductDto dto = new FoodProductDto();
         dto.setId(entity.getId());
         dto.setBarcode(entity.getBarcode());
+        dto.setNormalizedBarcode(entity.getNormalizedBarcode());
         dto.setProductName(entity.getName());
         // FoodItemEntity does not currently store brand.
         dto.setImageUrl(entity.getImageUrl());

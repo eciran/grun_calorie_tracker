@@ -21,6 +21,9 @@ public class FoodProductDto {
     @Schema(description = "Product barcode.", example = "3017620422003")
     private String barcode;
 
+    @Schema(description = "Normalized barcode used internally for deduplication and lookup.", example = "3017620422003")
+    private String normalizedBarcode;
+
     @Schema(description = "Product display name.", example = "Nutella")
     private String productName;
 

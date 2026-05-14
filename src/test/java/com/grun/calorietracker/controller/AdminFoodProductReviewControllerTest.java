@@ -2,6 +2,10 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
+import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
+import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
@@ -24,6 +28,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -81,6 +86,74 @@ class AdminFoodProductReviewControllerTest {
     void getProductsForReview_whenNotAdmin_returnsForbidden() throws Exception {
         mockMvc.perform(get("/api/admin/products/review"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getDuplicateProductGroups_whenAdmin_returnsGroups() throws Exception {
+        FoodProductDto firstProduct = new FoodProductDto();
+        firstProduct.setId(1L);
+        firstProduct.setProductName("Nutella");
+        firstProduct.setNormalizedBarcode("3017620422003");
+
+        FoodProductDto secondProduct = new FoodProductDto();
+        secondProduct.setId(2L);
+        secondProduct.setProductName("Nutella Duplicate");
+        secondProduct.setNormalizedBarcode("3017620422003");
+
+        FoodProductDuplicateGroupDto group = new FoodProductDuplicateGroupDto(
+                "3017620422003",
+                2,
+                List.of(firstProduct, secondProduct)
+        );
+        FoodProductDuplicateGroupPageDto page = new FoodProductDuplicateGroupPageDto(
+                List.of(group),
+                0,
+                25,
+                1L,
+                1,
+                true,
+                true
+        );
+
+        when(foodProductReviewService.getDuplicateProductGroups(0, 25)).thenReturn(page);
+
+        mockMvc.perform(get("/api/admin/products/duplicates"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].normalizedBarcode").value("3017620422003"))
+                .andExpect(jsonPath("$.content[0].productCount").value(2))
+                .andExpect(jsonPath("$.content[0].products[0].productName").value("Nutella"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void mergeDuplicateProducts_whenAdmin_returnsMergeResult() throws Exception {
+        FoodProductMergeRequestDto request = new FoodProductMergeRequestDto(1L, List.of(2L));
+
+        FoodProductDto targetProduct = new FoodProductDto();
+        targetProduct.setId(1L);
+        targetProduct.setProductName("Nutella");
+        targetProduct.setNormalizedBarcode("3017620422003");
+
+        FoodProductMergeResponseDto response = new FoodProductMergeResponseDto(
+                targetProduct,
+                List.of(2L),
+                4,
+                2,
+                1
+        );
+
+        when(foodProductReviewService.mergeDuplicateProducts(any(FoodProductMergeRequestDto.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/admin/products/duplicates/merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.targetProduct.id").value(1L))
+                .andExpect(jsonPath("$.mergedProductIds[0]").value(2L))
+                .andExpect(jsonPath("$.reassignedFoodLogCount").value(4))
+                .andExpect(jsonPath("$.removedConflictingFavoriteCount").value(1));
     }
 
     @Test

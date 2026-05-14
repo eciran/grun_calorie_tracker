@@ -1,6 +1,10 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
+import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
+import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
@@ -9,9 +13,13 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.FoodProductReviewService;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,15 +28,26 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     private final FoodItemRepository foodItemRepository;
+    private final FoodLogsRepository foodLogsRepository;
+    private final UserFavoriteRepository userFavoriteRepository;
 
-    public FoodProductReviewServiceImpl(FoodItemRepository foodItemRepository) {
+    public FoodProductReviewServiceImpl(
+            FoodItemRepository foodItemRepository,
+            FoodLogsRepository foodLogsRepository,
+            UserFavoriteRepository userFavoriteRepository
+    ) {
         this.foodItemRepository = foodItemRepository;
+        this.foodLogsRepository = foodLogsRepository;
+        this.userFavoriteRepository = userFavoriteRepository;
     }
 
     @Override
@@ -87,11 +106,133 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         return FoodItemMapper.mapEntityToDto(foodItemRepository.save(product));
     }
 
+    @Override
+    public FoodProductDuplicateGroupPageDto getDuplicateProductGroups(int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size));
+        Page<String> duplicateBarcodes = foodItemRepository.findDuplicateNormalizedBarcodes(pageable);
+        List<FoodProductDuplicateGroupDto> groups = buildDuplicateGroups(duplicateBarcodes.getContent());
+
+        FoodProductDuplicateGroupPageDto dto = new FoodProductDuplicateGroupPageDto();
+        dto.setContent(groups);
+        dto.setPage(duplicateBarcodes.getNumber());
+        dto.setSize(duplicateBarcodes.getSize());
+        dto.setTotalElements(duplicateBarcodes.getTotalElements());
+        dto.setTotalPages(duplicateBarcodes.getTotalPages());
+        dto.setFirst(duplicateBarcodes.isFirst());
+        dto.setLast(duplicateBarcodes.isLast());
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request) {
+        validateMergeRequest(request);
+
+        FoodItemEntity targetProduct = foodItemRepository.findById(request.getTargetProductId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Target food product not found with id: " + request.getTargetProductId()
+                ));
+        List<Long> duplicateProductIds = distinctDuplicateProductIds(request);
+        if (duplicateProductIds.isEmpty()) {
+            throw new IllegalArgumentException("Duplicate product ids must contain at least one valid id.");
+        }
+        List<FoodItemEntity> duplicateProducts = foodItemRepository.findAllById(duplicateProductIds);
+        validateAllDuplicateProductsFound(duplicateProductIds, duplicateProducts);
+        validateSameNormalizedBarcode(targetProduct, duplicateProducts);
+
+        int removedFavoriteCount = userFavoriteRepository.deleteConflictingFavoritesBeforeMerge(
+                targetProduct.getId(),
+                duplicateProductIds
+        );
+        int reassignedFavoriteCount = userFavoriteRepository.reassignFoodItemReferences(
+                targetProduct,
+                duplicateProductIds
+        );
+        int reassignedFoodLogCount = foodLogsRepository.reassignFoodItemReferences(
+                targetProduct,
+                duplicateProductIds
+        );
+
+        targetProduct.setUsageCount(calculateMergedUsageCount(targetProduct, duplicateProducts));
+        FoodProductQualityRules.updateQualityAndReviewPriority(targetProduct);
+        FoodItemEntity savedTargetProduct = foodItemRepository.save(targetProduct);
+
+        foodItemRepository.deleteAll(duplicateProducts);
+
+        return new FoodProductMergeResponseDto(
+                FoodItemMapper.mapEntityToDto(savedTargetProduct),
+                duplicateProductIds,
+                reassignedFoodLogCount,
+                reassignedFavoriteCount,
+                removedFavoriteCount
+        );
+    }
+
     private String trimToNull(String value) {
         if (value == null || value.trim().isEmpty()) {
             return null;
         }
         return value.trim();
+    }
+
+    private void validateMergeRequest(FoodProductMergeRequestDto request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Merge request must not be empty.");
+        }
+        if (request.getTargetProductId() == null) {
+            throw new IllegalArgumentException("Target product id must not be empty.");
+        }
+        if (request.getDuplicateProductIds() == null || request.getDuplicateProductIds().isEmpty()) {
+            throw new IllegalArgumentException("Duplicate product ids must not be empty.");
+        }
+        if (request.getDuplicateProductIds().contains(request.getTargetProductId())) {
+            throw new IllegalArgumentException("Target product id must not be included in duplicate product ids.");
+        }
+    }
+
+    private List<Long> distinctDuplicateProductIds(FoodProductMergeRequestDto request) {
+        return request.getDuplicateProductIds().stream()
+                .filter(id -> id != null && !id.equals(request.getTargetProductId()))
+                .distinct()
+                .toList();
+    }
+
+    private void validateAllDuplicateProductsFound(List<Long> duplicateProductIds, List<FoodItemEntity> duplicateProducts) {
+        if (duplicateProducts.size() == duplicateProductIds.size()) {
+            return;
+        }
+
+        List<Long> foundIds = duplicateProducts.stream()
+                .map(FoodItemEntity::getId)
+                .toList();
+        List<Long> missingIds = duplicateProductIds.stream()
+                .filter(id -> !foundIds.contains(id))
+                .toList();
+        throw new ResourceNotFoundException("Duplicate food products not found with ids: " + missingIds);
+    }
+
+    private void validateSameNormalizedBarcode(FoodItemEntity targetProduct, List<FoodItemEntity> duplicateProducts) {
+        String targetNormalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(targetProduct.getNormalizedBarcode());
+        if (targetNormalizedBarcode == null) {
+            throw new IllegalArgumentException("Target product must have a normalized barcode before merge.");
+        }
+
+        boolean allSameBarcode = duplicateProducts.stream()
+                .map(FoodItemEntity::getNormalizedBarcode)
+                .map(FoodProductNormalizationRules::normalizeBarcode)
+                .allMatch(targetNormalizedBarcode::equals);
+        if (!allSameBarcode) {
+            throw new IllegalArgumentException("All merged products must share the same normalized barcode.");
+        }
+    }
+
+    private long calculateMergedUsageCount(FoodItemEntity targetProduct, List<FoodItemEntity> duplicateProducts) {
+        long targetUsageCount = targetProduct.getUsageCount() == null ? 0L : targetProduct.getUsageCount();
+        long duplicateUsageCount = duplicateProducts.stream()
+                .map(FoodItemEntity::getUsageCount)
+                .mapToLong(value -> value == null ? 0L : value)
+                .sum();
+        return targetUsageCount + duplicateUsageCount;
     }
 
     private Specification<FoodItemEntity> buildReviewSpecification(
@@ -136,5 +277,41 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         dto.setFirst(products.isFirst());
         dto.setLast(products.isLast());
         return dto;
+    }
+
+    private List<FoodProductDuplicateGroupDto> buildDuplicateGroups(List<String> normalizedBarcodes) {
+        if (normalizedBarcodes.isEmpty()) {
+            return List.of();
+        }
+
+        Sort productSort = Sort.by(
+                Sort.Order.asc("normalizedBarcode"),
+                Sort.Order.desc("qualityScore").nullsLast(),
+                Sort.Order.desc("usageCount").nullsLast(),
+                Sort.Order.asc("id")
+        );
+        List<FoodItemEntity> duplicateProducts = foodItemRepository.findByNormalizedBarcodeIn(
+                normalizedBarcodes,
+                productSort
+        );
+
+        Map<String, List<FoodItemEntity>> productsByBarcode = duplicateProducts.stream()
+                .collect(Collectors.groupingBy(
+                        FoodItemEntity::getNormalizedBarcode,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        return normalizedBarcodes.stream()
+                .map(normalizedBarcode -> toDuplicateGroup(normalizedBarcode, productsByBarcode.get(normalizedBarcode)))
+                .filter(group -> group.getProductCount() > 1)
+                .toList();
+    }
+
+    private FoodProductDuplicateGroupDto toDuplicateGroup(String normalizedBarcode, List<FoodItemEntity> products) {
+        List<FoodProductDto> productDtos = FoodItemMapper.mapEntityListToDtoList(
+                products == null ? List.of() : products
+        );
+        return new FoodProductDuplicateGroupDto(normalizedBarcode, productDtos.size(), productDtos);
     }
 }

@@ -48,18 +48,20 @@ class FoodItemServiceImplTest {
     void getOrSaveFoodItemByBarcode_whenLocalProductExists_returnsProduct() {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setBarcode("123456");
+        foodItem.setNormalizedBarcode("123456");
         foodItem.setName("Greek Yogurt");
 
-        when(foodItemRepository.findByBarcode("123456")).thenReturn(Optional.of(foodItem));
+        when(foodItemRepository.findByNormalizedBarcode("123456")).thenReturn(Optional.of(foodItem));
 
         FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode(" 123456 ");
 
         assertEquals("Greek Yogurt", result.getName());
-        verify(foodItemRepository).findByBarcode("123456");
+        verify(foodItemRepository).findByNormalizedBarcode("123456");
     }
 
     @Test
     void getOrSaveFoodItemByBarcode_whenLocalProductDoesNotExist_throwsProductNotFound() {
+        when(foodItemRepository.findByNormalizedBarcode("999999")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("999999")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("999999")).thenReturn(Optional.empty());
 
@@ -75,6 +77,7 @@ class FoodItemServiceImplTest {
         externalProduct.setImageUrl("https://images.openfoodfacts.org/nutella.jpg");
         externalProduct.setCalories(539.0);
 
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
         when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -82,12 +85,32 @@ class FoodItemServiceImplTest {
         FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode("3017620422003");
 
         assertEquals("Nutella", result.getName());
+        assertEquals("3017620422003", result.getBarcode());
+        assertEquals("3017620422003", result.getNormalizedBarcode());
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, result.getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getVerificationStatus());
         assertEquals("https://images.openfoodfacts.org/nutella.jpg", result.getExternalImageUrl());
         assertEquals(ImageSource.OPEN_FOOD_FACTS, result.getImageSource());
         assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
         verify(foodItemRepository).save(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void getOrSaveFoodItemByBarcode_whenBarcodeHasSeparators_normalizesBeforeLookup() {
+        FoodProductDto externalProduct = new FoodProductDto();
+        externalProduct.setBarcode("301-762 0422003");
+        externalProduct.setProductName("Nutella");
+
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
+        when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
+        when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode(" 301-762 0422003 ");
+
+        assertEquals("3017620422003", result.getBarcode());
+        assertEquals("3017620422003", result.getNormalizedBarcode());
+        verify(openFoodFactsService).getProductByBarcode("3017620422003");
     }
 
     @Test
@@ -168,6 +191,7 @@ class FoodItemServiceImplTest {
         when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
         when(openFoodFactsService.searchProductsByCriteria(criteria)).thenReturn(List.of(externalProduct));
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> {
             FoodItemEntity entity = invocation.getArgument(0);

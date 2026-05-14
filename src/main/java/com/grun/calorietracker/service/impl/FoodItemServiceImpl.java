@@ -13,6 +13,7 @@ import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
@@ -40,12 +41,12 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     @Override
     public FoodItemEntity getOrSaveFoodItemByBarcode(String barcode) {
-        String normalizedBarcode = normalize(barcode);
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(barcode);
         if (normalizedBarcode == null) {
             throw new ProductNotFoundException("Product barcode must not be empty.");
         }
 
-        return foodItemRepository.findByBarcode(normalizedBarcode)
+        return findByNormalizedBarcode(normalizedBarcode)
                 .orElseGet(() -> fetchAndCacheExternalProduct(normalizedBarcode));
     }
 
@@ -73,16 +74,21 @@ public class FoodItemServiceImpl implements FoodItemService {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            String searchQuery = normalize(criteria.getQuery());
+            String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {
                 String pattern = "%" + searchQuery.toLowerCase(Locale.ROOT) + "%";
+                String normalizedBarcodeQuery = FoodProductNormalizationRules.normalizeBarcode(searchQuery);
+                String barcodePattern = normalizedBarcodeQuery == null
+                        ? pattern
+                        : "%" + normalizedBarcodeQuery.toLowerCase(Locale.ROOT) + "%";
                 predicates.add(criteriaBuilder.or(
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern),
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), pattern)
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern)
                 ));
             }
 
-            String nutriScore = normalize(criteria.getNutriScore());
+            String nutriScore = FoodProductNormalizationRules.normalizeText(criteria.getNutriScore());
             if (nutriScore != null) {
                 predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("nutriScore")),
@@ -103,8 +109,8 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private Sort buildSort(FoodSearchCriteriaDto criteria) {
-        String sortBy = normalize(criteria.getSortBy());
-        String sortOrder = normalize(criteria.getSortOrder());
+        String sortBy = FoodProductNormalizationRules.normalizeText(criteria.getSortBy());
+        String sortOrder = FoodProductNormalizationRules.normalizeText(criteria.getSortOrder());
         Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
 
         return switch (sortBy == null ? "" : sortBy) {
@@ -132,7 +138,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private FoodProductSearchPageDto searchAndCacheExternalProducts(FoodSearchCriteriaDto criteria, Pageable pageable) {
-        String searchQuery = normalize(criteria.getQuery());
+        String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
         if (searchQuery == null || pageable.getPageNumber() > 0) {
             return emptySearchPage(pageable);
         }
@@ -159,18 +165,20 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private FoodItemEntity cacheExternalSearchProduct(FoodProductDto externalProduct) {
-        String normalizedBarcode = normalize(externalProduct.getBarcode());
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(externalProduct.getBarcode());
         if (normalizedBarcode == null) {
             return null;
         }
 
-        return foodItemRepository.findByBarcode(normalizedBarcode)
+        return findByNormalizedBarcode(normalizedBarcode)
                 .orElseGet(() -> foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode)));
     }
 
     private FoodItemEntity buildImportedFoodItem(FoodProductDto externalProduct, String barcode) {
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(barcode);
         FoodItemEntity entity = FoodItemMapper.mapDtoToEntity(externalProduct);
-        entity.setBarcode(barcode);
+        entity.setBarcode(normalizedBarcode);
+        entity.setNormalizedBarcode(normalizedBarcode);
         entity.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
         entity.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         entity.setExternalImageUrl(resolveExternalImageUrl(externalProduct));
@@ -183,11 +191,31 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private String resolveExternalImageUrl(FoodProductDto product) {
-        String externalImageUrl = normalize(product.getExternalImageUrl());
+        String externalImageUrl = FoodProductNormalizationRules.normalizeText(product.getExternalImageUrl());
         if (externalImageUrl != null) {
             return externalImageUrl;
         }
-        return normalize(product.getImageUrl());
+        return FoodProductNormalizationRules.normalizeText(product.getImageUrl());
+    }
+
+    private java.util.Optional<FoodItemEntity> findByNormalizedBarcode(String normalizedBarcode) {
+        return foodItemRepository.findByNormalizedBarcode(normalizedBarcode)
+                .or(() -> foodItemRepository.findByBarcode(normalizedBarcode)
+                        .map(this::backfillNormalizedBarcodeIfMissing));
+    }
+
+    private FoodItemEntity backfillNormalizedBarcodeIfMissing(FoodItemEntity product) {
+        if (FoodProductNormalizationRules.normalizeText(product.getNormalizedBarcode()) != null) {
+            return product;
+        }
+
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(product.getBarcode());
+        if (normalizedBarcode == null) {
+            return product;
+        }
+
+        product.setNormalizedBarcode(normalizedBarcode);
+        return foodItemRepository.save(product);
     }
 
     private int normalizePageSize(int size) {
@@ -213,10 +241,4 @@ public class FoodItemServiceImpl implements FoodItemService {
         return toSearchPageDto(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
     }
 
-    private String normalize(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-        return value.trim();
-    }
 }
