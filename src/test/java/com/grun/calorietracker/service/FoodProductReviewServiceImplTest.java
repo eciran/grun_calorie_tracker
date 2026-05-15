@@ -107,6 +107,7 @@ class FoodProductReviewServiceImplTest {
         request.setVerificationStatus(VerificationStatus.VERIFIED);
         request.setImageSource(ImageSource.ADMIN_UPLOAD);
         request.setImageStatus(ImageStatus.APPROVED);
+        request.setReviewNote("Verified from product label.");
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
         when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -130,6 +131,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals("productName", auditCaptor.getValue().get(0).getFieldName());
         assertEquals("Raw Name", auditCaptor.getValue().get(0).getOldValue());
         assertEquals("Verified Product", auditCaptor.getValue().get(0).getNewValue());
+        assertEquals("Verified from product label.", auditCaptor.getValue().get(0).getNote());
     }
 
     @Test
@@ -186,6 +188,60 @@ class FoodProductReviewServiceImplTest {
         FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
         request.setDisplayImageUrl(" ");
         request.setImageStatus(ImageStatus.APPROVED);
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void updateProductReview_whenDisplayImageUrlIsInvalid_throwsIllegalArgumentException() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Nutella");
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setDisplayImageUrl("ftp://cdn.grun.app/products/1.jpg");
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void updateProductReview_whenRejectingProductWithoutNote_throwsIllegalArgumentException() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Nutella");
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setVerificationStatus(VerificationStatus.REJECTED);
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void updateProductReview_whenRejectingImageWithoutNote_throwsIllegalArgumentException() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Nutella");
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setImageStatus(ImageStatus.REJECTED);
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
 

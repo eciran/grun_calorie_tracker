@@ -32,6 +32,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -90,6 +92,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
 
         List<FoodProductReviewAuditEntity> audits = new ArrayList<>();
+        String reviewNote = trimToNull(request.getReviewNote());
+        validateRejectionNote(request, reviewNote);
 
         String productName = trimToNull(request.getProductName());
         if (productName != null) {
@@ -100,13 +104,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     FoodProductReviewAuditAction.REVIEW_UPDATE,
                     "productName",
                     product.getName(),
-                    productName
+                    productName,
+                    reviewNote
             );
             product.setName(productName);
         }
 
         String displayImageUrl = trimToNull(request.getDisplayImageUrl());
         if (displayImageUrl != null) {
+            validateDisplayImageUrl(displayImageUrl);
             addAuditIfChanged(
                     audits,
                     product,
@@ -114,7 +120,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     FoodProductReviewAuditAction.IMAGE_CHANGE,
                     "displayImageUrl",
                     product.getDisplayImageUrl(),
-                    displayImageUrl
+                    displayImageUrl,
+                    reviewNote
             );
             product.setDisplayImageUrl(displayImageUrl);
         }
@@ -127,7 +134,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     FoodProductReviewAuditAction.STATUS_CHANGE,
                     "verificationStatus",
                     product.getVerificationStatus(),
-                    request.getVerificationStatus()
+                    request.getVerificationStatus(),
+                    reviewNote
             );
             product.setVerificationStatus(request.getVerificationStatus());
         }
@@ -140,7 +148,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     FoodProductReviewAuditAction.IMAGE_CHANGE,
                     "imageSource",
                     product.getImageSource(),
-                    request.getImageSource()
+                    request.getImageSource(),
+                    reviewNote
             );
             product.setImageSource(request.getImageSource());
         }
@@ -153,7 +162,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     FoodProductReviewAuditAction.IMAGE_CHANGE,
                     "imageStatus",
                     product.getImageStatus(),
-                    request.getImageStatus()
+                    request.getImageStatus(),
+                    reviewNote
             );
             product.setImageStatus(request.getImageStatus());
         }
@@ -273,6 +283,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         }
     }
 
+    private void validateRejectionNote(FoodProductReviewRequestDto request, String reviewNote) {
+        boolean rejectsProduct = request.getVerificationStatus() == VerificationStatus.REJECTED;
+        boolean rejectsImage = request.getImageStatus() == ImageStatus.REJECTED;
+        if ((rejectsProduct || rejectsImage) && reviewNote == null) {
+            throw new IllegalArgumentException("Review note is required when rejecting product data or image.");
+        }
+    }
+
+    private void validateDisplayImageUrl(String displayImageUrl) {
+        try {
+            URI uri = new URI(displayImageUrl);
+            String scheme = uri.getScheme();
+            if (scheme == null || uri.getHost() == null ||
+                    (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                throw new IllegalArgumentException("Display image URL must be an absolute HTTP or HTTPS URL.");
+            }
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException("Display image URL must be a valid URL.");
+        }
+    }
+
     private void addAuditIfChanged(
             List<FoodProductReviewAuditEntity> audits,
             FoodItemEntity product,
@@ -280,7 +311,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductReviewAuditAction action,
             String fieldName,
             Object oldValue,
-            Object newValue
+            Object newValue,
+            String note
     ) {
         if (Objects.equals(oldValue, newValue)) {
             return;
@@ -293,6 +325,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         audit.setFieldName(fieldName);
         audit.setOldValue(toAuditValue(oldValue));
         audit.setNewValue(toAuditValue(newValue));
+        audit.setNote(note);
         audits.add(audit);
     }
 

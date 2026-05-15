@@ -23,6 +23,9 @@ public class FoodProductReviewRequestDto {
     @Schema(description = "Image review status.", example = "APPROVED")
     private ImageStatus imageStatus;
 
+    @Schema(description = "Admin review note. Required when rejecting product data or image.", example = "Image is blurry and product label is unreadable.")
+    private String reviewNote;
+
     public String getProductName() {
         return productName;
     }
@@ -61,5 +64,13 @@ public class FoodProductReviewRequestDto {
 
     public void setImageStatus(ImageStatus imageStatus) {
         this.imageStatus = imageStatus;
+    }
+
+    public String getReviewNote() {
+        return reviewNote;
+    }
+
+    public void setReviewNote(String reviewNote) {
+        this.reviewNote = reviewNote;
     }
 }

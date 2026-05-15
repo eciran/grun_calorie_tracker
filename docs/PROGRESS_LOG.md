@@ -1156,6 +1156,32 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
 - Sonuc: 14 test gecti, 0 failure, 0 error.
 
+## 2026-05-15 - Food Product Review Request Validasyonlari
+
+### Yapilanlar
+
+- `FoodProductReviewRequestDto` icine `reviewNote` alani eklendi.
+- `displayImageUrl` verildiginde absolute `http` veya `https` URL olmasi zorunlu hale getirildi.
+- Product verification status `REJECTED` yapilirsa `reviewNote` zorunlu hale getirildi.
+- Image status `REJECTED` yapilirsa `reviewNote` zorunlu hale getirildi.
+- Review note audit kayitlarina yazilir hale getirildi.
+- Testler eklendi:
+  - Invalid display image URL reddedilir.
+  - Product reject note olmadan reddedilir.
+  - Image reject note olmadan reddedilir.
+  - Audit note kayda yazilir.
+
+### Karar
+
+- Reject islemleri gerekcesiz yapilmayacak.
+- Curated image URL mobil client tarafinda kullanilacagi icin sadece absolute HTTP/HTTPS URL kabul edilecek.
+- Review note simdilik `FoodItemEntity` uzerinde tutulmaz; degisiklik audit history icinde saklanir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 17 test gecti, 0 failure, 0 error.
+
 ## 2026-05-15 - DB Seed ve Katalog Veri Stratejisi
 
 ### Yapilanlar
