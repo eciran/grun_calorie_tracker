@@ -30,7 +30,9 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -112,6 +114,41 @@ class FoodProductReviewServiceImplTest {
         assertNotNull(result.getQualityScore());
         assertNotNull(result.getReviewPriority());
         verify(foodItemRepository).save(product);
+    }
+
+    @Test
+    void updateProductReview_whenVerifiedProductNameIsBlank_throwsIllegalArgumentException() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("   ");
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setVerificationStatus(VerificationStatus.VERIFIED);
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void updateProductReview_whenApprovedImageUrlIsBlank_throwsIllegalArgumentException() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Nutella");
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setDisplayImageUrl(" ");
+        request.setImageStatus(ImageStatus.APPROVED);
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
     }
 
     @Test

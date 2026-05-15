@@ -74,10 +74,17 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 ## Devam Edenler
 
 - Food product catalog altyapisi teknik olarak guclendirildi, ancak admin panel/UI henuz yok.
+- Product catalog admin flow dokumani eklendi.
+- Food product review audit history plan dokumani eklendi.
+- Food product admin review durum gecisleri icin temel validasyonlar eklendi.
+- Kullanici product search sonucunda `REJECTED` urunlerin gizlenmesi saglandi.
 - DB'de gercek urun ve egzersiz katalog verisi henuz sistematik olarak doldurulmadi.
 - Local run akisi calisiyor, ancak Docker/PostgreSQL sifre ve container state konulari net kullanim dokumani gerektiriyor.
 - Local setup dokumani README icinde netlestirildi.
 - Egzersiz katalog verisi icin ilk Flyway seed stratejisi baslatildi ve lokal PostgreSQL uzerinde dogrulandi.
+- ExerciseItem katalog filtreleri icin temel DB index migration'i eklendi.
+- ExerciseItem katalog filtre endpointi Flyway V9 sonrasi canli API uzerinde dogrulandi.
+- Dashboard daily summary endpointi icin Swagger ve temel controller/service test kapsami eklendi.
 
 ## Siradaki 5 Is
 
@@ -86,27 +93,25 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.
 
-2. Food product catalog akisini manuel test et.
-   - Barcode ile urun ara.
-   - Local DB'ye cacheleniyor mu kontrol et.
-   - Admin review endpointinde gorunuyor mu kontrol et.
+2. DB seed stratejisini netlestir.
+   - Baslangic manuel seed.
+   - Admin import akisi.
+   - Buyuk katalog importu icin ileride batch/job yaklasimi.
 
-3. ExerciseItem katalog listeleme kontratini canli API'de dogrula.
-   - `GET /api/exercise-items?page=0&size=25` paginated response donuyor mu?
-   - `q`, `primaryMuscleGroup`, `equipment`, `difficulty`, `active` filtreleri calisiyor mu?
-   - Swagger response semasi dogru gorunuyor mu?
+3. Barcode lookup icin `REJECTED` local urun davranisini ayri ele al.
+   - Direkt not-found mu donmeli?
+   - Admin tarafinda yeniden review/import akisi olmali mi?
+   - Eski log referanslari korunarak kullaniciya nasil gosterilmeli?
 
-4. Product catalog admin surecini sade sekilde planla.
-   - Review listesi.
-   - Image onaylama.
-   - Duplicate analiz.
-   - Merge aksiyonu.
+4. Product catalog admin endpointleri icin audit history implementasyonuna basla.
+   - Entity ve migration.
+   - Review update sirasinda audit kaydi.
+   - Admin audit listeleme endpointi.
 
-5. ExerciseItem katalog filtreleri icin DB index ihtiyacini degerlendir.
-   - `active`
-   - `difficulty`
-   - `primary_muscle_group`
-   - `equipment`
+5. Food product admin review request validation kurallarini genislet.
+   - URL format kontrolu.
+   - Reject note ihtiyaci.
+   - Verification ve image status gecis kurallari.
 
 ## Ertelenen Buyuk Fikirler
 

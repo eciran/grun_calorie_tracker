@@ -73,6 +73,10 @@ public class FoodItemServiceImpl implements FoodItemService {
     private Specification<FoodItemEntity> buildSearchSpecification(FoodSearchCriteriaDto criteria) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.or(
+                    criteriaBuilder.isNull(root.get("verificationStatus")),
+                    criteriaBuilder.notEqual(root.get("verificationStatus"), VerificationStatus.REJECTED)
+            ));
 
             String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {

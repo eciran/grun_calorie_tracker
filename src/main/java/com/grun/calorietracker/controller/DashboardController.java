@@ -2,6 +2,9 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.DailySummaryDto;
 import com.grun.calorietracker.service.DashboardService;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,16 +20,25 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Dashboard", description = "Dashboard summary endpoints")
 public class DashboardController {
 
     private final DashboardService dashboardService;
 
     @GetMapping("/daily-summary")
-    @Operation(summary = "Get daily dashboard summary")
+    @Operation(
+            summary = "Get daily dashboard summary",
+            description = "Returns daily calorie, macro, exercise, weight, and goal summary for the authenticated user."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Daily dashboard summary returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+    })
     public ResponseEntity<DailySummaryDto> getDailySummary(
             @Parameter(hidden = true)
             @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Optional summary date. Defaults to today.", example = "2026-05-15")
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate date

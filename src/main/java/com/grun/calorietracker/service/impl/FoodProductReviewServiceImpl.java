@@ -101,6 +101,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             product.setImageStatus(request.getImageStatus());
         }
 
+        validateReviewState(product);
         FoodProductQualityRules.markReviewed(product);
 
         return FoodItemMapper.mapEntityToDto(foodItemRepository.save(product));
@@ -173,6 +174,16 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             return null;
         }
         return value.trim();
+    }
+
+    private void validateReviewState(FoodItemEntity product) {
+        if (product.getVerificationStatus() == VerificationStatus.VERIFIED && trimToNull(product.getName()) == null) {
+            throw new IllegalArgumentException("Verified product must have a product name.");
+        }
+
+        if (product.getImageStatus() == ImageStatus.APPROVED && trimToNull(product.getDisplayImageUrl()) == null) {
+            throw new IllegalArgumentException("Approved product image must have a display image URL.");
+        }
     }
 
     private void validateMergeRequest(FoodProductMergeRequestDto request) {
