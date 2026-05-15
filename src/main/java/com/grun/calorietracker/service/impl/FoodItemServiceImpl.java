@@ -46,8 +46,16 @@ public class FoodItemServiceImpl implements FoodItemService {
             throw new ProductNotFoundException("Product barcode must not be empty.");
         }
 
-        return findByNormalizedBarcode(normalizedBarcode)
-                .orElseGet(() -> fetchAndCacheExternalProduct(normalizedBarcode));
+        java.util.Optional<FoodItemEntity> localProduct = findByNormalizedBarcode(normalizedBarcode);
+        if (localProduct.isPresent()) {
+            FoodItemEntity product = localProduct.get();
+            if (isRejected(product)) {
+                throw new ProductNotFoundException("Product is not available for barcode: " + normalizedBarcode);
+            }
+            return product;
+        }
+
+        return fetchAndCacheExternalProduct(normalizedBarcode);
     }
 
     @Override
@@ -73,6 +81,10 @@ public class FoodItemServiceImpl implements FoodItemService {
     private Specification<FoodItemEntity> buildSearchSpecification(FoodSearchCriteriaDto criteria) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.or(
+                    criteriaBuilder.isNull(root.get("verificationStatus")),
+                    criteriaBuilder.notEqual(root.get("verificationStatus"), VerificationStatus.REJECTED)
+            ));
 
             String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {
@@ -170,8 +182,13 @@ public class FoodItemServiceImpl implements FoodItemService {
             return null;
         }
 
-        return findByNormalizedBarcode(normalizedBarcode)
-                .orElseGet(() -> foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode)));
+        java.util.Optional<FoodItemEntity> localProduct = findByNormalizedBarcode(normalizedBarcode);
+        if (localProduct.isPresent()) {
+            FoodItemEntity product = localProduct.get();
+            return isRejected(product) ? null : product;
+        }
+
+        return foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
     }
 
     private FoodItemEntity buildImportedFoodItem(FoodProductDto externalProduct, String barcode) {
@@ -216,6 +233,10 @@ public class FoodItemServiceImpl implements FoodItemService {
 
         product.setNormalizedBarcode(normalizedBarcode);
         return foodItemRepository.save(product);
+    }
+
+    private boolean isRejected(FoodItemEntity product) {
+        return product.getVerificationStatus() == VerificationStatus.REJECTED;
     }
 
     private int normalizePageSize(int size) {

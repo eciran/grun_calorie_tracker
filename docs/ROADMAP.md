@@ -74,38 +74,47 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 ## Devam Edenler
 
 - Food product catalog altyapisi teknik olarak guclendirildi, ancak admin panel/UI henuz yok.
+- Product catalog admin flow dokumani eklendi.
+- Food product review audit history plan dokumani eklendi.
+- Food product review audit history entity, migration, repository, service ve admin listeleme endpointi eklendi.
+- Duplicate merge islemi target product uzerinde audit kaydi olusturacak sekilde genisletildi.
+- Food product admin review request validasyonlari genisletildi.
+- Local demo seed ihtiyaci degerlendirildi ve plan dokumani eklendi.
+- DB seed ve katalog veri yonetimi stratejisi dokumani eklendi.
+- Food product admin review durum gecisleri icin temel validasyonlar eklendi.
+- Kullanici product search sonucunda `REJECTED` urunlerin gizlenmesi saglandi.
+- Barcode lookup ve external search cache akisi `REJECTED` local urunleri kullaniciya dondurmez hale getirildi.
 - DB'de gercek urun ve egzersiz katalog verisi henuz sistematik olarak doldurulmadi.
 - Local run akisi calisiyor, ancak Docker/PostgreSQL sifre ve container state konulari net kullanim dokumani gerektiriyor.
-- Yapilan degisiklikler henuz yeni bir commit olarak toparlanmadi.
+- Local setup dokumani README icinde netlestirildi.
+- Egzersiz katalog verisi icin ilk Flyway seed stratejisi baslatildi ve lokal PostgreSQL uzerinde dogrulandi.
+- ExerciseItem katalog filtreleri icin temel DB index migration'i eklendi.
+- ExerciseItem katalog filtre endpointi Flyway V9 sonrasi canli API uzerinde dogrulandi.
+- Dashboard daily summary endpointi icin Swagger ve temel controller/service test kapsami eklendi.
 
 ## Siradaki 5 Is
 
-1. Local setup dokumanini netlestir.
-   - Docker nasil acilir.
-   - `.env` nasil olmali.
-   - API nasil baslatilir.
-   - Swagger nereden acilir.
-
-2. Mevcut degisiklikleri commit/push icin toparla.
+1. Mevcut degisiklikleri commit icin toparla.
    - Git status kontrolu.
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.
 
-3. Food product catalog akisini manuel test et.
-   - Barcode ile urun ara.
-   - Local DB'ye cacheleniyor mu kontrol et.
-   - Admin review endpointinde gorunuyor mu kontrol et.
+2. V10 audit migration'i canli PostgreSQL uzerinde dogrula.
+   - Flyway history success.
+   - Audit table ve indexler var mi?
+   - Admin audit endpointi HTTP 200 donuyor mu?
 
-4. ExerciseItem icin baslangic seed stratejisini sec.
-   - Flyway SQL seed mi?
-   - Sadece dev profile seed mi?
-   - Ilk etapta kac hareket eklenecek?
+3. Admin review Swagger orneklerini review note ve audit endpoint icin tekrar kontrol et.
 
-5. Product catalog admin surecini sade sekilde planla.
-   - Review listesi.
-   - Image onaylama.
-   - Duplicate analiz.
-   - Merge aksiyonu.
+4. Local admin bootstrap yaklasimini tasarla.
+   - Sadece local profile.
+   - Production'da kapali.
+   - Demo seed script icin on kosul.
+
+5. Mevcut degisiklikleri commit icin toparla.
+   - Git status kontrolu.
+   - `.env` gibi local dosyalarin commitlenmedigini dogrula.
+   - Anlamli commit mesaji hazirla.
 
 ## Ertelenen Buyuk Fikirler
 

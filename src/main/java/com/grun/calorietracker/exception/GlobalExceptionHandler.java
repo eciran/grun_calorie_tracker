@@ -70,6 +70,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, "Duplicate external exercise log", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(DuplicateExerciseItemException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDuplicateExerciseItemException(DuplicateExerciseItemException ex,
+                                                                                   HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "Duplicate exercise item", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponseDto> handleResourceNotFoundException(ResourceNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "Resource not found", ex.getMessage(), request.getRequestURI());

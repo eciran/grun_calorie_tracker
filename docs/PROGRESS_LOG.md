@@ -966,3 +966,503 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
   - Barcode lookup HTTP 200.
   - Product search empty page HTTP 200.
   - Admin review HTTP 200.
+
+## 2026-05-15 - ExerciseItem Baslangic Seed Stratejisi
+
+### Yapilanlar
+
+- Exercise catalog icin runtime seed yerine Flyway SQL seed yaklasimi secildi.
+- Yeni migration dosyasi eklendi:
+  - `V8__seed_initial_exercise_items.sql`
+- Baslangic katalog icin 12 temel egzersiz eklendi:
+  - Brisk Walking
+  - Running
+  - Cycling
+  - Swimming
+  - Bodyweight Squat
+  - Push-Up
+  - Plank
+  - Jump Rope
+  - Dumbbell Deadlift
+  - Bench Press
+  - Yoga
+  - Rowing Machine
+- Seed kayitlari `met_code` uzerinden idempotent olacak sekilde yazildi; ayni `met_code` varsa tekrar insert edilmez.
+- Mevcut eski kayitlarda `ai_eligible` veya `active` bos ise varsayilan olarak `true` yapilir.
+
+### Karar
+
+- Baslangic egzersiz katalog verisi uygulama acilisinda kodla degil, migration ile yonetilecek.
+- Bu tercih lokal, test/staging ve ileride production ortamlari arasinda daha tutarli DB durumu saglar.
+- Gorsel/video URL alanlari simdilik bos birakildi; daha sonra curator/admin akisi veya CDN karariyla doldurulacak.
+
+### Sonraki Adim
+
+- ExerciseItem katalog API'si yetki, duplicate kontrolu ve listeleme kullanimi acisindan iyilestirilecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 67 test gecti, 0 failure, 0 error.
+- Lokal API: `GET /v3/api-docs` HTTP 200.
+- Flyway history: `V1` - `V8` success.
+- Lokal PostgreSQL: `exercise_items` tablosunda 12 seed kayit dogrulandi.
+- Canli API: JWT ile `GET /api/exercise-items` 12 hareket dondurdu.
+
+## 2026-05-15 - ExerciseItem Admin Yetkisi ve Duplicate Koruması
+
+### Yapilanlar
+
+- Exercise catalog listeleme endpointi normal authenticated kullanicilara acik birakildi:
+  - `GET /api/exercise-items`
+- Exercise catalog yazma islemleri admin yetkisine alindi:
+  - `POST /api/exercise-items`
+  - `PUT /api/exercise-items/{id}`
+  - `DELETE /api/exercise-items/{id}`
+- `metCode` duplicate kontrolu eklendi.
+- Yeni exception eklendi:
+  - `DuplicateExerciseItemException`
+- Duplicate `metCode` durumunda standart error response ile `409 Conflict` doner.
+- Service seviyesinde `metCode` trim edilip uppercase normalize edilir.
+- Controller ve service testleri eklendi.
+
+### Karar
+
+- Egzersiz katalog verisi tum kullanicilar tarafindan okunabilir.
+- Katalog yonetimi admin operasyonudur; standart kullanici egzersiz katalog kaydi olusturamaz, guncelleyemez veya silemez.
+- `metCode`, egzersiz katalog kayitlari icin stabil teknik anahtar gibi ele alinacak ve duplicate olmasi engellenecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=ExerciseItemControllerTest,ExerciseItemServiceImplTest" test`
+- Sonuc: 11 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 76 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - ExerciseItem Paginated Search Endpointi
+
+### Yapilanlar
+
+- `GET /api/exercise-items` response kontrati paginated hale getirildi.
+- Yeni response DTO eklendi:
+  - `ExerciseItemPageDto`
+- Endpoint artik su filtreleri destekler:
+  - `q`: name, metCode ve description uzerinde arama.
+  - `primaryMuscleGroup`
+  - `equipment`
+  - `difficulty`
+  - `active`
+  - `page`
+  - `size`
+- Varsayilan davranis aktif hareketleri dondurur:
+  - `active=true`
+- Maksimum page size `100` olarak sinirlandirildi.
+- Sonuclar `name ASC` siralamasiyla doner.
+- `ExerciseItemRepository`, Specification tabanli filtreleme icin `JpaSpecificationExecutor` destekleyecek sekilde guncellendi.
+- Controller ve service testleri yeni paginated response kontratina gore guncellendi.
+
+### Karar
+
+- Mobil uygulama egzersiz katalog listesini limitsiz liste olarak cekmeyecek.
+- Katalog buyudukce filtreleme ve sayfalama ayni endpoint uzerinden surdurulecek.
+- Inactive hareketler varsayilan kullanici listesinde gorunmeyecek; admin ihtiyaci icin `active=false` filtresiyle sorgulanabilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=ExerciseItemControllerTest,ExerciseItemServiceImplTest" test`
+- Sonuc: 12 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 77 test gecti, 0 failure, 0 error.
+- Canli API: JWT ile `GET /api/exercise-items?page=0&size=5&q=run` paginated response dondurdu.
+
+## 2026-05-15 - Local Setup Dokumantasyonu
+
+### Yapilanlar
+
+- `README.md` local backend calistirma akisini anlatacak sekilde genisletildi.
+- Dokumanda su basliklar netlestirildi:
+  - Gereksinimler: Java 17, Docker Desktop, Maven Wrapper, PowerShell.
+  - `.env` dosyasinin `.env.example` uzerinden olusturulmasi.
+  - `.env` dosyasinin commitlenmemesi gerektigi.
+  - `.\scripts\run-local.ps1` ile PostgreSQL ve API baslatma.
+  - `.\scripts\stop-local.ps1` ile lokal servisleri durdurma.
+  - Swagger UI adresi.
+  - Test komutu.
+  - Docker ve Flyway history kontrol komutlari.
+
+### Karar
+
+- Lokal kurulum bilgisi repo icinde `README.md` uzerinden takip edilecek.
+- Hassas local degerler icin `.env`, paylasilabilir ornekler icin `.env.example` kullanilmaya devam edilecek.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-15 - Duplicate Merge Audit Kaydi
+
+### Yapilanlar
+
+- Duplicate product merge akisi target product uzerinde audit kaydi olusturacak sekilde genisletildi.
+- Controller merge endpointi authenticated admin email bilgisini service'e gecmeye basladi.
+- Service interface geriye uyumlu kalacak sekilde yeni admin email parametreli merge metodunu destekler hale getirildi.
+- Merge audit kaydi:
+  - `actionType = MERGE`
+  - `fieldName = duplicateProductIds`
+  - `oldValue = merged duplicate id listesi`
+  - `newValue = target product id`
+  - `note = reassigned food log/favorite sayilari`
+- Audit kaydi sadece target product'a baglanir; silinen duplicate product kayitlarina FK baglanmaz.
+
+### Karar
+
+- Merge audit'i duplicate product kayitlari silinmeden once target urun uzerinden yazilir.
+- Bu yaklasim audit FK davranisini bozmadan merge isleminin izlenmesini saglar.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 17 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Barcode Lookup REJECTED Urun Davranisi
+
+### Yapilanlar
+
+- `getOrSaveFoodItemByBarcode` local DB'de `REJECTED` urun bulursa artik urunu kullaniciya dondurmez.
+- `REJECTED` local urun icin Open Food Facts fallback calistirilmaz.
+- External search sonucunda gelen barkod local DB'de `REJECTED` urune denk gelirse bu urun search response'a eklenmez ve yeniden save edilmez.
+- Testler eklendi:
+  - Local rejected barkod lookup `ProductNotFoundException` firlatir.
+  - Local rejected barkod lookup external fallback cagirmaz.
+  - External search sonucu rejected local urune denk gelirse response bos kalir.
+  - Rejected local urun yeniden cachelenmez.
+
+### Karar
+
+- `REJECTED` katalog kaydi fiziksel olarak silinmeden admin tarafinda korunur.
+- Normal kullanici hem search hem barcode lookup akisi uzerinden rejected urunu goremez.
+- Rejected urunun yeniden kullanima alinmasi admin review/yeniden onay sureciyle yapilmalidir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodItemServiceImplTest,FoodItemServiceSearchIntegrationTest" test`
+- Sonuc: 12 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Food Product Review Audit History Implementasyonu
+
+### Yapilanlar
+
+- Review audit action enum'u eklendi:
+  - `FoodProductReviewAuditAction`
+- Review audit entity eklendi:
+  - `FoodProductReviewAuditEntity`
+- Review audit repository eklendi:
+  - `FoodProductReviewAuditRepository`
+- Review audit response DTO'lari eklendi:
+  - `FoodProductReviewAuditDto`
+  - `FoodProductReviewAuditPageDto`
+- Flyway migration eklendi:
+  - `V10__add_food_product_review_audits.sql`
+- Migration ile `food_product_review_audits` tablosu ve temel indexler tanimlandi.
+- `PATCH /api/admin/products/{id}/review` akisi audit yazacak sekilde guncellendi.
+- Controller authenticated admin email bilgisini service'e gecmeye basladi.
+- Sadece gercekten degisen alanlar icin audit kaydi olusturulur.
+- Yeni admin endpoint eklendi:
+  - `GET /api/admin/products/{id}/audit?page=0&size=25`
+
+### Karar
+
+- Mevcut `updateProductReview(id, request)` imzasi geriye uyumluluk icin korunur ve yeni admin email parametreli metoda delege eder.
+- Audit kayitlari kullanici search davranisina dahil edilmez.
+- Ilk implementasyon review update alanlarini izler; duplicate merge audit'i ayri is olarak kalir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 14 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Food Product Review Request Validasyonlari
+
+### Yapilanlar
+
+- `FoodProductReviewRequestDto` icine `reviewNote` alani eklendi.
+- `displayImageUrl` verildiginde absolute `http` veya `https` URL olmasi zorunlu hale getirildi.
+- Product verification status `REJECTED` yapilirsa `reviewNote` zorunlu hale getirildi.
+- Image status `REJECTED` yapilirsa `reviewNote` zorunlu hale getirildi.
+- Review note audit kayitlarina yazilir hale getirildi.
+- Testler eklendi:
+  - Invalid display image URL reddedilir.
+  - Product reject note olmadan reddedilir.
+  - Image reject note olmadan reddedilir.
+  - Audit note kayda yazilir.
+
+### Karar
+
+- Reject islemleri gerekcesiz yapilmayacak.
+- Curated image URL mobil client tarafinda kullanilacagi icin sadece absolute HTTP/HTTPS URL kabul edilecek.
+- Review note simdilik `FoodItemEntity` uzerinde tutulmaz; degisiklik audit history icinde saklanir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 17 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Local Demo Seed Ihtiyaci Degerlendirmesi
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/LOCAL_DEMO_SEED_PLAN.md`
+- Lokal demo seed ihtiyaci mevcut API ve DB akisi uzerinden degerlendirildi.
+- Standard demo user'in API ile olusturulabilecegi belirlendi.
+- Admin demo user ve verified food product seed icin mevcut dogrudan guvenli API olmadigi netlestirildi.
+
+### Karar
+
+- Demo veriler production Flyway migration icine konulmayacak.
+- Local demo seed script'i yazilmadan once admin bootstrap yaklasimi netlestirilecek.
+- Gecici DB role update gibi islemler ancak acikca local-only script icinde ve production korumasi ile dusunulebilir.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-15 - DB Seed ve Katalog Veri Stratejisi
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/DATA_SEED_STRATEGY.md`
+- README icine proje dokumanlari listesi eklendi.
+- Seed stratejisi veri tipine gore ayrildi:
+  - Kucuk ve stabil reference veriler Flyway ile gelir.
+  - Buyuk food product catalog Flyway ile topluca doldurulmaz.
+  - Food catalog barcode lookup, Open Food Facts fallback, admin review ve ileride batch import ile buyur.
+- Lokal-only demo seed script fikri ayri ve opsiyonel is olarak ayrildi.
+
+### Karar
+
+- Exercise catalog seed migration yaklasimi dogru yerde kullanilmaya devam edecek.
+- Food product katalog verisi kalite/review surecinden gecmeden verified kabul edilmeyecek.
+- 100 binlerce urun ilk gunden DB'ye doldurulmayacak; kullanim ve admin kalite sureciyle kademeli buyutulecek.
+- Buyuk import ancak review, audit ve pagination/index altyapisi olgunlastiktan sonra tasarlanacak.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-15 - Food Product Catalog Manuel Akis Dogrulamasi
+
+### Yapilan Kontroller
+
+- Lokal API ayakta dogrulandi:
+  - `GET /v3/api-docs` HTTP 200.
+- PostgreSQL Docker container ayakta dogrulandi:
+  - `grun-postgres`
+- Geçici test kullanıcısı ile JWT alindi.
+- Barcode lookup canli API uzerinden test edildi:
+  - `GET /api/products/barcode/3017620422003`
+  - Urun adi: `Nutella`
+  - `dataSource = OPEN_FOOD_FACTS`
+  - `verificationStatus = RAW_IMPORTED`
+  - `imageStatus = NEEDS_REVIEW`
+- DB cache kontrol edildi:
+  - `normalized_barcode = 3017620422003`
+  - Tek urun kaydi bulundu.
+- Admin review endpointi canli API uzerinden test edildi:
+  - `GET /api/admin/products/review?verificationStatus=RAW_IMPORTED&imageStatus=NEEDS_REVIEW&page=0&size=25`
+  - `totalElements = 1`
+  - Ilk urun: `Nutella`
+- Geçici test kullanıcısı DB'den temizlendi.
+
+### Karar
+
+- Food product lookup, cache ve admin review akisi beklenen sekilde calisiyor.
+- Admin review tarafinda siradaki iyilestirme, review durum gecislerini ve curator is akisini daha net hale getirmek olacak.
+
+## 2026-05-15 - Product Catalog Admin Flow Dokumani
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/PRODUCT_CATALOG_ADMIN_FLOW.md`
+- Admin product catalog review sureci sade is akisi olarak yazildi:
+  - Imported urunleri listeleme.
+  - Urun bilgisini kontrol etme.
+  - Curated product name ve display image guncelleme.
+  - Image approval/rejection.
+  - Product verification/rejection.
+  - Duplicate analiz.
+  - Duplicate merge.
+
+### Karar
+
+- Open Food Facts gibi dis kaynaklardan gelen urunler ham veri olarak kabul edilmeye devam edecek.
+- Admin review akisi, katalog kalitesini artirmak icin temel curator sureci olacak.
+- `REJECTED` urunlerin kullanici arama sonucundaki davranisi ayri teknik is olarak ele alinacak.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-15 - ExerciseItem Catalog Index Migration
+
+### Yapilanlar
+
+- ExerciseItem katalog filtreleri icin yeni Flyway migration eklendi:
+  - `V9__add_exercise_item_catalog_indexes.sql`
+- Eklenen indexler:
+  - `idx_exercise_items_active_name`
+  - `idx_exercise_items_difficulty`
+  - `idx_exercise_items_primary_muscle_group`
+  - `idx_exercise_items_equipment`
+
+### Karar
+
+- `GET /api/exercise-items` artik `active`, `difficulty`, `primaryMuscleGroup`, `equipment` filtrelerini destekledigi icin bu alanlar temel index kapsamına alindi.
+- `active + name` composite index'i varsayilan aktif katalog listeleme ve `name ASC` siralamasi icin eklendi.
+
+### Sonraki Adim
+
+- Lokal PostgreSQL uzerinde Flyway `V9` migration'i dogrulanacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 77 test gecti, 0 failure, 0 error.
+- Lokal PostgreSQL Flyway history: `V9 - add exercise item catalog indexes` success.
+
+## 2026-05-15 - Food Product Review Durum Validasyonlari
+
+### Yapilanlar
+
+- Admin product review update akisi icin temel durum validasyonlari eklendi.
+- `verificationStatus = VERIFIED` yapilacak urunlerde product name zorunlu hale getirildi.
+- `imageStatus = APPROVED` yapilacak urunlerde `displayImageUrl` zorunlu hale getirildi.
+- Validasyon hatalari `IllegalArgumentException` ile standart `400 Bad Request` response akisini kullanir.
+- Service testleri eklendi:
+  - Verified urunde bos product name reddedilir.
+  - Approved image status icin bos display image URL reddedilir.
+
+### Karar
+
+- Admin review akisi serbest alan guncelleme olmaktan cikarak minimum kalite kurallari tasimaya basladi.
+- Daha detayli durum gecisleri ve audit history ayri bir teknik is olarak ele alinacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest" test`
+- Sonuc: 6 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 79 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Dashboard Swagger ve Test Kapsami
+
+### Yapilanlar
+
+- `GET /api/dashboard/daily-summary` endpointi icin Swagger aciklamasi guclendirildi.
+- Endpoint bearer token gerektirdigi icin OpenAPI uzerinde `bearerAuth` security requirement eklendi.
+- `date` request parametresi Swagger'da opsiyonel tarih olarak aciklandi.
+- `DailySummaryDto` response semasi alan bazli `@Schema` aciklamalari ve ornekleriyle netlestirildi.
+- Controller testi eklendi:
+  - Authenticated kullanicinin email bilgisinin service katmanina aktarildigi dogrulandi.
+  - Request `date` parametresinin dogru parse edildigi dogrulandi.
+  - Daily summary JSON response alanlari kontrol edildi.
+- Service testi eklendi:
+  - Log ve aktif hedef olmayan bos gun senaryosunda toplamlarin `0` dondugu dogrulandi.
+  - Progress log yokken mevcut kullanici profil kilosunun `currentWeight` olarak kullanildigi dogrulandi.
+
+### Karar
+
+- Dashboard endpointi kullaniciya ait ozet veriyi authentication context uzerinden uretmeye devam edecek.
+- Liste endpointlerinden farkli olarak dashboard response'u tek gunluk ozet kontrati tasir.
+- Empty day davranisi hata degildir; mobil uygulama icin sifirlanmis summary response'u doner.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=DashboardControllerTest,DashboardServiceImplTest" test`
+- Sonuc: 2 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - Product Search REJECTED Urun Davranisi
+
+### Yapilanlar
+
+- Kullanici urun arama akisi `REJECTED` verification status tasiyan urunleri dondurmeyecek sekilde guncellendi.
+- Search specification icine su kural eklendi:
+  - `verificationStatus IS NULL` olan eski kayitlar gorunebilir.
+  - `verificationStatus != REJECTED` olan aktif/ham/onayli kayitlar gorunebilir.
+  - `verificationStatus = REJECTED` olan urunler kullanici search sonucundan dislanir.
+- Admin review akisi degistirilmedi; admin tarafinda `REJECTED` urunler filtrelenebilir ve incelenebilir kalir.
+- Gercek JPA specification davranisini dogrulamak icin `FoodItemServiceSearchIntegrationTest` eklendi.
+
+### Karar
+
+- `REJECTED` urunler katalogdan fiziksel olarak silinmeyecek.
+- Kullanici aramasinda gorunmeyecekler; boylece hatali veya uygunsuz katalog verisi mobil deneyime tasinmayacak.
+- Eski log referanslari korunur; bu is sadece product search sonucunu etkiler.
+- Barcode lookup icin `REJECTED` local urun davranisi ayri teknik is olarak ele alinacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodItemServiceImplTest,FoodItemServiceSearchIntegrationTest" test`
+- Sonuc: 10 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - ExerciseItem Canli API ve Flyway V9 Dogrulamasi
+
+### Yapilan Kontroller
+
+- Lokal API canli olarak dogrulandi:
+  - `GET /v3/api-docs` HTTP 200.
+- Docker PostgreSQL container durumu kontrol edildi:
+  - `grun-postgres` ayakta.
+- Flyway history kontrol edildi:
+  - `V9 - add exercise item catalog indexes` success.
+- PostgreSQL indexleri kontrol edildi:
+  - `idx_exercise_items_active_name`
+  - `idx_exercise_items_difficulty`
+  - `idx_exercise_items_equipment`
+  - `idx_exercise_items_primary_muscle_group`
+- Geçici test kullanicisi ile JWT alinarak filtreli endpoint test edildi:
+  - `GET /api/exercise-items?page=0&size=5&q=run&active=true`
+  - HTTP 200 dondu.
+  - Ilk sonuc `Running` olarak dogrulandi.
+- Geçici test kullanicisi DB'den temizlendi.
+
+### Karar
+
+- ExerciseItem paginated/filter endpointi migration sonrasi canli ortamda beklenen sekilde calisiyor.
+- V9 index migration'i lokal PostgreSQL uzerinde uygulanmis durumda.
+
+## 2026-05-15 - Food Product Review Audit History Plani
+
+### Yapilanlar
+
+- Yeni plan dokumani eklendi:
+  - `docs/FOOD_PRODUCT_REVIEW_AUDIT_PLAN.md`
+- Admin product review islemleri icin audit history kapsami tanimlandi.
+- Planlanan tablo ve entity netlestirildi:
+  - `food_product_review_audits`
+  - `FoodProductReviewAuditEntity`
+- Audit alanlari belirlendi:
+  - `food_item_id`
+  - `reviewed_by`
+  - `action_type`
+  - `field_name`
+  - `old_value`
+  - `new_value`
+  - `note`
+  - `created_at`
+- Admin audit listeleme endpointi planlandi:
+  - `GET /api/admin/products/{id}/audit?page=0&size=25`
+- Review update sirasinda sadece gercekten degisen alanlar icin audit kaydi yazilmasi kararlastirildi.
+
+### Karar
+
+- Ilk audit implementasyonu sadece `PATCH /api/admin/products/{id}/review` akisini kapsayacak.
+- Duplicate merge audit'i sonraki is olarak ayrilacak.
+- Admin kimligi controller tarafinda `AuthenticationPrincipal` uzerinden alinip service'e acik parametre olarak gecilecek.
+- Audit history user-facing search davranisina dahil edilmeyecek; admin kalite sureci icin tutulacak.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
