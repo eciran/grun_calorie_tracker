@@ -78,6 +78,7 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Food product review audit history plan dokumani eklendi.
 - Food product review audit history entity, migration, repository, service ve admin listeleme endpointi eklendi.
 - Food product admin review request validasyonlari genisletildi.
+- Local demo seed ihtiyaci degerlendirildi ve plan dokumani eklendi.
 - DB seed ve katalog veri yonetimi stratejisi dokumani eklendi.
 - Food product admin review durum gecisleri icin temel validasyonlar eklendi.
 - Kullanici product search sonucunda `REJECTED` urunlerin gizlenmesi saglandi.
@@ -92,27 +93,27 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 
 ## Siradaki 5 Is
 
-1. Local-only demo seed script ihtiyacini degerlendir.
-   - Demo admin user.
-   - Demo standard user.
-   - Birkaç verified food product.
-
-2. Mevcut degisiklikleri commit icin toparla.
+1. Mevcut degisiklikleri commit icin toparla.
    - Git status kontrolu.
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.
 
-3. Admin product duplicate merge icin audit/event yaklasimini tasarla.
+2. Admin product duplicate merge icin audit/event yaklasimini tasarla.
    - Target ve duplicate id listesi.
    - Reassigned log/favorite sayilari.
    - Removed duplicate favorite sayisi.
 
-4. V10 audit migration'i canli PostgreSQL uzerinde dogrula.
+3. V10 audit migration'i canli PostgreSQL uzerinde dogrula.
    - Flyway history success.
    - Audit table ve indexler var mi?
    - Admin audit endpointi HTTP 200 donuyor mu?
 
-5. Admin review Swagger orneklerini review note ve audit endpoint icin tekrar kontrol et.
+4. Admin review Swagger orneklerini review note ve audit endpoint icin tekrar kontrol et.
+
+5. Local admin bootstrap yaklasimini tasarla.
+   - Sadece local profile.
+   - Production'da kapali.
+   - Demo seed script icin on kosul.
 
 ## Ertelenen Buyuk Fikirler
 

@@ -1182,6 +1182,26 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
 - Sonuc: 17 test gecti, 0 failure, 0 error.
 
+## 2026-05-15 - Local Demo Seed Ihtiyaci Degerlendirmesi
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/LOCAL_DEMO_SEED_PLAN.md`
+- Lokal demo seed ihtiyaci mevcut API ve DB akisi uzerinden degerlendirildi.
+- Standard demo user'in API ile olusturulabilecegi belirlendi.
+- Admin demo user ve verified food product seed icin mevcut dogrudan guvenli API olmadigi netlestirildi.
+
+### Karar
+
+- Demo veriler production Flyway migration icine konulmayacak.
+- Local demo seed script'i yazilmadan once admin bootstrap yaklasimi netlestirilecek.
+- Gecici DB role update gibi islemler ancak acikca local-only script icinde ve production korumasi ile dusunulebilir.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
 ## 2026-05-15 - DB Seed ve Katalog Veri Stratejisi
 
 ### Yapilanlar
