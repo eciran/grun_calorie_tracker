@@ -6,8 +6,11 @@ import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
+import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
+import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -25,6 +28,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -174,7 +178,7 @@ class AdminFoodProductReviewControllerTest {
         response.setImageSource(ImageSource.ADMIN_UPLOAD);
         response.setImageStatus(ImageStatus.APPROVED);
 
-        when(foodProductReviewService.updateProductReview(eq(1L), any(FoodProductReviewRequestDto.class)))
+        when(foodProductReviewService.updateProductReview(eq(1L), any(FoodProductReviewRequestDto.class), eq("admin@test.com")))
                 .thenReturn(response);
 
         mockMvc.perform(patch("/api/admin/products/1/review")
@@ -185,5 +189,41 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.productName").value("Verified Product"))
                 .andExpect(jsonPath("$.verificationStatus").value("VERIFIED"))
                 .andExpect(jsonPath("$.imageStatus").value("APPROVED"));
+
+        verify(foodProductReviewService).updateProductReview(eq(1L), any(FoodProductReviewRequestDto.class), eq("admin@test.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductReviewAudits_whenAdmin_returnsAuditEntries() throws Exception {
+        FoodProductReviewAuditDto audit = new FoodProductReviewAuditDto();
+        audit.setId(10L);
+        audit.setFoodItemId(1L);
+        audit.setReviewedBy("admin@test.com");
+        audit.setActionType(FoodProductReviewAuditAction.STATUS_CHANGE);
+        audit.setFieldName("verificationStatus");
+        audit.setOldValue("RAW_IMPORTED");
+        audit.setNewValue("VERIFIED");
+
+        FoodProductReviewAuditPageDto page = new FoodProductReviewAuditPageDto();
+        page.setContent(List.of(audit));
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(1L);
+        page.setTotalPages(1);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodProductReviewService.getProductReviewAudits(1L, 0, 25)).thenReturn(page);
+
+        mockMvc.perform(get("/api/admin/products/1/audit"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(10L))
+                .andExpect(jsonPath("$.content[0].foodItemId").value(1L))
+                .andExpect(jsonPath("$.content[0].reviewedBy").value("admin@test.com"))
+                .andExpect(jsonPath("$.content[0].actionType").value("STATUS_CHANGE"))
+                .andExpect(jsonPath("$.content[0].fieldName").value("verificationStatus"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 }

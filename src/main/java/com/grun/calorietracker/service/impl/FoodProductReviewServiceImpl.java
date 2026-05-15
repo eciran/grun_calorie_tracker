@@ -5,15 +5,20 @@ import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
+import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
+import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
@@ -31,6 +36,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,15 +45,18 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final FoodItemRepository foodItemRepository;
     private final FoodLogsRepository foodLogsRepository;
     private final UserFavoriteRepository userFavoriteRepository;
+    private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
 
     public FoodProductReviewServiceImpl(
             FoodItemRepository foodItemRepository,
             FoodLogsRepository foodLogsRepository,
-            UserFavoriteRepository userFavoriteRepository
+            UserFavoriteRepository userFavoriteRepository,
+            FoodProductReviewAuditRepository foodProductReviewAuditRepository
     ) {
         this.foodItemRepository = foodItemRepository;
         this.foodLogsRepository = foodLogsRepository;
         this.userFavoriteRepository = userFavoriteRepository;
+        this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
     }
 
     @Override
@@ -71,7 +80,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
-    public FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request) {
+    @Transactional
+    public FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy) {
         if (request == null) {
             throw new IllegalArgumentException("Review request must not be empty.");
         }
@@ -79,32 +89,109 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
 
+        List<FoodProductReviewAuditEntity> audits = new ArrayList<>();
+
         String productName = trimToNull(request.getProductName());
         if (productName != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "productName",
+                    product.getName(),
+                    productName
+            );
             product.setName(productName);
         }
 
         String displayImageUrl = trimToNull(request.getDisplayImageUrl());
         if (displayImageUrl != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.IMAGE_CHANGE,
+                    "displayImageUrl",
+                    product.getDisplayImageUrl(),
+                    displayImageUrl
+            );
             product.setDisplayImageUrl(displayImageUrl);
         }
 
         if (request.getVerificationStatus() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.STATUS_CHANGE,
+                    "verificationStatus",
+                    product.getVerificationStatus(),
+                    request.getVerificationStatus()
+            );
             product.setVerificationStatus(request.getVerificationStatus());
         }
 
         if (request.getImageSource() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.IMAGE_CHANGE,
+                    "imageSource",
+                    product.getImageSource(),
+                    request.getImageSource()
+            );
             product.setImageSource(request.getImageSource());
         }
 
         if (request.getImageStatus() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.IMAGE_CHANGE,
+                    "imageStatus",
+                    product.getImageStatus(),
+                    request.getImageStatus()
+            );
             product.setImageStatus(request.getImageStatus());
         }
 
         validateReviewState(product);
         FoodProductQualityRules.markReviewed(product);
 
-        return FoodItemMapper.mapEntityToDto(foodItemRepository.save(product));
+        FoodItemEntity savedProduct = foodItemRepository.save(product);
+        if (!audits.isEmpty()) {
+            foodProductReviewAuditRepository.saveAll(audits);
+        }
+
+        return FoodItemMapper.mapEntityToDto(savedProduct);
+    }
+
+    @Override
+    public FoodProductReviewAuditPageDto getProductReviewAudits(Long productId, int page, int size) {
+        if (!foodItemRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Food product not found with id: " + productId);
+        }
+
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                normalizePageSize(size),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        Page<FoodProductReviewAuditEntity> audits =
+                foodProductReviewAuditRepository.findByFoodItemId(productId, pageable);
+
+        FoodProductReviewAuditPageDto dto = new FoodProductReviewAuditPageDto();
+        dto.setContent(audits.getContent().stream().map(this::toAuditDto).toList());
+        dto.setPage(audits.getNumber());
+        dto.setSize(audits.getSize());
+        dto.setTotalElements(audits.getTotalElements());
+        dto.setTotalPages(audits.getTotalPages());
+        dto.setFirst(audits.isFirst());
+        dto.setLast(audits.isLast());
+        return dto;
     }
 
     @Override
@@ -184,6 +271,47 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         if (product.getImageStatus() == ImageStatus.APPROVED && trimToNull(product.getDisplayImageUrl()) == null) {
             throw new IllegalArgumentException("Approved product image must have a display image URL.");
         }
+    }
+
+    private void addAuditIfChanged(
+            List<FoodProductReviewAuditEntity> audits,
+            FoodItemEntity product,
+            String reviewedBy,
+            FoodProductReviewAuditAction action,
+            String fieldName,
+            Object oldValue,
+            Object newValue
+    ) {
+        if (Objects.equals(oldValue, newValue)) {
+            return;
+        }
+
+        FoodProductReviewAuditEntity audit = new FoodProductReviewAuditEntity();
+        audit.setFoodItem(product);
+        audit.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
+        audit.setActionType(action);
+        audit.setFieldName(fieldName);
+        audit.setOldValue(toAuditValue(oldValue));
+        audit.setNewValue(toAuditValue(newValue));
+        audits.add(audit);
+    }
+
+    private String toAuditValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private FoodProductReviewAuditDto toAuditDto(FoodProductReviewAuditEntity audit) {
+        FoodProductReviewAuditDto dto = new FoodProductReviewAuditDto();
+        dto.setId(audit.getId());
+        dto.setFoodItemId(audit.getFoodItem().getId());
+        dto.setReviewedBy(audit.getReviewedBy());
+        dto.setActionType(audit.getActionType());
+        dto.setFieldName(audit.getFieldName());
+        dto.setOldValue(audit.getOldValue());
+        dto.setNewValue(audit.getNewValue());
+        dto.setNote(audit.getNote());
+        dto.setCreatedAt(audit.getCreatedAt());
+        return dto;
     }
 
     private void validateMergeRequest(FoodProductMergeRequestDto request) {

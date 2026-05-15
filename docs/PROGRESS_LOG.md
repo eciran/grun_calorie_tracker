@@ -1123,6 +1123,39 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=FoodItemServiceImplTest,FoodItemServiceSearchIntegrationTest" test`
 - Sonuc: 12 test gecti, 0 failure, 0 error.
 
+## 2026-05-15 - Food Product Review Audit History Implementasyonu
+
+### Yapilanlar
+
+- Review audit action enum'u eklendi:
+  - `FoodProductReviewAuditAction`
+- Review audit entity eklendi:
+  - `FoodProductReviewAuditEntity`
+- Review audit repository eklendi:
+  - `FoodProductReviewAuditRepository`
+- Review audit response DTO'lari eklendi:
+  - `FoodProductReviewAuditDto`
+  - `FoodProductReviewAuditPageDto`
+- Flyway migration eklendi:
+  - `V10__add_food_product_review_audits.sql`
+- Migration ile `food_product_review_audits` tablosu ve temel indexler tanimlandi.
+- `PATCH /api/admin/products/{id}/review` akisi audit yazacak sekilde guncellendi.
+- Controller authenticated admin email bilgisini service'e gecmeye basladi.
+- Sadece gercekten degisen alanlar icin audit kaydi olusturulur.
+- Yeni admin endpoint eklendi:
+  - `GET /api/admin/products/{id}/audit?page=0&size=25`
+
+### Karar
+
+- Mevcut `updateProductReview(id, request)` imzasi geriye uyumluluk icin korunur ve yeni admin email parametreli metoda delege eder.
+- Audit kayitlari kullanici search davranisina dahil edilmez.
+- Ilk implementasyon review update alanlarini izler; duplicate merge audit'i ayri is olarak kalir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 14 test gecti, 0 failure, 0 error.
+
 ## 2026-05-15 - DB Seed ve Katalog Veri Stratejisi
 
 ### Yapilanlar

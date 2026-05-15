@@ -76,6 +76,7 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Food product catalog altyapisi teknik olarak guclendirildi, ancak admin panel/UI henuz yok.
 - Product catalog admin flow dokumani eklendi.
 - Food product review audit history plan dokumani eklendi.
+- Food product review audit history entity, migration, repository, service ve admin listeleme endpointi eklendi.
 - DB seed ve katalog veri yonetimi stratejisi dokumani eklendi.
 - Food product admin review durum gecisleri icin temel validasyonlar eklendi.
 - Kullanici product search sonucunda `REJECTED` urunlerin gizlenmesi saglandi.
@@ -90,30 +91,30 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 
 ## Siradaki 5 Is
 
-1. Product catalog admin endpointleri icin audit history implementasyonuna basla.
-   - Entity ve migration.
-   - Review update sirasinda audit kaydi.
-   - Admin audit listeleme endpointi.
-
-2. Food product admin review request validation kurallarini genislet.
+1. Food product admin review request validation kurallarini genislet.
    - URL format kontrolu.
    - Reject note ihtiyaci.
    - Verification ve image status gecis kurallari.
 
-3. Local-only demo seed script ihtiyacini degerlendir.
+2. Local-only demo seed script ihtiyacini degerlendir.
    - Demo admin user.
    - Demo standard user.
    - Birkaç verified food product.
 
-4. Mevcut degisiklikleri commit icin toparla.
+3. Mevcut degisiklikleri commit icin toparla.
    - Git status kontrolu.
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.
 
-5. Admin product duplicate merge icin audit/event yaklasimini tasarla.
+4. Admin product duplicate merge icin audit/event yaklasimini tasarla.
    - Target ve duplicate id listesi.
    - Reassigned log/favorite sayilari.
    - Removed duplicate favorite sayisi.
+
+5. V10 audit migration'i canli PostgreSQL uzerinde dogrula.
+   - Flyway history success.
+   - Audit table ve indexler var mi?
+   - Admin audit endpointi HTTP 200 donuyor mu?
 
 ## Ertelenen Buyuk Fikirler
 
