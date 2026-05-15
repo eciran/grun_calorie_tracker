@@ -13,6 +13,14 @@ GRun Calorie Tracker is an AI-powered health and nutrition application that allo
 - PostgreSQL setup via Docker
 - Swagger/OpenAPI documentation
 
+## Project Docs
+
+- `docs/ROADMAP.md`: current project status and next work items
+- `docs/PROGRESS_LOG.md`: technical progress history
+- `docs/DATA_SEED_STRATEGY.md`: database seed and catalog data strategy
+- `docs/PRODUCT_CATALOG_ADMIN_FLOW.md`: admin product review workflow
+- `docs/FOOD_PRODUCT_REVIEW_AUDIT_PLAN.md`: planned audit history model
+
 ## Local Setup
 
 ### Requirements

@@ -1099,6 +1099,54 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Dokuman degisikligidir; ek test gerektirmez.
 
+## 2026-05-15 - Barcode Lookup REJECTED Urun Davranisi
+
+### Yapilanlar
+
+- `getOrSaveFoodItemByBarcode` local DB'de `REJECTED` urun bulursa artik urunu kullaniciya dondurmez.
+- `REJECTED` local urun icin Open Food Facts fallback calistirilmaz.
+- External search sonucunda gelen barkod local DB'de `REJECTED` urune denk gelirse bu urun search response'a eklenmez ve yeniden save edilmez.
+- Testler eklendi:
+  - Local rejected barkod lookup `ProductNotFoundException` firlatir.
+  - Local rejected barkod lookup external fallback cagirmaz.
+  - External search sonucu rejected local urune denk gelirse response bos kalir.
+  - Rejected local urun yeniden cachelenmez.
+
+### Karar
+
+- `REJECTED` katalog kaydi fiziksel olarak silinmeden admin tarafinda korunur.
+- Normal kullanici hem search hem barcode lookup akisi uzerinden rejected urunu goremez.
+- Rejected urunun yeniden kullanima alinmasi admin review/yeniden onay sureciyle yapilmalidir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodItemServiceImplTest,FoodItemServiceSearchIntegrationTest" test`
+- Sonuc: 12 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - DB Seed ve Katalog Veri Stratejisi
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/DATA_SEED_STRATEGY.md`
+- README icine proje dokumanlari listesi eklendi.
+- Seed stratejisi veri tipine gore ayrildi:
+  - Kucuk ve stabil reference veriler Flyway ile gelir.
+  - Buyuk food product catalog Flyway ile topluca doldurulmaz.
+  - Food catalog barcode lookup, Open Food Facts fallback, admin review ve ileride batch import ile buyur.
+- Lokal-only demo seed script fikri ayri ve opsiyonel is olarak ayrildi.
+
+### Karar
+
+- Exercise catalog seed migration yaklasimi dogru yerde kullanilmaya devam edecek.
+- Food product katalog verisi kalite/review surecinden gecmeden verified kabul edilmeyecek.
+- 100 binlerce urun ilk gunden DB'ye doldurulmayacak; kullanim ve admin kalite sureciyle kademeli buyutulecek.
+- Buyuk import ancak review, audit ve pagination/index altyapisi olgunlastiktan sonra tasarlanacak.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
 ## 2026-05-15 - Food Product Catalog Manuel Akis Dogrulamasi
 
 ### Yapilan Kontroller

@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,6 +68,22 @@ class FoodItemServiceImplTest {
 
         assertThrows(ProductNotFoundException.class,
                 () -> foodItemService.getOrSaveFoodItemByBarcode("999999"));
+    }
+
+    @Test
+    void getOrSaveFoodItemByBarcode_whenLocalProductIsRejected_throwsProductNotFoundWithoutExternalFallback() {
+        FoodItemEntity rejectedProduct = new FoodItemEntity();
+        rejectedProduct.setBarcode("123456");
+        rejectedProduct.setNormalizedBarcode("123456");
+        rejectedProduct.setName("Rejected Product");
+        rejectedProduct.setVerificationStatus(VerificationStatus.REJECTED);
+
+        when(foodItemRepository.findByNormalizedBarcode("123456")).thenReturn(Optional.of(rejectedProduct));
+
+        assertThrows(ProductNotFoundException.class,
+                () -> foodItemService.getOrSaveFoodItemByBarcode("123456"));
+
+        verify(openFoodFactsService, never()).getProductByBarcode("123456");
     }
 
     @Test
@@ -215,5 +232,31 @@ class FoodItemServiceImplTest {
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getContent().get(0).getVerificationStatus());
         verify(openFoodFactsService).searchProductsByCriteria(criteria);
         verify(foodItemRepository).save(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void searchFoodItems_whenExternalResultMatchesRejectedLocalProduct_doesNotReturnRejectedProduct() {
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("blocked");
+
+        FoodProductDto externalProduct = new FoodProductDto();
+        externalProduct.setBarcode("444444");
+        externalProduct.setProductName("Blocked Product");
+
+        FoodItemEntity rejectedProduct = new FoodItemEntity();
+        rejectedProduct.setBarcode("444444");
+        rejectedProduct.setNormalizedBarcode("444444");
+        rejectedProduct.setName("Blocked Product");
+        rejectedProduct.setVerificationStatus(VerificationStatus.REJECTED);
+
+        when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(openFoodFactsService.searchProductsByCriteria(criteria)).thenReturn(List.of(externalProduct));
+        when(foodItemRepository.findByNormalizedBarcode("444444")).thenReturn(Optional.of(rejectedProduct));
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(0, result.getContent().size());
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
     }
 }

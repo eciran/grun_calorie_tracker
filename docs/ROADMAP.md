@@ -76,8 +76,10 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Food product catalog altyapisi teknik olarak guclendirildi, ancak admin panel/UI henuz yok.
 - Product catalog admin flow dokumani eklendi.
 - Food product review audit history plan dokumani eklendi.
+- DB seed ve katalog veri yonetimi stratejisi dokumani eklendi.
 - Food product admin review durum gecisleri icin temel validasyonlar eklendi.
 - Kullanici product search sonucunda `REJECTED` urunlerin gizlenmesi saglandi.
+- Barcode lookup ve external search cache akisi `REJECTED` local urunleri kullaniciya dondurmez hale getirildi.
 - DB'de gercek urun ve egzersiz katalog verisi henuz sistematik olarak doldurulmadi.
 - Local run akisi calisiyor, ancak Docker/PostgreSQL sifre ve container state konulari net kullanim dokumani gerektiriyor.
 - Local setup dokumani README icinde netlestirildi.
@@ -88,30 +90,30 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 
 ## Siradaki 5 Is
 
-1. Mevcut degisiklikleri commit icin toparla.
-   - Git status kontrolu.
-   - `.env` gibi local dosyalarin commitlenmedigini dogrula.
-   - Anlamli commit mesaji hazirla.
-
-2. DB seed stratejisini netlestir.
-   - Baslangic manuel seed.
-   - Admin import akisi.
-   - Buyuk katalog importu icin ileride batch/job yaklasimi.
-
-3. Barcode lookup icin `REJECTED` local urun davranisini ayri ele al.
-   - Direkt not-found mu donmeli?
-   - Admin tarafinda yeniden review/import akisi olmali mi?
-   - Eski log referanslari korunarak kullaniciya nasil gosterilmeli?
-
-4. Product catalog admin endpointleri icin audit history implementasyonuna basla.
+1. Product catalog admin endpointleri icin audit history implementasyonuna basla.
    - Entity ve migration.
    - Review update sirasinda audit kaydi.
    - Admin audit listeleme endpointi.
 
-5. Food product admin review request validation kurallarini genislet.
+2. Food product admin review request validation kurallarini genislet.
    - URL format kontrolu.
    - Reject note ihtiyaci.
    - Verification ve image status gecis kurallari.
+
+3. Local-only demo seed script ihtiyacini degerlendir.
+   - Demo admin user.
+   - Demo standard user.
+   - Birkaç verified food product.
+
+4. Mevcut degisiklikleri commit icin toparla.
+   - Git status kontrolu.
+   - `.env` gibi local dosyalarin commitlenmedigini dogrula.
+   - Anlamli commit mesaji hazirla.
+
+5. Admin product duplicate merge icin audit/event yaklasimini tasarla.
+   - Target ve duplicate id listesi.
+   - Reassigned log/favorite sayilari.
+   - Removed duplicate favorite sayisi.
 
 ## Ertelenen Buyuk Fikirler
 
