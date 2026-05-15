@@ -76,36 +76,37 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Food product catalog altyapisi teknik olarak guclendirildi, ancak admin panel/UI henuz yok.
 - DB'de gercek urun ve egzersiz katalog verisi henuz sistematik olarak doldurulmadi.
 - Local run akisi calisiyor, ancak Docker/PostgreSQL sifre ve container state konulari net kullanim dokumani gerektiriyor.
-- Yapilan degisiklikler henuz yeni bir commit olarak toparlanmadi.
+- Local setup dokumani README icinde netlestirildi.
+- Egzersiz katalog verisi icin ilk Flyway seed stratejisi baslatildi ve lokal PostgreSQL uzerinde dogrulandi.
 
 ## Siradaki 5 Is
 
-1. Local setup dokumanini netlestir.
-   - Docker nasil acilir.
-   - `.env` nasil olmali.
-   - API nasil baslatilir.
-   - Swagger nereden acilir.
-
-2. Mevcut degisiklikleri commit/push icin toparla.
+1. Mevcut degisiklikleri commit icin toparla.
    - Git status kontrolu.
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.
 
-3. Food product catalog akisini manuel test et.
+2. Food product catalog akisini manuel test et.
    - Barcode ile urun ara.
    - Local DB'ye cacheleniyor mu kontrol et.
    - Admin review endpointinde gorunuyor mu kontrol et.
 
-4. ExerciseItem icin baslangic seed stratejisini sec.
-   - Flyway SQL seed mi?
-   - Sadece dev profile seed mi?
-   - Ilk etapta kac hareket eklenecek?
+3. ExerciseItem katalog listeleme kontratini canli API'de dogrula.
+   - `GET /api/exercise-items?page=0&size=25` paginated response donuyor mu?
+   - `q`, `primaryMuscleGroup`, `equipment`, `difficulty`, `active` filtreleri calisiyor mu?
+   - Swagger response semasi dogru gorunuyor mu?
 
-5. Product catalog admin surecini sade sekilde planla.
+4. Product catalog admin surecini sade sekilde planla.
    - Review listesi.
    - Image onaylama.
    - Duplicate analiz.
    - Merge aksiyonu.
+
+5. ExerciseItem katalog filtreleri icin DB index ihtiyacini degerlendir.
+   - `active`
+   - `difficulty`
+   - `primary_muscle_group`
+   - `equipment`
 
 ## Ertelenen Buyuk Fikirler
 

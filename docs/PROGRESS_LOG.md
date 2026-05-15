@@ -966,3 +966,135 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
   - Barcode lookup HTTP 200.
   - Product search empty page HTTP 200.
   - Admin review HTTP 200.
+
+## 2026-05-15 - ExerciseItem Baslangic Seed Stratejisi
+
+### Yapilanlar
+
+- Exercise catalog icin runtime seed yerine Flyway SQL seed yaklasimi secildi.
+- Yeni migration dosyasi eklendi:
+  - `V8__seed_initial_exercise_items.sql`
+- Baslangic katalog icin 12 temel egzersiz eklendi:
+  - Brisk Walking
+  - Running
+  - Cycling
+  - Swimming
+  - Bodyweight Squat
+  - Push-Up
+  - Plank
+  - Jump Rope
+  - Dumbbell Deadlift
+  - Bench Press
+  - Yoga
+  - Rowing Machine
+- Seed kayitlari `met_code` uzerinden idempotent olacak sekilde yazildi; ayni `met_code` varsa tekrar insert edilmez.
+- Mevcut eski kayitlarda `ai_eligible` veya `active` bos ise varsayilan olarak `true` yapilir.
+
+### Karar
+
+- Baslangic egzersiz katalog verisi uygulama acilisinda kodla degil, migration ile yonetilecek.
+- Bu tercih lokal, test/staging ve ileride production ortamlari arasinda daha tutarli DB durumu saglar.
+- Gorsel/video URL alanlari simdilik bos birakildi; daha sonra curator/admin akisi veya CDN karariyla doldurulacak.
+
+### Sonraki Adim
+
+- ExerciseItem katalog API'si yetki, duplicate kontrolu ve listeleme kullanimi acisindan iyilestirilecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 67 test gecti, 0 failure, 0 error.
+- Lokal API: `GET /v3/api-docs` HTTP 200.
+- Flyway history: `V1` - `V8` success.
+- Lokal PostgreSQL: `exercise_items` tablosunda 12 seed kayit dogrulandi.
+- Canli API: JWT ile `GET /api/exercise-items` 12 hareket dondurdu.
+
+## 2026-05-15 - ExerciseItem Admin Yetkisi ve Duplicate Koruması
+
+### Yapilanlar
+
+- Exercise catalog listeleme endpointi normal authenticated kullanicilara acik birakildi:
+  - `GET /api/exercise-items`
+- Exercise catalog yazma islemleri admin yetkisine alindi:
+  - `POST /api/exercise-items`
+  - `PUT /api/exercise-items/{id}`
+  - `DELETE /api/exercise-items/{id}`
+- `metCode` duplicate kontrolu eklendi.
+- Yeni exception eklendi:
+  - `DuplicateExerciseItemException`
+- Duplicate `metCode` durumunda standart error response ile `409 Conflict` doner.
+- Service seviyesinde `metCode` trim edilip uppercase normalize edilir.
+- Controller ve service testleri eklendi.
+
+### Karar
+
+- Egzersiz katalog verisi tum kullanicilar tarafindan okunabilir.
+- Katalog yonetimi admin operasyonudur; standart kullanici egzersiz katalog kaydi olusturamaz, guncelleyemez veya silemez.
+- `metCode`, egzersiz katalog kayitlari icin stabil teknik anahtar gibi ele alinacak ve duplicate olmasi engellenecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=ExerciseItemControllerTest,ExerciseItemServiceImplTest" test`
+- Sonuc: 11 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 76 test gecti, 0 failure, 0 error.
+
+## 2026-05-15 - ExerciseItem Paginated Search Endpointi
+
+### Yapilanlar
+
+- `GET /api/exercise-items` response kontrati paginated hale getirildi.
+- Yeni response DTO eklendi:
+  - `ExerciseItemPageDto`
+- Endpoint artik su filtreleri destekler:
+  - `q`: name, metCode ve description uzerinde arama.
+  - `primaryMuscleGroup`
+  - `equipment`
+  - `difficulty`
+  - `active`
+  - `page`
+  - `size`
+- Varsayilan davranis aktif hareketleri dondurur:
+  - `active=true`
+- Maksimum page size `100` olarak sinirlandirildi.
+- Sonuclar `name ASC` siralamasiyla doner.
+- `ExerciseItemRepository`, Specification tabanli filtreleme icin `JpaSpecificationExecutor` destekleyecek sekilde guncellendi.
+- Controller ve service testleri yeni paginated response kontratina gore guncellendi.
+
+### Karar
+
+- Mobil uygulama egzersiz katalog listesini limitsiz liste olarak cekmeyecek.
+- Katalog buyudukce filtreleme ve sayfalama ayni endpoint uzerinden surdurulecek.
+- Inactive hareketler varsayilan kullanici listesinde gorunmeyecek; admin ihtiyaci icin `active=false` filtresiyle sorgulanabilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=ExerciseItemControllerTest,ExerciseItemServiceImplTest" test`
+- Sonuc: 12 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 77 test gecti, 0 failure, 0 error.
+- Canli API: JWT ile `GET /api/exercise-items?page=0&size=5&q=run` paginated response dondurdu.
+
+## 2026-05-15 - Local Setup Dokumantasyonu
+
+### Yapilanlar
+
+- `README.md` local backend calistirma akisini anlatacak sekilde genisletildi.
+- Dokumanda su basliklar netlestirildi:
+  - Gereksinimler: Java 17, Docker Desktop, Maven Wrapper, PowerShell.
+  - `.env` dosyasinin `.env.example` uzerinden olusturulmasi.
+  - `.env` dosyasinin commitlenmemesi gerektigi.
+  - `.\scripts\run-local.ps1` ile PostgreSQL ve API baslatma.
+  - `.\scripts\stop-local.ps1` ile lokal servisleri durdurma.
+  - Swagger UI adresi.
+  - Test komutu.
+  - Docker ve Flyway history kontrol komutlari.
+
+### Karar
+
+- Lokal kurulum bilgisi repo icinde `README.md` uzerinden takip edilecek.
+- Hassas local degerler icin `.env`, paylasilabilir ornekler icin `.env.example` kullanilmaya devam edilecek.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
