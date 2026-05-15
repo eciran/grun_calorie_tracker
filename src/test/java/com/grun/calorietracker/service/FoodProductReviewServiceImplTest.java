@@ -342,7 +342,7 @@ class FoodProductReviewServiceImplTest {
         when(foodLogsRepository.reassignFoodItemReferences(targetProduct, List.of(2L))).thenReturn(4);
         when(foodItemRepository.save(targetProduct)).thenReturn(targetProduct);
 
-        FoodProductMergeResponseDto result = foodProductReviewService.mergeDuplicateProducts(request);
+        FoodProductMergeResponseDto result = foodProductReviewService.mergeDuplicateProducts(request, "admin@grun.app");
 
         assertEquals(1L, result.getTargetProduct().getId());
         assertEquals(8L, result.getTargetProduct().getUsageCount());
@@ -350,6 +350,19 @@ class FoodProductReviewServiceImplTest {
         assertEquals(4, result.getReassignedFoodLogCount());
         assertEquals(2, result.getReassignedFavoriteCount());
         assertEquals(1, result.getRemovedConflictingFavoriteCount());
+
+        ArgumentCaptor<FoodProductReviewAuditEntity> auditCaptor =
+                ArgumentCaptor.forClass(FoodProductReviewAuditEntity.class);
+        verify(foodProductReviewAuditRepository).save(auditCaptor.capture());
+        assertEquals(FoodProductReviewAuditAction.MERGE, auditCaptor.getValue().getActionType());
+        assertEquals("duplicateProductIds", auditCaptor.getValue().getFieldName());
+        assertEquals("2", auditCaptor.getValue().getOldValue());
+        assertEquals("1", auditCaptor.getValue().getNewValue());
+        assertEquals("admin@grun.app", auditCaptor.getValue().getReviewedBy());
+        assertEquals(
+                "reassignedFoodLogs=4; reassignedFavorites=2; removedConflictingFavorites=1",
+                auditCaptor.getValue().getNote()
+        );
         verify(foodItemRepository).deleteAll(List.of(duplicateProduct));
     }
 }

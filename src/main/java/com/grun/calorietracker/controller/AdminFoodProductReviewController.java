@@ -103,8 +103,12 @@ public class AdminFoodProductReviewController {
             @ApiResponse(responseCode = "404", description = "Target or duplicate product was not found.")
     })
     public ResponseEntity<FoodProductMergeResponseDto> mergeDuplicateProducts(
-            @RequestBody @Valid FoodProductMergeRequestDto request) {
-        return ResponseEntity.ok(foodProductReviewService.mergeDuplicateProducts(request));
+            @RequestBody @Valid FoodProductMergeRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.mergeDuplicateProducts(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
     }
 
     @PatchMapping("/{id}/review")

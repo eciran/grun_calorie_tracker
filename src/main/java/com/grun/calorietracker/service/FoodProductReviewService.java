@@ -21,5 +21,8 @@ public interface FoodProductReviewService {
     FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy);
     FoodProductReviewAuditPageDto getProductReviewAudits(Long productId, int page, int size);
     FoodProductDuplicateGroupPageDto getDuplicateProductGroups(int page, int size);
-    FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request);
+    default FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request) {
+        return mergeDuplicateProducts(request, null);
+    }
+    FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy);
 }

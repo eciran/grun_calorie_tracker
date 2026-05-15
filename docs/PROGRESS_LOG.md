@@ -1099,6 +1099,31 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Dokuman degisikligidir; ek test gerektirmez.
 
+## 2026-05-15 - Duplicate Merge Audit Kaydi
+
+### Yapilanlar
+
+- Duplicate product merge akisi target product uzerinde audit kaydi olusturacak sekilde genisletildi.
+- Controller merge endpointi authenticated admin email bilgisini service'e gecmeye basladi.
+- Service interface geriye uyumlu kalacak sekilde yeni admin email parametreli merge metodunu destekler hale getirildi.
+- Merge audit kaydi:
+  - `actionType = MERGE`
+  - `fieldName = duplicateProductIds`
+  - `oldValue = merged duplicate id listesi`
+  - `newValue = target product id`
+  - `note = reassigned food log/favorite sayilari`
+- Audit kaydi sadece target product'a baglanir; silinen duplicate product kayitlarina FK baglanmaz.
+
+### Karar
+
+- Merge audit'i duplicate product kayitlari silinmeden once target urun uzerinden yazilir.
+- Bu yaklasim audit FK davranisini bozmadan merge isleminin izlenmesini saglar.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductReviewServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 17 test gecti, 0 failure, 0 error.
+
 ## 2026-05-15 - Barcode Lookup REJECTED Urun Davranisi
 
 ### Yapilanlar

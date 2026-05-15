@@ -223,7 +223,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request) {
+    public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy) {
         validateMergeRequest(request);
 
         FoodItemEntity targetProduct = foodItemRepository.findById(request.getTargetProductId())
@@ -254,6 +254,14 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         targetProduct.setUsageCount(calculateMergedUsageCount(targetProduct, duplicateProducts));
         FoodProductQualityRules.updateQualityAndReviewPriority(targetProduct);
         FoodItemEntity savedTargetProduct = foodItemRepository.save(targetProduct);
+        foodProductReviewAuditRepository.save(buildMergeAudit(
+                savedTargetProduct,
+                duplicateProductIds,
+                reviewedBy,
+                reassignedFoodLogCount,
+                reassignedFavoriteCount,
+                removedFavoriteCount
+        ));
 
         foodItemRepository.deleteAll(duplicateProducts);
 
@@ -360,6 +368,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         if (request.getDuplicateProductIds().contains(request.getTargetProductId())) {
             throw new IllegalArgumentException("Target product id must not be included in duplicate product ids.");
         }
+    }
+
+    private FoodProductReviewAuditEntity buildMergeAudit(
+            FoodItemEntity targetProduct,
+            List<Long> duplicateProductIds,
+            String reviewedBy,
+            int reassignedFoodLogCount,
+            int reassignedFavoriteCount,
+            int removedFavoriteCount
+    ) {
+        FoodProductReviewAuditEntity audit = new FoodProductReviewAuditEntity();
+        audit.setFoodItem(targetProduct);
+        audit.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
+        audit.setActionType(FoodProductReviewAuditAction.MERGE);
+        audit.setFieldName("duplicateProductIds");
+        audit.setOldValue(duplicateProductIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        audit.setNewValue(String.valueOf(targetProduct.getId()));
+        audit.setNote("reassignedFoodLogs=" + reassignedFoodLogCount
+                + "; reassignedFavorites=" + reassignedFavoriteCount
+                + "; removedConflictingFavorites=" + removedFavoriteCount);
+        return audit;
     }
 
     private List<Long> distinctDuplicateProductIds(FoodProductMergeRequestDto request) {

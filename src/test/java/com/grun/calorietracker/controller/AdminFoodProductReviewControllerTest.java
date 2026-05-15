@@ -147,7 +147,7 @@ class AdminFoodProductReviewControllerTest {
                 1
         );
 
-        when(foodProductReviewService.mergeDuplicateProducts(any(FoodProductMergeRequestDto.class)))
+        when(foodProductReviewService.mergeDuplicateProducts(any(FoodProductMergeRequestDto.class), eq("admin@test.com")))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/admin/products/duplicates/merge")
@@ -158,6 +158,8 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.mergedProductIds[0]").value(2L))
                 .andExpect(jsonPath("$.reassignedFoodLogCount").value(4))
                 .andExpect(jsonPath("$.removedConflictingFavoriteCount").value(1));
+
+        verify(foodProductReviewService).mergeDuplicateProducts(any(FoodProductMergeRequestDto.class), eq("admin@test.com"));
     }
 
     @Test
