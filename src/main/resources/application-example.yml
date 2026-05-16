@@ -30,6 +30,9 @@ openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
 
 grun:
+  password-reset:
+    expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
+    base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}
   local:
     admin:
       bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}

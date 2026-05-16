@@ -2,10 +2,14 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AuthRequest;
+import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
+import com.grun.calorietracker.dto.PasswordResetRequestDto;
+import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +43,9 @@ class AuthControllerTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    @MockBean
+    private PasswordResetService passwordResetService;
 
     private UserEntity sampleUser;
     private UserProfileDto sampleUserProfileDto;
@@ -107,6 +114,37 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/auth/register'].post.responses['400'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponseDto"));
+    }
+
+    @Test
+    void requestPasswordReset_returnsGenericAcceptedResponse() throws Exception {
+        PasswordResetRequestDto request = new PasswordResetRequestDto();
+        request.setEmail("testuser@example.com");
+
+        when(passwordResetService.requestPasswordReset(any(PasswordResetRequestDto.class)))
+                .thenReturn(new PasswordResetResponseDto("If the email exists, a password reset link has been sent."));
+
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("If the email exists, a password reset link has been sent."));
+    }
+
+    @Test
+    void confirmPasswordReset_returnsSuccessResponse() throws Exception {
+        PasswordResetConfirmRequestDto request = new PasswordResetConfirmRequestDto();
+        request.setToken("raw-token");
+        request.setNewPassword("NewStrongPass1!");
+
+        when(passwordResetService.confirmPasswordReset(any(PasswordResetConfirmRequestDto.class)))
+                .thenReturn(new PasswordResetResponseDto("Password has been reset successfully."));
+
+        mockMvc.perform(post("/api/auth/password-reset/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Password has been reset successfully."));
     }
 
     @Test

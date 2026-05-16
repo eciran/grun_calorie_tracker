@@ -57,6 +57,8 @@ GRUN_LOCAL_ADMIN_PASSWORD=change-me-local-only
 GRUN_LOCAL_DEMO_SEED_ENABLED=false
 GRUN_LOCAL_DEMO_USER_EMAIL=demo.user@grun.local
 GRUN_LOCAL_DEMO_USER_PASSWORD=DemoUserPass1!
+GRUN_PASSWORD_RESET_EXPIRATION_MINUTES=30
+GRUN_PASSWORD_RESET_BASE_URL=http://localhost:8080/reset-password
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -102,6 +104,17 @@ To remove only local demo data while preserving the PostgreSQL volume and local 
 ```powershell
 .\scripts\cleanup-local-demo.ps1
 ```
+
+### Local Password Reset
+
+Password reset uses a local logging mail sender until a real email provider is selected. In local development, request a reset from Swagger and read the raw token/reset link from the application log:
+
+```text
+POST /api/auth/password-reset/request
+POST /api/auth/password-reset/confirm
+```
+
+The token stored in PostgreSQL is hashed; only the log line contains the raw local test token.
 
 ### Start PostgreSQL And API
 

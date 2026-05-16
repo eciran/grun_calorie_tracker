@@ -1679,6 +1679,36 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
 - Sonuc: 2 test gecti, 0 failure, 0 error.
 
+## 2026-05-16 - Password Reset Altyapisi
+
+### Yapilanlar
+
+- Auth modulu icin sifre sifirlama endpointleri eklendi:
+  - `POST /api/auth/password-reset/request`
+  - `POST /api/auth/password-reset/confirm`
+- Reset tokenlari icin `password_reset_tokens` tablosu tasarlandi.
+- Flyway migration eklendi:
+  - `V11__add_password_reset_tokens.sql`
+- Tokenlar DB'de ham haliyle degil, SHA-256 hash olarak saklanacak sekilde uygulandi.
+- Mevcut kullanici icin yeni reset talebi geldiginde onceki kullanilmamis tokenlar gecersiz hale getirilir.
+- Token gecerlilik suresi configurable yapildi:
+  - `GRUN_PASSWORD_RESET_EXPIRATION_MINUTES`
+  - `GRUN_PASSWORD_RESET_BASE_URL`
+- Gercek mail provider secilene kadar local gelistirme icin log tabanli mail sender eklendi.
+- Swagger dokumani password reset endpointlerini gosterecek sekilde genisletildi.
+
+### Karar
+
+- Request endpointi email var/yok bilgisini aciga cikarmamak icin her zaman generic basari mesaji doner.
+- Ham reset token sadece mail/log katmaninda gorunur; persistence katmaninda hash saklanir.
+- Gercek email provider secimi simdilik ertelendi; ileride SMTP, SendGrid, AWS SES veya benzeri provider ile bu abstraction degistirilebilir.
+
+### Dogrulama
+
+- Service ve controller testleri eklendi.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 101 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Local Swagger Demo Flow Dokumani
 
 ### Yapilanlar
