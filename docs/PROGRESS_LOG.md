@@ -1530,3 +1530,42 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - PostgreSQL TCP testi: basarili.
 - `/v3/api-docs`: HTTP 200.
 - `GET /api/admin/products/1/audit?page=0&size=25`: HTTP 200.
+
+## 2026-05-16 - Local Demo Seed Ilk Implementasyon
+
+### Yapilanlar
+
+- `LocalDemoSeedConfig` eklendi.
+- Yapı sadece `local` profile altinda ve `GRUN_LOCAL_DEMO_SEED_ENABLED=true` ile calisir.
+- Varsayilan olarak kapali tutuldu.
+- Demo standard user seed edildi:
+  - `demo.user@grun.local`
+  - Rol: `STANDARD`
+- 3 verified demo food product seed edildi:
+  - `GRun Demo Greek Yogurt`
+  - `GRun Demo Banana`
+  - `GRun Demo Chicken Breast`
+- Demo product seed idempotent tasarlandi:
+  - `normalizedBarcode` uzerinden mevcut kayit bulunur.
+  - Varsa guncellenir, yoksa olusturulur.
+  - Tekrar calisma duplicate product uretmez.
+- Local admin/demo env placeholder okumasi guclendirildi:
+  - Direkt env degiskenleri ve property mapping birlikte desteklenir.
+- README, `.env.example` ve `application-example.yml` demo seed ayarlariyla guncellendi.
+
+### Canli Dogrulama
+
+- API local profile ile demo seed acik sekilde baslatildi.
+- DB uzerinde kullanicilar dogrulandi:
+  - `admin@grun.local` -> `ADMIN`
+  - `demo.user@grun.local` -> `STANDARD`
+- DB uzerinde 3 demo product dogrulandi.
+- Demo user ile login basarili oldu.
+- Demo user JWT ile product search dogrulandi:
+  - `GET /api/products/search?q=GRun%20Demo&page=0&size=10`
+  - Sonuc: 3 verified demo product.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest,LocalAdminBootstrapConfigTest" test`
+- Sonuc: 4 test gecti, 0 failure, 0 error.

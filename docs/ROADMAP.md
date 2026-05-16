@@ -98,25 +98,31 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Local admin bootstrap ve admin audit endpointi canli API uzerinde dogrulandi.
 - README local setup dokumani admin bootstrap ve PostgreSQL volume parola davranisi icin guncellendi.
 - Stop script Windows process yetki probleminde port 8080 fallback kullanacak sekilde guclendirildi.
+- Local demo seed yapisi eklendi; varsayilan kapali ve sadece `local` profile altinda calisir.
+- Local demo seed ile demo standard user ve 3 verified demo food product canli API uzerinde dogrulandi.
 
 ## Siradaki 5 Is
 
-1. Local demo seed implementasyonuna basla.
-   - Local admin on kosulunu kullan.
-   - Kucuk ve kontrollu demo food/exercise verisi ekle.
+1. Demo seed kapsamını food/exercise log akışına genişlet.
+   - Demo user icin kontrollu food log seed stratejisi.
+   - Demo user icin kontrollu exercise log seed stratejisi.
+   - Tekrar calistiginda duplicate log uretmemeli.
 
-2. Demo seed icin idempotent strateji belirle.
-   - Ayni seed tekrar calisinca duplicate olusmasin.
-   - Seed sadece local profile altinda aktif olsun.
+2. Dashboard daily summary endpointini demo seed ile canli dogrula.
+   - Demo user login.
+   - Food/exercise log verisi.
+   - Daily summary sonucu.
 
-3. Seed edilen demo veriyi Swagger uzerinden dogrula.
-   - Product search.
-   - Exercise catalog filter.
-   - Admin review/audit endpointleri.
+3. Admin review/audit demo senaryosu hazirla.
+   - Demo raw product olustur.
+   - Admin review ile verify/reject akisi.
+   - Audit entry olustugunu dogrula.
 
-4. README seed kullanimini guncelle.
-   - Seed nasil acilir/kapatilir?
-   - Hangi demo kullanici/veriler olusur?
+4. README seed kullanimini genislet.
+   - Demo user.
+   - Demo food products.
+   - Demo loglar.
+   - Demo admin review senaryosu.
 
 5. Degisiklikleri commit icin toparla.
    - Git status kontrolu.

@@ -35,3 +35,7 @@ grun:
       bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}
       email: ${GRUN_LOCAL_ADMIN_EMAIL:}
       password: ${GRUN_LOCAL_ADMIN_PASSWORD:}
+    demo-seed:
+      enabled: ${GRUN_LOCAL_DEMO_SEED_ENABLED:false}
+      user-email: ${GRUN_LOCAL_DEMO_USER_EMAIL:}
+      user-password: ${GRUN_LOCAL_DEMO_USER_PASSWORD:}

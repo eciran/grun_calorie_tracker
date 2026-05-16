@@ -24,8 +24,8 @@ public class LocalAdminBootstrapConfig {
     public CommandLineRunner localAdminBootstrapRunner(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            @Value("${grun.local.admin.email:}") String adminEmail,
-            @Value("${grun.local.admin.password:}") String adminPassword) {
+            @Value("${GRUN_LOCAL_ADMIN_EMAIL:${grun.local.admin.email:}}") String adminEmail,
+            @Value("${GRUN_LOCAL_ADMIN_PASSWORD:${grun.local.admin.password:}}") String adminPassword) {
         return args -> {
             String email = trimToNull(adminEmail);
             String password = trimToNull(adminPassword);

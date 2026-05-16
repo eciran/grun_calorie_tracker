@@ -52,6 +52,9 @@ SPRING_PROFILES_ACTIVE=local
 GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED=false
 GRUN_LOCAL_ADMIN_EMAIL=admin@grun.local
 GRUN_LOCAL_ADMIN_PASSWORD=change-me-local-only
+GRUN_LOCAL_DEMO_SEED_ENABLED=false
+GRUN_LOCAL_DEMO_USER_EMAIL=demo.user@grun.local
+GRUN_LOCAL_DEMO_USER_PASSWORD=DemoUserPass1!
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -70,6 +73,19 @@ GRUN_LOCAL_ADMIN_PASSWORD=LocalAdminPass1!
 ```
 
 When the API starts with these values, it creates or updates that local user with the `ADMIN` role. This is only for local development and demo data preparation; production admin users must be provisioned separately.
+
+### Optional Local Demo Seed
+
+For local Swagger testing, enable a small idempotent demo data set:
+
+```env
+SPRING_PROFILES_ACTIVE=local
+GRUN_LOCAL_DEMO_SEED_ENABLED=true
+GRUN_LOCAL_DEMO_USER_EMAIL=demo.user@grun.local
+GRUN_LOCAL_DEMO_USER_PASSWORD=DemoUserPass1!
+```
+
+When enabled, the API creates or updates a standard demo user and a few verified demo food products. Running it more than once updates the same demo records instead of creating duplicates.
 
 ### Start PostgreSQL And API
 
