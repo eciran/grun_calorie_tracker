@@ -1766,6 +1766,44 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 105 test gecti, 0 failure, 0 error.
 
+## 2026-05-16 - Email Verification Ihtiyaci Notu
+
+### Karar
+
+- Uye olurken mail onayi alinmasi gerekecek.
+- Bu is password reset ile ayni mail abstraction mantigina baglanacak, ancak ayri bir hesap dogrulama akisi olarak ele alinacak.
+- Ilk tasarimda kullanici register oldugunda `emailVerified=false` baslamali.
+- Verification token DB'de ham haliyle degil hash olarak saklanmali.
+- Token confirm edildiginde kullanici email dogrulanmis hale gelmeli.
+- Production oncesi gercek mail provider secimi password reset ve email verification tarafini birlikte kapsayacak.
+
+### Durum
+
+- Su an aktif implementasyon kapsaminda degil.
+- Roadmap'e sonraki hesap guvenligi islerinden biri olarak eklendi.
+
+## 2026-05-16 - Auth Validation Mesajlari I18n
+
+### Yapilanlar
+
+- Auth register/login request validation mesajlari message key tabanli hale getirildi.
+- Password reset request/confirm validation mesajlari message key tabanli hale getirildi.
+- `messages.properties` ve `messages_tr.properties` icine email, password ve reset token validasyon mesajlari eklendi.
+- `Accept-Language: tr` ile register email validation hatasinin Turkce dondugu test edildi.
+
+### Karar
+
+- I18n genisletmesi parca parca yapilacak.
+- Ilk kapsam hesap guvenligi endpointleri oldu: auth ve password reset.
+- User goal, progress log ve diger domain DTO validasyonlari sonraki i18n isleri olarak kalacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,PasswordResetServiceImplTest" test`
+- Sonuc: 11 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 105 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Local Swagger Demo Flow Dokumani
 
 ### Yapilanlar

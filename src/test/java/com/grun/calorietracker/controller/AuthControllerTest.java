@@ -128,6 +128,7 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Dogrulama hatasi"))
+                .andExpect(jsonPath("$.message").value("email: Email gecerli bir email adresi olmalidir"))
                 .andExpect(jsonPath("$.path").value("/api/auth/register"));
     }
 

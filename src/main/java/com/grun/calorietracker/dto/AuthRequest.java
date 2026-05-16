@@ -10,16 +10,16 @@ import lombok.Data;
 @Data
 @Schema(description = "Authentication request payload used for user registration and login.")
 public class AuthRequest {
-    @NotNull
-    @Email
+    @NotNull(message = "{validation.email.required}")
+    @Email(message = "{validation.email.invalid}")
     @Schema(description = "User email address.", example = "user@example.com")
     private String email;
 
-    @NotNull
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @NotNull(message = "{validation.password.required}")
+    @Size(min = 8, message = "{validation.password.size}")
     @Pattern(
             regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
-            message = "Password must contain at least one uppercase letter, one lowercase letter, one number and one special character"
+            message = "{validation.password.pattern}"
     )
     @Schema(description = "Password with at least 8 characters, uppercase, lowercase, number, and special character.", example = "StrongPass1!")
     private String password;

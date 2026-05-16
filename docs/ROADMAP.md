@@ -110,6 +110,7 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Mail/password reset altyapisi eklendi; tokenlar hash olarak saklanir ve local mail sender log uzerinden test edilir.
 - Admin dashboard summary endpointi eklendi; kullanici sayilari ve food catalog kalite metrikleri tek endpointten izlenebilir.
 - `Accept-Language` tabanli TR/ENG hata kategori cevirisi icin i18n cekirdegi eklendi.
+- Uye olurken email onayi ihtiyaci uzun vadeli hesap guvenligi isleri arasina eklendi.
 
 ## Siradaki 5 Is
 
@@ -126,6 +127,12 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 
 5. Mobil app MVP icin backend gap analizini guncelle.
 
+6. Email verification akisini tasarla.
+   - Register sonrasi kullanici `emailVerified=false` baslar.
+   - Verification token hash olarak DB'de saklanir.
+   - Onay maili mail sender abstraction uzerinden gider.
+   - Token confirm edilmeden kritik hesap aksiyonlari sinirlanir.
+
 ## Ertelenen Buyuk Fikirler
 
 Bu maddeler dogru fikirlerdir, ancak su an aktif sprint kapsaminda degildir.
@@ -138,6 +145,7 @@ Bu maddeler dogru fikirlerdir, ancak su an aktif sprint kapsaminda degildir.
 - Detayli piyasa/fiyat arastirmasi
 - Buyuk olcekli food product import sistemi
 - Mobil app UI
+- Email verification / uye mail onayi
 
 ## Su Anki Oncelik
 

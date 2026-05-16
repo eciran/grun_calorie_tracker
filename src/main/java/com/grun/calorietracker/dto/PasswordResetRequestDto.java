@@ -9,8 +9,8 @@ import lombok.Data;
 @Schema(description = "Password reset request payload.")
 public class PasswordResetRequestDto {
 
-    @NotBlank
-    @Email
+    @NotBlank(message = "{validation.email.required}")
+    @Email(message = "{validation.email.invalid}")
     @Schema(description = "Email address of the account requesting a password reset.", example = "user@example.com")
     private String email;
 }
