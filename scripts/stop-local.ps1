@@ -36,18 +36,36 @@ if (-not $env:POSTGRES_DB) { $env:POSTGRES_DB = "grun_calorie_db" }
 Push-Location $projectRoot
 try {
     Write-Host "Stopping Spring Boot processes started by Maven..."
-    $javaProcesses = Get-CimInstance Win32_Process |
-            Where-Object {
-                $_.Name -eq "java.exe" -and
-                (
-                    $_.CommandLine -like "*grun-calorie-tracker*" -or
-                    $_.CommandLine -like "*spring-boot:run*"
-                )
+    $javaProcesses = @()
+
+    try {
+        $javaProcesses = Get-CimInstance Win32_Process |
+                Where-Object {
+                    $_.Name -eq "java.exe" -and
+                    (
+                        $_.CommandLine -like "*grun-calorie-tracker*" -or
+                        $_.CommandLine -like "*spring-boot:run*"
+                    )
+                }
+    } catch {
+        Write-Host "Could not inspect Java command lines. Falling back to process listening on port 8080..."
+        $portLines = netstat -ano | Select-String ":8080" | Select-String "LISTENING"
+        foreach ($line in $portLines) {
+            $parts = ($line.ToString() -split "\s+") | Where-Object { $_ }
+            $pidValue = $parts[-1]
+            if ($pidValue -match "^\d+$") {
+                $process = Get-Process -Id ([int] $pidValue) -ErrorAction SilentlyContinue
+                if ($process) {
+                    $javaProcesses += $process
+                }
             }
+        }
+    }
 
     foreach ($process in $javaProcesses) {
-        Write-Host "Stopping process $($process.ProcessId)..."
-        Stop-Process -Id $process.ProcessId -Force
+        $processId = if ($process.ProcessId) { $process.ProcessId } else { $process.Id }
+        Write-Host "Stopping process $processId..."
+        Stop-Process -Id $processId -Force
     }
 
     Write-Host "Stopping PostgreSQL Docker Compose service..."

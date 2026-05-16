@@ -1501,3 +1501,32 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Sonuc: 9 test gecti, 0 failure, 0 error.
 - Tam regresyon komutu: `.\mvnw.cmd clean test`
 - Sonuc: 93 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Local Setup ve Admin Audit Canli Dogrulama
+
+### Yapilanlar
+
+- Docker PostgreSQL container'in ayakta oldugu kontrol edildi.
+- Mevcut `.env` degerleriyle PostgreSQL TCP baglantisi dogrulandi.
+- Spring Boot API lokal olarak baslatildi ve `/v3/api-docs` HTTP 200 dondu.
+- Local admin bootstrap gecici process env ile acilarak admin kullanici olusturuldu/guncellendi.
+- `admin@grun.local` kullanicisinin `ADMIN` rolunde oldugu DB uzerinden dogrulandi.
+- Admin JWT ile `GET /api/admin/products/1/audit?page=0&size=25` endpointi cagrildi.
+- Endpoint HTTP 200 dondu; mevcut lokal urunde audit kaydi olmadigi icin `totalElements=0` donmesi beklenen durum olarak kaydedildi.
+- README local setup bolumu guncellendi:
+  - local admin bootstrap env degerleri
+  - PostgreSQL Docker volume parola davranisi
+  - stop script fallback notu
+- `scripts/stop-local.ps1` Windows process command-line inspection yetki problemi durumunda port `8080` fallback kullanacak sekilde guclendirildi.
+
+### Karar
+
+- Mevcut local DB volume korunacak; sifirlama su an gerekli degil.
+- Parola uyumsuzlugu tekrar olusursa once `.env` ile mevcut volume'un baglanti testi yapilacak, volume reset son care olarak ele alinacak.
+- Admin bootstrap production mekanizmasi degildir; sadece local/demo akisi icindir.
+
+### Dogrulama
+
+- PostgreSQL TCP testi: basarili.
+- `/v3/api-docs`: HTTP 200.
+- `GET /api/admin/products/1/audit?page=0&size=25`: HTTP 200.

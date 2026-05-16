@@ -95,26 +95,28 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Admin product review Swagger ornekleri review note, duplicate merge ve audit endpoint icin guclendirildi.
 - Local-only admin bootstrap yapisi eklendi; varsayilan kapali ve sadece `local` profile altinda calisir.
 - Lokal API HTTP dogrulamasi sirasinda `.env` / mevcut PostgreSQL volume parola uyumsuzlugu tespit edildi; DB migration dogrulamasi tamam, API endpoint canli dogrulamasi setup duzeltmesine bagli.
+- Local admin bootstrap ve admin audit endpointi canli API uzerinde dogrulandi.
+- README local setup dokumani admin bootstrap ve PostgreSQL volume parola davranisi icin guncellendi.
+- Stop script Windows process yetki probleminde port 8080 fallback kullanacak sekilde guclendirildi.
 
 ## Siradaki 5 Is
 
-1. Lokal PostgreSQL setup parola uyumsuzlugunu netlestir.
-   - Mevcut Docker volume korunacak mi?
-   - Yoksa local DB reset/recreate yapilacak mi?
-   - `.env.example`, `.env` ve Docker volume tek kaynak mantigina getirilecek.
-
-2. Admin audit endpointini canli API uzerinden tekrar dogrula.
-   - API baslat.
-   - Admin JWT al.
-   - `GET /api/admin/products/{id}/audit` HTTP 200 kontrolu yap.
-
-3. Local admin bootstrap kullanimini README icinde netlestir.
-   - Hangi env degiskenleri gerekli?
-   - Sadece lokal gelistirme icin oldugu acik yazilsin.
-
-4. Local demo seed implementasyonuna basla.
+1. Local demo seed implementasyonuna basla.
    - Local admin on kosulunu kullan.
    - Kucuk ve kontrollu demo food/exercise verisi ekle.
+
+2. Demo seed icin idempotent strateji belirle.
+   - Ayni seed tekrar calisinca duplicate olusmasin.
+   - Seed sadece local profile altinda aktif olsun.
+
+3. Seed edilen demo veriyi Swagger uzerinden dogrula.
+   - Product search.
+   - Exercise catalog filter.
+   - Admin review/audit endpointleri.
+
+4. README seed kullanimini guncelle.
+   - Seed nasil acilir/kapatilir?
+   - Hangi demo kullanici/veriler olusur?
 
 5. Degisiklikleri commit icin toparla.
    - Git status kontrolu.

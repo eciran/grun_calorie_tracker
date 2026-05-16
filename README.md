@@ -48,9 +48,28 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/grun_calorie_db
 JWT_SECRET=Q0hBTkdFX01FX0xPQ0FMX0RFVkVMT1BNRU5UX1NFQ1JFVF9LRVlfMTIzNDU2Nzg5MA==
 JWT_EXPIRATION_MS=86400000
 OPENFOODFACTS_BASE_URL=https://world.openfoodfacts.org
+SPRING_PROFILES_ACTIVE=local
+GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED=false
+GRUN_LOCAL_ADMIN_EMAIL=admin@grun.local
+GRUN_LOCAL_ADMIN_PASSWORD=change-me-local-only
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
+
+PostgreSQL Docker volumes keep their original database password. If `.env` is changed after the first container initialization, the existing `grun_pgdata` volume will not automatically change its database password. Keep `.env` stable for local development, or intentionally recreate the local volume when you want a clean database.
+
+### Optional Local Admin Bootstrap
+
+Admin endpoints require an `ADMIN` user. For local development only, enable bootstrap in `.env`:
+
+```env
+SPRING_PROFILES_ACTIVE=local
+GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED=true
+GRUN_LOCAL_ADMIN_EMAIL=admin@grun.local
+GRUN_LOCAL_ADMIN_PASSWORD=LocalAdminPass1!
+```
+
+When the API starts with these values, it creates or updates that local user with the `ADMIN` role. This is only for local development and demo data preparation; production admin users must be provisioned separately.
 
 ### Start PostgreSQL And API
 
@@ -86,6 +105,8 @@ http://localhost:8080/swagger-ui/index.html
 ```
 
 The script stops Spring Boot processes started by Maven and stops the PostgreSQL Docker Compose service. The PostgreSQL data volume is preserved.
+
+If Windows blocks command-line inspection for Java processes, the stop script falls back to stopping the process listening on port `8080`.
 
 ### Run Tests
 
