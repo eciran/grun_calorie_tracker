@@ -91,6 +91,7 @@ When enabled, the API creates or updates:
 - three verified demo food products
 - today's demo food logs for breakfast, snack, and lunch
 - today's demo exercise log
+- one raw product for the admin review queue
 
 Running it more than once updates the same demo user/products and does not create duplicate logs for the same day.
 

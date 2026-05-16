@@ -50,6 +50,7 @@ public class LocalDemoSeedConfig {
         return args -> {
             Optional<UserEntity> demoUser = seedDemoUser(userRepository, passwordEncoder, demoUserEmail, demoUserPassword);
             List<FoodItemEntity> demoProducts = seedDemoFoodProducts(foodItemRepository);
+            seedDemoReviewProduct(foodItemRepository);
             demoUser.ifPresent(user -> {
                 seedDemoFoodLogs(foodLogsRepository, user, demoProducts);
                 seedDemoExerciseLog(exerciseItemRepository, exerciseLogRepository, user);
@@ -116,6 +117,35 @@ public class LocalDemoSeedConfig {
             seededProducts.add(foodItemRepository.save(entity));
         }
         return seededProducts;
+    }
+
+    private void seedDemoReviewProduct(FoodItemRepository foodItemRepository) {
+        String barcode = "8690000000042";
+        FoodItemEntity entity = foodItemRepository.findByNormalizedBarcode(barcode)
+                .orElseGet(FoodItemEntity::new);
+
+        entity.setName("GRun Demo Raw Protein Bar");
+        entity.setBarcode(barcode);
+        entity.setNormalizedBarcode(barcode);
+        entity.setCalories(230.0);
+        entity.setProtein(18.0);
+        entity.setCarbs(22.0);
+        entity.setFat(8.0);
+        entity.setFiber(5.0);
+        entity.setSugar(6.0);
+        entity.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
+        entity.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        entity.setImageSource(ImageSource.OPEN_FOOD_FACTS);
+        entity.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        entity.setExternalImageUrl("https://images.openfoodfacts.org/demo/raw-protein-bar.jpg");
+        entity.setImageUrl("https://images.openfoodfacts.org/demo/raw-protein-bar.jpg");
+        entity.setQualityScore(45);
+        entity.setReviewPriority(200);
+        entity.setUsageCount(0L);
+        entity.setIsCustom(false);
+        entity.setLastExternalSyncAt(LocalDateTime.now());
+
+        foodItemRepository.save(entity);
     }
 
     private void seedDemoFoodLogs(

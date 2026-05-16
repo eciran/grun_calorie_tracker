@@ -102,25 +102,25 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Local demo seed ile demo standard user ve 3 verified demo food product canli API uzerinde dogrulandi.
 - Local demo seed food/exercise log kapsamına genisletildi.
 - Demo user daily summary akisi canli API uzerinde dogrulandi.
+- Admin review kuyruğu icin raw demo product seed edildi ve canli API uzerinde dogrulandi.
 
 ## Siradaki 5 Is
 
-1. Admin review/audit demo senaryosu hazirla.
-   - Demo raw product olustur.
-   - Admin review ile verify/reject akisi.
+1. Admin review/audit demo senaryosunu tamamla.
+   - Admin review ile raw demo product verify/reject akisi.
    - Audit entry olustugunu dogrula.
 
-2. Local demo seed icin admin review senaryosunu idempotent yap.
-   - Raw product tekrar calisinca duplicate olusmasin.
-   - Review audit tekrar calisinca gereksiz audit sismesi olmasin.
-
-3. Swagger uzerinden tam demo akisini dokumante et.
+2. Swagger uzerinden tam demo akisini dokumante et.
    - Demo user login.
    - Product search.
    - Dashboard summary.
    - Admin review/audit.
 
-4. README seed kullanimini admin review senaryosuyla genislet.
+3. README seed kullanimini admin review senaryosuyla genislet.
+
+4. Local demo seed icin opsiyonel reset/cleanup stratejisi tasarla.
+   - Demo veriyi temizleme gerekli mi?
+   - Local DB reset yerine kontrollu cleanup script daha iyi mi?
 
 5. Degisiklikleri commit icin toparla.
    - Git status kontrolu.

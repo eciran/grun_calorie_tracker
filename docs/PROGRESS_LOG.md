@@ -1599,3 +1599,29 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
 - Sonuc: 2 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Local Demo Admin Review Product
+
+### Yapilanlar
+
+- Local demo seed admin review kuyruğu icin raw demo product olusturacak sekilde genisletildi.
+- Seed edilen demo review product:
+  - `GRun Demo Raw Protein Bar`
+  - `normalizedBarcode=8690000000042`
+  - `verificationStatus=RAW_IMPORTED`
+  - `imageStatus=NEEDS_REVIEW`
+  - `reviewPriority=200`
+- Product `normalizedBarcode` uzerinden idempotent olarak guncellenir; tekrar calisma duplicate uretmez.
+
+### Canli Dogrulama
+
+- API local demo seed acik sekilde yeniden baslatildi.
+- Admin user ile login olundu.
+- Admin review endpointi cagrildi:
+  - `GET /api/admin/products/review?verificationStatus=RAW_IMPORTED&imageStatus=NEEDS_REVIEW&page=0&size=20`
+- Response icinde `GRun Demo Raw Protein Bar` dogrulandi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
+- Sonuc: 2 test gecti, 0 failure, 0 error.

@@ -94,12 +94,16 @@ class LocalDemoSeedConfigTest {
         assertEquals(UserRole.STANDARD, userCaptor.getValue().getRole());
 
         ArgumentCaptor<FoodItemEntity> foodCaptor = ArgumentCaptor.forClass(FoodItemEntity.class);
-        verify(foodItemRepository, times(3)).save(foodCaptor.capture());
+        verify(foodItemRepository, times(4)).save(foodCaptor.capture());
         FoodItemEntity firstProduct = foodCaptor.getAllValues().get(0);
         assertEquals("8690000000011", firstProduct.getNormalizedBarcode());
         assertEquals(VerificationStatus.VERIFIED, firstProduct.getVerificationStatus());
         assertEquals(ImageStatus.APPROVED, firstProduct.getImageStatus());
         assertEquals(FoodDataSource.ADMIN_IMPORT, firstProduct.getDataSource());
+        FoodItemEntity reviewProduct = foodCaptor.getAllValues().get(3);
+        assertEquals("8690000000042", reviewProduct.getNormalizedBarcode());
+        assertEquals(VerificationStatus.RAW_IMPORTED, reviewProduct.getVerificationStatus());
+        assertEquals(ImageStatus.NEEDS_REVIEW, reviewProduct.getImageStatus());
 
         verify(foodLogsRepository, times(3)).save(any(FoodLogsEntity.class));
         verify(exerciseLogRepository).save(any(ExerciseLogsEntity.class));
@@ -123,7 +127,7 @@ class LocalDemoSeedConfigTest {
         runner.run();
 
         verify(userRepository, never()).save(any(UserEntity.class));
-        verify(foodItemRepository, times(3)).save(any(FoodItemEntity.class));
+        verify(foodItemRepository, times(4)).save(any(FoodItemEntity.class));
         verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
         verify(exerciseLogRepository, never()).save(any(ExerciseLogsEntity.class));
     }
