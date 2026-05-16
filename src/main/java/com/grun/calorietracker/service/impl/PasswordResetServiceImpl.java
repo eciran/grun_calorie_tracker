@@ -61,7 +61,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public PasswordResetResponseDto confirmPasswordReset(PasswordResetConfirmRequestDto request) {
         PasswordResetTokenEntity token = passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(hashToken(request.getToken()))
                 .orElseThrow(() -> new IllegalArgumentException("Password reset token is invalid or expired"));

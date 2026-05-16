@@ -1804,6 +1804,34 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 105 test gecti, 0 failure, 0 error.
 
+## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
+
+### Yapilan Kontroller
+
+- Lokal API uzerinde OpenAPI dokumani kontrol edildi:
+  - `/api/auth/password-reset/request`
+  - `/api/auth/password-reset/confirm`
+  - `/api/admin/dashboard/summary`
+- Lokal PostgreSQL Flyway history uzerinde `V11 - add password reset tokens` migration success olarak dogrulandi.
+- Password reset request endpointi canli API uzerinde generic response dondu.
+- Demo kullanici icin hash'li gecici reset token ile confirm endpointi canli test edildi.
+- Yeni sifreyle login basarili oldu.
+- Demo kullanicinin sifresi tekrar eski demo sifreye alindi ve login basarili oldu.
+- Admin dashboard summary endpointi local admin token ile canli test edildi.
+
+### Ek Duzeltme
+
+- Expired password reset token kullanildiginda token `usedAt` isaretlemesinin exception rollback nedeniyle kaybolmamasi icin confirm transaction davranisi guncellendi.
+
+### Dogrulama
+
+- Canli API kontrolleri basarili.
+- Canli testte olusan gecici demo password reset tokenlari lokal DB'den temizlendi.
+- Komut: `.\mvnw.cmd "-Dtest=PasswordResetServiceImplTest" test`
+- Sonuc: 4 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 105 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Local Swagger Demo Flow Dokumani
 
 ### Yapilanlar
