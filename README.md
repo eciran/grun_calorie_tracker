@@ -96,6 +96,12 @@ When enabled, the API creates or updates:
 
 Running it more than once updates the same demo user/products and does not create duplicate logs for the same day.
 
+To remove only local demo data while preserving the PostgreSQL volume and local admin user:
+
+```powershell
+.\scripts\cleanup-local-demo.ps1
+```
+
 ### Start PostgreSQL And API
 
 Start Docker Desktop first, then run:

@@ -113,3 +113,5 @@ http://localhost:8080/swagger-ui/index.html
 - Demo user/product verileri lokal gelistirme ve Swagger denemeleri icindir.
 - Demo seed tekrar calistiginda ayni demo productlari gunceller, duplicate product uretmez.
 - Food/exercise log seed bugunun kayitlari icin idempotent davranir.
+- Sadece demo verileri temizlemek icin `.\scripts\cleanup-local-demo.ps1` calistirilabilir.
+- Cleanup script PostgreSQL volume'u silmez ve local admin kullaniciyi korur.

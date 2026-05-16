@@ -1123,6 +1123,40 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Demo seed tekrar acik calisirsa raw demo product tekrar review queue durumuna getirilebilir.
 - Bu kabul edilebilir; lokal demo seed amaci Swagger akisini tekrar denenebilir tutmaktir.
 
+## 2026-05-16 - Local Demo Cleanup Script
+
+### Yapilanlar
+
+- Yeni script eklendi:
+  - `scripts/cleanup-local-demo.ps1`
+- Script yalnizca lokal demo verilerini temizler:
+  - `demo.user@grun.local`
+  - demo food logs
+  - `LOCAL_DEMO` exercise logs
+  - demo product audit kayitlari
+  - demo food products
+- Local admin bootstrap kullanicisi korunur:
+  - `admin@grun.local`
+- README ve local Swagger demo flow dokumani cleanup komutuyla guncellendi.
+
+### Karar
+
+- Local DB volume reset son care olarak kalacak.
+- Demo veriyi temizlemek icin kontrollu cleanup script yeterli ve daha az riskli.
+
+## 2026-05-16 - Food/Exercise Log Swagger Demo Aciklamalari
+
+### Yapilanlar
+
+- Food log Swagger aciklamalari local demo seed akisiyle uyumlu hale getirildi.
+- Exercise log Swagger aciklamalari local demo seed akisiyle uyumlu hale getirildi.
+- Demo test icin ornek tarih degerleri bugunun tarihiyle guncellendi.
+- Exercise source ornegi `LOCAL_DEMO` olarak eklendi.
+
+### Karar
+
+- Swagger sadece endpoint listesi degil, lokal demo akisinin denenebilir kilavuzu olarak da kullanilacak.
+
 ## 2026-05-15 - Duplicate Merge Audit Kaydi
 
 ### Yapilanlar
