@@ -85,7 +85,14 @@ GRUN_LOCAL_DEMO_USER_EMAIL=demo.user@grun.local
 GRUN_LOCAL_DEMO_USER_PASSWORD=DemoUserPass1!
 ```
 
-When enabled, the API creates or updates a standard demo user and a few verified demo food products. Running it more than once updates the same demo records instead of creating duplicates.
+When enabled, the API creates or updates:
+
+- one standard demo user
+- three verified demo food products
+- today's demo food logs for breakfast, snack, and lunch
+- today's demo exercise log
+
+Running it more than once updates the same demo user/products and does not create duplicate logs for the same day.
 
 ### Start PostgreSQL And API
 

@@ -1,13 +1,19 @@
 package com.grun.calorietracker.config;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodLogsEntity;
+import com.grun.calorietracker.entity.ExerciseItemEntity;
+import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.repository.ExerciseItemRepository;
+import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +25,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Configuration
 @Profile("local")
@@ -33,17 +41,24 @@ public class LocalDemoSeedConfig {
     public CommandLineRunner localDemoSeedRunner(
             UserRepository userRepository,
             FoodItemRepository foodItemRepository,
+            FoodLogsRepository foodLogsRepository,
+            ExerciseItemRepository exerciseItemRepository,
+            ExerciseLogRepository exerciseLogRepository,
             PasswordEncoder passwordEncoder,
             @Value("${GRUN_LOCAL_DEMO_USER_EMAIL:${grun.local.demo-seed.user-email:}}") String demoUserEmail,
             @Value("${GRUN_LOCAL_DEMO_USER_PASSWORD:${grun.local.demo-seed.user-password:}}") String demoUserPassword) {
         return args -> {
-            seedDemoUser(userRepository, passwordEncoder, demoUserEmail, demoUserPassword);
-            seedDemoFoodProducts(foodItemRepository);
+            Optional<UserEntity> demoUser = seedDemoUser(userRepository, passwordEncoder, demoUserEmail, demoUserPassword);
+            List<FoodItemEntity> demoProducts = seedDemoFoodProducts(foodItemRepository);
+            demoUser.ifPresent(user -> {
+                seedDemoFoodLogs(foodLogsRepository, user, demoProducts);
+                seedDemoExerciseLog(exerciseItemRepository, exerciseLogRepository, user);
+            });
             log.info("Local demo seed completed.");
         };
     }
 
-    private void seedDemoUser(
+    private Optional<UserEntity> seedDemoUser(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             String demoUserEmail,
@@ -53,7 +68,7 @@ public class LocalDemoSeedConfig {
 
         if (email == null || password == null) {
             log.warn("Local demo seed is enabled but demo user email/password is missing. Skipping demo user.");
-            return;
+            return Optional.empty();
         }
 
         UserEntity user = userRepository.findByEmail(email).orElseGet(UserEntity::new);
@@ -67,10 +82,11 @@ public class LocalDemoSeedConfig {
         user.setWeight(82.0);
         user.setBmi(25.3);
 
-        userRepository.save(user);
+        return Optional.of(userRepository.save(user));
     }
 
-    private void seedDemoFoodProducts(FoodItemRepository foodItemRepository) {
+    private List<FoodItemEntity> seedDemoFoodProducts(FoodItemRepository foodItemRepository) {
+        List<FoodItemEntity> seededProducts = new java.util.ArrayList<>();
         for (DemoFoodProduct product : demoFoodProducts()) {
             FoodItemEntity entity = foodItemRepository.findByNormalizedBarcode(product.normalizedBarcode())
                     .orElseGet(FoodItemEntity::new);
@@ -97,8 +113,79 @@ public class LocalDemoSeedConfig {
             entity.setLastReviewedAt(LocalDateTime.now());
             entity.setReviewedBy("local-demo-seed");
 
-            foodItemRepository.save(entity);
+            seededProducts.add(foodItemRepository.save(entity));
         }
+        return seededProducts;
+    }
+
+    private void seedDemoFoodLogs(
+            FoodLogsRepository foodLogsRepository,
+            UserEntity user,
+            List<FoodItemEntity> demoProducts) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+
+        createFoodLogIfMissing(foodLogsRepository, user, demoProducts, "BREAKFAST", start.plusHours(8), start, end, 0, 200.0);
+        createFoodLogIfMissing(foodLogsRepository, user, demoProducts, "SNACK", start.plusHours(11), start, end, 1, 120.0);
+        createFoodLogIfMissing(foodLogsRepository, user, demoProducts, "LUNCH", start.plusHours(13), start, end, 2, 180.0);
+    }
+
+    private void createFoodLogIfMissing(
+            FoodLogsRepository foodLogsRepository,
+            UserEntity user,
+            List<FoodItemEntity> demoProducts,
+            String mealType,
+            LocalDateTime logDate,
+            LocalDateTime start,
+            LocalDateTime end,
+            int productIndex,
+            Double portionSize) {
+        if (demoProducts.size() <= productIndex) {
+            return;
+        }
+
+        if (!foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(user, mealType, start, end).isEmpty()) {
+            return;
+        }
+
+        FoodLogsEntity log = new FoodLogsEntity();
+        log.setUser(user);
+        log.setFoodItem(demoProducts.get(productIndex));
+        log.setMealType(mealType);
+        log.setPortionSize(portionSize);
+        log.setLogDate(logDate);
+        foodLogsRepository.save(log);
+    }
+
+    private void seedDemoExerciseLog(
+            ExerciseItemRepository exerciseItemRepository,
+            ExerciseLogRepository exerciseLogRepository,
+            UserEntity user) {
+        LocalDate today = LocalDate.now();
+        String source = "LOCAL_DEMO";
+        String externalId = "local-demo-run-" + today;
+
+        if (exerciseLogRepository.findByUserAndSourceAndExternalId(user, source, externalId).isPresent()) {
+            return;
+        }
+
+        Optional<ExerciseItemEntity> running = exerciseItemRepository.findByMetCode("RUNNING_GENERAL");
+        if (running.isEmpty()) {
+            log.warn("Local demo seed could not find RUNNING_GENERAL exercise item. Skipping demo exercise log.");
+            return;
+        }
+
+        ExerciseLogsEntity logEntity = new ExerciseLogsEntity();
+        logEntity.setUser(user);
+        logEntity.setExerciseItem(running.get());
+        logEntity.setDurationMinutes(30);
+        logEntity.setCaloriesBurned(300.0);
+        logEntity.setLogDate(today.atTime(18, 30));
+        logEntity.setSource(source);
+        logEntity.setExternalId(externalId);
+        logEntity.setExtraData("{\"seed\":\"local-demo\"}");
+        exerciseLogRepository.save(logEntity);
     }
 
     private List<DemoFoodProduct> demoFoodProducts() {

@@ -1569,3 +1569,33 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest,LocalAdminBootstrapConfigTest" test`
 - Sonuc: 4 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Local Demo Seed Food/Exercise Log Genisletmesi
+
+### Yapilanlar
+
+- Local demo seed food log ve exercise log uretecek sekilde genisletildi.
+- Demo food log stratejisi:
+  - Bugun icin `BREAKFAST`, `SNACK`, `LUNCH` kayitlari olusturulur.
+  - Ayni gun ve ayni meal type zaten varsa tekrar olusturulmaz.
+- Demo exercise log stratejisi:
+  - `source=LOCAL_DEMO`
+  - `externalId=local-demo-run-{date}`
+  - Ayni source/externalId varsa tekrar olusturulmaz.
+- Food log idempotency icin `FoodLogsRepository.findByUserAndMealTypeAndLogDateBetween(...)` eklendi.
+
+### Canli Dogrulama
+
+- API local demo seed acik sekilde yeniden baslatildi.
+- Bugun icin demo user food log sayisi: 3.
+- Bugun icin demo user exercise log sayisi: 1.
+- Demo user ile dashboard endpointi cagrildi:
+  - `GET /api/dashboard/daily-summary`
+  - `consumedCalories=521.8`
+  - `burnedCalories=300.0`
+  - `totalExerciseMinutes=30`
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
+- Sonuc: 2 test gecti, 0 failure, 0 error.

@@ -100,29 +100,27 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Stop script Windows process yetki probleminde port 8080 fallback kullanacak sekilde guclendirildi.
 - Local demo seed yapisi eklendi; varsayilan kapali ve sadece `local` profile altinda calisir.
 - Local demo seed ile demo standard user ve 3 verified demo food product canli API uzerinde dogrulandi.
+- Local demo seed food/exercise log kapsamına genisletildi.
+- Demo user daily summary akisi canli API uzerinde dogrulandi.
 
 ## Siradaki 5 Is
 
-1. Demo seed kapsamını food/exercise log akışına genişlet.
-   - Demo user icin kontrollu food log seed stratejisi.
-   - Demo user icin kontrollu exercise log seed stratejisi.
-   - Tekrar calistiginda duplicate log uretmemeli.
-
-2. Dashboard daily summary endpointini demo seed ile canli dogrula.
-   - Demo user login.
-   - Food/exercise log verisi.
-   - Daily summary sonucu.
-
-3. Admin review/audit demo senaryosu hazirla.
+1. Admin review/audit demo senaryosu hazirla.
    - Demo raw product olustur.
    - Admin review ile verify/reject akisi.
    - Audit entry olustugunu dogrula.
 
-4. README seed kullanimini genislet.
-   - Demo user.
-   - Demo food products.
-   - Demo loglar.
-   - Demo admin review senaryosu.
+2. Local demo seed icin admin review senaryosunu idempotent yap.
+   - Raw product tekrar calisinca duplicate olusmasin.
+   - Review audit tekrar calisinca gereksiz audit sismesi olmasin.
+
+3. Swagger uzerinden tam demo akisini dokumante et.
+   - Demo user login.
+   - Product search.
+   - Dashboard summary.
+   - Admin review/audit.
+
+4. README seed kullanimini admin review senaryosuyla genislet.
 
 5. Degisiklikleri commit icin toparla.
    - Git status kontrolu.
