@@ -1157,6 +1157,27 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Swagger sadece endpoint listesi degil, lokal demo akisinin denenebilir kilavuzu olarak da kullanilacak.
 
+## 2026-05-16 - Sonraki Backend Sprint Secenekleri
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/NEXT_BACKEND_SPRINT_OPTIONS.md`
+- Sonraki backend sprint alternatifleri karsilastirildi:
+  - Mail/password reset
+  - i18n TR/ENG
+  - Google/Apple login
+  - Admin panel API genisletmesi
+
+### Karar
+
+- Onerilen siradaki backend sprint: Mail/password reset.
+- Gerekce:
+  - Mobil app icin temel hesap guvenligi ihtiyaci.
+  - Backend-only ilerlenebilir.
+  - Swagger ve testlerle dogrulanabilir.
+  - Production hazirlik seviyesini artirir.
+
 ## 2026-05-15 - Duplicate Merge Audit Kaydi
 
 ### Yapilanlar

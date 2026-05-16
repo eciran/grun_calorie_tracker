@@ -106,6 +106,7 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Local Swagger demo akisi dokumani eklendi.
 - Admin review update ve audit history akisi raw demo product uzerinde canli API ile dogrulandi.
 - Local demo cleanup script eklendi; demo user/product/log/audit verilerini temizler, admin kullaniciyi korur.
+- Sonraki backend sprint secenekleri dokumante edildi.
 
 ## Siradaki 5 Is
 
@@ -116,11 +117,11 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.
 
-3. Sonraki backend sprint hedefini sec.
-   - Mail reset mi?
-   - i18n mi?
-   - Google/Apple login mi?
-   - Admin panel API genisletmesi mi?
+3. Mail/password reset sprintini teknik plana cevir.
+   - Token modeli.
+   - Endpoint sozlesmeleri.
+   - Mail sender abstraction.
+   - Test kapsami.
 
 4. Admin panel icin backend ihtiyac listesini cikar.
 

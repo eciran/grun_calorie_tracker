@@ -21,6 +21,7 @@ GRun Calorie Tracker is an AI-powered health and nutrition application that allo
 - `docs/PRODUCT_CATALOG_ADMIN_FLOW.md`: admin product review workflow
 - `docs/FOOD_PRODUCT_REVIEW_AUDIT_PLAN.md`: planned audit history model
 - `docs/LOCAL_SWAGGER_DEMO_FLOW.md`: local Swagger demo flow with seeded users and products
+- `docs/NEXT_BACKEND_SPRINT_OPTIONS.md`: next backend sprint options and recommended priority
 
 ## Local Setup
 
