@@ -12,6 +12,9 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -93,7 +96,7 @@ public class AdminFoodProductReviewController {
     @PostMapping("/duplicates/merge")
     @Operation(
             summary = "Merge duplicate products",
-            description = "Merges duplicate products that share the same normalized barcode. Food logs and favorites are reassigned to the target product before duplicate products are deleted."
+            description = "Merges duplicate products that share the same normalized barcode. Food logs and favorites are reassigned to the target product before duplicate products are deleted. The merge is recorded in product review audit history."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Duplicate products merged into the target product."),
@@ -103,6 +106,23 @@ public class AdminFoodProductReviewController {
             @ApiResponse(responseCode = "404", description = "Target or duplicate product was not found.")
     })
     public ResponseEntity<FoodProductMergeResponseDto> mergeDuplicateProducts(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Target product id and duplicate product ids to merge into it.",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = FoodProductMergeRequestDto.class),
+                            examples = @ExampleObject(
+                                    name = "Merge duplicate Nutella products",
+                                    value = """
+                                            {
+                                              "targetProductId": 1,
+                                              "duplicateProductIds": [2, 3]
+                                            }
+                                            """
+                            )
+                    )
+            )
             @RequestBody @Valid FoodProductMergeRequestDto request,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductReviewService.mergeDuplicateProducts(
@@ -114,7 +134,7 @@ public class AdminFoodProductReviewController {
     @PatchMapping("/{id}/review")
     @Operation(
             summary = "Update product review state",
-            description = "Updates curated product name, approved display image URL, product verification status, image source, and image status."
+            description = "Updates curated product name, approved display image URL, product verification status, image source, and image status. A review note is required when rejecting product data or image quality, and every changed field is written to audit history."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product review state updated."),
@@ -125,6 +145,38 @@ public class AdminFoodProductReviewController {
     })
     public ResponseEntity<FoodProductDto> updateProductReview(
             @Parameter(description = "Food product id.", example = "1") @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Admin product review decision. Send only fields that should change.",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = FoodProductReviewRequestDto.class),
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Approve curated product and image",
+                                            value = """
+                                                    {
+                                                      "productName": "Nutella Hazelnut Spread",
+                                                      "displayImageUrl": "https://cdn.grun.app/products/3017620422003.jpg",
+                                                      "verificationStatus": "VERIFIED",
+                                                      "imageSource": "ADMIN_UPLOAD",
+                                                      "imageStatus": "APPROVED",
+                                                      "reviewNote": "Verified from readable product label."
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "Reject low quality image",
+                                            value = """
+                                                    {
+                                                      "imageStatus": "REJECTED",
+                                                      "reviewNote": "Image is blurry and product label is unreadable."
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            )
             @RequestBody @Valid FoodProductReviewRequestDto request,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductReviewService.updateProductReview(
@@ -137,10 +189,14 @@ public class AdminFoodProductReviewController {
     @GetMapping("/{id}/audit")
     @Operation(
             summary = "List product review audit history",
-            description = "Returns admin review audit entries for a food product ordered by newest change first."
+            description = "Returns admin review audit entries for a food product ordered by newest change first. Use this to inspect who changed curated fields, status values, image decisions, or duplicate merge state."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Product review audit entries returned."),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Product review audit entries returned.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = FoodProductReviewAuditPageDto.class))
+            ),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
             @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
             @ApiResponse(responseCode = "404", description = "Product was not found.")

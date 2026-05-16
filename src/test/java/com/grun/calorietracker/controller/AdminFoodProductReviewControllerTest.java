@@ -228,4 +228,16 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
+
+    @Test
+    void openApi_adminReviewDocumentsReviewNoteAndAuditSchema() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/admin/products/{id}/review'].patch.requestBody.content['application/json'].examples['Reject low quality image'].value.reviewNote")
+                        .value("Image is blurry and product label is unreadable."))
+                .andExpect(jsonPath("$.paths['/api/admin/products/{id}/review'].patch.requestBody.content['application/json'].examples['Approve curated product and image'].value.displayImageUrl")
+                        .value("https://cdn.grun.app/products/3017620422003.jpg"))
+                .andExpect(jsonPath("$.paths['/api/admin/products/{id}/audit'].get.responses['200'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/FoodProductReviewAuditPageDto"));
+    }
 }

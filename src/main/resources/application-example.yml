@@ -28,3 +28,10 @@ jwt:
 
 openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
+
+grun:
+  local:
+    admin:
+      bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}
+      email: ${GRUN_LOCAL_ADMIN_EMAIL:}
+      password: ${GRUN_LOCAL_ADMIN_PASSWORD:}

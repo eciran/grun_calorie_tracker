@@ -91,27 +91,32 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - ExerciseItem katalog filtreleri icin temel DB index migration'i eklendi.
 - ExerciseItem katalog filtre endpointi Flyway V9 sonrasi canli API uzerinde dogrulandi.
 - Dashboard daily summary endpointi icin Swagger ve temel controller/service test kapsami eklendi.
+- Flyway V10 audit migration'i lokal PostgreSQL uzerinde dogrulandi.
+- Admin product review Swagger ornekleri review note, duplicate merge ve audit endpoint icin guclendirildi.
+- Local-only admin bootstrap yapisi eklendi; varsayilan kapali ve sadece `local` profile altinda calisir.
+- Lokal API HTTP dogrulamasi sirasinda `.env` / mevcut PostgreSQL volume parola uyumsuzlugu tespit edildi; DB migration dogrulamasi tamam, API endpoint canli dogrulamasi setup duzeltmesine bagli.
 
 ## Siradaki 5 Is
 
-1. Mevcut degisiklikleri commit icin toparla.
-   - Git status kontrolu.
-   - `.env` gibi local dosyalarin commitlenmedigini dogrula.
-   - Anlamli commit mesaji hazirla.
+1. Lokal PostgreSQL setup parola uyumsuzlugunu netlestir.
+   - Mevcut Docker volume korunacak mi?
+   - Yoksa local DB reset/recreate yapilacak mi?
+   - `.env.example`, `.env` ve Docker volume tek kaynak mantigina getirilecek.
 
-2. V10 audit migration'i canli PostgreSQL uzerinde dogrula.
-   - Flyway history success.
-   - Audit table ve indexler var mi?
-   - Admin audit endpointi HTTP 200 donuyor mu?
+2. Admin audit endpointini canli API uzerinden tekrar dogrula.
+   - API baslat.
+   - Admin JWT al.
+   - `GET /api/admin/products/{id}/audit` HTTP 200 kontrolu yap.
 
-3. Admin review Swagger orneklerini review note ve audit endpoint icin tekrar kontrol et.
+3. Local admin bootstrap kullanimini README icinde netlestir.
+   - Hangi env degiskenleri gerekli?
+   - Sadece lokal gelistirme icin oldugu acik yazilsin.
 
-4. Local admin bootstrap yaklasimini tasarla.
-   - Sadece local profile.
-   - Production'da kapali.
-   - Demo seed script icin on kosul.
+4. Local demo seed implementasyonuna basla.
+   - Local admin on kosulunu kullan.
+   - Kucuk ve kontrollu demo food/exercise verisi ekle.
 
-5. Mevcut degisiklikleri commit icin toparla.
+5. Degisiklikleri commit icin toparla.
    - Git status kontrolu.
    - `.env` gibi local dosyalarin commitlenmedigini dogrula.
    - Anlamli commit mesaji hazirla.

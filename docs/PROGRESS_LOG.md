@@ -1466,3 +1466,38 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 ### Dogrulama
 
 - Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-16 - V10 Audit, Swagger Ornekleri ve Local Admin Bootstrap
+
+### Yapilanlar
+
+- Flyway V10 migration lokal PostgreSQL uzerinde kontrol edildi:
+  - `V10 - add food product review audits` success.
+  - `food_product_review_audits` kolonlari mevcut.
+  - Audit indexleri mevcut:
+    - `idx_food_product_review_audits_action_type`
+    - `idx_food_product_review_audits_food_item_created_at`
+    - `idx_food_product_review_audits_reviewed_by`
+- Admin product review Swagger dokumani guclendirildi:
+  - Review update request body icin approve/reject ornekleri eklendi.
+  - `reviewNote` rejection senaryolarinda gorunur hale getirildi.
+  - Duplicate merge request body ornegi eklendi.
+  - Audit endpoint response schema acik yazildi.
+- Local admin bootstrap yapisi eklendi:
+  - Sadece `local` profile altinda aktif olabilir.
+  - Varsayilan olarak kapali.
+  - `GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED=true`, email ve password env degerleriyle admin kullanici olusturur/gunceller.
+  - Production icin otomatik admin kullanici yaratmaz.
+
+### Karar
+
+- Admin kullanici seed ihtiyaci demo/local gelistirme icin gereklidir, ancak production akisi olmamalidir.
+- Local admin bootstrap kontrollu bir altyapi olarak tutulacak; sonraki demo seed isleri buna baglanabilir.
+- V10 DB migration dogrulamasi tamamlandi. API endpointin canli HTTP dogrulamasi lokal PostgreSQL parola/volume uyumsuzlugu nedeniyle ayri setup isine ayrildi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AdminFoodProductReviewControllerTest,LocalAdminBootstrapConfigTest" test`
+- Sonuc: 9 test gecti, 0 failure, 0 error.
+- Tam regresyon komutu: `.\mvnw.cmd clean test`
+- Sonuc: 93 test gecti, 0 failure, 0 error.
