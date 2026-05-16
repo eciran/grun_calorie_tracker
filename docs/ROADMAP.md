@@ -109,6 +109,7 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Sonraki backend sprint secenekleri dokumante edildi.
 - Mail/password reset altyapisi eklendi; tokenlar hash olarak saklanir ve local mail sender log uzerinden test edilir.
 - Admin dashboard summary endpointi eklendi; kullanici sayilari ve food catalog kalite metrikleri tek endpointten izlenebilir.
+- `Accept-Language` tabanli TR/ENG hata kategori cevirisi icin i18n cekirdegi eklendi.
 
 ## Siradaki 5 Is
 
@@ -121,7 +122,7 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 
 3. Admin dashboard summary endpointini lokal admin kullanici ile canli dogrula.
 
-4. i18n TR/ENG hata mesaji altyapisina basla.
+4. i18n kapsaminda validation mesajlarini ve domain hata mesajlarini message key tabanli hale getir.
 
 5. Mobil app MVP icin backend gap analizini guncelle.
 

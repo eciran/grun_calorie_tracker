@@ -1744,6 +1744,28 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 104 test gecti, 0 failure, 0 error.
 
+## 2026-05-16 - I18n Hata Kategori Cekirdegi
+
+### Yapilanlar
+
+- `Accept-Language` header'i ile locale secimi icin `LocaleConfig` eklendi.
+- Varsayilan locale `en`, desteklenen locale'ler `en` ve `tr` olarak belirlendi.
+- `messages.properties` ve `messages_tr.properties` eklendi.
+- `GlobalExceptionHandler` standart error category alanini message key uzerinden resolve edecek sekilde guncellendi.
+- Validation error icin Turkish kategori testi eklendi.
+
+### Karar
+
+- Bu adim tam i18n cevirisi degildir; once merkezi hata kategori altyapisi kuruldu.
+- Sonraki i18n adimi validation annotation mesajlarini ve domain exception mesajlarini message key tabanli hale getirmek olacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest" test`
+- Sonuc: 7 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 105 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Local Swagger Demo Flow Dokumani
 
 ### Yapilanlar

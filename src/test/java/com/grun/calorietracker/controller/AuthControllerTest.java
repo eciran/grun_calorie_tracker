@@ -117,6 +117,21 @@ class AuthControllerTest {
     }
 
     @Test
+    void registerValidationError_whenTurkishLanguageRequested_returnsLocalizedErrorCategory() throws Exception {
+        AuthRequest request = new AuthRequest();
+        request.setEmail("invalid-email");
+        request.setPassword("Password1!");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .header("Accept-Language", "tr")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Dogrulama hatasi"))
+                .andExpect(jsonPath("$.path").value("/api/auth/register"));
+    }
+
+    @Test
     void requestPasswordReset_returnsGenericAcceptedResponse() throws Exception {
         PasswordResetRequestDto request = new PasswordResetRequestDto();
         request.setEmail("testuser@example.com");
