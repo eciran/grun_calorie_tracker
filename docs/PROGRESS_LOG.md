@@ -1600,6 +1600,30 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
 - Sonuc: 2 test gecti, 0 failure, 0 error.
 
+## 2026-05-16 - Local Swagger Demo Flow Dokumani
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/LOCAL_SWAGGER_DEMO_FLOW.md`
+- Dokumanda lokal Swagger deneme akisi tanimlandi:
+  - demo user login
+  - product search
+  - dashboard daily summary
+  - admin login
+  - admin review queue
+  - product review update
+  - audit history kontrolu
+
+### Karar
+
+- Demo seed artik sadece veri olusturan bir mekanizma degil; Swagger uzerinden izlenebilir bir demo akisiyle birlikte tutulacak.
+- Bu dokuman proje kontrolunu geri kazanmak icin referans akis olarak kullanilacak.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
 ## 2026-05-16 - Local Demo Admin Review Product
 
 ### Yapilanlar
