@@ -1099,6 +1099,30 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Dokuman degisikligidir; ek test gerektirmez.
 
+## 2026-05-16 - Admin Review Audit Canli Demo Dogrulama
+
+### Yapilanlar
+
+- Local admin kullanici ile login olundu.
+- Raw demo product admin review queue icinden alindi:
+  - `normalizedBarcode=8690000000042`
+- `PATCH /api/admin/products/{id}/review` ile product verified hale getirildi.
+- Guncellenen durum:
+  - `verificationStatus=VERIFIED`
+  - `imageStatus=APPROVED`
+- `GET /api/admin/products/{id}/audit?page=0&size=25` ile audit history kontrol edildi.
+
+### Sonuc
+
+- Review update HTTP basarili.
+- Audit history toplam kayit sayisi: 5.
+- Admin review/audit akisi canli lokal API uzerinde dogrulandi.
+
+### Not
+
+- Demo seed tekrar acik calisirsa raw demo product tekrar review queue durumuna getirilebilir.
+- Bu kabul edilebilir; lokal demo seed amaci Swagger akisini tekrar denenebilir tutmaktir.
+
 ## 2026-05-15 - Duplicate Merge Audit Kaydi
 
 ### Yapilanlar
