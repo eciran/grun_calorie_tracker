@@ -1709,6 +1709,41 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 101 test gecti, 0 failure, 0 error.
 
+## 2026-05-16 - Admin Dashboard Summary API
+
+### Yapilanlar
+
+- Yeni admin endpoint eklendi:
+  - `GET /api/admin/dashboard/summary`
+- Endpoint sadece `ADMIN` role ile kullanilabilir.
+- Response icinde kullanici metrikleri doner:
+  - total users
+  - standard users
+  - pro users
+  - admin users
+- Response icinde food catalog kalite metrikleri doner:
+  - total products
+  - verified products
+  - raw imported products
+  - needs review products
+  - rejected products
+  - review queue products
+- `AdminDashboardService` ve implementation eklendi.
+- `UserRepository.countByRole(...)` eklendi.
+- `FoodItemRepository` katalog status count ve review queue count destekleyecek sekilde genisletildi.
+
+### Karar
+
+- Admin panel UI gelmeden once backend metrikleri hazir tutulacak.
+- Review queue metric'i product verification status veya image review status nedeniyle admin ilgisi isteyen urunleri tek sayida toplar.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AdminDashboardControllerTest,AdminDashboardServiceImplTest" test`
+- Sonuc: 3 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 104 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Local Swagger Demo Flow Dokumani
 
 ### Yapilanlar

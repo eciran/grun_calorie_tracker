@@ -107,23 +107,21 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 - Admin review update ve audit history akisi raw demo product uzerinde canli API ile dogrulandi.
 - Local demo cleanup script eklendi; demo user/product/log/audit verilerini temizler, admin kullaniciyi korur.
 - Sonraki backend sprint secenekleri dokumante edildi.
+- Mail/password reset altyapisi eklendi; tokenlar hash olarak saklanir ve local mail sender log uzerinden test edilir.
+- Admin dashboard summary endpointi eklendi; kullanici sayilari ve food catalog kalite metrikleri tek endpointten izlenebilir.
 
 ## Siradaki 5 Is
 
 1. Food log ve exercise log Swagger aciklamalarini demo akisina gore tekrar kontrol et.
 
-2. Commit/push durumunu toparla.
-   - Git status kontrolu.
-   - `.env` gibi local dosyalarin commitlenmedigini dogrula.
-   - Anlamli commit mesaji hazirla.
+2. Password reset akisini lokal API uzerinde Swagger/log ile canli dogrula.
+   - V11 migration uygulanir.
+   - Reset request log token uretir.
+   - Reset confirm yeni sifreyle login akisini dogrular.
 
-3. Mail/password reset sprintini teknik plana cevir.
-   - Token modeli.
-   - Endpoint sozlesmeleri.
-   - Mail sender abstraction.
-   - Test kapsami.
+3. Admin dashboard summary endpointini lokal admin kullanici ile canli dogrula.
 
-4. Admin panel icin backend ihtiyac listesini cikar.
+4. i18n TR/ENG hata mesaji altyapisina basla.
 
 5. Mobil app MVP icin backend gap analizini guncelle.
 
@@ -142,11 +140,11 @@ Bu maddeler dogru fikirlerdir, ancak su an aktif sprint kapsaminda degildir.
 
 ## Su Anki Oncelik
 
-Yeni ozellik eklemeden once proje kontrolunu geri kazanmak.
+Backend temel hesap ve admin kalite kontrol akisini publish hedefi icin guclendirmek.
 
 Pratik siralama:
 
 1. Roadmap'i sabit tut.
 2. Local setup'i problemsiz hale getir.
-3. Mevcut degisiklikleri commit/push et.
-4. Sonra tek bir kucuk hedef sec ve sadece ona odaklan.
+3. Yeni endpointleri test ve Swagger ile dogrula.
+4. I18n ve mobil MVP gap analizine gec.
