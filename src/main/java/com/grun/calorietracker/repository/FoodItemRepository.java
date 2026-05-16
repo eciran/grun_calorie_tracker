@@ -10,7 +10,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,8 +26,18 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     List<FoodItemEntity> findByImageStatus(ImageStatus imageStatus, Sort sort);
     List<FoodItemEntity> findByVerificationStatusAndImageStatus(VerificationStatus verificationStatus, ImageStatus imageStatus);
     List<FoodItemEntity> findByVerificationStatusAndImageStatus(VerificationStatus verificationStatus, ImageStatus imageStatus, Sort sort);
+    long countByVerificationStatus(VerificationStatus verificationStatus);
 
     List<FoodItemEntity> findAll(Specification<FoodItemEntity> spec, Sort sort);
+
+    @Query("""
+            SELECT COUNT(f)
+            FROM FoodItemEntity f
+            WHERE f.verificationStatus IN :verificationStatuses
+               OR f.imageStatus = :imageStatus
+            """)
+    long countReviewQueueProducts(@Param("verificationStatuses") Collection<VerificationStatus> verificationStatuses,
+                                  @Param("imageStatus") ImageStatus imageStatus);
 
     @Query(
             value = """

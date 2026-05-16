@@ -31,7 +31,7 @@ public class ExerciseLogsController {
     @PostMapping
     @Operation(
             summary = "Create an exercise log",
-            description = "Adds an exercise entry to the authenticated user's diary."
+            description = "Adds an exercise entry to the authenticated user's diary. Local demo seed creates one running exercise log for demo.user@grun.local."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise log created."),
@@ -47,7 +47,7 @@ public class ExerciseLogsController {
     @PostMapping("/external")
     @Operation(
             summary = "Create an external exercise log",
-            description = "Adds an exercise log imported from an external source such as Apple Health or Google Fit. The combination of user, source, and externalId must be unique."
+            description = "Adds an exercise log imported from an external source such as Apple Health or Google Fit. The combination of user, source, and externalId must be unique. Local demo seed uses source LOCAL_DEMO and an external id based on today's date."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "External exercise log created."),
@@ -66,7 +66,7 @@ public class ExerciseLogsController {
     @GetMapping("/report")
     @Operation(
             summary = "Get exercise logs report",
-            description = "Returns exercise logs for the authenticated user over a date range. The range parameter controls the reporting bucket."
+            description = "Returns exercise logs for the authenticated user over a date range. The range parameter controls the reporting bucket. Use today's date with demo.user@grun.local to inspect the seeded local demo exercise log."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise report returned."),
@@ -75,8 +75,8 @@ public class ExerciseLogsController {
     })
     public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogsByDateAndUser(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
-            @Parameter(description = "Report start date in ISO format.", example = "2026-05-01") @RequestParam String startDate,
-            @Parameter(description = "Report end date in ISO format.", example = "2026-05-11") @RequestParam String endDate,
+            @Parameter(description = "Report start date in ISO format.", example = "2026-05-16") @RequestParam String startDate,
+            @Parameter(description = "Report end date in ISO format.", example = "2026-05-16") @RequestParam String endDate,
             @Parameter(description = "Report bucket. Supported value currently used by the service defaults to day.", example = "day")
             @RequestParam(defaultValue = "day") String range) {
         LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
@@ -89,7 +89,7 @@ public class ExerciseLogsController {
     @GetMapping("/source/{source}")
     @Operation(
             summary = "List exercise logs by source",
-            description = "Returns exercise logs for the authenticated user filtered by source, for example MANUAL, GOOGLE_FIT, or APPLE_HEALTH."
+            description = "Returns exercise logs for the authenticated user filtered by source, for example MANUAL, GOOGLE_FIT, APPLE_HEALTH, or LOCAL_DEMO."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise logs returned."),
@@ -98,7 +98,7 @@ public class ExerciseLogsController {
     })
     public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogsBySource(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
-            @Parameter(description = "Exercise log source.", example = "APPLE_HEALTH") @PathVariable String source) {
+            @Parameter(description = "Exercise log source.", example = "LOCAL_DEMO") @PathVariable String source) {
         List<ExerciseLogsDto> logs = exerciseLogsService.getExerciseLogsBySource(userDetails.getUsername(), source);
         return ResponseEntity.ok(logs);
     }

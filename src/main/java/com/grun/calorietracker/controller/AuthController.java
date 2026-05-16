@@ -4,10 +4,14 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.AuthRequest;
 import com.grun.calorietracker.dto.AuthResponse;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
+import com.grun.calorietracker.dto.PasswordResetRequestDto;
+import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
+import com.grun.calorietracker.service.PasswordResetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -35,6 +39,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+    private final PasswordResetService passwordResetService;
 
 
     @PostMapping("/register")
@@ -101,5 +106,43 @@ public class AuthController {
 
         String token = jwtUtil.generateToken(user.getEmail());
         return ResponseEntity.ok(new AuthResponse(token, "Login successful"));
+    }
+
+    @PostMapping("/password-reset/request")
+    @Operation(
+            summary = "Request password reset",
+            description = "Creates a short-lived password reset token and sends it through the configured mail sender. The response is generic to avoid revealing registered emails."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password reset request accepted."),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            )
+    })
+    public ResponseEntity<PasswordResetResponseDto> requestPasswordReset(
+            @RequestBody @Valid PasswordResetRequestDto request
+    ) {
+        return ResponseEntity.ok(passwordResetService.requestPasswordReset(request));
+    }
+
+    @PostMapping("/password-reset/confirm")
+    @Operation(
+            summary = "Confirm password reset",
+            description = "Validates the password reset token and updates the account password."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password reset completed."),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Token is invalid, expired, already used, or request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            )
+    })
+    public ResponseEntity<PasswordResetResponseDto> confirmPasswordReset(
+            @RequestBody @Valid PasswordResetConfirmRequestDto request
+    ) {
+        return ResponseEntity.ok(passwordResetService.confirmPasswordReset(request));
     }
 }

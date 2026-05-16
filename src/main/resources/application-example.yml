@@ -28,3 +28,17 @@ jwt:
 
 openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
+
+grun:
+  password-reset:
+    expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
+    base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}
+  local:
+    admin:
+      bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}
+      email: ${GRUN_LOCAL_ADMIN_EMAIL:}
+      password: ${GRUN_LOCAL_ADMIN_PASSWORD:}
+    demo-seed:
+      enabled: ${GRUN_LOCAL_DEMO_SEED_ENABLED:false}
+      user-email: ${GRUN_LOCAL_DEMO_USER_EMAIL:}
+      user-password: ${GRUN_LOCAL_DEMO_USER_PASSWORD:}

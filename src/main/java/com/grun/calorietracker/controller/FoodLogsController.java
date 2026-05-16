@@ -37,7 +37,7 @@ public class FoodLogsController {
     @PostMapping
     @Operation(
             summary = "Create a food log",
-            description = "Adds a food entry to the authenticated user's diary."
+            description = "Adds a food entry to the authenticated user's diary. For local demo data, login as demo.user@grun.local and use the seeded GRun Demo products returned from product search."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food log created."),
@@ -53,14 +53,14 @@ public class FoodLogsController {
     @GetMapping
     @Operation(
             summary = "List food logs",
-            description = "Returns the authenticated user's food logs. A date filter can be supplied for a single day."
+            description = "Returns the authenticated user's food logs. A date filter can be supplied for a single day. Local demo seed creates today's BREAKFAST, SNACK, and LUNCH logs for demo.user@grun.local."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food logs returned."),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
     })
     public ResponseEntity<List<FoodLogsDto>> getFoodLogs(
-            @Parameter(description = "Optional log date in ISO format.", example = "2026-05-11")
+            @Parameter(description = "Optional log date in ISO format. Use today's date to inspect local demo seed logs.", example = "2026-05-16")
             @RequestParam(required = false) String date,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(),date);
@@ -106,7 +106,7 @@ public class FoodLogsController {
     @GetMapping("/stats")
     @Operation(
             summary = "Get daily nutrition statistics",
-            description = "Aggregates calories, protein, carbohydrate, and fat totals per day for the authenticated user."
+            description = "Aggregates calories, protein, carbohydrate, and fat totals per day for the authenticated user. Local demo seed provides today's food logs so this endpoint can be tested immediately after demo login."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Daily statistics returned."),
@@ -114,8 +114,8 @@ public class FoodLogsController {
             @ApiResponse(responseCode = "401", description = "JWT token is missing, invalid, or user cannot be found.")
     })
     public ResponseEntity<List<FoodLogDailyStatsDto>> getDailyStats(
-            @Parameter(description = "Start date in ISO format.", example = "2026-05-01") @RequestParam String start,
-            @Parameter(description = "End date in ISO format.", example = "2026-05-11") @RequestParam String end,
+            @Parameter(description = "Start date in ISO format.", example = "2026-05-16") @RequestParam String start,
+            @Parameter(description = "End date in ISO format.", example = "2026-05-16") @RequestParam String end,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
         UserEntity user = userService.findByEmail(userDetails.getUsername())

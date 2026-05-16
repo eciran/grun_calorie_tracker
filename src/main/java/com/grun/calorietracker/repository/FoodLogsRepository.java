@@ -17,6 +17,12 @@ import java.util.Optional;
 public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> {
     List<FoodLogsEntity> findByUser(UserEntity user);
     List<FoodLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
+    List<FoodLogsEntity> findByUserAndMealTypeAndLogDateBetween(
+            UserEntity user,
+            String mealType,
+            LocalDateTime start,
+            LocalDateTime end
+    );
     Optional<FoodLogsEntity> findByIdAndUser(Long id, UserEntity user);
 
     @Modifying

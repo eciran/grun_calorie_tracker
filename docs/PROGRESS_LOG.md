@@ -1099,6 +1099,85 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Dokuman degisikligidir; ek test gerektirmez.
 
+## 2026-05-16 - Admin Review Audit Canli Demo Dogrulama
+
+### Yapilanlar
+
+- Local admin kullanici ile login olundu.
+- Raw demo product admin review queue icinden alindi:
+  - `normalizedBarcode=8690000000042`
+- `PATCH /api/admin/products/{id}/review` ile product verified hale getirildi.
+- Guncellenen durum:
+  - `verificationStatus=VERIFIED`
+  - `imageStatus=APPROVED`
+- `GET /api/admin/products/{id}/audit?page=0&size=25` ile audit history kontrol edildi.
+
+### Sonuc
+
+- Review update HTTP basarili.
+- Audit history toplam kayit sayisi: 5.
+- Admin review/audit akisi canli lokal API uzerinde dogrulandi.
+
+### Not
+
+- Demo seed tekrar acik calisirsa raw demo product tekrar review queue durumuna getirilebilir.
+- Bu kabul edilebilir; lokal demo seed amaci Swagger akisini tekrar denenebilir tutmaktir.
+
+## 2026-05-16 - Local Demo Cleanup Script
+
+### Yapilanlar
+
+- Yeni script eklendi:
+  - `scripts/cleanup-local-demo.ps1`
+- Script yalnizca lokal demo verilerini temizler:
+  - `demo.user@grun.local`
+  - demo food logs
+  - `LOCAL_DEMO` exercise logs
+  - demo product audit kayitlari
+  - demo food products
+- Local admin bootstrap kullanicisi korunur:
+  - `admin@grun.local`
+- README ve local Swagger demo flow dokumani cleanup komutuyla guncellendi.
+
+### Karar
+
+- Local DB volume reset son care olarak kalacak.
+- Demo veriyi temizlemek icin kontrollu cleanup script yeterli ve daha az riskli.
+
+## 2026-05-16 - Food/Exercise Log Swagger Demo Aciklamalari
+
+### Yapilanlar
+
+- Food log Swagger aciklamalari local demo seed akisiyle uyumlu hale getirildi.
+- Exercise log Swagger aciklamalari local demo seed akisiyle uyumlu hale getirildi.
+- Demo test icin ornek tarih degerleri bugunun tarihiyle guncellendi.
+- Exercise source ornegi `LOCAL_DEMO` olarak eklendi.
+
+### Karar
+
+- Swagger sadece endpoint listesi degil, lokal demo akisinin denenebilir kilavuzu olarak da kullanilacak.
+
+## 2026-05-16 - Sonraki Backend Sprint Secenekleri
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/NEXT_BACKEND_SPRINT_OPTIONS.md`
+- Sonraki backend sprint alternatifleri karsilastirildi:
+  - Mail/password reset
+  - i18n TR/ENG
+  - Google/Apple login
+  - Admin panel API genisletmesi
+
+### Karar
+
+- Onerilen siradaki backend sprint: Mail/password reset.
+- Gerekce:
+  - Mobil app icin temel hesap guvenligi ihtiyaci.
+  - Backend-only ilerlenebilir.
+  - Swagger ve testlerle dogrulanabilir.
+  - Production hazirlik seviyesini artirir.
+
 ## 2026-05-15 - Duplicate Merge Audit Kaydi
 
 ### Yapilanlar
@@ -1466,3 +1545,339 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 ### Dogrulama
 
 - Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-16 - V10 Audit, Swagger Ornekleri ve Local Admin Bootstrap
+
+### Yapilanlar
+
+- Flyway V10 migration lokal PostgreSQL uzerinde kontrol edildi:
+  - `V10 - add food product review audits` success.
+  - `food_product_review_audits` kolonlari mevcut.
+  - Audit indexleri mevcut:
+    - `idx_food_product_review_audits_action_type`
+    - `idx_food_product_review_audits_food_item_created_at`
+    - `idx_food_product_review_audits_reviewed_by`
+- Admin product review Swagger dokumani guclendirildi:
+  - Review update request body icin approve/reject ornekleri eklendi.
+  - `reviewNote` rejection senaryolarinda gorunur hale getirildi.
+  - Duplicate merge request body ornegi eklendi.
+  - Audit endpoint response schema acik yazildi.
+- Local admin bootstrap yapisi eklendi:
+  - Sadece `local` profile altinda aktif olabilir.
+  - Varsayilan olarak kapali.
+  - `GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED=true`, email ve password env degerleriyle admin kullanici olusturur/gunceller.
+  - Production icin otomatik admin kullanici yaratmaz.
+
+### Karar
+
+- Admin kullanici seed ihtiyaci demo/local gelistirme icin gereklidir, ancak production akisi olmamalidir.
+- Local admin bootstrap kontrollu bir altyapi olarak tutulacak; sonraki demo seed isleri buna baglanabilir.
+- V10 DB migration dogrulamasi tamamlandi. API endpointin canli HTTP dogrulamasi lokal PostgreSQL parola/volume uyumsuzlugu nedeniyle ayri setup isine ayrildi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AdminFoodProductReviewControllerTest,LocalAdminBootstrapConfigTest" test`
+- Sonuc: 9 test gecti, 0 failure, 0 error.
+- Tam regresyon komutu: `.\mvnw.cmd clean test`
+- Sonuc: 93 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Local Setup ve Admin Audit Canli Dogrulama
+
+### Yapilanlar
+
+- Docker PostgreSQL container'in ayakta oldugu kontrol edildi.
+- Mevcut `.env` degerleriyle PostgreSQL TCP baglantisi dogrulandi.
+- Spring Boot API lokal olarak baslatildi ve `/v3/api-docs` HTTP 200 dondu.
+- Local admin bootstrap gecici process env ile acilarak admin kullanici olusturuldu/guncellendi.
+- `admin@grun.local` kullanicisinin `ADMIN` rolunde oldugu DB uzerinden dogrulandi.
+- Admin JWT ile `GET /api/admin/products/1/audit?page=0&size=25` endpointi cagrildi.
+- Endpoint HTTP 200 dondu; mevcut lokal urunde audit kaydi olmadigi icin `totalElements=0` donmesi beklenen durum olarak kaydedildi.
+- README local setup bolumu guncellendi:
+  - local admin bootstrap env degerleri
+  - PostgreSQL Docker volume parola davranisi
+  - stop script fallback notu
+- `scripts/stop-local.ps1` Windows process command-line inspection yetki problemi durumunda port `8080` fallback kullanacak sekilde guclendirildi.
+
+### Karar
+
+- Mevcut local DB volume korunacak; sifirlama su an gerekli degil.
+- Parola uyumsuzlugu tekrar olusursa once `.env` ile mevcut volume'un baglanti testi yapilacak, volume reset son care olarak ele alinacak.
+- Admin bootstrap production mekanizmasi degildir; sadece local/demo akisi icindir.
+
+### Dogrulama
+
+- PostgreSQL TCP testi: basarili.
+- `/v3/api-docs`: HTTP 200.
+- `GET /api/admin/products/1/audit?page=0&size=25`: HTTP 200.
+
+## 2026-05-16 - Local Demo Seed Ilk Implementasyon
+
+### Yapilanlar
+
+- `LocalDemoSeedConfig` eklendi.
+- Yapı sadece `local` profile altinda ve `GRUN_LOCAL_DEMO_SEED_ENABLED=true` ile calisir.
+- Varsayilan olarak kapali tutuldu.
+- Demo standard user seed edildi:
+  - `demo.user@grun.local`
+  - Rol: `STANDARD`
+- 3 verified demo food product seed edildi:
+  - `GRun Demo Greek Yogurt`
+  - `GRun Demo Banana`
+  - `GRun Demo Chicken Breast`
+- Demo product seed idempotent tasarlandi:
+  - `normalizedBarcode` uzerinden mevcut kayit bulunur.
+  - Varsa guncellenir, yoksa olusturulur.
+  - Tekrar calisma duplicate product uretmez.
+- Local admin/demo env placeholder okumasi guclendirildi:
+  - Direkt env degiskenleri ve property mapping birlikte desteklenir.
+- README, `.env.example` ve `application-example.yml` demo seed ayarlariyla guncellendi.
+
+### Canli Dogrulama
+
+- API local profile ile demo seed acik sekilde baslatildi.
+- DB uzerinde kullanicilar dogrulandi:
+  - `admin@grun.local` -> `ADMIN`
+  - `demo.user@grun.local` -> `STANDARD`
+- DB uzerinde 3 demo product dogrulandi.
+- Demo user ile login basarili oldu.
+- Demo user JWT ile product search dogrulandi:
+  - `GET /api/products/search?q=GRun%20Demo&page=0&size=10`
+  - Sonuc: 3 verified demo product.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest,LocalAdminBootstrapConfigTest" test`
+- Sonuc: 4 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Local Demo Seed Food/Exercise Log Genisletmesi
+
+### Yapilanlar
+
+- Local demo seed food log ve exercise log uretecek sekilde genisletildi.
+- Demo food log stratejisi:
+  - Bugun icin `BREAKFAST`, `SNACK`, `LUNCH` kayitlari olusturulur.
+  - Ayni gun ve ayni meal type zaten varsa tekrar olusturulmaz.
+- Demo exercise log stratejisi:
+  - `source=LOCAL_DEMO`
+  - `externalId=local-demo-run-{date}`
+  - Ayni source/externalId varsa tekrar olusturulmaz.
+- Food log idempotency icin `FoodLogsRepository.findByUserAndMealTypeAndLogDateBetween(...)` eklendi.
+
+### Canli Dogrulama
+
+- API local demo seed acik sekilde yeniden baslatildi.
+- Bugun icin demo user food log sayisi: 3.
+- Bugun icin demo user exercise log sayisi: 1.
+- Demo user ile dashboard endpointi cagrildi:
+  - `GET /api/dashboard/daily-summary`
+  - `consumedCalories=521.8`
+  - `burnedCalories=300.0`
+  - `totalExerciseMinutes=30`
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
+- Sonuc: 2 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Password Reset Altyapisi
+
+### Yapilanlar
+
+- Auth modulu icin sifre sifirlama endpointleri eklendi:
+  - `POST /api/auth/password-reset/request`
+  - `POST /api/auth/password-reset/confirm`
+- Reset tokenlari icin `password_reset_tokens` tablosu tasarlandi.
+- Flyway migration eklendi:
+  - `V11__add_password_reset_tokens.sql`
+- Tokenlar DB'de ham haliyle degil, SHA-256 hash olarak saklanacak sekilde uygulandi.
+- Mevcut kullanici icin yeni reset talebi geldiginde onceki kullanilmamis tokenlar gecersiz hale getirilir.
+- Token gecerlilik suresi configurable yapildi:
+  - `GRUN_PASSWORD_RESET_EXPIRATION_MINUTES`
+  - `GRUN_PASSWORD_RESET_BASE_URL`
+- Gercek mail provider secilene kadar local gelistirme icin log tabanli mail sender eklendi.
+- Swagger dokumani password reset endpointlerini gosterecek sekilde genisletildi.
+
+### Karar
+
+- Request endpointi email var/yok bilgisini aciga cikarmamak icin her zaman generic basari mesaji doner.
+- Ham reset token sadece mail/log katmaninda gorunur; persistence katmaninda hash saklanir.
+- Gercek email provider secimi simdilik ertelendi; ileride SMTP, SendGrid, AWS SES veya benzeri provider ile bu abstraction degistirilebilir.
+
+### Dogrulama
+
+- Service ve controller testleri eklendi.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 101 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Admin Dashboard Summary API
+
+### Yapilanlar
+
+- Yeni admin endpoint eklendi:
+  - `GET /api/admin/dashboard/summary`
+- Endpoint sadece `ADMIN` role ile kullanilabilir.
+- Response icinde kullanici metrikleri doner:
+  - total users
+  - standard users
+  - pro users
+  - admin users
+- Response icinde food catalog kalite metrikleri doner:
+  - total products
+  - verified products
+  - raw imported products
+  - needs review products
+  - rejected products
+  - review queue products
+- `AdminDashboardService` ve implementation eklendi.
+- `UserRepository.countByRole(...)` eklendi.
+- `FoodItemRepository` katalog status count ve review queue count destekleyecek sekilde genisletildi.
+
+### Karar
+
+- Admin panel UI gelmeden once backend metrikleri hazir tutulacak.
+- Review queue metric'i product verification status veya image review status nedeniyle admin ilgisi isteyen urunleri tek sayida toplar.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AdminDashboardControllerTest,AdminDashboardServiceImplTest" test`
+- Sonuc: 3 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 104 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - I18n Hata Kategori Cekirdegi
+
+### Yapilanlar
+
+- `Accept-Language` header'i ile locale secimi icin `LocaleConfig` eklendi.
+- Varsayilan locale `en`, desteklenen locale'ler `en` ve `tr` olarak belirlendi.
+- `messages.properties` ve `messages_tr.properties` eklendi.
+- `GlobalExceptionHandler` standart error category alanini message key uzerinden resolve edecek sekilde guncellendi.
+- Validation error icin Turkish kategori testi eklendi.
+
+### Karar
+
+- Bu adim tam i18n cevirisi degildir; once merkezi hata kategori altyapisi kuruldu.
+- Sonraki i18n adimi validation annotation mesajlarini ve domain exception mesajlarini message key tabanli hale getirmek olacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest" test`
+- Sonuc: 7 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 105 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Email Verification Ihtiyaci Notu
+
+### Karar
+
+- Uye olurken mail onayi alinmasi gerekecek.
+- Bu is password reset ile ayni mail abstraction mantigina baglanacak, ancak ayri bir hesap dogrulama akisi olarak ele alinacak.
+- Ilk tasarimda kullanici register oldugunda `emailVerified=false` baslamali.
+- Verification token DB'de ham haliyle degil hash olarak saklanmali.
+- Token confirm edildiginde kullanici email dogrulanmis hale gelmeli.
+- Production oncesi gercek mail provider secimi password reset ve email verification tarafini birlikte kapsayacak.
+
+### Durum
+
+- Su an aktif implementasyon kapsaminda degil.
+- Roadmap'e sonraki hesap guvenligi islerinden biri olarak eklendi.
+
+## 2026-05-16 - Auth Validation Mesajlari I18n
+
+### Yapilanlar
+
+- Auth register/login request validation mesajlari message key tabanli hale getirildi.
+- Password reset request/confirm validation mesajlari message key tabanli hale getirildi.
+- `messages.properties` ve `messages_tr.properties` icine email, password ve reset token validasyon mesajlari eklendi.
+- `Accept-Language: tr` ile register email validation hatasinin Turkce dondugu test edildi.
+
+### Karar
+
+- I18n genisletmesi parca parca yapilacak.
+- Ilk kapsam hesap guvenligi endpointleri oldu: auth ve password reset.
+- User goal, progress log ve diger domain DTO validasyonlari sonraki i18n isleri olarak kalacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,PasswordResetServiceImplTest" test`
+- Sonuc: 11 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 105 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
+
+### Yapilan Kontroller
+
+- Lokal API uzerinde OpenAPI dokumani kontrol edildi:
+  - `/api/auth/password-reset/request`
+  - `/api/auth/password-reset/confirm`
+  - `/api/admin/dashboard/summary`
+- Lokal PostgreSQL Flyway history uzerinde `V11 - add password reset tokens` migration success olarak dogrulandi.
+- Password reset request endpointi canli API uzerinde generic response dondu.
+- Demo kullanici icin hash'li gecici reset token ile confirm endpointi canli test edildi.
+- Yeni sifreyle login basarili oldu.
+- Demo kullanicinin sifresi tekrar eski demo sifreye alindi ve login basarili oldu.
+- Admin dashboard summary endpointi local admin token ile canli test edildi.
+
+### Ek Duzeltme
+
+- Expired password reset token kullanildiginda token `usedAt` isaretlemesinin exception rollback nedeniyle kaybolmamasi icin confirm transaction davranisi guncellendi.
+
+### Dogrulama
+
+- Canli API kontrolleri basarili.
+- Canli testte olusan gecici demo password reset tokenlari lokal DB'den temizlendi.
+- Komut: `.\mvnw.cmd "-Dtest=PasswordResetServiceImplTest" test`
+- Sonuc: 4 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 105 test gecti, 0 failure, 0 error.
+
+## 2026-05-16 - Local Swagger Demo Flow Dokumani
+
+### Yapilanlar
+
+- Yeni dokuman eklendi:
+  - `docs/LOCAL_SWAGGER_DEMO_FLOW.md`
+- Dokumanda lokal Swagger deneme akisi tanimlandi:
+  - demo user login
+  - product search
+  - dashboard daily summary
+  - admin login
+  - admin review queue
+  - product review update
+  - audit history kontrolu
+
+### Karar
+
+- Demo seed artik sadece veri olusturan bir mekanizma degil; Swagger uzerinden izlenebilir bir demo akisiyle birlikte tutulacak.
+- Bu dokuman proje kontrolunu geri kazanmak icin referans akis olarak kullanilacak.
+
+### Dogrulama
+
+- Dokuman degisikligidir; ek test gerektirmez.
+
+## 2026-05-16 - Local Demo Admin Review Product
+
+### Yapilanlar
+
+- Local demo seed admin review kuyruğu icin raw demo product olusturacak sekilde genisletildi.
+- Seed edilen demo review product:
+  - `GRun Demo Raw Protein Bar`
+  - `normalizedBarcode=8690000000042`
+  - `verificationStatus=RAW_IMPORTED`
+  - `imageStatus=NEEDS_REVIEW`
+  - `reviewPriority=200`
+- Product `normalizedBarcode` uzerinden idempotent olarak guncellenir; tekrar calisma duplicate uretmez.
+
+### Canli Dogrulama
+
+- API local demo seed acik sekilde yeniden baslatildi.
+- Admin user ile login olundu.
+- Admin review endpointi cagrildi:
+  - `GET /api/admin/products/review?verificationStatus=RAW_IMPORTED&imageStatus=NEEDS_REVIEW&page=0&size=20`
+- Response icinde `GRun Demo Raw Protein Bar` dogrulandi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
+- Sonuc: 2 test gecti, 0 failure, 0 error.
