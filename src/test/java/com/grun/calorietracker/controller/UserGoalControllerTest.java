@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -90,6 +91,20 @@ class UserGoalControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(goalRequest)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser@example.com")
+    void testSaveGoal_InvalidPayload_UsesTurkishValidationMessage() throws Exception {
+        UserGoalDto invalidRequest = new UserGoalDto();
+
+        mockMvc.perform(post("/api/goals/save")
+                        .header("Accept-Language", "tr")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Dogrulama hatasi"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("zorunludur")));
     }
 
     @Test

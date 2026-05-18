@@ -1872,6 +1872,29 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 116 test gecti, 0 failure, 0 error.
 
+## 2026-05-18 - i18n Validation Kapsam Genisletmesi
+
+### Yapilanlar
+
+- Kalan hard-coded DTO validation mesajlari i18n key'lerine tasindi:
+  - `UserGoalDto`
+  - `ProgressLogDto`
+  - `FoodProductMergeRequestDto`
+- Yeni validation mesajlari hem English hem Turkish message bundle icine eklendi.
+- Goal ve progress validation response'lari `Accept-Language: tr` ile test edildi.
+
+### Karar
+
+- Kullaniciya donen validation mesajlari DTO icinde sabit metin olarak tutulmayacak.
+- Yeni request DTO'lari icin validation mesajlari `messages.properties` ve `messages_tr.properties` icinden yonetilecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=UserGoalControllerTest,ProgressLogControllerTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 118 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller
