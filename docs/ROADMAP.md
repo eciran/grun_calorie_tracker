@@ -125,9 +125,9 @@ GRun backend'i uzun vadede mobil uygulama olarak yayinlanabilecek, guvenilir, te
 
 4. i18n kapsaminda validation mesajlarini ve domain hata mesajlarini message key tabanli hale getir.
 
-5. Mobil app MVP icin backend gap analizini guncelle.
+5. Mobil app MVP icin backend gap analizini guncelle. ✅
 
-6. Email verification akisini tasarla.
+6. Email verification akisini tasarla. ✅
    - Register sonrasi kullanici `emailVerified=false` baslar.
    - Verification token hash olarak DB'de saklanir.
    - Onay maili mail sender abstraction uzerinden gider.

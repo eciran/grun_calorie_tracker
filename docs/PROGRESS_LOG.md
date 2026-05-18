@@ -1895,6 +1895,24 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 118 test gecti, 0 failure, 0 error.
 
+## 2026-05-18 - Mobile MVP Backend Gap Analizi
+
+### Yapilanlar
+
+- Mobil uygulama publish hedefi icin backend gap analizi dokumani eklendi:
+  - `docs/MOBILE_MVP_BACKEND_GAP_ANALYSIS.md`
+- Mevcut backend kapsami, MVP blocking gap'leri, non-blocking uzun vadeli gap'ler ve onerilen siradaki backend sprinti netlestirildi.
+
+### Karar
+
+- Backend erken mobil entegrasyon icin yeterli seviyeye yaklasti.
+- Production/publish oncesi refresh token, gercek email provider, rate limiting ve food portion/unit modeli bloklayici kabul edildi.
+
+### Dogrulama
+
+- Kod degisikligi olmadigi icin test calistirmak zorunlu degil.
+- Dokuman eklendigi manuel olarak kontrol edildi.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller
