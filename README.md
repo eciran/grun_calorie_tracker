@@ -59,6 +59,8 @@ GRUN_LOCAL_DEMO_USER_EMAIL=demo.user@grun.local
 GRUN_LOCAL_DEMO_USER_PASSWORD=DemoUserPass1!
 GRUN_PASSWORD_RESET_EXPIRATION_MINUTES=30
 GRUN_PASSWORD_RESET_BASE_URL=http://localhost:8080/reset-password
+GRUN_EMAIL_VERIFICATION_EXPIRATION_MINUTES=1440
+GRUN_EMAIL_VERIFICATION_BASE_URL=http://localhost:8080/verify-email
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -115,6 +117,17 @@ POST /api/auth/password-reset/confirm
 ```
 
 The token stored in PostgreSQL is hashed; only the log line contains the raw local test token.
+
+### Local Email Verification
+
+Email verification uses a local logging mail sender until a real provider such as Brevo, Resend, or Amazon SES is selected. New registered users start as unverified and cannot login until their email is confirmed.
+
+```text
+POST /api/auth/email-verification/resend
+POST /api/auth/email-verification/confirm
+```
+
+The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
 
 ### Start PostgreSQL And API
 

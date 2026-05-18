@@ -1804,6 +1804,41 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 105 test gecti, 0 failure, 0 error.
 
+## 2026-05-18 - Email Verification Ilk Implementasyon
+
+### Yapilanlar
+
+- Register sonrasi email verification akisi eklendi.
+- `users.email_verified` kolonu eklendi.
+- Yeni kayit olan kullanicilar `emailVerified=false` baslar.
+- Mevcut kullanicilar migration ile verified kabul edilir.
+- Email verification token modeli eklendi:
+  - `email_verification_tokens`
+  - token hash
+  - expires at
+  - used at
+- Flyway migration eklendi:
+  - `V12__add_email_verification.sql`
+- Email verification endpointleri eklendi:
+  - `POST /api/auth/email-verification/resend`
+  - `POST /api/auth/email-verification/confirm`
+- Local log tabanli mail sender eklendi.
+- Local admin bootstrap ve local demo seed kullanicilari verified olarak set edilir.
+- Login akisi email verified olmayan kullaniciyi reddeder.
+
+### Karar
+
+- Kendi mail server'i yazilmayacak.
+- Backend provider bagimsiz kalacak; mail gonderimi ileride Brevo, Resend veya Amazon SES implementasyonu ile degistirilebilir.
+- Verification token ham olarak DB'de tutulmaz; sadece hash tutulur.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,EmailVerificationServiceImplTest,LocalAdminBootstrapConfigTest,LocalDemoSeedConfigTest" test`
+- Sonuc: 18 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 112 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller

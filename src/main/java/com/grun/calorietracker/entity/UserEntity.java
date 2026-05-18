@@ -39,5 +39,7 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @Column(name = "email_verified", nullable = false)
+    private Boolean emailVerified = true;
 
 }

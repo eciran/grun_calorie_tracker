@@ -2,6 +2,9 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AuthRequest;
+import com.grun.calorietracker.dto.EmailVerificationConfirmRequestDto;
+import com.grun.calorietracker.dto.EmailVerificationRequestDto;
+import com.grun.calorietracker.dto.EmailVerificationResponseDto;
 import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
 import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
@@ -9,6 +12,7 @@ import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +51,9 @@ class AuthControllerTest {
     @MockBean
     private PasswordResetService passwordResetService;
 
+    @MockBean
+    private EmailVerificationService emailVerificationService;
+
     private UserEntity sampleUser;
     private UserProfileDto sampleUserProfileDto;
 
@@ -58,6 +65,7 @@ class AuthControllerTest {
         sampleUser.setEmail("testuser@example.com");
         sampleUser.setPassword("password");
         sampleUser.setRole(UserRole.STANDARD);
+        sampleUser.setEmailVerified(true);
         sampleUser.setAge(30);
         sampleUser.setGender("MALE");
         sampleUser.setHeight(175.0);
@@ -88,6 +96,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk());
 
         verify(userRepository).save(any(UserEntity.class));
+        verify(emailVerificationService).createVerificationTokenForUser(any(UserEntity.class));
     }
 
     @Test
@@ -145,6 +154,36 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("If the email exists, a password reset link has been sent."));
+    }
+
+    @Test
+    void resendEmailVerification_returnsGenericAcceptedResponse() throws Exception {
+        EmailVerificationRequestDto request = new EmailVerificationRequestDto();
+        request.setEmail("testuser@example.com");
+
+        when(emailVerificationService.resendVerification(any(EmailVerificationRequestDto.class)))
+                .thenReturn(new EmailVerificationResponseDto("If the email exists, a verification link has been sent."));
+
+        mockMvc.perform(post("/api/auth/email-verification/resend")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("If the email exists, a verification link has been sent."));
+    }
+
+    @Test
+    void confirmEmailVerification_returnsSuccessResponse() throws Exception {
+        EmailVerificationConfirmRequestDto request = new EmailVerificationConfirmRequestDto();
+        request.setToken("raw-token");
+
+        when(emailVerificationService.confirmVerification(any(EmailVerificationConfirmRequestDto.class)))
+                .thenReturn(new EmailVerificationResponseDto("Email has been verified successfully."));
+
+        mockMvc.perform(post("/api/auth/email-verification/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Email has been verified successfully."));
     }
 
     @Test

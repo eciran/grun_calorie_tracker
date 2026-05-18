@@ -33,6 +33,9 @@ grun:
   password-reset:
     expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
     base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}
+  email-verification:
+    expiration-minutes: ${GRUN_EMAIL_VERIFICATION_EXPIRATION_MINUTES:1440}
+    base-url: ${GRUN_EMAIL_VERIFICATION_BASE_URL:http://localhost:8080/verify-email}
   local:
     admin:
       bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}

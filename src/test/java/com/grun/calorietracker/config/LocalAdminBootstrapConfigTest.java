@@ -49,6 +49,7 @@ class LocalAdminBootstrapConfigTest {
         assertEquals("encoded-password", captor.getValue().getPassword());
         assertEquals(UserRole.ADMIN, captor.getValue().getRole());
         assertEquals("Local Admin", captor.getValue().getName());
+        assertEquals(true, captor.getValue().getEmailVerified());
     }
 
     @Test
