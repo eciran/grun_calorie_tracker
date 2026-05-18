@@ -97,6 +97,10 @@ class FoodLogsControllerTest {
     @WithMockUser(username = "test@test.com", roles = "USER")
     void testAddFoodLog_invalidCredential() throws Exception {
         FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(100.0);
+        dto.setMealType("breakfast");
+        dto.setLogDate(LocalDateTime.now());
         doThrow(new InvalidCredentialsException("Invalid credential"))
                 .when(foodLogsService).addFoodLog(any(FoodLogsDto.class), eq(user.getEmail()));
 
@@ -104,6 +108,19 @@ class FoodLogsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void testAddFoodLog_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
+        FoodLogsDto dto = new FoodLogsDto();
+
+        mockMvc.perform(post("/api/food-logs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.path").value("/api/food-logs"));
     }
 
     @Test

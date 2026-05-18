@@ -1,11 +1,14 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.ExerciseItemDto;
 import com.grun.calorietracker.dto.ExerciseItemPageDto;
 import com.grun.calorietracker.enums.ExerciseDifficulty;
 import com.grun.calorietracker.service.ExerciseItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -36,7 +39,7 @@ public class ExerciseItemController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise items returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<ExerciseItemPageDto> getAllItems(
             @Parameter(description = "Optional search text matched against name, metCode, and description.", example = "run")
@@ -72,10 +75,10 @@ public class ExerciseItemController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise item created."),
-            @ApiResponse(responseCode = "400", description = "Request validation failed."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
-            @ApiResponse(responseCode = "409", description = "Exercise item metCode already exists.")
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "409", description = "Exercise item metCode already exists.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<ExerciseItemDto> addExerciseItem(@RequestBody @Valid ExerciseItemDto dto) {
         ExerciseItemDto created = exerciseItemService.addItem(dto);
@@ -90,11 +93,11 @@ public class ExerciseItemController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise item updated."),
-            @ApiResponse(responseCode = "400", description = "Request validation failed."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
-            @ApiResponse(responseCode = "404", description = "Exercise item was not found."),
-            @ApiResponse(responseCode = "409", description = "Exercise item metCode already exists.")
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Exercise item was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "409", description = "Exercise item metCode already exists.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<ExerciseItemDto> updateExerciseItem(
             @Parameter(description = "Exercise item id.", example = "1") @PathVariable Long id,
@@ -110,10 +113,10 @@ public class ExerciseItemController {
             description = "Deletes an exercise catalog item."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Exercise item deleted."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
-            @ApiResponse(responseCode = "404", description = "Exercise item was not found.")
+            @ApiResponse(responseCode = "204", description = "Exercise item deleted.", content = @Content),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Exercise item was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<Void> deleteExerciseItem(
             @Parameter(description = "Exercise item id.", example = "1") @PathVariable Long id) {

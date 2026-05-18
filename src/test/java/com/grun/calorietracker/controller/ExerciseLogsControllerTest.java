@@ -71,6 +71,9 @@ class ExerciseLogsControllerTest {
     void addExternalExerciseLog_duplicate_returnsConflict() throws Exception {
         ExerciseLogsDto request = new ExerciseLogsDto();
         request.setExerciseItemId(3L);
+        request.setDurationMinutes(45);
+        request.setCaloriesBurned(420.0);
+        request.setLogDate(LocalDateTime.of(2026, 5, 11, 18, 30));
         request.setSource("APPLE_HEALTH");
         request.setExternalId("workout-123");
 
@@ -81,6 +84,19 @@ class ExerciseLogsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void addExerciseLog_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
+        ExerciseLogsDto request = new ExerciseLogsDto();
+
+        mockMvc.perform(post("/api/exercise-logs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.path").value("/api/exercise-logs"));
     }
 
     @Test

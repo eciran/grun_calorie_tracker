@@ -1,9 +1,12 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -35,8 +38,8 @@ public class ExerciseLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise log created."),
-            @ApiResponse(responseCode = "400", description = "Request validation failed."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<ExerciseLogsDto> addExerciseLog(@Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
                                                           @RequestBody @Valid ExerciseLogsDto dto) {
@@ -51,9 +54,9 @@ public class ExerciseLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "External exercise log created."),
-            @ApiResponse(responseCode = "400", description = "Request validation failed or source/externalId is missing."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "409", description = "An exercise log with the same source and externalId already exists for the user.")
+            @ApiResponse(responseCode = "400", description = "Request validation failed or source/externalId is missing.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "409", description = "An exercise log with the same source and externalId already exists for the user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<ExerciseLogsDto> addExternalExerciseLog(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
@@ -70,8 +73,8 @@ public class ExerciseLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise report returned."),
-            @ApiResponse(responseCode = "400", description = "Date format or range value is invalid."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+            @ApiResponse(responseCode = "400", description = "Date format or range value is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogsByDateAndUser(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
@@ -93,8 +96,8 @@ public class ExerciseLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise logs returned."),
-            @ApiResponse(responseCode = "400", description = "Source is missing or invalid."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+            @ApiResponse(responseCode = "400", description = "Source is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogsBySource(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
@@ -110,8 +113,8 @@ public class ExerciseLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise log returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "404", description = "Exercise log was not found for the current user.")
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Exercise log was not found for the current user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<ExerciseLogsDto> getExerciseLogById(
             @Parameter(description = "Exercise log id.", example = "1") @PathVariable Long id,
@@ -127,9 +130,9 @@ public class ExerciseLogsController {
             description = "Deletes an exercise log owned by the authenticated user."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Exercise log deleted."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "404", description = "Exercise log was not found for the current user.")
+            @ApiResponse(responseCode = "204", description = "Exercise log deleted.", content = @Content),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Exercise log was not found for the current user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<Void> deleteExerciseLog(
             @Parameter(description = "Exercise log id.", example = "1") @PathVariable Long id,

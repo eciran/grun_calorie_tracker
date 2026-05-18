@@ -1839,6 +1839,39 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 112 test gecti, 0 failure, 0 error.
 
+## 2026-05-18 - Food/Exercise API Validation ve Swagger Sıkılaştırması
+
+### Yapilanlar
+
+- Food log request DTO'su icin zorunlu alan validationlari eklendi:
+  - `foodItemId`
+  - `portionSize`
+  - `logDate`
+- Exercise log request DTO'su icin zorunlu alan validationlari eklendi:
+  - `exerciseItemId`
+  - `durationMinutes`
+  - `caloriesBurned`
+  - `logDate`
+- Exercise item katalog request DTO'su icin zorunlu alan validationlari eklendi:
+  - `name`
+  - `metCode`
+  - `caloriesPerMinute`
+- Validation mesajlari `messages.properties` ve `messages_tr.properties` icine tasindi.
+- Food/Exercise controller Swagger hata response'lari `ApiErrorResponseDto` schema'si ile netlestirildi.
+- `ConstraintViolationException` ve `DateTimeParseException` icin global 400 response handling eklendi.
+
+### Karar
+
+- Bos veya eksik request body artik servis katmanina gitmeden 400 validation error doner.
+- Swagger'da error response'lar basarili response modelini kopyalamayacak sekilde ayrildi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodLogsControllerTest,ExerciseLogsControllerTest,ExerciseItemControllerTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 116 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller
