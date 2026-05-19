@@ -28,7 +28,7 @@ import java.util.List;
 
 // Controller for managing food log operations
 @RestController
-@RequestMapping("/api/food-logs")
+@RequestMapping({"/api/food-logs", "/api/v1/food-logs"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Food Logs", description = "Authenticated meal logging and daily nutrition statistics.")

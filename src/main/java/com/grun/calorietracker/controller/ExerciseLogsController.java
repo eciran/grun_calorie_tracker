@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/exercise-logs")
+@RequestMapping({"/api/exercise-logs", "/api/v1/exercise-logs"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Exercise Logs", description = "Authenticated exercise logging and date range reporting.")

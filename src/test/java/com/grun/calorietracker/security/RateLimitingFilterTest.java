@@ -53,6 +53,21 @@ class RateLimitingFilterTest {
         verify(filterChain).doFilter(request, response);
     }
 
+    @Test
+    void v1ProtectedAuthPathIsRateLimited() throws Exception {
+        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
+        ReflectionTestUtils.setField(filter, "enabled", true);
+        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/auth/refresh"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/auth/refresh"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
     private MockHttpServletRequest post(String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", uri);
         request.setRemoteAddr("127.0.0.1");

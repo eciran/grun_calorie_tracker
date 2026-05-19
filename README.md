@@ -217,6 +217,18 @@ Swagger UI:
 http://localhost:8080/swagger-ui/index.html
 ```
 
+### API Versioning
+
+The current stable API version is `v1`. New mobile clients should use `/api/v1/...` paths, for example:
+
+```text
+POST /api/v1/auth/login
+GET /api/v1/products/search
+POST /api/v1/food-logs
+```
+
+Legacy `/api/...` paths are still available during development to avoid breaking existing local Swagger flows and older clients.
+
 ### Stop Local Services
 
 ```powershell

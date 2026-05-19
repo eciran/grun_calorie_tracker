@@ -20,7 +20,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping({"/api/products", "/api/v1/products"})
 @RequiredArgsConstructor
 @Validated
 @SecurityRequirement(name = "bearerAuth")

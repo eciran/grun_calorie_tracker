@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/admin/products")
+@RequestMapping({"/api/admin/products", "/api/v1/admin/products"})
 @RequiredArgsConstructor
 @Validated
 @PreAuthorize("hasRole('ADMIN')")

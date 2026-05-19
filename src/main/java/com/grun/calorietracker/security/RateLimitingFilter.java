@@ -26,7 +26,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             "/api/auth/register",
             "/api/auth/password-reset/request",
             "/api/auth/email-verification/resend",
-            "/api/auth/refresh"
+            "/api/auth/refresh",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/password-reset/request",
+            "/api/v1/auth/email-verification/resend",
+            "/api/v1/auth/refresh"
     );
 
     private final InMemoryRateLimiter rateLimiter;

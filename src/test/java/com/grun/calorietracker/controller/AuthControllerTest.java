@@ -235,6 +235,28 @@ class AuthControllerTest {
     }
 
     @Test
+    void refresh_v1Path_returnsNewAccessAndRefreshTokens() throws Exception {
+        RefreshTokenRequestDto request = new RefreshTokenRequestDto();
+        request.setRefreshToken("raw-refresh-token-v1");
+
+        when(refreshTokenService.refreshAccessToken("raw-refresh-token-v1"))
+                .thenReturn(new com.grun.calorietracker.dto.AuthResponse(
+                        "new-access-token-v1",
+                        "new-refresh-token-v1",
+                        "Bearer",
+                        900L,
+                        "Token refreshed successfully"
+                ));
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("new-access-token-v1"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh-token-v1"));
+    }
+
+    @Test
     void logout_revokesRefreshToken() throws Exception {
         LogoutRequestDto request = new LogoutRequestDto();
         request.setRefreshToken("raw-refresh-token");
@@ -264,5 +286,13 @@ class AuthControllerTest {
                         .value("/api/products/barcode/{barcode}"))
                 .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.message")
                         .value("Product could not be found locally or from the configured external source."));
+    }
+
+    @Test
+    void openApi_v1AuthPath_isDocumented() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.responses['429'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponseDto"));
     }
 }

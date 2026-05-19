@@ -2026,6 +2026,31 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=RateLimitingFilterTest,AuthControllerTest" test`
 - Sonuc: 13 test gecti, 0 failure, 0 error.
 
+## 2026-05-19 - API v1 Versioning Alias
+
+### Yapilanlar
+
+- Tum mevcut REST controller base pathleri `/api/v1/...` alias'i ile genisletildi.
+- Legacy `/api/...` pathleri korunarak mevcut local Swagger akislarinin ve eski client denemelerinin kirilmamasi saglandi.
+- Security config icinde `/api/v1/auth/**` public auth path olarak eklendi.
+- Rate limiting korumasi `/api/v1/auth/...` endpointleri icin de aktif hale getirildi.
+- README icine API versioning notu eklendi.
+
+### Karar
+
+- Mobil uygulama yeni entegrasyonlarda `/api/v1/...` kullanacak.
+- Geriye uyumluluk icin `/api/...` pathleri simdilik korunacak.
+- Gelecekte kirici kontrat degisikligi gerekirse `/api/v2/...` acilacak; her kucuk backend degisikligi yeni versiyon gerektirmeyecek.
+
+### Dogrulama
+
+- `AuthControllerTest` icine `/api/v1/auth/refresh` testi eklendi.
+- `RateLimitingFilterTest` icine `/api/v1/auth/refresh` rate limit testi eklendi.
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,RateLimitingFilterTest,FoodLogsControllerTest,FoodItemControllerTest,AdminUserControllerTest" test`
+- Sonuc: 27 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 132 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller

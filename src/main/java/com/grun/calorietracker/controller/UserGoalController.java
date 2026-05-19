@@ -22,7 +22,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/goals")
+@RequestMapping({"/api/goals", "/api/v1/goals"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Goals", description = "Calorie and macro goal calculation, saving, and deletion for the authenticated user.")

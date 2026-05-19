@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping({"/api/auth", "/api/v1/auth"})
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "Registration and login endpoints that issue JWT access tokens.")
 public class AuthController {
