@@ -1945,6 +1945,31 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 124 test gecti, 0 failure, 0 error.
 
+## 2026-05-19 - Configurable Email Provider Altyapisi
+
+### Yapilanlar
+
+- Password reset ve email verification mail gonderimleri merkezi `MailDeliveryService` arkasina alindi.
+- Local development icin varsayilan `LOG` provider korundu; raw test linkleri uygulama logunda gorulebilir.
+- Gercek mail gonderimi icin ilk provider olarak Brevo HTTP API entegrasyonu eklendi.
+- Provider secimi ve credential degerleri environment config ile yonetilecek hale getirildi:
+  - `GRUN_MAIL_PROVIDER`
+  - `GRUN_MAIL_FROM_EMAIL`
+  - `GRUN_MAIL_FROM_NAME`
+  - `GRUN_BREVO_API_KEY`
+  - `GRUN_BREVO_API_URL`
+- README icine transactional email provider ayarlari eklendi.
+
+### Karar
+
+- Sifre resetleme ve email verification domain akislari mail provider detayini bilmeyecek.
+- Local ortamda masrafsiz ve hizli gelistirme icin `LOG` provider kullanilacak.
+- Production ortaminda gercek provider credentiallari kod yerine deployment secret olarak verilecek.
+
+### Dogrulama
+
+- Sender siniflari icin `MailDeliveryService` delegasyon testleri eklendi.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller

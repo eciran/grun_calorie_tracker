@@ -30,6 +30,13 @@ openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
 
 grun:
+  mail:
+    provider: ${GRUN_MAIL_PROVIDER:LOG}
+    from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}
+    from-name: ${GRUN_MAIL_FROM_NAME:GRun}
+    brevo:
+      api-key: ${GRUN_BREVO_API_KEY:}
+      api-url: ${GRUN_BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
   refresh-token:
     expiration-days: ${GRUN_REFRESH_TOKEN_EXPIRATION_DAYS:30}
   password-reset:

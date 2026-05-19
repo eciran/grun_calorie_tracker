@@ -61,6 +61,12 @@ GRUN_PASSWORD_RESET_EXPIRATION_MINUTES=30
 GRUN_PASSWORD_RESET_BASE_URL=http://localhost:8080/reset-password
 GRUN_EMAIL_VERIFICATION_EXPIRATION_MINUTES=1440
 GRUN_EMAIL_VERIFICATION_BASE_URL=http://localhost:8080/verify-email
+GRUN_REFRESH_TOKEN_EXPIRATION_DAYS=30
+GRUN_MAIL_PROVIDER=LOG
+GRUN_MAIL_FROM_EMAIL=no-reply@grun.local
+GRUN_MAIL_FROM_NAME=GRun
+GRUN_BREVO_API_KEY=
+GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -128,6 +134,22 @@ POST /api/auth/email-verification/confirm
 ```
 
 The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
+
+### Transactional Email Provider
+
+Transactional emails use a configurable delivery service. Local development defaults to `GRUN_MAIL_PROVIDER=LOG`, so password reset and email verification links are written to the application log and no external email is sent.
+
+For a real provider, the current built-in option is Brevo:
+
+```env
+GRUN_MAIL_PROVIDER=BREVO
+GRUN_MAIL_FROM_EMAIL=no-reply@your-domain.com
+GRUN_MAIL_FROM_NAME=GRun
+GRUN_BREVO_API_KEY=change-me
+GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
+```
+
+Provider credentials must stay in local or deployment secrets and must not be committed.
 
 ### Mobile Session Tokens
 
