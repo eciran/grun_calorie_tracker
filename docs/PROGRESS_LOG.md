@@ -2128,3 +2128,31 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
 - Sonuc: 2 test gecti, 0 failure, 0 error.
+
+## 2026-05-19 - Goal Calorie Calculation ve Onboarding Request Ayrimi
+
+### Yapilanlar
+
+- Gunluk kalori ve makro hesaplama servisi deterministik testlerle dogrulandi.
+- Kullanilan hesaplama yaklasimi netlestirildi:
+  - Body fat varsa Katch-McArdle BMR formulu.
+  - Body fat yoksa Mifflin-St Jeor BMR formulu.
+  - Aktivite seviyesine gore TDEE carpani.
+  - Hedef tipine gore kalori acigi/fazlasi.
+- `LOSE_WEIGHT` icin haftalik kilo degisim hedefi pozitif gonderilse bile backend tarafinda kalori acigi olarak normalize edildi.
+- Goal hesaplama request'i `UserGoalDto` icinden ayrildi ve `GoalCalculationRequestDto` eklendi.
+- `/api/goals/calculate` ve `/api/goals/save` artik kullanicidan hesaplanmis kalori/makro degerleri istemiyor.
+- Goal save akisi artik DB'ye client tarafindan gelen kalori/makro degerlerini degil, backend tarafinda hesaplanan degerleri kaydediyor.
+
+### Karar
+
+- Onboarding akisi icin kullanici sadece hedef bilgilerini ve aktivite seviyesini gondermeli.
+- Kalori, protein, yag ve karbonhidrat hedefleri backend tarafinda hesaplanip kaydedilmeli.
+- Bu ayrim mobil app tarafinda daha temiz onboarding ekrani kurulmasini saglayacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=UserGoalServiceImplTest,UserGoalControllerTest" test`
+- Sonuc: 13 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 138 test gecti, 0 failure, 0 error.

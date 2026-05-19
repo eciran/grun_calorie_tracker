@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.GoalCalculationResponse;
+import com.grun.calorietracker.dto.GoalCalculationRequestDto;
 import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -24,7 +26,7 @@ public class UserGoalServiceImpl implements UserGoalService {
     private final UserService userService;
 
     @Override
-    public UserGoalDto saveUserGoal(UserGoalDto goalData, String email) {
+    public UserGoalDto saveUserGoal(GoalCalculationRequestDto goalData, String email) {
         log.info("Saving new goal for user: {}", email);
 
         UserEntity user = userService.findByEmail(email)
@@ -35,7 +37,8 @@ public class UserGoalServiceImpl implements UserGoalService {
             userGoalRepository.delete(existing);
         });
 
-        UserGoalEntity newGoal = UserGoalMapper.toEntity(goalData, user);
+        UserGoalDto calculatedGoal = buildCalculatedGoalDto(goalData, user);
+        UserGoalEntity newGoal = UserGoalMapper.toEntity(calculatedGoal, user);
         UserGoalEntity saved = userGoalRepository.save(newGoal);
 
         log.info("New goal saved for user: {} with id {}", email, saved.getId());
@@ -45,7 +48,7 @@ public class UserGoalServiceImpl implements UserGoalService {
 
 
     @Override
-    public GoalCalculationResponse calculateGoal(UserGoalDto goalData, String email) {
+    public GoalCalculationResponse calculateGoal(GoalCalculationRequestDto goalData, String email) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
 
@@ -53,11 +56,35 @@ public class UserGoalServiceImpl implements UserGoalService {
             throw new InvalidCredentialsException("Invalid credential");
         }
 
-        double bmr = getBmrDetails(user);
+        return calculateGoal(goalData, user);
+    }
 
+    private static UserGoalDto buildCalculatedGoalDto(GoalCalculationRequestDto goalData, UserEntity user) {
+        GoalCalculationResponse macros = calculateGoal(goalData, user);
+
+        UserGoalDto calculatedGoal = new UserGoalDto();
+        calculatedGoal.setTargetWeight(goalData.getTargetWeight());
+        calculatedGoal.setDailyCalorieGoal(macros.getCalculatedCalorieNeed());
+        calculatedGoal.setDailyProteinGoal((double) macros.getRecommendedProteinGrams());
+        calculatedGoal.setDailyFatGoal((double) macros.getRecommendedFatGrams());
+        calculatedGoal.setDailyCarbGoal((double) macros.getRecommendedCarbGrams());
+        calculatedGoal.setWeeklyWeightChangeTargetKg(goalData.getWeeklyWeightChangeTargetKg() == null
+                ? null
+                : normalizedWeeklyWeightChangeKg(goalData));
+        calculatedGoal.setGoalType(goalData.getGoalType());
+        calculatedGoal.setActivityLevel(goalData.getActivityLevel());
+        calculatedGoal.setCreatedAt(LocalDateTime.now());
+        return calculatedGoal;
+    }
+
+    private static GoalCalculationResponse calculateGoal(GoalCalculationRequestDto goalData, UserEntity user) {
+        double bmr = getBmrDetails(user);
         int goalCalories = getGoalCalories(goalData, user, bmr);
-        
-        int proteinGrams = (int) Math.round(goalCalories * goalData.getGoalType(). getProteinPercentage() / 4);
+        return calculateMacros(goalCalories, goalData);
+    }
+
+    private static GoalCalculationResponse calculateMacros(int goalCalories, GoalCalculationRequestDto goalData) {
+        int proteinGrams = (int) Math.round(goalCalories * goalData.getGoalType().getProteinPercentage() / 4);
         int fatGrams = (int) Math.round(goalCalories * goalData.getGoalType().getFatPercentage() / 9);
 
         int remainingCaloriesForCarbs = goalCalories - (proteinGrams * 4) - (fatGrams * 9);
@@ -84,14 +111,14 @@ public class UserGoalServiceImpl implements UserGoalService {
         return bmr;
     }
 
-    private static int getGoalCalories(UserGoalDto goalData, UserEntity user, double bmr) {
+    private static int getGoalCalories(GoalCalculationRequestDto goalData, UserEntity user, double bmr) {
         double activityMultiplier = goalData.getActivityLevel().getMultiplier();
         int maintenanceCalories = (int) Math.round(bmr * activityMultiplier);
 
         int calorieAdjustment = 0;
 
         if (goalData.getWeeklyWeightChangeTargetKg() != null) {
-            calorieAdjustment = (int) Math.round((goalData.getWeeklyWeightChangeTargetKg() * 7700) / 7.0);
+            calorieAdjustment = (int) Math.round((normalizedWeeklyWeightChangeKg(goalData) * 7700) / 7.0);
         } else {
             calorieAdjustment = goalData.getGoalType().getCalorieAdjustment();
         }
@@ -104,6 +131,19 @@ public class UserGoalServiceImpl implements UserGoalService {
             goalCalories = 1200;
         }
         return goalCalories;
+    }
+
+    private static double normalizedWeeklyWeightChangeKg(GoalCalculationRequestDto goalData) {
+        if (goalData.getWeeklyWeightChangeTargetKg() == null) {
+            return 0.0;
+        }
+
+        double weeklyChange = Math.abs(goalData.getWeeklyWeightChangeTargetKg());
+        return switch (goalData.getGoalType()) {
+            case LOSE_WEIGHT -> -weeklyChange;
+            case GAIN_WEIGHT, BUILD_MUSCLE -> weeklyChange;
+            case MAINTAIN_WEIGHT -> 0.0;
+        };
     }
 
     @Override

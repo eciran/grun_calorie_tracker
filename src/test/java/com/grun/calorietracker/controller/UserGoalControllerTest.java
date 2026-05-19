@@ -2,7 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.GoalCalculationResponse;
-import com.grun.calorietracker.dto.UserGoalDto;
+import com.grun.calorietracker.dto.GoalCalculationRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
@@ -45,7 +45,7 @@ class UserGoalControllerTest {
     private ObjectMapper objectMapper;
 
     private UserEntity mockUser;
-    private UserGoalDto goalRequest;
+    private GoalCalculationRequestDto goalRequest;
 
     @BeforeEach
     void setUp() {
@@ -59,12 +59,8 @@ class UserGoalControllerTest {
         mockUser.setHeight(180.0);
         mockUser.setWeight(80.0);
 
-        goalRequest = new UserGoalDto();
+        goalRequest = new GoalCalculationRequestDto();
         goalRequest.setTargetWeight(75.0);
-        goalRequest.setDailyCalorieGoal(2200);
-        goalRequest.setDailyProteinGoal(140.0);
-        goalRequest.setDailyFatGoal(70.0);
-        goalRequest.setDailyCarbGoal(250.0);
         goalRequest.setActivityLevel(ActivityLevel.MODERATE);
         goalRequest.setGoalType(GoalType.LOSE_WEIGHT);
     }
@@ -73,7 +69,7 @@ class UserGoalControllerTest {
     @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
-        when(goalService.calculateGoal(any(UserGoalDto.class), any(String.class))).thenReturn(new GoalCalculationResponse());
+        when(goalService.calculateGoal(any(GoalCalculationRequestDto.class), any(String.class))).thenReturn(new GoalCalculationResponse());
 
         mockMvc.perform(post("/api/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,7 +80,7 @@ class UserGoalControllerTest {
     @Test
     @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_UserNotFound() throws Exception {
-        when(goalService.calculateGoal(any(UserGoalDto.class), any(String.class)))
+        when(goalService.calculateGoal(any(GoalCalculationRequestDto.class), any(String.class)))
                 .thenThrow(new InvalidCredentialsException("Invalid credential"));
 
         mockMvc.perform(post("/api/goals/save")
@@ -96,7 +92,7 @@ class UserGoalControllerTest {
     @Test
     @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_InvalidPayload_UsesTurkishValidationMessage() throws Exception {
-        UserGoalDto invalidRequest = new UserGoalDto();
+        GoalCalculationRequestDto invalidRequest = new GoalCalculationRequestDto();
 
         mockMvc.perform(post("/api/goals/save")
                         .header("Accept-Language", "tr")
@@ -110,7 +106,7 @@ class UserGoalControllerTest {
     @Test
     @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_InvalidEmail() throws Exception {
-        when(goalService.calculateGoal(any(UserGoalDto.class), any(String.class)))
+        when(goalService.calculateGoal(any(GoalCalculationRequestDto.class), any(String.class)))
                 .thenThrow(new InvalidCredentialsException("Invalid credential"));
 
         mockMvc.perform(post("/api/goals/save")
