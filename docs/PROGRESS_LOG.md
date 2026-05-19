@@ -1998,6 +1998,34 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd "-Dtest=FoodLogsServiceImplTest,FoodLogsControllerTest,FoodItemServiceImplTest,OpenFoodFactsServiceImplTest" test`
 - Sonuc: 26 test gecti, 0 failure, 0 error.
 
+## 2026-05-19 - Rate Limiting Ilk Koruma Katmani
+
+### Yapilanlar
+
+- In-memory fixed-window rate limiter eklendi.
+- `RateLimitingFilter` security zincirine eklendi.
+- Su auth endpointleri rate limit kapsaminda korumaya alindi:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/password-reset/request`
+  - `POST /api/auth/email-verification/resend`
+- Limit config ile yonetilebilir hale getirildi:
+  - `GRUN_RATE_LIMIT_ENABLED`
+  - `GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE`
+- Limit asildiginda API `429 Too Many Requests` ve standart `ApiErrorResponseDto` doner.
+- Swagger auth endpointlerine `429` response dokumani eklendi.
+
+### Karar
+
+- Ilk asamada dependency eklemeden in-memory cozum kullanildi.
+- Production ortaminda birden fazla backend instance calisacaksa limiter Redis gibi paylasimli bir store'a tasinmali.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=RateLimitingFilterTest,AuthControllerTest" test`
+- Sonuc: 13 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller

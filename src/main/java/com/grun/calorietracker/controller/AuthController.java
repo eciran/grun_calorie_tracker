@@ -63,6 +63,11 @@ public class AuthController {
                     responseCode = "400",
                     description = "Email is already registered or request validation failed.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests from the same client.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             )
     })
     public ResponseEntity<?> register(@RequestBody @Valid AuthRequest request, HttpServletRequest httpRequest) {
@@ -105,6 +110,11 @@ public class AuthController {
                     responseCode = "401",
                     description = "Invalid email or password.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests from the same client.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             )
     })
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest request) {
@@ -134,6 +144,11 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "400",
                     description = "Refresh token is invalid, expired, already used, revoked, or request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests from the same client.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             )
     })
@@ -169,6 +184,11 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "400",
                     description = "Request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests from the same client.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             )
     })
@@ -207,6 +227,11 @@ public class AuthController {
             @ApiResponse(
                     responseCode = "400",
                     description = "Request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too many requests from the same client.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             )
     })

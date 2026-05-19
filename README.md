@@ -67,6 +67,8 @@ GRUN_MAIL_FROM_EMAIL=no-reply@grun.local
 GRUN_MAIL_FROM_NAME=GRun
 GRUN_BREVO_API_KEY=
 GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
+GRUN_RATE_LIMIT_ENABLED=true
+GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE=20
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -150,6 +152,18 @@ GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
 ```
 
 Provider credentials must stay in local or deployment secrets and must not be committed.
+
+### Rate Limiting
+
+The backend includes an in-memory rate limiter for high-risk authentication endpoints:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/email-verification/resend`
+
+Local defaults allow 20 requests per minute per client IP and endpoint. For multi-instance production deployments, this should be moved to a shared store such as Redis.
 
 ### Food Portions
 
