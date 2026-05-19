@@ -39,6 +39,10 @@ public class JwtUtil {
                 .compact();
     }
 
+    public long getExpirationSeconds() {
+        return expirationTime / 1000;
+    }
+
     public boolean isTokenValid(String token, String username) {
         final String extractedUsername = extractUsername(token);
         return extractedUsername.equals(username) && !isTokenExpired(token);

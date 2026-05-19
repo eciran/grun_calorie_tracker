@@ -129,6 +129,18 @@ POST /api/auth/email-verification/confirm
 
 The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
 
+### Mobile Session Tokens
+
+Login returns a short-lived JWT access token and a long-lived refresh token. Mobile clients should keep users signed in by calling refresh before or after access token expiry instead of asking for email/password again.
+
+```text
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
+```
+
+Refresh tokens are stored hashed in the database, rotated on every refresh, and revoked on logout. Password reset revokes active refresh tokens for the user.
+
 ### Start PostgreSQL And API
 
 Start Docker Desktop first, then run:

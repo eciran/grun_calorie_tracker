@@ -7,15 +7,19 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.EmailVerificationConfirmRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationResponseDto;
+import com.grun.calorietracker.dto.LogoutRequestDto;
+import com.grun.calorietracker.dto.LogoutResponseDto;
 import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
 import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
+import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.PasswordResetService;
+import com.grun.calorietracker.service.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -45,6 +49,7 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final PasswordResetService passwordResetService;
     private final EmailVerificationService emailVerificationService;
+    private final RefreshTokenService refreshTokenService;
 
 
     @PostMapping("/register")
@@ -87,7 +92,7 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(
             summary = "Login with email and password",
-            description = "Authenticates an existing user and returns a JWT token."
+            description = "Authenticates an existing user and returns a short-lived JWT access token plus a long-lived refresh token for mobile sessions."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Login successful."),
@@ -115,7 +120,43 @@ public class AuthController {
         }
 
         String token = jwtUtil.generateToken(user.getEmail());
-        return ResponseEntity.ok(new AuthResponse(token, "Login successful"));
+        String refreshToken = refreshTokenService.createRefreshToken(user);
+        return ResponseEntity.ok(new AuthResponse(token, refreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Login successful"));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(
+            summary = "Refresh access token",
+            description = "Rotates a valid refresh token and returns a new access token plus a new refresh token."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Token refreshed successfully."),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Refresh token is invalid, expired, already used, revoked, or request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            )
+    })
+    public ResponseEntity<AuthResponse> refresh(@RequestBody @Valid RefreshTokenRequestDto request) {
+        return ResponseEntity.ok(refreshTokenService.refreshAccessToken(request.getRefreshToken()));
+    }
+
+    @PostMapping("/logout")
+    @Operation(
+            summary = "Logout current device session",
+            description = "Revokes the submitted refresh token. The current access token naturally expires by its short TTL."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Logout successful."),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Refresh token is invalid, expired, already used, revoked, or request validation failed.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            )
+    })
+    public ResponseEntity<LogoutResponseDto> logout(@RequestBody @Valid LogoutRequestDto request) {
+        refreshTokenService.revokeRefreshToken(request.getRefreshToken());
+        return ResponseEntity.ok(new LogoutResponseDto("Logout successful"));
     }
 
     @PostMapping("/email-verification/resend")

@@ -44,6 +44,9 @@ class PasswordResetServiceImplTest {
     @Mock
     private PasswordResetMailSender passwordResetMailSender;
 
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     private PasswordResetServiceImpl passwordResetService;
     private UserEntity user;
 
@@ -53,7 +56,8 @@ class PasswordResetServiceImplTest {
                 userRepository,
                 passwordResetTokenRepository,
                 passwordEncoder,
-                passwordResetMailSender
+                passwordResetMailSender,
+                refreshTokenService
         );
         ReflectionTestUtils.setField(passwordResetService, "expirationMinutes", 30L);
         ReflectionTestUtils.setField(passwordResetService, "resetBaseUrl", "http://localhost:8080/reset-password");
@@ -118,6 +122,7 @@ class PasswordResetServiceImplTest {
         assertThat(user.getPassword()).isEqualTo("encoded-new-password");
         assertThat(token.getUsedAt()).isNotNull();
         verify(userRepository).save(user);
+        verify(refreshTokenService).revokeAllForUser(user);
         verify(passwordResetTokenRepository).save(token);
     }
 
@@ -140,5 +145,6 @@ class PasswordResetServiceImplTest {
         assertThat(token.getUsedAt()).isNotNull();
         verify(passwordResetTokenRepository).save(token);
         verify(userRepository, never()).save(any());
+        verify(refreshTokenService, never()).revokeAllForUser(any());
     }
 }

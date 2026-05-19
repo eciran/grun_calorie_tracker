@@ -1913,6 +1913,38 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Kod degisikligi olmadigi icin test calistirmak zorunlu degil.
 - Dokuman eklendigi manuel olarak kontrol edildi.
 
+## 2026-05-19 - Refresh Token ve Logout/Revoke Flow
+
+### Yapilanlar
+
+- Mobil session icin refresh token altyapisi eklendi.
+- Yeni tablo eklendi:
+  - `refresh_tokens`
+- Refresh token DB'de raw olarak tutulmaz; SHA-256 hash olarak saklanir.
+- Login response artik access token ile birlikte refresh token da doner.
+- Yeni auth endpointleri eklendi:
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/logout`
+- Refresh token her refresh isteginde rotate edilir:
+  - eski token `usedAt` ile isaretlenir
+  - yeni refresh token uretilir
+- Logout sadece gonderilen refresh tokeni revoke eder.
+- Password reset basarili olunca kullanicinin aktif refresh tokenlari revoke edilir.
+- `AuthResponse` geriye uyumluluk icin `token` alanini korur; yanina `refreshToken`, `tokenType`, `expiresIn` alanlari eklendi.
+
+### Karar
+
+- Mobil uygulama kullanicidan surekli login istemeyecek.
+- Access token kisa omurlu kalacak; refresh token mobil oturum devamlıligini saglayacak.
+- Refresh token raw degerleri loglanmayacak ve DB'de saklanmayacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,RefreshTokenServiceImplTest,PasswordResetServiceImplTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 124 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller

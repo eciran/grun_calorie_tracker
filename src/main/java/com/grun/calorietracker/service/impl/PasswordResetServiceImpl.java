@@ -9,6 +9,7 @@ import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.PasswordResetMailSender;
 import com.grun.calorietracker.service.PasswordResetService;
+import com.grun.calorietracker.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,6 +35,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetMailSender passwordResetMailSender;
+    private final RefreshTokenService refreshTokenService;
 
     @Value("${grun.password-reset.expiration-minutes:30}")
     private long expirationMinutes;
@@ -75,6 +77,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         UserEntity user = token.getUser();
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user);
 
         token.setUsedAt(LocalDateTime.now());
         passwordResetTokenRepository.save(token);

@@ -5,15 +5,19 @@ import com.grun.calorietracker.dto.AuthRequest;
 import com.grun.calorietracker.dto.EmailVerificationConfirmRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationResponseDto;
+import com.grun.calorietracker.dto.LogoutRequestDto;
+import com.grun.calorietracker.dto.LogoutResponseDto;
 import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
 import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
+import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.PasswordResetService;
+import com.grun.calorietracker.service.RefreshTokenService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +57,9 @@ class AuthControllerTest {
 
     @MockBean
     private EmailVerificationService emailVerificationService;
+
+    @MockBean
+    private RefreshTokenService refreshTokenService;
 
     private UserEntity sampleUser;
     private UserProfileDto sampleUserProfileDto;
@@ -200,6 +207,45 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Password has been reset successfully."));
+    }
+
+    @Test
+    void refresh_returnsNewAccessAndRefreshTokens() throws Exception {
+        RefreshTokenRequestDto request = new RefreshTokenRequestDto();
+        request.setRefreshToken("raw-refresh-token");
+
+        when(refreshTokenService.refreshAccessToken("raw-refresh-token"))
+                .thenReturn(new com.grun.calorietracker.dto.AuthResponse(
+                        "new-access-token",
+                        "new-refresh-token",
+                        "Bearer",
+                        900L,
+                        "Token refreshed successfully"
+                ));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("new-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh-token"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(jsonPath("$.message").value("Token refreshed successfully"));
+    }
+
+    @Test
+    void logout_revokesRefreshToken() throws Exception {
+        LogoutRequestDto request = new LogoutRequestDto();
+        request.setRefreshToken("raw-refresh-token");
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Logout successful"));
+
+        verify(refreshTokenService).revokeRefreshToken("raw-refresh-token");
     }
 
     @Test
