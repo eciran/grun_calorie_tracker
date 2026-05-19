@@ -151,6 +151,19 @@ GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
 
 Provider credentials must stay in local or deployment secrets and must not be committed.
 
+### Food Portions
+
+Food logs accept `portionSize` with an optional `portionUnit`. If `portionUnit` is omitted, the backend treats the value as grams for backward compatibility.
+
+Supported units:
+
+- `GRAM`
+- `MILLILITER`
+- `SERVING`
+- `PIECE`
+
+The backend stores `normalizedPortionGrams` for nutrition calculations. For `SERVING` and `PIECE`, the conversion uses the product's `servingSize` when available, otherwise it falls back to 100 grams.
+
 ### Mobile Session Tokens
 
 Login returns a short-lived JWT access token and a long-lived refresh token. Mobile clients should keep users signed in by calling refresh before or after access token expiry instead of asking for email/password again.

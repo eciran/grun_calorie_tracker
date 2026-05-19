@@ -1970,6 +1970,34 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Sender siniflari icin `MailDeliveryService` delegasyon testleri eklendi.
 
+## 2026-05-19 - Food Portion ve Unit Modeli
+
+### Yapilanlar
+
+- Food log modeli `portionUnit` ve `normalizedPortionGrams` alanlariyla genisletildi.
+- `FoodPortionUnit` enum eklendi:
+  - `GRAM`
+  - `MILLILITER`
+  - `SERVING`
+  - `PIECE`
+- Eski client uyumlulugu icin `portionUnit` bos gelirse `GRAM` kabul edilecek sekilde servis mantigi korundu.
+- `SERVING` ve `PIECE` icin gram donusumu product `servingSizeGrams` uzerinden hesaplanacak sekilde eklendi.
+- Food product modeline `servingSizeGrams` ve `servingUnit` alanlari eklendi.
+- Daily nutrition aggregation sorgulari artik `normalized_portion_grams` alanini kullanacak sekilde guncellendi.
+- Flyway migration eklendi:
+  - `V14__add_food_portion_units.sql`
+
+### Karar
+
+- Besin degerleri uygulama icinde 100 gram bazli hesaplanmaya devam edecek.
+- Kullanici deneyimi tarafinda farkli porsiyon birimleri desteklenecek, fakat hesaplama icin tek normalize gram alani tutulacak.
+- Serving bilgisi eksik urunlerde gecici varsayilan 100 gram kullanilacak; admin review surecinde serving bilgisi duzeltilebilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodLogsServiceImplTest,FoodLogsControllerTest,FoodItemServiceImplTest,OpenFoodFactsServiceImplTest" test`
+- Sonuc: 26 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller

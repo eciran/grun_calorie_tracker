@@ -34,10 +34,10 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
 
     @Query(value = """
     SELECT DATE(f.log_date) as logDate,
-           SUM(COALESCE(fi.calories, 0) * COALESCE(f.portion_size, 0) / 100) as calories,
-           SUM(COALESCE(fi.protein, 0) * COALESCE(f.portion_size, 0) / 100) as protein,
-           SUM(COALESCE(fi.carbs, 0) * COALESCE(f.portion_size, 0) / 100) as carbs,
-           SUM(COALESCE(fi.fat, 0) * COALESCE(f.portion_size, 0) / 100) as fat
+           SUM(COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as calories,
+           SUM(COALESCE(fi.protein, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as protein,
+           SUM(COALESCE(fi.carbs, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as carbs,
+           SUM(COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as fat
     FROM food_logs f
     JOIN food_items fi ON f.food_id = fi.id
     WHERE f.user_id = :userId
@@ -52,10 +52,10 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
 
     @Query(value = """
 SELECT
-    COALESCE(SUM(fi.calories * f.portion_size / 100.0), 0),
-    COALESCE(SUM(fi.protein * f.portion_size / 100.0), 0),
-    COALESCE(SUM(fi.carbs * f.portion_size / 100.0), 0),
-    COALESCE(SUM(fi.fat * f.portion_size / 100.0), 0)
+    COALESCE(SUM(fi.calories * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0),
+    COALESCE(SUM(fi.protein * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0),
+    COALESCE(SUM(fi.carbs * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0),
+    COALESCE(SUM(fi.fat * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0)
 FROM food_logs f
 JOIN food_items fi ON f.food_id = fi.id
 WHERE f.user_id = :userId

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -25,6 +26,12 @@ public class FoodLogsDto {
     @Positive(message = "{validation.food-log.portion-size.positive}")
     @Schema(description = "Portion multiplier or portion amount used by the service.", example = "1.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double portionSize;
+
+    @Schema(description = "Unit for portionSize. If omitted, GRAM is used for backward compatibility.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "SERVING", "PIECE"})
+    private FoodPortionUnit portionUnit;
+
+    @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double normalizedPortionGrams;
 
     @Schema(description = "Meal category.", example = "BREAKFAST", allowableValues = {"BREAKFAST", "LUNCH", "DINNER", "SNACK"})
     private String mealType;
