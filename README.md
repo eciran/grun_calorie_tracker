@@ -59,6 +59,16 @@ GRUN_LOCAL_DEMO_USER_EMAIL=demo.user@grun.local
 GRUN_LOCAL_DEMO_USER_PASSWORD=DemoUserPass1!
 GRUN_PASSWORD_RESET_EXPIRATION_MINUTES=30
 GRUN_PASSWORD_RESET_BASE_URL=http://localhost:8080/reset-password
+GRUN_EMAIL_VERIFICATION_EXPIRATION_MINUTES=1440
+GRUN_EMAIL_VERIFICATION_BASE_URL=http://localhost:8080/verify-email
+GRUN_REFRESH_TOKEN_EXPIRATION_DAYS=30
+GRUN_MAIL_PROVIDER=LOG
+GRUN_MAIL_FROM_EMAIL=no-reply@grun.local
+GRUN_MAIL_FROM_NAME=GRun
+GRUN_BREVO_API_KEY=
+GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
+GRUN_RATE_LIMIT_ENABLED=true
+GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE=20
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -116,6 +126,70 @@ POST /api/auth/password-reset/confirm
 
 The token stored in PostgreSQL is hashed; only the log line contains the raw local test token.
 
+### Local Email Verification
+
+Email verification uses a local logging mail sender until a real provider such as Brevo, Resend, or Amazon SES is selected. New registered users start as unverified and cannot login until their email is confirmed.
+
+```text
+POST /api/auth/email-verification/resend
+POST /api/auth/email-verification/confirm
+```
+
+The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
+
+### Transactional Email Provider
+
+Transactional emails use a configurable delivery service. Local development defaults to `GRUN_MAIL_PROVIDER=LOG`, so password reset and email verification links are written to the application log and no external email is sent.
+
+For a real provider, the current built-in option is Brevo:
+
+```env
+GRUN_MAIL_PROVIDER=BREVO
+GRUN_MAIL_FROM_EMAIL=no-reply@your-domain.com
+GRUN_MAIL_FROM_NAME=GRun
+GRUN_BREVO_API_KEY=change-me
+GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
+```
+
+Provider credentials must stay in local or deployment secrets and must not be committed.
+
+### Rate Limiting
+
+The backend includes an in-memory rate limiter for high-risk authentication endpoints:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/email-verification/resend`
+
+Local defaults allow 20 requests per minute per client IP and endpoint. For multi-instance production deployments, this should be moved to a shared store such as Redis.
+
+### Food Portions
+
+Food logs accept `portionSize` with an optional `portionUnit`. If `portionUnit` is omitted, the backend treats the value as grams for backward compatibility.
+
+Supported units:
+
+- `GRAM`
+- `MILLILITER`
+- `SERVING`
+- `PIECE`
+
+The backend stores `normalizedPortionGrams` for nutrition calculations. For `SERVING` and `PIECE`, the conversion uses the product's `servingSize` when available, otherwise it falls back to 100 grams.
+
+### Mobile Session Tokens
+
+Login returns a short-lived JWT access token and a long-lived refresh token. Mobile clients should keep users signed in by calling refresh before or after access token expiry instead of asking for email/password again.
+
+```text
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
+```
+
+Refresh tokens are stored hashed in the database, rotated on every refresh, and revoked on logout. Password reset revokes active refresh tokens for the user.
+
 ### Start PostgreSQL And API
 
 Start Docker Desktop first, then run:
@@ -142,6 +216,18 @@ Swagger UI:
 ```text
 http://localhost:8080/swagger-ui/index.html
 ```
+
+### API Versioning
+
+The current stable API version is `v1`. New mobile clients should use `/api/v1/...` paths, for example:
+
+```text
+POST /api/v1/auth/login
+GET /api/v1/products/search
+POST /api/v1/food-logs
+```
+
+Legacy `/api/...` paths are still available during development to avoid breaking existing local Swagger flows and older clients.
 
 ### Stop Local Services
 

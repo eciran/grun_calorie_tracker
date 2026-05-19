@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -42,6 +43,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setUser(user);
         entity.setFoodItem(foodItem);
         entity.setPortionSize(dto.getPortionSize());
+        entity.setPortionUnit(resolvePortionUnit(dto.getPortionUnit()));
+        entity.setNormalizedPortionGrams(calculateNormalizedPortionGrams(
+                dto.getPortionSize(),
+                entity.getPortionUnit(),
+                foodItem
+        ));
         entity.setMealType(dto.getMealType());
         entity.setLogDate(dto.getLogDate());
 
@@ -141,12 +148,35 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         foodItemRepository.save(foodItem);
     }
 
+    private FoodPortionUnit resolvePortionUnit(FoodPortionUnit portionUnit) {
+        return portionUnit == null ? FoodPortionUnit.GRAM : portionUnit;
+    }
+
+    private Double calculateNormalizedPortionGrams(Double portionSize, FoodPortionUnit portionUnit, FoodItemEntity foodItem) {
+        if (portionSize == null) {
+            return null;
+        }
+        if (portionUnit == FoodPortionUnit.SERVING || portionUnit == FoodPortionUnit.PIECE) {
+            return portionSize * defaultServingSizeGrams(foodItem);
+        }
+        return portionSize;
+    }
+
+    private Double defaultServingSizeGrams(FoodItemEntity foodItem) {
+        if (foodItem.getServingSizeGrams() != null && foodItem.getServingSizeGrams() > 0) {
+            return foodItem.getServingSizeGrams();
+        }
+        return 100.0;
+    }
+
     private FoodLogsDto toDto(FoodLogsEntity entity) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(entity.getId());
         dto.setFoodItemId(entity.getFoodItem().getId());
         dto.setFoodName(entity.getFoodItem().getName());
         dto.setPortionSize(entity.getPortionSize());
+        dto.setPortionUnit(resolvePortionUnit(entity.getPortionUnit()));
+        dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;

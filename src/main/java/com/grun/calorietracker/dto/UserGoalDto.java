@@ -20,40 +20,40 @@ public class UserGoalDto {
     @Schema(description = "User goal id.", example = "1")
     private Long id;
 
-    @NotNull(message = "Target weight is required")
-    @Min(value = 30, message = "Target weight must be at least 30 kg")
-    @Schema(description = "Target body weight in kilograms.", example = "78.0")
+    @NotNull(message = "{validation.user-goal.target-weight.required}")
+    @Min(value = 30, message = "{validation.user-goal.target-weight.min}")
+    @Schema(description = "Target body weight in kilograms.", example = "78.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double targetWeight;
 
-    @NotNull(message = "Daily calorie goal is required")
-    @Min(value = 1000, message = "Calories must be at least 1000")
-    @Schema(description = "Daily calorie target.", example = "2300")
+    @NotNull(message = "{validation.user-goal.daily-calorie-goal.required}")
+    @Min(value = 1000, message = "{validation.user-goal.daily-calorie-goal.min}")
+    @Schema(description = "Daily calorie target.", example = "2300", requiredMode = Schema.RequiredMode.REQUIRED)
     private Integer dailyCalorieGoal;
 
-    @NotNull(message = "Daily protein goal is required")
-    @Min(value = 0, message = "Protein cannot be negative")
-    @Schema(description = "Daily protein target in grams.", example = "160.0")
+    @NotNull(message = "{validation.user-goal.daily-protein-goal.required}")
+    @Min(value = 0, message = "{validation.user-goal.daily-protein-goal.min}")
+    @Schema(description = "Daily protein target in grams.", example = "160.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double dailyProteinGoal;
 
-    @NotNull(message = "Daily fat goal is required")
-    @Min(value = 0, message = "Fat cannot be negative")
-    @Schema(description = "Daily fat target in grams.", example = "70.0")
+    @NotNull(message = "{validation.user-goal.daily-fat-goal.required}")
+    @Min(value = 0, message = "{validation.user-goal.daily-fat-goal.min}")
+    @Schema(description = "Daily fat target in grams.", example = "70.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double dailyFatGoal;
 
-    @NotNull(message = "Daily carb goal is required")
-    @Min(value = 0, message = "Carbs cannot be negative")
-    @Schema(description = "Daily carbohydrate target in grams.", example = "250.0")
+    @NotNull(message = "{validation.user-goal.daily-carb-goal.required}")
+    @Min(value = 0, message = "{validation.user-goal.daily-carb-goal.min}")
+    @Schema(description = "Daily carbohydrate target in grams.", example = "250.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double dailyCarbGoal;
 
     @Schema(description = "Target weekly weight change in kilograms.", example = "-0.5")
     private Double weeklyWeightChangeTargetKg;
 
-    @NotNull(message = "Goal type is required")
-    @Schema(description = "User's goal type.", example = "LOSE_WEIGHT")
+    @NotNull(message = "{validation.user-goal.goal-type.required}")
+    @Schema(description = "User's goal type.", example = "LOSE_WEIGHT", requiredMode = Schema.RequiredMode.REQUIRED)
     private GoalType goalType;
 
-    @NotNull(message = "Activity level is required")
-    @Schema(description = "User's activity level.", example = "MODERATE")
+    @NotNull(message = "{validation.user-goal.activity-level.required}")
+    @Schema(description = "User's activity level.", example = "MODERATE", requiredMode = Schema.RequiredMode.REQUIRED)
     private ActivityLevel activityLevel;
 
     @Schema(description = "Goal creation date and time.", example = "2026-05-11T12:00:00")

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -27,6 +28,11 @@ public class FoodLogsEntity {
     private FoodItemEntity foodItem;
 
     private Double portionSize;
+
+    @Enumerated(EnumType.STRING)
+    private FoodPortionUnit portionUnit;
+
+    private Double normalizedPortionGrams;
 
     private String mealType;
 

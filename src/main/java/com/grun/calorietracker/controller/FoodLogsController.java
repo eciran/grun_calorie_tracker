@@ -1,5 +1,6 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.UserEntity;
@@ -8,6 +9,8 @@ import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,7 +28,7 @@ import java.util.List;
 
 // Controller for managing food log operations
 @RestController
-@RequestMapping("/api/food-logs")
+@RequestMapping({"/api/food-logs", "/api/v1/food-logs"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Food Logs", description = "Authenticated meal logging and daily nutrition statistics.")
@@ -41,8 +44,8 @@ public class FoodLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food log created."),
-            @ApiResponse(responseCode = "400", description = "Request validation failed."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<FoodLogsDto> addFoodLog(@Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
                                                   @RequestBody @Valid FoodLogsDto dto) {
@@ -57,7 +60,7 @@ public class FoodLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food logs returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<List<FoodLogsDto>> getFoodLogs(
             @Parameter(description = "Optional log date in ISO format. Use today's date to inspect local demo seed logs.", example = "2026-05-16")
@@ -75,8 +78,8 @@ public class FoodLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food log returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "404", description = "Food log was not found for the current user.")
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Food log was not found for the current user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<FoodLogsDto> getFoodLogById(
             @Parameter(description = "Food log id.", example = "1") @PathVariable Long id,
@@ -92,9 +95,9 @@ public class FoodLogsController {
             description = "Deletes a food log owned by the authenticated user."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Food log deleted."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
-            @ApiResponse(responseCode = "404", description = "Food log was not found for the current user.")
+            @ApiResponse(responseCode = "204", description = "Food log deleted.", content = @Content),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Food log was not found for the current user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<Void> deleteFoodLog(
             @Parameter(description = "Food log id.", example = "1") @PathVariable Long id,
@@ -110,8 +113,8 @@ public class FoodLogsController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Daily statistics returned."),
-            @ApiResponse(responseCode = "400", description = "Date format is invalid."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing, invalid, or user cannot be found.")
+            @ApiResponse(responseCode = "400", description = "Date format is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing, invalid, or user cannot be found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<List<FoodLogDailyStatsDto>> getDailyStats(
             @Parameter(description = "Start date in ISO format.", example = "2026-05-16") @RequestParam String start,

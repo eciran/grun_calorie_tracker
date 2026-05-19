@@ -40,6 +40,7 @@ public class LocalAdminBootstrapConfig {
             admin.setEmail(email);
             admin.setPassword(passwordEncoder.encode(password));
             admin.setRole(UserRole.ADMIN);
+            admin.setEmailVerified(true);
 
             if (admin.getName() == null || admin.getName().isBlank()) {
                 admin.setName("Local Admin");

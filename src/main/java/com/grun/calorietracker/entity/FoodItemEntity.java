@@ -85,5 +85,8 @@ public class FoodItemEntity {
     private Double transFat;
     private Double sugarAlcohol;
 
+    private Double servingSizeGrams;
+    private String servingUnit;
+
     private Boolean isCustom;
 }

@@ -1804,6 +1804,253 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 105 test gecti, 0 failure, 0 error.
 
+## 2026-05-18 - Email Verification Ilk Implementasyon
+
+### Yapilanlar
+
+- Register sonrasi email verification akisi eklendi.
+- `users.email_verified` kolonu eklendi.
+- Yeni kayit olan kullanicilar `emailVerified=false` baslar.
+- Mevcut kullanicilar migration ile verified kabul edilir.
+- Email verification token modeli eklendi:
+  - `email_verification_tokens`
+  - token hash
+  - expires at
+  - used at
+- Flyway migration eklendi:
+  - `V12__add_email_verification.sql`
+- Email verification endpointleri eklendi:
+  - `POST /api/auth/email-verification/resend`
+  - `POST /api/auth/email-verification/confirm`
+- Local log tabanli mail sender eklendi.
+- Local admin bootstrap ve local demo seed kullanicilari verified olarak set edilir.
+- Login akisi email verified olmayan kullaniciyi reddeder.
+
+### Karar
+
+- Kendi mail server'i yazilmayacak.
+- Backend provider bagimsiz kalacak; mail gonderimi ileride Brevo, Resend veya Amazon SES implementasyonu ile degistirilebilir.
+- Verification token ham olarak DB'de tutulmaz; sadece hash tutulur.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,EmailVerificationServiceImplTest,LocalAdminBootstrapConfigTest,LocalDemoSeedConfigTest" test`
+- Sonuc: 18 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 112 test gecti, 0 failure, 0 error.
+
+## 2026-05-18 - Food/Exercise API Validation ve Swagger Sıkılaştırması
+
+### Yapilanlar
+
+- Food log request DTO'su icin zorunlu alan validationlari eklendi:
+  - `foodItemId`
+  - `portionSize`
+  - `logDate`
+- Exercise log request DTO'su icin zorunlu alan validationlari eklendi:
+  - `exerciseItemId`
+  - `durationMinutes`
+  - `caloriesBurned`
+  - `logDate`
+- Exercise item katalog request DTO'su icin zorunlu alan validationlari eklendi:
+  - `name`
+  - `metCode`
+  - `caloriesPerMinute`
+- Validation mesajlari `messages.properties` ve `messages_tr.properties` icine tasindi.
+- Food/Exercise controller Swagger hata response'lari `ApiErrorResponseDto` schema'si ile netlestirildi.
+- `ConstraintViolationException` ve `DateTimeParseException` icin global 400 response handling eklendi.
+
+### Karar
+
+- Bos veya eksik request body artik servis katmanina gitmeden 400 validation error doner.
+- Swagger'da error response'lar basarili response modelini kopyalamayacak sekilde ayrildi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodLogsControllerTest,ExerciseLogsControllerTest,ExerciseItemControllerTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 116 test gecti, 0 failure, 0 error.
+
+## 2026-05-18 - i18n Validation Kapsam Genisletmesi
+
+### Yapilanlar
+
+- Kalan hard-coded DTO validation mesajlari i18n key'lerine tasindi:
+  - `UserGoalDto`
+  - `ProgressLogDto`
+  - `FoodProductMergeRequestDto`
+- Yeni validation mesajlari hem English hem Turkish message bundle icine eklendi.
+- Goal ve progress validation response'lari `Accept-Language: tr` ile test edildi.
+
+### Karar
+
+- Kullaniciya donen validation mesajlari DTO icinde sabit metin olarak tutulmayacak.
+- Yeni request DTO'lari icin validation mesajlari `messages.properties` ve `messages_tr.properties` icinden yonetilecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=UserGoalControllerTest,ProgressLogControllerTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 118 test gecti, 0 failure, 0 error.
+
+## 2026-05-18 - Mobile MVP Backend Gap Analizi
+
+### Yapilanlar
+
+- Mobil uygulama publish hedefi icin backend gap analizi dokumani eklendi:
+  - `docs/MOBILE_MVP_BACKEND_GAP_ANALYSIS.md`
+- Mevcut backend kapsami, MVP blocking gap'leri, non-blocking uzun vadeli gap'ler ve onerilen siradaki backend sprinti netlestirildi.
+
+### Karar
+
+- Backend erken mobil entegrasyon icin yeterli seviyeye yaklasti.
+- Production/publish oncesi refresh token, gercek email provider, rate limiting ve food portion/unit modeli bloklayici kabul edildi.
+
+### Dogrulama
+
+- Kod degisikligi olmadigi icin test calistirmak zorunlu degil.
+- Dokuman eklendigi manuel olarak kontrol edildi.
+
+## 2026-05-19 - Refresh Token ve Logout/Revoke Flow
+
+### Yapilanlar
+
+- Mobil session icin refresh token altyapisi eklendi.
+- Yeni tablo eklendi:
+  - `refresh_tokens`
+- Refresh token DB'de raw olarak tutulmaz; SHA-256 hash olarak saklanir.
+- Login response artik access token ile birlikte refresh token da doner.
+- Yeni auth endpointleri eklendi:
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/logout`
+- Refresh token her refresh isteginde rotate edilir:
+  - eski token `usedAt` ile isaretlenir
+  - yeni refresh token uretilir
+- Logout sadece gonderilen refresh tokeni revoke eder.
+- Password reset basarili olunca kullanicinin aktif refresh tokenlari revoke edilir.
+- `AuthResponse` geriye uyumluluk icin `token` alanini korur; yanina `refreshToken`, `tokenType`, `expiresIn` alanlari eklendi.
+
+### Karar
+
+- Mobil uygulama kullanicidan surekli login istemeyecek.
+- Access token kisa omurlu kalacak; refresh token mobil oturum devamlıligini saglayacak.
+- Refresh token raw degerleri loglanmayacak ve DB'de saklanmayacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,RefreshTokenServiceImplTest,PasswordResetServiceImplTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 124 test gecti, 0 failure, 0 error.
+
+## 2026-05-19 - Configurable Email Provider Altyapisi
+
+### Yapilanlar
+
+- Password reset ve email verification mail gonderimleri merkezi `MailDeliveryService` arkasina alindi.
+- Local development icin varsayilan `LOG` provider korundu; raw test linkleri uygulama logunda gorulebilir.
+- Gercek mail gonderimi icin ilk provider olarak Brevo HTTP API entegrasyonu eklendi.
+- Provider secimi ve credential degerleri environment config ile yonetilecek hale getirildi:
+  - `GRUN_MAIL_PROVIDER`
+  - `GRUN_MAIL_FROM_EMAIL`
+  - `GRUN_MAIL_FROM_NAME`
+  - `GRUN_BREVO_API_KEY`
+  - `GRUN_BREVO_API_URL`
+- README icine transactional email provider ayarlari eklendi.
+
+### Karar
+
+- Sifre resetleme ve email verification domain akislari mail provider detayini bilmeyecek.
+- Local ortamda masrafsiz ve hizli gelistirme icin `LOG` provider kullanilacak.
+- Production ortaminda gercek provider credentiallari kod yerine deployment secret olarak verilecek.
+
+### Dogrulama
+
+- Sender siniflari icin `MailDeliveryService` delegasyon testleri eklendi.
+
+## 2026-05-19 - Food Portion ve Unit Modeli
+
+### Yapilanlar
+
+- Food log modeli `portionUnit` ve `normalizedPortionGrams` alanlariyla genisletildi.
+- `FoodPortionUnit` enum eklendi:
+  - `GRAM`
+  - `MILLILITER`
+  - `SERVING`
+  - `PIECE`
+- Eski client uyumlulugu icin `portionUnit` bos gelirse `GRAM` kabul edilecek sekilde servis mantigi korundu.
+- `SERVING` ve `PIECE` icin gram donusumu product `servingSizeGrams` uzerinden hesaplanacak sekilde eklendi.
+- Food product modeline `servingSizeGrams` ve `servingUnit` alanlari eklendi.
+- Daily nutrition aggregation sorgulari artik `normalized_portion_grams` alanini kullanacak sekilde guncellendi.
+- Flyway migration eklendi:
+  - `V14__add_food_portion_units.sql`
+
+### Karar
+
+- Besin degerleri uygulama icinde 100 gram bazli hesaplanmaya devam edecek.
+- Kullanici deneyimi tarafinda farkli porsiyon birimleri desteklenecek, fakat hesaplama icin tek normalize gram alani tutulacak.
+- Serving bilgisi eksik urunlerde gecici varsayilan 100 gram kullanilacak; admin review surecinde serving bilgisi duzeltilebilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodLogsServiceImplTest,FoodLogsControllerTest,FoodItemServiceImplTest,OpenFoodFactsServiceImplTest" test`
+- Sonuc: 26 test gecti, 0 failure, 0 error.
+
+## 2026-05-19 - Rate Limiting Ilk Koruma Katmani
+
+### Yapilanlar
+
+- In-memory fixed-window rate limiter eklendi.
+- `RateLimitingFilter` security zincirine eklendi.
+- Su auth endpointleri rate limit kapsaminda korumaya alindi:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/password-reset/request`
+  - `POST /api/auth/email-verification/resend`
+- Limit config ile yonetilebilir hale getirildi:
+  - `GRUN_RATE_LIMIT_ENABLED`
+  - `GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE`
+- Limit asildiginda API `429 Too Many Requests` ve standart `ApiErrorResponseDto` doner.
+- Swagger auth endpointlerine `429` response dokumani eklendi.
+
+### Karar
+
+- Ilk asamada dependency eklemeden in-memory cozum kullanildi.
+- Production ortaminda birden fazla backend instance calisacaksa limiter Redis gibi paylasimli bir store'a tasinmali.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=RateLimitingFilterTest,AuthControllerTest" test`
+- Sonuc: 13 test gecti, 0 failure, 0 error.
+
+## 2026-05-19 - API v1 Versioning Alias
+
+### Yapilanlar
+
+- Tum mevcut REST controller base pathleri `/api/v1/...` alias'i ile genisletildi.
+- Legacy `/api/...` pathleri korunarak mevcut local Swagger akislarinin ve eski client denemelerinin kirilmamasi saglandi.
+- Security config icinde `/api/v1/auth/**` public auth path olarak eklendi.
+- Rate limiting korumasi `/api/v1/auth/...` endpointleri icin de aktif hale getirildi.
+- README icine API versioning notu eklendi.
+
+### Karar
+
+- Mobil uygulama yeni entegrasyonlarda `/api/v1/...` kullanacak.
+- Geriye uyumluluk icin `/api/...` pathleri simdilik korunacak.
+- Gelecekte kirici kontrat degisikligi gerekirse `/api/v2/...` acilacak; her kucuk backend degisikligi yeni versiyon gerektirmeyecek.
+
+### Dogrulama
+
+- `AuthControllerTest` icine `/api/v1/auth/refresh` testi eklendi.
+- `RateLimitingFilterTest` icine `/api/v1/auth/refresh` rate limit testi eklendi.
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,RateLimitingFilterTest,FoodLogsControllerTest,FoodItemControllerTest,AdminUserControllerTest" test`
+- Sonuc: 27 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 132 test gecti, 0 failure, 0 error.
+
 ## 2026-05-16 - Password Reset ve Admin Dashboard Canli Dogrulama
 
 ### Yapilan Kontroller
@@ -1881,3 +2128,31 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 
 - Komut: `.\mvnw.cmd "-Dtest=LocalDemoSeedConfigTest" test`
 - Sonuc: 2 test gecti, 0 failure, 0 error.
+
+## 2026-05-19 - Goal Calorie Calculation ve Onboarding Request Ayrimi
+
+### Yapilanlar
+
+- Gunluk kalori ve makro hesaplama servisi deterministik testlerle dogrulandi.
+- Kullanilan hesaplama yaklasimi netlestirildi:
+  - Body fat varsa Katch-McArdle BMR formulu.
+  - Body fat yoksa Mifflin-St Jeor BMR formulu.
+  - Aktivite seviyesine gore TDEE carpani.
+  - Hedef tipine gore kalori acigi/fazlasi.
+- `LOSE_WEIGHT` icin haftalik kilo degisim hedefi pozitif gonderilse bile backend tarafinda kalori acigi olarak normalize edildi.
+- Goal hesaplama request'i `UserGoalDto` icinden ayrildi ve `GoalCalculationRequestDto` eklendi.
+- `/api/goals/calculate` ve `/api/goals/save` artik kullanicidan hesaplanmis kalori/makro degerleri istemiyor.
+- Goal save akisi artik DB'ye client tarafindan gelen kalori/makro degerlerini degil, backend tarafinda hesaplanan degerleri kaydediyor.
+
+### Karar
+
+- Onboarding akisi icin kullanici sadece hedef bilgilerini ve aktivite seviyesini gondermeli.
+- Kalori, protein, yag ve karbonhidrat hedefleri backend tarafinda hesaplanip kaydedilmeli.
+- Bu ayrim mobil app tarafinda daha temiz onboarding ekrani kurulmasini saglayacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=UserGoalServiceImplTest,UserGoalControllerTest" test`
+- Sonuc: 13 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 138 test gecti, 0 failure, 0 error.

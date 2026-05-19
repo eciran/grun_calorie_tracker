@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -77,6 +78,8 @@ class FoodLogsServiceImplTest {
         savedEntity.setUser(user);
         savedEntity.setFoodItem(foodItem);
         savedEntity.setPortionSize(100.0);
+        savedEntity.setPortionUnit(FoodPortionUnit.GRAM);
+        savedEntity.setNormalizedPortionGrams(100.0);
         savedEntity.setMealType("breakfast");
         savedEntity.setLogDate(dto.getLogDate());
 
@@ -87,11 +90,41 @@ class FoodLogsServiceImplTest {
         assertNotNull(result);
         assertEquals(1L, result.getId());
         assertEquals("Egg", result.getFoodName());
+        assertEquals(FoodPortionUnit.GRAM, result.getPortionUnit());
+        assertEquals(100.0, result.getNormalizedPortionGrams());
         assertEquals(1L, foodItem.getUsageCount());
         assertNotNull(foodItem.getQualityScore());
         assertNotNull(foodItem.getReviewPriority());
         verify(foodLogsRepository, times(1)).save(any(FoodLogsEntity.class));
         verify(foodItemRepository).save(foodItem);
+    }
+
+    @Test
+    void testAddFoodLog_whenServingUnitProvided_normalizesUsingFoodServingSize() {
+        foodItem.setServingSizeGrams(50.0);
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(2.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(10L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
+
+        assertEquals(FoodPortionUnit.SERVING, result.getPortionUnit());
+        assertEquals(100.0, result.getNormalizedPortionGrams());
+        verify(foodLogsRepository).save(argThat(entity ->
+                entity.getPortionUnit() == FoodPortionUnit.SERVING
+                        && entity.getNormalizedPortionGrams().equals(100.0)
+        ));
     }
 
     @Test

@@ -92,6 +92,7 @@ class LocalDemoSeedConfigTest {
         assertEquals("demo.user@grun.local", userCaptor.getValue().getEmail());
         assertEquals("encoded-password", userCaptor.getValue().getPassword());
         assertEquals(UserRole.STANDARD, userCaptor.getValue().getRole());
+        assertEquals(true, userCaptor.getValue().getEmailVerified());
 
         ArgumentCaptor<FoodItemEntity> foodCaptor = ArgumentCaptor.forClass(FoodItemEntity.class);
         verify(foodItemRepository, times(4)).save(foodCaptor.capture());

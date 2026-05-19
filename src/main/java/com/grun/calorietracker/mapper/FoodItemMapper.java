@@ -36,10 +36,11 @@ public class FoodItemMapper {
         entity.setFiber(dto.getFiber());
         entity.setSugar(dto.getSugar());
         entity.setSodium(dto.getSodium());
+        entity.setServingSizeGrams(dto.getServingSize());
+        entity.setServingUnit(dto.getServingUnit());
         entity.setAllergens(dto.getAllergens());
         entity.setNutriScore(dto.getNutriScore());
-        // FoodItemEntity does not currently store servingSize or ingredientsText.
-        // entity.setServingSize(dto.getServingSize());
+        // FoodItemEntity does not currently store ingredientsText.
         // entity.setIngredientsText(dto.getIngredientsText());
         return entity;
     }
@@ -74,8 +75,9 @@ public class FoodItemMapper {
         dto.setFiber(entity.getFiber());
         dto.setSugar(entity.getSugar());
         dto.setSodium(entity.getSodium());
-        // FoodItemEntity does not currently store servingSize or ingredientsText.
-        // dto.setServingSize(entity.getServingSize());
+        dto.setServingSize(entity.getServingSizeGrams());
+        dto.setServingUnit(entity.getServingUnit());
+        // FoodItemEntity does not currently store ingredientsText.
         // dto.setIngredientsText(entity.getIngredientsText());
         dto.setAllergens(entity.getAllergens());
         dto.setNutriScore(entity.getNutriScore());

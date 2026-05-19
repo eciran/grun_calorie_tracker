@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/progress")
+@RequestMapping({"/api/progress", "/api/v1/progress"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Progress", description = "Authenticated progress logs for body measurements and tracking history.")

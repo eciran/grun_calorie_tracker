@@ -123,6 +123,29 @@ class ExerciseItemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    void addExerciseItem_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
+        ExerciseItemDto request = new ExerciseItemDto();
+
+        mockMvc.perform(post("/api/exercise-items")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.path").value("/api/exercise-items"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void getAllItems_whenPageSizeTooLarge_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/exercise-items")
+                        .param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.path").value("/api/exercise-items"));
+    }
+
+    @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void updateExerciseItem_whenNotAdmin_returnsForbidden() throws Exception {
         ExerciseItemDto request = buildRequest();

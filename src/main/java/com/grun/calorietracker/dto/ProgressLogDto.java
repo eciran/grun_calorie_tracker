@@ -7,7 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -22,9 +21,9 @@ public class ProgressLogDto {
     @Schema(description = "Server-side progress log timestamp.", example = "2026-05-11T12:00:00")
     private LocalDateTime logDate;
 
-    @NotNull(message = "Weight is required")
-    @Min(value = 20, message = "Weight must be at least 20 kg")
-    @Schema(description = "Current body weight in kilograms.", example = "82.0")
+    @NotNull(message = "{validation.progress-log.weight.required}")
+    @Min(value = 20, message = "{validation.progress-log.weight.min}")
+    @Schema(description = "Current body weight in kilograms.", example = "82.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double weight;
 
     @Schema(description = "Optional calorie intake snapshot.", example = "2100")

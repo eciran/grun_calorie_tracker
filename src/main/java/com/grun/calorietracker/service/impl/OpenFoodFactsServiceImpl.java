@@ -134,6 +134,9 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
         dto.setAllergens(firstText(productNode, null, "allergens_from_ingredients", "allergens"));
         dto.setNutriScore(normalizeLower(firstText(productNode, null, "nutriscore_grade", "nutri_score")));
         dto.setServingSize(number(productNode, "serving_quantity"));
+        if (dto.getServingSize() != null) {
+            dto.setServingUnit("g");
+        }
 
         JsonNode nutriments = productNode.path("nutriments");
         dto.setCalories(number(nutriments, "energy-kcal_100g", "energy-kcal_serving"));

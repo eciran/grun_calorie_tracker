@@ -90,8 +90,11 @@ public class FoodProductDto {
     @Schema(description = "Sodium amount.", example = "0.107")
     private Double sodium;
 
-    @Schema(description = "Serving size used for nutrition values.", example = "100.0")
+    @Schema(description = "Serving size in grams used for SERVING and PIECE food log conversion.", example = "30.0")
     private Double servingSize;
+
+    @Schema(description = "Display unit for the serving size.", example = "g")
+    private String servingUnit;
 
     @Schema(description = "Product ingredient text.", example = "Sugar, palm oil, hazelnuts, cocoa...")
     private String ingredientsText;

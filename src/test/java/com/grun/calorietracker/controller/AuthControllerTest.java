@@ -2,14 +2,22 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AuthRequest;
+import com.grun.calorietracker.dto.EmailVerificationConfirmRequestDto;
+import com.grun.calorietracker.dto.EmailVerificationRequestDto;
+import com.grun.calorietracker.dto.EmailVerificationResponseDto;
+import com.grun.calorietracker.dto.LogoutRequestDto;
+import com.grun.calorietracker.dto.LogoutResponseDto;
 import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
 import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
+import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.PasswordResetService;
+import com.grun.calorietracker.service.RefreshTokenService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +55,12 @@ class AuthControllerTest {
     @MockBean
     private PasswordResetService passwordResetService;
 
+    @MockBean
+    private EmailVerificationService emailVerificationService;
+
+    @MockBean
+    private RefreshTokenService refreshTokenService;
+
     private UserEntity sampleUser;
     private UserProfileDto sampleUserProfileDto;
 
@@ -58,6 +72,7 @@ class AuthControllerTest {
         sampleUser.setEmail("testuser@example.com");
         sampleUser.setPassword("password");
         sampleUser.setRole(UserRole.STANDARD);
+        sampleUser.setEmailVerified(true);
         sampleUser.setAge(30);
         sampleUser.setGender("MALE");
         sampleUser.setHeight(175.0);
@@ -88,6 +103,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk());
 
         verify(userRepository).save(any(UserEntity.class));
+        verify(emailVerificationService).createVerificationTokenForUser(any(UserEntity.class));
     }
 
     @Test
@@ -148,6 +164,36 @@ class AuthControllerTest {
     }
 
     @Test
+    void resendEmailVerification_returnsGenericAcceptedResponse() throws Exception {
+        EmailVerificationRequestDto request = new EmailVerificationRequestDto();
+        request.setEmail("testuser@example.com");
+
+        when(emailVerificationService.resendVerification(any(EmailVerificationRequestDto.class)))
+                .thenReturn(new EmailVerificationResponseDto("If the email exists, a verification link has been sent."));
+
+        mockMvc.perform(post("/api/auth/email-verification/resend")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("If the email exists, a verification link has been sent."));
+    }
+
+    @Test
+    void confirmEmailVerification_returnsSuccessResponse() throws Exception {
+        EmailVerificationConfirmRequestDto request = new EmailVerificationConfirmRequestDto();
+        request.setToken("raw-token");
+
+        when(emailVerificationService.confirmVerification(any(EmailVerificationConfirmRequestDto.class)))
+                .thenReturn(new EmailVerificationResponseDto("Email has been verified successfully."));
+
+        mockMvc.perform(post("/api/auth/email-verification/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Email has been verified successfully."));
+    }
+
+    @Test
     void confirmPasswordReset_returnsSuccessResponse() throws Exception {
         PasswordResetConfirmRequestDto request = new PasswordResetConfirmRequestDto();
         request.setToken("raw-token");
@@ -161,6 +207,67 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Password has been reset successfully."));
+    }
+
+    @Test
+    void refresh_returnsNewAccessAndRefreshTokens() throws Exception {
+        RefreshTokenRequestDto request = new RefreshTokenRequestDto();
+        request.setRefreshToken("raw-refresh-token");
+
+        when(refreshTokenService.refreshAccessToken("raw-refresh-token"))
+                .thenReturn(new com.grun.calorietracker.dto.AuthResponse(
+                        "new-access-token",
+                        "new-refresh-token",
+                        "Bearer",
+                        900L,
+                        "Token refreshed successfully"
+                ));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("new-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh-token"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(jsonPath("$.message").value("Token refreshed successfully"));
+    }
+
+    @Test
+    void refresh_v1Path_returnsNewAccessAndRefreshTokens() throws Exception {
+        RefreshTokenRequestDto request = new RefreshTokenRequestDto();
+        request.setRefreshToken("raw-refresh-token-v1");
+
+        when(refreshTokenService.refreshAccessToken("raw-refresh-token-v1"))
+                .thenReturn(new com.grun.calorietracker.dto.AuthResponse(
+                        "new-access-token-v1",
+                        "new-refresh-token-v1",
+                        "Bearer",
+                        900L,
+                        "Token refreshed successfully"
+                ));
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("new-access-token-v1"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh-token-v1"));
+    }
+
+    @Test
+    void logout_revokesRefreshToken() throws Exception {
+        LogoutRequestDto request = new LogoutRequestDto();
+        request.setRefreshToken("raw-refresh-token");
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Logout successful"));
+
+        verify(refreshTokenService).revokeRefreshToken("raw-refresh-token");
     }
 
     @Test
@@ -179,5 +286,13 @@ class AuthControllerTest {
                         .value("/api/products/barcode/{barcode}"))
                 .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.message")
                         .value("Product could not be found locally or from the configured external source."));
+    }
+
+    @Test
+    void openApi_v1AuthPath_isDocumented() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.responses['429'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponseDto"));
     }
 }

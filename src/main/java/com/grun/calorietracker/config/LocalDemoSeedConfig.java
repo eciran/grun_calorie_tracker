@@ -76,6 +76,7 @@ public class LocalDemoSeedConfig {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
         user.setRole(UserRole.STANDARD);
+        user.setEmailVerified(true);
         user.setName("Demo User");
         user.setAge(32);
         user.setGender("MALE");

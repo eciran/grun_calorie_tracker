@@ -1,12 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.GoalCalculationResponse;
-import com.grun.calorietracker.dto.UserGoalDto;
-import com.grun.calorietracker.entity.UserEntity;
-import com.grun.calorietracker.exception.InvalidCredentialsException;
-import com.grun.calorietracker.exception.UserNotFoundException;
+import com.grun.calorietracker.dto.GoalCalculationRequestDto;
 import com.grun.calorietracker.service.UserGoalService;
-import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -22,14 +18,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/goals")
+@RequestMapping({"/api/goals", "/api/v1/goals"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Goals", description = "Calorie and macro goal calculation, saving, and deletion for the authenticated user.")
 class UserGoalController {
 
     private final UserGoalService userGoalService;
-    private final UserService userService;
 
     @PostMapping("/calculate")
     @Operation(
@@ -43,15 +38,12 @@ class UserGoalController {
             @ApiResponse(responseCode = "404", description = "Authenticated user could not be found.")
     })
     public ResponseEntity<GoalCalculationResponse> calculateGoal(
-            @RequestBody @Valid UserGoalDto goalData,
+            @RequestBody @Valid GoalCalculationRequestDto goalData,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails
     ) {
         if (userDetails == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-
-        UserEntity user = userService.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         GoalCalculationResponse result = userGoalService.calculateGoal(goalData, userDetails.getUsername());
         return ResponseEntity.ok(result);
@@ -68,7 +60,7 @@ class UserGoalController {
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
     })
     public ResponseEntity<GoalCalculationResponse> saveGoal(@Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
-                                                            @RequestBody @Valid UserGoalDto goalData) {
+                                                            @RequestBody @Valid GoalCalculationRequestDto goalData) {
 
         GoalCalculationResponse response = userGoalService.calculateGoal(goalData, userDetails.getUsername());
         userGoalService.saveUserGoal(goalData, userDetails.getUsername());

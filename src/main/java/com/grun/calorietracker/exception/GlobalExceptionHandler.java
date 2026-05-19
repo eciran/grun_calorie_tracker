@@ -2,6 +2,7 @@ package com.grun.calorietracker.exception;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Objects;
 
 @RestControllerAdvice
@@ -104,6 +106,18 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponseDto> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleConstraintViolationException(ConstraintViolationException ex,
+                                                                                  HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "error.validation", "Validation error", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(DateTimeParseException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDateTimeParseException(DateTimeParseException ex,
+                                                                            HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
     }
 

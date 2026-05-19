@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.ExerciseDifficulty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -18,15 +19,17 @@ public class ExerciseItemDto {
     @Schema(description = "Exercise item id.", example = "1")
     private Long id;
 
-    @Schema(description = "Exercise display name.", example = "Running")
+    @NotBlank(message = "{validation.exercise-item.name.required}")
+    @Schema(description = "Exercise display name.", example = "Running", requiredMode = Schema.RequiredMode.REQUIRED)
     private String name;
 
-    @NotBlank(message = "MET code is required")
-    @Schema(description = "MET code or internal activity code.", example = "RUNNING_GENERAL")
+    @NotBlank(message = "{validation.exercise-item.met-code.required}")
+    @Schema(description = "MET code or internal activity code.", example = "RUNNING_GENERAL", requiredMode = Schema.RequiredMode.REQUIRED)
     private String metCode;
 
-    @Positive(message = "Calories per minute must be greater than 0")
-    @Schema(description = "Estimated calories burned per minute.", example = "10.5")
+    @NotNull(message = "{validation.exercise-item.calories-per-minute.required}")
+    @Positive(message = "{validation.exercise-item.calories-per-minute.positive}")
+    @Schema(description = "Estimated calories burned per minute.", example = "10.5", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double caloriesPerMinute;
 
     @Schema(description = "Exercise description.", example = "General outdoor running activity.")
