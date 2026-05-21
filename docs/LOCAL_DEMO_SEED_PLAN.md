@@ -1,12 +1,12 @@
-# Local Demo Seed Plan
+﻿# Local Demo Seed Plan
 
-Bu dokuman lokal gelistirme icin demo veri ihtiyacini degerlendirir. Amaç production migration ile demo veri karistirmadan, lokal test ve Swagger denemelerini kolaylastirmaktir.
+Bu dokuman lokal gelistirme icin demo veri ihtiyacini degerlendirir. AmaÃ§ production migration ile demo veri karistirmadan, lokal test ve Swagger denemelerini kolaylastirmaktir.
 
 ## Mevcut Durum
 
 Mevcut API ile:
 
-- Standard user `POST /api/auth/register` uzerinden olusturulabilir.
+- Standard user `POST /api/v1/auth/register` uzerinden olusturulabilir.
 - Food product barcode lookup Open Food Facts fallback ile urun cacheleyebilir.
 - Food/exercise log endpointleri authenticated user ile denenebilir.
 
@@ -31,7 +31,7 @@ Neden:
 
 Ileride `scripts/seed-local-demo.ps1` eklenebilir. Bu script sadece lokal calisir.
 
-Planlanan akıs:
+Planlanan akÄ±s:
 
 1. API ayakta mi kontrol et:
    - `GET /v3/api-docs`
@@ -71,3 +71,4 @@ Local demo seed script'i yazmadan once su konular netlesmeli:
 - Demo veriler nasil temizlenecek?
 - Seed script DB'ye direkt mi yazacak, yoksa sadece API mi kullanacak?
 - Demo product verified hale getirme akisi audit history ile nasil kaydedilecek?
+

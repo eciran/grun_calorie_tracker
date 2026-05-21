@@ -1,15 +1,30 @@
 package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
+import com.grun.calorietracker.enums.VerificationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface UserFavoriteRepository extends JpaRepository<UserFavoriteEntity, Long> {
+    Optional<UserFavoriteEntity> findByUserAndFoodItem(UserEntity user, FoodItemEntity foodItem);
+    @Query("""
+            SELECT favorite
+            FROM UserFavoriteEntity favorite
+            WHERE favorite.user = :user
+              AND (favorite.foodItem.verificationStatus IS NULL OR favorite.foodItem.verificationStatus <> :rejectedStatus)
+            ORDER BY favorite.createdAt DESC
+            """)
+    List<UserFavoriteEntity> findAvailableFavorites(
+            @Param("user") UserEntity user,
+            @Param("rejectedStatus") VerificationStatus rejectedStatus
+    );
 
     @Modifying
     @Query(value = """

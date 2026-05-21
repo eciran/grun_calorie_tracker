@@ -40,6 +40,7 @@ public class FoodItemMapper {
         entity.setServingUnit(dto.getServingUnit());
         entity.setAllergens(dto.getAllergens());
         entity.setNutriScore(dto.getNutriScore());
+        entity.setIsCustom(dto.getCustom());
         // FoodItemEntity does not currently store ingredientsText.
         // entity.setIngredientsText(dto.getIngredientsText());
         return entity;
@@ -81,6 +82,7 @@ public class FoodItemMapper {
         // dto.setIngredientsText(entity.getIngredientsText());
         dto.setAllergens(entity.getAllergens());
         dto.setNutriScore(entity.getNutriScore());
+        dto.setCustom(entity.getIsCustom());
         return dto;
     }
 

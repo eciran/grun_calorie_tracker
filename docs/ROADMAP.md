@@ -157,3 +157,24 @@ Pratik siralama:
 2. Local setup'i problemsiz hale getir.
 3. Yeni endpointleri test ve Swagger ile dogrula.
 4. I18n ve mobil MVP gap analizine gec.
+
+## 2026-05-21 Aktif Odak Guncellemesi
+
+Subscription ve AI quota implementasyonu bu fazda aktif sprint disina alindi. Aktif odak food database'i kontrollu sekilde buyutmek.
+
+Siradaki food database adimlari:
+
+1. Bulk food data kaynagini ve import kontratini sabitle.
+2. Ilk pilot importu lokal PostgreSQL uzerinde dogrula.
+3. +10.000 urunluk normalize dataset hazirla ve kontrollu import et.
+4. Import sonrasi duplicate, verification status, image status ve review queue sonucunu kontrol et.
+
+Bu guncelleme, yukaridaki eski "Siradaki 5 Is" listesinin aktif sprint onceligini degistirir.
+
+## Food Diary Note Karari
+
+- Food diary icin `daily note` ve `meal note` ihtiyaci urun tasarimi tarafinda acik kalacak.
+- `ProgressLog.note` mevcut olsa da bu alan food diary notu yerine gecmez; kilo/ilerleme kaydi baglamindadir.
+- Ilk tercih, mobil diary ekrani ihtiyaci dogrularsa gun bazli `daily food diary note` modeli olmali.
+- Ogun bazli note, kullanici deneyimi bunu gercekten gerektirirse ikinci adim olarak eklenmeli.
+- Bu karar manual food ve copy meal akisini bloklamaz; note modeli bu turda DB semasina eklenmedi.

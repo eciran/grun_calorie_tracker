@@ -1,4 +1,4 @@
-# GRun Calorie Tracker
+﻿# GRun Calorie Tracker
 
 GRun Calorie Tracker is an AI-powered health and nutrition application that allows users to track daily calorie intake and exercise routines. The backend is built with Java 17, Spring Boot, PostgreSQL, JWT, Flyway, and Maven.
 
@@ -120,8 +120,8 @@ To remove only local demo data while preserving the PostgreSQL volume and local 
 Password reset uses a local logging mail sender until a real email provider is selected. In local development, request a reset from Swagger and read the raw token/reset link from the application log:
 
 ```text
-POST /api/auth/password-reset/request
-POST /api/auth/password-reset/confirm
+POST /api/v1/auth/password-reset/request
+POST /api/v1/auth/password-reset/confirm
 ```
 
 The token stored in PostgreSQL is hashed; only the log line contains the raw local test token.
@@ -131,8 +131,8 @@ The token stored in PostgreSQL is hashed; only the log line contains the raw loc
 Email verification uses a local logging mail sender until a real provider such as Brevo, Resend, or Amazon SES is selected. New registered users start as unverified and cannot login until their email is confirmed.
 
 ```text
-POST /api/auth/email-verification/resend
-POST /api/auth/email-verification/confirm
+POST /api/v1/auth/email-verification/resend
+POST /api/v1/auth/email-verification/confirm
 ```
 
 The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
@@ -157,11 +157,11 @@ Provider credentials must stay in local or deployment secrets and must not be co
 
 The backend includes an in-memory rate limiter for high-risk authentication endpoints:
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/auth/password-reset/request`
-- `POST /api/auth/email-verification/resend`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/email-verification/resend`
 
 Local defaults allow 20 requests per minute per client IP and endpoint. For multi-instance production deployments, this should be moved to a shared store such as Redis.
 
@@ -183,9 +183,9 @@ The backend stores `normalizedPortionGrams` for nutrition calculations. For `SER
 Login returns a short-lived JWT access token and a long-lived refresh token. Mobile clients should keep users signed in by calling refresh before or after access token expiry instead of asking for email/password again.
 
 ```text
-POST /api/auth/login
-POST /api/auth/refresh
-POST /api/auth/logout
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
 ```
 
 Refresh tokens are stored hashed in the database, rotated on every refresh, and revoked on logout. Password reset revokes active refresh tokens for the user.
@@ -219,7 +219,7 @@ http://localhost:8080/swagger-ui/index.html
 
 ### API Versioning
 
-The current stable API version is `v1`. New mobile clients should use `/api/v1/...` paths, for example:
+The current API contract is `v1`. Clients should use `/api/v1/...` paths, for example:
 
 ```text
 POST /api/v1/auth/login
@@ -227,7 +227,7 @@ GET /api/v1/products/search
 POST /api/v1/food-logs
 ```
 
-Legacy `/api/...` paths are still available during development to avoid breaking existing local Swagger flows and older clients.
+Unversioned `/api/...` route aliases are not exposed. Keeping one path family prevents duplicate Swagger entries and keeps the mobile contract explicit.
 
 ### Stop Local Services
 
@@ -256,3 +256,4 @@ docker exec grun-postgres psql -U postgres -d grun_calorie_db -c "select version
 ## Development Status
 
 Currently under active development.
+

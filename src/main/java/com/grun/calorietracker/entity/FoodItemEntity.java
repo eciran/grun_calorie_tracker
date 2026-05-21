@@ -89,4 +89,8 @@ public class FoodItemEntity {
     private String servingUnit;
 
     private Boolean isCustom;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private UserEntity createdByUser;
 }

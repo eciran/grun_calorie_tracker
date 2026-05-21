@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.GoalCalculationResponse;
 import com.grun.calorietracker.dto.GoalCalculationRequestDto;
+import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.service.UserGoalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,13 +19,34 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/goals", "/api/v1/goals"})
+@RequestMapping("/api/v1/goals")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Goals", description = "Calorie and macro goal calculation, saving, and deletion for the authenticated user.")
 class UserGoalController {
 
     private final UserGoalService userGoalService;
+
+    @GetMapping("/me")
+    @Operation(
+            summary = "Get current user goal",
+            description = "Returns the authenticated user's saved calorie and macro goal, or 204 if no goal has been saved yet."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Saved goal returned."),
+            @ApiResponse(responseCode = "204", description = "No saved goal exists for the authenticated user."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+    })
+    public ResponseEntity<UserGoalDto> getCurrentGoal(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        UserGoalDto goal = userGoalService.getCurrentUserGoal(userDetails.getUsername());
+        return goal == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(goal);
+    }
 
     @PostMapping("/calculate")
     @Operation(

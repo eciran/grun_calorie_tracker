@@ -14,6 +14,11 @@ import java.util.Optional;
 @Repository
 public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity, Long> {
     List<ExerciseLogsEntity> findByUser(UserEntity user);
+    List<ExerciseLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+            UserEntity user,
+            LocalDateTime start,
+            LocalDateTime end
+    );
   //  List<ExerciseLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
     Optional<ExerciseLogsEntity> findByIdAndUser(Long id, UserEntity user);
     List<ExerciseLogsEntity> findByUserAndSource(UserEntity user, String source);

@@ -1,0 +1,5 @@
+code	product_name	energy-kcal_100g	proteins_100g	fat_100g	carbohydrates_100g	fiber_100g	sugars_100g	sodium_100g	serving_size	serving_quantity	serving_quantity_unit	image_url	allergens_tags	nutrition_grade_fr
+5449000000996	Coca-Cola Original Taste	42	0	0	10.6	0	10.6	0	330 ml	330	ml	https://images.openfoodfacts.org/images/products/544/900/000/0996/front_en.400.jpg		e
+3017620422003	Nutella Hazelnut Cocoa Spread	539	6.3	30.9	57.5	0	56.3	0.107	15 g	15	g	https://images.openfoodfacts.org/images/products/301/762/042/2003/front_en.400.jpg	en:milk,en:nuts,en:soy	e
+not-a-barcode	Invalid Row	100	1	1	1	1	1	1	100 g	100	g	https://example.invalid/image.jpg		a
+737628064502	Thai Peanut Noodles	500	10	24	63	4	7	0.95	100 g	100	g	https://images.openfoodfacts.org/images/products/073/762/806/4502/front_en.400.jpg	en:peanuts,en:wheat	

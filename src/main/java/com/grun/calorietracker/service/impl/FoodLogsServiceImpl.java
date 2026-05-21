@@ -1,13 +1,17 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
+import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
+import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -22,6 +26,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,10 +41,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Override
     @Transactional
     public FoodLogsDto addFoodLog(FoodLogsDto dto, String email) {
+        UserEntity user = getUser(email);
         FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        ensureFoodItemAvailableToUser(foodItem, user);
         FoodLogsEntity entity = new FoodLogsEntity();
         entity.setUser(user);
         entity.setFoodItem(foodItem);
@@ -49,7 +55,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 entity.getPortionUnit(),
                 foodItem
         ));
-        entity.setMealType(dto.getMealType());
+        entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
@@ -58,10 +64,53 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    @Transactional
+    public List<FoodLogsDto> copyMeal(String email, FoodLogCopyMealRequestDto request) {
+        UserEntity user = getUser(email);
+        String mealType = normalizeMealType(request.getMealType());
+        List<FoodLogsEntity> sourceLogs = foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
+                user,
+                mealType,
+                request.getSourceDate().atStartOfDay(),
+                request.getSourceDate().plusDays(1).atStartOfDay()
+        );
+
+        return sourceLogs.stream()
+                .map(source -> copyLogToDate(source, request.getTargetDate(), user))
+                .map(foodLogsRepository::save)
+                .peek(saved -> markFoodItemUsed(saved.getFoodItem()))
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public FoodLogsDto updateFoodLog(Long id, FoodLogsDto dto, String email) {
+        UserEntity user = getUser(email);
+        FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
+        FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
+                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+        ensureFoodItemAvailableToUser(foodItem, user);
+
+        entity.setFoodItem(foodItem);
+        entity.setPortionSize(dto.getPortionSize());
+        entity.setPortionUnit(resolvePortionUnit(dto.getPortionUnit()));
+        entity.setNormalizedPortionGrams(calculateNormalizedPortionGrams(
+                dto.getPortionSize(),
+                entity.getPortionUnit(),
+                foodItem
+        ));
+        entity.setMealType(normalizeMealType(dto.getMealType()));
+        entity.setLogDate(dto.getLogDate());
+
+        return toDto(foodLogsRepository.save(entity));
+    }
+
+    @Override
     public List<FoodLogsDto> getFoodLogs(String email, String date) {
         List<FoodLogsEntity> logs;
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        UserEntity user = getUser(email);
         if (date != null) {
             LocalDate targetDate = LocalDate.parse(date);
             logs = foodLogsRepository.findByUserAndLogDateBetween(
@@ -76,27 +125,52 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    public List<FoodLogsDto> getFoodLogsHistory(String email, LocalDateTime start, LocalDateTime end) {
+        UserEntity user = getUser(email);
+        return foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                        user,
+                        start,
+                        end
+                ).stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<FoodLogMealSummaryDto> getMealSummaries(String email, LocalDateTime start, LocalDateTime end) {
+        UserEntity user = getUser(email);
+        List<FoodLogsEntity> logs = foodLogsRepository
+                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end);
+        Map<String, List<FoodLogsEntity>> logsByMeal = logs.stream()
+                .collect(Collectors.groupingBy(
+                        log -> normalizeMealType(log.getMealType()),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        return List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").stream()
+                .map(mealType -> toMealSummary(mealType, logsByMeal.getOrDefault(mealType, List.of())))
+                .toList();
+    }
+
+    @Override
     public FoodLogsDto getFoodLogById(Long id, String email) {
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
-                .orElseThrow(() -> new RuntimeException("Food log not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
         return toDto(entity);
     }
 
     @Override
     public void deleteFoodLog(Long id, String email) {
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
-                .orElseThrow(() -> new RuntimeException("Food log not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
         foodLogsRepository.delete(entity);
     }
 
     @Override
     public List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end) {
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        UserEntity user = getUser(email);
 
         return foodLogsRepository.getDailyStatsByUserAndDateBetween(user.getId(), start, end)
                 .stream()
@@ -112,6 +186,27 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setTotalCarbs(toDouble(row[3]));
         dto.setTotalFat(toDouble(row[4]));
         return dto;
+    }
+
+    private FoodLogMealSummaryDto toMealSummary(String mealType, List<FoodLogsEntity> logs) {
+        FoodLogMealSummaryDto dto = new FoodLogMealSummaryDto();
+        dto.setMealType(mealType);
+        dto.setLogs(logs.stream().map(this::toDto).toList());
+        dto.setTotalCalories(sumNutrition(logs, FoodItemEntity::getCalories));
+        dto.setTotalProtein(sumNutrition(logs, FoodItemEntity::getProtein));
+        dto.setTotalFat(sumNutrition(logs, FoodItemEntity::getFat));
+        dto.setTotalCarbs(sumNutrition(logs, FoodItemEntity::getCarbs));
+        return dto;
+    }
+
+    private Double sumNutrition(List<FoodLogsEntity> logs, java.util.function.Function<FoodItemEntity, Double> nutrient) {
+        return round(logs.stream()
+                .mapToDouble(log -> {
+                    Double value = nutrient.apply(log.getFoodItem());
+                    Double grams = log.getNormalizedPortionGrams() != null ? log.getNormalizedPortionGrams() : log.getPortionSize();
+                    return (value == null ? 0.0 : value) * (grams == null ? 0.0 : grams) / 100.0;
+                })
+                .sum());
     }
 
     private String formatDate(Object value) {
@@ -143,6 +238,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return Double.parseDouble(value.toString());
     }
 
+    private Double round(Double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
     private void markFoodItemUsed(FoodItemEntity foodItem) {
         FoodProductQualityRules.markUsed(foodItem);
         foodItemRepository.save(foodItem);
@@ -150,6 +249,38 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     private FoodPortionUnit resolvePortionUnit(FoodPortionUnit portionUnit) {
         return portionUnit == null ? FoodPortionUnit.GRAM : portionUnit;
+    }
+
+    private String normalizeMealType(String mealType) {
+        return mealType == null ? null : mealType.trim().toUpperCase();
+    }
+
+    private FoodLogsEntity copyLogToDate(FoodLogsEntity source, LocalDate targetDate, UserEntity user) {
+        ensureFoodItemAvailableToUser(source.getFoodItem(), user);
+        FoodLogsEntity copy = new FoodLogsEntity();
+        copy.setUser(user);
+        copy.setFoodItem(source.getFoodItem());
+        copy.setPortionSize(source.getPortionSize());
+        copy.setPortionUnit(resolvePortionUnit(source.getPortionUnit()));
+        copy.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
+        copy.setMealType(normalizeMealType(source.getMealType()));
+        copy.setLogDate(targetDate.atTime(source.getLogDate().toLocalTime()));
+        return copy;
+    }
+
+    private void ensureFoodItemAvailableToUser(FoodItemEntity foodItem, UserEntity user) {
+        if (Boolean.TRUE.equals(foodItem.getIsCustom())
+                && (foodItem.getCreatedByUser() == null || !foodItem.getCreatedByUser().getId().equals(user.getId()))) {
+            throw new ProductNotFoundException("Custom food item is not available to this user");
+        }
+        if (foodItem.getVerificationStatus() == VerificationStatus.REJECTED) {
+            throw new ProductNotFoundException("Food item is not available");
+        }
+    }
+
+    private UserEntity getUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
     private Double calculateNormalizedPortionGrams(Double portionSize, FoodPortionUnit portionUnit, FoodItemEntity foodItem) {

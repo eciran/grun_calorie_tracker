@@ -49,9 +49,10 @@ Food product catalog su kaynaklardan buyur:
    - Kaliteli urunler `VERIFIED` ve gerekirse `APPROVED` image status alir.
 
 3. Admin import
-   - Ileride CSV/XLSX veya provider import job eklendiginde kontrollu batch import yapilir.
-   - Import edilen urunler dogrudan verified sayilmaz.
-   - Import sonrasi review queue'ya girer.
+   - CSV tabanli bulk import endpoint'i mevcut.
+   - Open data export veya temizlenmis provider verisi GRun CSV kolonlarina normalize edilerek import edilir.
+   - Import edilen urunlerin verification ve image kalite karari kaynaga ve import politikasina gore kontrollu verilir.
+   - Import sonrasi kalite metrikleri ve review queue izlenir.
 
 4. Usage-based priority
    - Kullanilan urunlerin `usageCount` degeri artar.
@@ -111,9 +112,46 @@ Production ilk kurulumda:
 
 ## Kisa Vadeli Yol Haritasi
 
-1. Exercise catalog seed Flyway ile devam eder.
-2. Food product lookup/cache akisi korunur.
-3. Admin review validation kurallari guclendirilir.
-4. Review audit history implement edilir.
-5. Local-only demo seed script ihtiyaci tekrar degerlendirilir.
-6. Buyuk food product import ancak admin review ve audit altyapisi olgunlastiktan sonra tasarlanir.
+1. Food product lookup/cache akisi korunur.
+2. Bulk food data kaynagi secilir ve import alanlari sabitlenir.
+3. Kucuk pilot CSV ile admin import davranisi dogrulanir.
+4. Ilk +10.000 urunluk normalize CSV hazirlanir.
+5. Import sonrasi duplicate, image status, verification status ve review queue metrikleri kontrol edilir.
+6. Katalog buyutme sureci batch import ve kalite kontrol adimlariyla tekrarlanabilir hale getirilir.
+
+## Open Food Facts Normalize Script
+
+Open Food Facts CSV exportu pratikte tab-separated export olarak gelebilir. Bu kaynak dosya GRun raw import CSV formatina su script ile cevrilir:
+
+```powershell
+.\scripts\convert-open-food-facts-export.ps1 `
+  -InputPath .\downloads\en.openfoodfacts.org.products.csv `
+  -OutputPath .\outputs\open-food-facts-grun-500.csv `
+  -Limit 500 `
+  -RequireCalories `
+  -RequireMacroData `
+  -RequireImage `
+  -RequireKnownNutriScore
+```
+
+Script:
+
+- kaynak exportta `code` ve `product_name` alanlarini kullanir,
+- enerji ve makro degerlerini 100 gram bazli GRun kolonlarina map eder,
+- duplicate barcode kayitlarini ayni batch icinde atlar,
+- barcode veya urun adi olmayan kayitlari atlar,
+- `energy-kcal_100g`, makro veri, gorsel ve bilinen Nutri-Score filtrelerini opsiyonel sunar,
+- ciktiyi admin import endpointindeki `RAW_EXTERNAL` modu icin CSV olarak uretir.
+
+Ilk genis batch icin onerilen kalite tabani:
+
+- kalori verisi olsun,
+- en az bir makro degeri olsun,
+- OFF gorsel URL'si olsun,
+- `unknown` veya `not-applicable` olmayan Nutri-Score degeri olsun.
+
+Bu filtreler urun dogrulugunu garanti etmez. Amac ilk 10.000 urunluk ham kataloga daha dusuk review yukuyle baslamaktir.
+
+Kucuk kaynak ornegi:
+
+- `docs/samples/open-food-facts-export-sample.tsv`

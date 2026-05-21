@@ -1,6 +1,10 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.DailySummaryDto;
+import com.grun.calorietracker.dto.ExerciseLogsDto;
+import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.entity.ExerciseLogsEntity;
+import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
@@ -55,6 +59,7 @@ public class DashboardServiceImpl implements DashboardService {
         Double burnedCalories = getDouble(exerciseTotals, 0);
         Integer totalExerciseMinutes = getInteger(exerciseTotals, 1);
 
+        boolean hasActiveGoal = goalOpt.isPresent();
         Integer targetCalories = goalOpt.map(UserGoalEntity::getDailyCalorieGoal).orElse(0);
         Double targetProtein = goalOpt.map(UserGoalEntity::getDailyProteinGoal).orElse(0.0);
         Double targetFat = goalOpt.map(UserGoalEntity::getDailyFatGoal).orElse(0.0);
@@ -70,6 +75,8 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setConsumedCalories(consumedCalories);
         dto.setBurnedCalories(burnedCalories);
         dto.setRemainingCalories(round((targetCalories + burnedCalories) - consumedCalories));
+        dto.setNetCalories(round(consumedCalories - burnedCalories));
+        dto.setCalorieProgressPercent(percent(consumedCalories, targetCalories.doubleValue()));
 
         dto.setTargetProtein(targetProtein);
         dto.setTargetFat(targetFat);
@@ -78,12 +85,61 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setConsumedProtein(consumedProtein);
         dto.setConsumedFat(consumedFat);
         dto.setConsumedCarbs(consumedCarbs);
+        dto.setRemainingProtein(round(targetProtein - consumedProtein));
+        dto.setRemainingFat(round(targetFat - consumedFat));
+        dto.setRemainingCarbs(round(targetCarbs - consumedCarbs));
+        dto.setProteinProgressPercent(percent(consumedProtein, targetProtein));
+        dto.setFatProgressPercent(percent(consumedFat, targetFat));
+        dto.setCarbsProgressPercent(percent(consumedCarbs, targetCarbs));
 
         dto.setCurrentWeight(currentWeight);
         dto.setTargetWeight(targetWeight);
         dto.setGoalType(goalType);
         dto.setTotalExerciseMinutes(totalExerciseMinutes);
+        dto.setHasActiveGoal(hasActiveGoal);
+        dto.setOnboardingCompleted(isOnboardingCompleted(user, hasActiveGoal));
+        dto.setFoodLogs(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                        user,
+                        start,
+                        end
+                ).stream()
+                .map(this::toFoodLogDto)
+                .toList());
+        dto.setExerciseLogs(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                        user,
+                        start,
+                        end
+                ).stream()
+                .map(this::toExerciseLogDto)
+                .toList());
 
+        return dto;
+    }
+
+    private FoodLogsDto toFoodLogDto(FoodLogsEntity entity) {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setId(entity.getId());
+        dto.setFoodItemId(entity.getFoodItem().getId());
+        dto.setFoodName(entity.getFoodItem().getName());
+        dto.setPortionSize(entity.getPortionSize());
+        dto.setPortionUnit(entity.getPortionUnit());
+        dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
+        dto.setMealType(entity.getMealType());
+        dto.setLogDate(entity.getLogDate());
+        return dto;
+    }
+
+    private ExerciseLogsDto toExerciseLogDto(ExerciseLogsEntity entity) {
+        ExerciseLogsDto dto = new ExerciseLogsDto();
+        dto.setId(entity.getId());
+        dto.setExerciseItemId(entity.getExerciseItem().getId());
+        dto.setExerciseItemName(entity.getExerciseItem().getName());
+        dto.setDurationMinutes(entity.getDurationMinutes());
+        dto.setCaloriesBurned(entity.getCaloriesBurned());
+        dto.setLogDate(entity.getLogDate());
+        dto.setSource(entity.getSource());
+        dto.setExternalId(entity.getExternalId());
+        dto.setExtraData(entity.getExtraData());
         return dto;
     }
 
@@ -110,6 +166,21 @@ public class DashboardServiceImpl implements DashboardService {
 
     private Double round(Double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private Double percent(Double value, Double target) {
+        if (target == null || target <= 0) {
+            return 0.0;
+        }
+        return round((value / target) * 100.0);
+    }
+
+    private boolean isOnboardingCompleted(UserEntity user, boolean hasActiveGoal) {
+        return hasActiveGoal
+                && user.getAge() != null
+                && user.getGender() != null
+                && user.getHeight() != null
+                && user.getWeight() != null;
     }
 
     private Object[] extractSingleRow(java.util.List<Object[]> rows) {

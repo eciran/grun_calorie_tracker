@@ -71,7 +71,7 @@ class UserControllerTest {
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void testGetUsersRoot_isNotExposedFromUserController() throws Exception {
-        mockMvc.perform(get("/api/users"))
+        mockMvc.perform(get("/api/v1/users"))
                 .andExpect(status().isNotFound());
     }
 
@@ -81,7 +81,7 @@ class UserControllerTest {
         when(userService.getCurrentUser("testuser@example.com"))
                 .thenReturn(sampleUserProfileDto);
 
-        mockMvc.perform(get("/api/users/me"))
+        mockMvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("testuser@example.com"))
                 .andExpect(jsonPath("$.name").value("Test User"));
@@ -93,7 +93,7 @@ class UserControllerTest {
         when(userService.getCurrentUser("unknown@example.com"))
                 .thenThrow(new UsernameNotFoundException("Invalid credentials"));
 
-        mockMvc.perform(get("/api/users/me"))
+        mockMvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -110,16 +110,20 @@ class UserControllerTest {
         returnedDto.setName("Updated Name");
         returnedDto.setEmail("testuser@example.com");
         returnedDto.setWeight(75.0);
+        returnedDto.setGoalRecalculationRecommended(true);
+        returnedDto.setGoalRecalculationReason("Profile metrics that affect calorie calculation changed.");
 
         when(userService.updateCurrentUser(any(UserProfileDto.class), eq("testuser@example.com")))
                 .thenReturn(returnedDto);
 
-        mockMvc.perform(put("/api/users/me")
+        mockMvc.perform(put("/api/v1/users/me")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatedDto)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Updated Name"))
-                .andExpect(jsonPath("$.weight").value(75.0));
+                .andExpect(jsonPath("$.weight").value(75.0))
+                .andExpect(jsonPath("$.goalRecalculationRecommended").value(true))
+                .andExpect(jsonPath("$.goalRecalculationReason").value("Profile metrics that affect calorie calculation changed."));
     }
 
     @Test
@@ -127,9 +131,10 @@ class UserControllerTest {
         UserProfileDto updatedUser = new UserProfileDto();
         updatedUser.setName("Updated User");
 
-        mockMvc.perform(put("/api/users/me")
+        mockMvc.perform(put("/api/v1/users/me")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatedUser)))
                 .andExpect(status().isForbidden());
     }
 }
+

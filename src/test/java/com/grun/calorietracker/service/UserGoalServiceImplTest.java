@@ -118,6 +118,32 @@ class UserGoalServiceImplTest {
         assertEquals(-0.5, result.getWeeklyWeightChangeTargetKg());
     }
 
+    @Test
+    void getCurrentUserGoal_whenGoalExists_returnsSavedGoal() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        UserGoalEntity goal = new UserGoalEntity();
+        goal.setDailyCalorieGoal(2209);
+        goal.setDailyProteinGoal(138.0);
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(goalRepository.findByUser(user)).thenReturn(Optional.of(goal));
+
+        var result = userGoalService.getCurrentUserGoal("user@example.com");
+
+        assertEquals(2209, result.getDailyCalorieGoal());
+        assertEquals(138.0, result.getDailyProteinGoal());
+    }
+
+    @Test
+    void getCurrentUserGoal_whenGoalDoesNotExist_returnsNull() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
+
+        var result = userGoalService.getCurrentUserGoal("user@example.com");
+
+        org.junit.jupiter.api.Assertions.assertNull(result);
+    }
+
     private UserEntity user(String email, String gender, Integer age, Double height, Double weight, Double bodyFat) {
         UserEntity user = new UserEntity();
         user.setEmail(email);

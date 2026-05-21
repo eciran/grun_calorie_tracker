@@ -3,6 +3,7 @@ package com.grun.calorietracker.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.GoalCalculationResponse;
 import com.grun.calorietracker.dto.GoalCalculationRequestDto;
+import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -67,11 +69,36 @@ class UserGoalControllerTest {
 
     @Test
     @WithMockUser(username = "testuser@example.com")
+    void testGetCurrentGoal_Success() throws Exception {
+        UserGoalDto goal = new UserGoalDto();
+        goal.setDailyCalorieGoal(2209);
+        goal.setDailyProteinGoal(138.0);
+        goal.setDailyFatGoal(74.0);
+        goal.setDailyCarbGoal(248.0);
+        when(goalService.getCurrentUserGoal("testuser@example.com")).thenReturn(goal);
+
+        mockMvc.perform(get("/api/v1/goals/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dailyCalorieGoal").value(2209))
+                .andExpect(jsonPath("$.dailyProteinGoal").value(138.0));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser@example.com")
+    void testGetCurrentGoal_WhenGoalDoesNotExist_ReturnsNoContent() throws Exception {
+        when(goalService.getCurrentUserGoal("testuser@example.com")).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/goals/me"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser@example.com")
     void testSaveGoal_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
         when(goalService.calculateGoal(any(GoalCalculationRequestDto.class), any(String.class))).thenReturn(new GoalCalculationResponse());
 
-        mockMvc.perform(post("/api/goals/save")
+        mockMvc.perform(post("/api/v1/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(goalRequest)))
                 .andExpect(status().isOk());
@@ -83,7 +110,7 @@ class UserGoalControllerTest {
         when(goalService.calculateGoal(any(GoalCalculationRequestDto.class), any(String.class)))
                 .thenThrow(new InvalidCredentialsException("Invalid credential"));
 
-        mockMvc.perform(post("/api/goals/save")
+        mockMvc.perform(post("/api/v1/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(goalRequest)))
                 .andExpect(status().isUnauthorized());
@@ -94,7 +121,7 @@ class UserGoalControllerTest {
     void testSaveGoal_InvalidPayload_UsesTurkishValidationMessage() throws Exception {
         GoalCalculationRequestDto invalidRequest = new GoalCalculationRequestDto();
 
-        mockMvc.perform(post("/api/goals/save")
+        mockMvc.perform(post("/api/v1/goals/save")
                         .header("Accept-Language", "tr")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
@@ -109,7 +136,7 @@ class UserGoalControllerTest {
         when(goalService.calculateGoal(any(GoalCalculationRequestDto.class), any(String.class)))
                 .thenThrow(new InvalidCredentialsException("Invalid credential"));
 
-        mockMvc.perform(post("/api/goals/save")
+        mockMvc.perform(post("/api/v1/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(goalRequest)))
                 .andExpect(status().isUnauthorized());
@@ -117,7 +144,7 @@ class UserGoalControllerTest {
 
     @Test
     void testSaveGoal_Unauthorized() throws Exception {
-        mockMvc.perform(post("/api/goals/save")
+        mockMvc.perform(post("/api/v1/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(goalRequest)))
                 .andExpect(status().isForbidden());
@@ -128,13 +155,14 @@ class UserGoalControllerTest {
     void testDeleteGoal_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
 
-        mockMvc.perform(delete("/api/goals/delete"))
+        mockMvc.perform(delete("/api/v1/goals/delete"))
                 .andExpect(status().isOk());
     }
 
     @Test
     void testDeleteGoal_Unauthorized() throws Exception {
-        mockMvc.perform(delete("/api/goals/delete"))
+        mockMvc.perform(delete("/api/v1/goals/delete"))
                 .andExpect(status().isForbidden());
     }
 }
+

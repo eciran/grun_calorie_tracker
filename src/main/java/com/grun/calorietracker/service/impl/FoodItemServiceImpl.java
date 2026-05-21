@@ -85,6 +85,10 @@ public class FoodItemServiceImpl implements FoodItemService {
                     criteriaBuilder.isNull(root.get("verificationStatus")),
                     criteriaBuilder.notEqual(root.get("verificationStatus"), VerificationStatus.REJECTED)
             ));
+            predicates.add(criteriaBuilder.or(
+                    criteriaBuilder.isNull(root.get("isCustom")),
+                    criteriaBuilder.isFalse(root.get("isCustom"))
+            ));
 
             String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {

@@ -15,6 +15,7 @@ import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.exception.EmailNotVerifiedException;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.EmailVerificationService;
@@ -38,7 +39,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping({"/api/auth", "/api/v1/auth"})
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "Registration and login endpoints that issue JWT access tokens.")
 public class AuthController {
@@ -112,6 +113,11 @@ public class AuthController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "Email address is not verified.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
+            ),
+            @ApiResponse(
                     responseCode = "429",
                     description = "Too many requests from the same client.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
@@ -126,7 +132,7 @@ public class AuthController {
                 .orElseThrow(() -> new RuntimeException("Invalid credentials"));
 
         if (!Boolean.TRUE.equals(user.getEmailVerified())) {
-            throw new IllegalArgumentException("Email address is not verified");
+            throw new EmailNotVerifiedException("Email address is not verified");
         }
 
         String token = jwtUtil.generateToken(user.getEmail());

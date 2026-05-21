@@ -66,7 +66,7 @@ class ProgressLogControllerTest {
     void testAddProgressLog_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
 
-        mockMvc.perform(post("/api/progress/saveLogs")
+        mockMvc.perform(post("/api/v1/progress/saveLogs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(logRequest)))
                 .andExpect(status().isOk());
@@ -74,7 +74,7 @@ class ProgressLogControllerTest {
 
     @Test
     void testAddProgressLog_Unauthorized() throws Exception {
-        mockMvc.perform(post("/api/progress/saveLogs")
+        mockMvc.perform(post("/api/v1/progress/saveLogs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(logRequest)))
                 .andExpect(status().isForbidden());
@@ -85,7 +85,7 @@ class ProgressLogControllerTest {
     void testAddProgressLog_InvalidPayload_UsesTurkishValidationMessage() throws Exception {
         ProgressLogDto invalidRequest = new ProgressLogDto();
 
-        mockMvc.perform(post("/api/progress/saveLogs")
+        mockMvc.perform(post("/api/v1/progress/saveLogs")
                         .header("Accept-Language", "tr")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
@@ -99,13 +99,14 @@ class ProgressLogControllerTest {
     void testGetProgress_Success() throws Exception {
         when(userService.findByEmail("testuser@example.com")).thenReturn(Optional.of(mockUser));
 
-        mockMvc.perform(get("/api/progress/getLogs"))
+        mockMvc.perform(get("/api/v1/progress/getLogs"))
                 .andExpect(status().isOk());
     }
 
     @Test
     void testGetProgress_Unauthorized() throws Exception {
-        mockMvc.perform(get("/api/progress/getLogs"))
+        mockMvc.perform(get("/api/v1/progress/getLogs"))
                 .andExpect(status().isForbidden());
     }
 }
+

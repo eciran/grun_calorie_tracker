@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
@@ -11,9 +12,11 @@ import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
+import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,6 +53,40 @@ class AdminFoodProductReviewControllerTest {
 
     @MockBean
     private FoodProductReviewService foodProductReviewService;
+
+    @MockBean
+    private FoodProductImportService foodProductImportService;
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void importProducts_whenAdmin_returnsImportResult() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "products.csv",
+                "text/csv",
+                "barcode,name\n3017620422003,Nutella\n".getBytes()
+        );
+        FoodProductImportResultDto response = new FoodProductImportResultDto(
+                1,
+                1,
+                0,
+                0,
+                1,
+                List.of()
+        );
+
+        when(foodProductImportService.importCsv(any(), eq("admin@test.com"), eq(FoodProductImportMode.RAW_EXTERNAL))).thenReturn(response);
+
+        mockMvc.perform(multipart("/api/v1/admin/products/import")
+                        .file(file)
+                        .param("importMode", "RAW_EXTERNAL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRows").value(1))
+                .andExpect(jsonPath("$.insertedRows").value(1))
+                .andExpect(jsonPath("$.savedRows").value(1));
+
+        verify(foodProductImportService).importCsv(any(), eq("admin@test.com"), eq(FoodProductImportMode.RAW_EXTERNAL));
+    }
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
@@ -74,7 +113,7 @@ class AdminFoodProductReviewControllerTest {
                 25
         )).thenReturn(page);
 
-        mockMvc.perform(get("/api/admin/products/review")
+        mockMvc.perform(get("/api/v1/admin/products/review")
                         .param("verificationStatus", "RAW_IMPORTED")
                         .param("imageStatus", "NEEDS_REVIEW"))
                 .andExpect(status().isOk())
@@ -88,7 +127,7 @@ class AdminFoodProductReviewControllerTest {
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
     void getProductsForReview_whenNotAdmin_returnsForbidden() throws Exception {
-        mockMvc.perform(get("/api/admin/products/review"))
+        mockMvc.perform(get("/api/v1/admin/products/review"))
                 .andExpect(status().isForbidden());
     }
 
@@ -122,7 +161,7 @@ class AdminFoodProductReviewControllerTest {
 
         when(foodProductReviewService.getDuplicateProductGroups(0, 25)).thenReturn(page);
 
-        mockMvc.perform(get("/api/admin/products/duplicates"))
+        mockMvc.perform(get("/api/v1/admin/products/duplicates"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].normalizedBarcode").value("3017620422003"))
                 .andExpect(jsonPath("$.content[0].productCount").value(2))
@@ -150,7 +189,7 @@ class AdminFoodProductReviewControllerTest {
         when(foodProductReviewService.mergeDuplicateProducts(any(FoodProductMergeRequestDto.class), eq("admin@test.com")))
                 .thenReturn(response);
 
-        mockMvc.perform(post("/api/admin/products/duplicates/merge")
+        mockMvc.perform(post("/api/v1/admin/products/duplicates/merge")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -183,7 +222,7 @@ class AdminFoodProductReviewControllerTest {
         when(foodProductReviewService.updateProductReview(eq(1L), any(FoodProductReviewRequestDto.class), eq("admin@test.com")))
                 .thenReturn(response);
 
-        mockMvc.perform(patch("/api/admin/products/1/review")
+        mockMvc.perform(patch("/api/v1/admin/products/1/review")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -218,7 +257,7 @@ class AdminFoodProductReviewControllerTest {
 
         when(foodProductReviewService.getProductReviewAudits(1L, 0, 25)).thenReturn(page);
 
-        mockMvc.perform(get("/api/admin/products/1/audit"))
+        mockMvc.perform(get("/api/v1/admin/products/1/audit"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(10L))
                 .andExpect(jsonPath("$.content[0].foodItemId").value(1L))
@@ -233,11 +272,12 @@ class AdminFoodProductReviewControllerTest {
     void openApi_adminReviewDocumentsReviewNoteAndAuditSchema() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/admin/products/{id}/review'].patch.requestBody.content['application/json'].examples['Reject low quality image'].value.reviewNote")
+                .andExpect(jsonPath("$.paths['/api/v1/admin/products/{id}/review'].patch.requestBody.content['application/json'].examples['Reject low quality image'].value.reviewNote")
                         .value("Image is blurry and product label is unreadable."))
-                .andExpect(jsonPath("$.paths['/api/admin/products/{id}/review'].patch.requestBody.content['application/json'].examples['Approve curated product and image'].value.displayImageUrl")
+                .andExpect(jsonPath("$.paths['/api/v1/admin/products/{id}/review'].patch.requestBody.content['application/json'].examples['Approve curated product and image'].value.displayImageUrl")
                         .value("https://cdn.grun.app/products/3017620422003.jpg"))
-                .andExpect(jsonPath("$.paths['/api/admin/products/{id}/audit'].get.responses['200'].content['application/json'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/v1/admin/products/{id}/audit'].get.responses['200'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/FoodProductReviewAuditPageDto"));
     }
 }
+

@@ -147,6 +147,16 @@ public class UserGoalServiceImpl implements UserGoalService {
     }
 
     @Override
+    public UserGoalDto getCurrentUserGoal(String email) {
+        UserEntity user = userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+
+        return userGoalRepository.findByUser(user)
+                .map(UserGoalMapper::toDto)
+                .orElse(null);
+    }
+
+    @Override
     public void deleteGoalByUser(String email) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));

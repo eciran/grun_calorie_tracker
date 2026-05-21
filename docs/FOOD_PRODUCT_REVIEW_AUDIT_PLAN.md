@@ -1,4 +1,4 @@
-# Food Product Review Audit History Plan
+﻿# Food Product Review Audit History Plan
 
 Bu dokuman admin product review islemlerinde kim, neyi, ne zaman degistirdi sorularini izlemek icin planlanan audit history modelini tanimlar.
 
@@ -10,7 +10,7 @@ Food product katalog kalitesi buyudukce review islemleri izlenebilir olmali. Bir
 
 Ilk implementasyon sadece admin review update akisini kapsar:
 
-- `PATCH /api/admin/products/{id}/review`
+- `PATCH /api/v1/admin/products/{id}/review`
 - Product name degisikligi
 - Display image URL degisikligi
 - Verification status degisikligi
@@ -84,7 +84,7 @@ Geriye uyumluluk gerekiyorsa eski metot kisa sure korunup yeni metoda delege edi
 
 Audit kayitlarini okumak icin admin-only endpoint eklenecek:
 
-- `GET /api/admin/products/{id}/audit?page=0&size=25`
+- `GET /api/v1/admin/products/{id}/audit?page=0&size=25`
 
 Response paginated olacak.
 
@@ -143,3 +143,4 @@ Ilk implementasyon minimal tutulacak:
 - Testler
 
 Merge audit, bulk import audit ve external sync audit sonraki adimlarda genisletilecek.
+

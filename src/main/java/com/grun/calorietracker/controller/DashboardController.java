@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping({"/api/dashboard", "/api/v1/dashboard"})
+@RequestMapping("/api/v1/dashboard")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Dashboard", description = "Dashboard summary endpoints")
