@@ -35,6 +35,7 @@ build/
 ### Codex local environment ###
 .codex/
 outputs/
+docs/
 
 # Configuration files
 .env
