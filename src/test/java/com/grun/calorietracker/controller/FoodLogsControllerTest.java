@@ -2,6 +2,8 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
+import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -85,7 +87,7 @@ class FoodLogsControllerTest {
         when(foodLogsService.addFoodLog(any(FoodLogsDto.class), eq(user.getEmail()))).thenReturn(savedDto);
 
         // Act & Assert
-        mockMvc.perform(post("/api/food-logs")
+        mockMvc.perform(post("/api/v1/food-logs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
@@ -104,7 +106,7 @@ class FoodLogsControllerTest {
         doThrow(new InvalidCredentialsException("Invalid credential"))
                 .when(foodLogsService).addFoodLog(any(FoodLogsDto.class), eq(user.getEmail()));
 
-        mockMvc.perform(post("/api/food-logs")
+        mockMvc.perform(post("/api/v1/food-logs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isUnauthorized());
@@ -112,15 +114,39 @@ class FoodLogsControllerTest {
 
     @Test
     @WithMockUser(username = "test@test.com", roles = "USER")
+    void copyMeal_success() throws Exception {
+        FoodLogCopyMealRequestDto request = new FoodLogCopyMealRequestDto();
+        request.setSourceDate(java.time.LocalDate.of(2026, 5, 21));
+        request.setTargetDate(java.time.LocalDate.of(2026, 5, 22));
+        request.setMealType("BREAKFAST");
+        FoodLogsDto copied = new FoodLogsDto();
+        copied.setId(22L);
+        copied.setFoodItemId(1L);
+        copied.setPortionSize(100.0);
+        copied.setMealType("BREAKFAST");
+        copied.setLogDate(LocalDateTime.of(2026, 5, 22, 8, 0));
+        when(foodLogsService.copyMeal(eq(user.getEmail()), any(FoodLogCopyMealRequestDto.class)))
+                .thenReturn(List.of(copied));
+
+        mockMvc.perform(post("/api/v1/food-logs/copy-meal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(22L))
+                .andExpect(jsonPath("$[0].logDate").value("2026-05-22T08:00:00"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
     void testAddFoodLog_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
         FoodLogsDto dto = new FoodLogsDto();
 
-        mockMvc.perform(post("/api/food-logs")
+        mockMvc.perform(post("/api/v1/food-logs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation error"))
-                .andExpect(jsonPath("$.path").value("/api/food-logs"));
+                .andExpect(jsonPath("$.path").value("/api/v1/food-logs"));
     }
 
     @Test
@@ -130,10 +156,76 @@ class FoodLogsControllerTest {
         when(foodLogsService.getFoodLogs(eq(user.getEmail()), anyString()))
                 .thenReturn(Collections.emptyList());
 
-        mockMvc.perform(get("/api/food-logs")
+        mockMvc.perform(get("/api/v1/food-logs")
                         .param("date", "2024-07-20"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void updateFoodLog_success() throws Exception {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(1.0);
+        dto.setMealType("DINNER");
+        dto.setLogDate(LocalDateTime.of(2026, 5, 20, 20, 0));
+
+        FoodLogsDto updated = new FoodLogsDto();
+        updated.setId(10L);
+        updated.setFoodItemId(1L);
+        updated.setFoodName("Egg");
+        updated.setPortionSize(1.0);
+        updated.setMealType("DINNER");
+        updated.setLogDate(dto.getLogDate());
+
+        when(foodLogsService.updateFoodLog(eq(10L), any(FoodLogsDto.class), eq(user.getEmail()))).thenReturn(updated);
+
+        mockMvc.perform(put("/api/v1/food-logs/10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10L))
+                .andExpect(jsonPath("$.mealType").value("DINNER"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getFoodLogHistory_success() throws Exception {
+        when(foodLogsService.getFoodLogsHistory(eq(user.getEmail()), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/api/v1/food-logs/history")
+                        .param("start", "2026-05-01")
+                        .param("end", "2026-05-07"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getFoodLogHistory_whenRangeIsInvalid_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/food-logs/history")
+                        .param("start", "2026-05-07")
+                        .param("end", "2026-05-01"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getMealSummaries_success() throws Exception {
+        FoodLogMealSummaryDto breakfast = new FoodLogMealSummaryDto();
+        breakfast.setMealType("BREAKFAST");
+        breakfast.setTotalCalories(320.0);
+        breakfast.setLogs(Collections.emptyList());
+        when(foodLogsService.getMealSummaries(eq(user.getEmail()), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(breakfast));
+
+        mockMvc.perform(get("/api/v1/food-logs/meals")
+                        .param("date", "2026-05-21"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].mealType").value("BREAKFAST"))
+                .andExpect(jsonPath("$[0].totalCalories").value(320.0));
     }
 
     @Test
@@ -142,7 +234,7 @@ class FoodLogsControllerTest {
         when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.of(user));
         Mockito.doNothing().when(foodLogsService).deleteFoodLog(eq(1L), eq(user.getEmail()));
 
-        mockMvc.perform(delete("/api/food-logs/1"))
+        mockMvc.perform(delete("/api/v1/food-logs/1"))
                 .andExpect(status().isNoContent());
     }
 
@@ -160,7 +252,7 @@ class FoodLogsControllerTest {
         when(foodLogsService.getDailyStats(eq(user.getEmail()), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of(stats));
 
-        mockMvc.perform(get("/api/food-logs/stats")
+        mockMvc.perform(get("/api/v1/food-logs/stats")
                         .param("start", "2026-05-01")
                         .param("end", "2026-05-01"))
                 .andExpect(status().isOk())
@@ -171,3 +263,4 @@ class FoodLogsControllerTest {
                 .andExpect(jsonPath("$[0].totalFat").value(12.75));
     }
 }
+

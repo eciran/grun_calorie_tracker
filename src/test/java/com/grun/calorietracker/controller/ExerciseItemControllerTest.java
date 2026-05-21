@@ -68,7 +68,7 @@ class ExerciseItemControllerTest {
                 eq(25)
         )).thenReturn(page);
 
-        mockMvc.perform(get("/api/exercise-items")
+        mockMvc.perform(get("/api/v1/exercise-items")
                         .param("q", "run")
                         .param("primaryMuscleGroup", "Lower Body")
                         .param("equipment", "None")
@@ -84,7 +84,7 @@ class ExerciseItemControllerTest {
     void addExerciseItem_whenNotAdmin_returnsForbidden() throws Exception {
         ExerciseItemDto request = buildRequest();
 
-        mockMvc.perform(post("/api/exercise-items")
+        mockMvc.perform(post("/api/v1/exercise-items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
@@ -99,7 +99,7 @@ class ExerciseItemControllerTest {
 
         when(exerciseItemService.addItem(any(ExerciseItemDto.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/exercise-items")
+        mockMvc.perform(post("/api/v1/exercise-items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -115,7 +115,7 @@ class ExerciseItemControllerTest {
         when(exerciseItemService.addItem(any(ExerciseItemDto.class)))
                 .thenThrow(new DuplicateExerciseItemException("Exercise item metCode already exists: RUNNING_GENERAL"));
 
-        mockMvc.perform(post("/api/exercise-items")
+        mockMvc.perform(post("/api/v1/exercise-items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -127,22 +127,22 @@ class ExerciseItemControllerTest {
     void addExerciseItem_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
         ExerciseItemDto request = new ExerciseItemDto();
 
-        mockMvc.perform(post("/api/exercise-items")
+        mockMvc.perform(post("/api/v1/exercise-items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation error"))
-                .andExpect(jsonPath("$.path").value("/api/exercise-items"));
+                .andExpect(jsonPath("$.path").value("/api/v1/exercise-items"));
     }
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void getAllItems_whenPageSizeTooLarge_returnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/exercise-items")
+        mockMvc.perform(get("/api/v1/exercise-items")
                         .param("size", "101"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation error"))
-                .andExpect(jsonPath("$.path").value("/api/exercise-items"));
+                .andExpect(jsonPath("$.path").value("/api/v1/exercise-items"));
     }
 
     @Test
@@ -150,7 +150,7 @@ class ExerciseItemControllerTest {
     void updateExerciseItem_whenNotAdmin_returnsForbidden() throws Exception {
         ExerciseItemDto request = buildRequest();
 
-        mockMvc.perform(put("/api/exercise-items/1")
+        mockMvc.perform(put("/api/v1/exercise-items/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
@@ -159,7 +159,7 @@ class ExerciseItemControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void deleteExerciseItem_whenNotAdmin_returnsForbidden() throws Exception {
-        mockMvc.perform(delete("/api/exercise-items/1"))
+        mockMvc.perform(delete("/api/v1/exercise-items/1"))
                 .andExpect(status().isForbidden());
     }
 
@@ -168,7 +168,7 @@ class ExerciseItemControllerTest {
     void deleteExerciseItem_whenAdmin_returnsNoContent() throws Exception {
         doNothing().when(exerciseItemService).deleteItem(1L);
 
-        mockMvc.perform(delete("/api/exercise-items/1"))
+        mockMvc.perform(delete("/api/v1/exercise-items/1"))
                 .andExpect(status().isNoContent());
     }
 
@@ -180,3 +180,4 @@ class ExerciseItemControllerTest {
         return request;
     }
 }
+

@@ -2,13 +2,16 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,9 +39,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping({"/api/admin/products", "/api/v1/admin/products"})
+@RequestMapping("/api/v1/admin/products")
 @RequiredArgsConstructor
 @Validated
 @PreAuthorize("hasRole('ADMIN')")
@@ -47,6 +51,31 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminFoodProductReviewController {
 
     private final FoodProductReviewService foodProductReviewService;
+    private final FoodProductImportService foodProductImportService;
+
+    @PostMapping(value = "/import", consumes = "multipart/form-data")
+    @Operation(
+            summary = "Import curated food products from CSV",
+            description = "Imports or updates food products by normalized barcode. CURATED_ADMIN marks reviewed admin CSV rows as verified. RAW_EXTERNAL keeps bulk external data in Open Food Facts review state. Required CSV headers: barcode and name. Optional headers include calories, protein, fat, carbs, fiber, sugar, sodium, serving_size_grams, serving_unit, image_url, external_image_url, display_image_url, allergens, and nutri_score."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "CSV import completed."),
+            @ApiResponse(responseCode = "400", description = "CSV file is missing or invalid."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodProductImportResultDto> importProducts(
+            @Parameter(description = "CSV file containing curated food products.")
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Controls whether the CSV is curated admin data or raw external bulk data.", example = "RAW_EXTERNAL")
+            @RequestParam(defaultValue = "CURATED_ADMIN") FoodProductImportMode importMode,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductImportService.importCsv(
+                file,
+                userDetails == null ? null : userDetails.getUsername(),
+                importMode
+        ));
+    }
 
     @GetMapping("/review")
     @Operation(

@@ -117,17 +117,44 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserProfileDto updateCurrentUser(UserProfileDto updatedUserDto, String email) {
         return userRepository.findByEmail(email).map(existingUser -> {
+            boolean goalRecalculationRecommended = false;
             if (updatedUserDto.getName() != null) existingUser.setName(updatedUserDto.getName());
-            if (updatedUserDto.getGender() != null) existingUser.setGender(updatedUserDto.getGender());
-            if (updatedUserDto.getAge() != null) existingUser.setAge(updatedUserDto.getAge());
-            if (updatedUserDto.getHeight() != null) existingUser.setHeight(updatedUserDto.getHeight());
-            if (updatedUserDto.getWeight() != null) existingUser.setWeight(updatedUserDto.getWeight());
+            if (updatedUserDto.getGender() != null) {
+                goalRecalculationRecommended |= valueChanged(existingUser.getGender(), updatedUserDto.getGender());
+                existingUser.setGender(updatedUserDto.getGender());
+            }
+            if (updatedUserDto.getAge() != null) {
+                goalRecalculationRecommended |= valueChanged(existingUser.getAge(), updatedUserDto.getAge());
+                existingUser.setAge(updatedUserDto.getAge());
+            }
+            if (updatedUserDto.getHeight() != null) {
+                goalRecalculationRecommended |= valueChanged(existingUser.getHeight(), updatedUserDto.getHeight());
+                existingUser.setHeight(updatedUserDto.getHeight());
+            }
+            if (updatedUserDto.getWeight() != null) {
+                goalRecalculationRecommended |= valueChanged(existingUser.getWeight(), updatedUserDto.getWeight());
+                existingUser.setWeight(updatedUserDto.getWeight());
+            }
+            if (updatedUserDto.getBodyFat() != null) {
+                goalRecalculationRecommended |= valueChanged(existingUser.getBodyFatPercentage(), updatedUserDto.getBodyFat());
+                existingUser.setBodyFatPercentage(updatedUserDto.getBodyFat());
+            }
+            if (updatedUserDto.getBmi() != null) existingUser.setBmi(updatedUserDto.getBmi());
 
             // DTO'dan gelen verilerle entity'yi güncelledikten sonra kaydet
             UserEntity updatedUser = userRepository.save(existingUser);
             // Kaydedilen entity'yi DTO'ya dönüştürerek döndür
-            return mapToUserProfileDto(updatedUser);
+            UserProfileDto response = mapToUserProfileDto(updatedUser);
+            response.setGoalRecalculationRecommended(goalRecalculationRecommended);
+            if (goalRecalculationRecommended) {
+                response.setGoalRecalculationReason("Profile metrics that affect calorie calculation changed.");
+            }
+            return response;
         }).orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+    }
+
+    private boolean valueChanged(Object currentValue, Object newValue) {
+        return currentValue == null ? newValue != null : !currentValue.equals(newValue);
     }
 
     @Override

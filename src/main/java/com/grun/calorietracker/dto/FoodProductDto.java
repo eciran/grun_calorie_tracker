@@ -104,4 +104,7 @@ public class FoodProductDto {
 
     @Schema(description = "Nutri-Score grade when available.", example = "e")
     private String nutriScore;
+
+    @Schema(description = "Whether this product was manually created by the authenticated user.", example = "false")
+    private Boolean custom;
 }

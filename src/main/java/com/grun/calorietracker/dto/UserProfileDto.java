@@ -40,4 +40,13 @@ public class UserProfileDto {
     @Schema(description = "Latest calculated body fat percentage.", example = "19.2")
     private Double bodyFat;
 
+    @Schema(
+            description = "Whether the mobile app should ask the user to recalculate and confirm calorie goals after profile changes.",
+            example = "true"
+    )
+    private Boolean goalRecalculationRecommended;
+
+    @Schema(description = "Reason why goal recalculation is recommended.", example = "Profile metrics that affect calorie calculation changed.")
+    private String goalRecalculationReason;
+
 }

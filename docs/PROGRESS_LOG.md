@@ -2156,3 +2156,544 @@ Kod ve teknik uygulama İngilizce standartlara göre yazılır; proje notları T
 - Sonuc: 13 test gecti, 0 failure, 0 error.
 - Komut: `.\mvnw.cmd clean test`
 - Sonuc: 138 test gecti, 0 failure, 0 error.
+
+## 2026-05-19 - Mobil Onboarding Flow, Goal Read Endpoint ve Profile Update Guclendirme
+
+### Yapilanlar
+
+- Mobil onboarding icin tek request ile calisan yeni endpoint eklendi:
+  - `POST /api/v1/onboarding/complete`
+  - Legacy alias: `POST /api/onboarding/complete`
+- Onboarding complete akisi tek transaction icinde:
+  - kullanici profilini gunceller,
+  - hedef bilgisine gore kalori/makro hedefini hesaplar,
+  - hesaplanan hedefi DB'ye kaydeder,
+  - mobil UI icin profile, saved goal ve calculation response doner.
+- Yeni DTO'lar eklendi:
+  - `OnboardingCompleteRequestDto`
+  - `OnboardingCompleteResponseDto`
+- Yeni servis eklendi:
+  - `OnboardingService`
+  - `OnboardingServiceImpl`
+- Goal okuma endpointi eklendi:
+  - `GET /api/v1/goals/me`
+  - Legacy alias: `GET /api/goals/me`
+- Kayitli goal yoksa endpoint `204 No Content` doner.
+- Profile update akisi `bodyFat` ve `bmi` alanlarini da guncelleyebilir hale getirildi.
+- Onboarding request validation mesajlari TR/EN message bundle icine eklendi.
+
+### Karar
+
+- Register/login sonrasi mobil uygulama kullaniciyi onboarding complete endpointine yonlendirecek.
+- Profil ve hedef setup'i daginik endpointlerle tamamlanmak zorunda kalmayacak.
+- Kalori/makro hedefleri client tarafindan girilmeyecek; backend hesaplayip kaydedecek.
+- Mobil ana ekran hedefleri okumak icin `GET /api/v1/goals/me` kullanabilecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=OnboardingControllerTest,OnboardingServiceImplTest,UserGoalControllerTest,UserGoalServiceImplTest,UserControllerTest,UserServiceImplTest" test`
+- Sonuc: 29 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 146 test gecti, 0 failure, 0 error.
+
+## 2026-05-20 - Dashboard Ana Ekran Akisi ve Reklam Karari
+
+### Yapilanlar
+
+- Dashboard daily summary response mobil ana ekran icin genisletildi:
+  - `netCalories`
+  - `calorieProgressPercent`
+  - `remainingProtein`
+  - `remainingFat`
+  - `remainingCarbs`
+  - `proteinProgressPercent`
+  - `fatProgressPercent`
+  - `carbsProgressPercent`
+  - `hasActiveGoal`
+  - `onboardingCompleted`
+- Dashboard artik onboarding sonrasi kullanicinin ana ekranda ihtiyac duyacagi hedef, kalan kalori, net kalori ve makro ilerleme alanlarini tek response icinde doner.
+- Local Swagger demo flow dokumani yeni onboarding ve dashboard akisini icerecek sekilde guncellendi.
+
+### Urun Kararlari
+
+- Reklam yonetimi ana gelir modeli olarak ele alinmayacak.
+- Reklam modulu dusuk oncelikli kalacak.
+- Standart kullanici icin reklam kullanilacaksa:
+  - sinirli ve kontrollu olacak,
+  - kritik log/arama/kalori goruntuleme akislarini bolmeyecek,
+  - tam ekran interstitial varsayilan strateji olmayacak,
+  - premium kullanici deneyimi reklamsiz olacak.
+- Ana gelir modeli icin freemium/premium paket daha mantikli kabul edildi.
+- Profilde kilo, boy, yas veya cinsiyet degisirse kayitli hedef otomatik degistirilmeyecek.
+- Bu durumda mobil uygulama kullaniciya hedefi yeniden hesaplatma ve onaylama akisi sunmali.
+- Backend tarafinda `calculate` ve `save` ayrimi korundugu icin bu onayli yeniden hesaplama akisina hazir durumdayiz.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=DashboardServiceImplTest,DashboardControllerTest,OnboardingControllerTest,OnboardingServiceImplTest,UserGoalServiceImplTest,UserGoalControllerTest" test`
+- Sonuc: 24 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 147 test gecti, 0 failure, 0 error.
+- PostgreSQL ve lokal API uzerinde canli test yapildi.
+- Test edilen akistan donen ana degerler:
+  - `onboardingCompleted=true`
+  - `goalCalories=2242`
+  - `dashboardHasActiveGoal=true`
+  - `dashboardTargetCalories=2242`
+  - `dashboardRemainingCalories=2242.0`
+  - `dashboardNetCalories=0.0`
+
+## 2026-05-20 - Profile Goal Recalculation Signal
+
+### Yapilanlar
+
+- `UserProfileDto` response'una mobil uygulama icin iki yeni alan eklendi:
+  - `goalRecalculationRecommended`
+  - `goalRecalculationReason`
+- `PUT /api/v1/users/me` ile kalori hesabini etkileyen profil alanlari degistiginde backend artik sadece yeniden hesaplama onerisi doner:
+  - `gender`
+  - `age`
+  - `height`
+  - `weight`
+  - `bodyFat`
+- Kayitli goal otomatik degistirilmez.
+- Onboarding complete akisi ayni transaction icinde goal hesaplayip kaydettigi icin response icinde `goalRecalculationRecommended=false` doner.
+
+### Karar
+
+- Profil degisikligi hedef kaloriyi sessizce degistirmeyecek.
+- Mobil uygulama, bu sinyali gordugunde kullaniciya hedefleri yeniden hesaplatma/onaylama akisi sunacak.
+- Kullanici onay verdikten sonra mevcut `calculate` ve `save` goal akisi kullanilacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=UserServiceImplTest,UserControllerTest,OnboardingServiceImplTest,OnboardingControllerTest,DashboardServiceImplTest,DashboardControllerTest" test`
+- Sonuc: 15 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 147 test gecti, 0 failure, 0 error.
+- PostgreSQL ve lokal API uzerinde canli test:
+  - `PUT /api/v1/users/me` ile `weight=83.0` gonderildi.
+  - Response: `goalRecalculationRecommended=true`.
+  - Kayitli goal kalorisi degismedi: `beforeGoalCalories=2242`, `afterGoalCalories=2242`.
+  - Demo user agirligi tekrar `82.0` degerine alindi.
+
+## 2026-05-20 - Mobile App Startup State Endpoint
+
+### Yapilanlar
+
+- Mobil login sonrasi ilk routing kararini kolaylastirmak icin yeni endpoint eklendi:
+  - `GET /api/v1/app/startup`
+  - Legacy alias: `GET /api/app/startup`
+- Yeni DTO eklendi:
+  - `AppStartupDto`
+- Yeni servis eklendi:
+  - `AppStartupService`
+  - `AppStartupServiceImpl`
+- Response icinde su bilgiler tek seferde doner:
+  - `profile`
+  - `goal`
+  - `profileComplete`
+  - `hasActiveGoal`
+  - `onboardingCompleted`
+  - `emailVerified`
+  - `dashboardReady`
+  - `nextStep`
+
+### Karar
+
+- Mobil uygulama login/register sonrasi once `GET /api/v1/app/startup` cagiracak.
+- `nextStep=VERIFY_EMAIL` ise email verification ekrani/uyarisi gosterilecek.
+- `nextStep=COMPLETE_ONBOARDING` ise onboarding complete akisi baslatilacak.
+- `nextStep=OPEN_DASHBOARD` ise ana dashboard acilabilecek.
+- Dashboard endpoint'i gunluk takip verisi icin kalacak; startup endpoint'i routing/state kararindan sorumlu olacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AppStartupServiceImplTest,AppStartupControllerTest" test`
+- Sonuc: 4 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 151 test gecti, 0 failure, 0 error.
+
+## 2026-05-20 - Email Verification Login Error Semantics
+
+### Yapilanlar
+
+- Dogrulanmamis email ile login denemesi icin ozel exception eklendi:
+  - `EmailNotVerifiedException`
+- Global error handler icinde bu durum `403 Forbidden` olarak doner hale getirildi.
+- Login Swagger dokumani `403 Email address is not verified` response'unu gosterir hale getirildi.
+- EN/TR message bundle icine email dogrulanmadi hata basligi eklendi.
+
+### Karar
+
+- Email dogrulama zorunlu bir hesap durumu olarak ele alinacak.
+- Dogrulanmamis email ile login teknik olarak hatali request degil; hesap dogrulanmadigi icin erisim engeli olarak `403` donecek.
+- Mobil uygulama bu durumda resend/confirm email verification akisini gosterecek.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AuthControllerTest,AppStartupServiceImplTest,AppStartupControllerTest" test`
+- Sonuc: 19 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 153 test gecti, 0 failure, 0 error.
+
+## 2026-05-20 - Food Database ve Subscription Oncelik Karari
+
+### Karar
+
+- Gercek mail provider, production deployment, privacy/data delete ve production security sertlestirme ilerleyen fazlara birakildi.
+- Frontend/mobile tasarim kullanici tarafinda paralel ilerleyebilir; backend bu surecte flow ve veri omurgasini tamamlamaya odaklanacak.
+- Yakin odak iki is kolu olarak belirlendi:
+  - Food database import ve buyutme stratejisi.
+  - Subscription/premium paket modeli.
+- Food database icin hedef:
+  - kendi DB'mizde en az 10.000 temel urun bulunmasi,
+  - lokal DB'de olmayan urunlerde Open Food Facts fallback akisinin devam etmesi,
+  - admin review/image kalite akisinin korunmasi.
+- Subscription icin hedef:
+  - once paket/entitlement modeli netlestirilecek,
+  - payment provider entegrasyonu daha sonra ele alinacak.
+
+## 2026-05-20 - Admin Food Product CSV Import
+
+### Yapilanlar
+
+- Admin tarafinda CSV ile toplu food product import endpoint'i eklendi:
+  - `POST /api/v1/admin/products/import`
+  - Legacy alias: `POST /api/admin/products/import`
+- Yeni DTO'lar eklendi:
+  - `FoodProductImportResultDto`
+  - `FoodProductImportErrorDto`
+- Yeni servis eklendi:
+  - `FoodProductImportService`
+  - `FoodProductImportServiceImpl`
+- Import davranisi:
+  - CSV icin `barcode` ve `name` header'lari zorunlu.
+  - `productName` ve `product_name` alternatif isim header'i olarak kabul edilir.
+  - Barcode normalize edilir.
+  - Mevcut `normalizedBarcode` bulunursa yeni duplicate olusturulmaz, mevcut urun guncellenir.
+  - Yeni urunler `ADMIN_IMPORT` data source ile kaydedilir.
+  - Import edilen urunler varsayilan olarak `VERIFIED` kabul edilir.
+  - Display image varsa image status `APPROVED`, yoksa `NEEDS_REVIEW` olur.
+  - Hatali satirlar import sonucunda `errors` listesine yazilir.
+
+### Desteklenen CSV Alanlari
+
+- `barcode`
+- `name`, `productName`, `product_name`
+- `calories`
+- `protein`
+- `fat`
+- `carbs`
+- `fiber`
+- `sugar`
+- `sodium`
+- `serving_size_grams`
+- `serving_unit`
+- `image_url`
+- `external_image_url`
+- `display_image_url`
+- `image_source`
+- `image_status`
+- `allergens`
+- `nutri_score`
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductImportServiceImplTest,AdminFoodProductReviewControllerTest" test`
+- Sonuc: 10 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 156 test gecti, 0 failure, 0 error.
+
+## 2026-05-21 - Food Database Aktif Odak Karari
+
+### Karar
+
+- Subscription ve AI quota implementasyonu bu fazda aktif sprint disina alindi.
+- Backend gelistirme odagi food database'i kontrollu sekilde buyutmek olarak guncellendi.
+- Yakin hedef kendi DB'mize ilk etapta en az 10.000 kullanilabilir food product kaydi almaktir.
+- Open Food Facts barkod fallback akisi korunacak; toplu urun cekme icin API'yi tek tek zorlamak yerine bulk export veya normalize edilmis CSV akisi tercih edilecek.
+- Mevcut admin CSV import endpoint'i ilk toplu yukleme yolu olarak kullanilacak.
+
+### Siradaki Teknik Adimlar
+
+1. Toplu veri kaynagi ve alinacak kolonlari netlestir.
+2. Kaynak veriyi GRun CSV import kolonlarina normalize et.
+3. Pilot CSV ile lokal PostgreSQL importunu dogrula.
+4. +10.000 urunluk ilk kontrollu importu calistir.
+5. Duplicate, verification status, image status ve review queue sonucunu kontrol et.
+
+## 2026-05-21 - Raw External Food Import Pilot
+
+### Yapilanlar
+
+- Admin food CSV import akisi iki moda ayrildi:
+  - `CURATED_ADMIN`
+  - `RAW_EXTERNAL`
+- Varsayilan import modu `CURATED_ADMIN` olarak korundu.
+- Open Food Facts veya benzeri ham dis veri icin `RAW_EXTERNAL` modu eklendi.
+- `RAW_EXTERNAL` import edilen urunleri:
+  - `dataSource=OPEN_FOOD_FACTS`
+  - `verificationStatus=RAW_IMPORTED`
+  - `imageSource=OPEN_FOOD_FACTS`
+  - `imageStatus=NEEDS_REVIEW`
+  durumunda saklar.
+- Ham dis veri importu existing curated/admin/manual urun metadata'sini dusurmez.
+- Pilot CSV eklendi:
+  - `docs/samples/open-food-facts-pilot-import.csv`
+
+### Canli Pilot Akis
+
+- Lokal PostgreSQL ve local API uzerinde 3 satirlik pilot CSV import edildi.
+- Import sonucu:
+  - `totalRows=3`
+  - `insertedRows=2`
+  - `updatedRows=1`
+  - `skippedRows=0`
+- Import edilen `Coca-Cola Original Taste` urunu standart demo kullanici akisinda dogrulandi:
+  - product search ile bulundu,
+  - barcode lookup ile local kayit dondu,
+  - raw review state korundu: `RAW_IMPORTED` ve `NEEDS_REVIEW`,
+  - `SERVING` log ile `330` gram normalize edildi,
+  - gunluk stats kalorisi `138.6` olarak hesaplandi.
+- Admin review queue kontrolunde raw imported ve image review bekleyen kayitlar listelendi.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodProductImportServiceImplTest,AdminFoodProductReviewControllerTest,FoodItemControllerTest,FoodItemServiceImplTest,FoodItemServiceSearchIntegrationTest,FoodLogsControllerTest,FoodLogsServiceImplTest" test`
+- Sonuc: 39 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 158 test gecti, 0 failure, 0 error.
+
+## 2026-05-21 - API V1 Tek Kontrat Karari
+
+### Yapilanlar
+
+- REST controller base pathleri tek versioned path ailesine indirildi.
+- Unversioned `/api/...` alias'lari controller mappinglerinden kaldirildi.
+- Swagger artik endpointleri yalnizca `/api/v1/...` altinda gosterecek.
+- Security public auth matcher'i sadece `/api/v1/auth/**` icin tutuldu.
+- Test ve aktif kullanim dokumanlari `/api/v1/...` pathlerine guncellendi.
+
+### Karar
+
+- Mobil client ve Swagger kontrati `/api/v1/...` olacak.
+- Proje henuz public client bagimliligi olusturmadan once legacy alias tasimayacak.
+- Ileride kirici degisiklik gerekirse yeni path ailesi `/api/v2/...` olarak acilacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=AdminDashboardControllerTest,AdminFoodProductReviewControllerTest,AdminUserControllerTest,AppStartupControllerTest,AuthControllerTest,DashboardControllerTest,ExerciseItemControllerTest,ExerciseLogsControllerTest,FoodItemControllerTest,FoodLogsControllerTest,OnboardingControllerTest,ProgressLogControllerTest,UserControllerTest,UserGoalControllerTest" test`
+- Sonuc: 73 controller testi gecti, 0 failure, 0 error.
+- Canli OpenAPI kontrolu:
+  - `totalPaths=39`
+  - `v1Paths=39`
+  - `legacyPaths=0`
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 158 test gecti, 0 failure, 0 error.
+
+## 2026-05-21 - Open Food Facts Normalize Script
+
+### Yapilanlar
+
+- Open Food Facts bulk export verisini GRun raw import CSV formatina ceviren script eklendi:
+  - `scripts/convert-open-food-facts-export.ps1`
+- Script varsayilan olarak tab-separated OFF export dosyasi okur.
+- Opsiyonel filtreler eklendi:
+  - `-RequireCalories`
+  - `-RequireMacroData`
+  - `-Limit`
+  - `-Delimiter`
+- Script su davranislari uygular:
+  - `code` alanini GRun `barcode` alanina map eder,
+  - `product_name` alanini GRun `name` alanina map eder,
+  - enerji ve makro alanlarini 100 gram bazli import kolonlarina cevirir,
+  - batch icindeki duplicate barcode kayitlarini atlar,
+  - barcode veya urun adi olmayan kayitlari atlar,
+  - `RAW_EXTERNAL` import endpoint'i icin BOM'suz UTF-8 CSV uretir.
+- OFF kaynak ornegi eklendi:
+  - `docs/samples/open-food-facts-export-sample.tsv`
+- `DATA_SEED_STRATEGY.md` icine script kullanim komutu eklendi.
+
+### Dogrulama
+
+- Ornek OFF TSV dosyasi script ile normalize edildi.
+- Script sonucu:
+  - `rowsRead=4`
+  - `rowsWritten=3`
+  - `rowsSkipped=1`
+- Uretilen CSV header'i BOM'suz dogrulandi.
+- Uretilen CSV lokal API'de `POST /api/v1/admin/products/import?importMode=RAW_EXTERNAL` ile import edildi.
+- Import sonucu:
+  - `totalRows=3`
+  - `updatedRows=3`
+  - `skippedRows=0`
+  - `errors=0`
+
+### Siradaki Adim
+
+- Gercek Open Food Facts bulk export dosyasindan once 100-500 urunluk filtreli batch uret.
+- Bu batch'i local DB'ye import edip review queue ve kullanici search kalitesini kontrol et.
+- Batch kalitesi yeterliyse ayni hatla +10.000 urunluk ilk import dosyasini uret.
+
+## 2026-05-21 - Gercek Open Food Facts Batch Pilot
+
+### Yapilanlar
+
+- Open Food Facts exportunun ilk kontrollu gercek parcasi uzerinden 500 urunluk GRun CSV batch'i uretildi.
+- Batch lokal API'ye ham dis veri modunda import edildi:
+  - `POST /api/v1/admin/products/import?importMode=RAW_EXTERNAL`
+- Script kalite filtreleri 10.000 urunluk ilk batch oncesi genisletildi:
+  - `-RequireImage`
+  - `-RequireKnownNutriScore`
+- Bu filtreler mevcut kalori ve makro filtreleriyle birlikte dusuk kaliteli ham urun oranini azaltmak icin kullanilacak.
+
+### Canli Kontrol
+
+- 500 satirlik gercek OFF batch import sonucu:
+  - `totalRows=500`
+  - `insertedRows=500`
+  - `updatedRows=0`
+  - `skippedRows=0`
+  - `errors=0`
+- Standart demo kullanici akisi dogrulandi:
+  - `Pinto` aramasi `Pinto Bean` urununu dondurdu,
+  - `00001001` barcode lookup `pasta` urununu dondurdu,
+  - barcode sonucu `RAW_IMPORTED` ve `NEEDS_REVIEW` durumunu korudu.
+- Admin review queue kontrolu:
+  - `RAW_IMPORTED` ve `NEEDS_REVIEW` toplam sonucu `504` oldu.
+
+### Kalite Gozlemi
+
+- Ilk 500 urunluk ham batch icinde OFF gorseli olmayan urunler ve `nutri_score=unknown` urunler goruldu.
+- Bu batch teknik import hattini dogruladi; ilk 10.000 urunluk batch icin daha secici filtre kullanilacak.
+
+## 2026-05-21 - Gunluk Food Tracking Akisi Guclendirme
+
+### Yapilanlar
+
+- Food log duzeltme endpoint'i eklendi:
+  - `PUT /api/v1/food-logs/{id}`
+- Duzeltme akisi kullaniciya ait kayitta su alanlari yeniden hesaplayarak gunceller:
+  - urun,
+  - porsiyon miktari ve birimi,
+  - normalize gram,
+  - ogun tipi,
+  - log tarihi.
+- `mealType` kontrati netlestirildi:
+  - zorunlu hale getirildi,
+  - kabul edilen degerler `BREAKFAST`, `LUNCH`, `DINNER`, `SNACK`,
+  - servis tarafinda buyuk harfe normalize edilir.
+- Food log gecmis endpoint'i eklendi:
+  - `GET /api/v1/food-logs/history?start=...&end=...`
+  - end date istemci kontratinda inclusive davranir.
+- Dashboard daily summary mobil ana ekran icin genisletildi:
+  - secilen gunun `foodLogs` listesi response'a eklendi,
+  - secilen gunun `exerciseLogs` listesi response'a eklendi.
+- Food log get/delete not-found davranisi generic 500 yerine kontrollu not-found exception yoluna alindi.
+
+### Sonuc
+
+- Kullanici urun bulduktan sonra ogune kayit ekleyebilir, yanlis kaydi duzeltebilir veya silebilir.
+- Dashboard secilen gunun toplamlarini ve ayni gunun diary kayitlarini tek response'ta tasir.
+- Gecmis gun diary kayitlari tarih araligiyla cekilip edit/delete akisina baglanabilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodLogsServiceImplTest,FoodLogsControllerTest,DashboardServiceImplTest,DashboardControllerTest" test`
+- Sonuc: 20 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 163 test gecti, 0 failure, 0 error.
+- Canli OpenAPI kontrolunde su kontratlar goruldu:
+  - `PUT /api/v1/food-logs/{id}`
+  - `GET /api/v1/food-logs/history`
+  - `DailySummaryDto.foodLogs`
+  - `DailySummaryDto.exerciseLogs`
+
+## 2026-05-21 - Food Tracking Hiz Kisayollari
+
+### Yapilanlar
+
+- Kullaniciya ozel son kullanilan urun endpoint'i eklendi:
+  - `GET /api/v1/products/recent?limit=10`
+- Son kullanilan urunler food log tarihine gore distinct urun listesi olarak doner.
+- `REJECTED` katalog urunleri recent sonucundan cikarilir.
+- Mevcut `user_favorites` tablosu kullanici akisi icin acildi:
+  - `GET /api/v1/products/favorites`
+  - `POST /api/v1/products/{id}/favorite`
+  - `DELETE /api/v1/products/{id}/favorite`
+- Favorite add davranisi idempotent tutuldu; ayni urune tekrar favorite ekleme duplicate olusturmaz.
+- Favorite listesi `REJECTED` urunleri gizler, null veya kullanilabilir verification status kayitlarini dondurur.
+- Gunluk ogun ozet endpoint'i eklendi:
+  - `GET /api/v1/food-logs/meals?date=...`
+- Ogun response'u her gun icin su gruplari dondurur:
+  - `BREAKFAST`
+  - `LUNCH`
+  - `DINNER`
+  - `SNACK`
+- Her ogun grubunda log listesi ve kalori/protein/yag/karbonhidrat toplami hesaplanir.
+
+### Sonuc
+
+- Mobil food add akisi urun aramadan son kullanilan veya favori urun secimine baglanabilir.
+- Gunluk food diary ekrani ogun bazli listeleri ve ogun toplamlarini backend'den hazir alabilir.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodItemControllerTest,UserProductLibraryServiceImplTest,FoodLogsControllerTest,FoodLogsServiceImplTest" test`
+- Sonuc: 26 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 169 test gecti, 0 failure, 0 error.
+- Canli OpenAPI kontrolunde su endpointler goruldu:
+  - `GET /api/v1/products/recent`
+  - `GET /api/v1/products/favorites`
+  - `GET /api/v1/food-logs/meals`
+- Demo kullanici canli kontrolunde recent listesi urun dondurdu ve meal summary response'u dort ogun grubunu dondurdu.
+
+## 2026-05-22 - Copy Meal ve Custom Food Akisi
+
+### Yapilanlar
+
+- Ogun kopyalama endpoint'i eklendi:
+  - `POST /api/v1/food-logs/copy-meal`
+- Copy request su alanlari alir:
+  - `sourceDate`
+  - `targetDate`
+  - `mealType`
+- Kaynak gun ve ogundeki food loglar hedef gune kopyalanir:
+  - urun referansi,
+  - porsiyon miktari ve birimi,
+  - normalize gram,
+  - gun icindeki saat bilgisi korunur.
+- Kopyalanan kayitlar urun kullanim sayacini normal food log gibi artirir.
+- Kullaniciya ait manual/custom food endpointleri eklendi:
+  - `POST /api/v1/products/custom`
+  - `GET /api/v1/products/custom`
+- Custom food sahipligi icin migration eklendi:
+  - `V15__add_custom_food_owner.sql`
+  - `food_items.created_by_user_id`
+- Custom food kurallari:
+  - `dataSource=MANUAL`
+  - `verificationStatus=VERIFIED`
+  - `isCustom=true`
+  - olusturan kullaniciya bagli sahiplik
+  - global product search sonucundan gizli
+  - food log ekleme ve copy flow icinde sadece sahibi tarafindan kullanilabilir.
+
+### Food Diary Note Degerlendirmesi
+
+- `daily note` ve `meal note` ihtiyaci degerlendirildi.
+- `ProgressLog.note` food diary icin yeterli kabul edilmedi; baglami farkli.
+- Mobil diary UI netlesmeden bu turda yeni note DB modeli eklenmedi.
+- Ihtiyac dogrulanirsa once gun bazli food diary note modeli, sonra gerekiyorsa meal note modeli ele alinacak.
+
+### Dogrulama
+
+- Komut: `.\mvnw.cmd "-Dtest=FoodLogsServiceImplTest,FoodLogsControllerTest,FoodItemControllerTest,UserProductLibraryServiceImplTest,FoodItemServiceImplTest" test`
+- Sonuc: 41 test gecti, 0 failure, 0 error.
+- Komut: `.\mvnw.cmd clean test`
+- Sonuc: 173 test gecti, 0 failure, 0 error.
+- Canli OpenAPI kontrolunde su kontratlar goruldu:
+  - `POST /api/v1/food-logs/copy-meal`
+  - `POST /api/v1/products/custom`
+  - `GET /api/v1/products/custom`

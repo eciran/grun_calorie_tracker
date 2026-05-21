@@ -1,9 +1,11 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.service.FoodItemService;
+import com.grun.calorietracker.service.UserProductLibraryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -18,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +33,9 @@ class FoodItemControllerTest {
 
     @MockBean
     private FoodItemService foodItemService;
+
+    @MockBean
+    private UserProductLibraryService userProductLibraryService;
 
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
@@ -45,7 +51,7 @@ class FoodItemControllerTest {
 
         when(foodItemService.searchFoodItems(any(), eq(0), eq(25))).thenReturn(page);
 
-        mockMvc.perform(get("/api/products/search")
+        mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "unknown")
                         .param("page", "0")
                         .param("size", "25"))
@@ -77,7 +83,7 @@ class FoodItemControllerTest {
 
         when(foodItemService.searchFoodItems(any(), eq(0), eq(25))).thenReturn(page);
 
-        mockMvc.perform(get("/api/products/search")
+        mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "nutella"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(1L))
@@ -97,10 +103,60 @@ class FoodItemControllerTest {
 
         when(foodItemService.getOrSaveFoodItemByBarcode("3017620422003")).thenReturn(foodItem);
 
-        mockMvc.perform(get("/api/products/barcode/3017620422003"))
+        mockMvc.perform(get("/api/v1/products/barcode/3017620422003"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1L))
                 .andExpect(jsonPath("$.barcode").value("3017620422003"))
                 .andExpect(jsonPath("$.productName").value("Nutella"));
     }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getRecentProducts_returnsCurrentUserProducts() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(3L);
+        product.setProductName("Greek yogurt");
+        when(userProductLibraryService.getRecentProducts("user@test.com", 10)).thenReturn(List.of(product));
+
+        mockMvc.perform(get("/api/v1/products/recent"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(3L))
+                .andExpect(jsonPath("$[0].productName").value("Greek yogurt"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void addFavoriteProduct_returnsFavoritedProduct() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(4L);
+        product.setProductName("Banana");
+        when(userProductLibraryService.addFavoriteProduct("user@test.com", 4L)).thenReturn(product);
+
+        mockMvc.perform(post("/api/v1/products/4/favorite"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(4L))
+                .andExpect(jsonPath("$.productName").value("Banana"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void createCustomFood_returnsOwnedManualProduct() throws Exception {
+        CustomFoodRequestDto request = new CustomFoodRequestDto();
+        request.setName("Homemade soup");
+        request.setCalories(80.0);
+        FoodProductDto product = new FoodProductDto();
+        product.setId(9L);
+        product.setProductName("Homemade soup");
+        product.setCustom(true);
+        when(userProductLibraryService.createCustomFood(eq("user@test.com"), any(CustomFoodRequestDto.class)))
+                .thenReturn(product);
+
+        mockMvc.perform(post("/api/v1/products/custom")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(9L))
+                .andExpect(jsonPath("$.custom").value(true));
+    }
 }
+

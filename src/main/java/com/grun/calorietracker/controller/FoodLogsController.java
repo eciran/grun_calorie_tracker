@@ -2,6 +2,8 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
+import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -28,7 +30,7 @@ import java.util.List;
 
 // Controller for managing food log operations
 @RestController
-@RequestMapping({"/api/food-logs", "/api/v1/food-logs"})
+@RequestMapping("/api/v1/food-logs")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Food Logs", description = "Authenticated meal logging and daily nutrition statistics.")
@@ -53,6 +55,40 @@ public class FoodLogsController {
         return ResponseEntity.ok(created);
     }
 
+    @PostMapping("/copy-meal")
+    @Operation(
+            summary = "Copy a meal to another day",
+            description = "Copies all owned food logs in one source meal to a target day while keeping each log's portion and time of day."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Meal food logs copied."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<FoodLogsDto>> copyMeal(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid FoodLogCopyMealRequestDto request) {
+        return ResponseEntity.ok(foodLogsService.copyMeal(userDetails.getUsername(), request));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(
+            summary = "Update a food log",
+            description = "Replaces the owned food log product, portion, meal category, and log date. Use this when a diary entry was logged with the wrong product, quantity, or day."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Food log updated."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Food log or product was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<FoodLogsDto> updateFoodLog(
+            @Parameter(description = "Food log id.", example = "1") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid FoodLogsDto dto) {
+        return ResponseEntity.ok(foodLogsService.updateFoodLog(id, dto, userDetails.getUsername()));
+    }
+
     @GetMapping
     @Operation(
             summary = "List food logs",
@@ -68,6 +104,54 @@ public class FoodLogsController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(),date);
         return ResponseEntity.ok(logs);
+    }
+
+    @GetMapping("/history")
+    @Operation(
+            summary = "List food log history by date range",
+            description = "Returns owned food diary entries between the supplied start and end dates. The end date is inclusive for client requests."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Food log history returned."),
+            @ApiResponse(responseCode = "400", description = "Date format or date range is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<FoodLogsDto>> getFoodLogHistory(
+            @Parameter(description = "History start date in ISO format.", example = "2026-05-01") @RequestParam String start,
+            @Parameter(description = "History end date in ISO format.", example = "2026-05-07") @RequestParam String end,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        LocalDate startDate = LocalDate.parse(start);
+        LocalDate endDate = LocalDate.parse(end);
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("History end date must not be before start date.");
+        }
+        return ResponseEntity.ok(foodLogsService.getFoodLogsHistory(
+                userDetails.getUsername(),
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay()
+        ));
+    }
+
+    @GetMapping("/meals")
+    @Operation(
+            summary = "Get daily food logs grouped by meal",
+            description = "Returns BREAKFAST, LUNCH, DINNER, and SNACK groups for one day with food logs and nutrition totals."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Meal summaries returned."),
+            @ApiResponse(responseCode = "400", description = "Date format is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<FoodLogMealSummaryDto>> getMealSummaries(
+            @Parameter(description = "Diary date in ISO format.", example = "2026-05-21")
+            @RequestParam String date,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        LocalDate targetDate = LocalDate.parse(date);
+        return ResponseEntity.ok(foodLogsService.getMealSummaries(
+                userDetails.getUsername(),
+                targetDate.atStartOfDay(),
+                targetDate.plusDays(1).atStartOfDay()
+        ));
     }
 
     // Get specific food log by id for user

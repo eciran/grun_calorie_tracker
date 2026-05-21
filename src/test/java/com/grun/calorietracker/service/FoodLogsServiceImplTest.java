@@ -1,6 +1,8 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
+import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
@@ -125,6 +127,122 @@ class FoodLogsServiceImplTest {
                 entity.getPortionUnit() == FoodPortionUnit.SERVING
                         && entity.getNormalizedPortionGrams().equals(100.0)
         ));
+    }
+
+    @Test
+    void updateFoodLog_recalculatesPortionAndNormalizesMealType() {
+        foodItem.setServingSizeGrams(60.0);
+        FoodLogsEntity existing = new FoodLogsEntity();
+        existing.setId(20L);
+        existing.setUser(user);
+        existing.setFoodItem(foodItem);
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(1.5);
+        dto.setPortionUnit(FoodPortionUnit.PIECE);
+        dto.setMealType("dinner");
+        dto.setLogDate(LocalDateTime.of(2026, 5, 20, 19, 0));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(20L, user)).thenReturn(Optional.of(existing));
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(foodLogsRepository.save(existing)).thenReturn(existing);
+
+        FoodLogsDto result = foodLogsService.updateFoodLog(20L, dto, "test@test.com");
+
+        assertEquals(FoodPortionUnit.PIECE, result.getPortionUnit());
+        assertEquals(90.0, result.getNormalizedPortionGrams());
+        assertEquals("DINNER", result.getMealType());
+        assertEquals(dto.getLogDate(), result.getLogDate());
+    }
+
+    @Test
+    void copyMeal_clonesSourceLogsToTargetDate() {
+        FoodLogsEntity source = new FoodLogsEntity();
+        source.setUser(user);
+        source.setFoodItem(foodItem);
+        source.setPortionSize(2.0);
+        source.setPortionUnit(FoodPortionUnit.SERVING);
+        source.setNormalizedPortionGrams(120.0);
+        source.setMealType("BREAKFAST");
+        source.setLogDate(LocalDateTime.of(2026, 5, 21, 7, 45));
+        FoodLogCopyMealRequestDto request = new FoodLogCopyMealRequestDto();
+        request.setSourceDate(LocalDate.of(2026, 5, 21));
+        request.setTargetDate(LocalDate.of(2026, 5, 22));
+        request.setMealType("breakfast");
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
+                user,
+                "BREAKFAST",
+                LocalDate.of(2026, 5, 21).atStartOfDay(),
+                LocalDate.of(2026, 5, 22).atStartOfDay()
+        )).thenReturn(List.of(source));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity saved = invocation.getArgument(0);
+            saved.setId(44L);
+            return saved;
+        });
+
+        List<FoodLogsDto> result = foodLogsService.copyMeal("test@test.com", request);
+
+        assertEquals(1, result.size());
+        assertEquals(LocalDateTime.of(2026, 5, 22, 7, 45), result.get(0).getLogDate());
+        assertEquals(120.0, result.get(0).getNormalizedPortionGrams());
+        verify(foodItemRepository).save(foodItem);
+    }
+
+    @Test
+    void getFoodLogsHistory_returnsOrderedDateRangeLogs() {
+        FoodLogsEntity entity = new FoodLogsEntity();
+        entity.setId(30L);
+        entity.setUser(user);
+        entity.setFoodItem(foodItem);
+        entity.setPortionSize(100.0);
+        entity.setPortionUnit(FoodPortionUnit.GRAM);
+        entity.setNormalizedPortionGrams(100.0);
+        entity.setMealType("LUNCH");
+        entity.setLogDate(LocalDateTime.of(2026, 5, 18, 12, 0));
+        LocalDateTime start = LocalDate.of(2026, 5, 18).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 20).atStartOfDay();
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of(entity));
+
+        List<FoodLogsDto> result = foodLogsService.getFoodLogsHistory("test@test.com", start, end);
+
+        assertEquals(1, result.size());
+        assertEquals("LUNCH", result.get(0).getMealType());
+        assertEquals(entity.getLogDate(), result.get(0).getLogDate());
+    }
+
+    @Test
+    void getMealSummaries_returnsAllMealBucketsAndTotals() {
+        FoodLogsEntity breakfast = new FoodLogsEntity();
+        breakfast.setUser(user);
+        breakfast.setFoodItem(foodItem);
+        breakfast.setPortionSize(150.0);
+        breakfast.setNormalizedPortionGrams(150.0);
+        breakfast.setMealType("BREAKFAST");
+        breakfast.setLogDate(LocalDateTime.of(2026, 5, 21, 8, 0));
+        foodItem.setCarbs(1.1);
+        foodItem.setFat(11.0);
+
+        LocalDateTime start = LocalDate.of(2026, 5, 21).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 22).atStartOfDay();
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of(breakfast));
+
+        List<FoodLogMealSummaryDto> result = foodLogsService.getMealSummaries("test@test.com", start, end);
+
+        assertEquals(4, result.size());
+        assertEquals("BREAKFAST", result.get(0).getMealType());
+        assertEquals(232.5, result.get(0).getTotalCalories());
+        assertEquals(19.5, result.get(0).getTotalProtein());
+        assertEquals(0.0, result.get(1).getTotalCalories());
     }
 
     @Test

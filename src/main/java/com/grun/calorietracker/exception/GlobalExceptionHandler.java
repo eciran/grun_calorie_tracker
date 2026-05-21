@@ -67,6 +67,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.FORBIDDEN, "error.access.denied", "Access denied", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleEmailNotVerified(EmailNotVerifiedException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.FORBIDDEN, "error.email.not-verified", "Email not verified", ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ProductNotFoundException.class)
     public ResponseEntity<ApiErrorResponseDto> handleProductNotFoundException(ProductNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "error.product.not-found", "Product not found", ex.getMessage(), request);

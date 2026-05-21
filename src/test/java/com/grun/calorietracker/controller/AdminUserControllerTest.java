@@ -37,7 +37,7 @@ class AdminUserControllerTest {
 
         when(userService.getAllUsers()).thenReturn(List.of(user));
 
-        mockMvc.perform(get("/api/admin/users/userList"))
+        mockMvc.perform(get("/api/v1/admin/users/userList"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].email").value("testuser@example.com"))
                 .andExpect(jsonPath("$[0].name").value("Test User"));
@@ -46,7 +46,8 @@ class AdminUserControllerTest {
     @Test
     @WithMockUser(username = "testuser@example.com", roles = "USER")
     void getAllUsers_whenNotAdmin_returnsForbidden() throws Exception {
-        mockMvc.perform(get("/api/admin/users/userList"))
+        mockMvc.perform(get("/api/v1/admin/users/userList"))
                 .andExpect(status().isForbidden());
     }
 }
+

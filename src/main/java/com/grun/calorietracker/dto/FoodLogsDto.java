@@ -2,7 +2,9 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
@@ -33,7 +35,9 @@ public class FoodLogsDto {
     @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double normalizedPortionGrams;
 
-    @Schema(description = "Meal category.", example = "BREAKFAST", allowableValues = {"BREAKFAST", "LUNCH", "DINNER", "SNACK"})
+    @NotBlank(message = "{validation.food-log.meal-type.required}")
+    @Pattern(regexp = "(?i)BREAKFAST|LUNCH|DINNER|SNACK", message = "{validation.food-log.meal-type.invalid}")
+    @Schema(description = "Meal category.", example = "BREAKFAST", allowableValues = {"BREAKFAST", "LUNCH", "DINNER", "SNACK"}, requiredMode = Schema.RequiredMode.REQUIRED)
     private String mealType;
 
     @NotNull(message = "{validation.food-log.log-date.required}")

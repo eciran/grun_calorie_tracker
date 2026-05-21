@@ -1,4 +1,4 @@
-# Product Catalog Admin Flow
+﻿# Product Catalog Admin Flow
 
 Bu dokuman food product catalog icin admin review surecinin sade operasyon akisini tanimlar.
 
@@ -25,7 +25,7 @@ GRun kendi urun katalog kalitesini zamanla artiracak. Open Food Facts gibi dis k
 ## Admin Is Akisi
 
 1. Imported urunleri listele:
-   - `GET /api/admin/products/review`
+   - `GET /api/v1/admin/products/review`
    - Varsayilan hedef: `RAW_IMPORTED + NEEDS_REVIEW`
 
 2. Urun detayini kontrol et:
@@ -55,11 +55,11 @@ GRun kendi urun katalog kalitesini zamanla artiracak. Open Food Facts gibi dis k
    - Uygun degilse `REJECTED`
 
 6. Duplicate kontrolu yap:
-   - `GET /api/admin/products/duplicates`
+   - `GET /api/v1/admin/products/duplicates`
    - Ayni normalized barcode grubundaki urunler incelenir.
 
 7. Duplicate merge uygula:
-   - `POST /api/admin/products/duplicates/merge`
+   - `POST /api/v1/admin/products/duplicates/merge`
    - Target urun korunur.
    - Food logs ve favorites target urune tasinir.
    - Duplicate urunler silinir.
@@ -78,3 +78,4 @@ GRun kendi urun katalog kalitesini zamanla artiracak. Open Food Facts gibi dis k
 - Admin review listesinde `dataSource`, `reviewPriority`, `usageCount` ve image status filtrelerinin UI tarafinda belirginlestirilmesi.
 - Gorsel kalitesi icin otomatik skor veya boyut kontrolu.
 - Urun review audit history modeli.
+

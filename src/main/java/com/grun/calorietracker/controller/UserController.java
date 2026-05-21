@@ -19,7 +19,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/users", "/api/v1/users"})
+@RequestMapping("/api/v1/users")
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Users", description = "Authenticated user's own profile and body composition operations.")
 public class UserController {

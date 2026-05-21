@@ -38,11 +38,15 @@ class DashboardControllerTest {
         summary.setConsumedCalories(1350.5);
         summary.setBurnedCalories(420.0);
         summary.setRemainingCalories(1469.5);
+        summary.setNetCalories(930.5);
+        summary.setCalorieProgressPercent(56.27);
         summary.setTotalExerciseMinutes(45);
+        summary.setHasActiveGoal(true);
+        summary.setOnboardingCompleted(true);
 
         when(dashboardService.getDailySummary("user@example.com", date)).thenReturn(summary);
 
-        mockMvc.perform(get("/api/dashboard/daily-summary")
+        mockMvc.perform(get("/api/v1/dashboard/daily-summary")
                         .param("date", "2026-05-15"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summaryDate").value("2026-05-15"))
@@ -50,8 +54,13 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.consumedCalories").value(1350.5))
                 .andExpect(jsonPath("$.burnedCalories").value(420.0))
                 .andExpect(jsonPath("$.remainingCalories").value(1469.5))
-                .andExpect(jsonPath("$.totalExerciseMinutes").value(45));
+                .andExpect(jsonPath("$.netCalories").value(930.5))
+                .andExpect(jsonPath("$.calorieProgressPercent").value(56.27))
+                .andExpect(jsonPath("$.totalExerciseMinutes").value(45))
+                .andExpect(jsonPath("$.hasActiveGoal").value(true))
+                .andExpect(jsonPath("$.onboardingCompleted").value(true));
 
         verify(dashboardService).getDailySummary("user@example.com", date);
     }
 }
+

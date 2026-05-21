@@ -1,11 +1,13 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.service.FoodItemService;
+import com.grun.calorietracker.service.UserProductLibraryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,13 +16,16 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/products", "/api/v1/products"})
+@RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 @Validated
 @SecurityRequirement(name = "bearerAuth")
@@ -28,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 public class FoodItemController {
 
     private final FoodItemService foodItemService;
+    private final UserProductLibraryService userProductLibraryService;
 
 
     @GetMapping("/search")
@@ -69,5 +75,82 @@ public class FoodItemController {
             @PathVariable String barcode) {
         FoodItemEntity foodItemEntity = foodItemService.getOrSaveFoodItemByBarcode(barcode);
         return ResponseEntity.ok(FoodItemMapper.mapEntityToDto(foodItemEntity));
+    }
+
+    @GetMapping("/recent")
+    @Operation(
+            summary = "List recently logged products",
+            description = "Returns distinct available products most recently used in the authenticated user's food logs."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recent products returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+    })
+    public ResponseEntity<java.util.List<FoodProductDto>> getRecentProducts(
+            @Parameter(description = "Maximum recent product count. Maximum 50.", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userProductLibraryService.getRecentProducts(userDetails.getUsername(), limit));
+    }
+
+    @GetMapping("/favorites")
+    @Operation(summary = "List favorite products", description = "Returns the authenticated user's available favorite food products.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Favorite products returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+    })
+    public ResponseEntity<java.util.List<FoodProductDto>> getFavoriteProducts(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userProductLibraryService.getFavoriteProducts(userDetails.getUsername()));
+    }
+
+    @PostMapping("/{id}/favorite")
+    @Operation(summary = "Favorite a product", description = "Adds an available food product to the authenticated user's favorites.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Product added to favorites."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "404", description = "Product was not found or is unavailable.")
+    })
+    public ResponseEntity<FoodProductDto> addFavoriteProduct(
+            @Parameter(description = "Food product id.", example = "12") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userProductLibraryService.addFavoriteProduct(userDetails.getUsername(), id));
+    }
+
+    @DeleteMapping("/{id}/favorite")
+    @Operation(summary = "Remove a favorite product", description = "Removes a food product from the authenticated user's favorites.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Favorite product removed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "404", description = "Product was not found.")
+    })
+    public ResponseEntity<Void> removeFavoriteProduct(
+            @Parameter(description = "Food product id.", example = "12") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        userProductLibraryService.removeFavoriteProduct(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/custom")
+    @Operation(
+            summary = "Create a custom food",
+            description = "Creates a user-owned manual food for products or meals that are not available in the shared catalog."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Custom food created."),
+            @ApiResponse(responseCode = "400", description = "Custom food validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+    })
+    public ResponseEntity<FoodProductDto> createCustomFood(
+            @RequestBody @Valid CustomFoodRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userProductLibraryService.createCustomFood(userDetails.getUsername(), request));
+    }
+
+    @GetMapping("/custom")
+    @Operation(summary = "List custom foods", description = "Returns manual food products owned by the authenticated user.")
+    public ResponseEntity<java.util.List<FoodProductDto>> getCustomFoods(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userProductLibraryService.getCustomFoods(userDetails.getUsername()));
     }
 }

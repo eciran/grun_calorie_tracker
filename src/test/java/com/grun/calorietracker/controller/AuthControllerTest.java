@@ -26,9 +26,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -60,6 +62,9 @@ class AuthControllerTest {
 
     @MockBean
     private RefreshTokenService refreshTokenService;
+
+    @MockBean
+    private AuthenticationManager authenticationManager;
 
     private UserEntity sampleUser;
     private UserProfileDto sampleUserProfileDto;
@@ -97,7 +102,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.empty());
         when(userRepository.save(any(UserEntity.class))).thenReturn(sampleUser);
 
-        mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
@@ -114,21 +119,21 @@ class AuthControllerTest {
 
         when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.of(sampleUser));
 
-        mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("Validation error"))
                 .andExpect(jsonPath("$.message").value("Email already registered"))
-                .andExpect(jsonPath("$.path").value("/api/auth/register"));
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/register"));
     }
 
     @Test
     void openApi_registerBadRequest_usesErrorResponseSchema() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/auth/register'].post.responses['400'].content['application/json'].schema['$ref']")
+                .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.responses['400'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponseDto"));
     }
 
@@ -138,14 +143,14 @@ class AuthControllerTest {
         request.setEmail("invalid-email");
         request.setPassword("Password1!");
 
-        mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .header("Accept-Language", "tr")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Dogrulama hatasi"))
                 .andExpect(jsonPath("$.message").value("email: Email gecerli bir email adresi olmalidir"))
-                .andExpect(jsonPath("$.path").value("/api/auth/register"));
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/register"));
     }
 
     @Test
@@ -156,7 +161,7 @@ class AuthControllerTest {
         when(passwordResetService.requestPasswordReset(any(PasswordResetRequestDto.class)))
                 .thenReturn(new PasswordResetResponseDto("If the email exists, a password reset link has been sent."));
 
-        mockMvc.perform(post("/api/auth/password-reset/request")
+        mockMvc.perform(post("/api/v1/auth/password-reset/request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -171,7 +176,7 @@ class AuthControllerTest {
         when(emailVerificationService.resendVerification(any(EmailVerificationRequestDto.class)))
                 .thenReturn(new EmailVerificationResponseDto("If the email exists, a verification link has been sent."));
 
-        mockMvc.perform(post("/api/auth/email-verification/resend")
+        mockMvc.perform(post("/api/v1/auth/email-verification/resend")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -186,11 +191,32 @@ class AuthControllerTest {
         when(emailVerificationService.confirmVerification(any(EmailVerificationConfirmRequestDto.class)))
                 .thenReturn(new EmailVerificationResponseDto("Email has been verified successfully."));
 
-        mockMvc.perform(post("/api/auth/email-verification/confirm")
+        mockMvc.perform(post("/api/v1/auth/email-verification/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Email has been verified successfully."));
+    }
+
+    @Test
+    void login_whenEmailIsNotVerified_returnsForbiddenErrorResponse() throws Exception {
+        AuthRequest request = new AuthRequest();
+        request.setEmail("testuser@example.com");
+        request.setPassword("Password1!");
+        sampleUser.setEmailVerified(false);
+
+        when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.of(sampleUser));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Email not verified"))
+                .andExpect(jsonPath("$.message").value("Email address is not verified"))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/login"));
+
+        verify(refreshTokenService, never()).createRefreshToken(any(UserEntity.class));
     }
 
     @Test
@@ -202,7 +228,7 @@ class AuthControllerTest {
         when(passwordResetService.confirmPasswordReset(any(PasswordResetConfirmRequestDto.class)))
                 .thenReturn(new PasswordResetResponseDto("Password has been reset successfully."));
 
-        mockMvc.perform(post("/api/auth/password-reset/confirm")
+        mockMvc.perform(post("/api/v1/auth/password-reset/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -223,7 +249,7 @@ class AuthControllerTest {
                         "Token refreshed successfully"
                 ));
 
-        mockMvc.perform(post("/api/auth/refresh")
+        mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -261,7 +287,7 @@ class AuthControllerTest {
         LogoutRequestDto request = new LogoutRequestDto();
         request.setRefreshToken("raw-refresh-token");
 
-        mockMvc.perform(post("/api/auth/logout")
+        mockMvc.perform(post("/api/v1/auth/logout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -274,17 +300,17 @@ class AuthControllerTest {
     void openApi_productBarcodeErrors_useEndpointSpecificExamples() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['401'].content['application/json'].example.status")
+                .andExpect(jsonPath("$.paths['/api/v1/products/barcode/{barcode}'].get.responses['401'].content['application/json'].example.status")
                         .value(401))
-                .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['401'].content['application/json'].example.path")
-                        .value("/api/products/barcode/{barcode}"))
-                .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['401'].content['application/json'].example.message")
+                .andExpect(jsonPath("$.paths['/api/v1/products/barcode/{barcode}'].get.responses['401'].content['application/json'].example.path")
+                        .value("/api/v1/products/barcode/{barcode}"))
+                .andExpect(jsonPath("$.paths['/api/v1/products/barcode/{barcode}'].get.responses['401'].content['application/json'].example.message")
                         .value("JWT token is missing or invalid."))
-                .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.status")
+                .andExpect(jsonPath("$.paths['/api/v1/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.status")
                         .value(404))
-                .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.path")
-                        .value("/api/products/barcode/{barcode}"))
-                .andExpect(jsonPath("$.paths['/api/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.message")
+                .andExpect(jsonPath("$.paths['/api/v1/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.path")
+                        .value("/api/v1/products/barcode/{barcode}"))
+                .andExpect(jsonPath("$.paths['/api/v1/products/barcode/{barcode}'].get.responses['404'].content['application/json'].example.message")
                         .value("Product could not be found locally or from the configured external source."));
     }
 
@@ -295,4 +321,13 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.responses['429'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiErrorResponseDto"));
     }
+
+    @Test
+    void openApi_loginForbidden_usesErrorResponseSchema() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses['403'].content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/ApiErrorResponseDto"));
+    }
 }
+

@@ -3,6 +3,7 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -17,6 +18,11 @@ import java.util.Optional;
 public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> {
     List<FoodLogsEntity> findByUser(UserEntity user);
     List<FoodLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
+    List<FoodLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+            UserEntity user,
+            LocalDateTime start,
+            LocalDateTime end
+    );
     List<FoodLogsEntity> findByUserAndMealTypeAndLogDateBetween(
             UserEntity user,
             String mealType,
@@ -24,6 +30,21 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
             LocalDateTime end
     );
     Optional<FoodLogsEntity> findByIdAndUser(Long id, UserEntity user);
+
+    @Query(value = """
+            SELECT f.food_id
+            FROM food_logs f
+            JOIN food_items fi ON fi.id = f.food_id
+            WHERE f.user_id = :userId
+              AND (fi.verification_status IS NULL OR fi.verification_status <> :rejectedStatus)
+            GROUP BY f.food_id
+            ORDER BY MAX(f.log_date) DESC, f.food_id DESC
+            """, nativeQuery = true)
+    List<Long> findRecentAvailableFoodItemIds(
+            @Param("userId") Long userId,
+            @Param("rejectedStatus") String rejectedStatus,
+            Pageable pageable
+    );
 
     @Modifying
     @Query("UPDATE FoodLogsEntity foodLog SET foodLog.foodItem = :targetFoodItem WHERE foodLog.foodItem.id IN :sourceFoodItemIds")

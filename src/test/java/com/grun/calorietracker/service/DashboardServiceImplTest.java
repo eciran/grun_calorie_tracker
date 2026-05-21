@@ -14,6 +14,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,7 +65,11 @@ class DashboardServiceImplTest {
 
         when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(foodLogsRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end))).thenReturn(List.of());
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
+                .thenReturn(List.of());
         when(exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end))).thenReturn(List.of());
+        when(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
+                .thenReturn(List.of());
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
 
@@ -75,10 +80,69 @@ class DashboardServiceImplTest {
         assertEquals(0.0, result.getConsumedCalories());
         assertEquals(0.0, result.getBurnedCalories());
         assertEquals(0.0, result.getRemainingCalories());
+        assertEquals(0.0, result.getNetCalories());
+        assertEquals(0.0, result.getCalorieProgressPercent());
         assertEquals(0.0, result.getConsumedProtein());
         assertEquals(0.0, result.getConsumedFat());
         assertEquals(0.0, result.getConsumedCarbs());
+        assertEquals(0.0, result.getRemainingProtein());
+        assertEquals(0.0, result.getRemainingFat());
+        assertEquals(0.0, result.getRemainingCarbs());
+        assertEquals(0.0, result.getProteinProgressPercent());
+        assertEquals(0.0, result.getFatProgressPercent());
+        assertEquals(0.0, result.getCarbsProgressPercent());
         assertEquals(0, result.getTotalExerciseMinutes());
         assertEquals(82.0, result.getCurrentWeight());
+        assertEquals(false, result.getHasActiveGoal());
+        assertEquals(false, result.getOnboardingCompleted());
+        assertEquals(List.of(), result.getFoodLogs());
+        assertEquals(List.of(), result.getExerciseLogs());
+    }
+
+    @Test
+    void getDailySummary_whenOnboardingComplete_returnsRemainingMacrosAndProgress() {
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        user.setEmail("user@example.com");
+        user.setAge(32);
+        user.setGender("MALE");
+        user.setHeight(180.0);
+        user.setWeight(82.0);
+        com.grun.calorietracker.entity.UserGoalEntity goal = new com.grun.calorietracker.entity.UserGoalEntity();
+        goal.setDailyCalorieGoal(2200);
+        goal.setDailyProteinGoal(140.0);
+        goal.setDailyFatGoal(70.0);
+        goal.setDailyCarbGoal(250.0);
+        goal.setTargetWeight(78.0);
+        goal.setGoalType(com.grun.calorietracker.enums.GoalType.LOSE_WEIGHT);
+        LocalDate date = LocalDate.of(2026, 5, 20);
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.plusDays(1).atStartOfDay();
+
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end)))
+                .thenReturn(Collections.singletonList(new Object[]{1100.0, 70.0, 125.0, 35.0}));
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
+                .thenReturn(List.of());
+        when(exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end)))
+                .thenReturn(Collections.singletonList(new Object[]{300.0, 45}));
+        when(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
+                .thenReturn(List.of());
+        when(goalRepository.findByUser(user)).thenReturn(Optional.of(goal));
+        when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
+
+        DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
+
+        assertEquals(1400.0, result.getRemainingCalories());
+        assertEquals(800.0, result.getNetCalories());
+        assertEquals(50.0, result.getCalorieProgressPercent());
+        assertEquals(70.0, result.getRemainingProtein());
+        assertEquals(35.0, result.getRemainingFat());
+        assertEquals(125.0, result.getRemainingCarbs());
+        assertEquals(50.0, result.getProteinProgressPercent());
+        assertEquals(50.0, result.getFatProgressPercent());
+        assertEquals(50.0, result.getCarbsProgressPercent());
+        assertEquals(true, result.getHasActiveGoal());
+        assertEquals(true, result.getOnboardingCompleted());
     }
 }

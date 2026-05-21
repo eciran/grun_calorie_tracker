@@ -23,7 +23,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/exercise-items", "/api/v1/exercise-items"})
+@RequestMapping("/api/v1/exercise-items")
 @RequiredArgsConstructor
 @Validated
 @SecurityRequirement(name = "bearerAuth")

@@ -57,7 +57,7 @@ class ExerciseLogsControllerTest {
         when(exerciseLogsService.addExerciseLogFromExternal(any(ExerciseLogsDto.class), eq("test@test.com")))
                 .thenReturn(response);
 
-        mockMvc.perform(post("/api/exercise-logs/external")
+        mockMvc.perform(post("/api/v1/exercise-logs/external")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -80,7 +80,7 @@ class ExerciseLogsControllerTest {
         when(exerciseLogsService.addExerciseLogFromExternal(any(ExerciseLogsDto.class), eq("test@test.com")))
                 .thenThrow(new DuplicateExternalExerciseLogException("Duplicate"));
 
-        mockMvc.perform(post("/api/exercise-logs/external")
+        mockMvc.perform(post("/api/v1/exercise-logs/external")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -91,12 +91,12 @@ class ExerciseLogsControllerTest {
     void addExerciseLog_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
         ExerciseLogsDto request = new ExerciseLogsDto();
 
-        mockMvc.perform(post("/api/exercise-logs")
+        mockMvc.perform(post("/api/v1/exercise-logs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation error"))
-                .andExpect(jsonPath("$.path").value("/api/exercise-logs"));
+                .andExpect(jsonPath("$.path").value("/api/v1/exercise-logs"));
     }
 
     @Test
@@ -110,10 +110,11 @@ class ExerciseLogsControllerTest {
         when(exerciseLogsService.getExerciseLogsBySource("test@test.com", "GOOGLE_FIT"))
                 .thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/exercise-logs/source/GOOGLE_FIT"))
+        mockMvc.perform(get("/api/v1/exercise-logs/source/GOOGLE_FIT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(10L))
                 .andExpect(jsonPath("$[0].source").value("GOOGLE_FIT"))
                 .andExpect(jsonPath("$[0].externalId").value("fit-123"));
     }
 }
+

@@ -43,7 +43,7 @@ class AdminDashboardControllerTest {
 
         when(adminDashboardService.getSummary()).thenReturn(summary);
 
-        mockMvc.perform(get("/api/admin/dashboard/summary"))
+        mockMvc.perform(get("/api/v1/admin/dashboard/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUsers").value(10))
                 .andExpect(jsonPath("$.standardUsers").value(7))
@@ -60,7 +60,8 @@ class AdminDashboardControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void getSummary_whenNotAdmin_returnsForbidden() throws Exception {
-        mockMvc.perform(get("/api/admin/dashboard/summary"))
+        mockMvc.perform(get("/api/v1/admin/dashboard/summary"))
                 .andExpect(status().isForbidden());
     }
 }
+

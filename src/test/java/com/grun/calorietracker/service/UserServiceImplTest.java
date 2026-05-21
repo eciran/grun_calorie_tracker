@@ -79,5 +79,7 @@ class UserServiceImplTest {
         verify(userRepository).save(testUser);
         assertEquals(70.0, testUser.getWeight());
         assertEquals(70.0, resultDto.getWeight());
+        assertEquals(true, resultDto.getGoalRecalculationRecommended());
+        assertEquals("Profile metrics that affect calorie calculation changed.", resultDto.getGoalRecalculationReason());
     }
 }
