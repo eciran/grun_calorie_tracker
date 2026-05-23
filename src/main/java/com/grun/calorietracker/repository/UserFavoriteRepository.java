@@ -14,6 +14,7 @@ import java.util.Optional;
 
 public interface UserFavoriteRepository extends JpaRepository<UserFavoriteEntity, Long> {
     Optional<UserFavoriteEntity> findByUserAndFoodItem(UserEntity user, FoodItemEntity foodItem);
+    void deleteByFoodItem(FoodItemEntity foodItem);
     @Query("""
             SELECT favorite
             FROM UserFavoriteEntity favorite

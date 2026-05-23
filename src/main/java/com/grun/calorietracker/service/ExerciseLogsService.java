@@ -9,7 +9,9 @@ import java.util.List;
 // Service interface for exercise log operations
 public interface ExerciseLogsService {
     ExerciseLogsDto addExerciseLog(ExerciseLogsDto dto, String email);
+    ExerciseLogsDto updateExerciseLog(Long id, ExerciseLogsDto dto, String email);
     List<ExerciseLogsDto> getExerciseLogsByDateAndUser(String email, LocalDateTime startDate, LocalDateTime endDate, String range);
+    List<ExerciseLogsDto> getExerciseLogsHistory(String email, LocalDateTime startDate, LocalDateTime endDate);
     ExerciseLogsDto getExerciseLogById(Long id, String email);
     void deleteExerciseLog(Long id, String email);
 

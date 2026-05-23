@@ -2,11 +2,15 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.FoodDiaryNoteDto;
+import com.grun.calorietracker.dto.FoodDiaryNoteRequestDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
+import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.service.FoodDiaryNoteService;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +29,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +49,9 @@ class FoodLogsControllerTest {
 
     @MockBean
     private FoodLogsService foodLogsService;
+
+    @MockBean
+    private FoodDiaryNoteService foodDiaryNoteService;
 
     @MockBean
     private UserService userService;
@@ -226,6 +234,66 @@ class FoodLogsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].mealType").value("BREAKFAST"))
                 .andExpect(jsonPath("$[0].totalCalories").value(320.0));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getRecentMeals_success() throws Exception {
+        FoodLogRecentMealDto recent = new FoodLogRecentMealDto();
+        recent.setSourceDate(java.time.LocalDate.of(2026, 5, 21));
+        recent.setMealType("DINNER");
+        recent.setLogs(Collections.emptyList());
+        when(foodLogsService.getRecentMeals(user.getEmail(), 10)).thenReturn(List.of(recent));
+
+        mockMvc.perform(get("/api/v1/food-logs/recent-meals"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sourceDate").value("2026-05-21"))
+                .andExpect(jsonPath("$[0].mealType").value("DINNER"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void upsertDiaryNote_success() throws Exception {
+        FoodDiaryNoteRequestDto request = new FoodDiaryNoteRequestDto();
+        request.setNote("More protein tomorrow");
+        FoodDiaryNoteDto response = new FoodDiaryNoteDto();
+        response.setId(5L);
+        response.setDiaryDate(LocalDate.of(2026, 5, 23));
+        response.setNote("More protein tomorrow");
+        when(foodDiaryNoteService.upsertNote(eq(user.getEmail()), eq(LocalDate.of(2026, 5, 23)), any(FoodDiaryNoteRequestDto.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/food-logs/diary-note")
+                        .param("date", "2026-05-23")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5L))
+                .andExpect(jsonPath("$.diaryDate").value("2026-05-23"))
+                .andExpect(jsonPath("$.note").value("More protein tomorrow"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getDiaryNote_success() throws Exception {
+        FoodDiaryNoteDto response = new FoodDiaryNoteDto();
+        response.setId(5L);
+        response.setDiaryDate(LocalDate.of(2026, 5, 23));
+        response.setNote("More protein tomorrow");
+        when(foodDiaryNoteService.getNote(user.getEmail(), LocalDate.of(2026, 5, 23))).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/food-logs/diary-note")
+                        .param("date", "2026-05-23"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.note").value("More protein tomorrow"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void deleteDiaryNote_success() throws Exception {
+        mockMvc.perform(delete("/api/v1/food-logs/diary-note")
+                        .param("date", "2026-05-23"))
+                .andExpect(status().isNoContent());
     }
 
     @Test

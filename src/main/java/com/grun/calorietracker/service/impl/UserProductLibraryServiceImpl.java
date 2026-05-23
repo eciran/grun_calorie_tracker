@@ -13,6 +13,7 @@ import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.MealTemplateItemRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserProductLibraryService;
@@ -33,6 +34,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     private final UserRepository userRepository;
     private final FoodItemRepository foodItemRepository;
     private final FoodLogsRepository foodLogsRepository;
+    private final MealTemplateItemRepository mealTemplateItemRepository;
     private final UserFavoriteRepository userFavoriteRepository;
 
     @Override
@@ -94,13 +96,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     public FoodProductDto createCustomFood(String email, CustomFoodRequestDto request) {
         UserEntity user = getUser(email);
         FoodItemEntity product = new FoodItemEntity();
-        product.setName(request.getName().trim());
-        product.setCalories(request.getCalories());
-        product.setProtein(request.getProtein());
-        product.setFat(request.getFat());
-        product.setCarbs(request.getCarbs());
-        product.setServingSizeGrams(request.getServingSizeGrams());
-        product.setServingUnit(trimToNull(request.getServingUnit()));
+        updateManualNutrition(product, request);
         product.setDataSource(FoodDataSource.MANUAL);
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
@@ -109,6 +105,26 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         product.setUsageCount(0L);
         FoodProductQualityRules.updateQualityAndReviewPriority(product);
         return FoodItemMapper.mapEntityToDto(foodItemRepository.save(product));
+    }
+
+    @Override
+    @Transactional
+    public FoodProductDto updateCustomFood(String email, Long productId, CustomFoodRequestDto request) {
+        FoodItemEntity product = getOwnedCustomFood(getUser(email), productId);
+        updateManualNutrition(product, request);
+        FoodProductQualityRules.updateQualityAndReviewPriority(product);
+        return FoodItemMapper.mapEntityToDto(foodItemRepository.save(product));
+    }
+
+    @Override
+    @Transactional
+    public void deleteCustomFood(String email, Long productId) {
+        FoodItemEntity product = getOwnedCustomFood(getUser(email), productId);
+        if (foodLogsRepository.existsByFoodItem(product) || mealTemplateItemRepository.existsByFoodItem(product)) {
+            throw new IllegalArgumentException("Custom food used by diary history or a saved meal template cannot be deleted");
+        }
+        userFavoriteRepository.deleteByFoodItem(product);
+        foodItemRepository.delete(product);
     }
 
     @Override
@@ -131,6 +147,27 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
             throw new ProductNotFoundException("Food item is not available");
         }
         return product;
+    }
+
+    private FoodItemEntity getOwnedCustomFood(UserEntity user, Long productId) {
+        FoodItemEntity product = foodItemRepository.findById(productId)
+                .orElseThrow(() -> new ProductNotFoundException("Custom food item not found"));
+        if (!Boolean.TRUE.equals(product.getIsCustom())
+                || product.getCreatedByUser() == null
+                || !user.getId().equals(product.getCreatedByUser().getId())) {
+            throw new ProductNotFoundException("Custom food item not found");
+        }
+        return product;
+    }
+
+    private void updateManualNutrition(FoodItemEntity product, CustomFoodRequestDto request) {
+        product.setName(request.getName().trim());
+        product.setCalories(request.getCalories());
+        product.setProtein(request.getProtein());
+        product.setFat(request.getFat());
+        product.setCarbs(request.getCarbs());
+        product.setServingSizeGrams(request.getServingSizeGrams());
+        product.setServingUnit(trimToNull(request.getServingUnit()));
     }
 
     private int normalizeLimit(int limit) {

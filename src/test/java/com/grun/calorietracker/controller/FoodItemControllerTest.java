@@ -21,6 +21,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -157,6 +159,33 @@ class FoodItemControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9L))
                 .andExpect(jsonPath("$.custom").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void updateCustomFood_returnsOwnedManualProduct() throws Exception {
+        CustomFoodRequestDto request = new CustomFoodRequestDto();
+        request.setName("Updated soup");
+        request.setCalories(90.0);
+        FoodProductDto product = new FoodProductDto();
+        product.setId(9L);
+        product.setProductName("Updated soup");
+        product.setCustom(true);
+        when(userProductLibraryService.updateCustomFood(eq("user@test.com"), eq(9L), any(CustomFoodRequestDto.class)))
+                .thenReturn(product);
+
+        mockMvc.perform(put("/api/v1/products/custom/9")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productName").value("Updated soup"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void deleteCustomFood_returnsNoContent() throws Exception {
+        mockMvc.perform(delete("/api/v1/products/custom/9"))
+                .andExpect(status().isNoContent());
     }
 }
 

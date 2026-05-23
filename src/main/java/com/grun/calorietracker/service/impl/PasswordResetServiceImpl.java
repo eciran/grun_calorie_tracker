@@ -76,6 +76,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
         UserEntity user = token.getUser();
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordSet(true);
         userRepository.save(user);
         refreshTokenService.revokeAllForUser(user);
 

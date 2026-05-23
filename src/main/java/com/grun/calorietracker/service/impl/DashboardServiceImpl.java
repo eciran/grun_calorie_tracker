@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 // Service implementation for dashboard operations
@@ -69,6 +70,21 @@ public class DashboardServiceImpl implements DashboardService {
         Double targetWeight = goalOpt.map(UserGoalEntity::getTargetWeight).orElse(null);
         String goalType = goalOpt.map(goal -> goal.getGoalType() != null ? goal.getGoalType().name() : null).orElse(null);
 
+        List<FoodLogsDto> foodLogs = foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                        user,
+                        start,
+                        end
+                ).stream()
+                .map(this::toFoodLogDto)
+                .toList();
+        List<ExerciseLogsDto> exerciseLogs = exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                        user,
+                        start,
+                        end
+                ).stream()
+                .map(this::toExerciseLogDto)
+                .toList();
+
         DailySummaryDto dto = new DailySummaryDto();
         dto.setSummaryDate(date);
         dto.setTargetCalories(targetCalories);
@@ -98,20 +114,11 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTotalExerciseMinutes(totalExerciseMinutes);
         dto.setHasActiveGoal(hasActiveGoal);
         dto.setOnboardingCompleted(isOnboardingCompleted(user, hasActiveGoal));
-        dto.setFoodLogs(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
-                        user,
-                        start,
-                        end
-                ).stream()
-                .map(this::toFoodLogDto)
-                .toList());
-        dto.setExerciseLogs(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
-                        user,
-                        start,
-                        end
-                ).stream()
-                .map(this::toExerciseLogDto)
-                .toList());
+        dto.setHasFoodLogs(!foodLogs.isEmpty());
+        dto.setHasExerciseLogs(!exerciseLogs.isEmpty());
+        dto.setHasAnyDiaryEntry(!foodLogs.isEmpty() || !exerciseLogs.isEmpty());
+        dto.setFoodLogs(foodLogs);
+        dto.setExerciseLogs(exerciseLogs);
 
         return dto;
     }

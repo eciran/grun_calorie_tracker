@@ -3,6 +3,7 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
+import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
@@ -130,6 +131,60 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
+    void addFoodLog_whenGramUnitProvided_usesEnteredGramsForNutritionBasis() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(250.0);
+        dto.setPortionUnit(FoodPortionUnit.GRAM);
+        dto.setMealType("lunch");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(11L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
+
+        assertEquals(FoodPortionUnit.GRAM, result.getPortionUnit());
+        assertEquals(250.0, result.getNormalizedPortionGrams());
+        verify(foodLogsRepository).save(argThat(entity ->
+                entity.getPortionUnit() == FoodPortionUnit.GRAM
+                        && entity.getNormalizedPortionGrams().equals(250.0)
+        ));
+    }
+
+    @Test
+    void addFoodLog_whenMilliliterUnitProvided_usesEnteredMillilitersAsCalculationAmount() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(330.0);
+        dto.setPortionUnit(FoodPortionUnit.MILLILITER);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(12L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
+
+        assertEquals(FoodPortionUnit.MILLILITER, result.getPortionUnit());
+        assertEquals(330.0, result.getNormalizedPortionGrams());
+        verify(foodLogsRepository).save(argThat(entity ->
+                entity.getPortionUnit() == FoodPortionUnit.MILLILITER
+                        && entity.getNormalizedPortionGrams().equals(330.0)
+        ));
+    }
+
+    @Test
     void updateFoodLog_recalculatesPortionAndNormalizesMealType() {
         foodItem.setServingSizeGrams(60.0);
         FoodLogsEntity existing = new FoodLogsEntity();
@@ -243,6 +298,74 @@ class FoodLogsServiceImplTest {
         assertEquals(232.5, result.get(0).getTotalCalories());
         assertEquals(19.5, result.get(0).getTotalProtein());
         assertEquals(0.0, result.get(1).getTotalCalories());
+    }
+
+    @Test
+    void getMealSummaries_usesNormalizedPortionGramsForUserEnteredGramAndMlAmounts() {
+        FoodItemEntity milk = new FoodItemEntity();
+        milk.setId(2L);
+        milk.setName("Milk");
+        milk.setCalories(60.0);
+        milk.setProtein(3.2);
+        milk.setFat(3.0);
+        milk.setCarbs(4.8);
+
+        FoodLogsEntity gramsLog = new FoodLogsEntity();
+        gramsLog.setUser(user);
+        gramsLog.setFoodItem(foodItem);
+        gramsLog.setPortionSize(50.0);
+        gramsLog.setPortionUnit(FoodPortionUnit.GRAM);
+        gramsLog.setNormalizedPortionGrams(50.0);
+        gramsLog.setMealType("BREAKFAST");
+        gramsLog.setLogDate(LocalDateTime.of(2026, 5, 21, 8, 0));
+
+        FoodLogsEntity mlLog = new FoodLogsEntity();
+        mlLog.setUser(user);
+        mlLog.setFoodItem(milk);
+        mlLog.setPortionSize(200.0);
+        mlLog.setPortionUnit(FoodPortionUnit.MILLILITER);
+        mlLog.setNormalizedPortionGrams(200.0);
+        mlLog.setMealType("BREAKFAST");
+        mlLog.setLogDate(LocalDateTime.of(2026, 5, 21, 8, 5));
+
+        LocalDateTime start = LocalDate.of(2026, 5, 21).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 22).atStartOfDay();
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of(gramsLog, mlLog));
+
+        List<FoodLogMealSummaryDto> result = foodLogsService.getMealSummaries("test@test.com", start, end);
+
+        assertEquals(197.5, result.get(0).getTotalCalories());
+        assertEquals(12.9, result.get(0).getTotalProtein());
+        assertEquals(6.0, result.get(0).getTotalFat());
+        assertEquals(9.6, result.get(0).getTotalCarbs());
+    }
+
+    @Test
+    void getRecentMeals_returnsMealOccurrencesWithSourceDate() {
+        FoodLogsEntity breakfast = new FoodLogsEntity();
+        breakfast.setUser(user);
+        breakfast.setFoodItem(foodItem);
+        breakfast.setPortionSize(100.0);
+        breakfast.setNormalizedPortionGrams(100.0);
+        breakfast.setMealType("BREAKFAST");
+        breakfast.setLogDate(LocalDateTime.of(2026, 5, 21, 8, 0));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findRecentMealKeys(eq(1L), eq("REJECTED"), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{Date.valueOf("2026-05-21"), "BREAKFAST"}));
+        when(foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
+                user,
+                "BREAKFAST",
+                LocalDate.of(2026, 5, 21).atStartOfDay(),
+                LocalDate.of(2026, 5, 22).atStartOfDay()
+        )).thenReturn(List.of(breakfast));
+
+        List<FoodLogRecentMealDto> result = foodLogsService.getRecentMeals("test@test.com", 10);
+
+        assertEquals(LocalDate.of(2026, 5, 21), result.get(0).getSourceDate());
+        assertEquals("BREAKFAST", result.get(0).getMealType());
+        assertEquals(155.0, result.get(0).getTotalCalories());
     }
 
     @Test

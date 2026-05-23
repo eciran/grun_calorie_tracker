@@ -47,6 +47,24 @@ public class ExerciseLogsController {
         return ResponseEntity.ok(created);
     }
 
+    @PutMapping("/{id}")
+    @Operation(
+            summary = "Update an exercise log",
+            description = "Updates an owned manual exercise diary entry when the exercise, duration, calories, or logged time was entered incorrectly."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Exercise log updated."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Exercise log or exercise item was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<ExerciseLogsDto> updateExerciseLog(
+            @Parameter(description = "Exercise log id.", example = "1") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid ExerciseLogsDto dto) {
+        return ResponseEntity.ok(exerciseLogsService.updateExerciseLog(id, dto, userDetails.getUsername()));
+    }
+
     @PostMapping("/external")
     @Operation(
             summary = "Create an external exercise log",
@@ -87,6 +105,32 @@ public class ExerciseLogsController {
 
         List<ExerciseLogsDto> stats = exerciseLogsService.getExerciseLogsByDateAndUser(userDetails.getUsername(), start, end, range);
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/history")
+    @Operation(
+            summary = "List exercise log history by date range",
+            description = "Returns actual owned exercise diary entries between the supplied start and end dates. Use report for aggregated totals."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Exercise log history returned."),
+            @ApiResponse(responseCode = "400", description = "Date format or date range is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogHistory(
+            @Parameter(description = "History start date in ISO format.", example = "2026-05-01") @RequestParam String start,
+            @Parameter(description = "History end date in ISO format.", example = "2026-05-07") @RequestParam String end,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        LocalDate startDate = LocalDate.parse(start);
+        LocalDate endDate = LocalDate.parse(end);
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("History end date must not be before start date.");
+        }
+        return ResponseEntity.ok(exerciseLogsService.getExerciseLogsHistory(
+                userDetails.getUsername(),
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay()
+        ));
     }
 
     @GetMapping("/source/{source}")

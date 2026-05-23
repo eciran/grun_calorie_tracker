@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 @Service
@@ -54,10 +56,16 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         List<FoodItemEntity> productsToSave = new ArrayList<>();
         List<FoodProductImportErrorDto> errors = new ArrayList<>();
+        Set<String> seenInputBarcodes = new HashSet<>();
         int insertedRows = 0;
         int updatedRows = 0;
+        int duplicateInputRows = 0;
 
         for (CsvRow row : parsedCsv.rows()) {
+            String inputBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
+            if (inputBarcode != null && !seenInputBarcodes.add(inputBarcode)) {
+                duplicateInputRows++;
+            }
             RowResult rowResult = mapRow(row, existingProducts, importedBy, normalizeImportMode(importMode));
             if (rowResult.error() != null) {
                 addError(errors, rowResult.error());
@@ -75,6 +83,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         foodItemRepository.saveAll(productsToSave);
         int skippedRows = parsedCsv.rows().size() - productsToSave.size();
+        int reviewRequiredRows = (int) productsToSave.stream()
+                .filter(this::requiresReview)
+                .count();
 
         return new FoodProductImportResultDto(
                 parsedCsv.rows().size(),
@@ -82,6 +93,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 updatedRows,
                 skippedRows,
                 productsToSave.size(),
+                duplicateInputRows,
+                reviewRequiredRows,
+                parsedCsv.format(),
                 errors
         );
     }
@@ -93,7 +107,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 throw new IllegalArgumentException("CSV header row is required.");
             }
 
-            Map<String, Integer> headers = indexHeaders(parseCsvLine(headerLine));
+            char delimiter = detectDelimiter(headerLine);
+            Map<String, Integer> headers = indexHeaders(parseDelimitedLine(headerLine, delimiter));
             requireHeader(headers, "barcode");
             requireAnyHeader(headers, "name", "productname", "product_name");
 
@@ -107,7 +122,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                     continue;
                 }
 
-                CsvRow row = new CsvRow(rowNumber, headers, parseCsvLine(line));
+                CsvRow row = new CsvRow(rowNumber, headers, parseDelimitedLine(line, delimiter));
                 rows.add(row);
                 String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
                 if (normalizedBarcode != null) {
@@ -115,7 +130,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 }
             }
 
-            return new ParsedCsv(rows, normalizedBarcodes.stream().distinct().toList());
+            return new ParsedCsv(rows, normalizedBarcodes.stream().distinct().toList(), delimiter == '\t' ? "TSV" : "CSV");
         } catch (IOException e) {
             throw new IllegalArgumentException("CSV file could not be read.");
         }
@@ -253,6 +268,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         FoodProductQualityRules.markReviewed(product);
     }
 
+    private boolean requiresReview(FoodItemEntity product) {
+        return product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED
+                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW
+                || product.getImageStatus() == ImageStatus.NEEDS_REVIEW
+                || product.getImageStatus() == ImageStatus.RAW;
+    }
+
     private void setIfPresent(CsvRow row, String column, Consumer<String> setter) {
         String value = FoodProductNormalizationRules.normalizeText(row.value(column));
         if (value != null) {
@@ -354,7 +376,21 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return value.toLowerCase(Locale.ROOT).replace("-", "_").replace(" ", "_");
     }
 
-    private List<String> parseCsvLine(String line) {
+    private char detectDelimiter(String headerLine) {
+        return count(headerLine, '\t') > count(headerLine, ',') ? '\t' : ',';
+    }
+
+    private int count(String value, char expected) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == expected) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private List<String> parseDelimitedLine(String line, char delimiter) {
         List<String> values = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean quoted = false;
@@ -368,7 +404,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 } else {
                     quoted = !quoted;
                 }
-            } else if (c == ',' && !quoted) {
+            } else if (c == delimiter && !quoted) {
                 values.add(current.toString().trim());
                 current.setLength(0);
             } else {
@@ -380,7 +416,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return values;
     }
 
-    private record ParsedCsv(List<CsvRow> rows, List<String> normalizedBarcodes) {
+    private record ParsedCsv(List<CsvRow> rows, List<String> normalizedBarcodes, String format) {
     }
 
     private record CsvRow(int rowNumber, Map<String, Integer> headers, List<String> values) {

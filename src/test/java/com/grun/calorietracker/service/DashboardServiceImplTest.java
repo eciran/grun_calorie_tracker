@@ -95,6 +95,9 @@ class DashboardServiceImplTest {
         assertEquals(82.0, result.getCurrentWeight());
         assertEquals(false, result.getHasActiveGoal());
         assertEquals(false, result.getOnboardingCompleted());
+        assertEquals(false, result.getHasFoodLogs());
+        assertEquals(false, result.getHasExerciseLogs());
+        assertEquals(false, result.getHasAnyDiaryEntry());
         assertEquals(List.of(), result.getFoodLogs());
         assertEquals(List.of(), result.getExerciseLogs());
     }
@@ -144,5 +147,8 @@ class DashboardServiceImplTest {
         assertEquals(50.0, result.getCarbsProgressPercent());
         assertEquals(true, result.getHasActiveGoal());
         assertEquals(true, result.getOnboardingCompleted());
+        assertEquals(false, result.getHasFoodLogs());
+        assertEquals(false, result.getHasExerciseLogs());
+        assertEquals(false, result.getHasAnyDiaryEntry());
     }
 }

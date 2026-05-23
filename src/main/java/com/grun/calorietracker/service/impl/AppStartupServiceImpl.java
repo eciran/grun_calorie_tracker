@@ -1,12 +1,15 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.AppStartupDto;
+import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
+import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.AppStartupService;
 import com.grun.calorietracker.service.UserService;
@@ -25,6 +28,7 @@ public class AppStartupServiceImpl implements AppStartupService {
 
     private final UserService userService;
     private final GoalRepository goalRepository;
+    private final FederatedIdentityRepository federatedIdentityRepository;
 
     @Override
     public AppStartupDto getStartupState(String email) {
@@ -36,6 +40,7 @@ public class AppStartupServiceImpl implements AppStartupService {
         boolean hasActiveGoal = goalOpt.isPresent();
         boolean onboardingCompleted = profileComplete && hasActiveGoal;
         boolean emailVerified = Boolean.TRUE.equals(user.getEmailVerified());
+        boolean passwordSet = Boolean.TRUE.equals(user.getPasswordSet());
         boolean dashboardReady = emailVerified && onboardingCompleted;
 
         return AppStartupDto.builder()
@@ -45,6 +50,8 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .hasActiveGoal(hasActiveGoal)
                 .onboardingCompleted(onboardingCompleted)
                 .emailVerified(emailVerified)
+                .passwordSet(passwordSet)
+                .linkedIdentities(linkedIdentities(email))
                 .dashboardReady(dashboardReady)
                 .nextStep(resolveNextStep(emailVerified, onboardingCompleted))
                 .build();
@@ -78,9 +85,26 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .weight(user.getWeight())
                 .bmi(user.getBmi())
                 .bodyFat(user.getBodyFatPercentage())
+                .emailVerified(user.getEmailVerified())
+                .passwordSet(user.getPasswordSet())
                 .goalRecalculationRecommended(false)
                 .build();
         profile.setGoalRecalculationReason(null);
         return profile;
+    }
+
+    private java.util.List<LinkedIdentityDto> linkedIdentities(String email) {
+        return federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc(email)
+                .stream()
+                .map(this::toLinkedIdentityDto)
+                .toList();
+    }
+
+    private LinkedIdentityDto toLinkedIdentityDto(FederatedIdentityEntity identity) {
+        return new LinkedIdentityDto(
+                identity.getProvider(),
+                identity.getProviderEmail(),
+                identity.getCreatedAt()
+        );
     }
 }

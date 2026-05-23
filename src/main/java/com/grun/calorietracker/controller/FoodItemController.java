@@ -147,6 +147,42 @@ public class FoodItemController {
         return ResponseEntity.ok(userProductLibraryService.createCustomFood(userDetails.getUsername(), request));
     }
 
+    @PutMapping("/custom/{id}")
+    @Operation(
+            summary = "Update a custom food",
+            description = "Updates a manual food owned by the authenticated user."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Custom food updated."),
+            @ApiResponse(responseCode = "400", description = "Custom food validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "404", description = "Custom food was not found for the current user.")
+    })
+    public ResponseEntity<FoodProductDto> updateCustomFood(
+            @Parameter(description = "Custom food product id.", example = "12") @PathVariable Long id,
+            @RequestBody @Valid CustomFoodRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userProductLibraryService.updateCustomFood(userDetails.getUsername(), id, request));
+    }
+
+    @DeleteMapping("/custom/{id}")
+    @Operation(
+            summary = "Delete a custom food",
+            description = "Deletes an unused manual food owned by the authenticated user. Custom foods already referenced by diary history stay available for history integrity."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Custom food deleted."),
+            @ApiResponse(responseCode = "400", description = "Custom food is already used in diary history."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "404", description = "Custom food was not found for the current user.")
+    })
+    public ResponseEntity<Void> deleteCustomFood(
+            @Parameter(description = "Custom food product id.", example = "12") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        userProductLibraryService.deleteCustomFood(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/custom")
     @Operation(summary = "List custom foods", description = "Returns manual food products owned by the authenticated user.")
     public ResponseEntity<java.util.List<FoodProductDto>> getCustomFoods(

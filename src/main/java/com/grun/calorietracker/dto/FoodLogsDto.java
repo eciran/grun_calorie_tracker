@@ -26,10 +26,10 @@ public class FoodLogsDto {
 
     @NotNull(message = "{validation.food-log.portion-size.required}")
     @Positive(message = "{validation.food-log.portion-size.positive}")
-    @Schema(description = "Portion multiplier or portion amount used by the service.", example = "1.0", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "User-entered amount. For GRAM this is grams, for MILLILITER this is milliliters, and for SERVING/PIECE this is the count multiplied by the product serving size.", example = "150.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double portionSize;
 
-    @Schema(description = "Unit for portionSize. If omitted, GRAM is used for backward compatibility.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "SERVING", "PIECE"})
+    @Schema(description = "Unit for portionSize. If omitted, GRAM is used. GRAM and MILLILITER use the entered amount directly for nutrition calculation; SERVING and PIECE multiply by servingSizeGrams.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "SERVING", "PIECE"})
     private FoodPortionUnit portionUnit;
 
     @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)

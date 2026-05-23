@@ -62,6 +62,8 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getUpdatedRows());
         assertEquals(0, result.getSkippedRows());
         assertEquals(2, result.getSavedRows());
+        assertEquals(1, result.getReviewRequiredRows());
+        assertEquals("CSV", result.getImportFormat());
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -162,11 +164,45 @@ class FoodProductImportServiceImplTest {
         assertEquals("admin@test.com", preserved.getReviewedBy());
     }
 
+    @Test
+    void importCsv_acceptsTsvAndReportsDuplicateInputRows() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = tsv("""
+                barcode\tname\tcalories
+                1234567890123\tFirst Product\t100
+                1234567890123\tSecond Product\t120
+                9999999999999\tThird Product\t80
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "admin@test.com",
+                FoodProductImportMode.RAW_EXTERNAL
+        );
+
+        assertEquals(3, result.getTotalRows());
+        assertEquals(3, result.getSavedRows());
+        assertEquals(1, result.getDuplicateInputRows());
+        assertEquals(3, result.getReviewRequiredRows());
+        assertEquals("TSV", result.getImportFormat());
+    }
+
     private MockMultipartFile csv(String content) {
         return new MockMultipartFile(
                 "file",
                 "products.csv",
                 "text/csv",
+                content.stripIndent().getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private MockMultipartFile tsv(String content) {
+        return new MockMultipartFile(
+                "file",
+                "products.tsv",
+                "text/tab-separated-values",
                 content.stripIndent().getBytes(StandardCharsets.UTF_8)
         );
     }

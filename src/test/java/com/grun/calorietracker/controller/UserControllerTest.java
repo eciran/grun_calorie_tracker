@@ -66,6 +66,8 @@ class UserControllerTest {
         sampleUserProfileDto.setWeight(70.0);
         sampleUserProfileDto.setBmi(22.86);
         sampleUserProfileDto.setBodyFat(12.75);
+        sampleUserProfileDto.setEmailVerified(true);
+        sampleUserProfileDto.setPasswordSet(false);
     }
 
     @Test
@@ -84,7 +86,9 @@ class UserControllerTest {
         mockMvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("testuser@example.com"))
-                .andExpect(jsonPath("$.name").value("Test User"));
+                .andExpect(jsonPath("$.name").value("Test User"))
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.passwordSet").value(false));
     }
 
     @Test

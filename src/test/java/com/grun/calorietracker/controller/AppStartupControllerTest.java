@@ -1,8 +1,10 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AppStartupDto;
+import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.service.AppStartupService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +41,8 @@ class AppStartupControllerTest {
                 .gender("MALE")
                 .height(180.0)
                 .weight(82.0)
+                .emailVerified(true)
+                .passwordSet(false)
                 .build();
         UserGoalDto goal = new UserGoalDto();
         goal.setId(10L);
@@ -51,6 +55,12 @@ class AppStartupControllerTest {
                 .hasActiveGoal(true)
                 .onboardingCompleted(true)
                 .emailVerified(true)
+                .passwordSet(false)
+                .linkedIdentities(java.util.List.of(new LinkedIdentityDto(
+                        AuthProvider.GOOGLE,
+                        "user@example.com",
+                        java.time.LocalDateTime.now()
+                )))
                 .dashboardReady(true)
                 .nextStep("OPEN_DASHBOARD")
                 .build();
@@ -65,6 +75,10 @@ class AppStartupControllerTest {
                 .andExpect(jsonPath("$.hasActiveGoal").value(true))
                 .andExpect(jsonPath("$.onboardingCompleted").value(true))
                 .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.passwordSet").value(false))
+                .andExpect(jsonPath("$.profile.emailVerified").value(true))
+                .andExpect(jsonPath("$.profile.passwordSet").value(false))
+                .andExpect(jsonPath("$.linkedIdentities[0].provider").value("GOOGLE"))
                 .andExpect(jsonPath("$.dashboardReady").value(true))
                 .andExpect(jsonPath("$.nextStep").value("OPEN_DASHBOARD"));
 

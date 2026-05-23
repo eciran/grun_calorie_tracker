@@ -11,5 +11,7 @@ public interface UserProductLibraryService {
     FoodProductDto addFavoriteProduct(String email, Long productId);
     void removeFavoriteProduct(String email, Long productId);
     FoodProductDto createCustomFood(String email, CustomFoodRequestDto request);
+    FoodProductDto updateCustomFood(String email, Long productId, CustomFoodRequestDto request);
+    void deleteCustomFood(String email, Long productId);
     List<FoodProductDto> getCustomFoods(String email);
 }

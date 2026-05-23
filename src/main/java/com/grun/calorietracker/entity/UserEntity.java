@@ -42,4 +42,7 @@ public class UserEntity {
     @Column(name = "email_verified", nullable = false)
     private Boolean emailVerified = true;
 
+    @Column(name = "password_set", nullable = false)
+    private Boolean passwordSet = true;
+
 }

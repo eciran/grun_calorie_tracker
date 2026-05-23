@@ -63,6 +63,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Email already in use");
         }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPasswordSet(true);
         user.setRole(UserRole.STANDARD);
         UserEntity savedUser = userRepository.save(user);
         return mapToUserProfileDto(savedUser);
@@ -99,6 +100,8 @@ public class UserServiceImpl implements UserService {
         dto.setGender(user.getGender());
         dto.setHeight(user.getHeight());
         dto.setWeight(user.getWeight());
+        dto.setEmailVerified(user.getEmailVerified());
+        dto.setPasswordSet(user.getPasswordSet());
         if (user.getHeight() != null && user.getWeight() != null && user.getHeight() > 0) {
             double heightM = user.getHeight() / 100.0;
             double bmi = user.getWeight() / (heightM * heightM);
@@ -207,6 +210,8 @@ public class UserServiceImpl implements UserService {
         dto.setWeight(user.getWeight());
         dto.setBodyFat(user.getBodyFatPercentage());
         dto.setBmi(user.getBmi());
+        dto.setEmailVerified(user.getEmailVerified());
+        dto.setPasswordSet(user.getPasswordSet());
         return dto;
     }
 }

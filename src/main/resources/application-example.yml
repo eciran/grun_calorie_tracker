@@ -43,6 +43,11 @@ grun:
     enabled: ${GRUN_RATE_LIMIT_ENABLED:true}
     auth:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE:20}
+  oauth:
+    google:
+      client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+    apple:
+      client-ids: ${APPLE_OAUTH_CLIENT_IDS:}
   password-reset:
     expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
     base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}

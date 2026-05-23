@@ -39,6 +39,8 @@ class UserServiceImplTest {
         testUser.setAge(30);
         testUser.setHeight(180.0);
         testUser.setWeight(75.0);
+        testUser.setEmailVerified(true);
+        testUser.setPasswordSet(true);
     }
 
     @Test
@@ -51,6 +53,7 @@ class UserServiceImplTest {
 
         assertNotNull(savedUserDto);
         assertEquals("test@example.com", savedUserDto.getEmail());
+        assertEquals(true, savedUserDto.getPasswordSet());
         verify(passwordEncoder).encode("rawpassword");
         verify(userRepository).save(any(UserEntity.class));
     }
@@ -79,6 +82,8 @@ class UserServiceImplTest {
         verify(userRepository).save(testUser);
         assertEquals(70.0, testUser.getWeight());
         assertEquals(70.0, resultDto.getWeight());
+        assertEquals(true, resultDto.getEmailVerified());
+        assertEquals(true, resultDto.getPasswordSet());
         assertEquals(true, resultDto.getGoalRecalculationRecommended());
         assertEquals("Profile metrics that affect calorie calculation changed.", resultDto.getGoalRecalculationReason());
     }
