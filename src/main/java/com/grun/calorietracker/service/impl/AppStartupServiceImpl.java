@@ -12,6 +12,7 @@ import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.AppStartupService;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class AppStartupServiceImpl implements AppStartupService {
     private final UserService userService;
     private final GoalRepository goalRepository;
     private final FederatedIdentityRepository federatedIdentityRepository;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public AppStartupDto getStartupState(String email) {
@@ -52,6 +54,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .emailVerified(emailVerified)
                 .passwordSet(passwordSet)
                 .linkedIdentities(linkedIdentities(email))
+                .subscription(subscriptionService.getCurrentSubscription(email))
                 .dashboardReady(dashboardReady)
                 .nextStep(resolveNextStep(emailVerified, onboardingCompleted))
                 .build();

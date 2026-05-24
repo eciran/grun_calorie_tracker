@@ -6,7 +6,10 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.SubscriptionPlan;
+import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.impl.AppStartupServiceImpl;
@@ -33,12 +36,15 @@ class AppStartupServiceImplTest {
     @Mock
     private FederatedIdentityRepository federatedIdentityRepository;
 
+    @Mock
+    private SubscriptionService subscriptionService;
+
     private AppStartupServiceImpl appStartupService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        appStartupService = new AppStartupServiceImpl(userService, goalRepository, federatedIdentityRepository);
+        appStartupService = new AppStartupServiceImpl(userService, goalRepository, federatedIdentityRepository, subscriptionService);
     }
 
     @Test
@@ -51,6 +57,7 @@ class AppStartupServiceImplTest {
         when(goalRepository.findByUser(user)).thenReturn(Optional.of(goal));
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
                 .thenReturn(java.util.List.of(identity(user, AuthProvider.GOOGLE)));
+        when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
 
         AppStartupDto result = appStartupService.getStartupState("user@example.com");
 
@@ -66,6 +73,8 @@ class AppStartupServiceImplTest {
         assertEquals(true, result.getProfile().getPasswordSet());
         assertEquals(1, result.getLinkedIdentities().size());
         assertEquals(AuthProvider.GOOGLE, result.getLinkedIdentities().get(0).provider());
+        assertEquals(SubscriptionPlan.PLUS, result.getSubscription().getPlanType());
+        assertEquals(10, result.getSubscription().getAiRemainingThisPeriod());
         assertNotNull(result.getProfile());
         assertNotNull(result.getGoal());
         assertEquals(2242, result.getGoal().getDailyCalorieGoal());
@@ -80,6 +89,7 @@ class AppStartupServiceImplTest {
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
                 .thenReturn(java.util.List.of());
+        when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
 
         AppStartupDto result = appStartupService.getStartupState("user@example.com");
 
@@ -101,6 +111,7 @@ class AppStartupServiceImplTest {
         when(goalRepository.findByUser(user)).thenReturn(Optional.of(goal));
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
                 .thenReturn(java.util.List.of());
+        when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
 
         AppStartupDto result = appStartupService.getStartupState("user@example.com");
 
@@ -147,5 +158,17 @@ class AppStartupServiceImplTest {
         goal.setGoalType(GoalType.LOSE_WEIGHT);
         goal.setActivityLevel(ActivityLevel.MODERATE);
         return goal;
+    }
+
+    private com.grun.calorietracker.dto.SubscriptionDto subscription() {
+        com.grun.calorietracker.dto.SubscriptionDto subscription = new com.grun.calorietracker.dto.SubscriptionDto();
+        subscription.setPlanType(SubscriptionPlan.PLUS);
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setBillingPeriod(BillingPeriod.MONTHLY);
+        subscription.setAiMonthlyQuota(15);
+        subscription.setAiUsedThisPeriod(5);
+        subscription.setAiRemainingThisPeriod(10);
+        subscription.setAutoRenew(true);
+        return subscription;
     }
 }

@@ -35,6 +35,9 @@ public class AppStartupDto {
     @Schema(description = "Login providers linked to the authenticated account.")
     private List<LinkedIdentityDto> linkedIdentities;
 
+    @Schema(description = "Current subscription and AI quota state for the authenticated user.")
+    private SubscriptionDto subscription;
+
     @Schema(description = "Whether the mobile app can open the dashboard directly.", example = "true")
     private boolean dashboardReady;
 

@@ -2,9 +2,13 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AppStartupDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
+import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.enums.BillingPeriod;
+import com.grun.calorietracker.enums.SubscriptionPlan;
+import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.service.AppStartupService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +51,14 @@ class AppStartupControllerTest {
         UserGoalDto goal = new UserGoalDto();
         goal.setId(10L);
         goal.setDailyCalorieGoal(2242);
+        SubscriptionDto subscription = new SubscriptionDto();
+        subscription.setPlanType(SubscriptionPlan.PLUS);
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setBillingPeriod(BillingPeriod.MONTHLY);
+        subscription.setAiMonthlyQuota(15);
+        subscription.setAiUsedThisPeriod(5);
+        subscription.setAiRemainingThisPeriod(10);
+        subscription.setAutoRenew(true);
 
         AppStartupDto response = AppStartupDto.builder()
                 .profile(profile)
@@ -61,6 +73,7 @@ class AppStartupControllerTest {
                         "user@example.com",
                         java.time.LocalDateTime.now()
                 )))
+                .subscription(subscription)
                 .dashboardReady(true)
                 .nextStep("OPEN_DASHBOARD")
                 .build();
@@ -79,6 +92,8 @@ class AppStartupControllerTest {
                 .andExpect(jsonPath("$.profile.emailVerified").value(true))
                 .andExpect(jsonPath("$.profile.passwordSet").value(false))
                 .andExpect(jsonPath("$.linkedIdentities[0].provider").value("GOOGLE"))
+                .andExpect(jsonPath("$.subscription.planType").value("PLUS"))
+                .andExpect(jsonPath("$.subscription.aiRemainingThisPeriod").value(10))
                 .andExpect(jsonPath("$.dashboardReady").value(true))
                 .andExpect(jsonPath("$.nextStep").value("OPEN_DASHBOARD"));
 
