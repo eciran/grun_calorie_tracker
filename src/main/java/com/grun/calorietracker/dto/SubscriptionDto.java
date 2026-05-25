@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.BillingPeriod;
+import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,4 +30,6 @@ public class SubscriptionDto {
     private Boolean aiAccessAllowed;
     private Boolean upgradeRecommended;
     private Boolean autoRenew;
+    private PaymentProvider provider;
+    private String providerProductId;
 }

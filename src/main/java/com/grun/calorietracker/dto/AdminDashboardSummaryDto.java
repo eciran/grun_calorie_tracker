@@ -40,4 +40,25 @@ public class AdminDashboardSummaryDto {
 
     @Schema(description = "Number of products currently requiring admin review because product data or image quality is not approved.", example = "62000")
     private long reviewQueueProducts;
+
+    @Schema(description = "Number of active PLUS subscriptions.", example = "320")
+    private long activePlusSubscriptions;
+
+    @Schema(description = "Number of active PRO subscriptions.", example = "80")
+    private long activeProSubscriptions;
+
+    @Schema(description = "Number of canceled subscriptions.", example = "12")
+    private long canceledSubscriptions;
+
+    @Schema(description = "Number of refunded subscriptions.", example = "3")
+    private long refundedSubscriptions;
+
+    @Schema(description = "Number of users whose active subscription AI quota is exhausted.", example = "14")
+    private long aiQuotaExhaustedSubscriptions;
+
+    @Schema(description = "Number of failed subscription provider events requiring admin attention.", example = "2")
+    private long failedSubscriptionProviderEvents;
+
+    @Schema(description = "Number of subscription provider events received in the last 24 hours.", example = "45")
+    private long subscriptionProviderEventsLast24Hours;
 }

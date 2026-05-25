@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.BillingPeriod;
+import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import jakarta.persistence.*;
@@ -51,9 +52,20 @@ public class SubscriptionEntity {
 
     private Boolean autoRenew;
 
-    private String provider;
+    @Enumerated(EnumType.STRING)
+    private PaymentProvider provider;
 
     private String providerSubscriptionId;
+
+    private String providerCustomerId;
+
+    private String providerProductId;
+
+    private String providerTransactionId;
+
+    private String providerOriginalTransactionId;
+
+    private String lastProviderEventId;
 
     private LocalDateTime updatedAt;
 }
