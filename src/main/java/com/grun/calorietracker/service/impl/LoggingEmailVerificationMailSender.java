@@ -15,11 +15,16 @@ public class LoggingEmailVerificationMailSender implements EmailVerificationMail
 
     @Override
     public void sendEmailVerificationToken(String email, String rawToken, String verificationLink) {
-        log.info("Email verification requested for email={}, verificationLink={}, token={}", email, verificationLink, rawToken);
+        log.info("Email verification email requested for email={}", email);
         mailDeliveryService.sendTransactionalEmail(
                 email,
                 "Verify your GRun email",
-                "Use this link to verify your GRun email: " + verificationLink
+                "Use this link to verify your GRun email: " + verificationLink,
+                """
+                        <p>Use this link to verify your GRun email address:</p>
+                        <p><a href="%s">Verify email</a></p>
+                        <p>If you did not create a GRun account, you can ignore this email.</p>
+                        """.formatted(verificationLink)
         );
     }
 }
