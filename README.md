@@ -207,6 +207,20 @@ Swagger UI:
 http://localhost:8080/swagger-ui/index.html
 ```
 
+Temporary admin product UI:
+
+```text
+http://localhost:8080/admin-ui/index.html
+```
+
+This lightweight page uses the existing admin APIs for login, catalog summary, small CSV import, review queue, product review updates, and audit inspection. For a small pilot import, use:
+
+```text
+sample-data/food-products-pilot-small.csv
+```
+
+This is not the final admin panel; it is only a local development tool for visual product review.
+
 ### API Versioning
 
 The current API contract is `v1`. Clients should use `/api/v1/...` paths, for example:

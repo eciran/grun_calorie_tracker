@@ -1,0 +1,6 @@
+barcode,name,brand,calories,protein,fat,carbs,fiber,sugar,sodium,serving_size_grams,serving_unit,image_url,external_image_url,display_image_url,allergens,nutri_score
+8690632010012,Ulker Cikolatali Gofret,Ulker,528,6.1,29.5,58.7,2.4,39.8,0.21,36,g,https://example.com/images/ulker-gofret.jpg,https://example.com/raw/ulker-gofret.jpg,,milk; gluten,e
+3017620422003,Nutella Hazelnut Spread,Ferrero,539,6.3,30.9,57.5,3.4,56.3,0.107,15,g,https://example.com/images/nutella.jpg,https://example.com/raw/nutella.jpg,,milk; nuts,e
+5449000000996,Coca-Cola Original Taste,Coca-Cola,42,0,0,10.6,0,10.6,0,100,ml,https://example.com/images/coca-cola.jpg,https://example.com/raw/coca-cola.jpg,,,
+4008400402222,Kinder Bueno,Ferrero,572,8.6,37.3,49.5,2.2,41.2,0.272,43,g,https://example.com/images/kinder-bueno.jpg,https://example.com/raw/kinder-bueno.jpg,,milk; nuts; gluten,e
+8712566322626,Knorr Tomato Soup,Knorr,46,1.1,1.5,6.7,0.8,3.2,0.62,100,g,https://example.com/images/knorr-tomato-soup.jpg,https://example.com/raw/knorr-tomato-soup.jpg,,,

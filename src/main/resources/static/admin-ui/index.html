@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GRun Admin Product Review</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f5f7f8;
+            --panel: #ffffff;
+            --text: #172026;
+            --muted: #667680;
+            --line: #d9e1e5;
+            --green: #177245;
+            --green-soft: #e7f5ed;
+            --blue: #245b94;
+            --amber: #9b5c00;
+            --red: #a33b3b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+        }
+
+        header {
+            background: #152228;
+            color: #fff;
+            padding: 18px 24px;
+        }
+
+        header h1 {
+            margin: 0 0 4px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        header p {
+            margin: 0;
+            color: #c6d2d8;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 320px minmax(0, 1fr);
+            gap: 18px;
+            padding: 18px;
+        }
+
+        section {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        h2, h3 {
+            margin: 0 0 12px;
+        }
+
+        h2 {
+            font-size: 18px;
+        }
+
+        h3 {
+            font-size: 15px;
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        input, select, textarea, button {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font: inherit;
+        }
+
+        input, select, textarea {
+            padding: 9px 10px;
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 78px;
+            resize: vertical;
+        }
+
+        button {
+            padding: 10px 12px;
+            background: var(--green);
+            border-color: var(--green);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        button.secondary {
+            background: #fff;
+            color: var(--blue);
+            border-color: #b8cad8;
+        }
+
+        button.danger {
+            background: #fff;
+            color: var(--red);
+            border-color: #e3b7b7;
+        }
+
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .toolbar > * {
+            flex: 1 1 160px;
+        }
+
+        .message {
+            padding: 10px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--line);
+            background: #fbfcfd;
+            color: var(--muted);
+            white-space: pre-wrap;
+        }
+
+        .message.error {
+            border-color: #e4b2b2;
+            background: #fff1f1;
+            color: var(--red);
+        }
+
+        .message.ok {
+            border-color: #b6dbc5;
+            background: var(--green-soft);
+            color: var(--green);
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .metric {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px;
+            background: #fbfcfd;
+        }
+
+        .metric strong {
+            display: block;
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .metric span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .product {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .product img {
+            display: block;
+            width: 100%;
+            height: 170px;
+            object-fit: contain;
+            background: #eef3f5;
+        }
+
+        .product .body {
+            padding: 12px;
+        }
+
+        .product h3 {
+            margin-bottom: 4px;
+        }
+
+        .meta {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 10px 0;
+        }
+
+        .badge {
+            border-radius: 999px;
+            padding: 4px 8px;
+            background: #eef3f5;
+            color: #40515a;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .badge.warn {
+            background: #fff5dc;
+            color: var(--amber);
+        }
+
+        .badge.ok {
+            background: var(--green-soft);
+            color: var(--green);
+        }
+
+        .badge.error {
+            background: #fff1f1;
+            color: var(--red);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .pagination {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .pagination button {
+            width: auto;
+        }
+
+        code {
+            background: #eef3f5;
+            border-radius: 4px;
+            padding: 2px 4px;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>GRun Admin Product Review</h1>
+    <p>Geçici ürün katalog inceleme ve küçük pilot import paneli</p>
+</header>
+
+<main>
+    <aside class="stack">
+        <section>
+            <h2>Oturum</h2>
+            <label for="email">Admin email</label>
+            <input id="email" autocomplete="username" value="admin@grun.local">
+            <label for="password">Şifre</label>
+            <input id="password" type="password" autocomplete="current-password">
+            <div class="row" style="margin-top: 12px">
+                <button id="loginBtn">Login</button>
+                <button id="logoutBtn" class="secondary">Çıkış</button>
+            </div>
+            <p class="meta">Local admin bootstrap açıksa `.env` içindeki admin hesabıyla giriş yapılır.</p>
+        </section>
+
+        <section>
+            <h2>Pilot Import</h2>
+            <label for="importMode">Import mode</label>
+            <select id="importMode">
+                <option value="RAW_EXTERNAL">RAW_EXTERNAL</option>
+                <option value="CURATED_ADMIN">CURATED_ADMIN</option>
+            </select>
+            <label for="csvFile">CSV dosyası</label>
+            <input id="csvFile" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+            <button id="importBtn" style="margin-top: 12px">Import Et</button>
+            <p class="meta">Küçük örnek dosya: <code>sample-data/food-products-pilot-small.csv</code></p>
+        </section>
+
+        <section>
+            <h2>Filtre</h2>
+            <label for="verificationStatus">Verification</label>
+            <select id="verificationStatus">
+                <option value="">Tümü</option>
+                <option value="RAW_IMPORTED" selected>RAW_IMPORTED</option>
+                <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+                <option value="VERIFIED">VERIFIED</option>
+                <option value="REJECTED">REJECTED</option>
+            </select>
+            <label for="imageStatus">Image</label>
+            <select id="imageStatus">
+                <option value="">Tümü</option>
+                <option value="RAW">RAW</option>
+                <option value="NEEDS_REVIEW" selected>NEEDS_REVIEW</option>
+                <option value="APPROVED">APPROVED</option>
+                <option value="REJECTED">REJECTED</option>
+            </select>
+            <label for="pageSize">Sayfa boyutu</label>
+            <select id="pageSize">
+                <option>12</option>
+                <option selected>24</option>
+                <option>48</option>
+            </select>
+            <button id="loadBtn" style="margin-top: 12px">Listeyi Yenile</button>
+        </section>
+
+        <section>
+            <h2>Durum</h2>
+            <div id="status" class="message">Hazır.</div>
+        </section>
+    </aside>
+
+    <div class="stack">
+        <section>
+            <div class="toolbar">
+                <div>
+                    <h2>Özet</h2>
+                    <p class="meta">Admin dashboard ve katalog kalite metrikleri</p>
+                </div>
+                <button id="summaryBtn" class="secondary">Özeti Yenile</button>
+            </div>
+            <div id="metrics" class="metrics"></div>
+        </section>
+
+        <section>
+            <div class="toolbar">
+                <div>
+                    <h2>Review Queue</h2>
+                    <p id="pageInfo" class="meta">Henüz veri yüklenmedi.</p>
+                </div>
+                <button id="prevBtn" class="secondary">Önceki</button>
+                <button id="nextBtn" class="secondary">Sonraki</button>
+            </div>
+            <div id="products" class="product-grid"></div>
+        </section>
+    </div>
+</main>
+
+<script>
+    const state = {
+        token: localStorage.getItem("grunAdminToken") || "",
+        page: 0,
+        lastPage: true
+    };
+
+    const el = (id) => document.getElementById(id);
+
+    function setStatus(message, type = "") {
+        const box = el("status");
+        box.className = `message ${type}`;
+        box.textContent = message;
+    }
+
+    function authHeaders(json = true) {
+        const headers = {};
+        if (json) headers["Content-Type"] = "application/json";
+        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+        return headers;
+    }
+
+    async function api(path, options = {}) {
+        const response = await fetch(path, options);
+        const contentType = response.headers.get("content-type") || "";
+        const body = contentType.includes("application/json") ? await response.json() : await response.text();
+        if (!response.ok) {
+            const message = body && body.message ? body.message : JSON.stringify(body);
+            throw new Error(`${response.status} ${response.statusText}: ${message}`);
+        }
+        return body;
+    }
+
+    async function login() {
+        const body = {
+            email: el("email").value.trim(),
+            password: el("password").value
+        };
+        const result = await api("/api/v1/auth/login", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(body)
+        });
+        state.token = result.token;
+        localStorage.setItem("grunAdminToken", state.token);
+        setStatus("Login başarılı.", "ok");
+        await Promise.all([loadSummary(), loadProducts(0)]);
+    }
+
+    function logout() {
+        state.token = "";
+        localStorage.removeItem("grunAdminToken");
+        setStatus("Token temizlendi.");
+    }
+
+    async function loadSummary() {
+        const summary = await api("/api/v1/admin/dashboard/summary", {
+            headers: authHeaders(false)
+        });
+        const metrics = [
+            ["totalUsers", "Kullanıcı"],
+            ["totalProducts", "Ürün"],
+            ["verifiedProducts", "Verified"],
+            ["rawImportedProducts", "Raw"],
+            ["reviewQueueProducts", "Review Queue"]
+        ];
+        el("metrics").innerHTML = metrics.map(([key, label]) => `
+            <div class="metric">
+                <strong>${summary[key] ?? 0}</strong>
+                <span>${label}</span>
+            </div>
+        `).join("");
+    }
+
+    function productImage(product) {
+        return product.displayImageUrl || product.imageUrl || product.externalImageUrl || "";
+    }
+
+    function badgeClass(value) {
+        if (value === "VERIFIED" || value === "APPROVED") return "ok";
+        if (value === "REJECTED") return "error";
+        return "warn";
+    }
+
+    async function loadProducts(page = state.page) {
+        state.page = Math.max(page, 0);
+        const params = new URLSearchParams({
+            page: state.page,
+            size: el("pageSize").value
+        });
+        if (el("verificationStatus").value) params.set("verificationStatus", el("verificationStatus").value);
+        if (el("imageStatus").value) params.set("imageStatus", el("imageStatus").value);
+
+        const result = await api(`/api/v1/admin/products/review?${params.toString()}`, {
+            headers: authHeaders(false)
+        });
+
+        state.lastPage = Boolean(result.last);
+        el("pageInfo").textContent = `Sayfa ${result.page + 1}/${Math.max(result.totalPages, 1)} - ${result.totalElements} ürün`;
+        el("prevBtn").disabled = Boolean(result.first);
+        el("nextBtn").disabled = Boolean(result.last);
+        renderProducts(result.content || []);
+    }
+
+    function renderProducts(products) {
+        if (!products.length) {
+            el("products").innerHTML = `<div class="message">Bu filtrelerle ürün bulunamadı.</div>`;
+            return;
+        }
+
+        el("products").innerHTML = products.map((p) => {
+            const image = productImage(p);
+            const imageHtml = image
+                ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(p.productName || "Product image")}" onerror="this.style.display='none'">`
+                : `<div class="message">Görsel yok</div>`;
+            return `
+                <article class="product" data-id="${p.id}">
+                    ${imageHtml}
+                    <div class="body">
+                        <h3>${escapeHtml(p.productName || "İsimsiz ürün")}</h3>
+                        <div class="meta">
+                            #${p.id} · ${escapeHtml(p.brand || "-")}<br>
+                            Barcode: ${escapeHtml(p.barcode || "-")}<br>
+                            Kalori: ${p.calories ?? "-"} · Protein: ${p.protein ?? "-"} · Karb: ${p.carbs ?? "-"} · Yağ: ${p.fat ?? "-"}
+                        </div>
+                        <div class="badges">
+                            <span class="badge ${badgeClass(p.verificationStatus)}">${p.verificationStatus || "NO_STATUS"}</span>
+                            <span class="badge ${badgeClass(p.imageStatus)}">${p.imageStatus || "NO_IMAGE_STATUS"}</span>
+                            <span class="badge">Q ${p.qualityScore ?? "-"}</span>
+                            <span class="badge">P ${p.reviewPriority ?? "-"}</span>
+                        </div>
+                        <label>Ürün adı</label>
+                        <input value="${escapeAttr(p.productName || "")}" data-field="productName">
+                        <label>Display image URL</label>
+                        <input value="${escapeAttr(p.displayImageUrl || image || "")}" data-field="displayImageUrl">
+                        <div class="row">
+                            <div>
+                                <label>Verification</label>
+                                <select data-field="verificationStatus">
+                                    ${statusOptions(["RAW_IMPORTED", "NEEDS_REVIEW", "VERIFIED", "REJECTED"], p.verificationStatus)}
+                                </select>
+                            </div>
+                            <div>
+                                <label>Image</label>
+                                <select data-field="imageStatus">
+                                    ${statusOptions(["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"], p.imageStatus)}
+                                </select>
+                            </div>
+                        </div>
+                        <label>Not</label>
+                        <textarea data-field="reviewNote" placeholder="Reject durumunda zorunlu."></textarea>
+                        <div class="row" style="margin-top: 10px">
+                            <button onclick="saveReview(${p.id})">Kaydet</button>
+                            <button class="secondary" onclick="loadAudit(${p.id})">Audit</button>
+                        </div>
+                        <pre class="message hidden" id="audit-${p.id}"></pre>
+                    </div>
+                </article>
+            `;
+        }).join("");
+    }
+
+    function statusOptions(values, selected) {
+        return values.map((value) =>
+            `<option value="${value}" ${value === selected ? "selected" : ""}>${value}</option>`
+        ).join("");
+    }
+
+    async function saveReview(id) {
+        const card = document.querySelector(`.product[data-id="${id}"]`);
+        const read = (field) => card.querySelector(`[data-field="${field}"]`).value.trim();
+        const body = {
+            productName: read("productName"),
+            displayImageUrl: read("displayImageUrl"),
+            verificationStatus: read("verificationStatus"),
+            imageStatus: read("imageStatus"),
+            reviewNote: read("reviewNote")
+        };
+
+        await api(`/api/v1/admin/products/${id}/review`, {
+            method: "PATCH",
+            headers: authHeaders(true),
+            body: JSON.stringify(body)
+        });
+        setStatus(`Ürün #${id} güncellendi.`, "ok");
+        await Promise.all([loadSummary(), loadProducts(state.page)]);
+    }
+
+    async function loadAudit(id) {
+        const result = await api(`/api/v1/admin/products/${id}/audit?page=0&size=10`, {
+            headers: authHeaders(false)
+        });
+        const target = el(`audit-${id}`);
+        target.classList.remove("hidden");
+        target.textContent = JSON.stringify(result.content || [], null, 2);
+    }
+
+    async function importProducts() {
+        const file = el("csvFile").files[0];
+        if (!file) {
+            setStatus("Import için CSV/TSV dosyası seç.", "error");
+            return;
+        }
+        const form = new FormData();
+        form.append("file", file);
+        form.append("importMode", el("importMode").value);
+        const result = await api("/api/v1/admin/products/import", {
+            method: "POST",
+            headers: authHeaders(false),
+            body: form
+        });
+        setStatus(JSON.stringify(result, null, 2), "ok");
+        await Promise.all([loadSummary(), loadProducts(0)]);
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;");
+    }
+
+    function escapeAttr(value) {
+        return escapeHtml(value).replaceAll("'", "&#039;");
+    }
+
+    async function run(action) {
+        try {
+            setStatus("İşlem çalışıyor...");
+            await action();
+        } catch (error) {
+            setStatus(error.message, "error");
+        }
+    }
+
+    el("loginBtn").addEventListener("click", () => run(login));
+    el("logoutBtn").addEventListener("click", logout);
+    el("summaryBtn").addEventListener("click", () => run(loadSummary));
+    el("loadBtn").addEventListener("click", () => run(() => loadProducts(0)));
+    el("importBtn").addEventListener("click", () => run(importProducts));
+    el("prevBtn").addEventListener("click", () => run(() => loadProducts(state.page - 1)));
+    el("nextBtn").addEventListener("click", () => run(() => loadProducts(state.page + 1)));
+
+    if (state.token) {
+        run(async () => {
+            await Promise.all([loadSummary(), loadProducts(0)]);
+            setStatus("Kayıtlı token ile yüklendi.", "ok");
+        });
+    }
+</script>
+</body>
+</html>

@@ -169,6 +169,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         }
 
         validateReviewState(product);
+        product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
         FoodProductQualityRules.markReviewed(product);
 
         FoodItemEntity savedProduct = foodItemRepository.save(product);

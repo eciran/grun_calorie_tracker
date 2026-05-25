@@ -119,6 +119,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals(VerificationStatus.VERIFIED, result.getVerificationStatus());
         assertEquals(ImageSource.ADMIN_UPLOAD, result.getImageSource());
         assertEquals(ImageStatus.APPROVED, result.getImageStatus());
+        assertEquals("admin@grun.app", result.getReviewedBy());
         assertNotNull(result.getLastReviewedAt());
         assertNotNull(result.getQualityScore());
         assertNotNull(result.getReviewPriority());
