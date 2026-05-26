@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.MarketRegion;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -48,6 +49,10 @@ public class OnboardingCompleteRequestDto {
     @Schema(description = "Optional body fat percentage. If provided, calorie calculation uses Katch-McArdle.", example = "19.2")
     private Double bodyFat;
 
+    @NotNull(message = "Market region is required.")
+    @Schema(description = "User's selected market region for localized food search. Supported values: IRL, TR, UK.", example = "UK", requiredMode = Schema.RequiredMode.REQUIRED)
+    private MarketRegion marketRegion;
+
     @NotNull(message = "{validation.user-goal.target-weight.required}")
     @Min(value = 30, message = "{validation.user-goal.target-weight.min}")
     @Schema(description = "Target body weight in kilograms.", example = "78.0", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -72,6 +77,7 @@ public class OnboardingCompleteRequestDto {
                 .height(height)
                 .weight(weight)
                 .bodyFat(bodyFat)
+                .marketRegion(marketRegion)
                 .build();
     }
 

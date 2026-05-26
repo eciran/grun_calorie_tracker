@@ -30,6 +30,7 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
             LocalDateTime end
     );
     Optional<FoodLogsEntity> findByIdAndUser(Long id, UserEntity user);
+    boolean existsByFoodItem(FoodItemEntity foodItem);
 
     @Query(value = """
             SELECT f.food_id
@@ -41,6 +42,21 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
             ORDER BY MAX(f.log_date) DESC, f.food_id DESC
             """, nativeQuery = true)
     List<Long> findRecentAvailableFoodItemIds(
+            @Param("userId") Long userId,
+            @Param("rejectedStatus") String rejectedStatus,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT CAST(f.log_date AS DATE) AS log_date, f.meal_type
+            FROM food_logs f
+            JOIN food_items fi ON fi.id = f.food_id
+            WHERE f.user_id = :userId
+              AND (fi.verification_status IS NULL OR fi.verification_status <> :rejectedStatus)
+            GROUP BY CAST(f.log_date AS DATE), f.meal_type
+            ORDER BY MAX(f.log_date) DESC, f.meal_type
+            """, nativeQuery = true)
+    List<Object[]> findRecentMealKeys(
             @Param("userId") Long userId,
             @Param("rejectedStatus") String rejectedStatus,
             Pageable pageable

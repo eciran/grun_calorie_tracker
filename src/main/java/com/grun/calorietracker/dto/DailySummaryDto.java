@@ -68,6 +68,15 @@ public class DailySummaryDto {
     @Schema(description = "Whether the user profile and goal setup is complete enough for the main tracking flow.", example = "true")
     private Boolean onboardingCompleted;
 
+    @Schema(description = "Whether at least one food log exists on the summary date.", example = "true")
+    private Boolean hasFoodLogs;
+
+    @Schema(description = "Whether at least one exercise log exists on the summary date.", example = "false")
+    private Boolean hasExerciseLogs;
+
+    @Schema(description = "Whether any food or exercise diary entry exists on the summary date.", example = "true")
+    private Boolean hasAnyDiaryEntry;
+
     @Schema(description = "Food diary entries logged on the summary date.")
     private List<FoodLogsDto> foodLogs;
 

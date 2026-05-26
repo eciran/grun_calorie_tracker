@@ -1,12 +1,14 @@
 package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.AppleLoginRequestDto;
 import com.grun.calorietracker.dto.AuthRequest;
 import com.grun.calorietracker.dto.EmailVerificationConfirmRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationResponseDto;
 import com.grun.calorietracker.dto.LogoutRequestDto;
 import com.grun.calorietracker.dto.LogoutResponseDto;
+import com.grun.calorietracker.dto.GoogleLoginRequestDto;
 import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
 import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
@@ -16,6 +18,7 @@ import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.EmailVerificationService;
+import com.grun.calorietracker.service.FederatedAuthService;
 import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.RefreshTokenService;
 import com.grun.calorietracker.service.UserService;
@@ -62,6 +65,9 @@ class AuthControllerTest {
 
     @MockBean
     private RefreshTokenService refreshTokenService;
+
+    @MockBean
+    private FederatedAuthService federatedAuthService;
 
     @MockBean
     private AuthenticationManager authenticationManager;
@@ -258,6 +264,51 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").value(900))
                 .andExpect(jsonPath("$.message").value("Token refreshed successfully"));
+    }
+
+    @Test
+    void googleLogin_returnsGrunSessionTokens() throws Exception {
+        GoogleLoginRequestDto request = new GoogleLoginRequestDto();
+        request.setIdToken("google-id-token");
+        when(federatedAuthService.loginWithGoogle("google-id-token"))
+                .thenReturn(new com.grun.calorietracker.dto.AuthResponse(
+                        "google-access-token",
+                        "google-refresh-token",
+                        "Bearer",
+                        900L,
+                        "Google login successful"
+                ));
+
+        mockMvc.perform(post("/api/v1/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("google-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("google-refresh-token"))
+                .andExpect(jsonPath("$.message").value("Google login successful"));
+    }
+
+    @Test
+    void appleLogin_returnsGrunSessionTokens() throws Exception {
+        AppleLoginRequestDto request = new AppleLoginRequestDto();
+        request.setIdToken("apple-id-token");
+        request.setNonce("apple-nonce");
+        when(federatedAuthService.loginWithApple("apple-id-token", "apple-nonce"))
+                .thenReturn(new com.grun.calorietracker.dto.AuthResponse(
+                        "apple-access-token",
+                        "apple-refresh-token",
+                        "Bearer",
+                        900L,
+                        "Apple login successful"
+                ));
+
+        mockMvc.perform(post("/api/v1/auth/apple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("apple-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("apple-refresh-token"))
+                .andExpect(jsonPath("$.message").value("Apple login successful"));
     }
 
     @Test

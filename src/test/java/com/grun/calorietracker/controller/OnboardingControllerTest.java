@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.service.OnboardingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,7 @@ class OnboardingControllerTest {
                 .height(180.0)
                 .weight(82.0)
                 .bodyFat(19.2)
+                .marketRegion(MarketRegion.UK)
                 .build();
         UserGoalDto goal = new UserGoalDto();
         goal.setDailyCalorieGoal(2209);
@@ -71,6 +73,7 @@ class OnboardingControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.onboardingCompleted").value(true))
                 .andExpect(jsonPath("$.profile.name").value("Emrah"))
+                .andExpect(jsonPath("$.profile.marketRegion").value("UK"))
                 .andExpect(jsonPath("$.calculation.calculatedCalorieNeed").value(2209));
     }
 
@@ -103,6 +106,7 @@ class OnboardingControllerTest {
         request.setHeight(180.0);
         request.setWeight(82.0);
         request.setBodyFat(19.2);
+        request.setMarketRegion(MarketRegion.UK);
         request.setTargetWeight(78.0);
         request.setWeeklyWeightChangeTargetKg(0.5);
         request.setGoalType(GoalType.LOSE_WEIGHT);

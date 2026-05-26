@@ -13,6 +13,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
@@ -73,9 +74,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
+        return getProductsForReview(verificationStatus, imageStatus, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            int page,
+            int size
+    ) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
         Page<FoodItemEntity> products = foodItemRepository.findAll(
-                buildReviewSpecification(verificationStatus, imageStatus),
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion),
                 pageable
         );
         return toPageDto(products);
@@ -168,7 +180,22 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             product.setImageStatus(request.getImageStatus());
         }
 
+        if (request.getMarketRegion() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "marketRegion",
+                    product.getMarketRegion(),
+                    request.getMarketRegion(),
+                    reviewNote
+            );
+            product.setMarketRegion(request.getMarketRegion());
+        }
+
         validateReviewState(product);
+        product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
         FoodProductQualityRules.markReviewed(product);
 
         FoodItemEntity savedProduct = foodItemRepository.save(product);
@@ -438,7 +465,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     private Specification<FoodItemEntity> buildReviewSpecification(
             VerificationStatus verificationStatus,
-            ImageStatus imageStatus
+            ImageStatus imageStatus,
+            MarketRegion marketRegion
     ) {
         VerificationStatus effectiveVerificationStatus = verificationStatus == null
                 ? VerificationStatus.RAW_IMPORTED
@@ -449,6 +477,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.equal(root.get("verificationStatus"), effectiveVerificationStatus));
             predicates.add(criteriaBuilder.equal(root.get("imageStatus"), effectiveImageStatus));
+            if (marketRegion != null) {
+                predicates.add(criteriaBuilder.equal(root.get("marketRegion"), marketRegion));
+            }
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }

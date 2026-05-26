@@ -9,7 +9,6 @@ import java.util.List;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 @Schema(description = "Food product CSV import result.")
 public class FoodProductImportResultDto {
 
@@ -28,6 +27,44 @@ public class FoodProductImportResultDto {
     @Schema(description = "Saved product count.", example = "9950")
     private int savedRows;
 
+    @Schema(description = "Number of duplicate barcode rows inside the imported file. The last row for a barcode wins within the same import.", example = "12")
+    private int duplicateInputRows;
+
+    @Schema(description = "Number of saved rows that still require admin product or image review.", example = "8200")
+    private int reviewRequiredRows;
+
+    @Schema(description = "Detected import format.", example = "TSV")
+    private String importFormat;
+
     @Schema(description = "First import errors. The list is capped to keep responses small.")
     private List<FoodProductImportErrorDto> errors;
+
+    public FoodProductImportResultDto(int totalRows,
+                                      int insertedRows,
+                                      int updatedRows,
+                                      int skippedRows,
+                                      int savedRows,
+                                      List<FoodProductImportErrorDto> errors) {
+        this(totalRows, insertedRows, updatedRows, skippedRows, savedRows, 0, 0, "CSV", errors);
+    }
+
+    public FoodProductImportResultDto(int totalRows,
+                                      int insertedRows,
+                                      int updatedRows,
+                                      int skippedRows,
+                                      int savedRows,
+                                      int duplicateInputRows,
+                                      int reviewRequiredRows,
+                                      String importFormat,
+                                      List<FoodProductImportErrorDto> errors) {
+        this.totalRows = totalRows;
+        this.insertedRows = insertedRows;
+        this.updatedRows = updatedRows;
+        this.skippedRows = skippedRows;
+        this.savedRows = savedRows;
+        this.duplicateInputRows = duplicateInputRows;
+        this.reviewRequiredRows = reviewRequiredRows;
+        this.importFormat = importFormat;
+        this.errors = errors;
+    }
 }

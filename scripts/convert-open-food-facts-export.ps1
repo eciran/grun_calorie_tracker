@@ -16,7 +16,10 @@ param(
 
     [switch] $RequireImage,
 
-    [switch] $RequireKnownNutriScore
+    [switch] $RequireKnownNutriScore,
+
+    [ValidateSet("IRL", "TR", "UK")]
+    [string] $MarketRegion
 )
 
 $ErrorActionPreference = "Stop"
@@ -198,6 +201,7 @@ foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter))
             sodium = Get-DecimalText -Row $row -Names @("sodium_100g", "sodium")
             serving_size_grams = Get-ServingSizeGrams -Row $row
             serving_unit = Get-ServingUnit -Row $row
+            market_region = $MarketRegion
             image_url = $imageUrl
             external_image_url = $imageUrl
             allergens = Get-TextValue -Row $row -Names @("allergens_tags", "allergens")
@@ -230,4 +234,5 @@ $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
     requireMacroData = $RequireMacroData.IsPresent
     requireImage = $RequireImage.IsPresent
     requireKnownNutriScore = $RequireKnownNutriScore.IsPresent
+    marketRegion = $MarketRegion
 } | ConvertTo-Json

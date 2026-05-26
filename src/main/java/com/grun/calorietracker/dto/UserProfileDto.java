@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.MarketRegion;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,6 +40,15 @@ public class UserProfileDto {
 
     @Schema(description = "Latest calculated body fat percentage.", example = "19.2")
     private Double bodyFat;
+
+    @Schema(description = "Whether the user's email address has been verified.", example = "true")
+    private Boolean emailVerified;
+
+    @Schema(description = "Whether the account has a user-managed password set.", example = "false")
+    private Boolean passwordSet;
+
+    @Schema(description = "User's selected market region for localized food search.", example = "UK")
+    private MarketRegion marketRegion;
 
     @Schema(
             description = "Whether the mobile app should ask the user to recalculate and confirm calorie goals after profile changes.",

@@ -17,12 +17,19 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final String REVENUECAT_WEBHOOK_PATH = "/api/v1/webhooks/revenuecat";
+
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
 
     public JwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return REVENUECAT_WEBHOOK_PATH.equals(request.getRequestURI());
     }
 
     @Override

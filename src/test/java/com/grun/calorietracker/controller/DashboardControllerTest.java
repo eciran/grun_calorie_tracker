@@ -43,6 +43,9 @@ class DashboardControllerTest {
         summary.setTotalExerciseMinutes(45);
         summary.setHasActiveGoal(true);
         summary.setOnboardingCompleted(true);
+        summary.setHasFoodLogs(false);
+        summary.setHasExerciseLogs(false);
+        summary.setHasAnyDiaryEntry(false);
 
         when(dashboardService.getDailySummary("user@example.com", date)).thenReturn(summary);
 
@@ -58,7 +61,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.calorieProgressPercent").value(56.27))
                 .andExpect(jsonPath("$.totalExerciseMinutes").value(45))
                 .andExpect(jsonPath("$.hasActiveGoal").value(true))
-                .andExpect(jsonPath("$.onboardingCompleted").value(true));
+                .andExpect(jsonPath("$.onboardingCompleted").value(true))
+                .andExpect(jsonPath("$.hasFoodLogs").value(false))
+                .andExpect(jsonPath("$.hasExerciseLogs").value(false))
+                .andExpect(jsonPath("$.hasAnyDiaryEntry").value(false));
 
         verify(dashboardService).getDailySummary("user@example.com", date);
     }

@@ -43,6 +43,19 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
+    public ExerciseLogsDto updateExerciseLog(Long id, ExerciseLogsDto dto, String email) {
+        UserEntity user = getUserByEmail(email);
+        ExerciseLogsEntity entity = getLogsItemById(id, user);
+        ExerciseItemEntity exerciseItem = getExerciseItemById(dto.getExerciseItemId());
+        entity.setExerciseItem(exerciseItem);
+        entity.setDurationMinutes(dto.getDurationMinutes());
+        entity.setCaloriesBurned(dto.getCaloriesBurned());
+        entity.setLogDate(dto.getLogDate());
+        entity.setExtraData(dto.getExtraData());
+        return exerciseLogsMapper.toDto(exerciseLogsRepository.save(entity));
+    }
+
+    @Override
     public List<ExerciseLogsDto> getExerciseLogsByDateAndUser(String email, LocalDateTime startDate, LocalDateTime endDate, String range) {
         UserEntity user = getUserByEmail(email);
 
@@ -54,6 +67,16 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
             dto.setCaloriesBurned(((Number) r[2]).doubleValue());
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ExerciseLogsDto> getExerciseLogsHistory(String email, LocalDateTime startDate, LocalDateTime endDate) {
+        UserEntity user = getUserByEmail(email);
+        return exerciseLogsRepository
+                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, startDate, endDate)
+                .stream()
+                .map(exerciseLogsMapper::toDto)
+                .toList();
     }
 
     @Override

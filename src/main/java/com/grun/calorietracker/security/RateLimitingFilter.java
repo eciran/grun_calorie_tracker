@@ -22,17 +22,16 @@ import java.util.Set;
 public class RateLimitingFilter extends OncePerRequestFilter {
 
     private static final Set<String> PROTECTED_AUTH_PATHS = Set.of(
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/password-reset/request",
-            "/api/auth/email-verification/resend",
-            "/api/auth/refresh",
             "/api/v1/auth/login",
+            "/api/v1/auth/google",
+            "/api/v1/auth/apple",
             "/api/v1/auth/register",
             "/api/v1/auth/password-reset/request",
             "/api/v1/auth/email-verification/resend",
             "/api/v1/auth/refresh"
     );
+
+    private static final String PRODUCT_BARCODE_PATH_PREFIX = "/api/v1/products/barcode/";
 
     private final InMemoryRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
@@ -64,8 +63,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private boolean isProtectedRequest(HttpServletRequest request) {
-        return "POST".equalsIgnoreCase(request.getMethod())
-                && PROTECTED_AUTH_PATHS.contains(request.getRequestURI());
+        if ("POST".equalsIgnoreCase(request.getMethod()) && PROTECTED_AUTH_PATHS.contains(request.getRequestURI())) {
+            return true;
+        }
+        return "GET".equalsIgnoreCase(request.getMethod())
+                && request.getRequestURI().startsWith(PRODUCT_BARCODE_PATH_PREFIX);
     }
 
     private String clientKey(HttpServletRequest request) {
@@ -84,8 +86,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 HttpStatus.TOO_MANY_REQUESTS.value(),
                 "Too many requests",
                 "Too many requests. Please wait before trying again.",
-                request.getRequestURI()
+                request.getRequestURI(),
+                correlationId(request)
         );
         objectMapper.writeValue(response.getWriter(), body);
+    }
+
+    private String correlationId(HttpServletRequest request) {
+        Object value = request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
+        return value == null ? request.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER) : value.toString();
     }
 }

@@ -2,11 +2,15 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.FoodDiaryNoteDto;
+import com.grun.calorietracker.dto.FoodDiaryNoteRequestDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
+import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.service.FoodDiaryNoteService;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +22,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +43,7 @@ import java.util.List;
 public class FoodLogsController {
 
     private final FoodLogsService foodLogsService;
+    private final FoodDiaryNoteService foodDiaryNoteService;
     private final UserService userService;
 
     @PostMapping
@@ -152,6 +159,76 @@ public class FoodLogsController {
                 targetDate.atStartOfDay(),
                 targetDate.plusDays(1).atStartOfDay()
         ));
+    }
+
+    @GetMapping("/recent-meals")
+    @Operation(
+            summary = "List recent logged meals",
+            description = "Returns recent meal occurrences from diary history. These are not saved meal templates; clients can copy one of them or explicitly save a template."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recent meals returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<FoodLogRecentMealDto>> getRecentMeals(
+            @Parameter(description = "Maximum recent meal count. Maximum 30.", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(30) int limit,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodLogsService.getRecentMeals(userDetails.getUsername(), limit));
+    }
+
+    @PutMapping("/diary-note")
+    @Operation(
+            summary = "Create or update a daily food diary note",
+            description = "Stores one free-text note for the authenticated user's food diary day. This note belongs to the day, not to a specific meal or progress log."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Food diary note saved."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<FoodDiaryNoteDto> upsertDiaryNote(
+            @Parameter(description = "Diary date in ISO format.", example = "2026-05-23") @RequestParam String date,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid FoodDiaryNoteRequestDto request) {
+        return ResponseEntity.ok(foodDiaryNoteService.upsertNote(
+                userDetails.getUsername(),
+                LocalDate.parse(date),
+                request
+        ));
+    }
+
+    @GetMapping("/diary-note")
+    @Operation(
+            summary = "Get a daily food diary note",
+            description = "Returns the note for one authenticated food diary day."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Food diary note returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Food diary note was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<FoodDiaryNoteDto> getDiaryNote(
+            @Parameter(description = "Diary date in ISO format.", example = "2026-05-23") @RequestParam String date,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodDiaryNoteService.getNote(userDetails.getUsername(), LocalDate.parse(date)));
+    }
+
+    @DeleteMapping("/diary-note")
+    @Operation(
+            summary = "Delete a daily food diary note",
+            description = "Deletes the note for one authenticated food diary day."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Food diary note deleted.", content = @Content),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Food diary note was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<Void> deleteDiaryNote(
+            @Parameter(description = "Diary date in ISO format.", example = "2026-05-23") @RequestParam String date,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        foodDiaryNoteService.deleteNote(userDetails.getUsername(), LocalDate.parse(date));
+        return ResponseEntity.noContent().build();
     }
 
     // Get specific food log by id for user

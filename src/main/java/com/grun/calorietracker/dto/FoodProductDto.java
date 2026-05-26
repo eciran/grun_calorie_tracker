@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -50,6 +51,9 @@ public class FoodProductDto {
 
     @Schema(description = "Image quality review status.", example = "RAW")
     private ImageStatus imageStatus;
+
+    @Schema(description = "Market region this food product belongs to.", example = "UK")
+    private MarketRegion marketRegion;
 
     @Schema(description = "How many times this product has been added to food logs.", example = "42")
     private Long usageCount;

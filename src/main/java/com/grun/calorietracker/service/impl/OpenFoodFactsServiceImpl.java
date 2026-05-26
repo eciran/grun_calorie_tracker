@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.OpenFoodFactsService;
 import org.springframework.beans.factory.annotation.Value;
@@ -75,10 +76,14 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
             return List.of();
         }
 
-        return fetchSearchResults(normalizedQuery, criteria.getBrand(), criteria.getNutriScore());
+        return fetchSearchResults(normalizedQuery, criteria.getBrand(), criteria.getNutriScore(), criteria.getMarketRegion());
     }
 
     private List<FoodProductDto> fetchSearchResults(String query, String brand, String nutriScore) {
+        return fetchSearchResults(query, brand, nutriScore, null);
+    }
+
+    private List<FoodProductDto> fetchSearchResults(String query, String brand, String nutriScore, MarketRegion marketRegion) {
         try {
             JsonNode response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
@@ -88,6 +93,9 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
                             .queryParam("action", "process")
                             .queryParam("json", 1)
                             .queryParam("page_size", DEFAULT_SEARCH_SIZE)
+                            .queryParamIfPresent("tagtype_0", java.util.Optional.ofNullable(marketRegion).map(region -> "countries"))
+                            .queryParamIfPresent("tag_contains_0", java.util.Optional.ofNullable(marketRegion).map(region -> "contains"))
+                            .queryParamIfPresent("tag_0", java.util.Optional.ofNullable(toOpenFoodFactsCountryTag(marketRegion)))
                             .build())
                     .retrieve()
                     .body(JsonNode.class);
@@ -111,6 +119,7 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
                 if (normalizedNutriScore != null && !normalizedNutriScore.equals(normalizeLower(product.getNutriScore()))) {
                     continue;
                 }
+                product.setMarketRegion(marketRegion);
                 result.add(product);
             }
             return result;
@@ -147,6 +156,17 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
         dto.setSugar(number(nutriments, "sugars_100g", "sugars_serving"));
         dto.setSodium(number(nutriments, "sodium_100g", "sodium_serving"));
         return dto;
+    }
+
+    private String toOpenFoodFactsCountryTag(MarketRegion marketRegion) {
+        if (marketRegion == null) {
+            return null;
+        }
+        return switch (marketRegion) {
+            case IRL -> "en:ireland";
+            case TR -> "en:turkey";
+            case UK -> "en:united-kingdom";
+        };
     }
 
     private String firstText(JsonNode node, String fallback, String... fields) {

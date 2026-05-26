@@ -7,6 +7,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class LoggingEmailVerificationMailSenderTest {
@@ -25,9 +27,10 @@ class LoggingEmailVerificationMailSenderTest {
         );
 
         verify(mailDeliveryService).sendTransactionalEmail(
-                "user@example.com",
-                "Verify your GRun email",
-                "Use this link to verify your GRun email: https://app.grun.local/verify?token=raw-token"
+                eq("user@example.com"),
+                eq("Verify your GRun email"),
+                eq("Use this link to verify your GRun email: https://app.grun.local/verify?token=raw-token"),
+                contains("Verify email")
         );
     }
 }

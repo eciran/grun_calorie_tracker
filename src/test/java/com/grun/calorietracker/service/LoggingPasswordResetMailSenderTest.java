@@ -7,6 +7,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class LoggingPasswordResetMailSenderTest {
@@ -25,9 +27,10 @@ class LoggingPasswordResetMailSenderTest {
         );
 
         verify(mailDeliveryService).sendTransactionalEmail(
-                "user@example.com",
-                "Reset your GRun password",
-                "Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"
+                eq("user@example.com"),
+                eq("Reset your GRun password"),
+                eq("Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"),
+                contains("Reset password")
         );
     }
 }

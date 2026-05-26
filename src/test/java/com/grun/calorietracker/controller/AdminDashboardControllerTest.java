@@ -38,7 +38,14 @@ class AdminDashboardControllerTest {
                 25,
                 10,
                 5,
-                35
+                35,
+                4,
+                2,
+                3,
+                1,
+                6,
+                8,
+                12
         );
 
         when(adminDashboardService.getSummary()).thenReturn(summary);
@@ -54,7 +61,11 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.rawImportedProducts").value(25))
                 .andExpect(jsonPath("$.needsReviewProducts").value(10))
                 .andExpect(jsonPath("$.rejectedProducts").value(5))
-                .andExpect(jsonPath("$.reviewQueueProducts").value(35));
+                .andExpect(jsonPath("$.reviewQueueProducts").value(35))
+                .andExpect(jsonPath("$.activePlusSubscriptions").value(4))
+                .andExpect(jsonPath("$.activeProSubscriptions").value(2))
+                .andExpect(jsonPath("$.failedSubscriptionProviderEvents").value(8))
+                .andExpect(jsonPath("$.subscriptionProviderEventsLast24Hours").value(12));
     }
 
     @Test

@@ -1,0 +1,13 @@
+package com.grun.calorietracker.repository;
+
+import com.grun.calorietracker.entity.MealTemplateEntity;
+import com.grun.calorietracker.entity.UserEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface MealTemplateRepository extends JpaRepository<MealTemplateEntity, Long> {
+    List<MealTemplateEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
+    Optional<MealTemplateEntity> findByIdAndUser(Long id, UserEntity user);
+}

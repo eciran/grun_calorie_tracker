@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Builder
 @Schema(description = "Mobile application startup state for the authenticated user.")
@@ -26,6 +28,15 @@ public class AppStartupDto {
 
     @Schema(description = "Whether the user's email address is verified.", example = "false")
     private boolean emailVerified;
+
+    @Schema(description = "Whether the account has a user-managed password set.", example = "false")
+    private boolean passwordSet;
+
+    @Schema(description = "Login providers linked to the authenticated account.")
+    private List<LinkedIdentityDto> linkedIdentities;
+
+    @Schema(description = "Current subscription and AI quota state for the authenticated user.")
+    private SubscriptionDto subscription;
 
     @Schema(description = "Whether the mobile app can open the dashboard directly.", example = "true")
     private boolean dashboardReady;

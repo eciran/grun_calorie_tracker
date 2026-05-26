@@ -1,0 +1,31 @@
+barcode,name,brand,calories,protein,fat,carbs,fiber,sugar,sodium,serving_size_grams,serving_unit,market_region,image_url,external_image_url,display_image_url,allergens,nutri_score
+3017620422003,Nutella Hazelnut Spread,Ferrero,539,6.3,30.9,57.5,3.4,56.3,0.107,15,g,UK,https://example.com/images/nutella.jpg,https://example.com/raw/nutella.jpg,,milk; nuts,e
+8690632010012,Ulker Cikolatali Gofret,Ulker,528,6.1,29.5,58.7,2.4,39.8,0.21,36,g,TR,https://example.com/images/ulker-gofret.jpg,https://example.com/raw/ulker-gofret.jpg,,milk; gluten,e
+5449000000996,Coca-Cola Original Taste,Coca-Cola,42,0,0,10.6,0,10.6,0,100,ml,IRL,https://example.com/images/coca-cola.jpg,https://example.com/raw/coca-cola.jpg,,,
+4008400402222,Kinder Bueno,Ferrero,572,8.6,37.3,49.5,2.2,41.2,0.272,43,g,UK,https://example.com/images/kinder-bueno.jpg,https://example.com/raw/kinder-bueno.jpg,,milk; nuts; gluten,e
+8712566322626,Knorr Tomato Soup,Knorr,46,1.1,1.5,6.7,0.8,3.2,0.62,100,g,IRL,https://example.com/images/knorr-tomato-soup.jpg,https://example.com/raw/knorr-tomato-soup.jpg,,,
+8690504018566,Ulker Biskrem Cocoa Biscuit,Ulker,480,6.8,19.0,68.0,3.0,32.0,0.45,100,g,TR,https://example.com/images/biskrem.jpg,https://example.com/raw/biskrem.jpg,,gluten; milk,d
+8690526095100,Eti Burcak Biscuit,Eti,455,7.2,16.2,68.1,5.1,19.8,0.52,100,g,TR,https://example.com/images/eti-burcak.jpg,https://example.com/raw/eti-burcak.jpg,,gluten; milk,c
+8690767711007,Danone Activia Plain Yogurt,Danone,62,4.1,3.0,4.7,0,4.7,0.06,100,g,TR,https://example.com/images/activia-yogurt.jpg,https://example.com/raw/activia-yogurt.jpg,,milk,b
+8690103000120,Sutas Semi Skimmed Milk,Sutas,46,3.2,1.5,4.8,0,4.8,0.05,100,ml,TR,https://example.com/images/sutas-milk.jpg,https://example.com/raw/sutas-milk.jpg,,milk,a
+8690637000124,Pinar Labneh Cheese,Pinar,215,6.5,19.0,4.0,0,3.2,0.42,100,g,TR,https://example.com/images/pinar-labneh.jpg,https://example.com/raw/pinar-labneh.jpg,,milk,d
+8690555020105,Torku Banada Cocoa Hazelnut Spread,Torku,541,5.8,31.0,58.0,3.1,55.0,0.12,15,g,TR,https://example.com/images/torku-banada.jpg,https://example.com/raw/torku-banada.jpg,,milk; nuts,e
+8690741000015,Tadim Roasted Sunflower Seeds,Tadim,585,22.8,49.5,12.0,8.6,2.2,1.2,30,g,TR,https://example.com/images/tadim-sunflower.jpg,https://example.com/raw/tadim-sunflower.jpg,,,
+8690575000408,Dimes Orange Juice,Dimes,45,0.6,0.1,10.2,0.2,9.8,0.01,100,ml,TR,https://example.com/images/dimes-orange.jpg,https://example.com/raw/dimes-orange.jpg,,,
+8693357413019,Saka Still Water,Saka,0,0,0,0,0,0,0.004,100,ml,TR,https://example.com/images/saka-water.jpg,https://example.com/raw/saka-water.jpg,,,
+8690575001139,Dimes Sour Cherry Juice,Dimes,48,0.2,0,11.7,0.1,11.5,0.01,100,ml,TR,https://example.com/images/dimes-cherry.jpg,https://example.com/raw/dimes-cherry.jpg,,,
+8697443000012,Fuse Tea Peach,The Coca-Cola Company,30,0,0,7.4,0,7.4,0.01,100,ml,UK,https://example.com/images/fuse-tea-peach.jpg,https://example.com/raw/fuse-tea-peach.jpg,,,
+8690526091003,Eti Cin Orange Biscuit,Eti,430,5.4,12.0,74.0,2.0,43.0,0.38,100,g,TR,https://example.com/images/eti-cin.jpg,https://example.com/raw/eti-cin.jpg,,gluten; milk,d
+8690504030100,Ulker Halley,Ulker,445,5.0,16.5,69.0,2.0,47.0,0.34,30,g,TR,https://example.com/images/ulker-halley.jpg,https://example.com/raw/ulker-halley.jpg,,gluten; milk,e
+8690632000105,Ulker Cizi Cheese Cracker,Ulker,500,9.0,25.0,58.0,2.5,6.0,1.35,100,g,TR,https://example.com/images/ulker-cizi.jpg,https://example.com/raw/ulker-cizi.jpg,,gluten; milk,d
+8690103015018,Sutas Ayran,Sutas,37,2.0,1.8,3.1,0,3.1,0.42,100,ml,TR,https://example.com/images/sutas-ayran.jpg,https://example.com/raw/sutas-ayran.jpg,,milk,b
+8690767717016,Danette Chocolate Pudding,Danone,126,3.1,3.4,20.5,0.8,17.0,0.12,100,g,TR,https://example.com/images/danette-chocolate.jpg,https://example.com/raw/danette-chocolate.jpg,,milk,c
+8690632030102,Ulker Metro Chocolate Bar,Ulker,455,5.2,17.2,70.0,1.2,52.0,0.24,36,g,TR,https://example.com/images/ulker-metro.jpg,https://example.com/raw/ulker-metro.jpg,,milk; gluten,e
+8690526096107,Eti Popkek Cocoa,Eti,430,5.8,19.0,58.0,2.0,34.0,0.36,45,g,TR,https://example.com/images/eti-popkek.jpg,https://example.com/raw/eti-popkek.jpg,,gluten; milk,e
+8690741000107,Tadim Roasted Chickpeas,Tadim,377,20.5,6.0,54.0,14.0,7.0,0.03,30,g,TR,https://example.com/images/tadim-chickpeas.jpg,https://example.com/raw/tadim-chickpeas.jpg,,,
+8690555011110,Torku Tam Wheat Bread,Torku,247,8.9,2.8,45.0,6.5,4.2,0.55,50,g,TR,https://example.com/images/torku-bread.jpg,https://example.com/raw/torku-bread.jpg,,gluten,b
+8690637712312,Pinar Protein Milk Chocolate,Pinar,64,5.0,1.5,7.6,0,7.4,0.09,100,ml,TR,https://example.com/images/pinar-protein-milk.jpg,https://example.com/raw/pinar-protein-milk.jpg,,milk,b
+8690103005019,Sutas Greek Yogurt,Sutas,92,5.8,5.0,5.4,0,5.4,0.07,100,g,TR,https://example.com/images/sutas-greek-yogurt.jpg,https://example.com/raw/sutas-greek-yogurt.jpg,,milk,b
+8690575000903,Dimes Apple Juice,Dimes,46,0.1,0,11.2,0.1,10.8,0.01,100,ml,TR,https://example.com/images/dimes-apple.jpg,https://example.com/raw/dimes-apple.jpg,,,
+8693357415013,Saka Sparkling Water,Saka,0,0,0,0,0,0,0.005,100,ml,TR,https://example.com/images/saka-sparkling.jpg,https://example.com/raw/saka-sparkling.jpg,,,
+8690504032104,Ulker Albeni Chocolate Bar,Ulker,465,5.0,19.0,69.0,1.6,51.0,0.22,40,g,TR,https://example.com/images/ulker-albeni.jpg,https://example.com/raw/ulker-albeni.jpg,,milk; gluten,e

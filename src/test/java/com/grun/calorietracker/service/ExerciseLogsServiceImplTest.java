@@ -124,4 +124,51 @@ class ExerciseLogsServiceImplTest {
         assertEquals(5L, result.get(0).getId());
         assertEquals("GOOGLE_FIT", result.get(0).getSource());
     }
+
+    @Test
+    void updateExerciseLog_updatesOwnedManualLog() {
+        ExerciseLogsEntity existing = new ExerciseLogsEntity();
+        existing.setId(8L);
+        existing.setUser(user);
+        existing.setExerciseItem(exerciseItem);
+        ExerciseLogsDto request = new ExerciseLogsDto();
+        request.setExerciseItemId(3L);
+        request.setDurationMinutes(60);
+        request.setCaloriesBurned(500.0);
+        request.setLogDate(LocalDateTime.of(2026, 5, 22, 19, 0));
+        ExerciseLogsDto response = new ExerciseLogsDto();
+        response.setId(8L);
+        response.setDurationMinutes(60);
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(exerciseLogsRepository.findByIdAndUser(8L, user)).thenReturn(Optional.of(existing));
+        when(exerciseItemRepository.findById(3L)).thenReturn(Optional.of(exerciseItem));
+        when(exerciseLogsRepository.save(existing)).thenReturn(existing);
+        when(exerciseLogsMapper.toDto(existing)).thenReturn(response);
+
+        ExerciseLogsDto result = exerciseLogsService.updateExerciseLog(8L, request, "test@test.com");
+
+        assertEquals(60, result.getDurationMinutes());
+        assertEquals(500.0, existing.getCaloriesBurned());
+        assertEquals(request.getLogDate(), existing.getLogDate());
+    }
+
+    @Test
+    void getExerciseLogsHistory_returnsOwnedDiaryEntries() {
+        ExerciseLogsEntity entity = new ExerciseLogsEntity();
+        entity.setId(12L);
+        entity.setUser(user);
+        ExerciseLogsDto response = new ExerciseLogsDto();
+        response.setId(12L);
+        LocalDateTime start = LocalDateTime.of(2026, 5, 1, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 5, 8, 0, 0);
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(exerciseLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of(entity));
+        when(exerciseLogsMapper.toDto(entity)).thenReturn(response);
+
+        List<ExerciseLogsDto> result = exerciseLogsService.getExerciseLogsHistory("test@test.com", start, end);
+
+        assertEquals(1, result.size());
+        assertEquals(12L, result.get(0).getId());
+    }
 }

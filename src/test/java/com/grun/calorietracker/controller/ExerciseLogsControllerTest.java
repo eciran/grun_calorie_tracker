@@ -14,13 +14,16 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -115,6 +118,56 @@ class ExerciseLogsControllerTest {
                 .andExpect(jsonPath("$[0].id").value(10L))
                 .andExpect(jsonPath("$[0].source").value("GOOGLE_FIT"))
                 .andExpect(jsonPath("$[0].externalId").value("fit-123"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void updateExerciseLog_success() throws Exception {
+        ExerciseLogsDto request = new ExerciseLogsDto();
+        request.setExerciseItemId(3L);
+        request.setDurationMinutes(50);
+        request.setCaloriesBurned(450.0);
+        request.setLogDate(LocalDateTime.of(2026, 5, 22, 18, 0));
+        ExerciseLogsDto response = new ExerciseLogsDto();
+        response.setId(9L);
+        response.setDurationMinutes(50);
+        when(exerciseLogsService.updateExerciseLog(eq(9L), any(ExerciseLogsDto.class), eq("test@test.com")))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/exercise-logs/9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(9L))
+                .andExpect(jsonPath("$.durationMinutes").value(50));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getExerciseLogHistory_UsesInclusiveDateRange() throws Exception {
+        when(exerciseLogsService.getExerciseLogsHistory(eq("test@test.com"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(new ExerciseLogsDto()));
+
+        mockMvc.perform(get("/api/v1/exercise-logs/history")
+                        .param("start", "2026-05-01")
+                        .param("end", "2026-05-07"))
+                .andExpect(status().isOk());
+
+        verify(exerciseLogsService).getExerciseLogsHistory(
+                "test@test.com",
+                LocalDate.of(2026, 5, 1).atStartOfDay(),
+                LocalDate.of(2026, 5, 8).atStartOfDay()
+        );
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getExerciseLogHistory_WhenEndBeforeStart_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/exercise-logs/history")
+                        .param("start", "2026-05-07")
+                        .param("end", "2026-05-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.path").value("/api/v1/exercise-logs/history"));
     }
 }
 

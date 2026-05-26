@@ -1,6 +1,7 @@
 package com.grun.calorietracker.exception;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.security.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.context.MessageSource;
@@ -38,9 +39,15 @@ public class GlobalExceptionHandler {
                 status.value(),
                 resolveMessage(errorCode, fallbackError, request),
                 message,
-                request.getRequestURI()
+                request.getRequestURI(),
+                correlationId(request)
         );
         return ResponseEntity.status(status).body(body);
+    }
+
+    private String correlationId(HttpServletRequest request) {
+        Object value = request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
+        return value == null ? request.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER) : value.toString();
     }
 
     private String resolveMessage(String code, String fallback, HttpServletRequest request) {
@@ -80,6 +87,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExerciseLogNotFoundException.class)
     public ResponseEntity<ApiErrorResponseDto> handleExerciseLogNotFoundException(ExerciseLogNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "error.exercise-log.not-found", "Exercise log not found", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(ProgressLogNotFoundException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleProgressLogNotFoundException(ProgressLogNotFoundException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, "error.progress-log.not-found", "Progress log not found", ex.getMessage(), request);
     }
 
     @ExceptionHandler(ExerciseItemNotFoundException.class)

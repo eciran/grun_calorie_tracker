@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -22,6 +23,9 @@ public class FoodProductReviewRequestDto {
 
     @Schema(description = "Image review status.", example = "APPROVED")
     private ImageStatus imageStatus;
+
+    @Schema(description = "Market region for this food product. Supported values: IRL, TR, UK.", example = "UK")
+    private MarketRegion marketRegion;
 
     @Schema(description = "Admin review note. Required when rejecting product data or image.", example = "Image is blurry and product label is unreadable.")
     private String reviewNote;
@@ -64,6 +68,14 @@ public class FoodProductReviewRequestDto {
 
     public void setImageStatus(ImageStatus imageStatus) {
         this.imageStatus = imageStatus;
+    }
+
+    public MarketRegion getMarketRegion() {
+        return marketRegion;
+    }
+
+    public void setMarketRegion(MarketRegion marketRegion) {
+        this.marketRegion = marketRegion;
     }
 
     public String getReviewNote() {

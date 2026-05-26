@@ -1,12 +1,14 @@
 // All comments are in English as requested in the project rules.
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.dto.AppleLoginRequestDto;
 import com.grun.calorietracker.dto.AuthRequest;
 import com.grun.calorietracker.dto.AuthResponse;
-import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.EmailVerificationConfirmRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationRequestDto;
 import com.grun.calorietracker.dto.EmailVerificationResponseDto;
+import com.grun.calorietracker.dto.GoogleLoginRequestDto;
 import com.grun.calorietracker.dto.LogoutRequestDto;
 import com.grun.calorietracker.dto.LogoutResponseDto;
 import com.grun.calorietracker.dto.PasswordResetConfirmRequestDto;
@@ -19,6 +21,7 @@ import com.grun.calorietracker.exception.EmailNotVerifiedException;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.EmailVerificationService;
+import com.grun.calorietracker.service.FederatedAuthService;
 import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,6 +54,7 @@ public class AuthController {
     private final PasswordResetService passwordResetService;
     private final EmailVerificationService emailVerificationService;
     private final RefreshTokenService refreshTokenService;
+    private final FederatedAuthService federatedAuthService;
 
 
     @PostMapping("/register")
@@ -87,6 +91,7 @@ public class AuthController {
         newUser.setPassword(passwordEncoder.encode(request.getPassword()));
         newUser.setRole(UserRole.STANDARD);
         newUser.setEmailVerified(false);
+        newUser.setPasswordSet(true);
 
         UserEntity savedUser = userRepository.save(newUser);
         emailVerificationService.createVerificationTokenForUser(savedUser);
@@ -138,6 +143,36 @@ public class AuthController {
         String token = jwtUtil.generateToken(user.getEmail());
         String refreshToken = refreshTokenService.createRefreshToken(user);
         return ResponseEntity.ok(new AuthResponse(token, refreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Login successful"));
+    }
+
+    @PostMapping("/google")
+    @Operation(
+            summary = "Login or register with Google",
+            description = "Verifies a Google ID token obtained by the mobile client, links the Google subject to a GRun account, and returns GRun access and refresh tokens."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Google login successful."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed or Google login is not configured.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "Google ID token is invalid or unverified.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "429", description = "Too many requests from the same client.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AuthResponse> googleLogin(@RequestBody @Valid GoogleLoginRequestDto request) {
+        return ResponseEntity.ok(federatedAuthService.loginWithGoogle(request.getIdToken()));
+    }
+
+    @PostMapping("/apple")
+    @Operation(
+            summary = "Login or register with Apple",
+            description = "Verifies an Apple identity token and nonce received from the client, links the Apple subject to a GRun account, and returns GRun access and refresh tokens."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Apple login successful."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed or Apple login is not configured.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "Apple identity token, nonce, or account identity is invalid.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "429", description = "Too many requests from the same client.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AuthResponse> appleLogin(@RequestBody @Valid AppleLoginRequestDto request) {
+        return ResponseEntity.ok(federatedAuthService.loginWithApple(request.getIdToken(), request.getNonce()));
     }
 
     @PostMapping("/refresh")

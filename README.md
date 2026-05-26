@@ -13,16 +13,6 @@ GRun Calorie Tracker is an AI-powered health and nutrition application that allo
 - PostgreSQL setup via Docker
 - Swagger/OpenAPI documentation
 
-## Project Docs
-
-- `docs/ROADMAP.md`: current project status and next work items
-- `docs/PROGRESS_LOG.md`: technical progress history
-- `docs/DATA_SEED_STRATEGY.md`: database seed and catalog data strategy
-- `docs/PRODUCT_CATALOG_ADMIN_FLOW.md`: admin product review workflow
-- `docs/FOOD_PRODUCT_REVIEW_AUDIT_PLAN.md`: planned audit history model
-- `docs/LOCAL_SWAGGER_DEMO_FLOW.md`: local Swagger demo flow with seeded users and products
-- `docs/NEXT_BACKEND_SPRINT_OPTIONS.md`: next backend sprint options and recommended priority
-
 ## Local Setup
 
 ### Requirements
@@ -117,31 +107,31 @@ To remove only local demo data while preserving the PostgreSQL volume and local 
 
 ### Local Password Reset
 
-Password reset uses a local logging mail sender until a real email provider is selected. In local development, request a reset from Swagger and read the raw token/reset link from the application log:
+Password reset uses the configured transactional mail provider. In local development, `GRUN_MAIL_PROVIDER=LOG` writes the reset link to the application log:
 
 ```text
 POST /api/v1/auth/password-reset/request
 POST /api/v1/auth/password-reset/confirm
 ```
 
-The token stored in PostgreSQL is hashed; only the log line contains the raw local test token.
+The token stored in PostgreSQL is hashed; in local LOG mode the reset link contains the raw local test token. In Brevo mode the backend sends the email through Brevo and does not log the token.
 
 ### Local Email Verification
 
-Email verification uses a local logging mail sender until a real provider such as Brevo, Resend, or Amazon SES is selected. New registered users start as unverified and cannot login until their email is confirmed.
+Email verification uses the configured transactional mail provider. New registered users start as unverified and cannot login until their email is confirmed.
 
 ```text
 POST /api/v1/auth/email-verification/resend
 POST /api/v1/auth/email-verification/confirm
 ```
 
-The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
+The verification token stored in PostgreSQL is hashed; in local LOG mode the verification link contains the raw local test token. In Brevo mode the backend sends the email through Brevo and does not log the token.
 
 ### Transactional Email Provider
 
 Transactional emails use a configurable delivery service. Local development defaults to `GRUN_MAIL_PROVIDER=LOG`, so password reset and email verification links are written to the application log and no external email is sent.
 
-For a real provider, the current built-in option is Brevo:
+For production, use Brevo:
 
 ```env
 GRUN_MAIL_PROVIDER=BREVO
@@ -152,6 +142,8 @@ GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
 ```
 
 Provider credentials must stay in local or deployment secrets and must not be committed.
+
+Before enabling Brevo in production, verify the sender/domain in Brevo and configure SPF, DKIM, and DMARC DNS records for the sending domain. Use a sender address on that verified domain, for example `no-reply@your-domain.com`.
 
 ### Rate Limiting
 
@@ -217,6 +209,28 @@ Swagger UI:
 http://localhost:8080/swagger-ui/index.html
 ```
 
+Temporary admin product UI:
+
+```text
+http://localhost:8080/admin-ui/index.html
+```
+
+This lightweight page uses the existing admin APIs for login, catalog summary, small CSV import, review queue, product review updates, and audit inspection. For a small pilot import, use:
+
+```text
+sample-data/food-products-pilot-small.csv
+```
+
+The pilot file currently contains 30 rows and every row must carry one supported market region:
+
+```text
+IRL = Ireland
+TR  = Turkey
+UK  = United Kingdom
+```
+
+This is not the final admin panel; it is only a local development tool for visual product review.
+
 ### API Versioning
 
 The current API contract is `v1`. Clients should use `/api/v1/...` paths, for example:
@@ -228,6 +242,20 @@ POST /api/v1/food-logs
 ```
 
 Unversioned `/api/...` route aliases are not exposed. Keeping one path family prevents duplicate Swagger entries and keeps the mobile contract explicit.
+
+Food product search supports market region filtering:
+
+```text
+GET /api/v1/products/search?q=milk&region=UK
+```
+
+If `region` is omitted, the backend uses the authenticated user's saved `marketRegion`.
+
+The current mobile integration contract is maintained in:
+
+```text
+docs/MOBILE_API_CONTRACT.md
+```
 
 ### Stop Local Services
 
@@ -252,6 +280,16 @@ docker ps --filter "name=grun-postgres"
 docker logs grun-postgres
 docker exec grun-postgres psql -U postgres -d grun_calorie_db -c "select version, description, success from flyway_schema_history order by installed_rank;"
 ```
+
+### Local Catalog Cleanup
+
+To remove local non-custom food products that do not match the supported market regions, run:
+
+```powershell
+.\scripts\cleanup-local-food-products.ps1
+```
+
+This is a local development cleanup script. It deletes dependent local food logs, favorites, meal template items, and review audits for removed catalog products.
 
 ## Development Status
 

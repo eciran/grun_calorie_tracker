@@ -30,6 +30,22 @@ openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
 
 grun:
+  revenuecat:
+    webhook-authorization: ${GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION:}
+    strict-product-mapping: ${GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING:true}
+    entitlements:
+      plus: ${GRUN_REVENUECAT_PLUS_ENTITLEMENTS:plus,plus_access}
+      pro: ${GRUN_REVENUECAT_PRO_ENTITLEMENTS:pro,pro_access}
+    products:
+      plus: ${GRUN_REVENUECAT_PLUS_PRODUCT_IDS:grun_plus_monthly,grun_plus_yearly}
+      pro: ${GRUN_REVENUECAT_PRO_PRODUCT_IDS:grun_pro_monthly,grun_pro_yearly}
+      default-ai-addon-validity-days: ${GRUN_REVENUECAT_AI_ADDON_DEFAULT_VALIDITY_DAYS:30}
+      ai-addon-quotas:
+        grun_ai_15_credits: 15
+        grun_ai_50_credits: 50
+      ai-addon-validity-days:
+        grun_ai_15_credits: 30
+        grun_ai_50_credits: 30
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
     from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}
@@ -43,6 +59,11 @@ grun:
     enabled: ${GRUN_RATE_LIMIT_ENABLED:true}
     auth:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE:20}
+  oauth:
+    google:
+      client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+    apple:
+      client-ids: ${APPLE_OAUTH_CLIENT_IDS:}
   password-reset:
     expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
     base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}

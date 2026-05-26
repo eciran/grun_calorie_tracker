@@ -22,15 +22,23 @@ public class ApiErrorResponseDto {
     @Schema(description = "Request path that produced the error.")
     private String path;
 
+    @Schema(description = "Correlation id used to trace the request across logs and clients.")
+    private String correlationId;
+
     public ApiErrorResponseDto() {
     }
 
     public ApiErrorResponseDto(LocalDateTime timestamp, int status, String error, String message, String path) {
+        this(timestamp, status, error, message, path, null);
+    }
+
+    public ApiErrorResponseDto(LocalDateTime timestamp, int status, String error, String message, String path, String correlationId) {
         this.timestamp = timestamp;
         this.status = status;
         this.error = error;
         this.message = message;
         this.path = path;
+        this.correlationId = correlationId;
     }
 
     public LocalDateTime getTimestamp() {
@@ -71,5 +79,13 @@ public class ApiErrorResponseDto {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
+    }
+
+    public void setCorrelationId(String correlationId) {
+        this.correlationId = correlationId;
     }
 }

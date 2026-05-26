@@ -8,6 +8,7 @@ import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.MealTemplateItemRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.UserProductLibraryServiceImpl;
@@ -38,6 +39,8 @@ class UserProductLibraryServiceImplTest {
     private FoodItemRepository foodItemRepository;
     @Mock
     private FoodLogsRepository foodLogsRepository;
+    @Mock
+    private MealTemplateItemRepository mealTemplateItemRepository;
     @Mock
     private UserFavoriteRepository userFavoriteRepository;
     @InjectMocks
@@ -99,6 +102,40 @@ class UserProductLibraryServiceImplTest {
                         && Boolean.TRUE.equals(product.getIsCustom())
                         && product.getDataSource() == com.grun.calorietracker.enums.FoodDataSource.MANUAL
         ));
+    }
+
+    @Test
+    void updateCustomFood_updatesOwnedProduct() {
+        UserEntity user = user();
+        FoodItemEntity custom = product(10L, "Old");
+        custom.setIsCustom(true);
+        custom.setCreatedByUser(user);
+        CustomFoodRequestDto request = new CustomFoodRequestDto();
+        request.setName("New Soup");
+        request.setCalories(101.0);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(10L)).thenReturn(Optional.of(custom));
+        when(foodItemRepository.save(custom)).thenReturn(custom);
+
+        FoodProductDto result = service.updateCustomFood("user@test.com", 10L, request);
+
+        assertEquals("New Soup", result.getProductName());
+        assertEquals(101.0, custom.getCalories());
+    }
+
+    @Test
+    void deleteCustomFood_rejectsDiaryReferencedProduct() {
+        UserEntity user = user();
+        FoodItemEntity custom = product(10L, "Used Soup");
+        custom.setIsCustom(true);
+        custom.setCreatedByUser(user);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(10L)).thenReturn(Optional.of(custom));
+        when(foodLogsRepository.existsByFoodItem(custom)).thenReturn(true);
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.deleteCustomFood("user@test.com", 10L));
+        verify(foodItemRepository, never()).delete(any(FoodItemEntity.class));
     }
 
     private UserEntity user() {

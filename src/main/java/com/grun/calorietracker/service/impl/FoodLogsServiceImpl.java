@@ -3,11 +3,11 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
+import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
-import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
@@ -16,9 +16,11 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
+import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,8 +51,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setUser(user);
         entity.setFoodItem(foodItem);
         entity.setPortionSize(dto.getPortionSize());
-        entity.setPortionUnit(resolvePortionUnit(dto.getPortionUnit()));
-        entity.setNormalizedPortionGrams(calculateNormalizedPortionGrams(
+        entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
+        entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
                 dto.getPortionSize(),
                 entity.getPortionUnit(),
                 foodItem
@@ -95,8 +97,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
         entity.setFoodItem(foodItem);
         entity.setPortionSize(dto.getPortionSize());
-        entity.setPortionUnit(resolvePortionUnit(dto.getPortionUnit()));
-        entity.setNormalizedPortionGrams(calculateNormalizedPortionGrams(
+        entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
+        entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
                 dto.getPortionSize(),
                 entity.getPortionUnit(),
                 foodItem
@@ -153,6 +155,18 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    public List<FoodLogRecentMealDto> getRecentMeals(String email, int limit) {
+        UserEntity user = getUser(email);
+        return foodLogsRepository.findRecentMealKeys(
+                        user.getId(),
+                        VerificationStatus.REJECTED.name(),
+                        PageRequest.of(0, normalizeLimit(limit))
+                ).stream()
+                .map(key -> toRecentMeal(user, toLocalDate(key[0]), normalizeMealType((String) key[1])))
+                .toList();
+    }
+
+    @Override
     public FoodLogsDto getFoodLogById(Long id, String email) {
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
@@ -199,6 +213,25 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return dto;
     }
 
+    private FoodLogRecentMealDto toRecentMeal(UserEntity user, LocalDate sourceDate, String mealType) {
+        List<FoodLogsEntity> logs = foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
+                user,
+                mealType,
+                sourceDate.atStartOfDay(),
+                sourceDate.plusDays(1).atStartOfDay()
+        );
+        FoodLogMealSummaryDto summary = toMealSummary(mealType, logs);
+        FoodLogRecentMealDto dto = new FoodLogRecentMealDto();
+        dto.setSourceDate(sourceDate);
+        dto.setMealType(summary.getMealType());
+        dto.setLogs(summary.getLogs());
+        dto.setTotalCalories(summary.getTotalCalories());
+        dto.setTotalProtein(summary.getTotalProtein());
+        dto.setTotalFat(summary.getTotalFat());
+        dto.setTotalCarbs(summary.getTotalCarbs());
+        return dto;
+    }
+
     private Double sumNutrition(List<FoodLogsEntity> logs, java.util.function.Function<FoodItemEntity, Double> nutrient) {
         return round(logs.stream()
                 .mapToDouble(log -> {
@@ -242,13 +275,19 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return Math.round(value * 100.0) / 100.0;
     }
 
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof java.sql.Date date) {
+            return date.toLocalDate();
+        }
+        if (value instanceof LocalDate date) {
+            return date;
+        }
+        return LocalDate.parse(value.toString());
+    }
+
     private void markFoodItemUsed(FoodItemEntity foodItem) {
         FoodProductQualityRules.markUsed(foodItem);
         foodItemRepository.save(foodItem);
-    }
-
-    private FoodPortionUnit resolvePortionUnit(FoodPortionUnit portionUnit) {
-        return portionUnit == null ? FoodPortionUnit.GRAM : portionUnit;
     }
 
     private String normalizeMealType(String mealType) {
@@ -261,7 +300,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         copy.setUser(user);
         copy.setFoodItem(source.getFoodItem());
         copy.setPortionSize(source.getPortionSize());
-        copy.setPortionUnit(resolvePortionUnit(source.getPortionUnit()));
+        copy.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
         copy.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
         copy.setMealType(normalizeMealType(source.getMealType()));
         copy.setLogDate(targetDate.atTime(source.getLogDate().toLocalTime()));
@@ -283,21 +322,11 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
-    private Double calculateNormalizedPortionGrams(Double portionSize, FoodPortionUnit portionUnit, FoodItemEntity foodItem) {
-        if (portionSize == null) {
-            return null;
+    private int normalizeLimit(int limit) {
+        if (limit < 1) {
+            return 10;
         }
-        if (portionUnit == FoodPortionUnit.SERVING || portionUnit == FoodPortionUnit.PIECE) {
-            return portionSize * defaultServingSizeGrams(foodItem);
-        }
-        return portionSize;
-    }
-
-    private Double defaultServingSizeGrams(FoodItemEntity foodItem) {
-        if (foodItem.getServingSizeGrams() != null && foodItem.getServingSizeGrams() > 0) {
-            return foodItem.getServingSizeGrams();
-        }
-        return 100.0;
+        return Math.min(limit, 30);
     }
 
     private FoodLogsDto toDto(FoodLogsEntity entity) {
@@ -306,7 +335,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setFoodItemId(entity.getFoodItem().getId());
         dto.setFoodName(entity.getFoodItem().getName());
         dto.setPortionSize(entity.getPortionSize());
-        dto.setPortionUnit(resolvePortionUnit(entity.getPortionUnit()));
+        dto.setPortionUnit(FoodPortionCalculator.resolveUnit(entity.getPortionUnit()));
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
