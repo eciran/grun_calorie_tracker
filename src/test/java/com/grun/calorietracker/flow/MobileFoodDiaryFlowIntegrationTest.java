@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.EmailVerificationMailSender;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,7 @@ class MobileFoodDiaryFlowIntegrationTest {
         request.setGender("MALE");
         request.setHeight(180.0);
         request.setWeight(82.0);
+        request.setMarketRegion(MarketRegion.UK);
         request.setTargetWeight(78.0);
         request.setWeeklyWeightChangeTargetKg(0.5);
         request.setGoalType(GoalType.LOSE_WEIGHT);

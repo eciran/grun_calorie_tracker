@@ -5,9 +5,11 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.UserProductLibraryService;
+import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,6 +36,7 @@ public class FoodItemController {
 
     private final FoodItemService foodItemService;
     private final UserProductLibraryService userProductLibraryService;
+    private final UserService userService;
 
 
     @GetMapping("/search")
@@ -51,13 +54,26 @@ public class FoodItemController {
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
-            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,
+            @Parameter(description = "Optional market region filter. Supported values: IRL, TR, UK.", example = "UK")
+            @RequestParam(required = false) MarketRegion region,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery(q);
+        criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 
         return ResponseEntity.ok(products);
+    }
+
+    private MarketRegion resolveSearchRegion(MarketRegion requestedRegion, UserDetails userDetails) {
+        if (requestedRegion != null || userDetails == null) {
+            return requestedRegion;
+        }
+        return userService.findByEmail(userDetails.getUsername())
+                .map(user -> user.getMarketRegion())
+                .orElse(null);
     }
 
     @GetMapping("/barcode/{barcode}")

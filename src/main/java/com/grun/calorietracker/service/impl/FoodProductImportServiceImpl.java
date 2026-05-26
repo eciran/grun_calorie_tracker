@@ -7,6 +7,7 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.FoodProductImportService;
@@ -184,6 +185,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setBarcode(normalizedBarcode);
         product.setNormalizedBarcode(normalizedBarcode);
         product.setName(name);
+        product.setMarketRegion(resolveMarketRegion(row, product.getMarketRegion()));
         applyImportMetadata(product, row, importedBy, importMode);
 
         setIfPresent(row, "imageurl", product::setImageUrl);
@@ -324,6 +326,28 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         boolean hasDisplayImage = firstText(row, "displayimageurl", "display_image_url", "imageurl", "image_url") != null;
         return hasDisplayImage ? ImageStatus.APPROVED : ImageStatus.NEEDS_REVIEW;
+    }
+
+    private MarketRegion resolveMarketRegion(CsvRow row, MarketRegion fallback) {
+        String value = firstText(row, "marketregion", "market_region", "region", "country");
+        if (value == null) {
+            return fallback;
+        }
+
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if ("GB".equals(normalized) || "GBR".equals(normalized) || "UNITED KINGDOM".equals(normalized)) {
+            normalized = "UK";
+        } else if ("TURKEY".equals(normalized) || "TURKIYE".equals(normalized)) {
+            normalized = "TR";
+        } else if ("IRELAND".equals(normalized) || "IE".equals(normalized)) {
+            normalized = "IRL";
+        }
+
+        try {
+            return MarketRegion.valueOf(normalized);
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
     }
 
     private void addError(List<FoodProductImportErrorDto> errors, FoodProductImportErrorDto error) {

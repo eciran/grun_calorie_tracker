@@ -4,8 +4,11 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.UserProductLibraryService;
+import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -15,7 +18,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -39,6 +44,9 @@ class FoodItemControllerTest {
     @MockBean
     private UserProductLibraryService userProductLibraryService;
 
+    @MockBean
+    private UserService userService;
+
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
     void searchProducts_whenNoProductsFound_returnsEmptyPageWithOkStatus() throws Exception {
@@ -52,6 +60,7 @@ class FoodItemControllerTest {
         page.setLast(true);
 
         when(foodItemService.searchFoodItems(any(), eq(0), eq(25))).thenReturn(page);
+        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.IRL)));
 
         mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "unknown")
@@ -64,6 +73,54 @@ class FoodItemControllerTest {
                 .andExpect(jsonPath("$.size").value(25))
                 .andExpect(jsonPath("$.totalElements").value(0))
                 .andExpect(jsonPath("$.totalPages").value(0));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void searchProducts_whenRegionParamMissing_usesCurrentUserMarketRegion() throws Exception {
+        FoodProductSearchPageDto page = new FoodProductSearchPageDto();
+        page.setContent(List.of());
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(0L);
+        page.setTotalPages(0);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.TR)));
+        when(foodItemService.searchFoodItems(
+                argThat(criteria -> criteria != null && criteria.getMarketRegion() == MarketRegion.TR),
+                eq(0),
+                eq(25)
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/products/search")
+                        .param("q", "sut"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void searchProducts_whenRegionParamProvided_usesRequestedRegion() throws Exception {
+        FoodProductSearchPageDto page = new FoodProductSearchPageDto();
+        page.setContent(List.of());
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(0L);
+        page.setTotalPages(0);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodItemService.searchFoodItems(
+                argThat(criteria -> criteria != null && criteria.getMarketRegion() == MarketRegion.UK),
+                eq(0),
+                eq(25)
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/products/search")
+                        .param("q", "milk")
+                        .param("region", "UK"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -84,6 +141,7 @@ class FoodItemControllerTest {
         page.setLast(true);
 
         when(foodItemService.searchFoodItems(any(), eq(0), eq(25))).thenReturn(page);
+        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.UK)));
 
         mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "nutella"))
@@ -92,6 +150,13 @@ class FoodItemControllerTest {
                 .andExpect(jsonPath("$.content[0].barcode").value("3017620422003"))
                 .andExpect(jsonPath("$.content[0].productName").value("Nutella"))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    private UserEntity userWithRegion(MarketRegion marketRegion) {
+        UserEntity user = new UserEntity();
+        user.setEmail("user@test.com");
+        user.setMarketRegion(marketRegion);
+        return user;
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.service.impl.OnboardingServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ class OnboardingServiceImplTest {
                 .height(180.0)
                 .weight(82.0)
                 .bodyFat(19.2)
+                .marketRegion(MarketRegion.UK)
                 .build();
         UserGoalDto savedGoal = new UserGoalDto();
         savedGoal.setDailyCalorieGoal(2209);
@@ -68,6 +70,7 @@ class OnboardingServiceImplTest {
         org.mockito.Mockito.verify(userService).updateCurrentUser(profileCaptor.capture(), eq("user@example.com"));
         org.mockito.Mockito.verify(userGoalService).saveUserGoal(goalCaptor.capture(), eq("user@example.com"));
         assertEquals(19.2, profileCaptor.getValue().getBodyFat());
+        assertEquals(MarketRegion.UK, profileCaptor.getValue().getMarketRegion());
         assertEquals(GoalType.LOSE_WEIGHT, goalCaptor.getValue().getGoalType());
     }
 
@@ -79,6 +82,7 @@ class OnboardingServiceImplTest {
         request.setHeight(180.0);
         request.setWeight(82.0);
         request.setBodyFat(19.2);
+        request.setMarketRegion(MarketRegion.UK);
         request.setTargetWeight(78.0);
         request.setWeeklyWeightChangeTargetKg(0.5);
         request.setGoalType(GoalType.LOSE_WEIGHT);

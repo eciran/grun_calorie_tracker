@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.impl.FoodProductImportServiceImpl;
@@ -50,9 +51,9 @@ class FoodProductImportServiceImplTest {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = csv("""
-                barcode,name,calories,protein,fat,carbs,display_image_url
-                3017620422003,Nutella,539,6.3,30.9,57.5,https://cdn.grun.app/nutella.jpg
-                8690000000011,GRun Yogurt,65,10,1.5,3.2,
+                barcode,name,calories,protein,fat,carbs,market_region,display_image_url
+                3017620422003,Nutella,539,6.3,30.9,57.5,UK,https://cdn.grun.app/nutella.jpg
+                8690000000011,GRun Yogurt,65,10,1.5,3.2,TR,
                 """);
 
         FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
@@ -74,11 +75,13 @@ class FoodProductImportServiceImplTest {
         assertEquals(FoodDataSource.ADMIN_IMPORT, updated.getDataSource());
         assertEquals(VerificationStatus.VERIFIED, updated.getVerificationStatus());
         assertEquals(ImageStatus.APPROVED, updated.getImageStatus());
+        assertEquals(MarketRegion.UK, updated.getMarketRegion());
         assertEquals("admin@test.com", updated.getReviewedBy());
 
         FoodItemEntity inserted = savedProducts.get(1);
         assertEquals("8690000000011", inserted.getNormalizedBarcode());
         assertEquals("GRun Yogurt", inserted.getName());
+        assertEquals(MarketRegion.TR, inserted.getMarketRegion());
         assertEquals(ImageStatus.NEEDS_REVIEW, inserted.getImageStatus());
     }
 

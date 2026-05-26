@@ -64,7 +64,8 @@ public class AppStartupServiceImpl implements AppStartupService {
         return user.getAge() != null
                 && user.getGender() != null
                 && user.getHeight() != null
-                && user.getWeight() != null;
+                && user.getWeight() != null
+                && user.getMarketRegion() != null;
     }
 
     private String resolveNextStep(boolean emailVerified, boolean onboardingCompleted) {
@@ -90,6 +91,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .bodyFat(user.getBodyFatPercentage())
                 .emailVerified(user.getEmailVerified())
                 .passwordSet(user.getPasswordSet())
+                .marketRegion(user.getMarketRegion())
                 .goalRecalculationRecommended(false)
                 .build();
         profile.setGoalRecalculationReason(null);

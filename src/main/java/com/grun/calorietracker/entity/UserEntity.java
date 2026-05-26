@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.*;
@@ -38,6 +39,9 @@ public class UserEntity {
 
     @Enumerated(EnumType.STRING)
     private UserRole role;
+
+    @Enumerated(EnumType.STRING)
+    private MarketRegion marketRegion;
 
     @Column(name = "email_verified", nullable = false)
     private Boolean emailVerified = true;

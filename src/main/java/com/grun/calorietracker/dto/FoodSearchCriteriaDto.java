@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.MarketRegion;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -33,4 +34,7 @@ public class FoodSearchCriteriaDto {
 
     @Schema(description = "Nutri-Score filter.", example = "a")
     private String nutriScore;
+
+    @Schema(description = "Optional market region filter. Supported values: IRL, TR, UK.", example = "UK")
+    private MarketRegion marketRegion;
 }

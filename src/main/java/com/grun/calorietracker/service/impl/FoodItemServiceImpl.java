@@ -120,6 +120,10 @@ public class FoodItemServiceImpl implements FoodItemService {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("calories"), criteria.getMaxCalories()));
             }
 
+            if (criteria.getMarketRegion() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("marketRegion"), criteria.getMarketRegion()));
+            }
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -206,6 +210,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         entity.setDisplayImageUrl(null);
         entity.setImageSource(ImageSource.OPEN_FOOD_FACTS);
         entity.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        entity.setMarketRegion(externalProduct.getMarketRegion());
         entity.setIsCustom(false);
         FoodProductQualityRules.markExternalImport(entity);
         return entity;

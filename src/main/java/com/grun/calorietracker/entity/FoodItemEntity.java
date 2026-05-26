@@ -3,6 +3,7 @@ package com.grun.calorietracker.entity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -43,6 +44,9 @@ public class FoodItemEntity {
 
     @Enumerated(EnumType.STRING)
     private ImageStatus imageStatus;
+
+    @Enumerated(EnumType.STRING)
+    private MarketRegion marketRegion;
 
     private Long usageCount;
     private Integer qualityScore;

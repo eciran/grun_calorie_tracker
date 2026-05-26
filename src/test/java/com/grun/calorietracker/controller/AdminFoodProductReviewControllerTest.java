@@ -15,6 +15,7 @@ import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
@@ -109,6 +110,7 @@ class AdminFoodProductReviewControllerTest {
         when(foodProductReviewService.getProductsForReview(
                 VerificationStatus.RAW_IMPORTED,
                 ImageStatus.NEEDS_REVIEW,
+                null,
                 0,
                 25
         )).thenReturn(page);
@@ -122,6 +124,34 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(25))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductsForReview_whenRegionProvided_passesRegionFilter() throws Exception {
+        FoodProductReviewPageDto page = new FoodProductReviewPageDto();
+        page.setContent(List.of());
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(0L);
+        page.setTotalPages(0);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodProductReviewService.getProductsForReview(
+                VerificationStatus.RAW_IMPORTED,
+                ImageStatus.NEEDS_REVIEW,
+                MarketRegion.TR,
+                0,
+                25
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/admin/products/review")
+                        .param("verificationStatus", "RAW_IMPORTED")
+                        .param("imageStatus", "NEEDS_REVIEW")
+                        .param("region", "TR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test

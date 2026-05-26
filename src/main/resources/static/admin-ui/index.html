@@ -343,6 +343,13 @@
                 <option value="APPROVED">APPROVED</option>
                 <option value="REJECTED">REJECTED</option>
             </select>
+            <label for="marketRegion">Region</label>
+            <select id="marketRegion">
+                <option value="">TÃ¼mÃ¼</option>
+                <option value="IRL">IRL</option>
+                <option value="TR">TR</option>
+                <option value="UK">UK</option>
+            </select>
             <label for="pageSize">Sayfa boyutu</label>
             <select id="pageSize">
                 <option>12</option>
@@ -476,6 +483,7 @@
         });
         if (el("verificationStatus").value) params.set("verificationStatus", el("verificationStatus").value);
         if (el("imageStatus").value) params.set("imageStatus", el("imageStatus").value);
+        if (el("marketRegion").value) params.set("region", el("marketRegion").value);
 
         const result = await api(`/api/v1/admin/products/review?${params.toString()}`, {
             headers: authHeaders(false)
@@ -512,6 +520,7 @@
                         <div class="badges">
                             <span class="badge ${badgeClass(p.verificationStatus)}">${p.verificationStatus || "NO_STATUS"}</span>
                             <span class="badge ${badgeClass(p.imageStatus)}">${p.imageStatus || "NO_IMAGE_STATUS"}</span>
+                            <span class="badge">${p.marketRegion || "NO_REGION"}</span>
                             <span class="badge">Q ${p.qualityScore ?? "-"}</span>
                             <span class="badge">P ${p.reviewPriority ?? "-"}</span>
                         </div>
@@ -530,6 +539,12 @@
                                 <label>Image</label>
                                 <select data-field="imageStatus">
                                     ${statusOptions(["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"], p.imageStatus)}
+                                </select>
+                            </div>
+                            <div>
+                                <label>Region</label>
+                                <select data-field="marketRegion">
+                                    ${statusOptions(["IRL", "TR", "UK"], p.marketRegion)}
                                 </select>
                             </div>
                         </div>
@@ -560,6 +575,7 @@
             displayImageUrl: read("displayImageUrl"),
             verificationStatus: read("verificationStatus"),
             imageStatus: read("imageStatus"),
+            marketRegion: read("marketRegion"),
             reviewNote: read("reviewNote")
         };
 

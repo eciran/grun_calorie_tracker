@@ -100,6 +100,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         product.setDataSource(FoodDataSource.MANUAL);
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        product.setMarketRegion(user.getMarketRegion());
         product.setIsCustom(true);
         product.setCreatedByUser(user);
         product.setUsageCount(0L);

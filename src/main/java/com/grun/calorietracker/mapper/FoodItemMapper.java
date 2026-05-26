@@ -23,6 +23,7 @@ public class FoodItemMapper {
         entity.setVerificationStatus(dto.getVerificationStatus());
         entity.setImageSource(dto.getImageSource());
         entity.setImageStatus(dto.getImageStatus());
+        entity.setMarketRegion(dto.getMarketRegion());
         entity.setUsageCount(dto.getUsageCount());
         entity.setQualityScore(dto.getQualityScore());
         entity.setReviewPriority(dto.getReviewPriority());
@@ -63,6 +64,7 @@ public class FoodItemMapper {
         dto.setVerificationStatus(entity.getVerificationStatus());
         dto.setImageSource(entity.getImageSource());
         dto.setImageStatus(entity.getImageStatus());
+        dto.setMarketRegion(entity.getMarketRegion());
         dto.setUsageCount(entity.getUsageCount());
         dto.setQualityScore(entity.getQualityScore());
         dto.setReviewPriority(entity.getReviewPriority());

@@ -10,6 +10,7 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
@@ -92,6 +93,8 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) VerificationStatus verificationStatus,
             @Parameter(description = "Optional image review status.", example = "NEEDS_REVIEW")
             @RequestParam(required = false) ImageStatus imageStatus,
+            @Parameter(description = "Optional market region filter. Supported values: IRL, TR, UK.", example = "UK")
+            @RequestParam(required = false) MarketRegion region,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -99,6 +102,7 @@ public class AdminFoodProductReviewController {
         return ResponseEntity.ok(foodProductReviewService.getProductsForReview(
                 verificationStatus,
                 imageStatus,
+                region,
                 page,
                 size
         ));

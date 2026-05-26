@@ -3,6 +3,7 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
@@ -44,6 +45,25 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals(1, result.getContent().size());
         assertEquals("Visible Protein Bar", result.getContent().get(0).getProductName());
         assertEquals(VerificationStatus.VERIFIED, result.getContent().get(0).getVerificationStatus());
+    }
+
+    @Test
+    void searchFoodItems_whenMarketRegionProvided_filtersProductsByRegion() {
+        FoodItemEntity ukProduct = product("Regional Milk", "333333", VerificationStatus.VERIFIED);
+        ukProduct.setMarketRegion(MarketRegion.UK);
+        FoodItemEntity trProduct = product("Regional Milk", "444444", VerificationStatus.VERIFIED);
+        trProduct.setMarketRegion(MarketRegion.TR);
+        foodItemRepository.saveAll(List.of(ukProduct, trProduct));
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("regional");
+        criteria.setMarketRegion(MarketRegion.TR);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals("444444", result.getContent().get(0).getBarcode());
+        assertEquals(MarketRegion.TR, result.getContent().get(0).getMarketRegion());
     }
 
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {

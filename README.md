@@ -221,6 +221,14 @@ This lightweight page uses the existing admin APIs for login, catalog summary, s
 sample-data/food-products-pilot-small.csv
 ```
 
+The pilot file currently contains 30 rows and every row must carry one supported market region:
+
+```text
+IRL = Ireland
+TR  = Turkey
+UK  = United Kingdom
+```
+
 This is not the final admin panel; it is only a local development tool for visual product review.
 
 ### API Versioning
@@ -234,6 +242,20 @@ POST /api/v1/food-logs
 ```
 
 Unversioned `/api/...` route aliases are not exposed. Keeping one path family prevents duplicate Swagger entries and keeps the mobile contract explicit.
+
+Food product search supports market region filtering:
+
+```text
+GET /api/v1/products/search?q=milk&region=UK
+```
+
+If `region` is omitted, the backend uses the authenticated user's saved `marketRegion`.
+
+The current mobile integration contract is maintained in:
+
+```text
+docs/MOBILE_API_CONTRACT.md
+```
 
 ### Stop Local Services
 
@@ -258,6 +280,16 @@ docker ps --filter "name=grun-postgres"
 docker logs grun-postgres
 docker exec grun-postgres psql -U postgres -d grun_calorie_db -c "select version, description, success from flyway_schema_history order by installed_rank;"
 ```
+
+### Local Catalog Cleanup
+
+To remove local non-custom food products that do not match the supported market regions, run:
+
+```powershell
+.\scripts\cleanup-local-food-products.ps1
+```
+
+This is a local development cleanup script. It deletes dependent local food logs, favorites, meal template items, and review audits for removed catalog products.
 
 ## Development Status
 
