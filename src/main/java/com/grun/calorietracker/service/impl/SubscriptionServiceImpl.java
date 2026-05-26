@@ -3,9 +3,11 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
+import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.BillingPeriod;
+import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
@@ -116,6 +118,63 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     @Transactional
+    public SubscriptionDto applyProviderEvent(Long userId, SubscriptionProviderEventCommand command) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
+                .orElseGet(() -> defaultEntity(user));
+        entity.setUser(user);
+        clearExpiredAiAddonQuota(entity);
+
+        if (Boolean.TRUE.equals(command.getRefund())) {
+            if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
+                entity.setAiAddonQuota(Math.max(0, safeInt(entity.getAiAddonQuota()) - command.getAiAddonQuotaAmount()));
+                if (safeInt(entity.getAiAddonQuota()) == 0) {
+                    entity.setAiAddonQuotaExpiresAt(null);
+                }
+            } else {
+                entity.setStatus(SubscriptionStatus.REFUNDED);
+                entity.setEndDate(command.getEndDate() == null ? LocalDate.now() : command.getEndDate());
+                entity.setAutoRenew(false);
+            }
+        } else if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
+            ensureQuotaPeriod(entity);
+            entity.setAiAddonQuota(safeInt(entity.getAiAddonQuota()) + command.getAiAddonQuotaAmount());
+            LocalDate expiresAt = LocalDate.now().plusDays(resolveAddonValidityDays(command) - 1L);
+            entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), expiresAt));
+        } else if (command.getPlanType() != null && command.getStatus() != null) {
+            entity.setPlanType(command.getPlanType());
+            entity.setStatus(command.getStatus());
+            entity.setBillingPeriod(resolveBillingPeriod(command.getStartDate(), command.getEndDate()));
+            entity.setStartDate(command.getStartDate() == null ? LocalDate.now() : command.getStartDate());
+            entity.setEndDate(command.getEndDate());
+            entity.setAiMonthlyQuota(resolveQuota(command.getPlanType(), null));
+            entity.setAiQuotaPeriodStartDate(entity.getStartDate());
+            entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(entity.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), entity.getEndDate()));
+            entity.setAutoRenew(Boolean.TRUE.equals(command.getAutoRenew()));
+        } else if (command.getStatus() != null) {
+            entity.setStatus(command.getStatus());
+            if (command.getEndDate() != null) {
+                entity.setEndDate(command.getEndDate());
+            }
+            if (command.getAutoRenew() != null) {
+                entity.setAutoRenew(command.getAutoRenew());
+            }
+        }
+
+        entity.setProvider(command.getProvider() == null ? PaymentProvider.REVENUECAT : command.getProvider());
+        entity.setProviderCustomerId(trimToNull(command.getProviderCustomerId()));
+        entity.setProviderProductId(trimToNull(command.getProviderProductId()));
+        entity.setProviderSubscriptionId(trimToNull(command.getProviderSubscriptionId()));
+        entity.setProviderTransactionId(trimToNull(command.getProviderTransactionId()));
+        entity.setProviderOriginalTransactionId(trimToNull(command.getProviderOriginalTransactionId()));
+        entity.setLastProviderEventId(trimToNull(command.getProviderEventId()));
+        entity.setUpdatedAt(LocalDateTime.now());
+        return toDto(subscriptionRepository.save(entity));
+    }
+
+    @Override
+    @Transactional
     public SubscriptionDto updateUserSubscription(Long userId, AdminSubscriptionUpdateRequestDto request) {
         validateDateRange(request.getStartDate(), request.getEndDate());
 
@@ -138,7 +197,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setAiQuotaPeriodStartDate(resolvePeriodStart(request.getStartDate()));
         entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(request.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), request.getEndDate()));
         entity.setAutoRenew(Boolean.TRUE.equals(request.getAutoRenew()));
-        entity.setProvider(trimToNull(request.getProvider()));
+        entity.setProvider(resolvePaymentProvider(request.getProvider()));
         entity.setProviderSubscriptionId(trimToNull(request.getProviderSubscriptionId()));
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(subscriptionRepository.save(entity));
@@ -162,6 +221,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiAccessAllowed(true);
         dto.setUpgradeRecommended(false);
         dto.setAutoRenew(false);
+        dto.setProvider(null);
+        dto.setProviderProductId(null);
         return dto;
     }
 
@@ -186,6 +247,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiAccessAllowed(Boolean.TRUE.equals(dto.getActiveEntitlement()) && dto.getAiRemainingThisPeriod() > 0);
         dto.setUpgradeRecommended(Boolean.TRUE.equals(dto.getActiveEntitlement()) && dto.getAiRemainingThisPeriod() == 0);
         dto.setAutoRenew(Boolean.TRUE.equals(entity.getAutoRenew()));
+        dto.setProvider(entity.getProvider());
+        dto.setProviderProductId(entity.getProviderProductId());
         return dto;
     }
 
@@ -222,9 +285,34 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private boolean isActiveEntitlement(SubscriptionStatus status, LocalDate endDate) {
-        boolean activeStatus = status == SubscriptionStatus.ACTIVE || status == SubscriptionStatus.TRIALING;
+        boolean activeStatus = status == SubscriptionStatus.ACTIVE || status == SubscriptionStatus.TRIALING || status == SubscriptionStatus.CANCELED;
         boolean dateValid = endDate == null || !endDate.isBefore(LocalDate.now());
         return activeStatus && dateValid;
+    }
+
+    private int resolveAddonValidityDays(SubscriptionProviderEventCommand command) {
+        return command.getAiAddonValidityDays() == null || command.getAiAddonValidityDays() <= 0
+                ? 30
+                : command.getAiAddonValidityDays();
+    }
+
+    private BillingPeriod resolveBillingPeriod(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return BillingPeriod.MONTHLY;
+        }
+        long days = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        return days >= 300 ? BillingPeriod.YEARLY : BillingPeriod.MONTHLY;
+    }
+
+    private PaymentProvider resolvePaymentProvider(String value) {
+        if (value == null || value.isBlank()) {
+            return PaymentProvider.MANUAL_ADMIN;
+        }
+        try {
+            return PaymentProvider.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Unsupported payment provider: " + value);
+        }
     }
 
     private LocalDate resolveQuotaResetDate(SubscriptionEntity entity) {
