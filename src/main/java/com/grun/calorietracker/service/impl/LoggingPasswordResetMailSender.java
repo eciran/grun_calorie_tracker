@@ -15,11 +15,16 @@ public class LoggingPasswordResetMailSender implements PasswordResetMailSender {
 
     @Override
     public void sendPasswordResetToken(String email, String rawToken, String resetLink) {
-        log.info("Password reset requested for email={}, resetLink={}, token={}", email, resetLink, rawToken);
+        log.info("Password reset email requested for email={}", email);
         mailDeliveryService.sendTransactionalEmail(
                 email,
                 "Reset your GRun password",
-                "Use this link to reset your GRun password: " + resetLink
+                "Use this link to reset your GRun password: " + resetLink,
+                """
+                        <p>Use this link to reset your GRun password:</p>
+                        <p><a href="%s">Reset password</a></p>
+                        <p>If you did not request this, you can ignore this email.</p>
+                        """.formatted(resetLink)
         );
     }
 }

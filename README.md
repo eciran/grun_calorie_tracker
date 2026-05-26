@@ -107,31 +107,31 @@ To remove only local demo data while preserving the PostgreSQL volume and local 
 
 ### Local Password Reset
 
-Password reset uses a local logging mail sender until a real email provider is selected. In local development, request a reset from Swagger and read the raw token/reset link from the application log:
+Password reset uses the configured transactional mail provider. In local development, `GRUN_MAIL_PROVIDER=LOG` writes the reset link to the application log:
 
 ```text
 POST /api/v1/auth/password-reset/request
 POST /api/v1/auth/password-reset/confirm
 ```
 
-The token stored in PostgreSQL is hashed; only the log line contains the raw local test token.
+The token stored in PostgreSQL is hashed; in local LOG mode the reset link contains the raw local test token. In Brevo mode the backend sends the email through Brevo and does not log the token.
 
 ### Local Email Verification
 
-Email verification uses a local logging mail sender until a real provider such as Brevo, Resend, or Amazon SES is selected. New registered users start as unverified and cannot login until their email is confirmed.
+Email verification uses the configured transactional mail provider. New registered users start as unverified and cannot login until their email is confirmed.
 
 ```text
 POST /api/v1/auth/email-verification/resend
 POST /api/v1/auth/email-verification/confirm
 ```
 
-The verification token stored in PostgreSQL is hashed; only the application log contains the raw local test token.
+The verification token stored in PostgreSQL is hashed; in local LOG mode the verification link contains the raw local test token. In Brevo mode the backend sends the email through Brevo and does not log the token.
 
 ### Transactional Email Provider
 
 Transactional emails use a configurable delivery service. Local development defaults to `GRUN_MAIL_PROVIDER=LOG`, so password reset and email verification links are written to the application log and no external email is sent.
 
-For a real provider, the current built-in option is Brevo:
+For production, use Brevo:
 
 ```env
 GRUN_MAIL_PROVIDER=BREVO
@@ -142,6 +142,8 @@ GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
 ```
 
 Provider credentials must stay in local or deployment secrets and must not be committed.
+
+Before enabling Brevo in production, verify the sender/domain in Brevo and configure SPF, DKIM, and DMARC DNS records for the sending domain. Use a sender address on that verified domain, for example `no-reply@your-domain.com`.
 
 ### Rate Limiting
 
