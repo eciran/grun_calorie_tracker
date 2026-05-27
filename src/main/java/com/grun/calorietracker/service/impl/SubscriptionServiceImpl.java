@@ -49,6 +49,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionFeatureAccessDto access = getFeatureAccess(email);
         return switch (feature) {
             case AI_WORKOUT_PLANNER -> Boolean.TRUE.equals(access.getAiWorkoutPlanner());
+            case HEALTH_INTEGRATION -> Boolean.TRUE.equals(access.getHealthIntegration());
             case ADVANCED_ANALYTICS -> Boolean.TRUE.equals(access.getAdvancedAnalytics());
             case AD_FREE -> Boolean.TRUE.equals(access.getAdFree());
             case CUSTOM_FOOD_LIBRARY -> Boolean.TRUE.equals(access.getCustomFoodLibrary());
@@ -258,6 +259,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setPlanType(subscription.getPlanType());
         dto.setActiveEntitlement(active);
         dto.setAiWorkoutPlanner(active && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setHealthIntegration(active && (subscription.getPlanType() == SubscriptionPlan.PLUS || subscription.getPlanType() == SubscriptionPlan.PRO));
         dto.setAdvancedAnalytics(active && (subscription.getPlanType() == SubscriptionPlan.PLUS || subscription.getPlanType() == SubscriptionPlan.PRO));
         dto.setAdFree(active && subscription.getPlanType() == SubscriptionPlan.PRO);
         dto.setCustomFoodLibrary(active);

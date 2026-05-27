@@ -82,4 +82,7 @@ public class DailySummaryDto {
 
     @Schema(description = "Exercise diary entries logged on the summary date.")
     private List<ExerciseLogsDto> exerciseLogs;
+
+    @Schema(description = "Third-party health data summary for the same date.")
+    private HealthDailySummaryDto healthSummary;
 }

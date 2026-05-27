@@ -7,11 +7,13 @@ import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.AppStartupService;
+import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ public class AppStartupServiceImpl implements AppStartupService {
     private final GoalRepository goalRepository;
     private final FederatedIdentityRepository federatedIdentityRepository;
     private final SubscriptionService subscriptionService;
+    private final HealthIntegrationService healthIntegrationService;
 
     @Override
     public AppStartupDto getStartupState(String email) {
@@ -44,6 +47,7 @@ public class AppStartupServiceImpl implements AppStartupService {
         boolean emailVerified = Boolean.TRUE.equals(user.getEmailVerified());
         boolean passwordSet = Boolean.TRUE.equals(user.getPasswordSet());
         boolean dashboardReady = emailVerified && onboardingCompleted;
+        boolean healthAccessAllowed = subscriptionService.hasFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
 
         return AppStartupDto.builder()
                 .profile(toProfileDto(user))
@@ -55,6 +59,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .passwordSet(passwordSet)
                 .linkedIdentities(linkedIdentities(email))
                 .subscription(subscriptionService.getCurrentSubscription(email))
+                .healthSummary(healthAccessAllowed ? healthIntegrationService.getDailySummary(email, java.time.LocalDate.now()) : null)
                 .dashboardReady(dashboardReady)
                 .nextStep(resolveNextStep(emailVerified, onboardingCompleted))
                 .build();
