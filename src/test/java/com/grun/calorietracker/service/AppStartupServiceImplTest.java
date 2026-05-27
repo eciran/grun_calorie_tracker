@@ -40,12 +40,21 @@ class AppStartupServiceImplTest {
     @Mock
     private SubscriptionService subscriptionService;
 
+    @Mock
+    private HealthIntegrationService healthIntegrationService;
+
     private AppStartupServiceImpl appStartupService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        appStartupService = new AppStartupServiceImpl(userService, goalRepository, federatedIdentityRepository, subscriptionService);
+        appStartupService = new AppStartupServiceImpl(
+                userService,
+                goalRepository,
+                federatedIdentityRepository,
+                subscriptionService,
+                healthIntegrationService
+        );
     }
 
     @Test
@@ -59,6 +68,10 @@ class AppStartupServiceImplTest {
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
                 .thenReturn(java.util.List.of(identity(user, AuthProvider.GOOGLE)));
         when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(true);
+        when(healthIntegrationService.getDailySummary(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(healthSummary());
 
         AppStartupDto result = appStartupService.getStartupState("user@example.com");
 
@@ -77,6 +90,7 @@ class AppStartupServiceImplTest {
         assertEquals(AuthProvider.GOOGLE, result.getLinkedIdentities().get(0).provider());
         assertEquals(SubscriptionPlan.PLUS, result.getSubscription().getPlanType());
         assertEquals(10, result.getSubscription().getAiRemainingThisPeriod());
+        assertEquals(false, result.getHealthSummary().getHasHealthData());
         assertNotNull(result.getProfile());
         assertNotNull(result.getGoal());
         assertEquals(2242, result.getGoal().getDailyCalorieGoal());
@@ -92,6 +106,10 @@ class AppStartupServiceImplTest {
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
                 .thenReturn(java.util.List.of());
         when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(true);
+        when(healthIntegrationService.getDailySummary(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(healthSummary());
 
         AppStartupDto result = appStartupService.getStartupState("user@example.com");
 
@@ -114,6 +132,10 @@ class AppStartupServiceImplTest {
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
                 .thenReturn(java.util.List.of());
         when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(true);
+        when(healthIntegrationService.getDailySummary(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(healthSummary());
 
         AppStartupDto result = appStartupService.getStartupState("user@example.com");
 
@@ -173,5 +195,11 @@ class AppStartupServiceImplTest {
         subscription.setAiRemainingThisPeriod(10);
         subscription.setAutoRenew(true);
         return subscription;
+    }
+
+    private com.grun.calorietracker.dto.HealthDailySummaryDto healthSummary() {
+        com.grun.calorietracker.dto.HealthDailySummaryDto summary = new com.grun.calorietracker.dto.HealthDailySummaryDto();
+        summary.setHasHealthData(false);
+        return summary;
     }
 }

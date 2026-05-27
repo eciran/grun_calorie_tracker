@@ -39,6 +39,12 @@ class DashboardServiceImplTest {
     @Mock
     private ProgressLogRepository progressLogRepository;
 
+    @Mock
+    private HealthIntegrationService healthIntegrationService;
+
+    @Mock
+    private SubscriptionService subscriptionService;
+
     private DashboardServiceImpl dashboardService;
 
     @BeforeEach
@@ -49,7 +55,9 @@ class DashboardServiceImplTest {
                 goalRepository,
                 foodLogsRepository,
                 exerciseLogRepository,
-                progressLogRepository
+                progressLogRepository,
+                healthIntegrationService,
+                subscriptionService
         );
     }
 
@@ -72,6 +80,11 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
+        com.grun.calorietracker.dto.HealthDailySummaryDto healthSummary = new com.grun.calorietracker.dto.HealthDailySummaryDto();
+        healthSummary.setHasHealthData(false);
+        when(healthIntegrationService.getDailySummary("user@example.com", date)).thenReturn(healthSummary);
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(true);
 
         DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
 
@@ -100,6 +113,7 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasAnyDiaryEntry());
         assertEquals(List.of(), result.getFoodLogs());
         assertEquals(List.of(), result.getExerciseLogs());
+        assertEquals(false, result.getHealthSummary().getHasHealthData());
     }
 
     @Test
@@ -133,6 +147,10 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(goalRepository.findByUser(user)).thenReturn(Optional.of(goal));
         when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
+        when(healthIntegrationService.getDailySummary("user@example.com", date))
+                .thenReturn(new com.grun.calorietracker.dto.HealthDailySummaryDto());
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(true);
 
         DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
 

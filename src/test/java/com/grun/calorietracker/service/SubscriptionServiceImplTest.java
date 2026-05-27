@@ -130,6 +130,7 @@ class SubscriptionServiceImplTest {
 
         assertEquals(SubscriptionPlan.PLUS, result.getPlanType());
         assertEquals(true, result.getAiWorkoutPlanner());
+        assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getAdvancedAnalytics());
         assertEquals(false, result.getAdFree());
         assertEquals(true, result.getCustomFoodLibrary());
@@ -144,6 +145,16 @@ class SubscriptionServiceImplTest {
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
         assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.AD_FREE));
+    }
+
+    @Test
+    void hasFeatureAccess_whenHealthIntegrationOnFreePlan_returnsFalse() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 3, 0);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
     }
 
     @Test

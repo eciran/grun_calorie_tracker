@@ -38,6 +38,9 @@ public class AppStartupDto {
     @Schema(description = "Current subscription and AI quota state for the authenticated user.")
     private SubscriptionDto subscription;
 
+    @Schema(description = "Today third-party health data summary for quick dashboard bootstrapping.")
+    private HealthDailySummaryDto healthSummary;
+
     @Schema(description = "Whether the mobile app can open the dashboard directly.", example = "true")
     private boolean dashboardReady;
 
