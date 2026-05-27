@@ -4,6 +4,9 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,10 +26,15 @@ import java.util.Objects;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private final MessageSource messageSource;
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    public GlobalExceptionHandler(MessageSource messageSource) {
+    private final MessageSource messageSource;
+    private final boolean includeInternalDetails;
+
+    public GlobalExceptionHandler(MessageSource messageSource,
+                                  @Value("${grun.errors.include-internal-details:false}") boolean includeInternalDetails) {
         this.messageSource = messageSource;
+        this.includeInternalDetails = includeInternalDetails;
     }
 
     private ResponseEntity<ApiErrorResponseDto> buildResponse(HttpStatus status,
@@ -140,7 +148,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponseDto> handleGeneric(Exception ex, HttpServletRequest request) {
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "error.unexpected", "Unexpected error", ex.getMessage(), request);
+        log.error(
+                "Unhandled exception correlationId={} path={}",
+                correlationId(request),
+                request.getRequestURI(),
+                ex
+        );
+        String message = includeInternalDetails ? ex.getMessage() : "Unexpected error. Please contact support with the correlation id.";
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "error.unexpected", "Unexpected error", message, request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

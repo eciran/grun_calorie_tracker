@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
+import com.grun.calorietracker.entity.SubscriptionPlanFeatureEntity;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -8,8 +9,12 @@ import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.SubscriptionPlanFeatureRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
+import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.impl.SubscriptionServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,10 +24,14 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Optional;
 
+import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 class SubscriptionServiceImplTest {
 
@@ -31,6 +40,18 @@ class SubscriptionServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private SubscriptionPlanFeatureRepository subscriptionPlanFeatureRepository;
+
+    @Mock
+    private UserSubscriptionEntitlementRepository userSubscriptionEntitlementRepository;
+
+    @Mock
+    private NotificationRepository notificationRepository;
+
+    @Mock
+    private MailDeliveryService mailDeliveryService;
 
     @InjectMocks
     private SubscriptionServiceImpl service;
@@ -43,6 +64,11 @@ class SubscriptionServiceImplTest {
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
+        lenient().when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(any(), any())).thenReturn(Optional.empty());
+        lenient().when(userSubscriptionEntitlementRepository.findBySubscription(any())).thenReturn(emptyList());
+        lenient().when(userSubscriptionEntitlementRepository.countBySubscription(any())).thenReturn(0L);
+        lenient().when(userSubscriptionEntitlementRepository.existsActiveFeature(anyLong(), any(), any())).thenReturn(false);
+        lenient().when(userSubscriptionEntitlementRepository.findActiveEntitlementsForPlanFeature(any(), any(), any())).thenReturn(emptyList());
     }
 
     @Test
@@ -155,6 +181,42 @@ class SubscriptionServiceImplTest {
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
         assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
+    }
+
+    @Test
+    void hasFeatureAccess_whenSnapshotExists_usesSnapshotBeforeCurrentPlanMatrix() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        entity.setId(7L);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(userSubscriptionEntitlementRepository.countBySubscription(entity)).thenReturn(1L);
+        when(userSubscriptionEntitlementRepository.existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), any()))
+                .thenReturn(false);
+
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
+    }
+
+    @Test
+    void updatePlanFeature_updatesAdminManagedMatrixRule() {
+        SubscriptionPlanFeatureEntity entity = new SubscriptionPlanFeatureEntity();
+
+        when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(SubscriptionPlan.PLUS, SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(Optional.of(entity));
+        when(subscriptionPlanFeatureRepository.save(any(SubscriptionPlanFeatureEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.updatePlanFeature(
+                SubscriptionPlan.PLUS,
+                SubscriptionFeature.HEALTH_INTEGRATION,
+                false,
+                java.time.LocalDate.of(2026, 6, 1)
+        );
+
+        assertEquals(SubscriptionPlan.PLUS, result.getPlanType());
+        assertEquals(SubscriptionFeature.HEALTH_INTEGRATION, result.getFeature());
+        assertEquals(false, result.getEnabled());
+        assertEquals(java.time.LocalDate.of(2026, 6, 1), result.getEffectiveFrom());
     }
 
     @Test

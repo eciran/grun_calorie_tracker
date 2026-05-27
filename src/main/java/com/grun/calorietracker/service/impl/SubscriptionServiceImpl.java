@@ -3,9 +3,13 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
+import com.grun.calorietracker.dto.SubscriptionPlanFeatureDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
+import com.grun.calorietracker.entity.NotificationEntity;
+import com.grun.calorietracker.entity.SubscriptionPlanFeatureEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.entity.UserSubscriptionEntitlementEntity;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionFeature;
@@ -13,22 +17,36 @@ import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
+import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.SubscriptionPlanFeatureRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
+import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SubscriptionServiceImpl implements SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
+    private final SubscriptionPlanFeatureRepository subscriptionPlanFeatureRepository;
+    private final UserSubscriptionEntitlementRepository userSubscriptionEntitlementRepository;
+    private final NotificationRepository notificationRepository;
+    private final MailDeliveryService mailDeliveryService;
 
     @Override
     public SubscriptionDto getCurrentSubscription(String email) {
@@ -40,8 +58,21 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
+    public SubscriptionDto getUserSubscriptionForAdmin(Long userId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return subscriptionRepository.findByUser(user)
+                .map(this::toDto)
+                .orElseGet(this::freeSubscription);
+    }
+
+    @Override
     public SubscriptionFeatureAccessDto getFeatureAccess(String email) {
-        return toFeatureAccess(getCurrentSubscription(email));
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        return subscriptionRepository.findByUser(user)
+                .map(entity -> toFeatureAccess(toDto(entity), entity))
+                .orElseGet(() -> toFeatureAccess(freeSubscription(), null));
     }
 
     @Override
@@ -64,6 +95,40 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
+    public List<SubscriptionPlanFeatureDto> listPlanFeatures() {
+        return subscriptionPlanFeatureRepository.findAll().stream()
+                .sorted(Comparator
+                        .comparing(SubscriptionPlanFeatureEntity::getPlanType)
+                        .thenComparing(SubscriptionPlanFeatureEntity::getFeature))
+                .map(this::toPlanFeatureDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionPlanFeatureDto updatePlanFeature(SubscriptionPlan planType,
+                                                        SubscriptionFeature feature,
+                                                        boolean enabled,
+                                                        LocalDate effectiveFrom) {
+        SubscriptionPlanFeatureEntity entity = subscriptionPlanFeatureRepository
+                .findByPlanTypeAndFeature(planType, feature)
+                .orElseGet(SubscriptionPlanFeatureEntity::new);
+        boolean wasEnabled = entity.getEnabled() == null
+                ? defaultPlanFeatureEnabled(planType, feature)
+                : Boolean.TRUE.equals(entity.getEnabled());
+        entity.setPlanType(planType);
+        entity.setFeature(feature);
+        entity.setEnabled(enabled);
+        entity.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
+        entity.setUpdatedAt(LocalDateTime.now());
+        SubscriptionPlanFeatureDto dto = toPlanFeatureDto(subscriptionPlanFeatureRepository.save(entity));
+        if (wasEnabled && !enabled) {
+            notifyUsersAboutFutureFeatureRemoval(planType, feature, dto.getEffectiveFrom());
+        }
+        return dto;
+    }
+
+    @Override
     @Transactional
     public SubscriptionDto consumeAiQuota(String email) {
         UserEntity user = userRepository.findByEmail(email)
@@ -78,7 +143,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setAiMonthlyQuota(current.getAiMonthlyQuota());
         entity.setAiUsedThisPeriod(current.getAiUsedThisPeriod() + 1);
         entity.setUpdatedAt(LocalDateTime.now());
-        return toDto(subscriptionRepository.save(entity));
+        SubscriptionEntity saved = subscriptionRepository.save(entity);
+        return toDto(saved);
     }
 
     @Override
@@ -127,6 +193,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setUser(user);
         clearExpiredAiAddonQuota(entity);
 
+        boolean refreshEntitlements = false;
         if (Boolean.TRUE.equals(command.getRefund())) {
             if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
                 entity.setAiAddonQuota(Math.max(0, safeInt(entity.getAiAddonQuota()) - command.getAiAddonQuotaAmount()));
@@ -144,6 +211,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             LocalDate expiresAt = LocalDate.now().plusDays(resolveAddonValidityDays(command) - 1L);
             entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), expiresAt));
         } else if (command.getPlanType() != null && command.getStatus() != null) {
+            refreshEntitlements = true;
             entity.setPlanType(command.getPlanType());
             entity.setStatus(command.getStatus());
             entity.setBillingPeriod(resolveBillingPeriod(command.getStartDate(), command.getEndDate()));
@@ -171,7 +239,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setProviderOriginalTransactionId(trimToNull(command.getProviderOriginalTransactionId()));
         entity.setLastProviderEventId(trimToNull(command.getProviderEventId()));
         entity.setUpdatedAt(LocalDateTime.now());
-        return toDto(subscriptionRepository.save(entity));
+        SubscriptionEntity saved = subscriptionRepository.save(entity);
+        if (refreshEntitlements) {
+            syncEntitlementsForCurrentPeriod(saved);
+        }
+        return toDto(saved);
     }
 
     @Override
@@ -201,7 +273,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setProvider(resolvePaymentProvider(request.getProvider()));
         entity.setProviderSubscriptionId(trimToNull(request.getProviderSubscriptionId()));
         entity.setUpdatedAt(LocalDateTime.now());
-        return toDto(subscriptionRepository.save(entity));
+        SubscriptionEntity saved = subscriptionRepository.save(entity);
+        syncEntitlementsForCurrentPeriod(saved);
+        return toDto(saved);
     }
 
     private SubscriptionDto freeSubscription() {
@@ -253,20 +327,142 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return dto;
     }
 
-    private SubscriptionFeatureAccessDto toFeatureAccess(SubscriptionDto subscription) {
+    private SubscriptionFeatureAccessDto toFeatureAccess(SubscriptionDto subscription, SubscriptionEntity entity) {
         boolean active = Boolean.TRUE.equals(subscription.getActiveEntitlement());
         SubscriptionFeatureAccessDto dto = new SubscriptionFeatureAccessDto();
         dto.setPlanType(subscription.getPlanType());
         dto.setActiveEntitlement(active);
-        dto.setAiWorkoutPlanner(active && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
-        dto.setHealthIntegration(active && (subscription.getPlanType() == SubscriptionPlan.PLUS || subscription.getPlanType() == SubscriptionPlan.PRO));
-        dto.setAdvancedAnalytics(active && (subscription.getPlanType() == SubscriptionPlan.PLUS || subscription.getPlanType() == SubscriptionPlan.PRO));
-        dto.setAdFree(active && subscription.getPlanType() == SubscriptionPlan.PRO);
-        dto.setCustomFoodLibrary(active);
+        dto.setAiWorkoutPlanner(featureAllowed(subscription, entity, SubscriptionFeature.AI_WORKOUT_PLANNER)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setHealthIntegration(featureAllowed(subscription, entity, SubscriptionFeature.HEALTH_INTEGRATION));
+        dto.setAdvancedAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_ANALYTICS));
+        dto.setAdFree(featureAllowed(subscription, entity, SubscriptionFeature.AD_FREE));
+        dto.setCustomFoodLibrary(featureAllowed(subscription, entity, SubscriptionFeature.CUSTOM_FOOD_LIBRARY));
         dto.setAiMonthlyQuota(subscription.getAiMonthlyQuota());
         dto.setAiAddonQuota(subscription.getAiAddonQuota());
         dto.setAiRemainingThisPeriod(subscription.getAiRemainingThisPeriod());
         return dto;
+    }
+
+    private boolean featureAllowed(SubscriptionDto subscription, SubscriptionEntity entity, SubscriptionFeature feature) {
+        if (!Boolean.TRUE.equals(subscription.getActiveEntitlement())) {
+            return false;
+        }
+        if (entity != null
+                && entity.getId() != null
+                && userSubscriptionEntitlementRepository.countBySubscription(entity) > 0) {
+            return userSubscriptionEntitlementRepository.existsActiveFeature(entity.getId(), feature, LocalDate.now());
+        }
+        return isPlanFeatureEnabled(subscription.getPlanType(), feature);
+    }
+
+    private boolean isPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
+        return subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(planType, feature)
+                .map(SubscriptionPlanFeatureEntity::getEnabled)
+                .orElseGet(() -> defaultPlanFeatureEnabled(planType, feature));
+    }
+
+    private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
+        return switch (feature) {
+            case AI_WORKOUT_PLANNER, CUSTOM_FOOD_LIBRARY -> true;
+            case HEALTH_INTEGRATION, ADVANCED_ANALYTICS -> planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
+            case AD_FREE -> planType == SubscriptionPlan.PRO;
+        };
+    }
+
+    private void syncEntitlementsForCurrentPeriod(SubscriptionEntity entity) {
+        if (entity.getUser() == null || entity.getPlanType() == null || !isActiveEntitlement(entity.getStatus(), entity.getEndDate())) {
+            return;
+        }
+        LocalDate validFrom = entity.getStartDate() == null ? LocalDate.now() : entity.getStartDate();
+        LocalDate validUntil = entity.getEndDate();
+        LocalDateTime now = LocalDateTime.now();
+        for (UserSubscriptionEntitlementEntity existing : userSubscriptionEntitlementRepository.findBySubscription(entity)) {
+            if (existing.getValidUntil() == null || !existing.getValidUntil().isBefore(validFrom)) {
+                existing.setEnabled(false);
+                existing.setValidUntil(validFrom.minusDays(1));
+                existing.setUpdatedAt(now);
+                userSubscriptionEntitlementRepository.save(existing);
+            }
+        }
+        for (SubscriptionFeature feature : SubscriptionFeature.values()) {
+            if (isPlanFeatureEnabled(entity.getPlanType(), feature)) {
+                UserSubscriptionEntitlementEntity entitlement = new UserSubscriptionEntitlementEntity();
+                entitlement.setSubscription(entity);
+                entitlement.setUser(entity.getUser());
+                entitlement.setFeature(feature);
+                entitlement.setEnabled(true);
+                entitlement.setSourcePlan(entity.getPlanType());
+                entitlement.setValidFrom(validFrom);
+                entitlement.setValidUntil(validUntil);
+                entitlement.setCreatedAt(now);
+                entitlement.setUpdatedAt(now);
+                userSubscriptionEntitlementRepository.save(entitlement);
+            }
+        }
+    }
+
+    private SubscriptionPlanFeatureDto toPlanFeatureDto(SubscriptionPlanFeatureEntity entity) {
+        SubscriptionPlanFeatureDto dto = new SubscriptionPlanFeatureDto();
+        dto.setPlanType(entity.getPlanType());
+        dto.setFeature(entity.getFeature());
+        dto.setEnabled(entity.getEnabled());
+        dto.setEffectiveFrom(entity.getEffectiveFrom());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        return dto;
+    }
+
+    private void notifyUsersAboutFutureFeatureRemoval(SubscriptionPlan planType,
+                                                       SubscriptionFeature feature,
+                                                       LocalDate effectiveFrom) {
+        List<UserSubscriptionEntitlementEntity> activeEntitlements =
+                userSubscriptionEntitlementRepository.findActiveEntitlementsForPlanFeature(planType, feature, LocalDate.now());
+        Set<Long> notifiedUserIds = new HashSet<>();
+        for (UserSubscriptionEntitlementEntity entitlement : activeEntitlements) {
+            UserEntity user = entitlement.getUser();
+            if (user == null || user.getId() == null || !notifiedUserIds.add(user.getId())) {
+                continue;
+            }
+            String message = "%s is changing for %s. Your current access remains active until your current subscription period ends."
+                    .formatted(feature.name(), planType.name());
+            NotificationEntity notification = new NotificationEntity();
+            notification.setUser(user);
+            notification.setMessage(message);
+            notification.setType("subscription");
+            notification.setIsRead(false);
+            notification.setCreatedAt(LocalDateTime.now());
+            notificationRepository.save(notification);
+            sendFeatureRemovalEmail(user, planType, feature, effectiveFrom, entitlement.getValidUntil());
+        }
+    }
+
+    private void sendFeatureRemovalEmail(UserEntity user,
+                                         SubscriptionPlan planType,
+                                         SubscriptionFeature feature,
+                                         LocalDate effectiveFrom,
+                                         LocalDate validUntil) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        String subject = "Your GRun plan feature is changing";
+        String textBody = """
+                Hi,
+
+                We are changing %s availability for the %s plan from %s.
+                Your current access remains available until your current subscription period ends%s.
+
+                GRun
+                """.formatted(
+                feature.name(),
+                planType.name(),
+                effectiveFrom,
+                validUntil == null ? "" : " on " + validUntil
+        );
+        try {
+            mailDeliveryService.sendTransactionalEmail(user.getEmail(), subject, textBody);
+        } catch (RuntimeException ex) {
+            log.warn("Subscription feature change email could not be sent to userId={}", user.getId(), ex);
+        }
     }
 
     private SubscriptionEntity defaultEntity(UserEntity user) {
