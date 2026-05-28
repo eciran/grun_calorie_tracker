@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.SubscriptionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,9 @@ class AdminSubscriptionControllerTest {
 
     @MockBean
     private SubscriptionService subscriptionService;
+
+    @MockBean
+    private AdminAuditService adminAuditService;
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")

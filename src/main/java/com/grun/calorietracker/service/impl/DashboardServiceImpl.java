@@ -8,12 +8,15 @@ import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.service.DashboardService;
+import com.grun.calorietracker.service.HealthIntegrationService;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,6 +36,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final FoodLogsRepository foodLogsRepository;
     private final ExerciseLogRepository exerciseLogRepository;
     private final ProgressLogRepository progressLogRepository;
+    private final HealthIntegrationService healthIntegrationService;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public DailySummaryDto getDailySummary(String email, LocalDate date) {
@@ -119,6 +124,9 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setHasAnyDiaryEntry(!foodLogs.isEmpty() || !exerciseLogs.isEmpty());
         dto.setFoodLogs(foodLogs);
         dto.setExerciseLogs(exerciseLogs);
+        if (subscriptionService.hasFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION)) {
+            dto.setHealthSummary(healthIntegrationService.getDailySummary(email, date));
+        }
 
         return dto;
     }

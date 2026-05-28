@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.HealthProvider;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -28,7 +29,16 @@ public class DeviceDataEntity {
 
     private Double sleepHours;
 
+    private Double caloriesBurned;
+
+    private Double distanceMeters;
+
     private LocalDateTime recordedAt;
+
+    @Enumerated(EnumType.STRING)
+    private HealthProvider provider;
+
+    private String externalId;
 
     private String source; // Apple Watch, Google Fit, vs.
 }

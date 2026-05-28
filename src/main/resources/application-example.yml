@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: grun-calorie-tracker
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/grun_calorie_db}
     username: ${POSTGRES_USER:postgres}
@@ -21,6 +23,32 @@ spring:
 
 server:
   port: 8080
+  error:
+    include-message: never
+    include-binding-errors: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: GRun Calorie Tracker API
+    version: 0.0.1-SNAPSHOT
+
+logging:
+  pattern:
+    level: "%5p [cid:%X{correlationId:-}]"
 
 jwt:
   secret: ${JWT_SECRET:Q0hBTkdFX01FX0xPQ0FMX0RFVkVMT1BNRU5UX1NFQ1JFVF9LRVlfMTIzNDU2Nzg5MA==}
@@ -30,6 +58,8 @@ openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
 
 grun:
+  errors:
+    include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
   revenuecat:
     webhook-authorization: ${GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION:}
     strict-product-mapping: ${GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING:true}
