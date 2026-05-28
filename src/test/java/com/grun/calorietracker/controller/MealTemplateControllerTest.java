@@ -1,6 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.MealTemplateApplyRequestDto;
 import com.grun.calorietracker.dto.MealTemplateCreateRequestDto;
 import com.grun.calorietracker.dto.MealTemplateDto;
 import com.grun.calorietracker.dto.MealTemplateItemRequestDto;
@@ -79,5 +81,26 @@ class MealTemplateControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Lunch"))
                 .andExpect(jsonPath("$.mealType").value("LUNCH"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void applyTemplate_mobileAliasReturnsLoggedItems() throws Exception {
+        MealTemplateApplyRequestDto request = new MealTemplateApplyRequestDto();
+        request.setTargetDate(LocalDate.of(2026, 5, 28));
+        request.setMealType("LUNCH");
+
+        FoodLogsDto logged = new FoodLogsDto();
+        logged.setId(90L);
+        logged.setFoodItemId(4L);
+        logged.setMealType("LUNCH");
+        when(mealTemplateService.applyTemplate(eq("user@test.com"), eq(3L), any())).thenReturn(java.util.List.of(logged));
+
+        mockMvc.perform(post("/api/v1/meal-templates/3/apply")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(90L))
+                .andExpect(jsonPath("$[0].mealType").value("LUNCH"));
     }
 }

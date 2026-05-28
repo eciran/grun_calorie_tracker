@@ -1079,9 +1079,15 @@
 
     function systemHealthCards(health, columnClass) {
         const profiles = Array.isArray(health.activeProfiles) ? health.activeProfiles.join(", ") : "-";
+        const warnings = Array.isArray(health.warnings) ? health.warnings : [];
+        const heap = `${formatNumber(health.heapUsedMb ?? 0)} / ${formatNumber(health.heapMaxMb ?? 0)} MB`;
         const cards = [
             ["Status", health.status, health.status === "UP" ? "success" : "danger"],
             ["Database", `${health.databaseStatus} (${health.databaseLatencyMs ?? "-"} ms)`, health.databaseStatus === "UP" ? "success" : "danger"],
+            ["Runtime", `Heap ${heap}`, warnings.length ? "warning" : "light"],
+            ["RevenueCat", `${formatNumber(health.revenueCatEventsLast24h ?? 0)} / 24h, failed ${formatNumber(health.failedRevenueCatEvents ?? 0)}`, Number(health.failedRevenueCatEvents || 0) > 0 ? "danger" : "success"],
+            ["Subscriptions", `${formatNumber(health.activeSubscriptions ?? 0)} active, quota full ${formatNumber(health.exhaustedAiQuotaSubscriptions ?? 0)}`, Number(health.exhaustedAiQuotaSubscriptions || 0) > 0 ? "warning" : "light"],
+            ["Warnings", warnings.length ? warnings.join(" | ") : "None", warnings.length ? "warning" : "success"],
             ["App", `${health.appName || "-"} / ${health.appVersion || "-"}`, "light"],
             ["Profiles", profiles || "default", "light"]
         ];

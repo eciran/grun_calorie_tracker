@@ -86,6 +86,36 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_pilotFileSupportsIrlTrAndUkRegions() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,market_region,display_image_url
+                5010000000001,Irish Oats,380,IRL,https://cdn.grun.app/irish-oats.jpg
+                8690000000011,Turkish Yogurt,65,TR,https://cdn.grun.app/yogurt.jpg
+                5000000000002,UK Protein Bar,410,United Kingdom,https://cdn.grun.app/protein-bar.jpg
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(3, result.getTotalRows());
+        assertEquals(3, result.getInsertedRows());
+        assertEquals(0, result.getSkippedRows());
+        assertEquals(0, result.getReviewRequiredRows());
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals(MarketRegion.IRL, savedProducts.get(0).getMarketRegion());
+        assertEquals(MarketRegion.TR, savedProducts.get(1).getMarketRegion());
+        assertEquals(MarketRegion.UK, savedProducts.get(2).getMarketRegion());
+        assertEquals(VerificationStatus.VERIFIED, savedProducts.get(0).getVerificationStatus());
+        assertEquals(ImageStatus.APPROVED, savedProducts.get(0).getImageStatus());
+    }
+
+    @Test
     void importCsv_skipsRowsWithoutBarcodeOrName() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
 
@@ -132,6 +162,39 @@ class FoodProductImportServiceImplTest {
         assertEquals("https://images.openfoodfacts.org/coke.jpg", imported.getExternalImageUrl());
         assertEquals(null, imported.getDisplayImageUrl());
         assertEquals(null, imported.getReviewedBy());
+    }
+
+    @Test
+    void importCsv_whenRawExternalPilotRows_setsReviewStateAndRegionAliases() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,country,image_url
+                5010000000001,Irish Oats,380,Ireland,https://images.openfoodfacts.org/irish-oats.jpg
+                8690000000011,Turkish Yogurt,65,Turkiye,https://images.openfoodfacts.org/yogurt.jpg
+                5000000000002,UK Protein Bar,410,GB,https://images.openfoodfacts.org/protein-bar.jpg
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "bulk@test.com",
+                FoodProductImportMode.RAW_EXTERNAL
+        );
+
+        assertEquals(3, result.getSavedRows());
+        assertEquals(3, result.getReviewRequiredRows());
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals(MarketRegion.IRL, savedProducts.get(0).getMarketRegion());
+        assertEquals(MarketRegion.TR, savedProducts.get(1).getMarketRegion());
+        assertEquals(MarketRegion.UK, savedProducts.get(2).getMarketRegion());
+        assertEquals(VerificationStatus.RAW_IMPORTED, savedProducts.get(0).getVerificationStatus());
+        assertEquals(ImageStatus.NEEDS_REVIEW, savedProducts.get(0).getImageStatus());
+        assertEquals(FoodDataSource.OPEN_FOOD_FACTS, savedProducts.get(0).getDataSource());
     }
 
     @Test

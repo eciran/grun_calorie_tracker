@@ -9,6 +9,9 @@ import java.util.Map;
 public class RevenueCatConfigStatusDto {
     private boolean webhookAuthorizationConfigured;
     private boolean strictProductMapping;
+    private boolean productionReady;
+    private List<String> missingRequiredConfig;
+    private List<String> warnings;
     private List<String> plusEntitlements;
     private List<String> proEntitlements;
     private List<String> plusProductIds;

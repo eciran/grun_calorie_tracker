@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -17,4 +18,10 @@ public class SubscriptionFeatureAccessDto {
     private Integer aiMonthlyQuota;
     private Integer aiAddonQuota;
     private Integer aiRemainingThisPeriod;
+
+    @JsonProperty("plan")
+    @Schema(description = "Mobile-friendly alias for planType.", example = "PRO")
+    public SubscriptionPlan getPlan() {
+        return planType;
+    }
 }

@@ -38,6 +38,15 @@ class AdminSystemControllerTest {
                 List.of("prod"),
                 "UP",
                 11L,
+                60000L,
+                2,
+                128L,
+                512L,
+                10L,
+                0L,
+                4L,
+                0L,
+                List.of(),
                 LocalDateTime.of(2026, 5, 27, 14, 0)
         );
 
@@ -48,7 +57,10 @@ class AdminSystemControllerTest {
                 .andExpect(jsonPath("$.status").value("UP"))
                 .andExpect(jsonPath("$.appName").value("grun-calorie-tracker"))
                 .andExpect(jsonPath("$.databaseStatus").value("UP"))
-                .andExpect(jsonPath("$.databaseLatencyMs").value(11));
+                .andExpect(jsonPath("$.databaseLatencyMs").value(11))
+                .andExpect(jsonPath("$.revenueCatEventsLast24h").value(10))
+                .andExpect(jsonPath("$.failedRevenueCatEvents").value(0))
+                .andExpect(jsonPath("$.activeSubscriptions").value(4));
     }
 
     @Test

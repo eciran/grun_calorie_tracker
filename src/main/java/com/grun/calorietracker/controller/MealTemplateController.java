@@ -58,8 +58,8 @@ public class MealTemplateController {
         return ResponseEntity.ok(mealTemplateService.updateTemplate(userDetails.getUsername(), id, request));
     }
 
-    @PostMapping("/{id}/log")
-    @Operation(summary = "Log a saved meal template", description = "Adds all template items to a target diary day.")
+    @PostMapping({"/{id}/log", "/{id}/apply"})
+    @Operation(summary = "Apply a saved meal template", description = "Adds all template items to a target diary day. /apply is the preferred mobile path; /log remains supported for compatibility.")
     public ResponseEntity<List<FoodLogsDto>> applyTemplate(
             @Parameter(description = "Saved meal template id.", example = "3") @PathVariable Long id,
             @RequestBody @Valid MealTemplateApplyRequestDto request,

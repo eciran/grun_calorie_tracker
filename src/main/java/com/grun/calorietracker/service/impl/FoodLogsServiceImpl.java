@@ -57,6 +57,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 entity.getPortionUnit(),
                 foodItem
         ));
+        applyNutritionSnapshot(entity, foodItem);
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
 
@@ -103,6 +104,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 entity.getPortionUnit(),
                 foodItem
         ));
+        applyNutritionSnapshot(entity, foodItem);
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
 
@@ -206,10 +208,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         FoodLogMealSummaryDto dto = new FoodLogMealSummaryDto();
         dto.setMealType(mealType);
         dto.setLogs(logs.stream().map(this::toDto).toList());
-        dto.setTotalCalories(sumNutrition(logs, FoodItemEntity::getCalories));
-        dto.setTotalProtein(sumNutrition(logs, FoodItemEntity::getProtein));
-        dto.setTotalFat(sumNutrition(logs, FoodItemEntity::getFat));
-        dto.setTotalCarbs(sumNutrition(logs, FoodItemEntity::getCarbs));
+        dto.setTotalCalories(sumNutrition(logs, FoodLogsEntity::getSnapshotCalories, FoodItemEntity::getCalories));
+        dto.setTotalProtein(sumNutrition(logs, FoodLogsEntity::getSnapshotProtein, FoodItemEntity::getProtein));
+        dto.setTotalFat(sumNutrition(logs, FoodLogsEntity::getSnapshotFat, FoodItemEntity::getFat));
+        dto.setTotalCarbs(sumNutrition(logs, FoodLogsEntity::getSnapshotCarbs, FoodItemEntity::getCarbs));
         return dto;
     }
 
@@ -232,9 +234,17 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return dto;
     }
 
-    private Double sumNutrition(List<FoodLogsEntity> logs, java.util.function.Function<FoodItemEntity, Double> nutrient) {
+    private Double sumNutrition(
+            List<FoodLogsEntity> logs,
+            java.util.function.Function<FoodLogsEntity, Double> snapshot,
+            java.util.function.Function<FoodItemEntity, Double> nutrient
+    ) {
         return round(logs.stream()
                 .mapToDouble(log -> {
+                    Double capturedValue = snapshot.apply(log);
+                    if (capturedValue != null) {
+                        return capturedValue;
+                    }
                     Double value = nutrient.apply(log.getFoodItem());
                     Double grams = log.getNormalizedPortionGrams() != null ? log.getNormalizedPortionGrams() : log.getPortionSize();
                     return (value == null ? 0.0 : value) * (grams == null ? 0.0 : grams) / 100.0;
@@ -302,6 +312,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         copy.setPortionSize(source.getPortionSize());
         copy.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
         copy.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
+        copy.setSnapshotCalories(source.getSnapshotCalories());
+        copy.setSnapshotProtein(source.getSnapshotProtein());
+        copy.setSnapshotCarbs(source.getSnapshotCarbs());
+        copy.setSnapshotFat(source.getSnapshotFat());
         copy.setMealType(normalizeMealType(source.getMealType()));
         copy.setLogDate(targetDate.atTime(source.getLogDate().toLocalTime()));
         return copy;
@@ -337,8 +351,28 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setPortionSize(entity.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(entity.getPortionUnit()));
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
+        dto.setSnapshotCalories(entity.getSnapshotCalories());
+        dto.setSnapshotProtein(entity.getSnapshotProtein());
+        dto.setSnapshotCarbs(entity.getSnapshotCarbs());
+        dto.setSnapshotFat(entity.getSnapshotFat());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;
+    }
+
+    private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem) {
+        Double grams = entity.getNormalizedPortionGrams() != null
+                ? entity.getNormalizedPortionGrams()
+                : entity.getPortionSize();
+        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), grams));
+        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), grams));
+        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), grams));
+        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), grams));
+    }
+
+    private Double calculateNutritionValue(Double perHundredGrams, Double grams) {
+        return round((perHundredGrams == null ? 0.0 : perHundredGrams)
+                * (grams == null ? 0.0 : grams)
+                / 100.0);
     }
 }

@@ -32,10 +32,10 @@ public class ExerciseItemController {
 
     private final ExerciseItemService exerciseItemService;
 
-    @GetMapping
+    @GetMapping({"", "/search"})
     @Operation(
             summary = "List exercise items",
-            description = "Returns the exercise catalog available for exercise logging. Defaults to active items only."
+            description = "Returns the exercise catalog available for exercise logging. /search is the preferred mobile path; the collection root remains supported for compatibility. Defaults to active items only."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise items returned."),

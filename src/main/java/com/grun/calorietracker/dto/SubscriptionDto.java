@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionPlan;
@@ -32,4 +33,10 @@ public class SubscriptionDto {
     private Boolean autoRenew;
     private PaymentProvider provider;
     private String providerProductId;
+
+    @JsonProperty("plan")
+    @Schema(description = "Mobile-friendly alias for planType.", example = "PLUS")
+    public SubscriptionPlan getPlan() {
+        return planType;
+    }
 }

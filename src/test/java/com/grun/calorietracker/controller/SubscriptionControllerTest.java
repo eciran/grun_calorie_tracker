@@ -45,6 +45,7 @@ class SubscriptionControllerTest {
 
         mockMvc.perform(get("/api/v1/subscriptions/me"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plan").value("PLUS"))
                 .andExpect(jsonPath("$.planType").value("PLUS"))
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(10));
     }
@@ -65,6 +66,7 @@ class SubscriptionControllerTest {
 
         mockMvc.perform(get("/api/v1/subscriptions/me/features"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plan").value("PRO"))
                 .andExpect(jsonPath("$.planType").value("PRO"))
                 .andExpect(jsonPath("$.aiWorkoutPlanner").value(true))
                 .andExpect(jsonPath("$.adFree").value(true))

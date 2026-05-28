@@ -35,8 +35,38 @@ class RevenueCatConfigurationServiceImplTest {
 
         assertThat(result.isWebhookAuthorizationConfigured()).isTrue();
         assertThat(result.isStrictProductMapping()).isTrue();
+        assertThat(result.isProductionReady()).isTrue();
+        assertThat(result.getMissingRequiredConfig()).isEmpty();
+        assertThat(result.getWarnings()).isEmpty();
         assertThat(result.getProProductIds()).contains("grun_pro_monthly");
         assertThat(result.getAiAddonQuotas()).containsEntry("grun_ai_15_credits", 15);
+    }
+
+    @Test
+    void getConfigStatus_whenProductionValuesAreMissing_reportsMissingConfig() {
+        RevenueCatProperties incompleteProperties = new RevenueCatProperties();
+        RevenueCatConfigurationService incompleteService = new RevenueCatConfigurationServiceImpl(incompleteProperties);
+
+        RevenueCatConfigStatusDto result = incompleteService.getConfigStatus();
+
+        assertThat(result.isProductionReady()).isFalse();
+        assertThat(result.getMissingRequiredConfig())
+                .contains(
+                        "grun.revenuecat.webhook-authorization",
+                        "grun.revenuecat.products.plus",
+                        "grun.revenuecat.products.pro",
+                        "grun.revenuecat.products.ai-addon-quotas"
+                );
+    }
+
+    @Test
+    void getConfigStatus_whenStrictMappingDisabled_reportsWarning() {
+        properties.setStrictProductMapping(false);
+
+        RevenueCatConfigStatusDto result = service.getConfigStatus();
+
+        assertThat(result.isProductionReady()).isTrue();
+        assertThat(result.getWarnings()).contains("Strict product mapping is disabled; unknown subscription products may be ignored instead of failed.");
     }
 
     @Test
