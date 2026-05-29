@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +39,15 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     @Value("${grun.email-verification.base-url:http://localhost:8080/verify-email}")
     private String verificationBaseUrl;
+
+    @Value("${grun.email-verification.resend-cooldown-level-1-seconds:30}")
+    private long resendCooldownLevel1Seconds;
+
+    @Value("${grun.email-verification.resend-cooldown-level-2-seconds:120}")
+    private long resendCooldownLevel2Seconds;
+
+    @Value("${grun.email-verification.resend-cooldown-level-3-seconds:300}")
+    private long resendCooldownLevel3Seconds;
 
     @Override
     @Transactional
@@ -62,7 +72,11 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     public EmailVerificationResponseDto resendVerification(EmailVerificationRequestDto request) {
         userRepository.findByEmail(request.getEmail())
                 .filter(user -> !Boolean.TRUE.equals(user.getEmailVerified()))
-                .ifPresent(this::createVerificationTokenForUser);
+                .ifPresent(user -> {
+                    if (!isWithinResendCooldown(user)) {
+                        createVerificationTokenForUser(user);
+                    }
+                });
         return new EmailVerificationResponseDto(RESEND_MESSAGE);
     }
 
@@ -92,6 +106,36 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         LocalDateTime now = LocalDateTime.now();
         emailVerificationTokenRepository.findByUserAndUsedAtIsNull(user)
                 .forEach(token -> token.setUsedAt(now));
+    }
+
+    private boolean isWithinResendCooldown(UserEntity user) {
+        Optional<EmailVerificationTokenEntity> latestTokenOptional =
+                emailVerificationTokenRepository.findTopByUserOrderByCreatedAtDesc(user);
+        if (latestTokenOptional.isEmpty() || latestTokenOptional.get().getCreatedAt() == null) {
+            return false;
+        }
+
+        long recentRequestCount = emailVerificationTokenRepository.countByUserAndCreatedAtAfter(
+                user,
+                LocalDateTime.now().minusMinutes(30)
+        );
+        long cooldownSeconds = resolveCooldownSeconds(recentRequestCount);
+        if (cooldownSeconds <= 0) {
+            return false;
+        }
+
+        LocalDateTime nextAllowedAt = latestTokenOptional.get().getCreatedAt().plusSeconds(cooldownSeconds);
+        return LocalDateTime.now().isBefore(nextAllowedAt);
+    }
+
+    private long resolveCooldownSeconds(long recentRequestCount) {
+        if (recentRequestCount <= 1) {
+            return resendCooldownLevel1Seconds;
+        }
+        if (recentRequestCount == 2) {
+            return resendCooldownLevel2Seconds;
+        }
+        return resendCooldownLevel3Seconds;
     }
 
     private String generateRawToken() {

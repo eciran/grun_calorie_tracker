@@ -17,9 +17,7 @@ class RateLimitingFilterTest {
 
     @Test
     void protectedAuthPathReturnsTooManyRequestsAfterLimitIsExceeded() throws Exception {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
-        ReflectionTestUtils.setField(filter, "enabled", true);
-        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+        RateLimitingFilter filter = buildFilter(1);
 
         FilterChain filterChain = mock(FilterChain.class);
 
@@ -39,9 +37,7 @@ class RateLimitingFilterTest {
 
     @Test
     void unprotectedPathDoesNotConsumeLimit() throws Exception {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
-        ReflectionTestUtils.setField(filter, "enabled", true);
-        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+        RateLimitingFilter filter = buildFilter(1);
 
         FilterChain filterChain = mock(FilterChain.class);
 
@@ -55,9 +51,7 @@ class RateLimitingFilterTest {
 
     @Test
     void v1ProtectedAuthPathIsRateLimited() throws Exception {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
-        ReflectionTestUtils.setField(filter, "enabled", true);
-        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+        RateLimitingFilter filter = buildFilter(1);
 
         FilterChain filterChain = mock(FilterChain.class);
 
@@ -70,9 +64,7 @@ class RateLimitingFilterTest {
 
     @Test
     void googleAuthPathIsRateLimited() throws Exception {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
-        ReflectionTestUtils.setField(filter, "enabled", true);
-        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+        RateLimitingFilter filter = buildFilter(1);
 
         FilterChain filterChain = mock(FilterChain.class);
 
@@ -85,9 +77,7 @@ class RateLimitingFilterTest {
 
     @Test
     void appleAuthPathIsRateLimited() throws Exception {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
-        ReflectionTestUtils.setField(filter, "enabled", true);
-        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+        RateLimitingFilter filter = buildFilter(1);
 
         FilterChain filterChain = mock(FilterChain.class);
 
@@ -100,15 +90,41 @@ class RateLimitingFilterTest {
 
     @Test
     void barcodeLookupPathIsRateLimited() throws Exception {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
-        ReflectionTestUtils.setField(filter, "enabled", true);
-        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", 1);
+        RateLimitingFilter filter = buildFilter(1);
 
         FilterChain filterChain = mock(FilterChain.class);
 
         filter.doFilter(get("/api/v1/products/barcode/3017620422003"), new MockHttpServletResponse(), filterChain);
         MockHttpServletResponse secondResponse = new MockHttpServletResponse();
         filter.doFilter(get("/api/v1/products/barcode/3017620422003"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
+    @Test
+    void passwordResetPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "passwordResetMaxRequestsPerMinute", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/auth/password-reset/request"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/auth/password-reset/request"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
+    @Test
+    void emailVerificationResendPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/auth/email-verification/resend"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/auth/email-verification/resend"), secondResponse, filterChain);
 
         assertEquals(429, secondResponse.getStatus());
     }
@@ -127,5 +143,14 @@ class RateLimitingFilterTest {
 
     private ObjectMapper objectMapper() {
         return new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
+    private RateLimitingFilter buildFilter(int authMaxRequestsPerMinute) {
+        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
+        ReflectionTestUtils.setField(filter, "enabled", true);
+        ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "passwordResetMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        return filter;
     }
 }

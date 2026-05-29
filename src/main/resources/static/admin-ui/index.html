@@ -524,6 +524,9 @@
                         <button id="loadNotificationsBtn" class="btn btn-success">Load</button>
                     </div>
                     <div class="col-md-2 d-grid">
+                        <button id="systemAlertsBtn" class="btn btn-outline-danger">System alerts</button>
+                    </div>
+                    <div class="col-md-2 d-grid">
                         <button id="markAllNotificationsBtn" class="btn btn-outline-secondary">Mark all read</button>
                     </div>
                 </div>
@@ -1197,6 +1200,12 @@
         setAlert(`${result.updatedCount ?? 0} notification okundu olarak isaretlendi.`, "success");
     }
 
+    async function loadSystemAlerts() {
+        el("notificationType").value = "system_alert";
+        el("notificationUnreadOnly").value = "true";
+        await loadNotifications(0);
+    }
+
     function featureLabel(value) {
         return value.split("_").map((part) => part.charAt(0) + part.slice(1).toLowerCase()).join(" ");
     }
@@ -1255,6 +1264,7 @@
     el("loadNotificationsBtn").addEventListener("click", () => run(() => loadNotifications(0), "Notification listesi yuklendi."));
     el("notificationPrevBtn").addEventListener("click", () => run(() => loadNotifications(state.notificationPage - 1), "Notification listesi yuklendi."));
     el("notificationNextBtn").addEventListener("click", () => run(() => loadNotifications(state.notificationPage + 1), "Notification listesi yuklendi."));
+    el("systemAlertsBtn").addEventListener("click", () => run(loadSystemAlerts, "System alert listesi yuklendi."));
     el("markAllNotificationsBtn").addEventListener("click", () => run(markAllNotificationsAsRead));
     el("importBtn").addEventListener("click", () => run(importProducts));
     document.querySelectorAll("[data-bs-dismiss='modal']").forEach((button) => {

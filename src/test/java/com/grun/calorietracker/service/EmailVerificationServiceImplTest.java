@@ -52,6 +52,9 @@ class EmailVerificationServiceImplTest {
         );
         ReflectionTestUtils.setField(emailVerificationService, "expirationMinutes", 1440L);
         ReflectionTestUtils.setField(emailVerificationService, "verificationBaseUrl", "http://localhost:8080/verify-email");
+        ReflectionTestUtils.setField(emailVerificationService, "resendCooldownLevel1Seconds", 30L);
+        ReflectionTestUtils.setField(emailVerificationService, "resendCooldownLevel2Seconds", 120L);
+        ReflectionTestUtils.setField(emailVerificationService, "resendCooldownLevel3Seconds", 300L);
 
         user = new UserEntity();
         user.setId(1L);
@@ -93,6 +96,68 @@ class EmailVerificationServiceImplTest {
         EmailVerificationResponseDto response = emailVerificationService.resendVerification(request);
 
         assertThat(response.getMessage()).isEqualTo("If the email exists, a verification link has been sent.");
+        verify(emailVerificationMailSender, never()).sendEmailVerificationToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void resendVerification_whenRecentTokenExists_returnsGenericResponseWithoutSendingMail() {
+        EmailVerificationRequestDto request = new EmailVerificationRequestDto();
+        request.setEmail("user@example.com");
+
+        EmailVerificationTokenEntity recentToken = new EmailVerificationTokenEntity();
+        recentToken.setUser(user);
+        recentToken.setCreatedAt(LocalDateTime.now().minusSeconds(20));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(recentToken));
+        when(emailVerificationTokenRepository.countByUserAndCreatedAtAfter(any(UserEntity.class), any(LocalDateTime.class))).thenReturn(1L);
+
+        EmailVerificationResponseDto response = emailVerificationService.resendVerification(request);
+
+        assertThat(response.getMessage()).isEqualTo("If the email exists, a verification link has been sent.");
+        verify(emailVerificationTokenRepository, never()).save(any());
+        verify(emailVerificationMailSender, never()).sendEmailVerificationToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void resendVerification_whenCooldownPassed_invalidatesOldTokenAndSendsNewMail() {
+        EmailVerificationRequestDto request = new EmailVerificationRequestDto();
+        request.setEmail("user@example.com");
+
+        EmailVerificationTokenEntity oldToken = new EmailVerificationTokenEntity();
+        oldToken.setUser(user);
+        oldToken.setCreatedAt(LocalDateTime.now().minusMinutes(5));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(oldToken));
+        when(emailVerificationTokenRepository.countByUserAndCreatedAtAfter(any(UserEntity.class), any(LocalDateTime.class))).thenReturn(1L);
+        when(emailVerificationTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of(oldToken));
+
+        EmailVerificationResponseDto response = emailVerificationService.resendVerification(request);
+
+        assertThat(response.getMessage()).isEqualTo("If the email exists, a verification link has been sent.");
+        assertThat(oldToken.getUsedAt()).isNotNull();
+        verify(emailVerificationTokenRepository).save(any(EmailVerificationTokenEntity.class));
+        verify(emailVerificationMailSender).sendEmailVerificationToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void resendVerification_whenSecondCooldownWindowActive_returnsGenericResponseWithoutSendingMail() {
+        EmailVerificationRequestDto request = new EmailVerificationRequestDto();
+        request.setEmail("user@example.com");
+
+        EmailVerificationTokenEntity recentToken = new EmailVerificationTokenEntity();
+        recentToken.setUser(user);
+        recentToken.setCreatedAt(LocalDateTime.now().minusSeconds(90));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(recentToken));
+        when(emailVerificationTokenRepository.countByUserAndCreatedAtAfter(any(UserEntity.class), any(LocalDateTime.class))).thenReturn(2L);
+
+        EmailVerificationResponseDto response = emailVerificationService.resendVerification(request);
+
+        assertThat(response.getMessage()).isEqualTo("If the email exists, a verification link has been sent.");
+        verify(emailVerificationTokenRepository, never()).save(any());
         verify(emailVerificationMailSender, never()).sendEmailVerificationToken(anyString(), anyString(), anyString());
     }
 
