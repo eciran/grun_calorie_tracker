@@ -274,9 +274,10 @@
                         <label class="form-label" for="userRegionFilter">Region</label>
                         <select id="userRegionFilter" class="form-select">
                             <option value="">All</option>
-                            <option value="IRL">IRL</option>
+                            <option value="GLOBAL">GLOBAL</option>
                             <option value="TR">TR</option>
-                            <option value="UK">UK</option>
+                            <option value="UK_IE">UK_IE</option>
+                            <option value="EU">EU</option>
                             <option value="NO_REGION">No region</option>
                         </select>
                     </div>
@@ -309,6 +310,7 @@
                             <th style="width: 80px">ID</th>
                             <th>User</th>
                             <th style="width: 120px">Region</th>
+                            <th style="width: 110px">Language</th>
                             <th style="width: 150px">Email</th>
                             <th style="width: 150px">Profile</th>
                             <th style="width: 190px">Body</th>
@@ -347,9 +349,10 @@
                         <label class="form-label" for="marketRegion">Region</label>
                         <select id="marketRegion" class="form-select">
                             <option value="">All</option>
-                            <option value="IRL">IRL</option>
+                            <option value="GLOBAL">GLOBAL</option>
                             <option value="TR">TR</option>
-                            <option value="UK">UK</option>
+                            <option value="UK_IE">UK_IE</option>
+                            <option value="EU">EU</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -603,9 +606,10 @@
                         <label class="form-label" for="reviewMarketRegion">Region</label>
                         <select id="reviewMarketRegion" class="form-select">
                             <option value="">No region</option>
-                            <option>IRL</option>
+                            <option>GLOBAL</option>
                             <option>TR</option>
-                            <option>UK</option>
+                            <option>UK_IE</option>
+                            <option>EU</option>
                         </select>
                     </div>
                     <div class="col-md-9">
@@ -845,7 +849,7 @@
         el("usersInfo").textContent = `${formatNumber(filtered.length)} / ${formatNumber(state.users.length)} kullanici`;
 
         if (!filtered.length) {
-            el("usersBody").innerHTML = `<tr><td colspan="6" class="text-center muted py-4">Bu filtrelerle kullanici bulunamadi.</td></tr>`;
+            el("usersBody").innerHTML = `<tr><td colspan="7" class="text-center muted py-4">Bu filtrelerle kullanici bulunamadi.</td></tr>`;
             return;
         }
 
@@ -857,6 +861,7 @@
                     <div class="small muted">${escapeHtml(user.email || "-")}</div>
                 </td>
                 <td>${regionBadge(user.marketRegion)}</td>
+                <td><span class="badge text-bg-light">${escapeHtml(user.preferredLanguage || "EN")}</span></td>
                 <td>
                     ${booleanBadge(user.emailVerified, "Verified", "Unverified")}
                     <div class="mt-1">${booleanBadge(user.passwordSet, "Password set", "No password")}</div>

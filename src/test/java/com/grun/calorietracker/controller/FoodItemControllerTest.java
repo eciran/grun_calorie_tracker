@@ -60,7 +60,7 @@ class FoodItemControllerTest {
         page.setLast(true);
 
         when(foodItemService.searchFoodItems(any(), eq(0), eq(25))).thenReturn(page);
-        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.IRL)));
+        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.UK_IE)));
 
         mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "unknown")
@@ -112,14 +112,14 @@ class FoodItemControllerTest {
         page.setLast(true);
 
         when(foodItemService.searchFoodItems(
-                argThat(criteria -> criteria != null && criteria.getMarketRegion() == MarketRegion.UK),
+                argThat(criteria -> criteria != null && criteria.getMarketRegion() == MarketRegion.UK_IE),
                 eq(0),
                 eq(25)
         )).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "milk")
-                        .param("region", "UK"))
+                        .param("region", "UK_IE"))
                 .andExpect(status().isOk());
     }
 
@@ -141,7 +141,7 @@ class FoodItemControllerTest {
         page.setLast(true);
 
         when(foodItemService.searchFoodItems(any(), eq(0), eq(25))).thenReturn(page);
-        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.UK)));
+        when(userService.findByEmail("user@test.com")).thenReturn(Optional.of(userWithRegion(MarketRegion.UK_IE)));
 
         mockMvc.perform(get("/api/v1/products/search")
                         .param("q", "nutella"))

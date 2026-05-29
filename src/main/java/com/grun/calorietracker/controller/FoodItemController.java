@@ -55,7 +55,7 @@ public class FoodItemController {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,
-            @Parameter(description = "Optional market region filter. Supported values: IRL, TR, UK.", example = "UK")
+            @Parameter(description = "Optional market region preference. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();

@@ -93,7 +93,7 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) VerificationStatus verificationStatus,
             @Parameter(description = "Optional image review status.", example = "NEEDS_REVIEW")
             @RequestParam(required = false) ImageStatus imageStatus,
-            @Parameter(description = "Optional market region filter. Supported values: IRL, TR, UK.", example = "UK")
+            @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,

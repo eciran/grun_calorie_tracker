@@ -94,7 +94,7 @@ class FoodItemServiceImplTest {
         externalProduct.setProductName("Nutella");
         externalProduct.setImageUrl("https://images.openfoodfacts.org/nutella.jpg");
         externalProduct.setCalories(539.0);
-        externalProduct.setMarketRegion(MarketRegion.UK);
+        externalProduct.setMarketRegion(MarketRegion.UK_IE);
 
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
@@ -111,7 +111,7 @@ class FoodItemServiceImplTest {
         assertEquals("https://images.openfoodfacts.org/nutella.jpg", result.getExternalImageUrl());
         assertEquals(ImageSource.OPEN_FOOD_FACTS, result.getImageSource());
         assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
-        assertEquals(MarketRegion.UK, result.getMarketRegion());
+        assertEquals(MarketRegion.UK_IE, result.getMarketRegion());
         verify(foodItemRepository).save(any(FoodItemEntity.class));
     }
 

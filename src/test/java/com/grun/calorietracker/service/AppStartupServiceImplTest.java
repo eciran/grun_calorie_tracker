@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -85,7 +86,8 @@ class AppStartupServiceImplTest {
         assertEquals("user@example.com", result.getProfile().getEmail());
         assertEquals(true, result.getProfile().getEmailVerified());
         assertEquals(true, result.getProfile().getPasswordSet());
-        assertEquals(MarketRegion.UK, result.getProfile().getMarketRegion());
+        assertEquals(MarketRegion.UK_IE, result.getProfile().getMarketRegion());
+        assertEquals(PreferredLanguage.EN, result.getProfile().getPreferredLanguage());
         assertEquals(1, result.getLinkedIdentities().size());
         assertEquals(AuthProvider.GOOGLE, result.getLinkedIdentities().get(0).provider());
         assertEquals(SubscriptionPlan.PLUS, result.getSubscription().getPlanType());
@@ -158,7 +160,8 @@ class AppStartupServiceImplTest {
         user.setBmi(25.3);
         user.setEmailVerified(true);
         user.setPasswordSet(true);
-        user.setMarketRegion(MarketRegion.UK);
+        user.setMarketRegion(MarketRegion.UK_IE);
+        user.setPreferredLanguage(PreferredLanguage.EN);
         return user;
     }
 

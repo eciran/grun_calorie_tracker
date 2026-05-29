@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -50,8 +51,12 @@ public class OnboardingCompleteRequestDto {
     private Double bodyFat;
 
     @NotNull(message = "Market region is required.")
-    @Schema(description = "User's selected market region for localized food search. Supported values: IRL, TR, UK.", example = "UK", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "User's selected market region for localized food search. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE", requiredMode = Schema.RequiredMode.REQUIRED)
     private MarketRegion marketRegion;
+
+    @NotNull(message = "Preferred language is required.")
+    @Schema(description = "User's selected application language. Supported values: EN, TR.", example = "EN", requiredMode = Schema.RequiredMode.REQUIRED)
+    private PreferredLanguage preferredLanguage;
 
     @NotNull(message = "{validation.user-goal.target-weight.required}")
     @Min(value = 30, message = "{validation.user-goal.target-weight.min}")
@@ -78,6 +83,7 @@ public class OnboardingCompleteRequestDto {
                 .weight(weight)
                 .bodyFat(bodyFat)
                 .marketRegion(marketRegion)
+                .preferredLanguage(preferredLanguage)
                 .build();
     }
 
