@@ -8,4 +8,5 @@ import java.util.Optional;
 
 public interface GoalRepository extends JpaRepository<UserGoalEntity, Long> {
     Optional<UserGoalEntity> findByUser(UserEntity user);
+    long deleteByUser(UserEntity user);
 }

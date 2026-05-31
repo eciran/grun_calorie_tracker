@@ -34,6 +34,14 @@ public class FoodLogsEntity {
 
     private Double normalizedPortionGrams;
 
+    private Double snapshotCalories;
+
+    private Double snapshotProtein;
+
+    private Double snapshotCarbs;
+
+    private Double snapshotFat;
+
     private String mealType;
 
     private LocalDateTime logDate;

@@ -60,6 +60,8 @@ class FoodLogsServiceImplTest {
         foodItem.setBarcode("123456789");
         foodItem.setCalories(155.0);
         foodItem.setProtein(13.0);
+        foodItem.setCarbs(1.1);
+        foodItem.setFat(11.0);
         foodItem.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         foodItem.setImageStatus(ImageStatus.NEEDS_REVIEW);
         foodItem.setUsageCount(0L);
@@ -83,6 +85,10 @@ class FoodLogsServiceImplTest {
         savedEntity.setPortionSize(100.0);
         savedEntity.setPortionUnit(FoodPortionUnit.GRAM);
         savedEntity.setNormalizedPortionGrams(100.0);
+        savedEntity.setSnapshotCalories(155.0);
+        savedEntity.setSnapshotProtein(13.0);
+        savedEntity.setSnapshotCarbs(1.1);
+        savedEntity.setSnapshotFat(11.0);
         savedEntity.setMealType("breakfast");
         savedEntity.setLogDate(dto.getLogDate());
 
@@ -95,6 +101,10 @@ class FoodLogsServiceImplTest {
         assertEquals("Egg", result.getFoodName());
         assertEquals(FoodPortionUnit.GRAM, result.getPortionUnit());
         assertEquals(100.0, result.getNormalizedPortionGrams());
+        assertEquals(155.0, result.getSnapshotCalories());
+        assertEquals(13.0, result.getSnapshotProtein());
+        assertEquals(1.1, result.getSnapshotCarbs());
+        assertEquals(11.0, result.getSnapshotFat());
         assertEquals(1L, foodItem.getUsageCount());
         assertNotNull(foodItem.getQualityScore());
         assertNotNull(foodItem.getReviewPriority());
@@ -151,9 +161,12 @@ class FoodLogsServiceImplTest {
 
         assertEquals(FoodPortionUnit.GRAM, result.getPortionUnit());
         assertEquals(250.0, result.getNormalizedPortionGrams());
+        assertEquals(387.5, result.getSnapshotCalories());
+        assertEquals(32.5, result.getSnapshotProtein());
         verify(foodLogsRepository).save(argThat(entity ->
                 entity.getPortionUnit() == FoodPortionUnit.GRAM
                         && entity.getNormalizedPortionGrams().equals(250.0)
+                        && entity.getSnapshotCalories().equals(387.5)
         ));
     }
 
@@ -208,6 +221,8 @@ class FoodLogsServiceImplTest {
 
         assertEquals(FoodPortionUnit.PIECE, result.getPortionUnit());
         assertEquals(90.0, result.getNormalizedPortionGrams());
+        assertEquals(139.5, result.getSnapshotCalories());
+        assertEquals(11.7, result.getSnapshotProtein());
         assertEquals("DINNER", result.getMealType());
         assertEquals(dto.getLogDate(), result.getLogDate());
     }
@@ -220,6 +235,10 @@ class FoodLogsServiceImplTest {
         source.setPortionSize(2.0);
         source.setPortionUnit(FoodPortionUnit.SERVING);
         source.setNormalizedPortionGrams(120.0);
+        source.setSnapshotCalories(186.0);
+        source.setSnapshotProtein(15.6);
+        source.setSnapshotCarbs(1.32);
+        source.setSnapshotFat(13.2);
         source.setMealType("BREAKFAST");
         source.setLogDate(LocalDateTime.of(2026, 5, 21, 7, 45));
         FoodLogCopyMealRequestDto request = new FoodLogCopyMealRequestDto();
@@ -245,6 +264,8 @@ class FoodLogsServiceImplTest {
         assertEquals(1, result.size());
         assertEquals(LocalDateTime.of(2026, 5, 22, 7, 45), result.get(0).getLogDate());
         assertEquals(120.0, result.get(0).getNormalizedPortionGrams());
+        assertEquals(186.0, result.get(0).getSnapshotCalories());
+        assertEquals(15.6, result.get(0).getSnapshotProtein());
         verify(foodItemRepository).save(foodItem);
     }
 
@@ -280,10 +301,12 @@ class FoodLogsServiceImplTest {
         breakfast.setFoodItem(foodItem);
         breakfast.setPortionSize(150.0);
         breakfast.setNormalizedPortionGrams(150.0);
+        breakfast.setSnapshotCalories(111.0);
+        breakfast.setSnapshotProtein(22.0);
+        breakfast.setSnapshotFat(3.0);
+        breakfast.setSnapshotCarbs(8.0);
         breakfast.setMealType("BREAKFAST");
         breakfast.setLogDate(LocalDateTime.of(2026, 5, 21, 8, 0));
-        foodItem.setCarbs(1.1);
-        foodItem.setFat(11.0);
 
         LocalDateTime start = LocalDate.of(2026, 5, 21).atStartOfDay();
         LocalDateTime end = LocalDate.of(2026, 5, 22).atStartOfDay();
@@ -295,9 +318,43 @@ class FoodLogsServiceImplTest {
 
         assertEquals(4, result.size());
         assertEquals("BREAKFAST", result.get(0).getMealType());
-        assertEquals(232.5, result.get(0).getTotalCalories());
-        assertEquals(19.5, result.get(0).getTotalProtein());
+        assertEquals(111.0, result.get(0).getTotalCalories());
+        assertEquals(22.0, result.get(0).getTotalProtein());
+        assertEquals(3.0, result.get(0).getTotalFat());
+        assertEquals(8.0, result.get(0).getTotalCarbs());
         assertEquals(0.0, result.get(1).getTotalCalories());
+    }
+
+    @Test
+    void getMealSummaries_whenProductNutritionChanges_usesCapturedSnapshotValues() {
+        FoodLogsEntity breakfast = new FoodLogsEntity();
+        breakfast.setUser(user);
+        breakfast.setFoodItem(foodItem);
+        breakfast.setPortionSize(100.0);
+        breakfast.setNormalizedPortionGrams(100.0);
+        breakfast.setSnapshotCalories(155.0);
+        breakfast.setSnapshotProtein(13.0);
+        breakfast.setSnapshotFat(11.0);
+        breakfast.setSnapshotCarbs(1.1);
+        breakfast.setMealType("BREAKFAST");
+        breakfast.setLogDate(LocalDateTime.of(2026, 5, 21, 8, 0));
+        foodItem.setCalories(999.0);
+        foodItem.setProtein(99.0);
+        foodItem.setFat(99.0);
+        foodItem.setCarbs(99.0);
+
+        LocalDateTime start = LocalDate.of(2026, 5, 21).atStartOfDay();
+        LocalDateTime end = LocalDate.of(2026, 5, 22).atStartOfDay();
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of(breakfast));
+
+        List<FoodLogMealSummaryDto> result = foodLogsService.getMealSummaries("test@test.com", start, end);
+
+        assertEquals(155.0, result.get(0).getTotalCalories());
+        assertEquals(13.0, result.get(0).getTotalProtein());
+        assertEquals(11.0, result.get(0).getTotalFat());
+        assertEquals(1.1, result.get(0).getTotalCarbs());
     }
 
     @Test
@@ -338,8 +395,8 @@ class FoodLogsServiceImplTest {
 
         assertEquals(197.5, result.get(0).getTotalCalories());
         assertEquals(12.9, result.get(0).getTotalProtein());
-        assertEquals(6.0, result.get(0).getTotalFat());
-        assertEquals(9.6, result.get(0).getTotalCarbs());
+        assertEquals(11.5, result.get(0).getTotalFat());
+        assertEquals(10.15, result.get(0).getTotalCarbs());
     }
 
     @Test

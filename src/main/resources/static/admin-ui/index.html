@@ -274,9 +274,10 @@
                         <label class="form-label" for="userRegionFilter">Region</label>
                         <select id="userRegionFilter" class="form-select">
                             <option value="">All</option>
-                            <option value="IRL">IRL</option>
+                            <option value="GLOBAL">GLOBAL</option>
                             <option value="TR">TR</option>
-                            <option value="UK">UK</option>
+                            <option value="UK_IE">UK_IE</option>
+                            <option value="EU">EU</option>
                             <option value="NO_REGION">No region</option>
                         </select>
                     </div>
@@ -309,6 +310,7 @@
                             <th style="width: 80px">ID</th>
                             <th>User</th>
                             <th style="width: 120px">Region</th>
+                            <th style="width: 110px">Language</th>
                             <th style="width: 150px">Email</th>
                             <th style="width: 150px">Profile</th>
                             <th style="width: 190px">Body</th>
@@ -347,9 +349,10 @@
                         <label class="form-label" for="marketRegion">Region</label>
                         <select id="marketRegion" class="form-select">
                             <option value="">All</option>
-                            <option value="IRL">IRL</option>
+                            <option value="GLOBAL">GLOBAL</option>
                             <option value="TR">TR</option>
-                            <option value="UK">UK</option>
+                            <option value="UK_IE">UK_IE</option>
+                            <option value="EU">EU</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -521,6 +524,9 @@
                         <button id="loadNotificationsBtn" class="btn btn-success">Load</button>
                     </div>
                     <div class="col-md-2 d-grid">
+                        <button id="systemAlertsBtn" class="btn btn-outline-danger">System alerts</button>
+                    </div>
+                    <div class="col-md-2 d-grid">
                         <button id="markAllNotificationsBtn" class="btn btn-outline-secondary">Mark all read</button>
                     </div>
                 </div>
@@ -603,9 +609,10 @@
                         <label class="form-label" for="reviewMarketRegion">Region</label>
                         <select id="reviewMarketRegion" class="form-select">
                             <option value="">No region</option>
-                            <option>IRL</option>
+                            <option>GLOBAL</option>
                             <option>TR</option>
-                            <option>UK</option>
+                            <option>UK_IE</option>
+                            <option>EU</option>
                         </select>
                     </div>
                     <div class="col-md-9">
@@ -845,7 +852,7 @@
         el("usersInfo").textContent = `${formatNumber(filtered.length)} / ${formatNumber(state.users.length)} kullanici`;
 
         if (!filtered.length) {
-            el("usersBody").innerHTML = `<tr><td colspan="6" class="text-center muted py-4">Bu filtrelerle kullanici bulunamadi.</td></tr>`;
+            el("usersBody").innerHTML = `<tr><td colspan="7" class="text-center muted py-4">Bu filtrelerle kullanici bulunamadi.</td></tr>`;
             return;
         }
 
@@ -857,6 +864,7 @@
                     <div class="small muted">${escapeHtml(user.email || "-")}</div>
                 </td>
                 <td>${regionBadge(user.marketRegion)}</td>
+                <td><span class="badge text-bg-light">${escapeHtml(user.preferredLanguage || "EN")}</span></td>
                 <td>
                     ${booleanBadge(user.emailVerified, "Verified", "Unverified")}
                     <div class="mt-1">${booleanBadge(user.passwordSet, "Password set", "No password")}</div>
@@ -1079,9 +1087,15 @@
 
     function systemHealthCards(health, columnClass) {
         const profiles = Array.isArray(health.activeProfiles) ? health.activeProfiles.join(", ") : "-";
+        const warnings = Array.isArray(health.warnings) ? health.warnings : [];
+        const heap = `${formatNumber(health.heapUsedMb ?? 0)} / ${formatNumber(health.heapMaxMb ?? 0)} MB`;
         const cards = [
             ["Status", health.status, health.status === "UP" ? "success" : "danger"],
             ["Database", `${health.databaseStatus} (${health.databaseLatencyMs ?? "-"} ms)`, health.databaseStatus === "UP" ? "success" : "danger"],
+            ["Runtime", `Heap ${heap}`, warnings.length ? "warning" : "light"],
+            ["RevenueCat", `${formatNumber(health.revenueCatEventsLast24h ?? 0)} / 24h, failed ${formatNumber(health.failedRevenueCatEvents ?? 0)}`, Number(health.failedRevenueCatEvents || 0) > 0 ? "danger" : "success"],
+            ["Subscriptions", `${formatNumber(health.activeSubscriptions ?? 0)} active, quota full ${formatNumber(health.exhaustedAiQuotaSubscriptions ?? 0)}`, Number(health.exhaustedAiQuotaSubscriptions || 0) > 0 ? "warning" : "light"],
+            ["Warnings", warnings.length ? warnings.join(" | ") : "None", warnings.length ? "warning" : "success"],
             ["App", `${health.appName || "-"} / ${health.appVersion || "-"}`, "light"],
             ["Profiles", profiles || "default", "light"]
         ];
@@ -1186,6 +1200,12 @@
         setAlert(`${result.updatedCount ?? 0} notification okundu olarak isaretlendi.`, "success");
     }
 
+    async function loadSystemAlerts() {
+        el("notificationType").value = "system_alert";
+        el("notificationUnreadOnly").value = "true";
+        await loadNotifications(0);
+    }
+
     function featureLabel(value) {
         return value.split("_").map((part) => part.charAt(0) + part.slice(1).toLowerCase()).join(" ");
     }
@@ -1244,6 +1264,7 @@
     el("loadNotificationsBtn").addEventListener("click", () => run(() => loadNotifications(0), "Notification listesi yuklendi."));
     el("notificationPrevBtn").addEventListener("click", () => run(() => loadNotifications(state.notificationPage - 1), "Notification listesi yuklendi."));
     el("notificationNextBtn").addEventListener("click", () => run(() => loadNotifications(state.notificationPage + 1), "Notification listesi yuklendi."));
+    el("systemAlertsBtn").addEventListener("click", () => run(loadSystemAlerts, "System alert listesi yuklendi."));
     el("markAllNotificationsBtn").addEventListener("click", () => run(markAllNotificationsAsRead));
     el("importBtn").addEventListener("click", () => run(importProducts));
     document.querySelectorAll("[data-bs-dismiss='modal']").forEach((button) => {

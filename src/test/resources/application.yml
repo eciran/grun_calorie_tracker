@@ -15,6 +15,10 @@ spring:
 
   flyway:
     enabled: false
+  data:
+    redis:
+      repositories:
+        enabled: false
 
 jwt:
   secret: R1J1bl9DYWxvcmllX1RyYWNrZXJfU2VjcmV0S2V5XzIwMjVfQmFzZTY0X1NhbXBsZV9LZXlfMTIzNDU2Nzg5

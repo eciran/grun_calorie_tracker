@@ -24,7 +24,7 @@ public class FoodProductReviewRequestDto {
     @Schema(description = "Image review status.", example = "APPROVED")
     private ImageStatus imageStatus;
 
-    @Schema(description = "Market region for this food product. Supported values: IRL, TR, UK.", example = "UK")
+    @Schema(description = "Market region for this food product. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
     private MarketRegion marketRegion;
 
     @Schema(description = "Admin review note. Required when rejecting product data or image.", example = "Image is blurry and product label is unreadable.")

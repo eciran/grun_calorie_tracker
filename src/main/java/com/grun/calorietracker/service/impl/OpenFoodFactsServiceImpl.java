@@ -85,6 +85,7 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
 
     private List<FoodProductDto> fetchSearchResults(String query, String brand, String nutriScore, MarketRegion marketRegion) {
         try {
+            String countryTag = toOpenFoodFactsCountryTag(marketRegion);
             JsonNode response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/cgi/search.pl")
@@ -93,9 +94,9 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
                             .queryParam("action", "process")
                             .queryParam("json", 1)
                             .queryParam("page_size", DEFAULT_SEARCH_SIZE)
-                            .queryParamIfPresent("tagtype_0", java.util.Optional.ofNullable(marketRegion).map(region -> "countries"))
-                            .queryParamIfPresent("tag_contains_0", java.util.Optional.ofNullable(marketRegion).map(region -> "contains"))
-                            .queryParamIfPresent("tag_0", java.util.Optional.ofNullable(toOpenFoodFactsCountryTag(marketRegion)))
+                            .queryParamIfPresent("tagtype_0", java.util.Optional.ofNullable(countryTag).map(tag -> "countries"))
+                            .queryParamIfPresent("tag_contains_0", java.util.Optional.ofNullable(countryTag).map(tag -> "contains"))
+                            .queryParamIfPresent("tag_0", java.util.Optional.ofNullable(countryTag))
                             .build())
                     .retrieve()
                     .body(JsonNode.class);
@@ -163,9 +164,9 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
             return null;
         }
         return switch (marketRegion) {
-            case IRL -> "en:ireland";
             case TR -> "en:turkey";
-            case UK -> "en:united-kingdom";
+            case UK_IE -> "en:united-kingdom";
+            case EU, GLOBAL -> null;
         };
     }
 

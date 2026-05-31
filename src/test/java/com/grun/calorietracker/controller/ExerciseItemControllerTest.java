@@ -81,6 +81,39 @@ class ExerciseItemControllerTest {
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
+    void searchAlias_whenAuthenticatedUser_returnsItems() throws Exception {
+        ExerciseItemDto item = new ExerciseItemDto();
+        item.setId(2L);
+        item.setName("Push-up");
+        item.setMetCode("PUSH_UP");
+
+        ExerciseItemPageDto page = new ExerciseItemPageDto();
+        page.setContent(List.of(item));
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(1L);
+        page.setTotalPages(1);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(exerciseItemService.searchItems(
+                eq("push"),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(true),
+                eq(0),
+                eq(25)
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/exercise-items/search")
+                        .param("q", "push"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("Push-up"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
     void addExerciseItem_whenNotAdmin_returnsForbidden() throws Exception {
         ExerciseItemDto request = buildRequest();
 

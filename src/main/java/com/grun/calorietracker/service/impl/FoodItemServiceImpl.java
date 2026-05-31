@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
@@ -66,10 +67,15 @@ public class FoodItemServiceImpl implements FoodItemService {
     @Override
     public FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;
-        Specification<FoodItemEntity> specification = buildSearchSpecification(safeCriteria);
         Sort sort = buildSort(safeCriteria);
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), sort);
 
+        Page<FoodItemEntity> prioritizedLocalProducts = searchLocalProductsByRegionPriority(safeCriteria, pageable);
+        if (prioritizedLocalProducts.hasContent()) {
+            return toSearchPageDto(prioritizedLocalProducts);
+        }
+
+        Specification<FoodItemEntity> specification = buildSearchSpecification(safeCriteria, true);
         Page<FoodItemEntity> localProducts = foodItemRepository.findAll(specification, pageable);
         if (localProducts.hasContent()) {
             return toSearchPageDto(localProducts);
@@ -78,7 +84,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         return searchAndCacheExternalProducts(safeCriteria, pageable);
     }
 
-    private Specification<FoodItemEntity> buildSearchSpecification(FoodSearchCriteriaDto criteria) {
+    private Specification<FoodItemEntity> buildSearchSpecification(FoodSearchCriteriaDto criteria, boolean expandRegionFallbacks) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.or(
@@ -121,7 +127,11 @@ public class FoodItemServiceImpl implements FoodItemService {
             }
 
             if (criteria.getMarketRegion() != null) {
-                predicates.add(criteriaBuilder.equal(root.get("marketRegion"), criteria.getMarketRegion()));
+                if (expandRegionFallbacks) {
+                    predicates.add(root.get("marketRegion").in(resolveSearchRegions(criteria.getMarketRegion())));
+                } else {
+                    predicates.add(criteriaBuilder.equal(root.get("marketRegion"), criteria.getMarketRegion()));
+                }
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -253,6 +263,71 @@ public class FoodItemServiceImpl implements FoodItemService {
             return 25;
         }
         return Math.min(size, 100);
+    }
+
+    private Page<FoodItemEntity> searchLocalProductsByRegionPriority(FoodSearchCriteriaDto criteria, Pageable pageable) {
+        if (criteria.getMarketRegion() == null || hasExplicitSort(criteria)) {
+            return org.springframework.data.domain.Page.empty(pageable);
+        }
+
+        int requestedRows = Math.max(1, (int) pageable.getOffset() + pageable.getPageSize());
+        List<FoodItemEntity> mergedProducts = new ArrayList<>();
+        long totalElements = 0;
+
+        for (MarketRegion region : resolveSearchRegions(criteria.getMarketRegion())) {
+            FoodSearchCriteriaDto regionalCriteria = copyCriteriaWithRegion(criteria, region);
+            Page<FoodItemEntity> regionalPage = foodItemRepository.findAll(
+                    buildSearchSpecification(regionalCriteria, false),
+                    PageRequest.of(0, requestedRows, buildDefaultSearchSort())
+            );
+            totalElements += regionalPage.getTotalElements();
+            mergedProducts.addAll(regionalPage.getContent());
+        }
+
+        int fromIndex = Math.min((int) pageable.getOffset(), mergedProducts.size());
+        int toIndex = Math.min(fromIndex + pageable.getPageSize(), mergedProducts.size());
+        return new org.springframework.data.domain.PageImpl<>(
+                mergedProducts.subList(fromIndex, toIndex),
+                pageable,
+                totalElements
+        );
+    }
+
+    private boolean hasExplicitSort(FoodSearchCriteriaDto criteria) {
+        return FoodProductNormalizationRules.normalizeText(criteria.getSortBy()) != null;
+    }
+
+    private FoodSearchCriteriaDto copyCriteriaWithRegion(FoodSearchCriteriaDto criteria, MarketRegion region) {
+        FoodSearchCriteriaDto copy = new FoodSearchCriteriaDto();
+        copy.setQuery(criteria.getQuery());
+        copy.setBrand(criteria.getBrand());
+        copy.setCategory(criteria.getCategory());
+        copy.setMinCalories(criteria.getMinCalories());
+        copy.setMaxCalories(criteria.getMaxCalories());
+        copy.setSortBy(criteria.getSortBy());
+        copy.setSortOrder(criteria.getSortOrder());
+        copy.setNutriScore(criteria.getNutriScore());
+        copy.setMarketRegion(region);
+        return copy;
+    }
+
+    private List<MarketRegion> resolveSearchRegions(MarketRegion marketRegion) {
+        return switch (marketRegion) {
+            case UK_IE -> List.of(
+                    MarketRegion.UK_IE,
+                    MarketRegion.EU,
+                    MarketRegion.GLOBAL
+            );
+            case EU -> List.of(
+                    MarketRegion.EU,
+                    MarketRegion.GLOBAL
+            );
+            case TR -> List.of(
+                    MarketRegion.TR,
+                    MarketRegion.GLOBAL
+            );
+            case GLOBAL -> List.of(MarketRegion.GLOBAL);
+        };
     }
 
     private FoodProductSearchPageDto toSearchPageDto(Page<FoodItemEntity> products) {

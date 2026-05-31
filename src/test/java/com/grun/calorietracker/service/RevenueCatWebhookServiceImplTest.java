@@ -139,6 +139,39 @@ class RevenueCatWebhookServiceImplTest {
     }
 
     @Test
+    void processWebhook_whenCustomerSupportCancellation_marksSubscriptionRefunded() throws Exception {
+        String payload = """
+                {
+                  "event": {
+                    "id": "evt_refund",
+                    "type": "CANCELLATION",
+                    "app_user_id": "user:1",
+                    "product_id": "grun_pro_monthly",
+                    "entitlement_ids": ["pro"],
+                    "transaction_id": "tx_refund",
+                    "original_transaction_id": "otx_refund",
+                    "event_timestamp_ms": 1771950000000,
+                    "expiration_at_ms": 1771950000000,
+                    "cancel_reason": "CUSTOMER_SUPPORT",
+                    "environment": "SANDBOX",
+                    "store": "APP_STORE"
+                  }
+                }
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionService.applyProviderEvent(any(), any())).thenReturn(new SubscriptionDto());
+        when(eventRepository.save(any(SubscriptionProviderEventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        ArgumentCaptor<SubscriptionProviderEventCommand> captor = ArgumentCaptor.forClass(SubscriptionProviderEventCommand.class);
+        verify(subscriptionService).applyProviderEvent(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
+        assertEquals(true, captor.getValue().getRefund());
+        assertEquals("grun_pro_monthly", captor.getValue().getProviderProductId());
+    }
+
+    @Test
     void processWebhook_whenAuthorizationInvalid_throwsAccessDenied() throws Exception {
         String payload = """
                 {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}

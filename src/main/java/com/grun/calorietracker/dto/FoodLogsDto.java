@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -18,7 +19,8 @@ public class FoodLogsDto {
 
     @NotNull(message = "{validation.food-log.food-item-id.required}")
     @Positive(message = "{validation.food-log.food-item-id.positive}")
-    @Schema(description = "Linked food product id.", example = "12", requiredMode = Schema.RequiredMode.REQUIRED)
+    @JsonAlias("foodId")
+    @Schema(description = "Linked food product id. Mobile may send either foodItemId or foodId; responses use foodItemId.", example = "12", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long foodItemId;
 
     @Schema(description = "Food display name captured for the log.", example = "Greek yogurt")
@@ -34,6 +36,18 @@ public class FoodLogsDto {
 
     @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double normalizedPortionGrams;
+
+    @Schema(description = "Calories captured at log time for the entered portion.", example = "155.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotCalories;
+
+    @Schema(description = "Protein captured at log time for the entered portion.", example = "13.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotProtein;
+
+    @Schema(description = "Carbohydrates captured at log time for the entered portion.", example = "1.1", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotCarbs;
+
+    @Schema(description = "Fat captured at log time for the entered portion.", example = "11.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotFat;
 
     @NotBlank(message = "{validation.food-log.meal-type.required}")
     @Pattern(regexp = "(?i)BREAKFAST|LUNCH|DINNER|SNACK", message = "{validation.food-log.meal-type.invalid}")

@@ -335,12 +335,18 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
 
         String normalized = value.trim().toUpperCase(Locale.ROOT);
-        if ("GB".equals(normalized) || "GBR".equals(normalized) || "UNITED KINGDOM".equals(normalized)) {
-            normalized = "UK";
+        if ("UK".equals(normalized)
+                || "GB".equals(normalized)
+                || "GBR".equals(normalized)
+                || "UNITED KINGDOM".equals(normalized)
+                || "IRELAND".equals(normalized)
+                || "IRL".equals(normalized)
+                || "IE".equals(normalized)) {
+            normalized = "UK_IE";
         } else if ("TURKEY".equals(normalized) || "TURKIYE".equals(normalized)) {
             normalized = "TR";
-        } else if ("IRELAND".equals(normalized) || "IE".equals(normalized)) {
-            normalized = "IRL";
+        } else if ("EUROPE".equals(normalized) || "EUROPEAN UNION".equals(normalized)) {
+            normalized = "EU";
         }
 
         try {

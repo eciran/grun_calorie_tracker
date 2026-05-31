@@ -35,7 +35,7 @@ if (-not $env:POSTGRES_DB) { $env:POSTGRES_DB = "grun_calorie_db" }
 
 Push-Location $projectRoot
 try {
-    Write-Host "Starting PostgreSQL with Docker Compose..."
+    Write-Host "Starting PostgreSQL and Redis with Docker Compose..."
     docker compose -f $composeFile up -d
 
     Write-Host "Waiting for PostgreSQL to become ready..."
@@ -53,7 +53,22 @@ try {
         Write-Error "PostgreSQL did not become ready in time. Check container logs with: docker logs grun-postgres"
     }
 
-    Write-Host "PostgreSQL is ready. Starting Spring Boot API..."
+    Write-Host "Waiting for Redis to become ready..."
+    $redisReady = $false
+    for ($i = 1; $i -le 30; $i++) {
+        docker exec grun-redis redis-cli ping *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $redisReady = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    if (-not $redisReady) {
+        Write-Error "Redis did not become ready in time. Check container logs with: docker logs grun-redis"
+    }
+
+    Write-Host "PostgreSQL and Redis are ready. Starting Spring Boot API..."
     .\mvnw.cmd spring-boot:run
 } finally {
     Pop-Location

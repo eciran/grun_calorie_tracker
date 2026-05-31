@@ -3,10 +3,14 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.AccountPasswordRequestDto;
 import com.grun.calorietracker.dto.AccountPasswordResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.dto.GdprDataExportDto;
+import com.grun.calorietracker.dto.GdprDeleteRequestDto;
+import com.grun.calorietracker.dto.GdprDeleteResponseDto;
 import com.grun.calorietracker.dto.LinkAppleRequestDto;
 import com.grun.calorietracker.dto.LinkGoogleRequestDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -40,6 +44,7 @@ import java.util.List;
 public class AccountController {
 
     private final AccountIdentityService accountIdentityService;
+    private final AccountGdprService accountGdprService;
 
     @GetMapping("/linked-identities")
     @Operation(
@@ -118,5 +123,40 @@ public class AccountController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid AccountPasswordRequestDto request) {
         return ResponseEntity.ok(accountIdentityService.updatePassword(userDetails.getUsername(), request));
+    }
+
+    @GetMapping("/gdpr/export")
+    @Operation(
+            summary = "Export my account data",
+            description = "Returns a GDPR-friendly JSON export snapshot of profile and account-related data owned by the authenticated user."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Data export created."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<GdprDataExportDto> exportMyData(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(accountGdprService.exportMyData(userDetails.getUsername()));
+    }
+
+    @DeleteMapping("/gdpr")
+    @Operation(
+            summary = "Anonymize and delete my account access",
+            description = "Anonymizes the authenticated user account and removes account-linked data where possible. Requires confirmText=DELETE_MY_ACCOUNT."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Account anonymized and access deleted."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed or confirm text is invalid.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<GdprDeleteResponseDto> anonymizeAndDelete(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid GdprDeleteRequestDto request) {
+        accountGdprService.anonymizeAndDeleteAccount(
+                userDetails.getUsername(),
+                request.getConfirmText(),
+                request.getCurrentPassword()
+        );
+        return ResponseEntity.ok(new GdprDeleteResponseDto("Account anonymized and deleted successfully."));
     }
 }

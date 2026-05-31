@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.EmailVerificationMailSender;
 import org.junit.jupiter.api.Test;
@@ -68,8 +69,31 @@ class MobileFoodDiaryFlowIntegrationTest {
                         .content(objectMapper.writeValueAsString(confirm)))
                 .andExpect(status().isOk());
 
-        String token = login(auth);
+        AuthTokens authTokens = login(auth);
+        String token = authTokens.token();
+
+        mockMvc.perform(get("/api/v1/app/startup")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.onboardingCompleted").value(false))
+                .andExpect(jsonPath("$.nextStep").value("COMPLETE_ONBOARDING"));
+
+        String refreshedToken = refresh(authTokens.refreshToken());
+        token = refreshedToken;
+
         completeOnboarding(token);
+
+        mockMvc.perform(get("/api/v1/app/startup")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.onboardingCompleted").value(true))
+                .andExpect(jsonPath("$.dashboardReady").value(true))
+                .andExpect(jsonPath("$.nextStep").value("OPEN_DASHBOARD"))
+                .andExpect(jsonPath("$.subscription.plan").value("FREE"))
+                .andExpect(jsonPath("$.subscription.planType").value("FREE"));
+
         long customFoodId = createCustomFood(token);
         logBreakfast(token, customFoodId);
 
@@ -97,11 +121,31 @@ class MobileFoodDiaryFlowIntegrationTest {
         org.junit.jupiter.api.Assertions.assertTrue(userRepository.findByEmail(email).orElseThrow().getEmailVerified());
     }
 
-    private String login(AuthRequest auth) throws Exception {
+    private AuthTokens login(AuthRequest auth) throws Exception {
         String response = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(auth)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").isNumber())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode body = objectMapper.readTree(response);
+        return new AuthTokens(body.get("token").asText(), body.get("refreshToken").asText());
+    }
+
+    private String refresh(String refreshToken) throws Exception {
+        RefreshTokenRequestDto request = new RefreshTokenRequestDto();
+        request.setRefreshToken(refreshToken);
+        String response = mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").isNumber())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -115,7 +159,8 @@ class MobileFoodDiaryFlowIntegrationTest {
         request.setGender("MALE");
         request.setHeight(180.0);
         request.setWeight(82.0);
-        request.setMarketRegion(MarketRegion.UK);
+        request.setMarketRegion(MarketRegion.UK_IE);
+        request.setPreferredLanguage(PreferredLanguage.EN);
         request.setTargetWeight(78.0);
         request.setWeeklyWeightChangeTargetKg(0.5);
         request.setGoalType(GoalType.LOSE_WEIGHT);
@@ -178,7 +223,7 @@ class MobileFoodDiaryFlowIntegrationTest {
     private void logTemplateForNextDay(String token, long templateId) throws Exception {
         MealTemplateApplyRequestDto request = new MealTemplateApplyRequestDto();
         request.setTargetDate(LocalDate.of(2026, 5, 23));
-        mockMvc.perform(post("/api/v1/meal-templates/" + templateId + "/log")
+        mockMvc.perform(post("/api/v1/meal-templates/" + templateId + "/apply")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -188,5 +233,8 @@ class MobileFoodDiaryFlowIntegrationTest {
 
     private String bearer(String token) {
         return "Bearer " + token;
+    }
+
+    private record AuthTokens(String token, String refreshToken) {
     }
 }

@@ -61,6 +61,7 @@ class PasswordResetServiceImplTest {
         );
         ReflectionTestUtils.setField(passwordResetService, "expirationMinutes", 30L);
         ReflectionTestUtils.setField(passwordResetService, "resetBaseUrl", "http://localhost:8080/reset-password");
+        ReflectionTestUtils.setField(passwordResetService, "requestCooldownSeconds", 60L);
 
         user = new UserEntity();
         user.setId(1L);
@@ -74,6 +75,7 @@ class PasswordResetServiceImplTest {
         request.setEmail("user@example.com");
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.empty());
         when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of());
 
         PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
@@ -101,6 +103,46 @@ class PasswordResetServiceImplTest {
         assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
         verify(passwordResetTokenRepository, never()).save(any());
         verify(passwordResetMailSender, never()).sendPasswordResetToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void requestPasswordReset_whenRecentTokenExists_returnsGenericResponseWithoutSendingMail() {
+        PasswordResetRequestDto request = new PasswordResetRequestDto();
+        request.setEmail("user@example.com");
+
+        PasswordResetTokenEntity recentToken = new PasswordResetTokenEntity();
+        recentToken.setUser(user);
+        recentToken.setCreatedAt(LocalDateTime.now().minusSeconds(30));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(recentToken));
+
+        PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
+
+        assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
+        verify(passwordResetTokenRepository, never()).save(any());
+        verify(passwordResetMailSender, never()).sendPasswordResetToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void requestPasswordReset_whenCooldownPassed_invalidatesOldTokenAndSendsMail() {
+        PasswordResetRequestDto request = new PasswordResetRequestDto();
+        request.setEmail("user@example.com");
+
+        PasswordResetTokenEntity oldToken = new PasswordResetTokenEntity();
+        oldToken.setUser(user);
+        oldToken.setCreatedAt(LocalDateTime.now().minusMinutes(5));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(oldToken));
+        when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of(oldToken));
+
+        PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
+
+        assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
+        assertThat(oldToken.getUsedAt()).isNotNull();
+        verify(passwordResetTokenRepository).save(any(PasswordResetTokenEntity.class));
+        verify(passwordResetMailSender).sendPasswordResetToken(anyString(), anyString(), anyString());
     }
 
     @Test

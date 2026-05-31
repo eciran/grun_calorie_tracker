@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface HealthConnectionRepository extends JpaRepository<HealthConnectionEntity, Long> {
     List<HealthConnectionEntity> findByUserOrderByProviderAsc(UserEntity user);
     Optional<HealthConnectionEntity> findByUserAndProvider(UserEntity user, HealthProvider provider);
+    long deleteByUser(UserEntity user);
 }

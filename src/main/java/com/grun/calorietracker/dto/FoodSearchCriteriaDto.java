@@ -35,6 +35,6 @@ public class FoodSearchCriteriaDto {
     @Schema(description = "Nutri-Score filter.", example = "a")
     private String nutriScore;
 
-    @Schema(description = "Optional market region filter. Supported values: IRL, TR, UK.", example = "UK")
+    @Schema(description = "Optional market region preference. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
     private MarketRegion marketRegion;
 }

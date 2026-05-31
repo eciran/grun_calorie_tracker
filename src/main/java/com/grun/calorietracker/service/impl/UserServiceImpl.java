@@ -103,6 +103,7 @@ public class UserServiceImpl implements UserService {
         dto.setEmailVerified(user.getEmailVerified());
         dto.setPasswordSet(user.getPasswordSet());
         dto.setMarketRegion(user.getMarketRegion());
+        dto.setPreferredLanguage(user.getPreferredLanguage());
         if (user.getHeight() != null && user.getWeight() != null && user.getHeight() > 0) {
             double heightM = user.getHeight() / 100.0;
             double bmi = user.getWeight() / (heightM * heightM);
@@ -145,6 +146,7 @@ public class UserServiceImpl implements UserService {
             }
             if (updatedUserDto.getBmi() != null) existingUser.setBmi(updatedUserDto.getBmi());
             if (updatedUserDto.getMarketRegion() != null) existingUser.setMarketRegion(updatedUserDto.getMarketRegion());
+            if (updatedUserDto.getPreferredLanguage() != null) existingUser.setPreferredLanguage(updatedUserDto.getPreferredLanguage());
 
             // DTO'dan gelen verilerle entity'yi güncelledikten sonra kaydet
             UserEntity updatedUser = userRepository.save(existingUser);
@@ -215,6 +217,7 @@ public class UserServiceImpl implements UserService {
         dto.setEmailVerified(user.getEmailVerified());
         dto.setPasswordSet(user.getPasswordSet());
         dto.setMarketRegion(user.getMarketRegion());
+        dto.setPreferredLanguage(user.getPreferredLanguage());
         return dto;
     }
 }

@@ -59,6 +59,9 @@ GRUN_BREVO_API_KEY=
 GRUN_BREVO_API_URL=https://api.brevo.com/v3/smtp/email
 GRUN_RATE_LIMIT_ENABLED=true
 GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE=20
+GRUN_RATE_LIMIT_REDIS_ENABLED=false
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
 ```
 
 Do not commit `.env`. Commit only `.env.example`.
@@ -145,9 +148,33 @@ Provider credentials must stay in local or deployment secrets and must not be co
 
 Before enabling Brevo in production, verify the sender/domain in Brevo and configure SPF, DKIM, and DMARC DNS records for the sending domain. Use a sender address on that verified domain, for example `no-reply@your-domain.com`.
 
+### Account Data And GDPR
+
+Authenticated users can export their account data and request account anonymization:
+
+```text
+GET /api/v1/account/gdpr/export
+DELETE /api/v1/account/gdpr
+GET /api/v1/account/legal/consents
+POST /api/v1/account/legal/consents
+```
+
+Delete requests require `confirmText=DELETE_MY_ACCOUNT` and the user's current password. Provider-only accounts must set a password before deletion. Subscription provider events are retained for payment audit, but user references and raw payload content are scrubbed during account anonymization.
+
+Legal consent decisions are append-only records. The backend stores consent type, legal text version, accept/revoke status, source, IP address, user agent, and timestamp. Consent history is included in the GDPR export.
+
+Admins can manage retention policy rules for future legal/admin screens:
+
+```text
+GET /api/v1/admin/legal/retention-policies
+PUT /api/v1/admin/legal/retention-policies/{policyKey}
+```
+
+Retention policy changes are written to admin audit history. The default policy keeps anonymized RevenueCat/payment audit events while deleting or anonymizing user-owned app data during account deletion.
+
 ### Rate Limiting
 
-The backend includes an in-memory rate limiter for high-risk authentication endpoints:
+The backend includes a rate limiter for high-risk authentication endpoints. Local development uses an in-memory fallback by default, while production should enable Redis-backed shared limits:
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
@@ -155,7 +182,15 @@ The backend includes an in-memory rate limiter for high-risk authentication endp
 - `POST /api/v1/auth/password-reset/request`
 - `POST /api/v1/auth/email-verification/resend`
 
-Local defaults allow 20 requests per minute per client IP and endpoint. For multi-instance production deployments, this should be moved to a shared store such as Redis.
+Local defaults allow 20 requests per minute per client IP and endpoint. To use Redis:
+
+```env
+GRUN_RATE_LIMIT_REDIS_ENABLED=true
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
+```
+
+`scripts/run-local.ps1` starts PostgreSQL and Redis through Docker Compose. If Redis is enabled but unavailable, the backend falls back to the in-memory limiter and logs a warning; production monitoring should alert on that warning.
 
 ### Food Portions
 
@@ -182,7 +217,7 @@ POST /api/v1/auth/logout
 
 Refresh tokens are stored hashed in the database, rotated on every refresh, and revoked on logout. Password reset revokes active refresh tokens for the user.
 
-### Start PostgreSQL And API
+### Start PostgreSQL, Redis And API
 
 Start Docker Desktop first, then run:
 
@@ -193,8 +228,8 @@ Start Docker Desktop first, then run:
 The script:
 
 - loads `.env` if present
-- starts PostgreSQL with Docker Compose
-- waits until PostgreSQL is ready
+- starts PostgreSQL and Redis with Docker Compose
+- waits until PostgreSQL and Redis are ready
 - starts the Spring Boot API
 
 API URL:
@@ -250,6 +285,24 @@ GET /api/v1/products/search?q=milk&region=UK
 ```
 
 If `region` is omitted, the backend uses the authenticated user's saved `marketRegion`.
+
+### RevenueCat Production Smoke
+
+Before production release, validate RevenueCat backend configuration with an admin JWT:
+
+```powershell
+.\scripts\smoke-revenuecat-config.ps1 -BaseUrl "http://localhost:8080" -AdminToken "<admin-jwt>"
+```
+
+The script checks the safe config endpoint and validates sample Plus, Pro, and AI add-on product mappings. Override product ids with `-PlusProductId`, `-ProProductId`, and `-AiAddonProductId` when testing real App Store / Google Play product ids.
+
+Webhook processing can also be smoke-tested against a real backend user id:
+
+```powershell
+.\scripts\smoke-revenuecat-webhook.ps1 -BaseUrl "http://localhost:8080" -WebhookAuthorization "<revenuecat-auth-header>" -UserId 1
+```
+
+This posts sandbox-like initial purchase, AI add-on purchase, and customer-support cancellation/refund events to `/api/v1/webhooks/revenuecat`. Real App Store / Google Play sandbox purchase still requires a mobile build using the RevenueCat SDK.
 
 The current mobile integration contract is maintained in:
 

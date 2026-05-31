@@ -122,6 +122,35 @@ class FoodLogsControllerTest {
 
     @Test
     @WithMockUser(username = "test@test.com", roles = "USER")
+    void addFoodLog_acceptsMobileFoodIdAlias() throws Exception {
+        FoodLogsDto savedDto = new FoodLogsDto();
+        savedDto.setId(9L);
+        savedDto.setFoodItemId(44L);
+        savedDto.setFoodName("Milk");
+        savedDto.setPortionSize(250.0);
+        savedDto.setMealType("SNACK");
+        savedDto.setLogDate(LocalDateTime.of(2026, 5, 28, 10, 0));
+
+        when(foodLogsService.addFoodLog(any(FoodLogsDto.class), eq(user.getEmail()))).thenReturn(savedDto);
+
+        mockMvc.perform(post("/api/v1/food-logs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "foodId": 44,
+                                  "portionSize": 250,
+                                  "portionUnit": "MILLILITER",
+                                  "mealType": "SNACK",
+                                  "logDate": "2026-05-28T10:00:00"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.foodItemId").value(44L))
+                .andExpect(jsonPath("$.foodName").value("Milk"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
     void copyMeal_success() throws Exception {
         FoodLogCopyMealRequestDto request = new FoodLogCopyMealRequestDto();
         request.setSourceDate(java.time.LocalDate.of(2026, 5, 21));

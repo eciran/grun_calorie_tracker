@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DeviceDataRepository extends JpaRepository<DeviceDataEntity, Long> {
+    long countByUser(UserEntity user);
+    List<DeviceDataEntity> findByUserOrderByRecordedAtAsc(UserEntity user);
     Optional<DeviceDataEntity> findByUserAndProviderAndExternalId(UserEntity user, HealthProvider provider, String externalId);
 
     Optional<DeviceDataEntity> findByUserAndProviderAndExternalIdIsNullAndRecordedAt(

@@ -52,7 +52,7 @@ public class FoodProductDto {
     @Schema(description = "Image quality review status.", example = "RAW")
     private ImageStatus imageStatus;
 
-    @Schema(description = "Market region this food product belongs to.", example = "UK")
+    @Schema(description = "Market region this food product belongs to.", example = "UK_IE")
     private MarketRegion marketRegion;
 
     @Schema(description = "How many times this product has been added to food logs.", example = "42")

@@ -14,6 +14,8 @@ import java.util.Optional;
 @Repository
 public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity, Long> {
     List<ExerciseLogsEntity> findByUser(UserEntity user);
+    long countByUser(UserEntity user);
+    Optional<ExerciseLogsEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
     List<ExerciseLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
             UserEntity user,
             LocalDateTime start,
@@ -55,4 +57,6 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    long deleteByUser(UserEntity user);
 }

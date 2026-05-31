@@ -43,10 +43,16 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Value("${grun.password-reset.base-url:http://localhost:8080/reset-password}")
     private String resetBaseUrl;
 
+    @Value("${grun.password-reset.request-cooldown-seconds:60}")
+    private long requestCooldownSeconds;
+
     @Override
     @Transactional
     public PasswordResetResponseDto requestPasswordReset(PasswordResetRequestDto request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+            if (isWithinRequestCooldown(user)) {
+                return;
+            }
             invalidateExistingTokens(user);
             String rawToken = generateRawToken();
 
@@ -90,6 +96,17 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         LocalDateTime now = LocalDateTime.now();
         passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)
                 .forEach(token -> token.setUsedAt(now));
+    }
+
+    private boolean isWithinRequestCooldown(UserEntity user) {
+        if (requestCooldownSeconds <= 0) {
+            return false;
+        }
+        LocalDateTime cooldownThreshold = LocalDateTime.now().minusSeconds(requestCooldownSeconds);
+        return passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)
+                .filter(token -> token.getCreatedAt() != null)
+                .map(token -> token.getCreatedAt().isAfter(cooldownThreshold))
+                .orElse(false);
     }
 
     private String generateRawToken() {

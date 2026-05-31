@@ -1,6 +1,7 @@
 package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import org.springframework.data.domain.Sort;
@@ -28,6 +29,7 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     List<FoodItemEntity> findByVerificationStatusAndImageStatus(VerificationStatus verificationStatus, ImageStatus imageStatus, Sort sort);
     long countByVerificationStatus(VerificationStatus verificationStatus);
     List<FoodItemEntity> findByCreatedByUserAndIsCustomTrueOrderByNameAsc(com.grun.calorietracker.entity.UserEntity user);
+    long deleteByCreatedByUserAndIsCustomTrue(UserEntity user);
 
     List<FoodItemEntity> findAll(Specification<FoodItemEntity> spec, Sort sort);
 

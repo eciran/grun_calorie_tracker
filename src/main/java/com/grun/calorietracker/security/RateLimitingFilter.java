@@ -32,8 +32,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     );
 
     private static final String PRODUCT_BARCODE_PATH_PREFIX = "/api/v1/products/barcode/";
+    private static final String PASSWORD_RESET_REQUEST_PATH = "/api/v1/auth/password-reset/request";
+    private static final String EMAIL_VERIFICATION_RESEND_PATH = "/api/v1/auth/email-verification/resend";
 
-    private final InMemoryRateLimiter rateLimiter;
+    private final RequestRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
 
     @Value("${grun.rate-limit.enabled:true}")
@@ -41,6 +43,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Value("${grun.rate-limit.auth.max-requests-per-minute:20}")
     private int authMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.password-reset.max-requests-per-minute:5}")
+    private int passwordResetMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.email-verification-resend.max-requests-per-minute:5}")
+    private int emailVerificationResendMaxRequestsPerMinute;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -53,7 +61,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         }
 
         String key = clientKey(request);
-        boolean allowed = rateLimiter.isAllowed(key, authMaxRequestsPerMinute, 60_000);
+        boolean allowed = rateLimiter.isAllowed(key, resolveMaxRequests(request), 60_000);
         if (allowed) {
             filterChain.doFilter(request, response);
             return;
@@ -76,6 +84,17 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 ? request.getRemoteAddr()
                 : forwardedFor.split(",")[0].trim();
         return ip + ":" + request.getRequestURI();
+    }
+
+    private int resolveMaxRequests(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (PASSWORD_RESET_REQUEST_PATH.equals(path)) {
+            return passwordResetMaxRequestsPerMinute;
+        }
+        if (EMAIL_VERIFICATION_RESEND_PATH.equals(path)) {
+            return emailVerificationResendMaxRequestsPerMinute;
+        }
+        return authMaxRequestsPerMinute;
     }
 
     private void writeRateLimitResponse(HttpServletRequest request, HttpServletResponse response) throws IOException {

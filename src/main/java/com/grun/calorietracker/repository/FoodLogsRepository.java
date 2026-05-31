@@ -17,6 +17,8 @@ import java.util.Optional;
 @Repository
 public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> {
     List<FoodLogsEntity> findByUser(UserEntity user);
+    long countByUser(UserEntity user);
+    Optional<FoodLogsEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
     List<FoodLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
     List<FoodLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
             UserEntity user,
@@ -71,10 +73,10 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
 
     @Query(value = """
     SELECT DATE(f.log_date) as logDate,
-           SUM(COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as calories,
-           SUM(COALESCE(fi.protein, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as protein,
-           SUM(COALESCE(fi.carbs, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as carbs,
-           SUM(COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100) as fat
+           SUM(COALESCE(f.snapshot_calories, COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as calories,
+           SUM(COALESCE(f.snapshot_protein, COALESCE(fi.protein, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as protein,
+           SUM(COALESCE(f.snapshot_carbs, COALESCE(fi.carbs, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as carbs,
+           SUM(COALESCE(f.snapshot_fat, COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as fat
     FROM food_logs f
     JOIN food_items fi ON f.food_id = fi.id
     WHERE f.user_id = :userId
@@ -89,10 +91,10 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
 
     @Query(value = """
 SELECT
-    COALESCE(SUM(fi.calories * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0),
-    COALESCE(SUM(fi.protein * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0),
-    COALESCE(SUM(fi.carbs * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0),
-    COALESCE(SUM(fi.fat * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0), 0)
+    COALESCE(SUM(COALESCE(f.snapshot_calories, COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
+    COALESCE(SUM(COALESCE(f.snapshot_protein, COALESCE(fi.protein, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
+    COALESCE(SUM(COALESCE(f.snapshot_carbs, COALESCE(fi.carbs, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
+    COALESCE(SUM(COALESCE(f.snapshot_fat, COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0)
 FROM food_logs f
 JOIN food_items fi ON f.food_id = fi.id
 WHERE f.user_id = :userId
@@ -104,5 +106,7 @@ WHERE f.user_id = :userId
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    long deleteByUser(UserEntity user);
 }
 

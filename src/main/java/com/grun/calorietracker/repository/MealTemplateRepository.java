@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MealTemplateRepository extends JpaRepository<MealTemplateEntity, Long> {
+    long countByUser(UserEntity user);
     List<MealTemplateEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
     Optional<MealTemplateEntity> findByIdAndUser(Long id, UserEntity user);
+    long deleteByUser(UserEntity user);
 }

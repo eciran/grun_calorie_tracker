@@ -70,7 +70,8 @@ public class AppStartupServiceImpl implements AppStartupService {
                 && user.getGender() != null
                 && user.getHeight() != null
                 && user.getWeight() != null
-                && user.getMarketRegion() != null;
+                && user.getMarketRegion() != null
+                && user.getPreferredLanguage() != null;
     }
 
     private String resolveNextStep(boolean emailVerified, boolean onboardingCompleted) {
@@ -97,6 +98,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .emailVerified(user.getEmailVerified())
                 .passwordSet(user.getPasswordSet())
                 .marketRegion(user.getMarketRegion())
+                .preferredLanguage(user.getPreferredLanguage())
                 .goalRecalculationRecommended(false)
                 .build();
         profile.setGoalRecalculationReason(null);

@@ -20,6 +20,13 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     locations: classpath:db/migration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      repositories:
+        enabled: false
 
 server:
   port: 8080
@@ -87,8 +94,14 @@ grun:
     expiration-days: ${GRUN_REFRESH_TOKEN_EXPIRATION_DAYS:30}
   rate-limit:
     enabled: ${GRUN_RATE_LIMIT_ENABLED:true}
+    redis:
+      enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
     auth:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE:20}
+    password-reset:
+      max-requests-per-minute: ${GRUN_RATE_LIMIT_PASSWORD_RESET_MAX_REQUESTS_PER_MINUTE:5}
+    email-verification-resend:
+      max-requests-per-minute: ${GRUN_RATE_LIMIT_EMAIL_VERIFICATION_RESEND_MAX_REQUESTS_PER_MINUTE:5}
   oauth:
     google:
       client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
@@ -97,9 +110,13 @@ grun:
   password-reset:
     expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
     base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}
+    request-cooldown-seconds: ${GRUN_PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:60}
   email-verification:
     expiration-minutes: ${GRUN_EMAIL_VERIFICATION_EXPIRATION_MINUTES:1440}
     base-url: ${GRUN_EMAIL_VERIFICATION_BASE_URL:http://localhost:8080/verify-email}
+    resend-cooldown-level-1-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_1_SECONDS:30}
+    resend-cooldown-level-2-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_2_SECONDS:120}
+    resend-cooldown-level-3-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_3_SECONDS:300}
   local:
     admin:
       bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}

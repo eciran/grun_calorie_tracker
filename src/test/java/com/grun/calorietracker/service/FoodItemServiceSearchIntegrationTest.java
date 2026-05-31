@@ -49,11 +49,11 @@ class FoodItemServiceSearchIntegrationTest {
 
     @Test
     void searchFoodItems_whenMarketRegionProvided_filtersProductsByRegion() {
-        FoodItemEntity ukProduct = product("Regional Milk", "333333", VerificationStatus.VERIFIED);
-        ukProduct.setMarketRegion(MarketRegion.UK);
+        FoodItemEntity ukIeProduct = product("Regional Milk", "333333", VerificationStatus.VERIFIED);
+        ukIeProduct.setMarketRegion(MarketRegion.UK_IE);
         FoodItemEntity trProduct = product("Regional Milk", "444444", VerificationStatus.VERIFIED);
         trProduct.setMarketRegion(MarketRegion.TR);
-        foodItemRepository.saveAll(List.of(ukProduct, trProduct));
+        foodItemRepository.saveAll(List.of(ukIeProduct, trProduct));
 
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery("regional");
@@ -64,6 +64,30 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals(1, result.getContent().size());
         assertEquals("444444", result.getContent().get(0).getBarcode());
         assertEquals(MarketRegion.TR, result.getContent().get(0).getMarketRegion());
+    }
+
+    @Test
+    void searchFoodItems_whenMarketRegionProvided_includesConfiguredFallbackRegions() {
+        FoodItemEntity ukIeProduct = product("Regional Oats", "555555", VerificationStatus.VERIFIED);
+        ukIeProduct.setMarketRegion(MarketRegion.UK_IE);
+        FoodItemEntity euProduct = product("Regional Oats", "666666", VerificationStatus.VERIFIED);
+        euProduct.setMarketRegion(MarketRegion.EU);
+        FoodItemEntity globalProduct = product("Regional Oats", "777777", VerificationStatus.VERIFIED);
+        globalProduct.setMarketRegion(MarketRegion.GLOBAL);
+        FoodItemEntity trProduct = product("Regional Oats", "888888", VerificationStatus.VERIFIED);
+        trProduct.setMarketRegion(MarketRegion.TR);
+        foodItemRepository.saveAll(List.of(ukIeProduct, euProduct, globalProduct, trProduct));
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("regional");
+        criteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(3, result.getContent().size());
+        assertEquals("555555", result.getContent().get(0).getBarcode());
+        assertEquals("666666", result.getContent().get(1).getBarcode());
+        assertEquals("777777", result.getContent().get(2).getBarcode());
     }
 
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {

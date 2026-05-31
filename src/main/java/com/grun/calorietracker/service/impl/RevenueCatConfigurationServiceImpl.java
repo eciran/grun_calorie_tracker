@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,8 +27,12 @@ public class RevenueCatConfigurationServiceImpl implements RevenueCatConfigurati
     @Override
     public RevenueCatConfigStatusDto getConfigStatus() {
         RevenueCatConfigStatusDto dto = new RevenueCatConfigStatusDto();
-        dto.setWebhookAuthorizationConfigured(properties.getWebhookAuthorization() != null && !properties.getWebhookAuthorization().isBlank());
+        List<String> missingRequiredConfig = missingRequiredConfig();
+        dto.setWebhookAuthorizationConfigured(hasText(properties.getWebhookAuthorization()));
         dto.setStrictProductMapping(properties.isStrictProductMapping());
+        dto.setProductionReady(missingRequiredConfig.isEmpty());
+        dto.setMissingRequiredConfig(missingRequiredConfig);
+        dto.setWarnings(warnings());
         dto.setPlusEntitlements(List.copyOf(properties.getEntitlements().getPlus()));
         dto.setProEntitlements(List.copyOf(properties.getEntitlements().getPro()));
         dto.setPlusProductIds(List.copyOf(properties.getProducts().getPlus()));
@@ -36,6 +41,44 @@ public class RevenueCatConfigurationServiceImpl implements RevenueCatConfigurati
         dto.setAiAddonValidityDays(properties.getProducts().getAiAddonValidityDays());
         dto.setDefaultAiAddonValidityDays(properties.getProducts().getDefaultAiAddonValidityDays());
         return dto;
+    }
+
+    private List<String> missingRequiredConfig() {
+        List<String> missing = new ArrayList<>();
+        if (!hasText(properties.getWebhookAuthorization())) {
+            missing.add("grun.revenuecat.webhook-authorization");
+        }
+        if (properties.getProducts().getPlus().isEmpty()) {
+            missing.add("grun.revenuecat.products.plus");
+        }
+        if (properties.getProducts().getPro().isEmpty()) {
+            missing.add("grun.revenuecat.products.pro");
+        }
+        if (properties.getProducts().getAiAddonQuotas().isEmpty()) {
+            missing.add("grun.revenuecat.products.ai-addon-quotas");
+        }
+        if (properties.getProducts().getDefaultAiAddonValidityDays() < 1) {
+            missing.add("grun.revenuecat.products.default-ai-addon-validity-days");
+        }
+        return missing;
+    }
+
+    private List<String> warnings() {
+        List<String> warnings = new ArrayList<>();
+        if (!properties.isStrictProductMapping()) {
+            warnings.add("Strict product mapping is disabled; unknown subscription products may be ignored instead of failed.");
+        }
+        if (properties.getEntitlements().getPlus().isEmpty()) {
+            warnings.add("PLUS entitlement list is empty; product id mapping must cover all PLUS purchases.");
+        }
+        if (properties.getEntitlements().getPro().isEmpty()) {
+            warnings.add("PRO entitlement list is empty; product id mapping must cover all PRO purchases.");
+        }
+        return warnings;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     @Override
