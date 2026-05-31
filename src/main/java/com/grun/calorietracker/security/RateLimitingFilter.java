@@ -35,7 +35,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final String PASSWORD_RESET_REQUEST_PATH = "/api/v1/auth/password-reset/request";
     private static final String EMAIL_VERIFICATION_RESEND_PATH = "/api/v1/auth/email-verification/resend";
 
-    private final InMemoryRateLimiter rateLimiter;
+    private final RequestRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
 
     @Value("${grun.rate-limit.enabled:true}")

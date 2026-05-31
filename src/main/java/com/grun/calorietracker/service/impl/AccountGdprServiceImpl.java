@@ -1,0 +1,338 @@
+package com.grun.calorietracker.service.impl;
+
+import com.grun.calorietracker.dto.GdprDataExportDto;
+import com.grun.calorietracker.dto.LinkedIdentityDto;
+import com.grun.calorietracker.entity.DeviceDataEntity;
+import com.grun.calorietracker.entity.ExerciseLogsEntity;
+import com.grun.calorietracker.entity.FoodDiaryNoteEntity;
+import com.grun.calorietracker.entity.FoodLogsEntity;
+import com.grun.calorietracker.entity.HealthConnectionEntity;
+import com.grun.calorietracker.entity.MealTemplateEntity;
+import com.grun.calorietracker.entity.NotificationEntity;
+import com.grun.calorietracker.entity.ProgressLogEntity;
+import com.grun.calorietracker.entity.SubscriptionEntity;
+import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
+import com.grun.calorietracker.entity.UserConsentEntity;
+import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.entity.UserFavoriteEntity;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.repository.AppliedPromoRepository;
+import com.grun.calorietracker.repository.DeviceDataRepository;
+import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
+import com.grun.calorietracker.repository.ExerciseLogRepository;
+import com.grun.calorietracker.repository.FederatedIdentityRepository;
+import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
+import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.GoalRepository;
+import com.grun.calorietracker.repository.HealthConnectionRepository;
+import com.grun.calorietracker.repository.MealTemplateRepository;
+import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.PasswordResetTokenRepository;
+import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.RefreshTokenRepository;
+import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
+import com.grun.calorietracker.repository.SubscriptionRepository;
+import com.grun.calorietracker.repository.UserFavoriteRepository;
+import com.grun.calorietracker.repository.UserConsentRepository;
+import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
+import com.grun.calorietracker.service.AccountGdprService;
+import com.grun.calorietracker.service.AccountIdentityService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class AccountGdprServiceImpl implements AccountGdprService {
+
+    private static final String DELETE_CONFIRM_TEXT = "DELETE_MY_ACCOUNT";
+
+    private final UserRepository userRepository;
+    private final FoodLogsRepository foodLogsRepository;
+    private final ExerciseLogRepository exerciseLogRepository;
+    private final ProgressLogRepository progressLogRepository;
+    private final NotificationRepository notificationRepository;
+    private final FederatedIdentityRepository federatedIdentityRepository;
+    private final MealTemplateRepository mealTemplateRepository;
+    private final UserFavoriteRepository userFavoriteRepository;
+    private final DeviceDataRepository deviceDataRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final AccountIdentityService accountIdentityService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final GoalRepository goalRepository;
+    private final FoodDiaryNoteRepository foodDiaryNoteRepository;
+    private final HealthConnectionRepository healthConnectionRepository;
+    private final AppliedPromoRepository appliedPromoRepository;
+    private final SubscriptionProviderEventRepository subscriptionProviderEventRepository;
+    private final UserSubscriptionEntitlementRepository userSubscriptionEntitlementRepository;
+    private final FoodItemRepository foodItemRepository;
+    private final UserConsentRepository userConsentRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    @Transactional(readOnly = true)
+    public GdprDataExportDto exportMyData(String userEmail) {
+        UserEntity user = findUser(userEmail);
+        SubscriptionEntity subscription = subscriptionRepository.findByUser(user).orElse(null);
+        List<LinkedIdentityDto> identities = accountIdentityService.listLinkedIdentities(userEmail);
+
+        LocalDateTime latestFoodLog = foodLogsRepository.findTopByUserOrderByLogDateDesc(user)
+                .map(FoodLogsEntity::getLogDate)
+                .orElse(null);
+        LocalDateTime latestExerciseLog = exerciseLogRepository.findTopByUserOrderByLogDateDesc(user)
+                .map(ExerciseLogsEntity::getLogDate)
+                .orElse(null);
+        LocalDateTime latestProgressLog = progressLogRepository.findTopByUserOrderByLogDateDesc(user)
+                .map(p -> p.getLogDate())
+                .orElse(null);
+
+        GdprDataExportDto.SubscriptionSnapshotDto subscriptionDto = subscription == null ? null
+                : new GdprDataExportDto.SubscriptionSnapshotDto(
+                subscription.getPlanType() == null ? null : subscription.getPlanType().name(),
+                subscription.getStatus() == null ? null : subscription.getStatus().name(),
+                subscription.getStartDate(),
+                subscription.getEndDate(),
+                subscription.getAiMonthlyQuota(),
+                subscription.getAiAddonQuota(),
+                subscription.getAiUsedThisPeriod()
+        );
+
+        return new GdprDataExportDto(
+                LocalDateTime.now(),
+                user.getEmail(),
+                user.getName(),
+                user.getRole(),
+                user.getMarketRegion(),
+                user.getPreferredLanguage(),
+                user.getEmailVerified(),
+                latestFoodLog,
+                latestExerciseLog,
+                latestProgressLog,
+                foodLogsRepository.countByUser(user),
+                exerciseLogRepository.countByUser(user),
+                progressLogRepository.countByUser(user),
+                notificationRepository.countByUser(user),
+                federatedIdentityRepository.countByUser(user),
+                mealTemplateRepository.countByUser(user),
+                userFavoriteRepository.countByUser(user),
+                deviceDataRepository.countByUser(user),
+                userConsentRepository.countByUser(user),
+                subscriptionDto,
+                identities,
+                userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
+                foodLogsRepository.findByUser(user).stream().map(this::toFoodLogExport).toList(),
+                exerciseLogRepository.findByUser(user).stream().map(this::toExerciseLogExport).toList(),
+                progressLogRepository.findByUserOrderByLogDateAsc(user).stream().map(this::toProgressLogExport).toList(),
+                foodDiaryNoteRepository.findByUserOrderByDiaryDateAsc(user).stream().map(this::toFoodDiaryNoteExport).toList(),
+                mealTemplateRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toMealTemplateExport).toList(),
+                userFavoriteRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toFavoriteFoodExport).toList(),
+                healthConnectionRepository.findByUserOrderByProviderAsc(user).stream().map(this::toHealthConnectionExport).toList(),
+                deviceDataRepository.findByUserOrderByRecordedAtAsc(user).stream().map(this::toHealthMetricExport).toList(),
+                notificationRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toNotificationExport).toList(),
+                subscriptionProviderEventRepository.findByUserOrderByReceivedAtDesc(user).stream().map(this::toSubscriptionEventExport).toList()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void anonymizeAndDeleteAccount(String userEmail, String confirmText, String currentPassword) {
+        UserEntity user = findUser(userEmail);
+        if (!DELETE_CONFIRM_TEXT.equalsIgnoreCase(confirmText == null ? "" : confirmText.trim())) {
+            throw new IllegalArgumentException("confirmText must be DELETE_MY_ACCOUNT");
+        }
+        if (!Boolean.TRUE.equals(user.getPasswordSet())
+                || currentPassword == null
+                || currentPassword.isBlank()
+                || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new InvalidCredentialsException("Current password is required to delete account data");
+        }
+
+        String anonymizedEmail = "deleted-" + user.getId() + "-" + UUID.randomUUID() + "@deleted.grun.local";
+        String anonymizedAppUserId = "deleted-user:" + user.getId();
+        user.setEmail(anonymizedEmail.toLowerCase(Locale.ROOT));
+        user.setName("Deleted User");
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setAge(null);
+        user.setGender(null);
+        user.setHeight(null);
+        user.setWeight(null);
+        user.setBodyFatPercentage(null);
+        user.setBmi(null);
+        user.setEmailVerified(false);
+        user.setPasswordSet(false);
+
+        refreshTokenRepository.deleteByUser(user);
+        passwordResetTokenRepository.deleteByUser(user);
+        emailVerificationTokenRepository.deleteByUser(user);
+        federatedIdentityRepository.deleteByUser(user);
+
+        userFavoriteRepository.deleteByUser(user);
+        foodLogsRepository.deleteByUser(user);
+        exerciseLogRepository.deleteByUser(user);
+        progressLogRepository.deleteByUser(user);
+        mealTemplateRepository.deleteByUser(user);
+        foodDiaryNoteRepository.deleteByUser(user);
+        notificationRepository.deleteByUser(user);
+        deviceDataRepository.deleteByUser(user);
+        healthConnectionRepository.deleteByUser(user);
+        goalRepository.deleteByUser(user);
+        appliedPromoRepository.deleteByUser(user);
+        subscriptionProviderEventRepository.anonymizeUserReferences(user, anonymizedAppUserId, "{}");
+        userSubscriptionEntitlementRepository.deleteByUser(user);
+        subscriptionRepository.deleteByUser(user);
+        foodItemRepository.deleteByCreatedByUserAndIsCustomTrue(user);
+
+        userRepository.save(user);
+    }
+
+    private UserEntity findUser(String userEmail) {
+        return userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+    }
+
+    private GdprDataExportDto.FoodLogExportDto toFoodLogExport(FoodLogsEntity log) {
+        return new GdprDataExportDto.FoodLogExportDto(
+                log.getId(),
+                log.getFoodItem() == null ? null : log.getFoodItem().getName(),
+                log.getFoodItem() == null ? null : log.getFoodItem().getBarcode(),
+                log.getMealType(),
+                log.getPortionSize(),
+                log.getPortionUnit() == null ? null : log.getPortionUnit().name(),
+                log.getNormalizedPortionGrams(),
+                log.getSnapshotCalories(),
+                log.getSnapshotProtein(),
+                log.getSnapshotCarbs(),
+                log.getSnapshotFat(),
+                log.getLogDate()
+        );
+    }
+
+    private GdprDataExportDto.ConsentExportDto toConsentExport(UserConsentEntity consent) {
+        return new GdprDataExportDto.ConsentExportDto(
+                consent.getId(),
+                consent.getConsentType() == null ? null : consent.getConsentType().name(),
+                consent.getVersion(),
+                consent.getStatus() == null ? null : consent.getStatus().name(),
+                consent.getSource(),
+                consent.getIpAddress(),
+                consent.getUserAgent(),
+                consent.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.ExerciseLogExportDto toExerciseLogExport(ExerciseLogsEntity log) {
+        return new GdprDataExportDto.ExerciseLogExportDto(
+                log.getId(),
+                log.getExerciseItem() == null ? null : log.getExerciseItem().getName(),
+                log.getDurationMinutes(),
+                log.getCaloriesBurned(),
+                log.getLogDate(),
+                log.getSource(),
+                log.getExternalId()
+        );
+    }
+
+    private GdprDataExportDto.ProgressLogExportDto toProgressLogExport(ProgressLogEntity log) {
+        return new GdprDataExportDto.ProgressLogExportDto(
+                log.getId(),
+                log.getLogDate(),
+                log.getWeight(),
+                log.getCalorieIntake(),
+                log.getProteinIntake(),
+                log.getFatIntake(),
+                log.getCarbIntake(),
+                log.getNote()
+        );
+    }
+
+    private GdprDataExportDto.FoodDiaryNoteExportDto toFoodDiaryNoteExport(FoodDiaryNoteEntity note) {
+        return new GdprDataExportDto.FoodDiaryNoteExportDto(
+                note.getId(),
+                note.getDiaryDate(),
+                note.getNote(),
+                note.getCreatedAt(),
+                note.getUpdatedAt()
+        );
+    }
+
+    private GdprDataExportDto.MealTemplateExportDto toMealTemplateExport(MealTemplateEntity template) {
+        return new GdprDataExportDto.MealTemplateExportDto(
+                template.getId(),
+                template.getName(),
+                template.getMealType(),
+                template.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.FavoriteFoodExportDto toFavoriteFoodExport(UserFavoriteEntity favorite) {
+        return new GdprDataExportDto.FavoriteFoodExportDto(
+                favorite.getId(),
+                favorite.getFoodItem() == null ? null : favorite.getFoodItem().getName(),
+                favorite.getFoodItem() == null ? null : favorite.getFoodItem().getBarcode(),
+                favorite.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.HealthConnectionExportDto toHealthConnectionExport(HealthConnectionEntity connection) {
+        return new GdprDataExportDto.HealthConnectionExportDto(
+                connection.getId(),
+                connection.getProvider() == null ? null : connection.getProvider().name(),
+                connection.getStatus() == null ? null : connection.getStatus().name(),
+                connection.getConnectedAt(),
+                connection.getDisconnectedAt(),
+                connection.getLastSyncAt(),
+                connection.getDeviceModel(),
+                connection.getAppVersion()
+        );
+    }
+
+    private GdprDataExportDto.HealthMetricExportDto toHealthMetricExport(DeviceDataEntity metric) {
+        return new GdprDataExportDto.HealthMetricExportDto(
+                metric.getId(),
+                metric.getProvider() == null ? null : metric.getProvider().name(),
+                metric.getSteps(),
+                metric.getHeartRate(),
+                metric.getSleepHours(),
+                metric.getCaloriesBurned(),
+                metric.getDistanceMeters(),
+                metric.getRecordedAt(),
+                metric.getSource()
+        );
+    }
+
+    private GdprDataExportDto.NotificationExportDto toNotificationExport(NotificationEntity notification) {
+        return new GdprDataExportDto.NotificationExportDto(
+                notification.getId(),
+                notification.getMessage(),
+                notification.getType(),
+                notification.getIsRead(),
+                notification.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.SubscriptionEventExportDto toSubscriptionEventExport(SubscriptionProviderEventEntity event) {
+        return new GdprDataExportDto.SubscriptionEventExportDto(
+                event.getId(),
+                event.getProvider() == null ? null : event.getProvider().name(),
+                event.getEventType(),
+                event.getProductId(),
+                event.getEntitlementIds(),
+                event.getTransactionId(),
+                event.getOriginalTransactionId(),
+                event.getStatus() == null ? null : event.getStatus().name(),
+                event.getReceivedAt(),
+                event.getProcessedAt()
+        );
+    }
+}

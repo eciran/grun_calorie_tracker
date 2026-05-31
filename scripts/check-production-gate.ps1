@@ -16,6 +16,17 @@ function Check-Env([string]$Name, [bool]$Required = $true) {
     return [PSCustomObject]@{ Name = $Name; Ok = $true; Detail = "set" }
 }
 
+function Check-EnvEquals([string]$Name, [string]$Expected) {
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return [PSCustomObject]@{ Name = $Name; Ok = $false; Detail = "missing" }
+    }
+    if ($value -ne $Expected) {
+        return [PSCustomObject]@{ Name = $Name; Ok = $false; Detail = "expected $Expected, got $value" }
+    }
+    return [PSCustomObject]@{ Name = $Name; Ok = $true; Detail = "set to $Expected" }
+}
+
 function Invoke-AdminGet([string]$Path, [string]$Token) {
     $headers = @{
         Authorization = "Bearer $Token"
@@ -35,7 +46,10 @@ $secretChecks = @(
     (Check-Env "GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION"),
     (Check-Env "GRUN_BREVO_API_KEY"),
     (Check-Env "GRUN_MAIL_PROVIDER"),
-    (Check-Env "GRUN_MAIL_FROM_EMAIL")
+    (Check-Env "GRUN_MAIL_FROM_EMAIL"),
+    (Check-EnvEquals "GRUN_RATE_LIMIT_REDIS_ENABLED" "true"),
+    (Check-Env "SPRING_DATA_REDIS_HOST"),
+    (Check-Env "SPRING_DATA_REDIS_PORT")
 )
 
 $failedSecrets = $secretChecks | Where-Object { -not $_.Ok }

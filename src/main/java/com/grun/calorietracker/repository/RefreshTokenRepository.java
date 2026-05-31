@@ -12,4 +12,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     Optional<RefreshTokenEntity> findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(String tokenHash);
 
     List<RefreshTokenEntity> findByUserAndRevokedAtIsNullAndUsedAtIsNull(UserEntity user);
+
+    long deleteByUser(UserEntity user);
 }

@@ -14,5 +14,16 @@ services:
     volumes:
       - grun_pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: grun-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - grun_redisdata:/data
+
 volumes:
   grun_pgdata:
+  grun_redisdata:

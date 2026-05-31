@@ -1,6 +1,7 @@
 package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.entity.SubscriptionEntity;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserSubscriptionEntitlementEntity;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
@@ -27,6 +28,8 @@ public interface UserSubscriptionEntitlementRepository extends JpaRepository<Use
     boolean existsActiveFeature(@Param("subscriptionId") Long subscriptionId,
                                 @Param("feature") SubscriptionFeature feature,
                                 @Param("date") LocalDate date);
+
+    long deleteByUser(UserEntity user);
 
     @Query("""
             select e

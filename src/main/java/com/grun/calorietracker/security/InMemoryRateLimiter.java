@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-public class InMemoryRateLimiter {
+public class InMemoryRateLimiter implements RequestRateLimiter {
 
     private final Clock clock;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
@@ -20,6 +20,7 @@ public class InMemoryRateLimiter {
         this.clock = clock;
     }
 
+    @Override
     public boolean isAllowed(String key, int maxRequests, long windowMillis) {
         long now = clock.millis();
         WindowCounter counter = counters.computeIfAbsent(key, ignored -> new WindowCounter(now));

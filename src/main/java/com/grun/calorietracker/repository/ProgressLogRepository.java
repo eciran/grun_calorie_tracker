@@ -11,6 +11,7 @@ import java.util.Optional;
 
 @Repository
 public interface ProgressLogRepository extends JpaRepository<ProgressLogEntity, Long> {
+    long countByUser(UserEntity user);
 
     List<ProgressLogEntity> findByUserOrderByLogDateAsc(UserEntity user);
 
@@ -23,4 +24,6 @@ public interface ProgressLogRepository extends JpaRepository<ProgressLogEntity, 
     Optional<ProgressLogEntity> findByIdAndUser(Long id, UserEntity user);
 
     Optional<ProgressLogEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
+
+    long deleteByUser(UserEntity user);
 }

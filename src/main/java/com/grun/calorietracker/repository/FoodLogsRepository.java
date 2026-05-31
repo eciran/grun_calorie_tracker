@@ -17,6 +17,8 @@ import java.util.Optional;
 @Repository
 public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> {
     List<FoodLogsEntity> findByUser(UserEntity user);
+    long countByUser(UserEntity user);
+    Optional<FoodLogsEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
     List<FoodLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
     List<FoodLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
             UserEntity user,
@@ -104,5 +106,7 @@ WHERE f.user_id = :userId
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    long deleteByUser(UserEntity user);
 }
 

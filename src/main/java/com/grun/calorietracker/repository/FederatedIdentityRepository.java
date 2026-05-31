@@ -1,6 +1,7 @@
 package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.entity.FederatedIdentityEntity;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AuthProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -15,4 +16,7 @@ public interface FederatedIdentityRepository extends JpaRepository<FederatedIden
     Optional<FederatedIdentityEntity> findByUserEmailAndProvider(String email, AuthProvider provider);
 
     long countByUserEmail(String email);
+    long countByUser(UserEntity user);
+
+    long deleteByUser(UserEntity user);
 }

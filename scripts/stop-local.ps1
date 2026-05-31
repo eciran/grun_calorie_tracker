@@ -68,10 +68,10 @@ try {
         Stop-Process -Id $processId -Force
     }
 
-    Write-Host "Stopping PostgreSQL Docker Compose service..."
+    Write-Host "Stopping PostgreSQL and Redis Docker Compose services..."
     docker compose -f $composeFile down
 
-    Write-Host "Local GRun services stopped. PostgreSQL data volume was preserved."
+    Write-Host "Local GRun services stopped. PostgreSQL and Redis data volumes were preserved."
 } finally {
     Pop-Location
 }

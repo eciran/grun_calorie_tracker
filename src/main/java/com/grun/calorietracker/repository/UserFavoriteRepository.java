@@ -13,8 +13,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserFavoriteRepository extends JpaRepository<UserFavoriteEntity, Long> {
+    long countByUser(UserEntity user);
+    List<UserFavoriteEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
     Optional<UserFavoriteEntity> findByUserAndFoodItem(UserEntity user, FoodItemEntity foodItem);
     void deleteByFoodItem(FoodItemEntity foodItem);
+    long deleteByUser(UserEntity user);
     @Query("""
             SELECT favorite
             FROM UserFavoriteEntity favorite

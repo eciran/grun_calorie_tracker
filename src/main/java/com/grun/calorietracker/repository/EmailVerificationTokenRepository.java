@@ -17,4 +17,6 @@ public interface EmailVerificationTokenRepository extends JpaRepository<EmailVer
     Optional<EmailVerificationTokenEntity> findTopByUserOrderByCreatedAtDesc(UserEntity user);
 
     long countByUserAndCreatedAtAfter(UserEntity user, LocalDateTime createdAtAfter);
+
+    long deleteByUser(UserEntity user);
 }
