@@ -56,6 +56,9 @@ public class AdminSystemHealthDto {
     @Schema(description = "Active subscriptions whose AI quota is exhausted.", example = "8")
     private Long exhaustedAiQuotaSubscriptions;
 
+    @Schema(description = "System alert notifications created in the last 24 hours, including mail provider failures.", example = "0")
+    private Long systemAlertsLast24h;
+
     @Schema(description = "Operational warnings derived from current runtime and integration counters.")
     private List<String> warnings;
 

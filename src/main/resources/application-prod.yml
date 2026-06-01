@@ -1,0 +1,48 @@
+spring:
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    baseline-on-migrate: false
+
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    com.grun.calorietracker: INFO
+
+grun:
+  errors:
+    include-internal-details: false
+  mail:
+    provider: ${GRUN_MAIL_PROVIDER:BREVO}
+  rate-limit:
+    enabled: true
+    redis:
+      enabled: true
+  revenuecat:
+    strict-product-mapping: true
+  local:
+    admin:
+      bootstrap-enabled: false
+    demo-seed:
+      enabled: false

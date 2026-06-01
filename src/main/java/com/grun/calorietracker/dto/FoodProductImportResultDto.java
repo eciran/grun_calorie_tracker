@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -33,6 +34,15 @@ public class FoodProductImportResultDto {
     @Schema(description = "Number of saved rows that still require admin product or image review.", example = "8200")
     private int reviewRequiredRows;
 
+    @Schema(description = "Rows without an explicit market region. New products fall back to GLOBAL.", example = "14")
+    private int missingMarketRegionRows;
+
+    @Schema(description = "Rows with an unsupported market region value. Existing product region is preserved when available, otherwise GLOBAL is used.", example = "3")
+    private int unsupportedMarketRegionRows;
+
+    @Schema(description = "Saved row count grouped by resolved market region.", example = "{\"UK_IE\": 120, \"TR\": 80, \"GLOBAL\": 2}")
+    private Map<String, Integer> marketRegionCounts;
+
     @Schema(description = "Detected import format.", example = "TSV")
     private String importFormat;
 
@@ -57,6 +67,21 @@ public class FoodProductImportResultDto {
                                       int reviewRequiredRows,
                                       String importFormat,
                                       List<FoodProductImportErrorDto> errors) {
+        this(totalRows, insertedRows, updatedRows, skippedRows, savedRows, duplicateInputRows, reviewRequiredRows, 0, 0, Map.of(), importFormat, errors);
+    }
+
+    public FoodProductImportResultDto(int totalRows,
+                                      int insertedRows,
+                                      int updatedRows,
+                                      int skippedRows,
+                                      int savedRows,
+                                      int duplicateInputRows,
+                                      int reviewRequiredRows,
+                                      int missingMarketRegionRows,
+                                      int unsupportedMarketRegionRows,
+                                      Map<String, Integer> marketRegionCounts,
+                                      String importFormat,
+                                      List<FoodProductImportErrorDto> errors) {
         this.totalRows = totalRows;
         this.insertedRows = insertedRows;
         this.updatedRows = updatedRows;
@@ -64,6 +89,9 @@ public class FoodProductImportResultDto {
         this.savedRows = savedRows;
         this.duplicateInputRows = duplicateInputRows;
         this.reviewRequiredRows = reviewRequiredRows;
+        this.missingMarketRegionRows = missingMarketRegionRows;
+        this.unsupportedMarketRegionRows = unsupportedMarketRegionRows;
+        this.marketRegionCounts = marketRegionCounts;
         this.importFormat = importFormat;
         this.errors = errors;
     }

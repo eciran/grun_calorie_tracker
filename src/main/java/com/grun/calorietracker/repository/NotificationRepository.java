@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,5 +19,6 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     Page<NotificationEntity> findByUserAndTypeAndIsRead(UserEntity user, String type, Boolean isRead, Pageable pageable);
     Optional<NotificationEntity> findByIdAndUser(Long id, UserEntity user);
     List<NotificationEntity> findByUserAndIsRead(UserEntity user, Boolean isRead);
+    long countByTypeAndCreatedAtAfter(String type, LocalDateTime createdAt);
     long deleteByUser(UserEntity user);
 }

@@ -6,10 +6,19 @@ param(
     [long]$UserId,
     [string]$ProductId = "grun_pro_monthly",
     [string]$EntitlementId = "pro",
-    [string]$AiAddonProductId = "grun_ai_15_credits"
+    [string]$AiAddonProductId = "grun_ai_15_credits",
+    [string]$EnvPath = ".env",
+    [switch]$SkipEnvLoad
 )
 
 $ErrorActionPreference = "Stop"
+
+$loadEnvScript = Join-Path $PSScriptRoot "load-env.ps1"
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$resolvedEnvPath = if ([System.IO.Path]::IsPathRooted($EnvPath)) { $EnvPath } else { Join-Path $projectRoot $EnvPath }
+if (-not $SkipEnvLoad -and (Test-Path -LiteralPath $loadEnvScript) -and (Test-Path -LiteralPath $resolvedEnvPath)) {
+    . $loadEnvScript -EnvPath $resolvedEnvPath
+}
 
 function Invoke-RevenueCatWebhook {
     param(

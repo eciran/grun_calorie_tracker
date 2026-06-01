@@ -61,19 +61,32 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         int insertedRows = 0;
         int updatedRows = 0;
         int duplicateInputRows = 0;
+        int missingMarketRegionRows = 0;
+        int unsupportedMarketRegionRows = 0;
+        Map<String, Integer> marketRegionCounts = new LinkedHashMap<>();
 
         for (CsvRow row : parsedCsv.rows()) {
             String inputBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
             if (inputBarcode != null && !seenInputBarcodes.add(inputBarcode)) {
                 duplicateInputRows++;
             }
-            RowResult rowResult = mapRow(row, existingProducts, importedBy, normalizeImportMode(importMode));
+            FoodItemEntity existingProduct = existingProducts.get(inputBarcode);
+            RegionResolution regionResolution = resolveMarketRegion(row, existingProduct == null ? null : existingProduct.getMarketRegion());
+            RowResult rowResult = mapRow(row, existingProducts, importedBy, normalizeImportMode(importMode), regionResolution);
             if (rowResult.error() != null) {
                 addError(errors, rowResult.error());
                 continue;
             }
 
+            if (regionResolution.missing()) {
+                missingMarketRegionRows++;
+            }
+            if (regionResolution.unsupported()) {
+                unsupportedMarketRegionRows++;
+            }
             productsToSave.add(rowResult.product());
+            String regionKey = rowResult.product().getMarketRegion() == null ? "UNSPECIFIED" : rowResult.product().getMarketRegion().name();
+            marketRegionCounts.merge(regionKey, 1, Integer::sum);
             existingProducts.put(rowResult.product().getNormalizedBarcode(), rowResult.product());
             if (rowResult.inserted()) {
                 insertedRows++;
@@ -96,6 +109,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 productsToSave.size(),
                 duplicateInputRows,
                 reviewRequiredRows,
+                missingMarketRegionRows,
+                unsupportedMarketRegionRows,
+                marketRegionCounts,
                 parsedCsv.format(),
                 errors
         );
@@ -159,7 +175,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             CsvRow row,
             Map<String, FoodItemEntity> existingProducts,
             String importedBy,
-            FoodProductImportMode importMode
+            FoodProductImportMode importMode,
+            RegionResolution regionResolution
     ) {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
         if (normalizedBarcode == null) {
@@ -185,7 +202,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setBarcode(normalizedBarcode);
         product.setNormalizedBarcode(normalizedBarcode);
         product.setName(name);
-        product.setMarketRegion(resolveMarketRegion(row, product.getMarketRegion()));
+        product.setMarketRegion(regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode);
 
         setIfPresent(row, "imageurl", product::setImageUrl);
@@ -328,10 +345,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return hasDisplayImage ? ImageStatus.APPROVED : ImageStatus.NEEDS_REVIEW;
     }
 
-    private MarketRegion resolveMarketRegion(CsvRow row, MarketRegion fallback) {
+    private RegionResolution resolveMarketRegion(CsvRow row, MarketRegion fallback) {
         String value = firstText(row, "marketregion", "market_region", "region", "country");
         if (value == null) {
-            return fallback;
+            return new RegionResolution(fallback == null ? MarketRegion.GLOBAL : fallback, true, false);
         }
 
         String normalized = value.trim().toUpperCase(Locale.ROOT);
@@ -350,9 +367,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
 
         try {
-            return MarketRegion.valueOf(normalized);
+            return new RegionResolution(MarketRegion.valueOf(normalized), false, false);
         } catch (IllegalArgumentException ex) {
-            return fallback;
+            return new RegionResolution(fallback == null ? MarketRegion.GLOBAL : fallback, false, true);
         }
     }
 
@@ -463,5 +480,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         private static RowResult error(FoodProductImportErrorDto error) {
             return new RowResult(null, false, error);
         }
+    }
+
+    private record RegionResolution(MarketRegion region, boolean missing, boolean unsupported) {
     }
 }
