@@ -396,14 +396,15 @@ class SubscriptionServiceImplTest {
     }
 
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {
+        java.time.LocalDate today = java.time.LocalDate.now();
         SubscriptionEntity entity = new SubscriptionEntity();
         entity.setUser(user);
         entity.setPlanType(plan);
         entity.setStatus(status);
         entity.setBillingPeriod(BillingPeriod.MONTHLY);
-        entity.setStartDate(java.time.LocalDate.of(2026, 5, 1));
-        entity.setAiQuotaPeriodStartDate(java.time.LocalDate.of(2026, 5, 1));
-        entity.setAiQuotaPeriodEndDate(java.time.LocalDate.of(2026, 5, 31));
+        entity.setStartDate(today.minusDays(1));
+        entity.setAiQuotaPeriodStartDate(today.minusDays(1));
+        entity.setAiQuotaPeriodEndDate(today.plusDays(29));
         entity.setAiMonthlyQuota(quota);
         entity.setAiAddonQuota(0);
         entity.setAiUsedThisPeriod(used);

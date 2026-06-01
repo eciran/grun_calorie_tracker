@@ -46,6 +46,7 @@ class AdminSystemControllerTest {
                 0L,
                 4L,
                 0L,
+                0L,
                 List.of(),
                 LocalDateTime.of(2026, 5, 27, 14, 0)
         );
@@ -60,7 +61,8 @@ class AdminSystemControllerTest {
                 .andExpect(jsonPath("$.databaseLatencyMs").value(11))
                 .andExpect(jsonPath("$.revenueCatEventsLast24h").value(10))
                 .andExpect(jsonPath("$.failedRevenueCatEvents").value(0))
-                .andExpect(jsonPath("$.activeSubscriptions").value(4));
+                .andExpect(jsonPath("$.activeSubscriptions").value(4))
+                .andExpect(jsonPath("$.systemAlertsLast24h").value(0));
     }
 
     @Test

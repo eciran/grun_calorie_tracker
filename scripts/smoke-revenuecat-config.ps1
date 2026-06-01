@@ -3,10 +3,19 @@ param(
     [string]$AdminToken = "",
     [string]$PlusProductId = "grun_plus_monthly",
     [string]$ProProductId = "grun_pro_monthly",
-    [string]$AiAddonProductId = "grun_ai_15_credits"
+    [string]$AiAddonProductId = "grun_ai_15_credits",
+    [string]$EnvPath = ".env",
+    [switch]$SkipEnvLoad
 )
 
 $ErrorActionPreference = "Stop"
+
+$loadEnvScript = Join-Path $PSScriptRoot "load-env.ps1"
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$resolvedEnvPath = if ([System.IO.Path]::IsPathRooted($EnvPath)) { $EnvPath } else { Join-Path $projectRoot $EnvPath }
+if (-not $SkipEnvLoad -and (Test-Path -LiteralPath $loadEnvScript) -and (Test-Path -LiteralPath $resolvedEnvPath)) {
+    . $loadEnvScript -EnvPath $resolvedEnvPath
+}
 
 if ([string]::IsNullOrWhiteSpace($AdminToken)) {
     throw "AdminToken is required. Pass a valid admin JWT with -AdminToken."

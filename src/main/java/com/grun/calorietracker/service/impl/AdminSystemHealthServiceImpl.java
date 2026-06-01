@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.AdminSystemHealthDto;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
+import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.service.AdminSystemHealthService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     private final Environment environment;
     private final SubscriptionProviderEventRepository subscriptionProviderEventRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final NotificationRepository notificationRepository;
 
     @Override
     public AdminSystemHealthDto getHealth() {
@@ -34,7 +36,8 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         RuntimeSnapshot runtimeSnapshot = runtimeSnapshot();
         RevenueCatSnapshot revenueCatSnapshot = revenueCatSnapshot();
         SubscriptionSnapshot subscriptionSnapshot = subscriptionSnapshot();
-        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot);
+        long systemAlertsLast24h = systemAlertsLast24h();
+        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, systemAlertsLast24h);
         String status = "UP".equals(databaseCheck.status()) && warnings.isEmpty() ? "UP" : "DEGRADED";
 
         return new AdminSystemHealthDto(
@@ -52,6 +55,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
                 revenueCatSnapshot.failedEvents(),
                 subscriptionSnapshot.activeSubscriptions(),
                 subscriptionSnapshot.exhaustedAiQuotaSubscriptions(),
+                systemAlertsLast24h,
                 warnings,
                 LocalDateTime.now()
         );
@@ -103,11 +107,16 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         return new SubscriptionSnapshot(active, subscriptionRepository.countActiveSubscriptionsWithExhaustedAiQuota());
     }
 
+    private long systemAlertsLast24h() {
+        return notificationRepository.countByTypeAndCreatedAtAfter("system_alert", LocalDateTime.now().minus(Duration.ofHours(24)));
+    }
+
     private List<String> warnings(
             DatabaseCheck databaseCheck,
             RuntimeSnapshot runtimeSnapshot,
             RevenueCatSnapshot revenueCatSnapshot,
-            SubscriptionSnapshot subscriptionSnapshot
+            SubscriptionSnapshot subscriptionSnapshot,
+            long systemAlertsLast24h
     ) {
         List<String> warnings = new ArrayList<>();
         if (!"UP".equals(databaseCheck.status())) {
@@ -124,6 +133,9 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         }
         if (subscriptionSnapshot.exhaustedAiQuotaSubscriptions() > 0) {
             warnings.add("Some active subscriptions have exhausted AI quota.");
+        }
+        if (systemAlertsLast24h > 0) {
+            warnings.add("System alerts were created in the last 24 hours.");
         }
         return warnings;
     }

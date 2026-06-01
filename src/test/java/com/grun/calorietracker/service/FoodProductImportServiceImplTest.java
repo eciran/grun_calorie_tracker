@@ -67,6 +67,10 @@ class FoodProductImportServiceImplTest {
         assertEquals(2, result.getSavedRows());
         assertEquals(1, result.getReviewRequiredRows());
         assertEquals("CSV", result.getImportFormat());
+        assertEquals(0, result.getMissingMarketRegionRows());
+        assertEquals(0, result.getUnsupportedMarketRegionRows());
+        assertEquals(1, result.getMarketRegionCounts().get("UK_IE"));
+        assertEquals(1, result.getMarketRegionCounts().get("TR"));
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -106,6 +110,9 @@ class FoodProductImportServiceImplTest {
         assertEquals(4, result.getInsertedRows());
         assertEquals(0, result.getSkippedRows());
         assertEquals(0, result.getReviewRequiredRows());
+        assertEquals(2, result.getMarketRegionCounts().get("UK_IE"));
+        assertEquals(1, result.getMarketRegionCounts().get("TR"));
+        assertEquals(1, result.getMarketRegionCounts().get("EU"));
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -285,6 +292,32 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getDuplicateInputRows());
         assertEquals(3, result.getReviewRequiredRows());
         assertEquals("TSV", result.getImportFormat());
+        assertEquals(3, result.getMissingMarketRegionRows());
+        assertEquals(3, result.getMarketRegionCounts().get("GLOBAL"));
+    }
+
+    @Test
+    void importCsv_whenRegionIsMissingOrUnsupported_reportsAndFallsBackToGlobal() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,market_region
+                1111111111111,No Region Product,100,
+                2222222222222,Unsupported Region Product,120,Mars
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getSavedRows());
+        assertEquals(1, result.getMissingMarketRegionRows());
+        assertEquals(1, result.getUnsupportedMarketRegionRows());
+        assertEquals(2, result.getMarketRegionCounts().get("GLOBAL"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals(MarketRegion.GLOBAL, captor.getValue().get(0).getMarketRegion());
+        assertEquals(MarketRegion.GLOBAL, captor.getValue().get(1).getMarketRegion());
     }
 
     private MockMultipartFile csv(String content) {

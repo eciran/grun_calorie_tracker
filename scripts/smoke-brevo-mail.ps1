@@ -2,10 +2,19 @@ param(
     [string]$BaseUrl = "http://localhost:8080",
     [string]$Email = "",
     [string]$Password = "StrongPass1!",
-    [switch]$SkipResend
+    [switch]$SkipResend,
+    [string]$EnvPath = ".env",
+    [switch]$SkipEnvLoad
 )
 
 $ErrorActionPreference = "Stop"
+
+$loadEnvScript = Join-Path $PSScriptRoot "load-env.ps1"
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$resolvedEnvPath = if ([System.IO.Path]::IsPathRooted($EnvPath)) { $EnvPath } else { Join-Path $projectRoot $EnvPath }
+if (-not $SkipEnvLoad -and (Test-Path -LiteralPath $loadEnvScript) -and (Test-Path -LiteralPath $resolvedEnvPath)) {
+    . $loadEnvScript -EnvPath $resolvedEnvPath
+}
 
 function Require-Env([string]$Name) {
     $value = [Environment]::GetEnvironmentVariable($Name)
