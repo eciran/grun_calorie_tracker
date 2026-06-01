@@ -99,6 +99,7 @@ Unversioned `/api/...` aliases are not exposed.
 
 ## Development Status
 
+This project is under active development. The backend is being hardened before mobile frontend integration and production deployment planning.
 This project is under active development. The backend is ready for first-pass mobile/frontend integration. Public production release still requires external provider validation, AWS environment setup, and food catalog scaling.
 
 Latest verified backend regression baseline:
