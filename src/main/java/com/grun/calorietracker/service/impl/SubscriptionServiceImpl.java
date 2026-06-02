@@ -131,7 +131,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional
     public SubscriptionDto consumeAiQuota(String email) {
-        UserEntity user = userRepository.findByEmail(email)
+        UserEntity user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         SubscriptionEntity entity = subscriptionRepository.findByUser(user)
                 .orElseGet(() -> defaultEntity(user));
@@ -179,6 +179,26 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         LocalDate newExpiresAt = LocalDate.now().plusDays(validityDays - 1L);
         entity.setAiAddonQuota(safeInt(entity.getAiAddonQuota()) + amount);
         entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), newExpiresAt));
+        entity.setUpdatedAt(LocalDateTime.now());
+        return toDto(subscriptionRepository.save(entity));
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionDto refundConsumedAiQuota(Long userId, int amount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("AI quota refund amount must be greater than zero.");
+        }
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
+                .orElseGet(() -> defaultEntity(user));
+        ensureQuotaPeriod(entity);
+        int used = safeInt(entity.getAiUsedThisPeriod());
+        if (amount > used) {
+            throw new IllegalArgumentException("AI quota refund amount must not exceed used quota.");
+        }
+        entity.setAiUsedThisPeriod(used - amount);
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(subscriptionRepository.save(entity));
     }

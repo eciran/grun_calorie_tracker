@@ -32,6 +32,7 @@ public class GdprDataExportDto {
     private Long favoriteCount;
     private Long healthMetricCount;
     private Long consentCount;
+    private Long aiRequestCount;
     private SubscriptionSnapshotDto subscription;
     private List<LinkedIdentityDto> linkedIdentities;
     private List<ConsentExportDto> consents;
@@ -44,6 +45,7 @@ public class GdprDataExportDto {
     private List<HealthConnectionExportDto> healthConnections;
     private List<HealthMetricExportDto> healthMetrics;
     private List<NotificationExportDto> notifications;
+    private List<AiRequestExportDto> aiRequests;
     private List<SubscriptionEventExportDto> subscriptionEvents;
 
     @Data
@@ -176,6 +178,31 @@ public class GdprDataExportDto {
         private String type;
         private Boolean read;
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class AiRequestExportDto {
+        private Long id;
+        private String requestType;
+        private String provider;
+        private String model;
+        private String status;
+        private Boolean quotaConsumed;
+        private Long latencyMs;
+        private Integer totalTokens;
+        private Double estimatedCost;
+        private String costCurrency;
+        private String correctionSummary;
+        private String rejectionReason;
+        private String rejectionFeedback;
+        private Integer quotaRefundedAmount;
+        private String quotaRefundReason;
+        private String quotaRefundedBy;
+        private LocalDateTime createdAt;
+        private LocalDateTime confirmedAt;
+        private LocalDateTime rejectedAt;
+        private LocalDateTime quotaRefundedAt;
     }
 
     @Data

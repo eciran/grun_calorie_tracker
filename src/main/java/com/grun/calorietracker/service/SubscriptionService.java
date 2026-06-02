@@ -19,6 +19,7 @@ public interface SubscriptionService {
     SubscriptionDto consumeAiQuota(String email);
     SubscriptionDto resetUserAiQuota(Long userId);
     SubscriptionDto grantAiAddonQuota(Long userId, int amount, int validityDays);
+    SubscriptionDto refundConsumedAiQuota(Long userId, int amount);
     SubscriptionDto applyProviderEvent(Long userId, SubscriptionProviderEventCommand command);
     boolean hasFeatureAccess(String email, SubscriptionFeature feature);
     void assertFeatureAccess(String email, SubscriptionFeature feature);

@@ -32,6 +32,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     );
 
     private static final String PRODUCT_BARCODE_PATH_PREFIX = "/api/v1/products/barcode/";
+    private static final Set<String> AI_DRAFT_PATHS = Set.of(
+            "/api/v1/ai/meal-drafts/voice",
+            "/api/v1/ai/meal-drafts/photo"
+    );
     private static final String PASSWORD_RESET_REQUEST_PATH = "/api/v1/auth/password-reset/request";
     private static final String EMAIL_VERIFICATION_RESEND_PATH = "/api/v1/auth/email-verification/resend";
 
@@ -49,6 +53,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Value("${grun.rate-limit.email-verification-resend.max-requests-per-minute:5}")
     private int emailVerificationResendMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.ai-draft.max-requests-per-minute:10}")
+    private int aiDraftMaxRequestsPerMinute;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -74,6 +81,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if ("POST".equalsIgnoreCase(request.getMethod()) && PROTECTED_AUTH_PATHS.contains(request.getRequestURI())) {
             return true;
         }
+        if ("POST".equalsIgnoreCase(request.getMethod()) && AI_DRAFT_PATHS.contains(request.getRequestURI())) {
+            return true;
+        }
         return "GET".equalsIgnoreCase(request.getMethod())
                 && request.getRequestURI().startsWith(PRODUCT_BARCODE_PATH_PREFIX);
     }
@@ -93,6 +103,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         }
         if (EMAIL_VERIFICATION_RESEND_PATH.equals(path)) {
             return emailVerificationResendMaxRequestsPerMinute;
+        }
+        if (AI_DRAFT_PATHS.contains(path)) {
+            return aiDraftMaxRequestsPerMinute;
         }
         return authMaxRequestsPerMinute;
     }

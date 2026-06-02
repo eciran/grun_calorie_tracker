@@ -188,6 +188,7 @@
             <button class="nav-link text-start" data-view="users" type="button">Users</button>
             <button class="nav-link text-start" data-view="products" type="button">Product Review</button>
             <button class="nav-link text-start" data-view="features" type="button">Feature Matrix</button>
+            <button class="nav-link text-start" data-view="aiReview" type="button">AI Review</button>
             <button class="nav-link text-start" data-view="system" type="button">System Health</button>
             <button class="nav-link text-start" data-view="audits" type="button">Admin Audits</button>
             <button class="nav-link text-start" data-view="notifications" type="button">Notifications</button>
@@ -423,6 +424,95 @@
             </div>
         </section>
 
+        <section id="aiReviewView" class="view d-none">
+            <div class="panel mb-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label" for="aiStatusFilter">Status</label>
+                        <select id="aiStatusFilter" class="form-select">
+                            <option value="">All</option>
+                            <option value="DRAFT_CREATED">DRAFT_CREATED</option>
+                            <option value="CONFIRMED">CONFIRMED</option>
+                            <option value="REJECTED" selected>REJECTED</option>
+                            <option value="FAILED">FAILED</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="aiRefundableOnly">Refund filter</label>
+                        <select id="aiRefundableOnly" class="form-select">
+                            <option value="true" selected>Refundable rejected only</option>
+                            <option value="false">Use status filter</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="aiReviewPageSize">Page size</label>
+                        <select id="aiReviewPageSize" class="form-select">
+                            <option>10</option>
+                            <option selected>25</option>
+                            <option>50</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button id="loadAiReviewBtn" class="btn btn-success">Load</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-xl-8">
+                    <div class="panel h-100">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                                <h2 class="h6 mb-1">AI Draft Review Queue</h2>
+                                <div id="aiReviewInfo" class="muted small">Veri yuklenmedi.</div>
+                            </div>
+                            <div class="btn-group">
+                                <button id="aiReviewPrevBtn" class="btn btn-outline-secondary btn-sm">Previous</button>
+                                <button id="aiReviewNextBtn" class="btn btn-outline-secondary btn-sm">Next</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                <tr>
+                                    <th style="width: 85px">Request</th>
+                                    <th>User / Type</th>
+                                    <th style="width: 150px">Status</th>
+                                    <th style="width: 120px">Quota</th>
+                                    <th>Feedback</th>
+                                    <th style="width: 110px">Action</th>
+                                </tr>
+                                </thead>
+                                <tbody id="aiReviewBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4">
+                    <div class="panel h-100">
+                        <h2 class="h6 mb-3">Quota Refund</h2>
+                        <div class="mb-3">
+                            <label class="form-label" for="aiRefundRequestId">Request ID</label>
+                            <input id="aiRefundRequestId" class="form-control" type="number" min="1" placeholder="AI request id">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="aiRefundAmount">Refund amount</label>
+                            <input id="aiRefundAmount" class="form-control" type="number" min="1" step="1" value="1">
+                            <div id="aiRefundLimitHint" class="form-text">Request-level consumed quota limit uygulanir.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="aiRefundReason">Reason</label>
+                            <textarea id="aiRefundReason" class="form-control" rows="4" maxlength="500" placeholder="Neden iade yapildigini net yaz."></textarea>
+                        </div>
+                        <div class="d-grid">
+                            <button id="aiRefundBtn" class="btn btn-outline-danger">Refund quota</button>
+                        </div>
+                        <pre id="aiRefundResult" class="message-box bg-light border rounded p-3 mt-3 d-none"></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section id="systemView" class="view d-none">
             <div class="panel">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -647,7 +737,9 @@
         features: [],
         systemHealth: null,
         auditPage: 0,
-        notificationPage: 0
+        notificationPage: 0,
+        aiReviewPage: 0,
+        aiReviewItems: []
     };
 
     const titles = {
@@ -655,6 +747,7 @@
         users: ["Users", "Kullanici hesaplarini, region ve onboarding durumlarini takip et."],
         products: ["Product Review", "Bolgesel katalog kalitesi, status ve gorsel kararlarini yonet."],
         features: ["Feature Matrix", "Plan ozelliklerini kod degistirmeden guvenli sekilde yonet."],
+        aiReview: ["AI Review", "Rejected AI draft kalite sinyallerini ve kontrollu kota iadelerini yonet."],
         system: ["System Health", "Production observability durumunu guvenli sekilde takip et."],
         audits: ["Admin Audits", "Kritik admin ayar degisikliklerini ve quota islemlerini incele."],
         notifications: ["Notifications", "Aktif admin hesabinin bildirimlerini kontrol et."],
@@ -758,6 +851,7 @@
         if (active === "users") await loadUsers();
         if (active === "products") await loadProducts(state.page);
         if (active === "features") await loadFeatures();
+        if (active === "aiReview") await loadAiReview(state.aiReviewPage);
         if (active === "system") await loadSystemHealth();
         if (active === "audits") await loadAdminAudits(state.auditPage);
         if (active === "notifications") await loadNotifications(state.notificationPage);
@@ -1066,6 +1160,92 @@
         renderSystemSnapshot();
     }
 
+    async function loadAiReview(page = state.aiReviewPage) {
+        state.aiReviewPage = Math.max(page, 0);
+        const params = new URLSearchParams({
+            page: state.aiReviewPage,
+            size: el("aiReviewPageSize").value,
+            refundableOnly: el("aiRefundableOnly").value
+        });
+        if (el("aiRefundableOnly").value !== "true" && el("aiStatusFilter").value) {
+            params.set("status", el("aiStatusFilter").value);
+        }
+        const result = await api(`/api/v1/admin/ai/meal-drafts?${params}`, {headers: authHeaders(false)});
+        state.aiReviewItems = result.content || [];
+        renderAiReview(result);
+    }
+
+    function renderAiReview(result) {
+        const content = result.content || [];
+        el("aiReviewInfo").textContent = `Sayfa ${(result.page ?? 0) + 1}/${Math.max(result.totalPages ?? 1, 1)} - ${formatNumber(result.totalElements ?? 0)} AI request`;
+        el("aiReviewPrevBtn").disabled = Boolean(result.first);
+        el("aiReviewNextBtn").disabled = Boolean(result.last);
+
+        if (!content.length) {
+            el("aiReviewBody").innerHTML = `<tr><td colspan="6" class="text-center muted py-4">Bu filtrelerle AI draft bulunamadi.</td></tr>`;
+            return;
+        }
+
+        el("aiReviewBody").innerHTML = content.map((item) => {
+            const refundable = Number(item.refundableAmount || 0);
+            return `
+                <tr>
+                    <td>
+                        <span class="badge text-bg-light">#${item.requestId ?? "-"}</span>
+                        <div class="small muted">${formatDateTime(item.createdAt)}</div>
+                    </td>
+                    <td>
+                        <div class="fw-bold">${escapeHtml(item.userEmail || "-")}</div>
+                        <div class="small muted">${escapeHtml(item.requestType || "-")} / ${escapeHtml(item.provider || "-")} / ${escapeHtml(item.model || "-")}</div>
+                    </td>
+                    <td>
+                        ${statusBadge(item.status)}
+                        <div class="small muted mt-1">${escapeHtml(item.rejectionReason || "No reason")}</div>
+                    </td>
+                    <td>
+                        <div class="small">Consumed <strong>${formatNumber(item.quotaConsumedAmount)}</strong></div>
+                        <div class="small">Refunded <strong>${formatNumber(item.quotaRefundedAmount)}</strong></div>
+                        <div class="small">Left <strong>${formatNumber(refundable)}</strong></div>
+                    </td>
+                    <td>
+                        <div class="small">${escapeHtml(item.rejectionFeedback || "-")}</div>
+                        <div class="small muted mt-1">Cost ${numberOrDash(item.estimatedCost)} ${escapeHtml(item.costCurrency || "")} / ${formatNumber(item.totalTokens)} tokens</div>
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-danger btn-sm" data-ai-refund="${item.requestId}" data-ai-refundable="${refundable}" ${refundable <= 0 ? "disabled" : ""}>Refund</button>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    function selectAiRefund(requestId, refundableAmount) {
+        el("aiRefundRequestId").value = requestId;
+        el("aiRefundAmount").value = Math.max(Number(refundableAmount || 0), 1);
+        el("aiRefundAmount").max = Math.max(Number(refundableAmount || 0), 1);
+        el("aiRefundLimitHint").textContent = `Bu request icin kalan iade limiti: ${formatNumber(refundableAmount)} kredi.`;
+        el("aiRefundReason").focus();
+    }
+
+    async function refundAiQuota() {
+        const requestId = el("aiRefundRequestId").value;
+        const amount = Number(el("aiRefundAmount").value);
+        const reason = el("aiRefundReason").value.trim();
+        if (!requestId) throw new Error("AI request id zorunlu.");
+        if (!Number.isInteger(amount) || amount <= 0) throw new Error("Iade miktari pozitif tam sayi olmali.");
+        if (!reason) throw new Error("Iade nedeni zorunlu.");
+        if (!confirm(`#${requestId} icin ${amount} AI kredi iadesi yapilacak. Onayliyor musun?`)) return;
+
+        const result = await api(`/api/v1/admin/ai/meal-drafts/${requestId}/quota-refund`, {
+            method: "POST",
+            headers: authHeaders(true),
+            body: JSON.stringify({amount, reason})
+        });
+        el("aiRefundResult").textContent = JSON.stringify(result, null, 2);
+        el("aiRefundResult").classList.remove("d-none");
+        await Promise.all([loadAiReview(state.aiReviewPage), loadSummary(), loadSystemHealth()]);
+    }
+
     function renderSystemHealth() {
         const health = state.systemHealth;
         if (!health) {
@@ -1256,6 +1436,10 @@
     el("saveProductBtn").addEventListener("click", () => run(saveProductReview, "Urun guncellendi."));
     el("auditBtn").addEventListener("click", () => run(loadAudit, "Audit yuklendi."));
     el("loadFeaturesBtn").addEventListener("click", () => run(loadFeatures, "Feature matrix yuklendi."));
+    el("loadAiReviewBtn").addEventListener("click", () => run(() => loadAiReview(0), "AI review listesi yuklendi."));
+    el("aiReviewPrevBtn").addEventListener("click", () => run(() => loadAiReview(state.aiReviewPage - 1), "AI review listesi yuklendi."));
+    el("aiReviewNextBtn").addEventListener("click", () => run(() => loadAiReview(state.aiReviewPage + 1), "AI review listesi yuklendi."));
+    el("aiRefundBtn").addEventListener("click", () => run(refundAiQuota, "AI kota iadesi tamamlandi."));
     el("loadSystemHealthBtn").addEventListener("click", () => run(loadSystemHealth, "System health yuklendi."));
     el("loadSystemHealthOverviewBtn").addEventListener("click", () => run(loadSystemHealth, "System health yuklendi."));
     el("loadAuditsBtn").addEventListener("click", () => run(() => loadAdminAudits(0), "Audit listesi yuklendi."));
@@ -1279,6 +1463,11 @@
     el("featureMatrixBody").addEventListener("change", (event) => {
         const input = event.target.closest("[data-feature-toggle]");
         if (input) run(() => updateFeatureToggle(input), "Feature matrix guncellendi.");
+    });
+
+    el("aiReviewBody").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-ai-refund]");
+        if (button) selectAiRefund(button.dataset.aiRefund, button.dataset.aiRefundable);
     });
 
     el("notificationList").addEventListener("click", (event) => {

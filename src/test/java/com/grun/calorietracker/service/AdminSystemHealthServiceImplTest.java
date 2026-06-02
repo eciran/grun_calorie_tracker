@@ -1,8 +1,13 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.config.AiProperties;
+import com.grun.calorietracker.enums.AiDraftRejectReason;
+import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.service.impl.AdminSystemHealthServiceImpl;
+import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
@@ -28,6 +33,8 @@ class AdminSystemHealthServiceImplTest {
         SubscriptionProviderEventRepository eventRepository = mock(SubscriptionProviderEventRepository.class);
         SubscriptionRepository subscriptionRepository = mock(SubscriptionRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
+        AiRequestHistoryRepository aiRequestHistoryRepository = mock(AiRequestHistoryRepository.class);
+        AiProperties aiProperties = aiProperties(false, AiProvider.DISABLED);
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.isValid(2)).thenReturn(true);
         when(environment.getProperty("spring.application.name", "grun-calorie-tracker")).thenReturn("grun-calorie-tracker");
@@ -38,8 +45,14 @@ class AdminSystemHealthServiceImplTest {
         when(subscriptionRepository.countByStatus(SubscriptionStatus.TRIALING)).thenReturn(1L);
         when(subscriptionRepository.countActiveSubscriptionsWithExhaustedAiQuota()).thenReturn(0L);
         when(notificationRepository.countByTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq("system_alert"), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+        when(aiRequestHistoryRepository.countByCreatedAtAfter(org.mockito.ArgumentMatchers.any())).thenReturn(10L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.FAILED), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.DRAFT_CREATED), org.mockito.ArgumentMatchers.any())).thenReturn(1L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.CONFIRMED), org.mockito.ArgumentMatchers.any())).thenReturn(8L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.REJECTED), org.mockito.ArgumentMatchers.any())).thenReturn(1L);
+        when(aiRequestHistoryRepository.countByRejectionReasonAndRejectedAtAfter(org.mockito.ArgumentMatchers.eq(AiDraftRejectReason.WRONG_PORTION), org.mockito.ArgumentMatchers.any())).thenReturn(1L);
 
-        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository);
+        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository);
 
         var result = service.getHealth();
 
@@ -55,6 +68,17 @@ class AdminSystemHealthServiceImplTest {
         assertEquals(5L, result.getActiveSubscriptions());
         assertEquals(0L, result.getFailedRevenueCatEvents());
         assertEquals(0L, result.getSystemAlertsLast24h());
+        assertEquals(false, result.getAiEnabled());
+        assertEquals("DISABLED", result.getAiProvider());
+        assertEquals(10L, result.getAiRequestsLast24h());
+        assertEquals(0L, result.getFailedAiRequestsLast24h());
+        assertEquals(0.0, result.getAiFailureRateLast24h());
+        assertEquals(10L, result.getAiDraftsLast7d());
+        assertEquals(8L, result.getConfirmedAiDraftsLast7d());
+        assertEquals(1L, result.getRejectedAiDraftsLast7d());
+        assertEquals(1L, result.getAiRejectionReasonsLast7d().get("WRONG_PORTION"));
+        assertEquals(1L, result.getOpenAiDraftsLast7d());
+        assertEquals(0.8, result.getAiDraftConfirmationRateLast7d());
         assertEquals(0, result.getWarnings().size());
         assertNotNull(result.getCheckedAt());
     }
@@ -66,6 +90,8 @@ class AdminSystemHealthServiceImplTest {
         SubscriptionProviderEventRepository eventRepository = mock(SubscriptionProviderEventRepository.class);
         SubscriptionRepository subscriptionRepository = mock(SubscriptionRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
+        AiRequestHistoryRepository aiRequestHistoryRepository = mock(AiRequestHistoryRepository.class);
+        AiProperties aiProperties = aiProperties(true, AiProvider.LOG);
         when(dataSource.getConnection()).thenThrow(new SQLException("connection refused"));
         when(environment.getProperty("spring.application.name", "grun-calorie-tracker")).thenReturn("grun-calorie-tracker");
         when(environment.getProperty("info.app.version", "unknown")).thenReturn("unknown");
@@ -75,8 +101,14 @@ class AdminSystemHealthServiceImplTest {
         when(subscriptionRepository.countByStatus(SubscriptionStatus.TRIALING)).thenReturn(0L);
         when(subscriptionRepository.countActiveSubscriptionsWithExhaustedAiQuota()).thenReturn(1L);
         when(notificationRepository.countByTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq("system_alert"), org.mockito.ArgumentMatchers.any())).thenReturn(2L);
+        when(aiRequestHistoryRepository.countByCreatedAtAfter(org.mockito.ArgumentMatchers.any())).thenReturn(4L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.FAILED), org.mockito.ArgumentMatchers.any())).thenReturn(1L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.DRAFT_CREATED), org.mockito.ArgumentMatchers.any())).thenReturn(30L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.CONFIRMED), org.mockito.ArgumentMatchers.any())).thenReturn(2L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.REJECTED), org.mockito.ArgumentMatchers.any())).thenReturn(8L);
+        when(aiRequestHistoryRepository.countByRejectionReasonAndRejectedAtAfter(org.mockito.ArgumentMatchers.eq(AiDraftRejectReason.IRRELEVANT_RESULT), org.mockito.ArgumentMatchers.any())).thenReturn(6L);
 
-        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository);
+        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository);
 
         var result = service.getHealth();
 
@@ -86,7 +118,23 @@ class AdminSystemHealthServiceImplTest {
         assertEquals(2L, result.getFailedRevenueCatEvents());
         assertEquals(1L, result.getExhaustedAiQuotaSubscriptions());
         assertEquals(2L, result.getSystemAlertsLast24h());
-        assertEquals(4, result.getWarnings().size());
+        assertEquals(1L, result.getFailedAiRequestsLast24h());
+        assertEquals(0.25, result.getAiFailureRateLast24h());
+        assertEquals(40L, result.getAiDraftsLast7d());
+        assertEquals(2L, result.getConfirmedAiDraftsLast7d());
+        assertEquals(8L, result.getRejectedAiDraftsLast7d());
+        assertEquals(6L, result.getAiRejectionReasonsLast7d().get("IRRELEVANT_RESULT"));
+        assertEquals(30L, result.getOpenAiDraftsLast7d());
+        assertEquals(0.05, result.getAiDraftConfirmationRateLast7d());
+        assertEquals(8, result.getWarnings().size());
+    }
+
+    private AiProperties aiProperties(boolean enabled, AiProvider provider) {
+        AiProperties properties = new AiProperties();
+        properties.setEnabled(enabled);
+        properties.setProvider(provider);
+        properties.setModel(provider == AiProvider.LOG ? "log-draft-v1" : "not-configured");
+        return properties;
     }
 
 }

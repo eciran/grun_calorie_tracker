@@ -16,7 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -61,21 +60,4 @@ public class SubscriptionController {
         return ResponseEntity.ok(subscriptionService.getFeatureAccess(userDetails.getUsername()));
     }
 
-    @PostMapping("/me/ai-quota/consume")
-    @Operation(
-            summary = "Consume one AI quota unit",
-            description = "Consumes one AI request unit and returns the updated subscription quota state. Future AI endpoints should call the same service before executing paid AI work."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "AI quota consumed.",
-                    content = @Content(schema = @Schema(implementation = SubscriptionDto.class))),
-            @ApiResponse(responseCode = "400", description = "AI quota is not available.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
-    })
-    public ResponseEntity<SubscriptionDto> consumeAiQuota(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(subscriptionService.consumeAiQuota(userDetails.getUsername()));
-    }
 }
