@@ -42,6 +42,26 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     long countReviewQueueProducts(@Param("verificationStatuses") Collection<VerificationStatus> verificationStatuses,
                                   @Param("imageStatus") ImageStatus imageStatus);
 
+    @Query("""
+            SELECT f
+            FROM FoodItemEntity f
+            WHERE lower(f.name) LIKE lower(concat('%', :name, '%'))
+              AND (f.verificationStatus IS NULL OR f.verificationStatus <> com.grun.calorietracker.enums.VerificationStatus.REJECTED)
+              AND (
+                    f.isCustom IS NULL
+                    OR f.isCustom = false
+                    OR f.createdByUser = :user
+                  )
+            ORDER BY
+              CASE WHEN f.verificationStatus = com.grun.calorietracker.enums.VerificationStatus.VERIFIED THEN 0 ELSE 1 END,
+              f.qualityScore DESC NULLS LAST,
+              f.usageCount DESC NULLS LAST,
+              f.name ASC
+            """)
+    List<FoodItemEntity> findVisibleAiMatchCandidates(@Param("name") String name,
+                                                       @Param("user") UserEntity user,
+                                                       Pageable pageable);
+
     @Query(
             value = """
                     SELECT normalized_barcode

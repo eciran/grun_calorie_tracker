@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.GdprDataExportDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
+import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.FoodDiaryNoteEntity;
@@ -17,6 +18,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AppliedPromoRepository;
+import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -78,6 +80,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final UserSubscriptionEntitlementRepository userSubscriptionEntitlementRepository;
     private final FoodItemRepository foodItemRepository;
     private final UserConsentRepository userConsentRepository;
+    private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -128,6 +131,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 userFavoriteRepository.countByUser(user),
                 deviceDataRepository.countByUser(user),
                 userConsentRepository.countByUser(user),
+                aiRequestHistoryRepository.countByUser(user),
                 subscriptionDto,
                 identities,
                 userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
@@ -140,6 +144,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 healthConnectionRepository.findByUserOrderByProviderAsc(user).stream().map(this::toHealthConnectionExport).toList(),
                 deviceDataRepository.findByUserOrderByRecordedAtAsc(user).stream().map(this::toHealthMetricExport).toList(),
                 notificationRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toNotificationExport).toList(),
+                aiRequestHistoryRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toAiRequestExport).toList(),
                 subscriptionProviderEventRepository.findByUserOrderByReceivedAtDesc(user).stream().map(this::toSubscriptionEventExport).toList()
         );
     }
@@ -189,6 +194,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         goalRepository.deleteByUser(user);
         appliedPromoRepository.deleteByUser(user);
         subscriptionProviderEventRepository.anonymizeUserReferences(user, anonymizedAppUserId, "{}");
+        aiRequestHistoryRepository.deleteByUser(user);
         userSubscriptionEntitlementRepository.deleteByUser(user);
         subscriptionRepository.deleteByUser(user);
         foodItemRepository.deleteByCreatedByUserAndIsCustomTrue(user);
@@ -333,6 +339,31 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 event.getStatus() == null ? null : event.getStatus().name(),
                 event.getReceivedAt(),
                 event.getProcessedAt()
+        );
+    }
+
+    private GdprDataExportDto.AiRequestExportDto toAiRequestExport(AiRequestHistoryEntity request) {
+        return new GdprDataExportDto.AiRequestExportDto(
+                request.getId(),
+                request.getRequestType() == null ? null : request.getRequestType().name(),
+                request.getProvider() == null ? null : request.getProvider().name(),
+                request.getModel(),
+                request.getStatus() == null ? null : request.getStatus().name(),
+                request.getQuotaConsumed(),
+                request.getLatencyMs(),
+                request.getTotalTokens(),
+                request.getEstimatedCost(),
+                request.getCostCurrency(),
+                request.getCorrectionSummary(),
+                request.getRejectionReason() == null ? null : request.getRejectionReason().name(),
+                request.getRejectionFeedback(),
+                request.getQuotaRefundedAmount(),
+                request.getQuotaRefundReason(),
+                request.getQuotaRefundedBy(),
+                request.getCreatedAt(),
+                request.getConfirmedAt(),
+                request.getRejectedAt(),
+                request.getQuotaRefundedAt()
         );
     }
 }

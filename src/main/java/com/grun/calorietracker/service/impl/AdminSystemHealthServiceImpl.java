@@ -1,8 +1,12 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.AdminSystemHealthDto;
+import com.grun.calorietracker.config.AiProperties;
+import com.grun.calorietracker.enums.AiDraftRejectReason;
+import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
@@ -18,7 +22,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +35,8 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     private final SubscriptionProviderEventRepository subscriptionProviderEventRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final NotificationRepository notificationRepository;
+    private final AiProperties aiProperties;
+    private final AiRequestHistoryRepository aiRequestHistoryRepository;
 
     @Override
     public AdminSystemHealthDto getHealth() {
@@ -36,8 +44,9 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         RuntimeSnapshot runtimeSnapshot = runtimeSnapshot();
         RevenueCatSnapshot revenueCatSnapshot = revenueCatSnapshot();
         SubscriptionSnapshot subscriptionSnapshot = subscriptionSnapshot();
+        AiSnapshot aiSnapshot = aiSnapshot();
         long systemAlertsLast24h = systemAlertsLast24h();
-        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, systemAlertsLast24h);
+        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, aiSnapshot, systemAlertsLast24h);
         String status = "UP".equals(databaseCheck.status()) && warnings.isEmpty() ? "UP" : "DEGRADED";
 
         return new AdminSystemHealthDto(
@@ -56,6 +65,18 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
                 subscriptionSnapshot.activeSubscriptions(),
                 subscriptionSnapshot.exhaustedAiQuotaSubscriptions(),
                 systemAlertsLast24h,
+                aiProperties.isEnabled(),
+                aiProperties.getProvider() == null ? null : aiProperties.getProvider().name(),
+                aiProperties.getModel(),
+                aiSnapshot.requestsLast24h(),
+                aiSnapshot.failedRequestsLast24h(),
+                aiSnapshot.failureRateLast24h(),
+                aiSnapshot.draftsLast7d(),
+                aiSnapshot.confirmedDraftsLast7d(),
+                aiSnapshot.rejectedDraftsLast7d(),
+                aiSnapshot.rejectionReasonsLast7d(),
+                aiSnapshot.openDraftsLast7d(),
+                aiSnapshot.confirmationRateLast7d(),
                 warnings,
                 LocalDateTime.now()
         );
@@ -111,11 +132,38 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         return notificationRepository.countByTypeAndCreatedAtAfter("system_alert", LocalDateTime.now().minus(Duration.ofHours(24)));
     }
 
+    private AiSnapshot aiSnapshot() {
+        LocalDateTime since = LocalDateTime.now().minus(Duration.ofHours(24));
+        LocalDateTime since7d = LocalDateTime.now().minus(Duration.ofDays(7));
+        long requests = aiRequestHistoryRepository.countByCreatedAtAfter(since);
+        long failed = aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(AiRequestStatus.FAILED, since);
+        long openDrafts = aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(AiRequestStatus.DRAFT_CREATED, since7d);
+        long confirmedDrafts = aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(AiRequestStatus.CONFIRMED, since7d);
+        long rejectedDrafts = aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(AiRequestStatus.REJECTED, since7d);
+        Map<String, Long> rejectionReasons = aiRejectionReasons(since7d);
+        long drafts = openDrafts + confirmedDrafts + rejectedDrafts;
+        double failureRate = requests == 0 ? 0.0 : Math.round((failed / (double) requests) * 10_000.0) / 10_000.0;
+        double confirmationRate = drafts == 0 ? 0.0 : Math.round((confirmedDrafts / (double) drafts) * 10_000.0) / 10_000.0;
+        return new AiSnapshot(requests, failed, failureRate, drafts, confirmedDrafts, rejectedDrafts, rejectionReasons, openDrafts, confirmationRate);
+    }
+
+    private Map<String, Long> aiRejectionReasons(LocalDateTime since) {
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (AiDraftRejectReason reason : AiDraftRejectReason.values()) {
+            long count = aiRequestHistoryRepository.countByRejectionReasonAndRejectedAtAfter(reason, since);
+            if (count > 0) {
+                result.put(reason.name(), count);
+            }
+        }
+        return result;
+    }
+
     private List<String> warnings(
             DatabaseCheck databaseCheck,
             RuntimeSnapshot runtimeSnapshot,
             RevenueCatSnapshot revenueCatSnapshot,
             SubscriptionSnapshot subscriptionSnapshot,
+            AiSnapshot aiSnapshot,
             long systemAlertsLast24h
     ) {
         List<String> warnings = new ArrayList<>();
@@ -133,6 +181,18 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         }
         if (subscriptionSnapshot.exhaustedAiQuotaSubscriptions() > 0) {
             warnings.add("Some active subscriptions have exhausted AI quota.");
+        }
+        if (aiSnapshot.failedRequestsLast24h() > 0) {
+            warnings.add("AI draft requests failed in the last 24 hours.");
+        }
+        if (aiSnapshot.draftsLast7d() >= 10 && aiSnapshot.confirmationRateLast7d() < 0.2) {
+            warnings.add("AI draft confirmation rate is below 20% in the last 7 days.");
+        }
+        if (aiSnapshot.openDraftsLast7d() >= 25) {
+            warnings.add("Many AI meal drafts are still open in the last 7 days.");
+        }
+        if (aiSnapshot.rejectionReasonsLast7d().getOrDefault(AiDraftRejectReason.IRRELEVANT_RESULT.name(), 0L) >= 5) {
+            warnings.add("AI draft irrelevant-result rejections are high in the last 7 days.");
         }
         if (systemAlertsLast24h > 0) {
             warnings.add("System alerts were created in the last 24 hours.");
@@ -154,5 +214,18 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     }
 
     private record SubscriptionSnapshot(long activeSubscriptions, long exhaustedAiQuotaSubscriptions) {
+    }
+
+    private record AiSnapshot(
+            long requestsLast24h,
+            long failedRequestsLast24h,
+            double failureRateLast24h,
+            long draftsLast7d,
+            long confirmedDraftsLast7d,
+            long rejectedDraftsLast7d,
+            Map<String, Long> rejectionReasonsLast7d,
+            long openDraftsLast7d,
+            double confirmationRateLast7d
+    ) {
     }
 }

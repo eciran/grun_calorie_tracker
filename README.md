@@ -69,6 +69,8 @@ Use these documents instead of keeping operational detail in the README:
 - [Local Development](docs/LOCAL_DEVELOPMENT.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Mobile API Contract](docs/MOBILE_API_CONTRACT.md)
+- [Backend Closing Status](docs/BACKEND_CLOSING_STATUS.md)
+- [AI, Voice Entry, and Photo Meal Logging Flow](docs/AI_VOICE_PHOTO_MEAL_FLOW.md)
 - [Mobile Subscription Contract](docs/MOBILE_SUBSCRIPTION_CONTRACT.md)
 - [RevenueCat Sandbox Test Flow](docs/REVENUECAT_SANDBOX_TEST_FLOW.md)
 - [Brevo Smoke Test Runbook](docs/BREVO_SMOKE_TEST_RUNBOOK.md)

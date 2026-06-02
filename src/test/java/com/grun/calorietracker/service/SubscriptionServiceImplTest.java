@@ -234,7 +234,7 @@ class SubscriptionServiceImplTest {
     void consumeAiQuota_whenQuotaAvailable_incrementsUsage() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 14);
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
         when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -252,7 +252,7 @@ class SubscriptionServiceImplTest {
         entity.setAiQuotaPeriodStartDate(java.time.LocalDate.now().minusMonths(1));
         entity.setAiQuotaPeriodEndDate(java.time.LocalDate.now().minusDays(1));
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
         when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -268,7 +268,7 @@ class SubscriptionServiceImplTest {
         entity.setAiAddonQuota(50);
         entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(6));
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
         when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -294,6 +294,31 @@ class SubscriptionServiceImplTest {
         assertEquals(SubscriptionPlan.PRO, result.getPlanType());
         assertEquals(0, result.getAiUsedThisPeriod());
         assertEquals(100, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
+    void refundConsumedAiQuota_decreasesUsedQuotaWithoutChangingTotalQuota() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 7);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionDto result = service.refundConsumedAiQuota(1L, 3);
+
+        assertEquals(15, result.getAiMonthlyQuota());
+        assertEquals(4, result.getAiUsedThisPeriod());
+        assertEquals(11, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
+    void refundConsumedAiQuota_whenAmountExceedsUsedQuota_rejects() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 2);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+
+        assertThrows(IllegalArgumentException.class, () -> service.refundConsumedAiQuota(1L, 3));
     }
 
     @Test
@@ -346,7 +371,7 @@ class SubscriptionServiceImplTest {
         entity.setAiQuotaPeriodStartDate(java.time.LocalDate.now().minusMonths(1));
         entity.setAiQuotaPeriodEndDate(java.time.LocalDate.now().minusDays(1));
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
         when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -362,7 +387,7 @@ class SubscriptionServiceImplTest {
     void consumeAiQuota_whenQuotaUnavailable_throwsIllegalArgumentException() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 3, 3);
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
         assertThrows(IllegalArgumentException.class, () -> service.consumeAiQuota("user@example.com"));

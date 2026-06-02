@@ -55,6 +55,11 @@ class MobileApiContractTest {
                 "/api/v1/progress",
                 "/api/v1/subscriptions/me",
                 "/api/v1/subscriptions/me/features",
+                "/api/v1/ai/meal-drafts/voice",
+                "/api/v1/ai/meal-drafts/photo",
+                "/api/v1/ai/meal-drafts/{requestId}/confirm",
+                "/api/v1/ai/meal-drafts/{requestId}/reject",
+                "/api/v1/ai/meal-drafts/history",
                 "/api/v1/notifications",
                 "/api/v1/account/legal/consents",
                 "/api/v1/account/gdpr/export",
@@ -71,7 +76,8 @@ class MobileApiContractTest {
                 "/api/products/search",
                 "/api/food-logs",
                 "/saveLogs",
-                "/getLogs"
+                "/getLogs",
+                "/api/v1/subscriptions/me/ai-quota/consume"
         );
 
         removedOrNonVersionedPaths.forEach(path ->
