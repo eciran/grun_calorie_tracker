@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,6 +48,18 @@ class AdminSystemControllerTest {
                 4L,
                 0L,
                 0L,
+                false,
+                "DISABLED",
+                "not-configured",
+                12L,
+                1L,
+                0.0833,
+                40L,
+                30L,
+                5L,
+                Map.of("IRRELEVANT_RESULT", 2L),
+                5L,
+                0.75,
                 List.of(),
                 LocalDateTime.of(2026, 5, 27, 14, 0)
         );
@@ -62,7 +75,15 @@ class AdminSystemControllerTest {
                 .andExpect(jsonPath("$.revenueCatEventsLast24h").value(10))
                 .andExpect(jsonPath("$.failedRevenueCatEvents").value(0))
                 .andExpect(jsonPath("$.activeSubscriptions").value(4))
-                .andExpect(jsonPath("$.systemAlertsLast24h").value(0));
+                .andExpect(jsonPath("$.systemAlertsLast24h").value(0))
+                .andExpect(jsonPath("$.aiRequestsLast24h").value(12))
+                .andExpect(jsonPath("$.failedAiRequestsLast24h").value(1))
+                .andExpect(jsonPath("$.aiDraftsLast7d").value(40))
+                .andExpect(jsonPath("$.confirmedAiDraftsLast7d").value(30))
+                .andExpect(jsonPath("$.aiRejectionReasonsLast7d.IRRELEVANT_RESULT").value(2))
+                .andExpect(jsonPath("$.openAiDraftsLast7d").value(5))
+                .andExpect(jsonPath("$.aiDraftConfirmationRateLast7d").value(0.75))
+                .andExpect(jsonPath("$.aiProvider").value("DISABLED"));
     }
 
     @Test

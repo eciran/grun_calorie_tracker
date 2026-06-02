@@ -67,6 +67,28 @@ openfoodfacts:
 grun:
   errors:
     include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
+  ai:
+    enabled: ${GRUN_AI_ENABLED:false}
+    provider: ${GRUN_AI_PROVIDER:DISABLED}
+    model: ${GRUN_AI_MODEL:not-configured}
+    max-history-limit: ${GRUN_AI_MAX_HISTORY_LIMIT:30}
+    safety:
+      enabled: ${GRUN_AI_SAFETY_ENABLED:true}
+      max-item-calories: ${GRUN_AI_SAFETY_MAX_ITEM_CALORIES:3000}
+      max-total-calories: ${GRUN_AI_SAFETY_MAX_TOTAL_CALORIES:6000}
+    photo:
+      max-image-reference-length: ${GRUN_AI_PHOTO_MAX_IMAGE_REFERENCE_LENGTH:2048}
+      allowed-reference-prefixes: ${GRUN_AI_PHOTO_ALLOWED_REFERENCE_PREFIXES:s3://,https://}
+      max-upload-bytes: ${GRUN_AI_PHOTO_MAX_UPLOAD_BYTES:5242880}
+      allowed-content-types: ${GRUN_AI_PHOTO_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+      reference-ttl: ${GRUN_AI_PHOTO_REFERENCE_TTL:30m}
+      cleanup-interval-ms: ${GRUN_AI_PHOTO_CLEANUP_INTERVAL_MS:3600000}
+      storage-directory: ${GRUN_AI_PHOTO_STORAGE_DIRECTORY:storage/ai-meal-photos}
+      public-base-url: ${GRUN_AI_PHOTO_PUBLIC_BASE_URL:https://api.grun.app}
+    http-json:
+      endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
+      api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}
+      timeout: ${GRUN_AI_HTTP_JSON_TIMEOUT:30s}
   revenuecat:
     webhook-authorization: ${GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION:}
     strict-product-mapping: ${GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING:true}
@@ -102,6 +124,8 @@ grun:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_PASSWORD_RESET_MAX_REQUESTS_PER_MINUTE:5}
     email-verification-resend:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_EMAIL_VERIFICATION_RESEND_MAX_REQUESTS_PER_MINUTE:5}
+    ai-draft:
+      max-requests-per-minute: ${GRUN_RATE_LIMIT_AI_DRAFT_MAX_REQUESTS_PER_MINUTE:10}
   oauth:
     google:
       client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}

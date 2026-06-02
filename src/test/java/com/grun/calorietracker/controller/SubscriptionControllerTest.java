@@ -16,7 +16,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,23 +72,4 @@ class SubscriptionControllerTest {
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(88));
     }
 
-    @Test
-    @WithMockUser(username = "user@example.com", roles = "USER")
-    void consumeAiQuota_returnsUpdatedQuotaState() throws Exception {
-        SubscriptionDto dto = new SubscriptionDto();
-        dto.setPlanType(SubscriptionPlan.PLUS);
-        dto.setStatus(SubscriptionStatus.ACTIVE);
-        dto.setBillingPeriod(BillingPeriod.MONTHLY);
-        dto.setAiMonthlyQuota(15);
-        dto.setAiUsedThisPeriod(6);
-        dto.setAiRemainingThisPeriod(9);
-        dto.setAiAccessAllowed(true);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(dto);
-
-        mockMvc.perform(post("/api/v1/subscriptions/me/ai-quota/consume"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.planType").value("PLUS"))
-                .andExpect(jsonPath("$.aiUsedThisPeriod").value(6))
-                .andExpect(jsonPath("$.aiRemainingThisPeriod").value(9));
-    }
 }

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -58,6 +59,42 @@ public class AdminSystemHealthDto {
 
     @Schema(description = "System alert notifications created in the last 24 hours, including mail provider failures.", example = "0")
     private Long systemAlertsLast24h;
+
+    @Schema(description = "Whether AI endpoints are enabled by backend configuration.", example = "false")
+    private Boolean aiEnabled;
+
+    @Schema(description = "Configured AI provider name without credentials.", example = "DISABLED")
+    private String aiProvider;
+
+    @Schema(description = "Configured AI model name without credentials.", example = "not-configured")
+    private String aiModel;
+
+    @Schema(description = "AI draft requests created in the last 24 hours.", example = "120")
+    private Long aiRequestsLast24h;
+
+    @Schema(description = "Failed AI draft requests created in the last 24 hours.", example = "3")
+    private Long failedAiRequestsLast24h;
+
+    @Schema(description = "AI request failure rate in the last 24 hours, between 0 and 1.", example = "0.025")
+    private Double aiFailureRateLast24h;
+
+    @Schema(description = "AI meal drafts created successfully in the last 7 days.", example = "250")
+    private Long aiDraftsLast7d;
+
+    @Schema(description = "AI meal drafts confirmed by users in the last 7 days.", example = "180")
+    private Long confirmedAiDraftsLast7d;
+
+    @Schema(description = "AI meal drafts rejected by users in the last 7 days.", example = "20")
+    private Long rejectedAiDraftsLast7d;
+
+    @Schema(description = "AI rejected draft reason distribution in the last 7 days.")
+    private Map<String, Long> aiRejectionReasonsLast7d;
+
+    @Schema(description = "AI meal drafts still open in the last 7 days.", example = "50")
+    private Long openAiDraftsLast7d;
+
+    @Schema(description = "AI draft confirmation rate in the last 7 days, between 0 and 1.", example = "0.72")
+    private Double aiDraftConfirmationRateLast7d;
 
     @Schema(description = "Operational warnings derived from current runtime and integration counters.")
     private List<String> warnings;

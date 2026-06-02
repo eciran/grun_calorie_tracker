@@ -129,6 +129,20 @@ class RateLimitingFilterTest {
         assertEquals(429, secondResponse.getStatus());
     }
 
+    @Test
+    void aiDraftPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/ai/meal-drafts/voice"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/ai/meal-drafts/voice"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
     private MockHttpServletRequest post(String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", uri);
         request.setRemoteAddr("127.0.0.1");
@@ -151,6 +165,7 @@ class RateLimitingFilterTest {
         ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "passwordResetMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", authMaxRequestsPerMinute);
         return filter;
     }
 }

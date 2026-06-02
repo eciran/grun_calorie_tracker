@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.AppliedPromoRepository;
+import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -66,6 +67,7 @@ class AccountGdprServiceImplTest {
     @Mock private UserSubscriptionEntitlementRepository userSubscriptionEntitlementRepository;
     @Mock private FoodItemRepository foodItemRepository;
     @Mock private UserConsentRepository userConsentRepository;
+    @Mock private AiRequestHistoryRepository aiRequestHistoryRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     private AccountGdprServiceImpl service;
@@ -97,6 +99,7 @@ class AccountGdprServiceImplTest {
                 userSubscriptionEntitlementRepository,
                 foodItemRepository,
                 userConsentRepository,
+                aiRequestHistoryRepository,
                 passwordEncoder
         );
 
@@ -127,12 +130,14 @@ class AccountGdprServiceImplTest {
         when(userFavoriteRepository.countByUser(user)).thenReturn(5L);
         when(deviceDataRepository.countByUser(user)).thenReturn(8L);
         when(userConsentRepository.countByUser(user)).thenReturn(2L);
+        when(aiRequestHistoryRepository.countByUser(user)).thenReturn(6L);
 
         GdprDataExportDto dto = service.exportMyData("user@grun.app");
 
         assertEquals("user@grun.app", dto.getEmail());
         assertEquals(11L, dto.getFoodLogCount());
         assertEquals(2L, dto.getConsentCount());
+        assertEquals(6L, dto.getAiRequestCount());
         assertEquals(100, dto.getSubscription().getAiMonthlyQuota());
         assertEquals(0, dto.getFoodLogs().size());
     }
@@ -148,6 +153,7 @@ class AccountGdprServiceImplTest {
         verify(refreshTokenRepository).deleteByUser(user);
         verify(foodLogsRepository).deleteByUser(user);
         verify(subscriptionProviderEventRepository).anonymizeUserReferences(user, "deleted-user:10", "{}");
+        verify(aiRequestHistoryRepository).deleteByUser(user);
         verify(subscriptionRepository).deleteByUser(user);
         verify(userRepository).save(user);
     }

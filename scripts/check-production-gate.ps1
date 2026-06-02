@@ -79,6 +79,8 @@ if ($Production) {
         (Check-EnvEquals "GRUN_RATE_LIMIT_ENABLED" "true"),
         (Check-EnvEquals "GRUN_RATE_LIMIT_REDIS_ENABLED" "true"),
         (Check-EnvEquals "GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS" "false"),
+        (Check-Env "GRUN_AI_ENABLED"),
+        (Check-Env "GRUN_AI_PROVIDER"),
         (Check-EnvEquals "GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED" "false"),
         (Check-EnvEquals "GRUN_LOCAL_DEMO_SEED_ENABLED" "false"),
         (Check-Env "SPRING_DATA_REDIS_HOST"),
@@ -105,7 +107,7 @@ if ([string]::IsNullOrWhiteSpace($AdminToken)) {
     try {
         $health = Invoke-AdminGet -Path "/api/v1/admin/system/health" -Token $AdminToken
         Write-Host "- /admin/system/health: OK"
-        Write-Host ("  status={0}, databaseStatus={1}, failedRevenueCatEvents={2}, systemAlertsLast24h={3}" -f $health.status, $health.databaseStatus, $health.failedRevenueCatEvents, $health.systemAlertsLast24h)
+        Write-Host ("  status={0}, databaseStatus={1}, failedRevenueCatEvents={2}, systemAlertsLast24h={3}, aiEnabled={4}, aiProvider={5}" -f $health.status, $health.databaseStatus, $health.failedRevenueCatEvents, $health.systemAlertsLast24h, $health.aiEnabled, $health.aiProvider)
         if ($health.status -ne "UP") {
             $apiFailures += "Admin health status is $($health.status)"
         }
