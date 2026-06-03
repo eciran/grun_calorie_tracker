@@ -194,6 +194,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             product.setMarketRegion(request.getMarketRegion());
         }
 
+        if (request.getCatalogType() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "catalogType",
+                    product.getCatalogType(),
+                    request.getCatalogType(),
+                    reviewNote
+            );
+            product.setCatalogType(request.getCatalogType());
+        }
+
         validateReviewState(product);
         product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
         FoodProductQualityRules.markReviewed(product);

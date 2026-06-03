@@ -20,7 +20,9 @@ import java.util.Optional;
 public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>, JpaSpecificationExecutor<FoodItemEntity> {
     Optional<FoodItemEntity> findByBarcode(String barcode);
     Optional<FoodItemEntity> findByNormalizedBarcode(String normalizedBarcode);
+    Optional<FoodItemEntity> findBySourceKey(String sourceKey);
     List<FoodItemEntity> findByNormalizedBarcodeIn(List<String> normalizedBarcodes, Sort sort);
+    List<FoodItemEntity> findBySourceKeyIn(List<String> sourceKeys, Sort sort);
     List<FoodItemEntity> findByVerificationStatus(VerificationStatus verificationStatus);
     List<FoodItemEntity> findByVerificationStatus(VerificationStatus verificationStatus, Sort sort);
     List<FoodItemEntity> findByImageStatus(ImageStatus imageStatus);

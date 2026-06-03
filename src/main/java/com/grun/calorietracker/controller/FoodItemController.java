@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.service.FoodItemService;
@@ -57,10 +58,13 @@ public class FoodItemController {
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,
             @Parameter(description = "Optional market region preference. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
+            @Parameter(description = "Optional catalog type filter.", example = "BRANDED_PRODUCT")
+            @RequestParam(required = false) FoodCatalogType catalogType,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery(q);
         criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
+        criteria.setCatalogType(catalogType);
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -26,6 +27,9 @@ public class FoodProductReviewRequestDto {
 
     @Schema(description = "Market region for this food product. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
     private MarketRegion marketRegion;
+
+    @Schema(description = "Food catalog classification.", example = "BRANDED_PRODUCT")
+    private FoodCatalogType catalogType;
 
     @Schema(description = "Admin review note. Required when rejecting product data or image.", example = "Image is blurry and product label is unreadable.")
     private String reviewNote;
@@ -76,6 +80,14 @@ public class FoodProductReviewRequestDto {
 
     public void setMarketRegion(MarketRegion marketRegion) {
         this.marketRegion = marketRegion;
+    }
+
+    public FoodCatalogType getCatalogType() {
+        return catalogType;
+    }
+
+    public void setCatalogType(FoodCatalogType catalogType) {
+        this.catalogType = catalogType;
     }
 
     public String getReviewNote() {

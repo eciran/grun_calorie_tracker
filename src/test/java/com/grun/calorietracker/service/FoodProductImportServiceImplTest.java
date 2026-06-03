@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -143,6 +144,34 @@ class FoodProductImportServiceImplTest {
         assertEquals(2, result.getSkippedRows());
         assertEquals(2, result.getErrors().size());
         verify(foodItemRepository).saveAll(eq(List.of()));
+    }
+
+    @Test
+    void importCsv_acceptsExplicitNonBarcodeCatalogRows() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,name,calories,protein,fat,carbs,market_region,serving_size_grams,serving_unit
+                LOCAL_DISH,Mercimek Corbasi,92,5.8,2.4,12.1,TR,250,bowl
+                GENERIC_INGREDIENT,Rolled Oats,389,16.9,6.9,66.3,UK_IE,100,g
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getTotalRows());
+        assertEquals(2, result.getSavedRows());
+        assertEquals(0, result.getSkippedRows());
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals(FoodCatalogType.LOCAL_DISH, savedProducts.get(0).getCatalogType());
+        assertEquals("TR:LOCAL_DISH:mercimek_corbasi", savedProducts.get(0).getSourceKey());
+        assertEquals(null, savedProducts.get(0).getBarcode());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, savedProducts.get(1).getCatalogType());
+        assertEquals("UK_IE:GENERIC_INGREDIENT:rolled_oats", savedProducts.get(1).getSourceKey());
     }
 
     @Test

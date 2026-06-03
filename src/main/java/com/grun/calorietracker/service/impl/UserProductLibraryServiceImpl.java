@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -98,6 +99,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         FoodItemEntity product = new FoodItemEntity();
         updateManualNutrition(product, request);
         product.setDataSource(FoodDataSource.MANUAL);
+        product.setCatalogType(FoodCatalogType.USER_CUSTOM);
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
         product.setMarketRegion(user.getMarketRegion());

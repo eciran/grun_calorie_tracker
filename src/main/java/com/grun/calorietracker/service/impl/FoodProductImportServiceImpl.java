@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.FoodProductImportErrorDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageSource;
@@ -21,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.Normalizer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -53,11 +55,14 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
 
         ParsedCsv parsedCsv = parseCsv(file);
-        Map<String, FoodItemEntity> existingProducts = loadExistingProducts(parsedCsv.normalizedBarcodes());
+        Map<String, FoodItemEntity> existingProducts = loadExistingProducts(
+                parsedCsv.normalizedBarcodes(),
+                parsedCsv.sourceKeys()
+        );
 
         List<FoodItemEntity> productsToSave = new ArrayList<>();
         List<FoodProductImportErrorDto> errors = new ArrayList<>();
-        Set<String> seenInputBarcodes = new HashSet<>();
+        Set<String> seenInputKeys = new HashSet<>();
         int insertedRows = 0;
         int updatedRows = 0;
         int duplicateInputRows = 0;
@@ -66,12 +71,15 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         Map<String, Integer> marketRegionCounts = new LinkedHashMap<>();
 
         for (CsvRow row : parsedCsv.rows()) {
-            String inputBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
-            if (inputBarcode != null && !seenInputBarcodes.add(inputBarcode)) {
+            RegionResolution regionResolution = resolveMarketRegion(row, null);
+            String inputSourceKey = resolveInputKey(row, regionResolution.region());
+            if (inputSourceKey != null && !seenInputKeys.add(inputSourceKey)) {
                 duplicateInputRows++;
             }
-            FoodItemEntity existingProduct = existingProducts.get(inputBarcode);
-            RegionResolution regionResolution = resolveMarketRegion(row, existingProduct == null ? null : existingProduct.getMarketRegion());
+            FoodItemEntity existingProduct = existingProducts.get(inputSourceKey);
+            if (existingProduct != null) {
+                regionResolution = resolveMarketRegion(row, existingProduct.getMarketRegion());
+            }
             RowResult rowResult = mapRow(row, existingProducts, importedBy, normalizeImportMode(importMode), regionResolution);
             if (rowResult.error() != null) {
                 addError(errors, rowResult.error());
@@ -87,7 +95,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             productsToSave.add(rowResult.product());
             String regionKey = rowResult.product().getMarketRegion() == null ? "UNSPECIFIED" : rowResult.product().getMarketRegion().name();
             marketRegionCounts.merge(regionKey, 1, Integer::sum);
-            existingProducts.put(rowResult.product().getNormalizedBarcode(), rowResult.product());
+            registerExistingProduct(existingProducts, rowResult.product());
             if (rowResult.inserted()) {
                 insertedRows++;
             } else {
@@ -126,11 +134,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
             char delimiter = detectDelimiter(headerLine);
             Map<String, Integer> headers = indexHeaders(parseDelimitedLine(headerLine, delimiter));
-            requireHeader(headers, "barcode");
             requireAnyHeader(headers, "name", "productname", "product_name");
 
             List<CsvRow> rows = new ArrayList<>();
             List<String> normalizedBarcodes = new ArrayList<>();
+            List<String> sourceKeys = new ArrayList<>();
             String line;
             int rowNumber = 1;
             while ((line = reader.readLine()) != null) {
@@ -145,30 +153,48 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 if (normalizedBarcode != null) {
                     normalizedBarcodes.add(normalizedBarcode);
                 }
+                String sourceKey = resolveInputKey(row, resolveMarketRegion(row, null).region());
+                if (sourceKey != null) {
+                    sourceKeys.add(sourceKey);
+                }
             }
 
-            return new ParsedCsv(rows, normalizedBarcodes.stream().distinct().toList(), delimiter == '\t' ? "TSV" : "CSV");
+            return new ParsedCsv(
+                    rows,
+                    normalizedBarcodes.stream().distinct().toList(),
+                    sourceKeys.stream().distinct().toList(),
+                    delimiter == '\t' ? "TSV" : "CSV"
+            );
         } catch (IOException e) {
             throw new IllegalArgumentException("CSV file could not be read.");
         }
     }
 
-    private Map<String, FoodItemEntity> loadExistingProducts(List<String> normalizedBarcodes) {
-        if (normalizedBarcodes.isEmpty()) {
+    private Map<String, FoodItemEntity> loadExistingProducts(List<String> normalizedBarcodes, List<String> sourceKeys) {
+        if (normalizedBarcodes.isEmpty() && sourceKeys.isEmpty()) {
             return new HashMap<>();
         }
 
-        List<FoodItemEntity> products = foodItemRepository.findByNormalizedBarcodeIn(
-                normalizedBarcodes,
-                Sort.by(Sort.Order.asc("id"))
-        );
-        Map<String, FoodItemEntity> byBarcode = new LinkedHashMap<>();
-        for (FoodItemEntity product : products) {
-            if (product.getNormalizedBarcode() != null) {
-                byBarcode.putIfAbsent(product.getNormalizedBarcode(), product);
+        Map<String, FoodItemEntity> byKey = new LinkedHashMap<>();
+        if (!normalizedBarcodes.isEmpty()) {
+            List<FoodItemEntity> products = foodItemRepository.findByNormalizedBarcodeIn(
+                    normalizedBarcodes,
+                    Sort.by(Sort.Order.asc("id"))
+            );
+            if (products != null) {
+                products.forEach(product -> registerExistingProduct(byKey, product));
             }
         }
-        return byBarcode;
+        if (!sourceKeys.isEmpty()) {
+            List<FoodItemEntity> products = foodItemRepository.findBySourceKeyIn(
+                    sourceKeys,
+                    Sort.by(Sort.Order.asc("id"))
+            );
+            if (products != null) {
+                products.forEach(product -> registerExistingProduct(byKey, product));
+            }
+        }
+        return byKey;
     }
 
     private RowResult mapRow(
@@ -179,16 +205,22 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             RegionResolution regionResolution
     ) {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
-        if (normalizedBarcode == null) {
-            return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), row.value("barcode"), "Barcode is required."));
-        }
-
         String name = firstText(row, "name", "productname", "product_name");
         if (name == null) {
             return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), row.value("barcode"), "Product name is required."));
         }
 
-        FoodItemEntity product = existingProducts.get(normalizedBarcode);
+        FoodCatalogType catalogType = resolveCatalogType(row, normalizedBarcode);
+        String sourceKey = resolveSourceKey(row, normalizedBarcode, name, catalogType, regionResolution.region());
+        if (sourceKey == null) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(),
+                    row.value("barcode"),
+                    "Barcode is required for branded products. Non-barcode rows must use GENERIC_INGREDIENT or LOCAL_DISH catalog_type."
+            ));
+        }
+
+        FoodItemEntity product = existingProducts.get(sourceKey);
         boolean inserted = product == null;
         if (!inserted && importMode == FoodProductImportMode.RAW_EXTERNAL && isCuratedProduct(product)) {
             return new RowResult(product, false, null);
@@ -201,7 +233,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         product.setBarcode(normalizedBarcode);
         product.setNormalizedBarcode(normalizedBarcode);
+        product.setSourceKey(sourceKey);
         product.setName(name);
+        product.setCatalogType(catalogType);
         product.setMarketRegion(regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode);
 
@@ -241,6 +275,81 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return product.getVerificationStatus() == VerificationStatus.VERIFIED
                 || product.getDataSource() == FoodDataSource.ADMIN_IMPORT
                 || product.getDataSource() == FoodDataSource.MANUAL;
+    }
+
+    private void registerExistingProduct(Map<String, FoodItemEntity> productsByKey, FoodItemEntity product) {
+        if (product == null) {
+            return;
+        }
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(product.getNormalizedBarcode());
+        if (normalizedBarcode != null) {
+            productsByKey.putIfAbsent("barcode:" + normalizedBarcode, product);
+            productsByKey.putIfAbsent(normalizedBarcode, product);
+        }
+        String sourceKey = FoodProductNormalizationRules.normalizeText(product.getSourceKey());
+        if (sourceKey != null) {
+            productsByKey.putIfAbsent(sourceKey, product);
+        }
+    }
+
+    private String resolveInputKey(CsvRow row, MarketRegion marketRegion) {
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(row.value("barcode"));
+        String name = firstText(row, "name", "productname", "product_name");
+        FoodCatalogType catalogType = resolveCatalogType(row, normalizedBarcode);
+        return resolveSourceKey(row, normalizedBarcode, name, catalogType, marketRegion);
+    }
+
+    private FoodCatalogType resolveCatalogType(CsvRow row, String normalizedBarcode) {
+        String value = firstText(row, "catalogtype", "catalog_type", "producttype", "product_type", "type");
+        if (value != null) {
+            String normalized = value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+            if ("INGREDIENT".equals(normalized) || "GENERIC".equals(normalized)) {
+                normalized = FoodCatalogType.GENERIC_INGREDIENT.name();
+            } else if ("DISH".equals(normalized) || "RECIPE".equals(normalized) || "LOCAL_RECIPE".equals(normalized)) {
+                normalized = FoodCatalogType.LOCAL_DISH.name();
+            } else if ("BRANDED".equals(normalized) || "PRODUCT".equals(normalized) || "PACKAGED_PRODUCT".equals(normalized)) {
+                normalized = FoodCatalogType.BRANDED_PRODUCT.name();
+            }
+            try {
+                return FoodCatalogType.valueOf(normalized);
+            } catch (IllegalArgumentException ignored) {
+                return FoodCatalogType.BRANDED_PRODUCT;
+            }
+        }
+        return FoodCatalogType.BRANDED_PRODUCT;
+    }
+
+    private String resolveSourceKey(
+            CsvRow row,
+            String normalizedBarcode,
+            String name,
+            FoodCatalogType catalogType,
+            MarketRegion marketRegion
+    ) {
+        String explicitSourceKey = firstText(row, "sourcekey", "source_key", "externalid", "external_id");
+        if (explicitSourceKey != null) {
+            return explicitSourceKey;
+        }
+        if (normalizedBarcode != null) {
+            return "barcode:" + normalizedBarcode;
+        }
+        if (catalogType == FoodCatalogType.BRANDED_PRODUCT || name == null) {
+            return null;
+        }
+        MarketRegion effectiveRegion = marketRegion == null ? MarketRegion.GLOBAL : marketRegion;
+        return effectiveRegion.name() + ":" + catalogType.name() + ":" + slug(name);
+    }
+
+    private String slug(String value) {
+        String ascii = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        String slug = ascii.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (slug.isBlank()) {
+            return "unnamed";
+        }
+        return slug.length() <= 160 ? slug : slug.substring(0, 160);
     }
 
     private void applyImportMetadata(
@@ -463,7 +572,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return values;
     }
 
-    private record ParsedCsv(List<CsvRow> rows, List<String> normalizedBarcodes, String format) {
+    private record ParsedCsv(List<CsvRow> rows, List<String> normalizedBarcodes, List<String> sourceKeys, String format) {
     }
 
     private record CsvRow(int rowNumber, Map<String, Integer> headers, List<String> values) {

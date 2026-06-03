@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -134,6 +135,10 @@ public class FoodItemServiceImpl implements FoodItemService {
                 }
             }
 
+            if (criteria.getCatalogType() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("catalogType"), criteria.getCatalogType()));
+            }
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -214,7 +219,9 @@ public class FoodItemServiceImpl implements FoodItemService {
         FoodItemEntity entity = FoodItemMapper.mapDtoToEntity(externalProduct);
         entity.setBarcode(normalizedBarcode);
         entity.setNormalizedBarcode(normalizedBarcode);
+        entity.setSourceKey("barcode:" + normalizedBarcode);
         entity.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
+        entity.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         entity.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         entity.setExternalImageUrl(resolveExternalImageUrl(externalProduct));
         entity.setDisplayImageUrl(null);
@@ -308,6 +315,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         copy.setSortOrder(criteria.getSortOrder());
         copy.setNutriScore(criteria.getNutriScore());
         copy.setMarketRegion(region);
+        copy.setCatalogType(criteria.getCatalogType());
         return copy;
     }
 
