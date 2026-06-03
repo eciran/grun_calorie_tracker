@@ -357,6 +357,44 @@
                         </select>
                     </div>
                     <div class="col-md-2">
+                        <label class="form-label" for="catalogType">Type</label>
+                        <select id="catalogType" class="form-select">
+                            <option value="">All</option>
+                            <option value="BRANDED_PRODUCT">BRANDED</option>
+                            <option value="GENERIC_INGREDIENT">INGREDIENT</option>
+                            <option value="LOCAL_DISH">LOCAL_DISH</option>
+                            <option value="USER_CUSTOM">CUSTOM</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="dataSource">Source</label>
+                        <select id="dataSource" class="form-select">
+                            <option value="">All</option>
+                            <option value="OPEN_FOOD_FACTS">OFF</option>
+                            <option value="USDA_FOODDATA">USDA</option>
+                            <option value="LOCAL_CURATED">LOCAL</option>
+                            <option value="ADMIN_IMPORT">ADMIN</option>
+                            <option value="EDAMAM">EDAMAM</option>
+                            <option value="NUTRITIONIX">NUTRITIONIX</option>
+                            <option value="MANUAL">MANUAL</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="qualityIssue">Quality</label>
+                        <select id="qualityIssue" class="form-select">
+                            <option value="">All</option>
+                            <option value="LOW_QUALITY">LOW</option>
+                            <option value="MISSING_IMAGE">NO_IMAGE</option>
+                            <option value="MISSING_CALORIES">NO_CAL</option>
+                            <option value="MISSING_MACROS">NO_MACROS</option>
+                            <option value="MISSING_SERVING_SIZE">NO_SERVING</option>
+                            <option value="MISSING_REGION">NO_REGION</option>
+                            <option value="UNSUPPORTED_REGION">BAD_REGION</option>
+                            <option value="MISSING_BARCODE">NO_BARCODE</option>
+                            <option value="INVALID_BARCODE_FORMAT">BAD_BARCODE</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label" for="pageSize">Page size</label>
                         <select id="pageSize" class="form-select">
                             <option>12</option>
@@ -388,7 +426,7 @@
                             <th style="width: 92px">Image</th>
                             <th>Product</th>
                             <th style="width: 150px">Status</th>
-                            <th style="width: 120px">Region</th>
+                            <th style="width: 190px">Catalog</th>
                             <th style="width: 130px">Quality</th>
                             <th style="width: 170px">Actions</th>
                         </tr>
@@ -640,14 +678,23 @@
             <div class="panel">
                 <h2 class="h6 mb-3">Food Product Import</h2>
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label" for="importMode">Import mode</label>
                         <select id="importMode" class="form-select">
                             <option value="RAW_EXTERNAL">RAW_EXTERNAL</option>
                             <option value="CURATED_ADMIN">CURATED_ADMIN</option>
                         </select>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-3">
+                        <label class="form-label" for="importFormat">Source format</label>
+                        <select id="importFormat" class="form-select">
+                            <option value="AUTO">AUTO</option>
+                            <option value="GRUN_STANDARD">GRUN_STANDARD</option>
+                            <option value="OPEN_FOOD_FACTS_EXPORT">OPEN_FOOD_FACTS</option>
+                            <option value="USDA_FOODDATA">USDA_FOODDATA</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label" for="csvFile">CSV / TSV file</label>
                         <input id="csvFile" class="form-control" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values">
                     </div>
@@ -705,7 +752,16 @@
                             <option>EU</option>
                         </select>
                     </div>
-                    <div class="col-md-9">
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewCatalogType">Type</label>
+                        <select id="reviewCatalogType" class="form-select">
+                            <option>BRANDED_PRODUCT</option>
+                            <option>GENERIC_INGREDIENT</option>
+                            <option>LOCAL_DISH</option>
+                            <option>USER_CUSTOM</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label" for="reviewDisplayImageUrl">Display image URL</label>
                         <input id="reviewDisplayImageUrl" class="form-control">
                     </div>
@@ -996,6 +1052,9 @@
         if (el("verificationStatus").value) params.set("verificationStatus", el("verificationStatus").value);
         if (el("imageStatus").value) params.set("imageStatus", el("imageStatus").value);
         if (el("marketRegion").value) params.set("region", el("marketRegion").value);
+        if (el("catalogType").value) params.set("catalogType", el("catalogType").value);
+        if (el("dataSource").value) params.set("dataSource", el("dataSource").value);
+        if (el("qualityIssue").value) params.set("qualityIssue", el("qualityIssue").value);
 
         const result = await api(`/api/v1/admin/products/review?${params}`, {headers: authHeaders(false)});
         state.lastProducts = result.content || [];
@@ -1026,7 +1085,11 @@
                         ${statusBadge(p.verificationStatus)}
                         <div class="mt-1">${statusBadge(p.imageStatus)}</div>
                     </td>
-                    <td><span class="badge text-bg-light">${p.marketRegion || "NO_REGION"}</span></td>
+                    <td>
+                        <span class="badge text-bg-light">${p.catalogType || "NO_TYPE"}</span>
+                        <div class="small muted mt-1">${p.marketRegion || "NO_REGION"}</div>
+                        <div class="small muted">${p.dataSource || "NO_SOURCE"}</div>
+                    </td>
                     <td>
                         <div class="small">Quality <strong>${p.qualityScore ?? "-"}</strong></div>
                         <div class="small">Priority <strong>${p.reviewPriority ?? "-"}</strong></div>
@@ -1054,6 +1117,7 @@
         el("reviewVerificationStatus").value = product.verificationStatus || "NEEDS_REVIEW";
         el("reviewImageStatus").value = product.imageStatus || "NEEDS_REVIEW";
         el("reviewMarketRegion").value = product.marketRegion || "";
+        el("reviewCatalogType").value = product.catalogType || "BRANDED_PRODUCT";
         el("reviewDisplayImageUrl").value = product.displayImageUrl || product.imageUrl || product.externalImageUrl || "";
         el("reviewNote").value = "";
         el("auditBox").classList.add("d-none");
@@ -1067,6 +1131,7 @@
             verificationStatus: el("reviewVerificationStatus").value,
             imageStatus: el("reviewImageStatus").value,
             marketRegion: el("reviewMarketRegion").value || null,
+            catalogType: el("reviewCatalogType").value,
             displayImageUrl: el("reviewDisplayImageUrl").value.trim(),
             reviewNote: el("reviewNote").value.trim()
         };
@@ -1145,13 +1210,51 @@
         const form = new FormData();
         form.append("file", file);
         form.append("importMode", el("importMode").value);
+        form.append("importFormat", el("importFormat").value);
         const result = await api("/api/v1/admin/products/import", {
             method: "POST",
             headers: authHeaders(false),
             body: form
         });
-        setAlert(JSON.stringify(result, null, 2), "success");
+        setAlert(formatImportResult(result), result.skippedRows ? "warning" : "success");
         await Promise.all([loadSummary(), loadProducts(0)]);
+    }
+
+    function formatImportResult(result) {
+        const lines = [
+            `Import tamamlandi. Format: ${result.importFormat || "-"} / Source: ${result.sourceFormat || "-"}`,
+            `Quality score: ${result.importQualityScore ?? "-"}/100`,
+            `Toplam ${result.totalRows ?? 0}, kaydedilen ${result.savedRows ?? 0}, yeni ${result.insertedRows ?? 0}, guncellenen ${result.updatedRows ?? 0}, atlanan ${result.skippedRows ?? 0}.`,
+            `Review gerekli: ${result.reviewRequiredRows ?? 0}, duplicate input: ${result.duplicateInputRows ?? 0}.`,
+            `Region: ${formatObjectCounts(result.marketRegionCounts)}`,
+            `Type: ${formatObjectCounts(result.catalogTypeCounts)}`,
+            `Quality warnings: ${formatObjectCounts(result.qualityWarningCounts)}`
+        ];
+        lines.push(`Source: ${formatObjectCounts(result.dataSourceCounts)}`);
+        if (result.missingMarketRegionRows || result.unsupportedMarketRegionRows) {
+            lines.push(`Region uyarilari: missing=${result.missingMarketRegionRows ?? 0}, unsupported=${result.unsupportedMarketRegionRows ?? 0}.`);
+        }
+        const errors = result.errors || [];
+        if (errors.length) {
+            lines.push("Ilk hatalar:");
+            errors.slice(0, 5).forEach((error) => {
+                lines.push(`- Row ${error.rowNumber}: ${error.reason || error.message || "Unknown import error"}`);
+            });
+        }
+        const warnings = result.warnings || [];
+        if (warnings.length) {
+            lines.push("Ilk uyarilar:");
+            warnings.slice(0, 5).forEach((warning) => {
+                lines.push(`- Row ${warning.rowNumber}: ${warning.code} (${warning.identifier || "-"})`);
+            });
+        }
+        return lines.join("\n");
+    }
+
+    function formatObjectCounts(value) {
+        const entries = Object.entries(value || {});
+        if (!entries.length) return "-";
+        return entries.map(([key, count]) => `${key}=${count}`).join(", ");
     }
 
     async function loadSystemHealth() {

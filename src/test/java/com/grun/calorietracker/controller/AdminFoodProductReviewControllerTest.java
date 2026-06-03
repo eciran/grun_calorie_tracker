@@ -11,8 +11,12 @@ import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -76,17 +80,18 @@ class AdminFoodProductReviewControllerTest {
                 List.of()
         );
 
-        when(foodProductImportService.importCsv(any(), eq("admin@test.com"), eq(FoodProductImportMode.RAW_EXTERNAL))).thenReturn(response);
+        when(foodProductImportService.importCsv(any(), eq("admin@test.com"), eq(FoodProductImportMode.RAW_EXTERNAL), eq(FoodProductImportFormat.OPEN_FOOD_FACTS_EXPORT))).thenReturn(response);
 
         mockMvc.perform(multipart("/api/v1/admin/products/import")
                         .file(file)
-                        .param("importMode", "RAW_EXTERNAL"))
+                        .param("importMode", "RAW_EXTERNAL")
+                        .param("importFormat", "OPEN_FOOD_FACTS_EXPORT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalRows").value(1))
                 .andExpect(jsonPath("$.insertedRows").value(1))
                 .andExpect(jsonPath("$.savedRows").value(1));
 
-        verify(foodProductImportService).importCsv(any(), eq("admin@test.com"), eq(FoodProductImportMode.RAW_EXTERNAL));
+        verify(foodProductImportService).importCsv(any(), eq("admin@test.com"), eq(FoodProductImportMode.RAW_EXTERNAL), eq(FoodProductImportFormat.OPEN_FOOD_FACTS_EXPORT));
     }
 
     @Test
@@ -110,6 +115,9 @@ class AdminFoodProductReviewControllerTest {
         when(foodProductReviewService.getProductsForReview(
                 VerificationStatus.RAW_IMPORTED,
                 ImageStatus.NEEDS_REVIEW,
+                null,
+                null,
+                null,
                 null,
                 0,
                 25
@@ -142,6 +150,9 @@ class AdminFoodProductReviewControllerTest {
                 VerificationStatus.RAW_IMPORTED,
                 ImageStatus.NEEDS_REVIEW,
                 MarketRegion.TR,
+                null,
+                null,
+                null,
                 0,
                 25
         )).thenReturn(page);
@@ -150,6 +161,105 @@ class AdminFoodProductReviewControllerTest {
                         .param("verificationStatus", "RAW_IMPORTED")
                         .param("imageStatus", "NEEDS_REVIEW")
                         .param("region", "TR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductsForReview_whenCatalogTypeProvided_passesCatalogTypeFilter() throws Exception {
+        FoodProductReviewPageDto page = new FoodProductReviewPageDto();
+        page.setContent(List.of());
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(0L);
+        page.setTotalPages(0);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodProductReviewService.getProductsForReview(
+                VerificationStatus.RAW_IMPORTED,
+                ImageStatus.NEEDS_REVIEW,
+                MarketRegion.TR,
+                FoodCatalogType.LOCAL_DISH,
+                null,
+                null,
+                0,
+                25
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/admin/products/review")
+                        .param("verificationStatus", "RAW_IMPORTED")
+                        .param("imageStatus", "NEEDS_REVIEW")
+                        .param("region", "TR")
+                        .param("catalogType", "LOCAL_DISH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductsForReview_whenDataSourceProvided_passesDataSourceFilter() throws Exception {
+        FoodProductReviewPageDto page = new FoodProductReviewPageDto();
+        page.setContent(List.of());
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(0L);
+        page.setTotalPages(0);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodProductReviewService.getProductsForReview(
+                VerificationStatus.RAW_IMPORTED,
+                ImageStatus.NEEDS_REVIEW,
+                MarketRegion.TR,
+                FoodCatalogType.BRANDED_PRODUCT,
+                FoodDataSource.OPEN_FOOD_FACTS,
+                null,
+                0,
+                25
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/admin/products/review")
+                        .param("verificationStatus", "RAW_IMPORTED")
+                        .param("imageStatus", "NEEDS_REVIEW")
+                        .param("region", "TR")
+                        .param("catalogType", "BRANDED_PRODUCT")
+                        .param("dataSource", "OPEN_FOOD_FACTS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductsForReview_whenQualityIssueProvided_passesQualityIssueFilter() throws Exception {
+        FoodProductReviewPageDto page = new FoodProductReviewPageDto();
+        page.setContent(List.of());
+        page.setPage(0);
+        page.setSize(25);
+        page.setTotalElements(0L);
+        page.setTotalPages(0);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodProductReviewService.getProductsForReview(
+                VerificationStatus.RAW_IMPORTED,
+                ImageStatus.NEEDS_REVIEW,
+                MarketRegion.TR,
+                FoodCatalogType.BRANDED_PRODUCT,
+                FoodDataSource.OPEN_FOOD_FACTS,
+                FoodProductQualityIssue.MISSING_IMAGE,
+                0,
+                25
+        )).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/admin/products/review")
+                        .param("verificationStatus", "RAW_IMPORTED")
+                        .param("imageStatus", "NEEDS_REVIEW")
+                        .param("region", "TR")
+                        .param("catalogType", "BRANDED_PRODUCT")
+                        .param("dataSource", "OPEN_FOOD_FACTS")
+                        .param("qualityIssue", "MISSING_IMAGE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
     }

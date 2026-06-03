@@ -18,6 +18,7 @@ import com.grun.calorietracker.service.OpenFoodFactsService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -68,7 +69,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     @Override
     public FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;
-        Sort sort = buildSort(safeCriteria);
+        Sort sort = hasExplicitSort(safeCriteria) ? buildSort(safeCriteria) : Sort.unsorted();
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), sort);
 
         Page<FoodItemEntity> prioritizedLocalProducts = searchLocalProductsByRegionPriority(safeCriteria, pageable);
@@ -76,7 +77,7 @@ public class FoodItemServiceImpl implements FoodItemService {
             return toSearchPageDto(prioritizedLocalProducts);
         }
 
-        Specification<FoodItemEntity> specification = buildSearchSpecification(safeCriteria, true);
+        Specification<FoodItemEntity> specification = buildSearchSpecification(safeCriteria, true, !hasExplicitSort(safeCriteria));
         Page<FoodItemEntity> localProducts = foodItemRepository.findAll(specification, pageable);
         if (localProducts.hasContent()) {
             return toSearchPageDto(localProducts);
@@ -85,7 +86,11 @@ public class FoodItemServiceImpl implements FoodItemService {
         return searchAndCacheExternalProducts(safeCriteria, pageable);
     }
 
-    private Specification<FoodItemEntity> buildSearchSpecification(FoodSearchCriteriaDto criteria, boolean expandRegionFallbacks) {
+    private Specification<FoodItemEntity> buildSearchSpecification(
+            FoodSearchCriteriaDto criteria,
+            boolean expandRegionFallbacks,
+            boolean applyDefaultOrdering
+    ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.or(
@@ -139,8 +144,46 @@ public class FoodItemServiceImpl implements FoodItemService {
                 predicates.add(criteriaBuilder.equal(root.get("catalogType"), criteria.getCatalogType()));
             }
 
+            if (applyDefaultOrdering && query != null) {
+                query.orderBy(buildDefaultSearchOrders(root, criteriaBuilder, searchQuery));
+            }
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private List<jakarta.persistence.criteria.Order> buildDefaultSearchOrders(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String searchQuery
+    ) {
+        List<jakarta.persistence.criteria.Order> orders = new ArrayList<>();
+
+        if (searchQuery != null) {
+            String normalizedQuery = searchQuery.toLowerCase(Locale.ROOT);
+            orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
+                    .when(criteriaBuilder.equal(criteriaBuilder.lower(root.get("name")), normalizedQuery), 0)
+                    .when(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), normalizedQuery + "%"), 1)
+                    .otherwise(2)));
+        }
+
+        orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.VERIFIED), 0)
+                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.NEEDS_REVIEW), 1)
+                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.RAW_IMPORTED), 2)
+                .otherwise(3)));
+
+        orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.LOCAL_DISH), 0)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.GENERIC_INGREDIENT), 1)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT), 2)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.USER_CUSTOM), 3)
+                .otherwise(4)));
+
+        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("qualityScore"), 0)));
+        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("usageCount"), 0L)));
+        orders.add(criteriaBuilder.asc(root.get("name")));
+        return orders;
     }
 
     private Sort buildSort(FoodSearchCriteriaDto criteria) {
@@ -284,8 +327,8 @@ public class FoodItemServiceImpl implements FoodItemService {
         for (MarketRegion region : resolveSearchRegions(criteria.getMarketRegion())) {
             FoodSearchCriteriaDto regionalCriteria = copyCriteriaWithRegion(criteria, region);
             Page<FoodItemEntity> regionalPage = foodItemRepository.findAll(
-                    buildSearchSpecification(regionalCriteria, false),
-                    PageRequest.of(0, requestedRows, buildDefaultSearchSort())
+                    buildSearchSpecification(regionalCriteria, false, true),
+                    PageRequest.of(0, requestedRows, Sort.unsorted())
             );
             totalElements += regionalPage.getTotalElements();
             mergedProducts.addAll(regionalPage.getContent());

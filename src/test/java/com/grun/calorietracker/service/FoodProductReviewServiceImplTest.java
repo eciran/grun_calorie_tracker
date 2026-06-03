@@ -18,6 +18,7 @@ import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.impl.FoodProductReviewServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +55,9 @@ class FoodProductReviewServiceImplTest {
 
     @Mock
     private FoodProductReviewAuditRepository foodProductReviewAuditRepository;
+
+    @Mock
+    private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     @InjectMocks
     private FoodProductReviewServiceImpl foodProductReviewService;
@@ -124,6 +128,7 @@ class FoodProductReviewServiceImplTest {
         assertNotNull(result.getQualityScore());
         assertNotNull(result.getReviewPriority());
         verify(foodItemRepository).save(product);
+        verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
 
         ArgumentCaptor<List<FoodProductReviewAuditEntity>> auditCaptor = ArgumentCaptor.forClass(List.class);
         verify(foodProductReviewAuditRepository).saveAll(auditCaptor.capture());
@@ -158,6 +163,7 @@ class FoodProductReviewServiceImplTest {
         foodProductReviewService.updateProductReview(1L, request, "admin@grun.app");
 
         verify(foodProductReviewAuditRepository, never()).saveAll(any());
+        verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
     }
 
     @Test
@@ -365,5 +371,6 @@ class FoodProductReviewServiceImplTest {
                 auditCaptor.getValue().getNote()
         );
         verify(foodItemRepository).deleteAll(List.of(duplicateProduct));
+        verify(foodProductQualityIssueTracker).syncReviewIssues(targetProduct, "admin@grun.app");
     }
 }

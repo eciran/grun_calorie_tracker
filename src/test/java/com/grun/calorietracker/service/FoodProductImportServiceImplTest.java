@@ -4,12 +4,14 @@ import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.impl.FoodProductImportServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 class FoodProductImportServiceImplTest {
@@ -34,12 +37,15 @@ class FoodProductImportServiceImplTest {
     @Mock
     private FoodItemRepository foodItemRepository;
 
+    @Mock
+    private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
+
     private FoodProductImportServiceImpl foodProductImportService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        foodProductImportService = new FoodProductImportServiceImpl(foodItemRepository);
+        foodProductImportService = new FoodProductImportServiceImpl(foodItemRepository, foodProductQualityIssueTracker);
     }
 
     @Test
@@ -72,6 +78,8 @@ class FoodProductImportServiceImplTest {
         assertEquals(0, result.getUnsupportedMarketRegionRows());
         assertEquals(1, result.getMarketRegionCounts().get("UK_IE"));
         assertEquals(1, result.getMarketRegionCounts().get("TR"));
+        assertEquals(2, result.getCatalogTypeCounts().get("BRANDED_PRODUCT"));
+        assertEquals(2, result.getDataSourceCounts().get("ADMIN_IMPORT"));
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -162,6 +170,9 @@ class FoodProductImportServiceImplTest {
         assertEquals(2, result.getTotalRows());
         assertEquals(2, result.getSavedRows());
         assertEquals(0, result.getSkippedRows());
+        assertEquals(1, result.getCatalogTypeCounts().get("LOCAL_DISH"));
+        assertEquals(1, result.getCatalogTypeCounts().get("GENERIC_INGREDIENT"));
+        assertEquals(2, result.getDataSourceCounts().get("ADMIN_IMPORT"));
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -235,6 +246,104 @@ class FoodProductImportServiceImplTest {
         assertEquals(VerificationStatus.RAW_IMPORTED, savedProducts.get(0).getVerificationStatus());
         assertEquals(ImageStatus.NEEDS_REVIEW, savedProducts.get(0).getImageStatus());
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, savedProducts.get(0).getDataSource());
+    }
+
+    @Test
+    void importCsv_whenDataSourceColumnProvided_usesExplicitSupportedSourceAndReportsCounts() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,data_source,source_key,name,calories,protein,fat,carbs,market_region
+                GENERIC_INGREDIENT,USDA,USDA:fdc:1102647,Raw Oats,389,16.9,6.9,66.3,GLOBAL
+                LOCAL_DISH,LOCAL_CURATED,TR:LOCAL_DISH:ezogelin_corbasi,Ezogelin Corbasi,95,4.5,2.7,13.2,TR
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getSavedRows());
+        assertEquals(1, result.getDataSourceCounts().get("USDA_FOODDATA"));
+        assertEquals(1, result.getDataSourceCounts().get("LOCAL_CURATED"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals(FoodDataSource.USDA_FOODDATA, savedProducts.get(0).getDataSource());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, savedProducts.get(0).getCatalogType());
+        assertEquals(FoodDataSource.LOCAL_CURATED, savedProducts.get(1).getDataSource());
+        assertEquals(FoodCatalogType.LOCAL_DISH, savedProducts.get(1).getCatalogType());
+    }
+
+    @Test
+    void importCsv_whenOpenFoodFactsExportFormat_mapsNativeColumns() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = tsv("""
+                code\tproduct_name\tenergy-kcal_100g\tproteins_100g\tfat_100g\tcarbohydrates_100g\tfiber_100g\tsugars_100g\tsodium_100g\tserving_size\tserving_quantity\tserving_quantity_unit\timage_url\tallergens_tags\tnutrition_grade_fr
+                3017620422003\tNutella Hazelnut Cocoa Spread\t539\t6.3\t30.9\t57.5\t0\t56.3\t0.107\t15 g\t15\tg\thttps://images.openfoodfacts.org/nutella.jpg\ten:milk,en:nuts\te
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "bulk@test.com",
+                FoodProductImportMode.RAW_EXTERNAL,
+                FoodProductImportFormat.AUTO
+        );
+
+        assertEquals("OPEN_FOOD_FACTS_EXPORT", result.getSourceFormat());
+        assertEquals(1, result.getDataSourceCounts().get("OPEN_FOOD_FACTS"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity imported = captor.getValue().get(0);
+
+        assertEquals("3017620422003", imported.getNormalizedBarcode());
+        assertEquals("Nutella Hazelnut Cocoa Spread", imported.getName());
+        assertEquals(FoodDataSource.OPEN_FOOD_FACTS, imported.getDataSource());
+        assertEquals(539, imported.getCalories());
+        assertEquals(6.3, imported.getProtein());
+        assertEquals(30.9, imported.getFat());
+        assertEquals(57.5, imported.getCarbs());
+        assertEquals("https://images.openfoodfacts.org/nutella.jpg", imported.getImageUrl());
+        assertEquals("en:milk,en:nuts", imported.getAllergens());
+        assertEquals("e", imported.getNutriScore());
+        assertEquals(15, imported.getServingSizeGrams());
+        assertEquals("g", imported.getServingUnit());
+    }
+
+    @Test
+    void importCsv_whenUsdaFormat_mapsFdcIdAndDescriptionAsGenericIngredient() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                fdc_id,description,catalog_type,calories,protein,fat,carbohydrates_100g,fiber_100g,market_region
+                1102647,Oats raw,GENERIC_INGREDIENT,389,16.9,6.9,66.3,10.6,GLOBAL
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "bulk@test.com",
+                FoodProductImportMode.RAW_EXTERNAL,
+                FoodProductImportFormat.AUTO
+        );
+
+        assertEquals("USDA_FOODDATA", result.getSourceFormat());
+        assertEquals(1, result.getDataSourceCounts().get("USDA_FOODDATA"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity imported = captor.getValue().get(0);
+
+        assertEquals("USDA_FOODDATA:fdc:1102647", imported.getSourceKey());
+        assertEquals("Oats raw", imported.getName());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, imported.getCatalogType());
+        assertEquals(FoodDataSource.USDA_FOODDATA, imported.getDataSource());
+        assertEquals(null, imported.getNormalizedBarcode());
+        assertEquals(389, imported.getCalories());
+        assertEquals(66.3, imported.getCarbs());
     }
 
     @Test
@@ -342,11 +451,50 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getMissingMarketRegionRows());
         assertEquals(1, result.getUnsupportedMarketRegionRows());
         assertEquals(2, result.getMarketRegionCounts().get("GLOBAL"));
+        assertEquals(1, result.getQualityWarningCounts().get("MISSING_REGION"));
+        assertEquals(1, result.getQualityWarningCounts().get("UNSUPPORTED_REGION"));
+        assertEquals(8, result.getWarnings().size());
+        assertEquals("MISSING_REGION", result.getWarnings().get(0).getCode());
+        assertEquals("1111111111111", result.getWarnings().get(0).getIdentifier());
+        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(4).getCode());
+        assertEquals(68, result.getImportQualityScore());
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
         assertEquals(MarketRegion.GLOBAL, captor.getValue().get(0).getMarketRegion());
         assertEquals(MarketRegion.GLOBAL, captor.getValue().get(1).getMarketRegion());
+    }
+
+    @Test
+    void importCsv_reportsQualityWarningCountsForSavedRows() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,protein,fat,carbs,market_region
+                not-a-barcode,Incomplete Branded Product,,,,,TR
+                1234567890123,No Image Product,120,3,4,5,TR
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getSavedRows());
+        assertEquals(1, result.getQualityWarningCounts().get("INVALID_BARCODE_FORMAT"));
+        assertEquals(1, result.getQualityWarningCounts().get("MISSING_CALORIES"));
+        assertEquals(1, result.getQualityWarningCounts().get("MISSING_MACROS"));
+        assertEquals(2, result.getQualityWarningCounts().get("MISSING_SERVING_SIZE"));
+        assertEquals(2, result.getQualityWarningCounts().get("MISSING_IMAGE"));
+        assertEquals(7, result.getWarnings().size());
+        assertEquals("MISSING_CALORIES", result.getWarnings().get(0).getCode());
+        assertEquals("not-a-barcode", result.getWarnings().get(0).getIdentifier());
+        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(4).getCode());
+        assertEquals(72, result.getImportQualityScore());
+        verify(foodProductQualityIssueTracker, times(2)).syncImportIssues(
+                any(FoodItemEntity.class),
+                eq(false),
+                eq(false),
+                eq("admin@test.com")
+        );
     }
 
     private MockMultipartFile csv(String content) {

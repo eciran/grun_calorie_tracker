@@ -9,7 +9,11 @@ import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
@@ -70,11 +74,14 @@ public class AdminFoodProductReviewController {
             @RequestParam("file") MultipartFile file,
             @Parameter(description = "Controls whether the CSV is curated admin data or raw external bulk data.", example = "RAW_EXTERNAL")
             @RequestParam(defaultValue = "CURATED_ADMIN") FoodProductImportMode importMode,
+            @Parameter(description = "Column mapping format. AUTO detects GRun, Open Food Facts export, or USDA-like files.", example = "AUTO")
+            @RequestParam(defaultValue = "AUTO") FoodProductImportFormat importFormat,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductImportService.importCsv(
                 file,
                 userDetails == null ? null : userDetails.getUsername(),
-                importMode
+                importMode,
+                importFormat
         ));
     }
 
@@ -95,6 +102,12 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) ImageStatus imageStatus,
             @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
+            @Parameter(description = "Optional catalog type filter.", example = "LOCAL_DISH")
+            @RequestParam(required = false) FoodCatalogType catalogType,
+            @Parameter(description = "Optional data source filter.", example = "OPEN_FOOD_FACTS")
+            @RequestParam(required = false) FoodDataSource dataSource,
+            @Parameter(description = "Optional derived quality issue filter.", example = "MISSING_IMAGE")
+            @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -103,6 +116,9 @@ public class AdminFoodProductReviewController {
                 verificationStatus,
                 imageStatus,
                 region,
+                catalogType,
+                dataSource,
+                qualityIssue,
                 page,
                 size
         ));

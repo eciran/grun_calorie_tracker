@@ -10,7 +10,11 @@ import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -23,8 +27,11 @@ import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,17 +56,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final FoodLogsRepository foodLogsRepository;
     private final UserFavoriteRepository userFavoriteRepository;
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
+    private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     public FoodProductReviewServiceImpl(
             FoodItemRepository foodItemRepository,
             FoodLogsRepository foodLogsRepository,
             UserFavoriteRepository userFavoriteRepository,
-            FoodProductReviewAuditRepository foodProductReviewAuditRepository
+            FoodProductReviewAuditRepository foodProductReviewAuditRepository,
+            FoodProductQualityIssueTracker foodProductQualityIssueTracker
     ) {
         this.foodItemRepository = foodItemRepository;
         this.foodLogsRepository = foodLogsRepository;
         this.userFavoriteRepository = userFavoriteRepository;
         this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
+        this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
     }
 
     @Override
@@ -85,9 +95,48 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, null, null, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            int page,
+            int size
+    ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, null, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            int page,
+            int size
+    ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            int page,
+            int size
+    ) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
         Page<FoodItemEntity> products = foodItemRepository.findAll(
-                buildReviewSpecification(verificationStatus, imageStatus, marketRegion),
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue),
                 pageable
         );
         return toPageDto(products);
@@ -216,6 +265,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         if (!audits.isEmpty()) {
             foodProductReviewAuditRepository.saveAll(audits);
         }
+        foodProductQualityIssueTracker.syncReviewIssues(savedProduct, reviewedBy);
 
         return FoodItemMapper.mapEntityToDto(savedProduct);
     }
@@ -295,6 +345,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         targetProduct.setUsageCount(calculateMergedUsageCount(targetProduct, duplicateProducts));
         FoodProductQualityRules.updateQualityAndReviewPriority(targetProduct);
         FoodItemEntity savedTargetProduct = foodItemRepository.save(targetProduct);
+        foodProductQualityIssueTracker.syncReviewIssues(savedTargetProduct, reviewedBy);
         foodProductReviewAuditRepository.save(buildMergeAudit(
                 savedTargetProduct,
                 duplicateProductIds,
@@ -480,7 +531,10 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private Specification<FoodItemEntity> buildReviewSpecification(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
-            MarketRegion marketRegion
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue
     ) {
         VerificationStatus effectiveVerificationStatus = verificationStatus == null
                 ? VerificationStatus.RAW_IMPORTED
@@ -494,8 +548,91 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             if (marketRegion != null) {
                 predicates.add(criteriaBuilder.equal(root.get("marketRegion"), marketRegion));
             }
+            if (catalogType != null) {
+                predicates.add(criteriaBuilder.equal(root.get("catalogType"), catalogType));
+            }
+            if (dataSource != null) {
+                predicates.add(criteriaBuilder.equal(root.get("dataSource"), dataSource));
+            }
+            Predicate qualityPredicate = buildQualityIssuePredicate(root, query, criteriaBuilder, qualityIssue);
+            if (qualityPredicate != null) {
+                predicates.add(qualityPredicate);
+            }
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private Predicate buildQualityIssuePredicate(
+            Root<FoodItemEntity> root,
+            CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            FoodProductQualityIssue qualityIssue
+    ) {
+        if (qualityIssue == null) {
+            return null;
+        }
+
+        Predicate activeIssuePredicate = activeQualityIssuePredicate(root, query, criteriaBuilder, qualityIssue);
+        Predicate derivedPredicate = switch (qualityIssue) {
+            case LOW_QUALITY -> criteriaBuilder.or(
+                    criteriaBuilder.isNull(root.get("qualityScore")),
+                    criteriaBuilder.lessThan(root.get("qualityScore"), 60)
+            );
+            case MISSING_IMAGE -> criteriaBuilder.and(
+                    isBlank(root, criteriaBuilder, "imageUrl"),
+                    isBlank(root, criteriaBuilder, "externalImageUrl"),
+                    isBlank(root, criteriaBuilder, "displayImageUrl")
+            );
+            case MISSING_CALORIES -> criteriaBuilder.isNull(root.get("calories"));
+            case MISSING_MACROS -> criteriaBuilder.and(
+                    criteriaBuilder.isNull(root.get("protein")),
+                    criteriaBuilder.isNull(root.get("fat")),
+                    criteriaBuilder.isNull(root.get("carbs"))
+            );
+            case MISSING_SERVING_SIZE -> criteriaBuilder.isNull(root.get("servingSizeGrams"));
+            case MISSING_REGION -> criteriaBuilder.isNull(root.get("marketRegion"));
+            case UNSUPPORTED_REGION -> null;
+            case MISSING_BARCODE -> criteriaBuilder.and(
+                    criteriaBuilder.or(
+                            criteriaBuilder.isNull(root.get("catalogType")),
+                            criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT)
+                    ),
+                    isBlank(root, criteriaBuilder, "barcode"),
+                    isBlank(root, criteriaBuilder, "normalizedBarcode")
+            );
+            case INVALID_BARCODE_FORMAT -> null;
+        };
+        return derivedPredicate == null
+                ? activeIssuePredicate
+                : criteriaBuilder.or(activeIssuePredicate, derivedPredicate);
+    }
+
+    private Predicate activeQualityIssuePredicate(
+            Root<FoodItemEntity> root,
+            CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            FoodProductQualityIssue qualityIssue
+    ) {
+        var subquery = query.subquery(Long.class);
+        Root<FoodProductQualityIssueEntity> issueRoot = subquery.from(FoodProductQualityIssueEntity.class);
+        subquery.select(issueRoot.get("id"));
+        subquery.where(
+                criteriaBuilder.equal(issueRoot.get("foodItem"), root),
+                criteriaBuilder.equal(issueRoot.get("issueType"), qualityIssue),
+                criteriaBuilder.isFalse(issueRoot.get("resolved"))
+        );
+        return criteriaBuilder.exists(subquery);
+    }
+
+    private Predicate isBlank(
+            jakarta.persistence.criteria.Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String fieldName
+    ) {
+        return criteriaBuilder.or(
+                criteriaBuilder.isNull(root.get(fieldName)),
+                criteriaBuilder.equal(criteriaBuilder.trim(root.get(fieldName)), "")
+        );
     }
 
     private Sort buildReviewSort() {

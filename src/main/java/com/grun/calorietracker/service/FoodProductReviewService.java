@@ -7,6 +7,9 @@ import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -17,6 +20,9 @@ public interface FoodProductReviewService {
     List<FoodProductDto> getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, int page, int size);
+    FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, int page, int size);
+    FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, int page, int size);
+    FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, int page, int size);
     default FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request) {
         return updateProductReview(id, request, null);
     }
