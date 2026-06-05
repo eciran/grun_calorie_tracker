@@ -519,16 +519,12 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             throw new IllegalArgumentException("Verified product must have a product name.");
         }
 
-        if (product.getImageStatus() == ImageStatus.APPROVED && trimToNull(product.getDisplayImageUrl()) == null) {
-            throw new IllegalArgumentException("Approved product image must have a display image URL.");
-        }
     }
 
     private void validateRejectionNote(FoodProductReviewRequestDto request, String reviewNote) {
         boolean rejectsProduct = request.getVerificationStatus() == VerificationStatus.REJECTED;
-        boolean rejectsImage = request.getImageStatus() == ImageStatus.REJECTED;
-        if ((rejectsProduct || rejectsImage) && reviewNote == null) {
-            throw new IllegalArgumentException("Review note is required when rejecting product data or image.");
+        if (rejectsProduct && reviewNote == null) {
+            throw new IllegalArgumentException("Review note is required when rejecting product data.");
         }
     }
 
@@ -879,12 +875,12 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         VerificationStatus effectiveVerificationStatus = verificationStatus == null
                 ? VerificationStatus.RAW_IMPORTED
                 : verificationStatus;
-        ImageStatus effectiveImageStatus = imageStatus == null ? ImageStatus.NEEDS_REVIEW : imageStatus;
-
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.equal(root.get("verificationStatus"), effectiveVerificationStatus));
-            predicates.add(criteriaBuilder.equal(root.get("imageStatus"), effectiveImageStatus));
+            if (imageStatus != null) {
+                predicates.add(criteriaBuilder.equal(root.get("imageStatus"), imageStatus));
+            }
             if (marketRegion != null) {
                 predicates.add(criteriaBuilder.equal(root.get("marketRegion"), marketRegion));
             }
@@ -918,11 +914,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     criteriaBuilder.isNull(root.get("qualityScore")),
                     criteriaBuilder.lessThan(root.get("qualityScore"), 60)
             );
-            case MISSING_IMAGE -> criteriaBuilder.and(
-                    isBlank(root, criteriaBuilder, "imageUrl"),
-                    isBlank(root, criteriaBuilder, "externalImageUrl"),
-                    isBlank(root, criteriaBuilder, "displayImageUrl")
-            );
+            case MISSING_IMAGE -> null;
             case MISSING_CALORIES -> criteriaBuilder.isNull(root.get("calories"));
             case MISSING_MACROS -> criteriaBuilder.and(
                     criteriaBuilder.isNull(root.get("protein")),

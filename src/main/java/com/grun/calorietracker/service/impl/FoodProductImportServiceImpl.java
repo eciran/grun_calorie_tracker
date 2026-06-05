@@ -452,9 +452,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
     private boolean requiresReview(FoodItemEntity product) {
         return product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED
-                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW
-                || product.getImageStatus() == ImageStatus.NEEDS_REVIEW
-                || product.getImageStatus() == ImageStatus.RAW;
+                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW;
     }
 
     private void addQualityWarnings(
@@ -480,13 +478,6 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (product.getServingSizeGrams() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_SERVING_SIZE", "Product has no serving size value.");
         }
-        if (firstText(row, "imageurl", "image_url", "image_front_url", "externalimageurl", "external_image_url", "displayimageurl", "display_image_url") == null
-                && FoodProductNormalizationRules.normalizeText(product.getImageUrl()) == null
-                && FoodProductNormalizationRules.normalizeText(product.getExternalImageUrl()) == null
-                && FoodProductNormalizationRules.normalizeText(product.getDisplayImageUrl()) == null) {
-            addWarning(warningCounts, warnings, row, identifier, "MISSING_IMAGE", "Product has no image URL.");
-        }
-
         String rawBarcode = firstText(row, "barcode", "code", "gtin", "ean", "upc");
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(rawBarcode);
         if (normalizedBarcode != null && !normalizedBarcode.matches("\\d{6,18}")) {

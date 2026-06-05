@@ -49,9 +49,6 @@ public class FoodProductQualityIssueTracker {
         if (product.getQualityScore() == null || product.getQualityScore() < 60) {
             issues.put(FoodProductQualityIssue.LOW_QUALITY, "Product quality score is below review threshold.");
         }
-        if (isBlank(product.getImageUrl()) && isBlank(product.getExternalImageUrl()) && isBlank(product.getDisplayImageUrl())) {
-            issues.put(FoodProductQualityIssue.MISSING_IMAGE, "Product has no image URL.");
-        }
         if (product.getCalories() == null) {
             issues.put(FoodProductQualityIssue.MISSING_CALORIES, "Product has no calories value.");
         } else if (product.getCalories() > 1000) {

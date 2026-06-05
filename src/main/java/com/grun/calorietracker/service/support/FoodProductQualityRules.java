@@ -1,7 +1,6 @@
 package com.grun.calorietracker.service.support;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
-import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 
 import java.time.LocalDateTime;
@@ -62,11 +61,6 @@ public final class FoodProductQualityRules {
         if (product.getMarketRegion() != null) {
             score += 5;
         }
-        if (hasText(product.getDisplayImageUrl()) && product.getImageStatus() == ImageStatus.APPROVED) {
-            score += 15;
-        } else if (hasText(product.getExternalImageUrl())) {
-            score += 10;
-        }
         return Math.min(score, 100);
     }
 
@@ -75,12 +69,6 @@ public final class FoodProductQualityRules {
         int priority = (int) Math.min(usageCount * 10, 500);
         if (product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED) {
             priority += 80;
-        }
-        if (product.getImageStatus() == ImageStatus.NEEDS_REVIEW) {
-            priority += 40;
-        }
-        if (!hasText(product.getDisplayImageUrl())) {
-            priority += 20;
         }
         if (product.getQualityScore() != null && product.getQualityScore() < 60) {
             priority += 30;

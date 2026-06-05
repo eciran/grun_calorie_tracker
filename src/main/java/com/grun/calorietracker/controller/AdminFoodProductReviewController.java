@@ -152,7 +152,7 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) FoodCatalogType catalogType,
             @Parameter(description = "Optional data source filter.", example = "OPEN_FOOD_FACTS")
             @RequestParam(required = false) FoodDataSource dataSource,
-            @Parameter(description = "Optional derived quality issue filter.", example = "MISSING_IMAGE")
+            @Parameter(description = "Optional derived quality issue filter.", example = "MISSING_CALORIES")
             @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,

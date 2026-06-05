@@ -72,7 +72,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getUpdatedRows());
         assertEquals(0, result.getSkippedRows());
         assertEquals(2, result.getSavedRows());
-        assertEquals(1, result.getReviewRequiredRows());
+        assertEquals(0, result.getReviewRequiredRows());
         assertEquals("CSV", result.getImportFormat());
         assertEquals(0, result.getMissingMarketRegionRows());
         assertEquals(0, result.getUnsupportedMarketRegionRows());
@@ -495,11 +495,11 @@ class FoodProductImportServiceImplTest {
         assertEquals(2, result.getMarketRegionCounts().get("GLOBAL"));
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_REGION"));
         assertEquals(1, result.getQualityWarningCounts().get("UNSUPPORTED_REGION"));
-        assertEquals(8, result.getWarnings().size());
+        assertEquals(6, result.getWarnings().size());
         assertEquals("MISSING_REGION", result.getWarnings().get(0).getCode());
         assertEquals("1111111111111", result.getWarnings().get(0).getIdentifier());
-        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(4).getCode());
-        assertEquals(68, result.getImportQualityScore());
+        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(3).getCode());
+        assertEquals(76, result.getImportQualityScore());
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -525,12 +525,11 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_CALORIES"));
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_MACROS"));
         assertEquals(2, result.getQualityWarningCounts().get("MISSING_SERVING_SIZE"));
-        assertEquals(2, result.getQualityWarningCounts().get("MISSING_IMAGE"));
-        assertEquals(7, result.getWarnings().size());
+        assertEquals(5, result.getWarnings().size());
         assertEquals("MISSING_CALORIES", result.getWarnings().get(0).getCode());
         assertEquals("not-a-barcode", result.getWarnings().get(0).getIdentifier());
-        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(4).getCode());
-        assertEquals(72, result.getImportQualityScore());
+        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(3).getCode());
+        assertEquals(80, result.getImportQualityScore());
         verify(foodProductQualityIssueTracker, times(2)).syncImportIssues(
                 any(FoodItemEntity.class),
                 eq(false),

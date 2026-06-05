@@ -49,7 +49,7 @@ public class FoodProductImportResultDto {
     @Schema(description = "Saved row count grouped by data source.", example = "{\"OPEN_FOOD_FACTS\": 120, \"USDA_FOODDATA\": 80}")
     private Map<String, Integer> dataSourceCounts;
 
-    @Schema(description = "Saved row warning count grouped by quality issue.", example = "{\"MISSING_IMAGE\": 120, \"MISSING_MACROS\": 8}")
+    @Schema(description = "Saved row warning count grouped by quality issue.", example = "{\"MISSING_MACROS\": 8, \"MISSING_SERVING_SIZE\": 12}")
     private Map<String, Integer> qualityWarningCounts;
 
     @Schema(description = "Overall import quality score from 0 to 100. Errors and warnings reduce this score.", example = "87")

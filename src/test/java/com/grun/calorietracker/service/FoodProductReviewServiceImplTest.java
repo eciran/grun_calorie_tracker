@@ -276,7 +276,7 @@ class FoodProductReviewServiceImplTest {
     }
 
     @Test
-    void updateProductReview_whenApprovedImageUrlIsBlank_throwsIllegalArgumentException() {
+    void updateProductReview_whenApprovedImageUrlIsBlank_allowsOptionalImageMetadata() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);
         product.setName("Nutella");
@@ -288,10 +288,12 @@ class FoodProductReviewServiceImplTest {
         request.setImageStatus(ImageStatus.APPROVED);
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
 
-        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
-        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
-        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+        FoodProductDto result = foodProductReviewService.updateProductReview(1L, request);
+
+        assertEquals(ImageStatus.APPROVED, result.getImageStatus());
+        verify(foodItemRepository).save(product);
     }
 
     @Test
@@ -331,7 +333,7 @@ class FoodProductReviewServiceImplTest {
     }
 
     @Test
-    void updateProductReview_whenRejectingImageWithoutNote_throwsIllegalArgumentException() {
+    void updateProductReview_whenRejectingImageWithoutNote_allowsOptionalImageMetadata() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);
         product.setName("Nutella");
@@ -342,10 +344,12 @@ class FoodProductReviewServiceImplTest {
         request.setImageStatus(ImageStatus.REJECTED);
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
 
-        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
-        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
-        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+        FoodProductDto result = foodProductReviewService.updateProductReview(1L, request);
+
+        assertEquals(ImageStatus.REJECTED, result.getImageStatus());
+        verify(foodItemRepository).save(product);
     }
 
     @Test
@@ -503,7 +507,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals(2L, result.getScannedProducts());
         assertEquals(2, result.getProcessedBatches());
         assertEquals(1, result.getPageSize());
-        assertEquals(70, first.getQualityScore());
+        assertEquals(60, first.getQualityScore());
         verify(foodProductQualityIssueTracker).syncReviewIssues(first, "admin@grun.app");
         verify(foodProductQualityIssueTracker).syncReviewIssues(second, "admin@grun.app");
     }
