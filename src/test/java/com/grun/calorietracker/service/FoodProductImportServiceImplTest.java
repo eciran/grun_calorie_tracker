@@ -281,8 +281,8 @@ class FoodProductImportServiceImplTest {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = tsv("""
-                code\tproduct_name\tenergy-kcal_100g\tproteins_100g\tfat_100g\tcarbohydrates_100g\tfiber_100g\tsugars_100g\tsodium_100g\tserving_size\tserving_quantity\tserving_quantity_unit\timage_url\tallergens_tags\tnutrition_grade_fr
-                3017620422003\tNutella Hazelnut Cocoa Spread\t539\t6.3\t30.9\t57.5\t0\t56.3\t0.107\t15 g\t15\tg\thttps://images.openfoodfacts.org/nutella.jpg\ten:milk,en:nuts\te
+                code\tproduct_name\tenergy-kcal_100g\tproteins_100g\tfat_100g\tcarbohydrates_100g\tfiber_100g\tsugars_100g\tsodium_100g\tpotassium_100g\tcalcium_100g\tiron_100g\tvitamin-a_100g\tsaturated-fat_100g\ttrans-fat_100g\tserving_size\tserving_quantity\tserving_quantity_unit\timage_url\tallergens_tags\tnutrition_grade_fr
+                3017620422003\tNutella Hazelnut Cocoa Spread\t539\t6.3\t30.9\t57.5\t0\t56.3\t0.107\t0.3578\t0.1824\t0.0045\t0.0009\t10.6\t0.01\t15 g\t15\tg\thttps://images.openfoodfacts.org/nutella.jpg\ten:milk,en:nuts\te
                 """);
 
         FoodProductImportResultDto result = foodProductImportService.importCsv(
@@ -306,6 +306,12 @@ class FoodProductImportServiceImplTest {
         assertEquals(6.3, imported.getProtein());
         assertEquals(30.9, imported.getFat());
         assertEquals(57.5, imported.getCarbs());
+        assertEquals(0.358, imported.getPotassium());
+        assertEquals(0.182, imported.getCalcium());
+        assertEquals(0.005, imported.getIron());
+        assertEquals(0.001, imported.getVitaminA());
+        assertEquals(10.6, imported.getSaturatedFat());
+        assertEquals(0.0, imported.getTransFat());
         assertEquals("https://images.openfoodfacts.org/nutella.jpg", imported.getImageUrl());
         assertEquals("en:milk,en:nuts", imported.getAllergens());
         assertEquals("e", imported.getNutriScore());

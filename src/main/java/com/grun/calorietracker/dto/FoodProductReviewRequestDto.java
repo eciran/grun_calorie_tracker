@@ -52,6 +52,48 @@ public class FoodProductReviewRequestDto {
     @Schema(description = "Sodium amount per 100g/ml or configured product base.", example = "0.107")
     private Double sodium;
 
+    @Schema(description = "Potassium amount per 100g/ml or configured product base.", example = "120.0")
+    private Double potassium;
+
+    @Schema(description = "Cholesterol amount per 100g/ml or configured product base.", example = "0.0")
+    private Double cholesterol;
+
+    @Schema(description = "Calcium amount per 100g/ml or configured product base.", example = "43.0")
+    private Double calcium;
+
+    @Schema(description = "Iron amount per 100g/ml or configured product base.", example = "1.2")
+    private Double iron;
+
+    @Schema(description = "Magnesium amount per 100g/ml or configured product base.", example = "22.0")
+    private Double magnesium;
+
+    @Schema(description = "Zinc amount per 100g/ml or configured product base.", example = "0.6")
+    private Double zinc;
+
+    @Schema(description = "Vitamin A amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminA;
+
+    @Schema(description = "Vitamin C amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminC;
+
+    @Schema(description = "Vitamin D amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminD;
+
+    @Schema(description = "Vitamin E amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminE;
+
+    @Schema(description = "Vitamin B12 amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminB12;
+
+    @Schema(description = "Saturated fat amount in grams per 100g/ml or configured product base.", example = "10.6")
+    private Double saturatedFat;
+
+    @Schema(description = "Trans fat amount in grams per 100g/ml or configured product base.", example = "0.0")
+    private Double transFat;
+
+    @Schema(description = "Sugar alcohol amount in grams per 100g/ml or configured product base.", example = "0.0")
+    private Double sugarAlcohol;
+
     @Schema(description = "Serving size in grams used for SERVING and PIECE food log conversion.", example = "30.0")
     private Double servingSizeGrams;
 
@@ -171,6 +213,118 @@ public class FoodProductReviewRequestDto {
 
     public void setSodium(Double sodium) {
         this.sodium = sodium;
+    }
+
+    public Double getPotassium() {
+        return potassium;
+    }
+
+    public void setPotassium(Double potassium) {
+        this.potassium = potassium;
+    }
+
+    public Double getCholesterol() {
+        return cholesterol;
+    }
+
+    public void setCholesterol(Double cholesterol) {
+        this.cholesterol = cholesterol;
+    }
+
+    public Double getCalcium() {
+        return calcium;
+    }
+
+    public void setCalcium(Double calcium) {
+        this.calcium = calcium;
+    }
+
+    public Double getIron() {
+        return iron;
+    }
+
+    public void setIron(Double iron) {
+        this.iron = iron;
+    }
+
+    public Double getMagnesium() {
+        return magnesium;
+    }
+
+    public void setMagnesium(Double magnesium) {
+        this.magnesium = magnesium;
+    }
+
+    public Double getZinc() {
+        return zinc;
+    }
+
+    public void setZinc(Double zinc) {
+        this.zinc = zinc;
+    }
+
+    public Double getVitaminA() {
+        return vitaminA;
+    }
+
+    public void setVitaminA(Double vitaminA) {
+        this.vitaminA = vitaminA;
+    }
+
+    public Double getVitaminC() {
+        return vitaminC;
+    }
+
+    public void setVitaminC(Double vitaminC) {
+        this.vitaminC = vitaminC;
+    }
+
+    public Double getVitaminD() {
+        return vitaminD;
+    }
+
+    public void setVitaminD(Double vitaminD) {
+        this.vitaminD = vitaminD;
+    }
+
+    public Double getVitaminE() {
+        return vitaminE;
+    }
+
+    public void setVitaminE(Double vitaminE) {
+        this.vitaminE = vitaminE;
+    }
+
+    public Double getVitaminB12() {
+        return vitaminB12;
+    }
+
+    public void setVitaminB12(Double vitaminB12) {
+        this.vitaminB12 = vitaminB12;
+    }
+
+    public Double getSaturatedFat() {
+        return saturatedFat;
+    }
+
+    public void setSaturatedFat(Double saturatedFat) {
+        this.saturatedFat = saturatedFat;
+    }
+
+    public Double getTransFat() {
+        return transFat;
+    }
+
+    public void setTransFat(Double transFat) {
+        this.transFat = transFat;
+    }
+
+    public Double getSugarAlcohol() {
+        return sugarAlcohol;
+    }
+
+    public void setSugarAlcohol(Double sugarAlcohol) {
+        this.sugarAlcohol = sugarAlcohol;
     }
 
     public Double getServingSizeGrams() {

@@ -66,7 +66,7 @@ public class AdminFoodProductReviewController {
     @PostMapping(value = "/import", consumes = "multipart/form-data")
     @Operation(
             summary = "Import curated food products from CSV",
-            description = "Imports or updates food products by normalized barcode. CURATED_ADMIN marks reviewed admin CSV rows as verified. RAW_EXTERNAL keeps bulk external data in Open Food Facts review state. Required CSV headers: barcode and name. Optional headers include calories, protein, fat, carbs, fiber, sugar, sodium, serving_size_grams, serving_unit, image_url, external_image_url, display_image_url, allergens, and nutri_score."
+            description = "Imports or updates food products by normalized barcode. CURATED_ADMIN marks reviewed admin CSV rows as verified. RAW_EXTERNAL keeps bulk external data in Open Food Facts review state. Required CSV headers: barcode and name. Optional headers include calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, image_url, external_image_url, display_image_url, allergens, and nutri_score."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "CSV import completed."),
@@ -113,7 +113,7 @@ public class AdminFoodProductReviewController {
     @PostMapping(value = "/nutrition-corrections/import", consumes = "multipart/form-data")
     @Operation(
             summary = "Import product nutrition corrections",
-            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Supported correction headers include product_name, calories, protein, fat, carbs, fiber, sugar, sodium, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
+            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Supported correction headers include product_name, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Nutrition correction import completed."),

@@ -198,6 +198,12 @@ class FoodProductReviewServiceImplTest {
         request.setFiber(3.5);
         request.setSugar(5.0);
         request.setSodium(0.25);
+        request.setPotassium(0.36);
+        request.setCalcium(0.18);
+        request.setIron(0.005);
+        request.setVitaminA(0.001);
+        request.setSaturatedFat(1.5);
+        request.setTransFat(0.0);
         request.setServingSizeGrams(125.0);
         request.setServingUnit("g");
         request.setReviewNote("Corrected from product label.");
@@ -214,12 +220,18 @@ class FoodProductReviewServiceImplTest {
         assertEquals(3.5, result.getFiber());
         assertEquals(5.0, result.getSugar());
         assertEquals(0.25, result.getSodium());
+        assertEquals(0.36, result.getPotassium());
+        assertEquals(0.18, result.getCalcium());
+        assertEquals(0.005, result.getIron());
+        assertEquals(0.001, result.getVitaminA());
+        assertEquals(1.5, result.getSaturatedFat());
+        assertEquals(0.0, result.getTransFat());
         assertEquals(125.0, result.getServingSize());
         assertEquals("g", result.getServingUnit());
 
         ArgumentCaptor<List<FoodProductReviewAuditEntity>> auditCaptor = ArgumentCaptor.forClass(List.class);
         verify(foodProductReviewAuditRepository).saveAll(auditCaptor.capture());
-        assertEquals(9, auditCaptor.getValue().size());
+        assertEquals(15, auditCaptor.getValue().size());
         assertEquals("calories", auditCaptor.getValue().get(0).getFieldName());
         assertEquals("100.0", auditCaptor.getValue().get(0).getOldValue());
         assertEquals("150.0", auditCaptor.getValue().get(0).getNewValue());

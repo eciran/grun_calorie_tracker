@@ -100,6 +100,7 @@ public class UserServiceImpl implements UserService {
         dto.setGender(user.getGender());
         dto.setHeight(user.getHeight());
         dto.setWeight(user.getWeight());
+        dto.setRole(user.getRole());
         dto.setEmailVerified(user.getEmailVerified());
         dto.setPasswordSet(user.getPasswordSet());
         dto.setMarketRegion(user.getMarketRegion());
@@ -214,6 +215,7 @@ public class UserServiceImpl implements UserService {
         dto.setWeight(user.getWeight());
         dto.setBodyFat(user.getBodyFatPercentage());
         dto.setBmi(user.getBmi());
+        dto.setRole(user.getRole());
         dto.setEmailVerified(user.getEmailVerified());
         dto.setPasswordSet(user.getPasswordSet());
         dto.setMarketRegion(user.getMarketRegion());
