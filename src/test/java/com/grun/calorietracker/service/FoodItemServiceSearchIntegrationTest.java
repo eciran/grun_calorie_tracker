@@ -3,10 +3,12 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -28,7 +30,8 @@ class FoodItemServiceSearchIntegrationTest {
     @BeforeEach
     void setUp() {
         OpenFoodFactsService openFoodFactsService = Mockito.mock(OpenFoodFactsService.class);
-        foodItemService = new FoodItemServiceImpl(foodItemRepository, openFoodFactsService);
+        FoodProductQualityIssueTracker foodProductQualityIssueTracker = Mockito.mock(FoodProductQualityIssueTracker.class);
+        foodItemService = new FoodItemServiceImpl(foodItemRepository, openFoodFactsService, foodProductQualityIssueTracker);
     }
 
     @Test
@@ -90,12 +93,49 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals("777777", result.getContent().get(2).getBarcode());
     }
 
+    @Test
+    void searchFoodItems_defaultRanking_prioritizesExactVerifiedLocalResultBeforeRawHighQualityResult() {
+        FoodItemEntity exactLocalDish = product("Porridge Oats", null, VerificationStatus.VERIFIED);
+        exactLocalDish.setSourceKey("UK_IE:LOCAL_DISH:porridge_oats");
+        exactLocalDish.setCatalogType(FoodCatalogType.LOCAL_DISH);
+        exactLocalDish.setMarketRegion(MarketRegion.UK_IE);
+        exactLocalDish.setQualityScore(70);
+        exactLocalDish.setUsageCount(5L);
+
+        FoodItemEntity rawBrandedProduct = product("Organic Porridge Oats Bar", "999001", VerificationStatus.RAW_IMPORTED);
+        rawBrandedProduct.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        rawBrandedProduct.setMarketRegion(MarketRegion.UK_IE);
+        rawBrandedProduct.setQualityScore(100);
+        rawBrandedProduct.setUsageCount(500L);
+
+        FoodItemEntity genericIngredient = product("Rolled Oats", null, VerificationStatus.VERIFIED);
+        genericIngredient.setSourceKey("GLOBAL:GENERIC_INGREDIENT:rolled_oats");
+        genericIngredient.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        genericIngredient.setMarketRegion(MarketRegion.GLOBAL);
+        genericIngredient.setQualityScore(95);
+        genericIngredient.setUsageCount(100L);
+
+        foodItemRepository.saveAll(List.of(rawBrandedProduct, genericIngredient, exactLocalDish));
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("porridge oats");
+        criteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(2, result.getContent().size());
+        assertEquals("Porridge Oats", result.getContent().get(0).getProductName());
+        assertEquals(FoodCatalogType.LOCAL_DISH, result.getContent().get(0).getCatalogType());
+        assertEquals("Organic Porridge Oats Bar", result.getContent().get(1).getProductName());
+    }
+
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {
         FoodItemEntity product = new FoodItemEntity();
         product.setName(name);
         product.setBarcode(barcode);
         product.setNormalizedBarcode(barcode);
         product.setVerificationStatus(verificationStatus);
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         product.setCalories(100.0);
         product.setQualityScore(50);
         product.setUsageCount(0L);

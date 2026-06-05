@@ -1,0 +1,12 @@
+.git
+.idea
+.codex
+.mvn
+target
+logs
+outputs
+node_modules
+*.iml
+.env
+*.env
+GIT_COMMANDS_CHEATSHEET.md

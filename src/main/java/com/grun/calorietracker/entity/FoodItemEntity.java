@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -27,6 +28,7 @@ public class FoodItemEntity {
 
     private String barcode;
     private String normalizedBarcode;
+    private String sourceKey;
     private String imageUrl;
     private String externalImageUrl;
     private String displayImageUrl;
@@ -35,6 +37,9 @@ public class FoodItemEntity {
 
     @Enumerated(EnumType.STRING)
     private FoodDataSource dataSource;
+
+    @Enumerated(EnumType.STRING)
+    private FoodCatalogType catalogType;
 
     @Enumerated(EnumType.STRING)
     private VerificationStatus verificationStatus;

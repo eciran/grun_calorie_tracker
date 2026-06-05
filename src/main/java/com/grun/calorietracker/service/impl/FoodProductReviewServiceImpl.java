@@ -5,12 +5,19 @@ import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
+import com.grun.calorietracker.dto.FoodProductNutritionCorrectionImportResultDto;
+import com.grun.calorietracker.dto.FoodProductQualityIssueBackfillResultDto;
+import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -19,12 +26,17 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
+import com.grun.calorietracker.service.support.NutritionValueNormalizer;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,12 +44,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -49,17 +68,23 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final FoodLogsRepository foodLogsRepository;
     private final UserFavoriteRepository userFavoriteRepository;
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
+    private final FoodProductQualityIssueRepository foodProductQualityIssueRepository;
+    private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     public FoodProductReviewServiceImpl(
             FoodItemRepository foodItemRepository,
             FoodLogsRepository foodLogsRepository,
             UserFavoriteRepository userFavoriteRepository,
-            FoodProductReviewAuditRepository foodProductReviewAuditRepository
+            FoodProductReviewAuditRepository foodProductReviewAuditRepository,
+            FoodProductQualityIssueRepository foodProductQualityIssueRepository,
+            FoodProductQualityIssueTracker foodProductQualityIssueTracker
     ) {
         this.foodItemRepository = foodItemRepository;
         this.foodLogsRepository = foodLogsRepository;
         this.userFavoriteRepository = userFavoriteRepository;
         this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
+        this.foodProductQualityIssueRepository = foodProductQualityIssueRepository;
+        this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
     }
 
     @Override
@@ -85,9 +110,48 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, null, null, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            int page,
+            int size
+    ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, null, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            int page,
+            int size
+    ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, page, size);
+    }
+
+    @Override
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            int page,
+            int size
+    ) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
         Page<FoodItemEntity> products = foodItemRepository.findAll(
-                buildReviewSpecification(verificationStatus, imageStatus, marketRegion),
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue),
                 pageable
         );
         return toPageDto(products);
@@ -194,6 +258,52 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             product.setMarketRegion(request.getMarketRegion());
         }
 
+        if (request.getCatalogType() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "catalogType",
+                    product.getCatalogType(),
+                    request.getCatalogType(),
+                    reviewNote
+            );
+            product.setCatalogType(request.getCatalogType());
+        }
+
+        applyDoubleChange(audits, product, reviewedBy, "calories", product.getCalories(), NutritionValueNormalizer.calories(request.getCalories()), product::setCalories, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "protein", product.getProtein(), NutritionValueNormalizer.macro(request.getProtein()), product::setProtein, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "fat", product.getFat(), NutritionValueNormalizer.macro(request.getFat()), product::setFat, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "carbs", product.getCarbs(), NutritionValueNormalizer.macro(request.getCarbs()), product::setCarbs, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "fiber", product.getFiber(), NutritionValueNormalizer.macro(request.getFiber()), product::setFiber, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "sugar", product.getSugar(), NutritionValueNormalizer.macro(request.getSugar()), product::setSugar, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "sodium", product.getSodium(), NutritionValueNormalizer.sodium(request.getSodium()), product::setSodium, reviewNote);
+        applyDoubleChange(
+                audits,
+                product,
+                reviewedBy,
+                "servingSizeGrams",
+                product.getServingSizeGrams(),
+                NutritionValueNormalizer.servingSize(request.getServingSizeGrams()),
+                product::setServingSizeGrams,
+                reviewNote
+        );
+        String servingUnit = trimToNull(request.getServingUnit());
+        if (servingUnit != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "servingUnit",
+                    product.getServingUnit(),
+                    servingUnit,
+                    reviewNote
+            );
+            product.setServingUnit(servingUnit);
+        }
+
         validateReviewState(product);
         product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
         FoodProductQualityRules.markReviewed(product);
@@ -202,6 +312,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         if (!audits.isEmpty()) {
             foodProductReviewAuditRepository.saveAll(audits);
         }
+        foodProductQualityIssueTracker.syncReviewIssues(savedProduct, reviewedBy);
 
         return FoodItemMapper.mapEntityToDto(savedProduct);
     }
@@ -229,6 +340,19 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         dto.setFirst(audits.isFirst());
         dto.setLast(audits.isLast());
         return dto;
+    }
+
+    @Override
+    public List<FoodProductQualityIssueDto> getProductQualityIssues(Long productId, boolean activeOnly) {
+        if (!foodItemRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Food product not found with id: " + productId);
+        }
+        return (activeOnly
+                ? foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(productId)
+                : foodProductQualityIssueRepository.findByFoodItemIdOrderByResolvedAscLastDetectedAtDesc(productId))
+                .stream()
+                .map(this::toQualityIssueDto)
+                .toList();
     }
 
     @Override
@@ -281,6 +405,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         targetProduct.setUsageCount(calculateMergedUsageCount(targetProduct, duplicateProducts));
         FoodProductQualityRules.updateQualityAndReviewPriority(targetProduct);
         FoodItemEntity savedTargetProduct = foodItemRepository.save(targetProduct);
+        foodProductQualityIssueTracker.syncReviewIssues(savedTargetProduct, reviewedBy);
         foodProductReviewAuditRepository.save(buildMergeAudit(
                 savedTargetProduct,
                 duplicateProductIds,
@@ -299,6 +424,73 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 reassignedFavoriteCount,
                 removedFavoriteCount
         );
+    }
+
+    @Override
+    @Transactional
+    public FoodProductQualityIssueBackfillResultDto backfillQualityIssues(int pageSize, String triggeredBy) {
+        int safePageSize = Math.max(1, Math.min(pageSize, 1000));
+        long scannedProducts = 0L;
+        int processedBatches = 0;
+        Page<FoodItemEntity> page;
+
+        do {
+            page = foodItemRepository.findAll(PageRequest.of(processedBatches, safePageSize, Sort.by("id").ascending()));
+            if (!page.hasContent()) {
+                break;
+            }
+            page.getContent().forEach(product -> {
+                FoodProductQualityRules.updateQualityAndReviewPriority(product);
+                foodProductQualityIssueTracker.syncReviewIssues(product, triggeredBy);
+            });
+            scannedProducts += page.getNumberOfElements();
+            processedBatches++;
+        } while (page.hasNext());
+
+        return new FoodProductQualityIssueBackfillResultDto(scannedProducts, processedBatches, safePageSize);
+    }
+
+    @Override
+    @Transactional
+    public FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("CSV file is required.");
+        }
+
+        int totalRows = 0;
+        int updatedRows = 0;
+        List<String> errors = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+            String headerLine = reader.readLine();
+            if (headerLine == null || headerLine.trim().isEmpty()) {
+                throw new IllegalArgumentException("CSV header row is required.");
+            }
+            char delimiter = detectDelimiter(headerLine);
+            Map<String, Integer> headers = indexHeaders(parseDelimitedLine(headerLine, delimiter));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+                totalRows++;
+                CsvCorrectionRow row = new CsvCorrectionRow(totalRows + 1, headers, parseDelimitedLine(line, delimiter));
+                try {
+                    FoodItemEntity product = resolveCorrectionProduct(row);
+                    FoodProductReviewRequestDto request = toCorrectionRequest(row);
+                    updateProductReview(product.getId(), request, reviewedBy);
+                    updatedRows++;
+                } catch (RuntimeException ex) {
+                    if (errors.size() < 50) {
+                        errors.add("Row " + row.rowNumber() + ": " + ex.getMessage());
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("CSV file could not be read.");
+        }
+
+        return new FoodProductNutritionCorrectionImportResultDto(totalRows, updatedRows, totalRows - updatedRows, errors);
     }
 
     private String trimToNull(String value) {
@@ -337,6 +529,35 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         } catch (URISyntaxException ex) {
             throw new IllegalArgumentException("Display image URL must be a valid URL.");
         }
+    }
+
+    private void applyDoubleChange(
+            List<FoodProductReviewAuditEntity> audits,
+            FoodItemEntity product,
+            String reviewedBy,
+            String fieldName,
+            Double oldValue,
+            Double newValue,
+            java.util.function.Consumer<Double> setter,
+            String note
+    ) {
+        if (newValue == null) {
+            return;
+        }
+        if (newValue < 0) {
+            throw new IllegalArgumentException(fieldName + " must not be negative.");
+        }
+        addAuditIfChanged(
+                audits,
+                product,
+                reviewedBy,
+                FoodProductReviewAuditAction.REVIEW_UPDATE,
+                fieldName,
+                oldValue,
+                newValue,
+                note
+        );
+        setter.accept(newValue);
     }
 
     private void addAuditIfChanged(
@@ -382,6 +603,21 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         return dto;
     }
 
+    private FoodProductQualityIssueDto toQualityIssueDto(com.grun.calorietracker.entity.FoodProductQualityIssueEntity issue) {
+        return new FoodProductQualityIssueDto(
+                issue.getId(),
+                issue.getFoodItem().getId(),
+                issue.getIssueType(),
+                issue.getIdentifier(),
+                issue.getReason(),
+                issue.getResolved(),
+                issue.getFirstDetectedAt(),
+                issue.getLastDetectedAt(),
+                issue.getResolvedAt(),
+                issue.getResolvedBy()
+        );
+    }
+
     private void validateMergeRequest(FoodProductMergeRequestDto request) {
         if (request == null) {
             throw new IllegalArgumentException("Merge request must not be empty.");
@@ -425,6 +661,147 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 .toList();
     }
 
+    private FoodItemEntity resolveCorrectionProduct(CsvCorrectionRow row) {
+        String id = firstText(row, "id", "fooditemid", "food_item_id", "productid", "product_id");
+        if (id != null) {
+            try {
+                return foodItemRepository.findById(Long.parseLong(id))
+                        .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
+            } catch (NumberFormatException ex) {
+                throw new IllegalArgumentException("Product id must be numeric.");
+            }
+        }
+
+        String sourceKey = firstText(row, "sourcekey", "source_key");
+        if (sourceKey != null) {
+            return foodItemRepository.findBySourceKey(sourceKey)
+                    .orElseThrow(() -> new ResourceNotFoundException("Food product not found with source key: " + sourceKey));
+        }
+
+        String barcode = firstText(row, "barcode", "normalizedbarcode", "normalized_barcode", "code", "gtin", "ean", "upc");
+        String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(barcode);
+        if (normalizedBarcode != null) {
+            return foodItemRepository.findByNormalizedBarcode(normalizedBarcode)
+                    .or(() -> foodItemRepository.findByBarcode(normalizedBarcode))
+                    .orElseThrow(() -> new ResourceNotFoundException("Food product not found with barcode: " + normalizedBarcode));
+        }
+
+        throw new IllegalArgumentException("Correction row must contain id, source_key, or barcode.");
+    }
+
+    private FoodProductReviewRequestDto toCorrectionRequest(CsvCorrectionRow row) {
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setProductName(firstText(row, "product_name", "productname", "name"));
+        request.setCalories(parseDouble(row, "calories", "energy_kcal_100g", "energy_kcal"));
+        request.setProtein(parseDouble(row, "protein", "proteins_100g", "protein_100g"));
+        request.setFat(parseDouble(row, "fat", "fat_100g"));
+        request.setCarbs(parseDouble(row, "carbs", "carbohydrates", "carbohydrates_100g", "carbohydrate_100g"));
+        request.setFiber(parseDouble(row, "fiber", "fiber_100g"));
+        request.setSugar(parseDouble(row, "sugar", "sugars_100g"));
+        request.setSodium(parseDouble(row, "sodium", "sodium_100g"));
+        request.setServingSizeGrams(parseDouble(row, "servingsizegrams", "serving_size_grams", "serving_size", "serving_quantity"));
+        request.setServingUnit(firstText(row, "servingunit", "serving_unit", "serving_quantity_unit"));
+        request.setDisplayImageUrl(firstText(row, "displayimageurl", "display_image_url", "curated_image_url"));
+        request.setMarketRegion(parseEnum(MarketRegion.class, firstText(row, "market_region", "marketregion", "region"), "market_region"));
+        request.setCatalogType(parseEnum(FoodCatalogType.class, firstText(row, "catalog_type", "catalogtype", "type"), "catalog_type"));
+        request.setVerificationStatus(parseEnum(VerificationStatus.class, firstText(row, "verification_status", "verificationstatus"), "verification_status"));
+        request.setImageStatus(parseEnum(ImageStatus.class, firstText(row, "image_status", "imagestatus"), "image_status"));
+        String reviewNote = firstText(row, "reviewnote", "review_note", "note");
+        request.setReviewNote(reviewNote == null ? "Bulk nutrition correction import." : reviewNote);
+        return request;
+    }
+
+    private Double parseDouble(CsvCorrectionRow row, String... columns) {
+        String value = firstText(row, columns);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(value.replace(',', '.'));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid numeric value: " + value);
+        }
+    }
+
+    private <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(enumClass, value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(fieldName + " has unsupported value: " + value);
+        }
+    }
+
+    private String firstText(CsvCorrectionRow row, String... columns) {
+        for (String column : columns) {
+            String value = trimToNull(row.value(column));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Integer> indexHeaders(List<String> headers) {
+        Map<String, Integer> index = new HashMap<>();
+        for (int i = 0; i < headers.size(); i++) {
+            String normalized = normalizeHeader(headers.get(i));
+            if (normalized != null) {
+                index.put(normalized, i);
+            }
+        }
+        return index;
+    }
+
+    private String normalizeHeader(String header) {
+        String value = trimToNull(header);
+        return value == null ? null : value.toLowerCase(Locale.ROOT)
+                .replace("-", "_")
+                .replace(" ", "_")
+                .replace(".", "_");
+    }
+
+    private char detectDelimiter(String headerLine) {
+        return count(headerLine, '\t') > count(headerLine, ',') ? '\t' : ',';
+    }
+
+    private int count(String value, char expected) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == expected) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private List<String> parseDelimitedLine(String line, char delimiter) {
+        List<String> values = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (c == delimiter && !quoted) {
+                values.add(current.toString().trim());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        values.add(current.toString().trim());
+        return values;
+    }
+
     private void validateAllDuplicateProductsFound(List<Long> duplicateProductIds, List<FoodItemEntity> duplicateProducts) {
         if (duplicateProducts.size() == duplicateProductIds.size()) {
             return;
@@ -466,7 +843,10 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private Specification<FoodItemEntity> buildReviewSpecification(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
-            MarketRegion marketRegion
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue
     ) {
         VerificationStatus effectiveVerificationStatus = verificationStatus == null
                 ? VerificationStatus.RAW_IMPORTED
@@ -480,8 +860,97 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             if (marketRegion != null) {
                 predicates.add(criteriaBuilder.equal(root.get("marketRegion"), marketRegion));
             }
+            if (catalogType != null) {
+                predicates.add(criteriaBuilder.equal(root.get("catalogType"), catalogType));
+            }
+            if (dataSource != null) {
+                predicates.add(criteriaBuilder.equal(root.get("dataSource"), dataSource));
+            }
+            Predicate qualityPredicate = buildQualityIssuePredicate(root, query, criteriaBuilder, qualityIssue);
+            if (qualityPredicate != null) {
+                predicates.add(qualityPredicate);
+            }
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private Predicate buildQualityIssuePredicate(
+            Root<FoodItemEntity> root,
+            CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            FoodProductQualityIssue qualityIssue
+    ) {
+        if (qualityIssue == null) {
+            return null;
+        }
+
+        Predicate activeIssuePredicate = activeQualityIssuePredicate(root, query, criteriaBuilder, qualityIssue);
+        Predicate derivedPredicate = switch (qualityIssue) {
+            case LOW_QUALITY -> criteriaBuilder.or(
+                    criteriaBuilder.isNull(root.get("qualityScore")),
+                    criteriaBuilder.lessThan(root.get("qualityScore"), 60)
+            );
+            case MISSING_IMAGE -> criteriaBuilder.and(
+                    isBlank(root, criteriaBuilder, "imageUrl"),
+                    isBlank(root, criteriaBuilder, "externalImageUrl"),
+                    isBlank(root, criteriaBuilder, "displayImageUrl")
+            );
+            case MISSING_CALORIES -> criteriaBuilder.isNull(root.get("calories"));
+            case MISSING_MACROS -> criteriaBuilder.and(
+                    criteriaBuilder.isNull(root.get("protein")),
+                    criteriaBuilder.isNull(root.get("fat")),
+                    criteriaBuilder.isNull(root.get("carbs"))
+            );
+            case MISSING_SERVING_SIZE -> criteriaBuilder.isNull(root.get("servingSizeGrams"));
+            case MISSING_REGION -> criteriaBuilder.isNull(root.get("marketRegion"));
+            case UNSUPPORTED_REGION -> null;
+            case MISSING_BARCODE -> criteriaBuilder.and(
+                    criteriaBuilder.or(
+                            criteriaBuilder.isNull(root.get("catalogType")),
+                            criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT)
+                    ),
+                    isBlank(root, criteriaBuilder, "barcode"),
+                    isBlank(root, criteriaBuilder, "normalizedBarcode")
+            );
+            case INVALID_BARCODE_FORMAT -> null;
+            case SUSPICIOUS_CALORIES -> criteriaBuilder.greaterThan(root.get("calories"), 1000.0);
+            case SUSPICIOUS_MACROS -> criteriaBuilder.or(
+                    criteriaBuilder.greaterThan(root.get("protein"), 100.0),
+                    criteriaBuilder.greaterThan(root.get("fat"), 100.0),
+                    criteriaBuilder.greaterThan(root.get("carbs"), 100.0)
+            );
+        };
+        return derivedPredicate == null
+                ? activeIssuePredicate
+                : criteriaBuilder.or(activeIssuePredicate, derivedPredicate);
+    }
+
+    private Predicate activeQualityIssuePredicate(
+            Root<FoodItemEntity> root,
+            CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            FoodProductQualityIssue qualityIssue
+    ) {
+        var subquery = query.subquery(Long.class);
+        Root<FoodProductQualityIssueEntity> issueRoot = subquery.from(FoodProductQualityIssueEntity.class);
+        subquery.select(issueRoot.get("id"));
+        subquery.where(
+                criteriaBuilder.equal(issueRoot.get("foodItem"), root),
+                criteriaBuilder.equal(issueRoot.get("issueType"), qualityIssue),
+                criteriaBuilder.isFalse(issueRoot.get("resolved"))
+        );
+        return criteriaBuilder.exists(subquery);
+    }
+
+    private Predicate isBlank(
+            jakarta.persistence.criteria.Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String fieldName
+    ) {
+        return criteriaBuilder.or(
+                criteriaBuilder.isNull(root.get(fieldName)),
+                criteriaBuilder.equal(criteriaBuilder.trim(root.get(fieldName)), "")
+        );
     }
 
     private Sort buildReviewSort() {
@@ -545,5 +1014,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 products == null ? List.of() : products
         );
         return new FoodProductDuplicateGroupDto(normalizedBarcode, productDtos.size(), productDtos);
+    }
+
+    private record CsvCorrectionRow(int rowNumber, Map<String, Integer> headers, List<String> values) {
+        private String value(String column) {
+            Integer index = headers.get(column);
+            if (index == null || index >= values.size()) {
+                return null;
+            }
+            return values.get(index);
+        }
     }
 }

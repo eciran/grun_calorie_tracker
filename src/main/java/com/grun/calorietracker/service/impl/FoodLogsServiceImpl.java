@@ -43,6 +43,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Override
     @Transactional
     public FoodLogsDto addFoodLog(FoodLogsDto dto, String email) {
+        validateFoodLogRequest(dto);
         UserEntity user = getUser(email);
         FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
@@ -89,6 +90,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Override
     @Transactional
     public FoodLogsDto updateFoodLog(Long id, FoodLogsDto dto, String email) {
+        validateFoodLogRequest(dto);
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
@@ -298,6 +300,25 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private void markFoodItemUsed(FoodItemEntity foodItem) {
         FoodProductQualityRules.markUsed(foodItem);
         foodItemRepository.save(foodItem);
+    }
+
+    private void validateFoodLogRequest(FoodLogsDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Food log request must not be empty.");
+        }
+        if (dto.getFoodItemId() == null || dto.getFoodItemId() <= 0) {
+            throw new IllegalArgumentException("Food item id must be a positive value.");
+        }
+        if (dto.getPortionSize() == null || dto.getPortionSize() <= 0) {
+            throw new IllegalArgumentException("Portion size must be a positive value.");
+        }
+        if (dto.getLogDate() == null) {
+            throw new IllegalArgumentException("Log date is required.");
+        }
+        String mealType = normalizeMealType(dto.getMealType());
+        if (!List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").contains(mealType)) {
+            throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
+        }
     }
 
     private String normalizeMealType(String mealType) {

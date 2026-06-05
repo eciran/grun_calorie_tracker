@@ -56,10 +56,16 @@ public final class FoodProductQualityRules {
         if (product.getProtein() != null || product.getFat() != null || product.getCarbs() != null) {
             score += 10;
         }
+        if (product.getServingSizeGrams() != null) {
+            score += 5;
+        }
+        if (product.getMarketRegion() != null) {
+            score += 5;
+        }
         if (hasText(product.getDisplayImageUrl()) && product.getImageStatus() == ImageStatus.APPROVED) {
             score += 15;
         } else if (hasText(product.getExternalImageUrl())) {
-            score += 5;
+            score += 10;
         }
         return Math.min(score, 100);
     }

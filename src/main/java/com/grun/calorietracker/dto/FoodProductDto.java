@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -25,6 +26,9 @@ public class FoodProductDto {
     @Schema(description = "Normalized barcode used internally for deduplication and lookup.", example = "3017620422003")
     private String normalizedBarcode;
 
+    @Schema(description = "Stable internal or external source key used for non-barcode catalog records.", example = "TR:LOCAL_DISH:mercimek_corbasi")
+    private String sourceKey;
+
     @Schema(description = "Product display name.", example = "Nutella")
     private String productName;
 
@@ -42,6 +46,9 @@ public class FoodProductDto {
 
     @Schema(description = "Food product data source.", example = "OPEN_FOOD_FACTS")
     private FoodDataSource dataSource;
+
+    @Schema(description = "Food catalog classification.", example = "BRANDED_PRODUCT")
+    private FoodCatalogType catalogType;
 
     @Schema(description = "Catalog verification status for product data.", example = "NEEDS_REVIEW")
     private VerificationStatus verificationStatus;

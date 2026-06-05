@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.FoodCatalogType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -37,4 +38,7 @@ public class FoodSearchCriteriaDto {
 
     @Schema(description = "Optional market region preference. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
     private MarketRegion marketRegion;
+
+    @Schema(description = "Optional catalog type filter.", example = "BRANDED_PRODUCT")
+    private FoodCatalogType catalogType;
 }

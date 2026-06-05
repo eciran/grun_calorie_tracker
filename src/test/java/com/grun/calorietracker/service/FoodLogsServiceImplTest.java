@@ -198,6 +198,46 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
+    void addFoodLog_whenPortionSizeIsNotPositive_rejectsBeforeSaving() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(0.0);
+        dto.setPortionUnit(FoodPortionUnit.GRAM);
+        dto.setMealType("lunch");
+        dto.setLogDate(LocalDateTime.now());
+
+        assertThrows(IllegalArgumentException.class, () -> foodLogsService.addFoodLog(dto, "test@test.com"));
+
+        verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
+        verify(foodItemRepository, never()).findById(any());
+    }
+
+    @Test
+    void addFoodLog_whenServingUsesFallbackSize_keepsNutritionCalculationPredictable() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(1.25);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(13L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
+
+        assertEquals(FoodPortionUnit.SERVING, result.getPortionUnit());
+        assertEquals(125.0, result.getNormalizedPortionGrams());
+        assertEquals(193.75, result.getSnapshotCalories());
+        assertEquals(16.25, result.getSnapshotProtein());
+    }
+
+    @Test
     void updateFoodLog_recalculatesPortionAndNormalizesMealType() {
         foodItem.setServingSizeGrams(60.0);
         FoodLogsEntity existing = new FoodLogsEntity();

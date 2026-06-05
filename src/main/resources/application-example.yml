@@ -141,6 +141,11 @@ grun:
     resend-cooldown-level-1-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_1_SECONDS:30}
     resend-cooldown-level-2-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_2_SECONDS:120}
     resend-cooldown-level-3-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_3_SECONDS:300}
+  water:
+    default-daily-target-ml: ${GRUN_WATER_DEFAULT_DAILY_TARGET_ML:2500}
+    reminders:
+      enabled: ${GRUN_WATER_REMINDER_ENABLED:true}
+      scan-interval-ms: ${GRUN_WATER_REMINDER_SCAN_INTERVAL_MS:300000}
   local:
     admin:
       bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}

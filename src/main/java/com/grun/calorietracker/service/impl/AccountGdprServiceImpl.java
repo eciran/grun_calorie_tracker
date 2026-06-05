@@ -16,6 +16,7 @@ import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.UserConsentEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
+import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AppliedPromoRepository;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
@@ -39,6 +40,8 @@ import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
+import com.grun.calorietracker.repository.WaterLogRepository;
+import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +84,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final FoodItemRepository foodItemRepository;
     private final UserConsentRepository userConsentRepository;
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
+    private final WaterLogRepository waterLogRepository;
+    private final WaterReminderSettingsRepository waterReminderSettingsRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -132,10 +137,12 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 deviceDataRepository.countByUser(user),
                 userConsentRepository.countByUser(user),
                 aiRequestHistoryRepository.countByUser(user),
+                waterLogRepository.countByUser(user),
                 subscriptionDto,
                 identities,
                 userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
                 foodLogsRepository.findByUser(user).stream().map(this::toFoodLogExport).toList(),
+                waterLogRepository.findByUserOrderByLoggedAtAsc(user).stream().map(this::toWaterLogExport).toList(),
                 exerciseLogRepository.findByUser(user).stream().map(this::toExerciseLogExport).toList(),
                 progressLogRepository.findByUserOrderByLogDateAsc(user).stream().map(this::toProgressLogExport).toList(),
                 foodDiaryNoteRepository.findByUserOrderByDiaryDateAsc(user).stream().map(this::toFoodDiaryNoteExport).toList(),
@@ -184,6 +191,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
 
         userFavoriteRepository.deleteByUser(user);
         foodLogsRepository.deleteByUser(user);
+        waterLogRepository.deleteByUser(user);
+        waterReminderSettingsRepository.deleteByUser(user);
         exerciseLogRepository.deleteByUser(user);
         progressLogRepository.deleteByUser(user);
         mealTemplateRepository.deleteByUser(user);
@@ -221,6 +230,17 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 log.getSnapshotCarbs(),
                 log.getSnapshotFat(),
                 log.getLogDate()
+        );
+    }
+
+    private GdprDataExportDto.WaterLogExportDto toWaterLogExport(WaterLogEntity log) {
+        return new GdprDataExportDto.WaterLogExportDto(
+                log.getId(),
+                log.getLogDate(),
+                log.getAmountMl(),
+                log.getSource(),
+                log.getLoggedAt(),
+                log.getCreatedAt()
         );
     }
 

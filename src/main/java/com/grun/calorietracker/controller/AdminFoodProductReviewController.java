@@ -5,11 +5,18 @@ import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
+import com.grun.calorietracker.dto.FoodProductNutritionCorrectionImportResultDto;
+import com.grun.calorietracker.dto.FoodProductQualityIssueBackfillResultDto;
+import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
@@ -42,6 +49,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/admin/products")
 @RequiredArgsConstructor
@@ -70,11 +79,55 @@ public class AdminFoodProductReviewController {
             @RequestParam("file") MultipartFile file,
             @Parameter(description = "Controls whether the CSV is curated admin data or raw external bulk data.", example = "RAW_EXTERNAL")
             @RequestParam(defaultValue = "CURATED_ADMIN") FoodProductImportMode importMode,
+            @Parameter(description = "Column mapping format. AUTO detects GRun, Open Food Facts export, or USDA-like files.", example = "AUTO")
+            @RequestParam(defaultValue = "AUTO") FoodProductImportFormat importFormat,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductImportService.importCsv(
                 file,
                 userDetails == null ? null : userDetails.getUsername(),
-                importMode
+                importMode,
+                importFormat
+        ));
+    }
+
+    @PostMapping("/quality-issues/backfill")
+    @Operation(
+            summary = "Backfill product quality issues",
+            description = "Scans existing food products and rebuilds persistent quality issue records. Use after adding the quality issue table or after large catalog imports."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality issue backfill completed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodProductQualityIssueBackfillResultDto> backfillQualityIssues(
+            @Parameter(description = "Number of products to process per batch. Maximum 1000.", example = "500")
+            @RequestParam(defaultValue = "500") @Min(1) @Max(1000) int pageSize,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.backfillQualityIssues(
+                pageSize,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @PostMapping(value = "/nutrition-corrections/import", consumes = "multipart/form-data")
+    @Operation(
+            summary = "Import product nutrition corrections",
+            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Supported correction headers include product_name, calories, protein, fat, carbs, fiber, sugar, sodium, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Nutrition correction import completed."),
+            @ApiResponse(responseCode = "400", description = "Correction file is missing or invalid."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodProductNutritionCorrectionImportResultDto> importNutritionCorrections(
+            @Parameter(description = "CSV/TSV file containing product correction rows.")
+            @RequestParam("file") MultipartFile file,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.importNutritionCorrections(
+                file,
+                userDetails == null ? null : userDetails.getUsername()
         ));
     }
 
@@ -95,6 +148,12 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) ImageStatus imageStatus,
             @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
+            @Parameter(description = "Optional catalog type filter.", example = "LOCAL_DISH")
+            @RequestParam(required = false) FoodCatalogType catalogType,
+            @Parameter(description = "Optional data source filter.", example = "OPEN_FOOD_FACTS")
+            @RequestParam(required = false) FoodDataSource dataSource,
+            @Parameter(description = "Optional derived quality issue filter.", example = "MISSING_IMAGE")
+            @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -103,6 +162,9 @@ public class AdminFoodProductReviewController {
                 verificationStatus,
                 imageStatus,
                 region,
+                catalogType,
+                dataSource,
+                qualityIssue,
                 page,
                 size
         ));
@@ -217,6 +279,24 @@ public class AdminFoodProductReviewController {
                 request,
                 userDetails == null ? null : userDetails.getUsername()
         ));
+    }
+
+    @GetMapping("/{id}/quality-issues")
+    @Operation(
+            summary = "List product quality issues",
+            description = "Returns active or full quality issue history for a single food product."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Product quality issues returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Product was not found.")
+    })
+    public ResponseEntity<List<FoodProductQualityIssueDto>> getProductQualityIssues(
+            @Parameter(description = "Food product id.", example = "1") @PathVariable Long id,
+            @Parameter(description = "When true, returns only unresolved issues.", example = "true")
+            @RequestParam(defaultValue = "true") boolean activeOnly) {
+        return ResponseEntity.ok(foodProductReviewService.getProductQualityIssues(id, activeOnly));
     }
 
     @GetMapping("/{id}/audit")

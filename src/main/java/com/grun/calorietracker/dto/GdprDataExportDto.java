@@ -33,10 +33,12 @@ public class GdprDataExportDto {
     private Long healthMetricCount;
     private Long consentCount;
     private Long aiRequestCount;
+    private Long waterLogCount;
     private SubscriptionSnapshotDto subscription;
     private List<LinkedIdentityDto> linkedIdentities;
     private List<ConsentExportDto> consents;
     private List<FoodLogExportDto> foodLogs;
+    private List<WaterLogExportDto> waterLogs;
     private List<ExerciseLogExportDto> exerciseLogs;
     private List<ProgressLogExportDto> progressLogs;
     private List<FoodDiaryNoteExportDto> foodDiaryNotes;
@@ -88,6 +90,17 @@ public class GdprDataExportDto {
         private Double carbs;
         private Double fat;
         private LocalDateTime logDate;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class WaterLogExportDto {
+        private Long id;
+        private LocalDate logDate;
+        private Integer amountMl;
+        private String source;
+        private LocalDateTime loggedAt;
+        private LocalDateTime createdAt;
     }
 
     @Data

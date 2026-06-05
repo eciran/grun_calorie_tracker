@@ -4,20 +4,28 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
+import com.grun.calorietracker.dto.FoodProductQualityIssueBackfillResultDto;
+import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.impl.FoodProductReviewServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,9 +33,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -54,6 +64,12 @@ class FoodProductReviewServiceImplTest {
 
     @Mock
     private FoodProductReviewAuditRepository foodProductReviewAuditRepository;
+
+    @Mock
+    private FoodProductQualityIssueRepository foodProductQualityIssueRepository;
+
+    @Mock
+    private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     @InjectMocks
     private FoodProductReviewServiceImpl foodProductReviewService;
@@ -124,6 +140,7 @@ class FoodProductReviewServiceImplTest {
         assertNotNull(result.getQualityScore());
         assertNotNull(result.getReviewPriority());
         verify(foodItemRepository).save(product);
+        verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
 
         ArgumentCaptor<List<FoodProductReviewAuditEntity>> auditCaptor = ArgumentCaptor.forClass(List.class);
         verify(foodProductReviewAuditRepository).saveAll(auditCaptor.capture());
@@ -157,6 +174,74 @@ class FoodProductReviewServiceImplTest {
 
         foodProductReviewService.updateProductReview(1L, request, "admin@grun.app");
 
+        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+        verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
+    }
+
+    @Test
+    void updateProductReview_updatesNutritionAndServingFieldsWithAudit() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Raw Product");
+        product.setCalories(100.0);
+        product.setProtein(1.0);
+        product.setFat(2.0);
+        product.setCarbs(3.0);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setCalories(150.0);
+        request.setProtein(12.5);
+        request.setFat(4.0);
+        request.setCarbs(22.0);
+        request.setFiber(3.5);
+        request.setSugar(5.0);
+        request.setSodium(0.25);
+        request.setServingSizeGrams(125.0);
+        request.setServingUnit("g");
+        request.setReviewNote("Corrected from product label.");
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FoodProductDto result = foodProductReviewService.updateProductReview(1L, request, "admin@grun.app");
+
+        assertEquals(150.0, result.getCalories());
+        assertEquals(12.5, result.getProtein());
+        assertEquals(4.0, result.getFat());
+        assertEquals(22.0, result.getCarbs());
+        assertEquals(3.5, result.getFiber());
+        assertEquals(5.0, result.getSugar());
+        assertEquals(0.25, result.getSodium());
+        assertEquals(125.0, result.getServingSize());
+        assertEquals("g", result.getServingUnit());
+
+        ArgumentCaptor<List<FoodProductReviewAuditEntity>> auditCaptor = ArgumentCaptor.forClass(List.class);
+        verify(foodProductReviewAuditRepository).saveAll(auditCaptor.capture());
+        assertEquals(9, auditCaptor.getValue().size());
+        assertEquals("calories", auditCaptor.getValue().get(0).getFieldName());
+        assertEquals("100.0", auditCaptor.getValue().get(0).getOldValue());
+        assertEquals("150.0", auditCaptor.getValue().get(0).getNewValue());
+        verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
+    }
+
+    @Test
+    void updateProductReview_whenNutritionValueIsNegative_throwsIllegalArgumentException() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Raw Product");
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setCalories(-1.0);
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> foodProductReviewService.updateProductReview(1L, request, "admin@grun.app"));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
         verify(foodProductReviewAuditRepository, never()).saveAll(any());
     }
 
@@ -365,5 +450,102 @@ class FoodProductReviewServiceImplTest {
                 auditCaptor.getValue().getNote()
         );
         verify(foodItemRepository).deleteAll(List.of(duplicateProduct));
+        verify(foodProductQualityIssueTracker).syncReviewIssues(targetProduct, "admin@grun.app");
+    }
+
+    @Test
+    void backfillQualityIssues_scansProductsInBatchesAndSyncsIssues() {
+        FoodItemEntity first = new FoodItemEntity();
+        first.setId(1L);
+        first.setName("Coke Zero");
+        first.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        first.setBarcode("5449000214799");
+        first.setNormalizedBarcode("5449000214799");
+        first.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        first.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        first.setMarketRegion(MarketRegion.UK_IE);
+        first.setExternalImageUrl("https://images.openfoodfacts.org/images/products/544/900/021/4799/front_en.363.400.jpg");
+        first.setCalories(1.0);
+        first.setProtein(0.0);
+        first.setFat(0.0);
+        first.setCarbs(0.0);
+        first.setServingSizeGrams(100.0);
+        FoodItemEntity second = new FoodItemEntity();
+        second.setId(2L);
+
+        when(foodItemRepository.findAll(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(
+                        List.of(first),
+                        PageRequest.of(0, 1, Sort.by("id").ascending()),
+                        2
+                ))
+                .thenReturn(new PageImpl<>(
+                        List.of(second),
+                        PageRequest.of(1, 1, Sort.by("id").ascending()),
+                        2
+                ));
+
+        FoodProductQualityIssueBackfillResultDto result =
+                foodProductReviewService.backfillQualityIssues(1, "admin@grun.app");
+
+        assertEquals(2L, result.getScannedProducts());
+        assertEquals(2, result.getProcessedBatches());
+        assertEquals(1, result.getPageSize());
+        assertEquals(70, first.getQualityScore());
+        verify(foodProductQualityIssueTracker).syncReviewIssues(first, "admin@grun.app");
+        verify(foodProductQualityIssueTracker).syncReviewIssues(second, "admin@grun.app");
+    }
+
+    @Test
+    void getProductQualityIssues_whenActiveOnly_returnsActiveIssues() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+
+        FoodProductQualityIssueEntity issue = new FoodProductQualityIssueEntity();
+        issue.setId(7L);
+        issue.setFoodItem(product);
+        issue.setIssueType(FoodProductQualityIssue.SUSPICIOUS_MACROS);
+        issue.setReason("Macro value is suspiciously high.");
+        issue.setResolved(false);
+
+        when(foodItemRepository.existsById(1L)).thenReturn(true);
+        when(foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(1L)).thenReturn(List.of(issue));
+
+        List<FoodProductQualityIssueDto> result = foodProductReviewService.getProductQualityIssues(1L, true);
+
+        assertEquals(1, result.size());
+        assertEquals(FoodProductQualityIssue.SUSPICIOUS_MACROS, result.get(0).getIssueType());
+        assertEquals("Macro value is suspiciously high.", result.get(0).getReason());
+    }
+
+    @Test
+    void importNutritionCorrections_updatesProductMatchedByBarcode() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Raw Product");
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "corrections.csv",
+                "text/csv",
+                "barcode,calories,protein,display_image_url\n3017620422003,539,6.3,https://cdn.grun.app/products/3017620422003.jpg\n".getBytes()
+        );
+
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.of(product));
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductReviewService.importNutritionCorrections(file, "admin@grun.app");
+
+        assertEquals(1, result.getTotalRows());
+        assertEquals(1, result.getUpdatedRows());
+        assertEquals(0, result.getSkippedRows());
+        assertEquals(539.0, product.getCalories());
+        assertEquals(6.3, product.getProtein());
+        assertEquals("https://cdn.grun.app/products/3017620422003.jpg", product.getDisplayImageUrl());
+        verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
     }
 }
