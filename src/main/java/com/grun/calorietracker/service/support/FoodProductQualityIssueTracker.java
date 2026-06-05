@@ -54,9 +54,13 @@ public class FoodProductQualityIssueTracker {
         }
         if (product.getCalories() == null) {
             issues.put(FoodProductQualityIssue.MISSING_CALORIES, "Product has no calories value.");
+        } else if (product.getCalories() > 1000) {
+            issues.put(FoodProductQualityIssue.SUSPICIOUS_CALORIES, "Product calories are unusually high for a 100g/ml nutrition basis.");
         }
         if (product.getProtein() == null && product.getFat() == null && product.getCarbs() == null) {
             issues.put(FoodProductQualityIssue.MISSING_MACROS, "Product has no protein, fat, or carbohydrate values.");
+        } else if (isSuspiciousMacro(product.getProtein()) || isSuspiciousMacro(product.getFat()) || isSuspiciousMacro(product.getCarbs())) {
+            issues.put(FoodProductQualityIssue.SUSPICIOUS_MACROS, "Product macro values are unusually high for a 100g/ml nutrition basis.");
         }
         if (product.getServingSizeGrams() == null) {
             issues.put(FoodProductQualityIssue.MISSING_SERVING_SIZE, "Product has no serving size value.");
@@ -122,6 +126,10 @@ public class FoodProductQualityIssueTracker {
 
     private boolean requiresBarcode(FoodItemEntity product) {
         return product.getCatalogType() == null || product.getCatalogType() == FoodCatalogType.BRANDED_PRODUCT;
+    }
+
+    private boolean isSuspiciousMacro(Double value) {
+        return value != null && value > 100;
     }
 
     private String resolveIdentifier(FoodItemEntity product) {

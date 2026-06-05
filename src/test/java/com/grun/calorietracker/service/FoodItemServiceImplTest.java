@@ -12,6 +12,7 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +43,9 @@ class FoodItemServiceImplTest {
 
     @Mock
     private OpenFoodFactsService openFoodFactsService;
+
+    @Mock
+    private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     @InjectMocks
     private FoodItemServiceImpl foodItemService;
@@ -113,6 +117,7 @@ class FoodItemServiceImplTest {
         assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
         assertEquals(MarketRegion.UK_IE, result.getMarketRegion());
         verify(foodItemRepository).save(any(FoodItemEntity.class));
+        verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 
     @Test
@@ -131,6 +136,7 @@ class FoodItemServiceImplTest {
         assertEquals("3017620422003", result.getBarcode());
         assertEquals("3017620422003", result.getNormalizedBarcode());
         verify(openFoodFactsService).getProductByBarcode("3017620422003");
+        verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 
     @Test
@@ -235,6 +241,7 @@ class FoodItemServiceImplTest {
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getContent().get(0).getVerificationStatus());
         verify(openFoodFactsService).searchProductsByCriteria(criteria);
         verify(foodItemRepository).save(any(FoodItemEntity.class));
+        verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 
     @Test

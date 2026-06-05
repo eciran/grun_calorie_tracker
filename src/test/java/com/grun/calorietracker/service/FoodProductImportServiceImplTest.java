@@ -375,6 +375,42 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_ukOpenFoodFactsSmallSample_isValidRawExternalPilot() throws Exception {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        byte[] sample = Files.readAllBytes(Path.of("sample-data/food-products-uk-openfoodfacts-small.csv"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "food-products-uk-openfoodfacts-small.csv",
+                "text/csv",
+                sample
+        );
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "admin@test.com",
+                FoodProductImportMode.RAW_EXTERNAL,
+                FoodProductImportFormat.AUTO
+        );
+
+        assertEquals(10, result.getTotalRows());
+        assertEquals(10, result.getInsertedRows());
+        assertEquals(0, result.getSkippedRows());
+        assertEquals(10, result.getReviewRequiredRows());
+        assertEquals(10, result.getMarketRegionCounts().get("UK_IE"));
+        assertEquals(10, result.getDataSourceCounts().get("OPEN_FOOD_FACTS"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals(10, savedProducts.stream().filter(product -> product.getMarketRegion() == MarketRegion.UK_IE).count());
+        assertEquals(10, savedProducts.stream().filter(product -> product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED).count());
+        assertEquals(10, savedProducts.stream().filter(product -> product.getImageStatus() == ImageStatus.NEEDS_REVIEW).count());
+    }
+
+    @Test
     void importCsv_whenRawExternalMatchesCuratedProduct_preservesCuratedMetadata() {
         FoodItemEntity curated = new FoodItemEntity();
         curated.setId(10L);

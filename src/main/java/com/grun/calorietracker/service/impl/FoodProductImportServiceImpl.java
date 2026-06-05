@@ -17,6 +17,7 @@ import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
+import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -283,13 +284,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         setIfPresent(row, product::setAllergens, "allergens", "allergens_tags");
         setIfPresent(row, product::setNutriScore, "nutriscore", "nutri_score", "nutrition_grade_fr", "nutrition_grade_uk");
 
-        product.setCalories(parseDouble(product.getCalories(), row, "calories", "energy_kcal_100g", "energy_kcal", "kcal_100g"));
-        product.setProtein(parseDouble(product.getProtein(), row, "protein", "proteins_100g", "protein_100g"));
-        product.setFat(parseDouble(product.getFat(), row, "fat", "fat_100g"));
-        product.setCarbs(parseDouble(product.getCarbs(), row, "carbs", "carbohydrates_100g", "carbohydrate_100g"));
-        product.setFiber(parseDouble(product.getFiber(), row, "fiber", "fiber_100g"));
-        product.setSugar(parseDouble(product.getSugar(), row, "sugar", "sugars_100g"));
-        product.setSodium(parseDouble(product.getSodium(), row, "sodium", "sodium_100g"));
+        product.setCalories(NutritionValueNormalizer.calories(parseDouble(product.getCalories(), row, "calories", "energy_kcal_100g", "energy_kcal", "kcal_100g")));
+        product.setProtein(NutritionValueNormalizer.macro(parseDouble(product.getProtein(), row, "protein", "proteins_100g", "protein_100g")));
+        product.setFat(NutritionValueNormalizer.macro(parseDouble(product.getFat(), row, "fat", "fat_100g")));
+        product.setCarbs(NutritionValueNormalizer.macro(parseDouble(product.getCarbs(), row, "carbs", "carbohydrates_100g", "carbohydrate_100g")));
+        product.setFiber(NutritionValueNormalizer.macro(parseDouble(product.getFiber(), row, "fiber", "fiber_100g")));
+        product.setSugar(NutritionValueNormalizer.macro(parseDouble(product.getSugar(), row, "sugar", "sugars_100g")));
+        product.setSodium(NutritionValueNormalizer.sodium(parseDouble(product.getSodium(), row, "sodium", "sodium_100g")));
         product.setServingSizeGrams(parseServingSizeGrams(row, product.getServingSizeGrams()));
         String servingUnit = resolveServingUnit(row);
         if (servingUnit != null) {
@@ -671,14 +672,14 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private Double parseServingSizeGrams(CsvRow row, Double fallback) {
         Double directValue = parseDouble(null, row, "servingsizegrams", "serving_size_grams");
         if (directValue != null) {
-            return directValue;
+            return NutritionValueNormalizer.servingSize(directValue);
         }
 
         Double servingQuantity = parseDouble(null, row, "serving_quantity");
         if (servingQuantity != null) {
             String unit = resolveServingUnit(row);
             if (unit == null || "g".equalsIgnoreCase(unit) || "ml".equalsIgnoreCase(unit)) {
-                return servingQuantity;
+                return NutritionValueNormalizer.servingSize(servingQuantity);
             }
         }
 
@@ -692,7 +693,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return fallback;
         }
         try {
-            return Double.parseDouble(parts[0]);
+            return NutritionValueNormalizer.servingSize(Double.parseDouble(parts[0]));
         } catch (NumberFormatException ignored) {
             return fallback;
         }

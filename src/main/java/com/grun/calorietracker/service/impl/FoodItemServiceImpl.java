@@ -16,6 +16,7 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -36,10 +37,16 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private final FoodItemRepository foodItemRepository;
     private final OpenFoodFactsService openFoodFactsService;
+    private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
-    public FoodItemServiceImpl(FoodItemRepository foodItemRepository, OpenFoodFactsService openFoodFactsService) {
+    public FoodItemServiceImpl(
+            FoodItemRepository foodItemRepository,
+            OpenFoodFactsService openFoodFactsService,
+            FoodProductQualityIssueTracker foodProductQualityIssueTracker
+    ) {
         this.foodItemRepository = foodItemRepository;
         this.openFoodFactsService = openFoodFactsService;
+        this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
     }
 
     @Override
@@ -212,7 +219,9 @@ public class FoodItemServiceImpl implements FoodItemService {
                 .orElseThrow(() -> new ProductNotFoundException("Product not found for barcode: " + barcode));
 
         FoodItemEntity entity = buildImportedFoodItem(externalProduct, barcode);
-        return foodItemRepository.save(entity);
+        FoodItemEntity saved = foodItemRepository.save(entity);
+        foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
+        return saved;
     }
 
     private FoodProductSearchPageDto searchAndCacheExternalProducts(FoodSearchCriteriaDto criteria, Pageable pageable) {
@@ -254,7 +263,9 @@ public class FoodItemServiceImpl implements FoodItemService {
             return isRejected(product) ? null : product;
         }
 
-        return foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
+        FoodItemEntity saved = foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
+        foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
+        return saved;
     }
 
     private FoodItemEntity buildImportedFoodItem(FoodProductDto externalProduct, String barcode) {

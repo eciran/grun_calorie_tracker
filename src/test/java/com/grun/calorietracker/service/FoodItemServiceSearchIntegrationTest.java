@@ -8,6 +8,7 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -29,7 +30,8 @@ class FoodItemServiceSearchIntegrationTest {
     @BeforeEach
     void setUp() {
         OpenFoodFactsService openFoodFactsService = Mockito.mock(OpenFoodFactsService.class);
-        foodItemService = new FoodItemServiceImpl(foodItemRepository, openFoodFactsService);
+        FoodProductQualityIssueTracker foodProductQualityIssueTracker = Mockito.mock(FoodProductQualityIssueTracker.class);
+        foodItemService = new FoodItemServiceImpl(foodItemRepository, openFoodFactsService, foodProductQualityIssueTracker);
     }
 
     @Test

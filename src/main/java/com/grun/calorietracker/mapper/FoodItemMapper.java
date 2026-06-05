@@ -2,6 +2,7 @@ package com.grun.calorietracker.mapper;
 
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,14 +33,14 @@ public class FoodItemMapper {
         entity.setLastExternalSyncAt(parseLocalDateTime(dto.getLastExternalSyncAt()));
         entity.setLastReviewedAt(parseLocalDateTime(dto.getLastReviewedAt()));
         entity.setReviewedBy(dto.getReviewedBy());
-        entity.setCalories(dto.getCalories());
-        entity.setProtein(dto.getProtein());
-        entity.setFat(dto.getFat());
-        entity.setCarbs(dto.getCarbs());
-        entity.setFiber(dto.getFiber());
-        entity.setSugar(dto.getSugar());
-        entity.setSodium(dto.getSodium());
-        entity.setServingSizeGrams(dto.getServingSize());
+        entity.setCalories(NutritionValueNormalizer.calories(dto.getCalories()));
+        entity.setProtein(NutritionValueNormalizer.macro(dto.getProtein()));
+        entity.setFat(NutritionValueNormalizer.macro(dto.getFat()));
+        entity.setCarbs(NutritionValueNormalizer.macro(dto.getCarbs()));
+        entity.setFiber(NutritionValueNormalizer.macro(dto.getFiber()));
+        entity.setSugar(NutritionValueNormalizer.macro(dto.getSugar()));
+        entity.setSodium(NutritionValueNormalizer.sodium(dto.getSodium()));
+        entity.setServingSizeGrams(NutritionValueNormalizer.servingSize(dto.getServingSize()));
         entity.setServingUnit(dto.getServingUnit());
         entity.setAllergens(dto.getAllergens());
         entity.setNutriScore(dto.getNutriScore());
@@ -75,14 +76,14 @@ public class FoodItemMapper {
         dto.setLastExternalSyncAt(formatLocalDateTime(entity.getLastExternalSyncAt()));
         dto.setLastReviewedAt(formatLocalDateTime(entity.getLastReviewedAt()));
         dto.setReviewedBy(entity.getReviewedBy());
-        dto.setCalories(entity.getCalories());
-        dto.setProtein(entity.getProtein());
-        dto.setFat(entity.getFat());
-        dto.setCarbs(entity.getCarbs());
-        dto.setFiber(entity.getFiber());
-        dto.setSugar(entity.getSugar());
-        dto.setSodium(entity.getSodium());
-        dto.setServingSize(entity.getServingSizeGrams());
+        dto.setCalories(NutritionValueNormalizer.calories(entity.getCalories()));
+        dto.setProtein(NutritionValueNormalizer.macro(entity.getProtein()));
+        dto.setFat(NutritionValueNormalizer.macro(entity.getFat()));
+        dto.setCarbs(NutritionValueNormalizer.macro(entity.getCarbs()));
+        dto.setFiber(NutritionValueNormalizer.macro(entity.getFiber()));
+        dto.setSugar(NutritionValueNormalizer.macro(entity.getSugar()));
+        dto.setSodium(NutritionValueNormalizer.sodium(entity.getSodium()));
+        dto.setServingSize(NutritionValueNormalizer.servingSize(entity.getServingSizeGrams()));
         dto.setServingUnit(entity.getServingUnit());
         // FoodItemEntity does not currently store ingredientsText.
         // dto.setIngredientsText(entity.getIngredientsText());
