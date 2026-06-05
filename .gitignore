@@ -39,6 +39,14 @@ outputs/
 docs/
 logs/
 
+### AWS local/deployment notes ###
+docs/*AWS*.md
+docs/*DEPLOYMENT*.md
+aws/
+.aws/
+*.tfstate
+*.tfstate.*
+
 # Configuration files
 .env
 *.env

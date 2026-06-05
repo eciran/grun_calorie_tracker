@@ -114,6 +114,45 @@
             border-radius: 8px;
         }
 
+        .review-image-frame {
+            min-height: 220px;
+            position: relative;
+        }
+
+        .review-image-preview {
+            max-height: 260px;
+            cursor: zoom-in;
+        }
+
+        .image-lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 1080;
+            background: rgba(9, 16, 22, .86);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .image-lightbox.show {
+            display: flex;
+        }
+
+        .image-lightbox img {
+            max-width: min(1100px, 96vw);
+            max-height: 86vh;
+            object-fit: contain;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        .image-lightbox-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+        }
+
         .status-dot {
             width: 9px;
             height: 9px;
@@ -706,6 +745,21 @@
                     Ornek pilot dosya: <code>sample-data/food-products-pilot-small.csv</code>
                 </div>
             </div>
+            <div class="panel">
+                <h2 class="h6 mb-3">Nutrition Correction Import</h2>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label" for="nutritionCorrectionFile">Correction CSV / TSV file</label>
+                        <input id="nutritionCorrectionFile" class="form-control" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+                    </div>
+                    <div class="col-md-4 d-grid align-items-end">
+                        <button id="nutritionCorrectionImportBtn" class="btn btn-outline-success">Import corrections</button>
+                    </div>
+                </div>
+                <div class="alert alert-light border mt-3 mb-0">
+                    Esleme kolonlari: <code>id</code>, <code>source_key</code> veya <code>barcode</code>. Duzeltme kolonlari: <code>calories</code>, <code>protein</code>, <code>fat</code>, <code>carbs</code>, <code>display_image_url</code>.
+                </div>
+            </div>
         </section>
     </main>
 </div>
@@ -743,6 +797,16 @@
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label" for="reviewImageSource">Image source</label>
+                        <select id="reviewImageSource" class="form-select">
+                            <option>OPEN_FOOD_FACTS</option>
+                            <option>ADMIN_UPLOAD</option>
+                            <option>USER_UPLOAD</option>
+                            <option>BRAND_OFFICIAL</option>
+                            <option>AI_GENERATED</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label" for="reviewMarketRegion">Region</label>
                         <select id="reviewMarketRegion" class="form-select">
                             <option value="">No region</option>
@@ -765,9 +829,64 @@
                         <label class="form-label" for="reviewDisplayImageUrl">Display image URL</label>
                         <input id="reviewDisplayImageUrl" class="form-control">
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Image preview</label>
+                        <div class="review-image-frame border rounded bg-light d-flex align-items-center justify-content-center">
+                            <img id="reviewImagePreview" alt="Product preview" class="review-image-preview img-fluid d-none" title="Click to enlarge">
+                            <span id="reviewImageEmpty" class="muted small">No display image</span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <button id="enlargeImageBtn" type="button" class="btn btn-outline-secondary btn-sm">Enlarge image</button>
+                            <button id="requestAiImageBtn" type="button" class="btn btn-outline-primary btn-sm">Request AI image</button>
+                        </div>
+                        <div class="small muted mt-1">AI image request only marks the product for generated-image workflow; provider generation will be connected later.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewCalories">Calories</label>
+                        <input id="reviewCalories" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewProtein">Protein</label>
+                        <input id="reviewProtein" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewCarbs">Carbs</label>
+                        <input id="reviewCarbs" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewFat">Fat</label>
+                        <input id="reviewFat" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewFiber">Fiber</label>
+                        <input id="reviewFiber" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewSugar">Sugar</label>
+                        <input id="reviewSugar" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewSodium">Sodium</label>
+                        <input id="reviewSodium" class="form-control" type="number" min="0" step="0.001">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewServingSize">Serving size</label>
+                        <input id="reviewServingSize" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="reviewServingUnit">Serving unit</label>
+                        <input id="reviewServingUnit" class="form-control" placeholder="g, ml, piece">
+                    </div>
                     <div class="col-12">
                         <label class="form-label" for="reviewNote">Review note</label>
                         <textarea id="reviewNote" class="form-control" rows="3" placeholder="Reject durumunda zorunlu."></textarea>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <label class="form-label mb-0">Quality issues</label>
+                            <button id="issueHistoryBtn" type="button" class="btn btn-outline-secondary btn-sm">Load history</button>
+                        </div>
+                        <div id="qualityIssueList" class="list-group mt-2"></div>
                     </div>
                     <div class="col-12">
                         <button id="auditBtn" type="button" class="btn btn-outline-secondary btn-sm">Load audit</button>
@@ -781,6 +900,11 @@
             </div>
         </div>
     </div>
+</div>
+
+<div id="imageLightbox" class="image-lightbox" aria-hidden="true">
+    <button id="closeImageLightboxBtn" type="button" class="btn btn-light image-lightbox-close">Close</button>
+    <img id="imageLightboxImg" alt="Expanded product image">
 </div>
 
 <script>
@@ -1116,13 +1240,26 @@
         el("reviewProductName").value = product.productName || product.name || "";
         el("reviewVerificationStatus").value = product.verificationStatus || "NEEDS_REVIEW";
         el("reviewImageStatus").value = product.imageStatus || "NEEDS_REVIEW";
+        el("reviewImageSource").value = product.imageSource || "OPEN_FOOD_FACTS";
         el("reviewMarketRegion").value = product.marketRegion || "";
         el("reviewCatalogType").value = product.catalogType || "BRANDED_PRODUCT";
         el("reviewDisplayImageUrl").value = product.displayImageUrl || product.imageUrl || product.externalImageUrl || "";
+        el("reviewCalories").value = product.calories ?? "";
+        el("reviewProtein").value = product.protein ?? "";
+        el("reviewCarbs").value = product.carbs ?? "";
+        el("reviewFat").value = product.fat ?? "";
+        el("reviewFiber").value = product.fiber ?? "";
+        el("reviewSugar").value = product.sugar ?? "";
+        el("reviewSodium").value = product.sodium ?? "";
+        el("reviewServingSize").value = product.servingSize ?? "";
+        el("reviewServingUnit").value = product.servingUnit || "";
         el("reviewNote").value = "";
         el("auditBox").classList.add("d-none");
         el("auditBox").textContent = "";
+        renderImagePreview(el("reviewDisplayImageUrl").value);
+        el("qualityIssueList").innerHTML = `<div class="list-group-item small muted">Loading active issues...</div>`;
         productModal.show();
+        run(() => loadProductQualityIssues(product.id, true));
     }
 
     async function saveProductReview() {
@@ -1130,11 +1267,22 @@
             productName: el("reviewProductName").value.trim(),
             verificationStatus: el("reviewVerificationStatus").value,
             imageStatus: el("reviewImageStatus").value,
+            imageSource: el("reviewImageSource").value,
             marketRegion: el("reviewMarketRegion").value || null,
             catalogType: el("reviewCatalogType").value,
             displayImageUrl: el("reviewDisplayImageUrl").value.trim(),
             reviewNote: el("reviewNote").value.trim()
         };
+        setNumberIfPresent(body, "calories", "reviewCalories");
+        setNumberIfPresent(body, "protein", "reviewProtein");
+        setNumberIfPresent(body, "carbs", "reviewCarbs");
+        setNumberIfPresent(body, "fat", "reviewFat");
+        setNumberIfPresent(body, "fiber", "reviewFiber");
+        setNumberIfPresent(body, "sugar", "reviewSugar");
+        setNumberIfPresent(body, "sodium", "reviewSodium");
+        setNumberIfPresent(body, "servingSizeGrams", "reviewServingSize");
+        const servingUnit = el("reviewServingUnit").value.trim();
+        if (servingUnit) body.servingUnit = servingUnit;
         await api(`/api/v1/admin/products/${el("reviewProductId").value}/review`, {
             method: "PATCH",
             headers: authHeaders(true),
@@ -1144,11 +1292,82 @@
         await Promise.all([loadSummary(), loadProducts(state.page)]);
     }
 
+    function setNumberIfPresent(target, key, inputId) {
+        const value = el(inputId).value;
+        if (value === "") return;
+        target[key] = Number(value);
+    }
+
     async function loadAudit() {
         const id = el("reviewProductId").value;
         const result = await api(`/api/v1/admin/products/${id}/audit?page=0&size=10`, {headers: authHeaders(false)});
         el("auditBox").textContent = JSON.stringify(result.content || [], null, 2);
         el("auditBox").classList.remove("d-none");
+    }
+
+    async function loadProductQualityIssues(id = el("reviewProductId").value, activeOnly = true) {
+        const result = await api(`/api/v1/admin/products/${id}/quality-issues?activeOnly=${activeOnly}`, {headers: authHeaders(false)});
+        renderProductQualityIssues(result || [], activeOnly);
+    }
+
+    function renderProductQualityIssues(issues, activeOnly) {
+        const title = activeOnly ? "active issue" : "issue history";
+        if (!issues.length) {
+            el("qualityIssueList").innerHTML = `<div class="list-group-item small text-success">No ${title} found.</div>`;
+            return;
+        }
+        el("qualityIssueList").innerHTML = issues.map((issue) => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between gap-2">
+                    <strong>${escapeHtml(issue.issueType || "-")}</strong>
+                    ${issue.resolved ? `<span class="badge text-bg-success">RESOLVED</span>` : `<span class="badge text-bg-warning">ACTIVE</span>`}
+                </div>
+                <div class="small muted">${escapeHtml(issue.reason || "-")}</div>
+                <div class="small muted">Last: ${escapeHtml(issue.lastDetectedAt || "-")} ${issue.resolvedAt ? ` / Resolved: ${escapeHtml(issue.resolvedAt)}` : ""}</div>
+            </div>
+        `).join("");
+    }
+
+    function renderImagePreview(url) {
+        const image = el("reviewImagePreview");
+        const empty = el("reviewImageEmpty");
+        const enlargeButton = el("enlargeImageBtn");
+        const value = (url || "").trim();
+        if (!value) {
+            image.classList.add("d-none");
+            image.removeAttribute("src");
+            empty.classList.remove("d-none");
+            enlargeButton.disabled = true;
+            return;
+        }
+        image.src = value;
+        image.classList.remove("d-none");
+        empty.classList.add("d-none");
+        enlargeButton.disabled = false;
+    }
+
+    function openImageLightbox() {
+        const value = (el("reviewDisplayImageUrl").value || "").trim();
+        if (!value) throw new Error("Buyutulecek image URL bulunamadi.");
+        el("imageLightboxImg").src = value;
+        el("imageLightbox").classList.add("show");
+        el("imageLightbox").setAttribute("aria-hidden", "false");
+    }
+
+    function closeImageLightbox() {
+        el("imageLightbox").classList.remove("show");
+        el("imageLightbox").setAttribute("aria-hidden", "true");
+        el("imageLightboxImg").removeAttribute("src");
+    }
+
+    function requestAiImageForProduct() {
+        const productName = el("reviewProductName").value.trim() || `product #${el("reviewProductId").value}`;
+        el("reviewImageStatus").value = "NEEDS_REVIEW";
+        el("reviewImageSource").value = "AI_GENERATED";
+        const note = `AI image generation requested for ${productName}. Current imported image was not suitable for product display.`;
+        const existingNote = el("reviewNote").value.trim();
+        el("reviewNote").value = existingNote ? `${existingNote}\n${note}` : note;
+        setAlert("AI image generation istegi forma islendi. Kaydetmek icin Save review kullan.", "info");
     }
 
     async function loadFeatures() {
@@ -1217,6 +1436,24 @@
             body: form
         });
         setAlert(formatImportResult(result), result.skippedRows ? "warning" : "success");
+        await Promise.all([loadSummary(), loadProducts(0)]);
+    }
+
+    async function importNutritionCorrections() {
+        const file = el("nutritionCorrectionFile").files[0];
+        if (!file) throw new Error("Correction import icin CSV/TSV dosyasi sec.");
+        const form = new FormData();
+        form.append("file", file);
+        const result = await api("/api/v1/admin/products/nutrition-corrections/import", {
+            method: "POST",
+            headers: authHeaders(false),
+            body: form
+        });
+        const lines = [
+            `Correction import tamamlandi. Toplam ${result.totalRows ?? 0}, guncellenen ${result.updatedRows ?? 0}, atlanan ${result.skippedRows ?? 0}.`
+        ];
+        (result.errors || []).slice(0, 5).forEach((error) => lines.push(`- ${error}`));
+        setAlert(lines.join("\n"), result.skippedRows ? "warning" : "success");
         await Promise.all([loadSummary(), loadProducts(0)]);
     }
 
@@ -1538,6 +1775,15 @@
     el("nextBtn").addEventListener("click", () => run(() => loadProducts(state.page + 1), "Urunler yuklendi."));
     el("saveProductBtn").addEventListener("click", () => run(saveProductReview, "Urun guncellendi."));
     el("auditBtn").addEventListener("click", () => run(loadAudit, "Audit yuklendi."));
+    el("issueHistoryBtn").addEventListener("click", () => run(() => loadProductQualityIssues(el("reviewProductId").value, false), "Issue history yuklendi."));
+    el("reviewDisplayImageUrl").addEventListener("input", () => renderImagePreview(el("reviewDisplayImageUrl").value));
+    el("enlargeImageBtn").addEventListener("click", () => run(openImageLightbox));
+    el("reviewImagePreview").addEventListener("click", () => run(openImageLightbox));
+    el("closeImageLightboxBtn").addEventListener("click", closeImageLightbox);
+    el("imageLightbox").addEventListener("click", (event) => {
+        if (event.target.id === "imageLightbox") closeImageLightbox();
+    });
+    el("requestAiImageBtn").addEventListener("click", requestAiImageForProduct);
     el("loadFeaturesBtn").addEventListener("click", () => run(loadFeatures, "Feature matrix yuklendi."));
     el("loadAiReviewBtn").addEventListener("click", () => run(() => loadAiReview(0), "AI review listesi yuklendi."));
     el("aiReviewPrevBtn").addEventListener("click", () => run(() => loadAiReview(state.aiReviewPage - 1), "AI review listesi yuklendi."));
@@ -1554,6 +1800,7 @@
     el("systemAlertsBtn").addEventListener("click", () => run(loadSystemAlerts, "System alert listesi yuklendi."));
     el("markAllNotificationsBtn").addEventListener("click", () => run(markAllNotificationsAsRead));
     el("importBtn").addEventListener("click", () => run(importProducts));
+    el("nutritionCorrectionImportBtn").addEventListener("click", () => run(importNutritionCorrections));
     document.querySelectorAll("[data-bs-dismiss='modal']").forEach((button) => {
         button.addEventListener("click", () => productModal.hide());
     });
