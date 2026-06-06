@@ -92,6 +92,12 @@ grun:
   revenuecat:
     webhook-authorization: ${GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION:}
     strict-product-mapping: ${GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING:true}
+    api:
+      enabled: ${GRUN_REVENUECAT_API_ENABLED:false}
+      base-url: ${GRUN_REVENUECAT_API_BASE_URL:https://api.revenuecat.com/v2}
+      secret-key: ${GRUN_REVENUECAT_API_SECRET_KEY:}
+      project-id: ${GRUN_REVENUECAT_PROJECT_ID:}
+      currency: ${GRUN_REVENUECAT_CURRENCY:EUR}
     entitlements:
       plus: ${GRUN_REVENUECAT_PLUS_ENTITLEMENTS:plus,plus_access}
       pro: ${GRUN_REVENUECAT_PRO_ENTITLEMENTS:pro,pro_access}

@@ -15,8 +15,18 @@ import java.util.Map;
 public class RevenueCatProperties {
     private String webhookAuthorization;
     private boolean strictProductMapping = true;
+    private Api api = new Api();
     private Entitlements entitlements = new Entitlements();
     private Products products = new Products();
+
+    @Data
+    public static class Api {
+        private boolean enabled = false;
+        private String baseUrl = "https://api.revenuecat.com/v2";
+        private String secretKey;
+        private String projectId;
+        private String currency = "EUR";
+    }
 
     @Data
     public static class Entitlements {
