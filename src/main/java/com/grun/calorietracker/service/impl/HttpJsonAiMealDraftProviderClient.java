@@ -3,6 +3,8 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
+import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -50,7 +52,16 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
         return callProvider(new ProviderRequest(AiRequestType.PHOTO_MEAL_LOG, properties.getModel(), request));
     }
 
+    @Override
+    public AiRecipeDraftResponseDto createRecipeDraft(AiRecipeDraftRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_RECIPE_GENERATION, properties.getModel(), request), AiRecipeDraftResponseDto.class);
+    }
+
     private AiMealDraftResponseDto callProvider(ProviderRequest payload) {
+        return callProvider(payload, AiMealDraftResponseDto.class);
+    }
+
+    private <T> T callProvider(ProviderRequest payload, Class<T> responseType) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(properties.getHttpJson().getApiKey());
@@ -58,10 +69,10 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
         headers.set("X-GRun-AI-Model", properties.getModel());
 
         try {
-            AiMealDraftResponseDto response = restOperations.postForObject(
+            T response = restOperations.postForObject(
                     properties.getHttpJson().getEndpoint(),
                     new HttpEntity<>(payload, headers),
-                    AiMealDraftResponseDto.class
+                    responseType
             );
             if (response == null) {
                 throw new IllegalArgumentException("HTTP JSON AI provider returned an empty response.");

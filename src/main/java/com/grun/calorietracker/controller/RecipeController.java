@@ -2,6 +2,8 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.RecipeDto;
+import com.grun.calorietracker.dto.RecipeInteractionDto;
+import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.dto.RecipeLogRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
@@ -73,6 +75,26 @@ public class RecipeController {
         return ResponseEntity.ok(recipeService.getRecipe(userDetails.getUsername(), id));
     }
 
+    @GetMapping("/saved")
+    @Operation(summary = "List saved recipes", description = "Returns recipes saved by the authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Saved recipes returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<RecipeDto>> getSavedRecipes(@Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(recipeService.getSavedRecipes(userDetails.getUsername()));
+    }
+
+    @GetMapping("/favorites")
+    @Operation(summary = "List favorite recipes", description = "Returns recipes favorited by the authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Favorite recipes returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<RecipeDto>> getFavoriteRecipes(@Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(recipeService.getFavoriteRecipes(userDetails.getUsername()));
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Update my custom recipe", description = "Replaces recipe metadata and ingredients, then recalculates nutrition snapshots.")
     @ApiResponses({
@@ -97,6 +119,35 @@ public class RecipeController {
     public ResponseEntity<Void> archiveRecipe(@Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
                                               @Parameter(description = "Recipe id.", example = "1") @PathVariable Long id) {
         recipeService.archiveRecipe(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/interaction")
+    @Operation(summary = "Update recipe interaction", description = "Saves, favorites, or rates an accessible recipe for the authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe interaction updated.", content = @Content(schema = @Schema(implementation = RecipeInteractionDto.class))),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipeInteractionDto> updateRecipeInteraction(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Recipe id.", example = "1") @PathVariable Long id,
+            @RequestBody @Valid RecipeInteractionRequestDto request) {
+        return ResponseEntity.ok(recipeService.updateInteraction(userDetails.getUsername(), id, request));
+    }
+
+    @DeleteMapping("/{id}/interaction")
+    @Operation(summary = "Clear recipe interaction", description = "Removes saved, favorite, and rating state for one accessible recipe.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Recipe interaction cleared."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<Void> clearRecipeInteraction(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Recipe id.", example = "1") @PathVariable Long id) {
+        recipeService.clearInteraction(userDetails.getUsername(), id);
         return ResponseEntity.noContent().build();
     }
 
@@ -132,6 +183,9 @@ public class RecipeController {
             startDate = LocalDate.parse(date);
             endDate = startDate;
         } else {
+            if (start == null || start.isBlank() || end == null || end.isBlank()) {
+                throw new IllegalArgumentException("Use either date or both start and end parameters.");
+            }
             startDate = LocalDate.parse(start);
             endDate = LocalDate.parse(end);
         }

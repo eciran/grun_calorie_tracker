@@ -55,6 +55,13 @@ grun:
       endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
       api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}
       timeout: ${GRUN_AI_HTTP_JSON_TIMEOUT:30s}
+    recipe-image-moderation:
+      enabled: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENABLED:false}
+      endpoint: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENDPOINT:}
+      api-key: ${GRUN_AI_RECIPE_IMAGE_MODERATION_API_KEY:}
+      timeout: ${GRUN_AI_RECIPE_IMAGE_MODERATION_TIMEOUT:15s}
+      reject-threshold: ${GRUN_AI_RECIPE_IMAGE_MODERATION_REJECT_THRESHOLD:0.85}
+      approve-threshold: ${GRUN_AI_RECIPE_IMAGE_MODERATION_APPROVE_THRESHOLD:0.95}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:BREVO}
   rate-limit:

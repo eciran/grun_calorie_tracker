@@ -34,7 +34,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final String PRODUCT_BARCODE_PATH_PREFIX = "/api/v1/products/barcode/";
     private static final Set<String> AI_DRAFT_PATHS = Set.of(
             "/api/v1/ai/meal-drafts/voice",
-            "/api/v1/ai/meal-drafts/photo"
+            "/api/v1/ai/meal-drafts/photo",
+            "/api/v1/ai/recipes/generate"
     );
     private static final String PASSWORD_RESET_REQUEST_PATH = "/api/v1/auth/password-reset/request";
     private static final String EMAIL_VERIFICATION_RESEND_PATH = "/api/v1/auth/email-verification/resend";

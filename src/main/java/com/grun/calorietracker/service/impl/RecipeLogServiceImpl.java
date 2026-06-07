@@ -60,7 +60,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         validateLogRequest(request);
         RecipeLogEntity log = recipeLogRepository.findByIdAndUser(logId, getUser(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe log not found"));
-        applyRequest(log, log.getRecipe(), request);
+        applyUpdateRequest(log, request);
         return toDto(recipeLogRepository.save(log));
     }
 
@@ -89,6 +89,26 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         log.setSnapshotFiber(scale(recipe.getSnapshotFiber(), factor));
         log.setSnapshotSugar(scale(recipe.getSnapshotSugar(), factor));
         log.setSnapshotSodium(scale(recipe.getSnapshotSodium(), factor));
+    }
+
+    private void applyUpdateRequest(RecipeLogEntity log, RecipeLogRequestDto request) {
+        double previousServingGrams = log.getServingGrams() == null || log.getServingGrams() <= 0
+                ? resolveServingGrams(log.getRecipe(), request)
+                : log.getServingGrams();
+        double nextServingGrams = resolveUpdatedServingGrams(log, request);
+        double factor = previousServingGrams <= 0 ? 1.0 : nextServingGrams / previousServingGrams;
+
+        log.setServingGrams(nextServingGrams);
+        log.setServingCount(request.getServingCount() != null ? request.getServingCount() : log.getServingCount());
+        log.setMealType(normalizeMealType(request.getMealType()));
+        log.setLogDate(request.getLogDate());
+        log.setSnapshotCalories(scale(log.getSnapshotCalories(), factor));
+        log.setSnapshotProtein(scale(log.getSnapshotProtein(), factor));
+        log.setSnapshotCarbs(scale(log.getSnapshotCarbs(), factor));
+        log.setSnapshotFat(scale(log.getSnapshotFat(), factor));
+        log.setSnapshotFiber(scale(log.getSnapshotFiber(), factor));
+        log.setSnapshotSugar(scale(log.getSnapshotSugar(), factor));
+        log.setSnapshotSodium(scale(log.getSnapshotSodium(), factor));
     }
 
     private void validateLogRequest(RecipeLogRequestDto request) {
@@ -125,6 +145,23 @@ public class RecipeLogServiceImpl implements RecipeLogService {
             return servingCount * recipe.getTotalYieldGrams();
         }
         throw new IllegalArgumentException("Recipe serving size could not be resolved.");
+    }
+
+    private double resolveUpdatedServingGrams(RecipeLogEntity log, RecipeLogRequestDto request) {
+        if (request.getServingGrams() != null && request.getServingGrams() > 0) {
+            return request.getServingGrams();
+        }
+        if (request.getServingCount() != null && request.getServingCount() > 0) {
+            if (log.getServingCount() != null && log.getServingCount() > 0
+                    && log.getServingGrams() != null && log.getServingGrams() > 0) {
+                return request.getServingCount() * (log.getServingGrams() / log.getServingCount());
+            }
+            return resolveServingGrams(log.getRecipe(), request);
+        }
+        if (log.getServingGrams() != null && log.getServingGrams() > 0) {
+            return log.getServingGrams();
+        }
+        return resolveServingGrams(log.getRecipe(), request);
     }
 
     private Double scale(Double value, double factor) {

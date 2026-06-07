@@ -1,6 +1,8 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ImageSource;
+import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,6 +23,8 @@ public class RecipeDto {
     private MarketRegion marketRegion;
     private String language;
     private String imageUrl;
+    private ImageSource imageSource;
+    private ImageStatus imageStatus;
     private Double totalYieldGrams;
     private Double defaultServingGrams;
     private Integer servingCount;
@@ -34,6 +38,13 @@ public class RecipeDto {
     private RecipeNutritionDto totalNutrition;
     private RecipeNutritionDto perServingNutrition;
     private RecipeNutritionDto per100gNutrition;
+    private Boolean savedByMe;
+    private Boolean favoriteByMe;
+    private Integer myRating;
+    private Long savedCount;
+    private Long favoriteCount;
+    private Long ratingCount;
+    private Double averageRating;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<RecipeIngredientDto> ingredients;

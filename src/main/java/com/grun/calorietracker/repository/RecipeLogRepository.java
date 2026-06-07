@@ -34,7 +34,8 @@ public interface RecipeLogRepository extends JpaRepository<RecipeLogEntity, Long
                    SUM(COALESCE(r.snapshot_fat, 0)) as fat
             FROM recipe_logs r
             WHERE r.user_id = :userId
-              AND r.log_date BETWEEN :start AND :end
+              AND r.log_date >= :start
+              AND r.log_date < :end
             GROUP BY DATE(r.log_date)
             ORDER BY DATE(r.log_date)
             """, nativeQuery = true)

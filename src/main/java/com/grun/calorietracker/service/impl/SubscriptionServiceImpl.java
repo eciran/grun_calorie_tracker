@@ -80,6 +80,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionFeatureAccessDto access = getFeatureAccess(email);
         return switch (feature) {
             case AI_WORKOUT_PLANNER -> Boolean.TRUE.equals(access.getAiWorkoutPlanner());
+            case AI_RECIPE_GENERATION -> Boolean.TRUE.equals(access.getAiRecipeGeneration());
             case HEALTH_INTEGRATION -> Boolean.TRUE.equals(access.getHealthIntegration());
             case ADVANCED_ANALYTICS -> Boolean.TRUE.equals(access.getAdvancedAnalytics());
             case AD_FREE -> Boolean.TRUE.equals(access.getAdFree());
@@ -354,6 +355,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setActiveEntitlement(active);
         dto.setAiWorkoutPlanner(featureAllowed(subscription, entity, SubscriptionFeature.AI_WORKOUT_PLANNER)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiRecipeGeneration(featureAllowed(subscription, entity, SubscriptionFeature.AI_RECIPE_GENERATION)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setHealthIntegration(featureAllowed(subscription, entity, SubscriptionFeature.HEALTH_INTEGRATION));
         dto.setAdvancedAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_ANALYTICS));
         dto.setAdFree(featureAllowed(subscription, entity, SubscriptionFeature.AD_FREE));
@@ -384,7 +387,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
         return switch (feature) {
-            case AI_WORKOUT_PLANNER, CUSTOM_FOOD_LIBRARY -> true;
+            case AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION, CUSTOM_FOOD_LIBRARY -> true;
             case HEALTH_INTEGRATION, ADVANCED_ANALYTICS -> planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
             case AD_FREE -> planType == SubscriptionPlan.PRO;
         };

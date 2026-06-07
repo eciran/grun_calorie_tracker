@@ -143,6 +143,20 @@ class RateLimitingFilterTest {
         assertEquals(429, secondResponse.getStatus());
     }
 
+    @Test
+    void aiRecipeGenerationPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/ai/recipes/generate"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/ai/recipes/generate"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
     private MockHttpServletRequest post(String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", uri);
         request.setRemoteAddr("127.0.0.1");

@@ -1,6 +1,8 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ImageSource;
+import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
@@ -50,6 +52,19 @@ public class RecipeEntity {
     private String language;
 
     private String imageUrl;
+
+    @Enumerated(EnumType.STRING)
+    private ImageSource imageSource;
+
+    @Enumerated(EnumType.STRING)
+    private ImageStatus imageStatus;
+
+    @Column(columnDefinition = "TEXT")
+    private String imageReviewNote;
+
+    private String imageReviewedBy;
+    private LocalDateTime imageReviewedAt;
+
     private Double totalYieldGrams;
     private Double defaultServingGrams;
     private Integer servingCount;
