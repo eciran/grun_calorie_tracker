@@ -5,8 +5,10 @@ import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
+import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -14,6 +16,7 @@ import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
@@ -38,6 +41,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     private final FoodLogsRepository foodLogsRepository;
     private final FoodItemRepository foodItemRepository;
+    private final RecipeLogRepository recipeLogRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -153,8 +157,20 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                         LinkedHashMap::new,
                         Collectors.toList()
                 ));
+        Map<String, List<RecipeLogEntity>> recipeLogsByMeal = recipeLogRepository
+                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        log -> normalizeMealType(log.getMealType()),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
         return List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").stream()
-                .map(mealType -> toMealSummary(mealType, logsByMeal.getOrDefault(mealType, List.of())))
+                .map(mealType -> toMealSummary(
+                        mealType,
+                        logsByMeal.getOrDefault(mealType, List.of()),
+                        recipeLogsByMeal.getOrDefault(mealType, List.of())
+                ))
                 .toList();
     }
 
@@ -189,11 +205,16 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Override
     public List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = getUser(email);
-
-        return foodLogsRepository.getDailyStatsByUserAndDateBetween(user.getId(), start, end)
+        Map<String, FoodLogDailyStatsDto> statsByDate = new LinkedHashMap<>();
+        foodLogsRepository.getDailyStatsByUserAndDateBetween(user.getId(), start, end)
                 .stream()
                 .map(this::toDailyStatsDto)
-                .collect(Collectors.toList());
+                .forEach(dto -> statsByDate.put(dto.getDate(), dto));
+        recipeLogRepository.getDailyStatsByUserAndDateBetween(user.getId(), start, end)
+                .stream()
+                .map(this::toDailyStatsDto)
+                .forEach(dto -> mergeDailyStats(statsByDate, dto));
+        return statsByDate.values().stream().toList();
     }
 
     private FoodLogDailyStatsDto toDailyStatsDto(Object[] row) {
@@ -206,15 +227,38 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return dto;
     }
 
-    private FoodLogMealSummaryDto toMealSummary(String mealType, List<FoodLogsEntity> logs) {
+    private FoodLogMealSummaryDto toMealSummary(String mealType, List<FoodLogsEntity> logs, List<RecipeLogEntity> recipeLogs) {
         FoodLogMealSummaryDto dto = new FoodLogMealSummaryDto();
         dto.setMealType(mealType);
-        dto.setLogs(logs.stream().map(this::toDto).toList());
-        dto.setTotalCalories(sumNutrition(logs, FoodLogsEntity::getSnapshotCalories, FoodItemEntity::getCalories));
-        dto.setTotalProtein(sumNutrition(logs, FoodLogsEntity::getSnapshotProtein, FoodItemEntity::getProtein));
-        dto.setTotalFat(sumNutrition(logs, FoodLogsEntity::getSnapshotFat, FoodItemEntity::getFat));
-        dto.setTotalCarbs(sumNutrition(logs, FoodLogsEntity::getSnapshotCarbs, FoodItemEntity::getCarbs));
+        List<FoodLogsDto> foodLogDtos = logs.stream().map(this::toDto).toList();
+        dto.setLogs(foodLogDtos);
+        dto.setFoodLogs(foodLogDtos);
+        dto.setRecipeLogs(recipeLogs.stream().map(this::toRecipeLogDto).toList());
+        dto.setTotalCalories(round(sumNutrition(logs, FoodLogsEntity::getSnapshotCalories, FoodItemEntity::getCalories)
+                + sumRecipeNutrition(recipeLogs, RecipeLogEntity::getSnapshotCalories)));
+        dto.setTotalProtein(round(sumNutrition(logs, FoodLogsEntity::getSnapshotProtein, FoodItemEntity::getProtein)
+                + sumRecipeNutrition(recipeLogs, RecipeLogEntity::getSnapshotProtein)));
+        dto.setTotalFat(round(sumNutrition(logs, FoodLogsEntity::getSnapshotFat, FoodItemEntity::getFat)
+                + sumRecipeNutrition(recipeLogs, RecipeLogEntity::getSnapshotFat)));
+        dto.setTotalCarbs(round(sumNutrition(logs, FoodLogsEntity::getSnapshotCarbs, FoodItemEntity::getCarbs)
+                + sumRecipeNutrition(recipeLogs, RecipeLogEntity::getSnapshotCarbs)));
         return dto;
+    }
+
+    private void mergeDailyStats(Map<String, FoodLogDailyStatsDto> statsByDate, FoodLogDailyStatsDto addition) {
+        FoodLogDailyStatsDto existing = statsByDate.computeIfAbsent(addition.getDate(), ignored -> {
+            FoodLogDailyStatsDto dto = new FoodLogDailyStatsDto();
+            dto.setDate(addition.getDate());
+            dto.setTotalCalories(0.0);
+            dto.setTotalProtein(0.0);
+            dto.setTotalCarbs(0.0);
+            dto.setTotalFat(0.0);
+            return dto;
+        });
+        existing.setTotalCalories(round(existing.getTotalCalories() + addition.getTotalCalories()));
+        existing.setTotalProtein(round(existing.getTotalProtein() + addition.getTotalProtein()));
+        existing.setTotalCarbs(round(existing.getTotalCarbs() + addition.getTotalCarbs()));
+        existing.setTotalFat(round(existing.getTotalFat() + addition.getTotalFat()));
     }
 
     private FoodLogRecentMealDto toRecentMeal(UserEntity user, LocalDate sourceDate, String mealType) {
@@ -224,7 +268,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 sourceDate.atStartOfDay(),
                 sourceDate.plusDays(1).atStartOfDay()
         );
-        FoodLogMealSummaryDto summary = toMealSummary(mealType, logs);
+        FoodLogMealSummaryDto summary = toMealSummary(mealType, logs, List.of());
         FoodLogRecentMealDto dto = new FoodLogRecentMealDto();
         dto.setSourceDate(sourceDate);
         dto.setMealType(summary.getMealType());
@@ -252,6 +296,35 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                     return (value == null ? 0.0 : value) * (grams == null ? 0.0 : grams) / 100.0;
                 })
                 .sum());
+    }
+
+    private Double sumRecipeNutrition(
+            List<RecipeLogEntity> recipeLogs,
+            java.util.function.Function<RecipeLogEntity, Double> snapshot
+    ) {
+        return recipeLogs.stream()
+                .map(snapshot)
+                .mapToDouble(value -> value == null ? 0.0 : value)
+                .sum();
+    }
+
+    private RecipeLogDto toRecipeLogDto(RecipeLogEntity log) {
+        RecipeLogDto dto = new RecipeLogDto();
+        dto.setId(log.getId());
+        dto.setRecipeId(log.getRecipe().getId());
+        dto.setRecipeName(log.getRecipe().getName());
+        dto.setServingGrams(log.getServingGrams());
+        dto.setServingCount(log.getServingCount());
+        dto.setMealType(log.getMealType());
+        dto.setLogDate(log.getLogDate());
+        dto.setSnapshotCalories(log.getSnapshotCalories());
+        dto.setSnapshotProtein(log.getSnapshotProtein());
+        dto.setSnapshotCarbs(log.getSnapshotCarbs());
+        dto.setSnapshotFat(log.getSnapshotFat());
+        dto.setSnapshotFiber(log.getSnapshotFiber());
+        dto.setSnapshotSugar(log.getSnapshotSugar());
+        dto.setSnapshotSodium(log.getSnapshotSodium());
+        return dto;
     }
 
     private String formatDate(Object value) {

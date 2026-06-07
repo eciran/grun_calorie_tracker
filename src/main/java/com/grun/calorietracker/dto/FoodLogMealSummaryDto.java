@@ -26,4 +26,10 @@ public class FoodLogMealSummaryDto {
 
     @Schema(description = "Food logs in this meal.")
     private List<FoodLogsDto> logs;
+
+    @Schema(description = "Food product logs in this meal. Prefer this field for new clients; logs is kept for backward compatibility.")
+    private List<FoodLogsDto> foodLogs;
+
+    @Schema(description = "Recipe logs in this meal.")
+    private List<RecipeLogDto> recipeLogs;
 }

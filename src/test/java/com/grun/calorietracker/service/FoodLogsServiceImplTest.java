@@ -14,6 +14,7 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.FoodLogsServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,8 @@ class FoodLogsServiceImplTest {
     @Mock
     private FoodItemRepository foodItemRepository;
     @Mock
+    private RecipeLogRepository recipeLogRepository;
+    @Mock
     private UserRepository userRepository;
 
     @InjectMocks
@@ -65,6 +68,16 @@ class FoodLogsServiceImplTest {
         foodItem.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         foodItem.setImageStatus(ImageStatus.NEEDS_REVIEW);
         foodItem.setUsageCount(0L);
+        lenient().when(recipeLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                any(),
+                any(),
+                any()
+        )).thenReturn(Collections.emptyList());
+        lenient().when(recipeLogRepository.getDailyStatsByUserAndDateBetween(
+                any(),
+                any(),
+                any()
+        )).thenReturn(Collections.emptyList());
     }
 
     @Test
