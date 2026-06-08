@@ -291,6 +291,20 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setFiber(NutritionValueNormalizer.macro(parseDouble(product.getFiber(), row, "fiber", "fiber_100g")));
         product.setSugar(NutritionValueNormalizer.macro(parseDouble(product.getSugar(), row, "sugar", "sugars_100g")));
         product.setSodium(NutritionValueNormalizer.sodium(parseDouble(product.getSodium(), row, "sodium", "sodium_100g")));
+        product.setPotassium(NutritionValueNormalizer.micronutrient(parseDouble(product.getPotassium(), row, "potassium", "potassium_100g")));
+        product.setCholesterol(NutritionValueNormalizer.micronutrient(parseDouble(product.getCholesterol(), row, "cholesterol", "cholesterol_100g")));
+        product.setCalcium(NutritionValueNormalizer.micronutrient(parseDouble(product.getCalcium(), row, "calcium", "calcium_100g")));
+        product.setIron(NutritionValueNormalizer.micronutrient(parseDouble(product.getIron(), row, "iron", "iron_100g")));
+        product.setMagnesium(NutritionValueNormalizer.micronutrient(parseDouble(product.getMagnesium(), row, "magnesium", "magnesium_100g")));
+        product.setZinc(NutritionValueNormalizer.micronutrient(parseDouble(product.getZinc(), row, "zinc", "zinc_100g")));
+        product.setVitaminA(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminA(), row, "vitamin_a", "vitamina", "vitamin_a_100g", "vitamina_100g")));
+        product.setVitaminC(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminC(), row, "vitamin_c", "vitaminc", "vitamin_c_100g", "vitaminc_100g")));
+        product.setVitaminD(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminD(), row, "vitamin_d", "vitamind", "vitamin_d_100g", "vitamind_100g")));
+        product.setVitaminE(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminE(), row, "vitamin_e", "vitamine", "vitamin_e_100g", "vitamine_100g")));
+        product.setVitaminB12(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminB12(), row, "vitamin_b12", "vitaminb12", "vitamin_b12_100g", "vitaminb12_100g")));
+        product.setSaturatedFat(NutritionValueNormalizer.macro(parseDouble(product.getSaturatedFat(), row, "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g")));
+        product.setTransFat(NutritionValueNormalizer.macro(parseDouble(product.getTransFat(), row, "trans_fat", "transfat", "trans_fat_100g", "transfat_100g")));
+        product.setSugarAlcohol(NutritionValueNormalizer.macro(parseDouble(product.getSugarAlcohol(), row, "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g")));
         product.setServingSizeGrams(parseServingSizeGrams(row, product.getServingSizeGrams()));
         String servingUnit = resolveServingUnit(row);
         if (servingUnit != null) {
@@ -438,9 +452,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
     private boolean requiresReview(FoodItemEntity product) {
         return product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED
-                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW
-                || product.getImageStatus() == ImageStatus.NEEDS_REVIEW
-                || product.getImageStatus() == ImageStatus.RAW;
+                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW;
     }
 
     private void addQualityWarnings(
@@ -466,13 +478,6 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (product.getServingSizeGrams() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_SERVING_SIZE", "Product has no serving size value.");
         }
-        if (firstText(row, "imageurl", "image_url", "image_front_url", "externalimageurl", "external_image_url", "displayimageurl", "display_image_url") == null
-                && FoodProductNormalizationRules.normalizeText(product.getImageUrl()) == null
-                && FoodProductNormalizationRules.normalizeText(product.getExternalImageUrl()) == null
-                && FoodProductNormalizationRules.normalizeText(product.getDisplayImageUrl()) == null) {
-            addWarning(warningCounts, warnings, row, identifier, "MISSING_IMAGE", "Product has no image URL.");
-        }
-
         String rawBarcode = firstText(row, "barcode", "code", "gtin", "ean", "upc");
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(rawBarcode);
         if (normalizedBarcode != null && !normalizedBarcode.matches("\\d{6,18}")) {

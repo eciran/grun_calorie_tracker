@@ -198,6 +198,12 @@ class FoodProductReviewServiceImplTest {
         request.setFiber(3.5);
         request.setSugar(5.0);
         request.setSodium(0.25);
+        request.setPotassium(0.36);
+        request.setCalcium(0.18);
+        request.setIron(0.005);
+        request.setVitaminA(0.001);
+        request.setSaturatedFat(1.5);
+        request.setTransFat(0.0);
         request.setServingSizeGrams(125.0);
         request.setServingUnit("g");
         request.setReviewNote("Corrected from product label.");
@@ -214,12 +220,18 @@ class FoodProductReviewServiceImplTest {
         assertEquals(3.5, result.getFiber());
         assertEquals(5.0, result.getSugar());
         assertEquals(0.25, result.getSodium());
+        assertEquals(0.36, result.getPotassium());
+        assertEquals(0.18, result.getCalcium());
+        assertEquals(0.005, result.getIron());
+        assertEquals(0.001, result.getVitaminA());
+        assertEquals(1.5, result.getSaturatedFat());
+        assertEquals(0.0, result.getTransFat());
         assertEquals(125.0, result.getServingSize());
         assertEquals("g", result.getServingUnit());
 
         ArgumentCaptor<List<FoodProductReviewAuditEntity>> auditCaptor = ArgumentCaptor.forClass(List.class);
         verify(foodProductReviewAuditRepository).saveAll(auditCaptor.capture());
-        assertEquals(9, auditCaptor.getValue().size());
+        assertEquals(15, auditCaptor.getValue().size());
         assertEquals("calories", auditCaptor.getValue().get(0).getFieldName());
         assertEquals("100.0", auditCaptor.getValue().get(0).getOldValue());
         assertEquals("150.0", auditCaptor.getValue().get(0).getNewValue());
@@ -264,7 +276,7 @@ class FoodProductReviewServiceImplTest {
     }
 
     @Test
-    void updateProductReview_whenApprovedImageUrlIsBlank_throwsIllegalArgumentException() {
+    void updateProductReview_whenApprovedImageUrlIsBlank_allowsOptionalImageMetadata() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);
         product.setName("Nutella");
@@ -276,10 +288,12 @@ class FoodProductReviewServiceImplTest {
         request.setImageStatus(ImageStatus.APPROVED);
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
 
-        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
-        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
-        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+        FoodProductDto result = foodProductReviewService.updateProductReview(1L, request);
+
+        assertEquals(ImageStatus.APPROVED, result.getImageStatus());
+        verify(foodItemRepository).save(product);
     }
 
     @Test
@@ -319,7 +333,7 @@ class FoodProductReviewServiceImplTest {
     }
 
     @Test
-    void updateProductReview_whenRejectingImageWithoutNote_throwsIllegalArgumentException() {
+    void updateProductReview_whenRejectingImageWithoutNote_allowsOptionalImageMetadata() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);
         product.setName("Nutella");
@@ -330,10 +344,12 @@ class FoodProductReviewServiceImplTest {
         request.setImageStatus(ImageStatus.REJECTED);
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
 
-        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductReview(1L, request));
-        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
-        verify(foodProductReviewAuditRepository, never()).saveAll(any());
+        FoodProductDto result = foodProductReviewService.updateProductReview(1L, request);
+
+        assertEquals(ImageStatus.REJECTED, result.getImageStatus());
+        verify(foodItemRepository).save(product);
     }
 
     @Test
@@ -491,7 +507,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals(2L, result.getScannedProducts());
         assertEquals(2, result.getProcessedBatches());
         assertEquals(1, result.getPageSize());
-        assertEquals(70, first.getQualityScore());
+        assertEquals(60, first.getQualityScore());
         verify(foodProductQualityIssueTracker).syncReviewIssues(first, "admin@grun.app");
         verify(foodProductQualityIssueTracker).syncReviewIssues(second, "admin@grun.app");
     }

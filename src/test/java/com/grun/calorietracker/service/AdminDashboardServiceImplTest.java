@@ -1,7 +1,6 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminDashboardSummaryDto;
-import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
@@ -52,8 +51,7 @@ class AdminDashboardServiceImplTest {
         when(foodItemRepository.countByVerificationStatus(VerificationStatus.NEEDS_REVIEW)).thenReturn(10L);
         when(foodItemRepository.countByVerificationStatus(VerificationStatus.REJECTED)).thenReturn(5L);
         when(foodItemRepository.countReviewQueueProducts(
-                List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW),
-                ImageStatus.NEEDS_REVIEW
+                List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW)
         )).thenReturn(35L);
         when(subscriptionRepository.countByPlanTypeAndStatus(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE)).thenReturn(4L);
         when(subscriptionRepository.countByPlanTypeAndStatus(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE)).thenReturn(2L);
@@ -84,8 +82,7 @@ class AdminDashboardServiceImplTest {
         assertThat(summary.getSubscriptionProviderEventsLast24Hours()).isEqualTo(12L);
 
         verify(foodItemRepository).countReviewQueueProducts(
-                List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW),
-                ImageStatus.NEEDS_REVIEW
+                List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW)
         );
     }
 }

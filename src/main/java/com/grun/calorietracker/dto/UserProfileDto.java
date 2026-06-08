@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,6 +42,9 @@ public class UserProfileDto {
 
     @Schema(description = "Latest calculated body fat percentage.", example = "19.2")
     private Double bodyFat;
+
+    @Schema(description = "User role used by backend authorization.", example = "STANDARD")
+    private UserRole role;
 
     @Schema(description = "Whether the user's email address has been verified.", example = "true")
     private Boolean emailVerified;

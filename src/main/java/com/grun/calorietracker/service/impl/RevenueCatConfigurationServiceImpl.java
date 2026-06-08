@@ -31,6 +31,11 @@ public class RevenueCatConfigurationServiceImpl implements RevenueCatConfigurati
         dto.setWebhookAuthorizationConfigured(hasText(properties.getWebhookAuthorization()));
         dto.setStrictProductMapping(properties.isStrictProductMapping());
         dto.setProductionReady(missingRequiredConfig.isEmpty());
+        dto.setApiEnabled(properties.getApi().isEnabled());
+        dto.setApiSecretConfigured(hasText(properties.getApi().getSecretKey()));
+        dto.setApiProjectConfigured(hasText(properties.getApi().getProjectId()));
+        dto.setApiBaseUrl(properties.getApi().getBaseUrl());
+        dto.setApiCurrency(properties.getApi().getCurrency());
         dto.setMissingRequiredConfig(missingRequiredConfig);
         dto.setWarnings(warnings());
         dto.setPlusEntitlements(List.copyOf(properties.getEntitlements().getPlus()));

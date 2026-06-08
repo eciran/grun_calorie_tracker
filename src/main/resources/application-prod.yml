@@ -63,6 +63,12 @@ grun:
       enabled: true
   revenuecat:
     strict-product-mapping: true
+    api:
+      enabled: ${GRUN_REVENUECAT_API_ENABLED:false}
+      base-url: ${GRUN_REVENUECAT_API_BASE_URL:https://api.revenuecat.com/v2}
+      secret-key: ${GRUN_REVENUECAT_API_SECRET_KEY:}
+      project-id: ${GRUN_REVENUECAT_PROJECT_ID:}
+      currency: ${GRUN_REVENUECAT_CURRENCY:EUR}
   local:
     admin:
       bootstrap-enabled: false

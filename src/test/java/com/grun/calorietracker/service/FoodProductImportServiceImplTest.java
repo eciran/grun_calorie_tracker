@@ -72,7 +72,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getUpdatedRows());
         assertEquals(0, result.getSkippedRows());
         assertEquals(2, result.getSavedRows());
-        assertEquals(1, result.getReviewRequiredRows());
+        assertEquals(0, result.getReviewRequiredRows());
         assertEquals("CSV", result.getImportFormat());
         assertEquals(0, result.getMissingMarketRegionRows());
         assertEquals(0, result.getUnsupportedMarketRegionRows());
@@ -281,8 +281,8 @@ class FoodProductImportServiceImplTest {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = tsv("""
-                code\tproduct_name\tenergy-kcal_100g\tproteins_100g\tfat_100g\tcarbohydrates_100g\tfiber_100g\tsugars_100g\tsodium_100g\tserving_size\tserving_quantity\tserving_quantity_unit\timage_url\tallergens_tags\tnutrition_grade_fr
-                3017620422003\tNutella Hazelnut Cocoa Spread\t539\t6.3\t30.9\t57.5\t0\t56.3\t0.107\t15 g\t15\tg\thttps://images.openfoodfacts.org/nutella.jpg\ten:milk,en:nuts\te
+                code\tproduct_name\tenergy-kcal_100g\tproteins_100g\tfat_100g\tcarbohydrates_100g\tfiber_100g\tsugars_100g\tsodium_100g\tpotassium_100g\tcalcium_100g\tiron_100g\tvitamin-a_100g\tsaturated-fat_100g\ttrans-fat_100g\tserving_size\tserving_quantity\tserving_quantity_unit\timage_url\tallergens_tags\tnutrition_grade_fr
+                3017620422003\tNutella Hazelnut Cocoa Spread\t539\t6.3\t30.9\t57.5\t0\t56.3\t0.107\t0.3578\t0.1824\t0.0045\t0.0009\t10.6\t0.01\t15 g\t15\tg\thttps://images.openfoodfacts.org/nutella.jpg\ten:milk,en:nuts\te
                 """);
 
         FoodProductImportResultDto result = foodProductImportService.importCsv(
@@ -306,6 +306,12 @@ class FoodProductImportServiceImplTest {
         assertEquals(6.3, imported.getProtein());
         assertEquals(30.9, imported.getFat());
         assertEquals(57.5, imported.getCarbs());
+        assertEquals(0.358, imported.getPotassium());
+        assertEquals(0.182, imported.getCalcium());
+        assertEquals(0.005, imported.getIron());
+        assertEquals(0.001, imported.getVitaminA());
+        assertEquals(10.6, imported.getSaturatedFat());
+        assertEquals(0.0, imported.getTransFat());
         assertEquals("https://images.openfoodfacts.org/nutella.jpg", imported.getImageUrl());
         assertEquals("en:milk,en:nuts", imported.getAllergens());
         assertEquals("e", imported.getNutriScore());
@@ -489,11 +495,11 @@ class FoodProductImportServiceImplTest {
         assertEquals(2, result.getMarketRegionCounts().get("GLOBAL"));
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_REGION"));
         assertEquals(1, result.getQualityWarningCounts().get("UNSUPPORTED_REGION"));
-        assertEquals(8, result.getWarnings().size());
+        assertEquals(6, result.getWarnings().size());
         assertEquals("MISSING_REGION", result.getWarnings().get(0).getCode());
         assertEquals("1111111111111", result.getWarnings().get(0).getIdentifier());
-        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(4).getCode());
-        assertEquals(68, result.getImportQualityScore());
+        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(3).getCode());
+        assertEquals(76, result.getImportQualityScore());
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -519,12 +525,11 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_CALORIES"));
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_MACROS"));
         assertEquals(2, result.getQualityWarningCounts().get("MISSING_SERVING_SIZE"));
-        assertEquals(2, result.getQualityWarningCounts().get("MISSING_IMAGE"));
-        assertEquals(7, result.getWarnings().size());
+        assertEquals(5, result.getWarnings().size());
         assertEquals("MISSING_CALORIES", result.getWarnings().get(0).getCode());
         assertEquals("not-a-barcode", result.getWarnings().get(0).getIdentifier());
-        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(4).getCode());
-        assertEquals(72, result.getImportQualityScore());
+        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(3).getCode());
+        assertEquals(80, result.getImportQualityScore());
         verify(foodProductQualityIssueTracker, times(2)).syncImportIssues(
                 any(FoodItemEntity.class),
                 eq(false),

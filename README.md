@@ -50,6 +50,18 @@ Temporary local admin UI:
 http://localhost:8080/admin-ui/index.html
 ```
 
+Separate modern admin UI:
+
+```powershell
+cd admin-ui
+npm install
+npm run dev
+```
+
+```text
+http://127.0.0.1:5174
+```
+
 Run tests:
 
 ```powershell
@@ -107,5 +119,5 @@ This project is under active development. The backend is ready for first-pass mo
 Latest verified backend regression baseline:
 
 ```text
-365 tests, 0 failures
+462 tests, 0 failures
 ```

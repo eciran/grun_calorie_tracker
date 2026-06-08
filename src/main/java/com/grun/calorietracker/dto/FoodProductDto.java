@@ -101,6 +101,48 @@ public class FoodProductDto {
     @Schema(description = "Sodium amount.", example = "0.107")
     private Double sodium;
 
+    @Schema(description = "Potassium amount per 100g/ml or configured product base.", example = "120.0")
+    private Double potassium;
+
+    @Schema(description = "Cholesterol amount per 100g/ml or configured product base.", example = "0.0")
+    private Double cholesterol;
+
+    @Schema(description = "Calcium amount per 100g/ml or configured product base.", example = "43.0")
+    private Double calcium;
+
+    @Schema(description = "Iron amount per 100g/ml or configured product base.", example = "1.2")
+    private Double iron;
+
+    @Schema(description = "Magnesium amount per 100g/ml or configured product base.", example = "22.0")
+    private Double magnesium;
+
+    @Schema(description = "Zinc amount per 100g/ml or configured product base.", example = "0.6")
+    private Double zinc;
+
+    @Schema(description = "Vitamin A amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminA;
+
+    @Schema(description = "Vitamin C amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminC;
+
+    @Schema(description = "Vitamin D amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminD;
+
+    @Schema(description = "Vitamin E amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminE;
+
+    @Schema(description = "Vitamin B12 amount per 100g/ml or configured product base.", example = "0.0")
+    private Double vitaminB12;
+
+    @Schema(description = "Saturated fat amount in grams per 100g/ml or configured product base.", example = "10.6")
+    private Double saturatedFat;
+
+    @Schema(description = "Trans fat amount in grams per 100g/ml or configured product base.", example = "0.0")
+    private Double transFat;
+
+    @Schema(description = "Sugar alcohol amount in grams per 100g/ml or configured product base.", example = "0.0")
+    private Double sugarAlcohol;
+
     @Schema(description = "Serving size in grams used for SERVING and PIECE food log conversion.", example = "30.0")
     private Double servingSize;
 

@@ -5,6 +5,8 @@ import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
+import com.grun.calorietracker.entity.FastingPlanEntity;
+import com.grun.calorietracker.entity.FastingSessionEntity;
 import com.grun.calorietracker.entity.FoodDiaryNoteEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.HealthConnectionEntity;
@@ -23,6 +25,8 @@ import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
+import com.grun.calorietracker.repository.FastingPlanRepository;
+import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -86,6 +90,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final WaterLogRepository waterLogRepository;
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
+    private final FastingPlanRepository fastingPlanRepository;
+    private final FastingSessionRepository fastingSessionRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -138,11 +144,14 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 userConsentRepository.countByUser(user),
                 aiRequestHistoryRepository.countByUser(user),
                 waterLogRepository.countByUser(user),
+                fastingSessionRepository.countByUser(user),
                 subscriptionDto,
                 identities,
                 userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
                 foodLogsRepository.findByUser(user).stream().map(this::toFoodLogExport).toList(),
                 waterLogRepository.findByUserOrderByLoggedAtAsc(user).stream().map(this::toWaterLogExport).toList(),
+                fastingPlanRepository.findByUser(user).map(this::toFastingPlanExport).orElse(null),
+                fastingSessionRepository.findByUserOrderByStartedAtAsc(user).stream().map(this::toFastingSessionExport).toList(),
                 exerciseLogRepository.findByUser(user).stream().map(this::toExerciseLogExport).toList(),
                 progressLogRepository.findByUserOrderByLogDateAsc(user).stream().map(this::toProgressLogExport).toList(),
                 foodDiaryNoteRepository.findByUserOrderByDiaryDateAsc(user).stream().map(this::toFoodDiaryNoteExport).toList(),
@@ -193,6 +202,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         foodLogsRepository.deleteByUser(user);
         waterLogRepository.deleteByUser(user);
         waterReminderSettingsRepository.deleteByUser(user);
+        fastingSessionRepository.deleteByUser(user);
+        fastingPlanRepository.deleteByUser(user);
         exerciseLogRepository.deleteByUser(user);
         progressLogRepository.deleteByUser(user);
         mealTemplateRepository.deleteByUser(user);
@@ -241,6 +252,37 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 log.getSource(),
                 log.getLoggedAt(),
                 log.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.FastingPlanExportDto toFastingPlanExport(FastingPlanEntity plan) {
+        return new GdprDataExportDto.FastingPlanExportDto(
+                plan.getId(),
+                plan.getPlanType() == null ? null : plan.getPlanType().name(),
+                plan.getFastingHours(),
+                plan.getEatingWindowHours(),
+                plan.getPreferredStartTime() == null ? null : plan.getPreferredStartTime().toString(),
+                plan.getActive(),
+                plan.getReminderEnabled(),
+                plan.getNote(),
+                plan.getCreatedAt(),
+                plan.getUpdatedAt()
+        );
+    }
+
+    private GdprDataExportDto.FastingSessionExportDto toFastingSessionExport(FastingSessionEntity session) {
+        return new GdprDataExportDto.FastingSessionExportDto(
+                session.getId(),
+                session.getStatus() == null ? null : session.getStatus().name(),
+                session.getFastingDate(),
+                session.getStartedAt(),
+                session.getTargetEndAt(),
+                session.getEndedAt(),
+                session.getTargetMinutes(),
+                session.getActualMinutes(),
+                session.getTargetReached(),
+                session.getNote(),
+                session.getCreatedAt()
         );
     }
 

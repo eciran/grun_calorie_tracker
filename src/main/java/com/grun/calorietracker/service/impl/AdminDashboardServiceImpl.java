@@ -1,7 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.AdminDashboardSummaryDto;
-import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
@@ -34,8 +33,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         long needsReviewProducts = foodItemRepository.countByVerificationStatus(VerificationStatus.NEEDS_REVIEW);
         long rejectedProducts = foodItemRepository.countByVerificationStatus(VerificationStatus.REJECTED);
         long reviewQueueProducts = foodItemRepository.countReviewQueueProducts(
-                List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW),
-                ImageStatus.NEEDS_REVIEW
+                List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW)
         );
 
         return new AdminDashboardSummaryDto(

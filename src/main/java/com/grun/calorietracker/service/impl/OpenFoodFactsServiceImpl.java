@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.OpenFoodFactsService;
+import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -143,19 +144,33 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
         dto.setIngredientsText(firstText(productNode, null, "ingredients_text", "ingredients_text_en"));
         dto.setAllergens(firstText(productNode, null, "allergens_from_ingredients", "allergens"));
         dto.setNutriScore(normalizeLower(firstText(productNode, null, "nutriscore_grade", "nutri_score")));
-        dto.setServingSize(number(productNode, "serving_quantity"));
+        dto.setServingSize(NutritionValueNormalizer.servingSize(number(productNode, "serving_quantity")));
         if (dto.getServingSize() != null) {
             dto.setServingUnit("g");
         }
 
         JsonNode nutriments = productNode.path("nutriments");
-        dto.setCalories(number(nutriments, "energy-kcal_100g", "energy-kcal_serving"));
-        dto.setProtein(number(nutriments, "proteins_100g", "proteins_serving"));
-        dto.setFat(number(nutriments, "fat_100g", "fat_serving"));
-        dto.setCarbs(number(nutriments, "carbohydrates_100g", "carbohydrates_serving"));
-        dto.setFiber(number(nutriments, "fiber_100g", "fiber_serving"));
-        dto.setSugar(number(nutriments, "sugars_100g", "sugars_serving"));
-        dto.setSodium(number(nutriments, "sodium_100g", "sodium_serving"));
+        dto.setCalories(NutritionValueNormalizer.calories(number(nutriments, "energy-kcal_100g", "energy-kcal_serving")));
+        dto.setProtein(NutritionValueNormalizer.macro(number(nutriments, "proteins_100g", "proteins_serving")));
+        dto.setFat(NutritionValueNormalizer.macro(number(nutriments, "fat_100g", "fat_serving")));
+        dto.setCarbs(NutritionValueNormalizer.macro(number(nutriments, "carbohydrates_100g", "carbohydrates_serving")));
+        dto.setFiber(NutritionValueNormalizer.macro(number(nutriments, "fiber_100g", "fiber_serving")));
+        dto.setSugar(NutritionValueNormalizer.macro(number(nutriments, "sugars_100g", "sugars_serving")));
+        dto.setSodium(NutritionValueNormalizer.micronutrient(number(nutriments, "sodium_100g", "sodium_serving")));
+        dto.setPotassium(NutritionValueNormalizer.micronutrient(number(nutriments, "potassium_100g", "potassium_serving")));
+        dto.setCholesterol(NutritionValueNormalizer.micronutrient(number(nutriments, "cholesterol_100g", "cholesterol_serving")));
+        dto.setCalcium(NutritionValueNormalizer.micronutrient(number(nutriments, "calcium_100g", "calcium_serving")));
+        dto.setIron(NutritionValueNormalizer.micronutrient(number(nutriments, "iron_100g", "iron_serving")));
+        dto.setMagnesium(NutritionValueNormalizer.micronutrient(number(nutriments, "magnesium_100g", "magnesium_serving")));
+        dto.setZinc(NutritionValueNormalizer.micronutrient(number(nutriments, "zinc_100g", "zinc_serving")));
+        dto.setVitaminA(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-a_100g", "vitamin-a_serving", "vitamin_a_100g", "vitamin_a_serving")));
+        dto.setVitaminC(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-c_100g", "vitamin-c_serving", "vitamin_c_100g", "vitamin_c_serving")));
+        dto.setVitaminD(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-d_100g", "vitamin-d_serving", "vitamin_d_100g", "vitamin_d_serving")));
+        dto.setVitaminE(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-e_100g", "vitamin-e_serving", "vitamin_e_100g", "vitamin_e_serving")));
+        dto.setVitaminB12(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-b12_100g", "vitamin-b12_serving", "vitamin_b12_100g", "vitamin_b12_serving")));
+        dto.setSaturatedFat(NutritionValueNormalizer.macro(number(nutriments, "saturated-fat_100g", "saturated-fat_serving", "saturated_fat_100g", "saturated_fat_serving")));
+        dto.setTransFat(NutritionValueNormalizer.macro(number(nutriments, "trans-fat_100g", "trans-fat_serving", "trans_fat_100g", "trans_fat_serving")));
+        dto.setSugarAlcohol(NutritionValueNormalizer.macro(number(nutriments, "sugar-alcohol_100g", "sugar-alcohol_serving", "sugar_alcohol_100g", "sugar_alcohol_serving")));
         return dto;
     }
 

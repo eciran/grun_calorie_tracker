@@ -39,10 +39,8 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
             SELECT COUNT(f)
             FROM FoodItemEntity f
             WHERE f.verificationStatus IN :verificationStatuses
-               OR f.imageStatus = :imageStatus
             """)
-    long countReviewQueueProducts(@Param("verificationStatuses") Collection<VerificationStatus> verificationStatuses,
-                                  @Param("imageStatus") ImageStatus imageStatus);
+    long countReviewQueueProducts(@Param("verificationStatuses") Collection<VerificationStatus> verificationStatuses);
 
     @Query("""
             SELECT f

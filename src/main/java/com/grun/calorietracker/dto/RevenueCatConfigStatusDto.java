@@ -10,6 +10,11 @@ public class RevenueCatConfigStatusDto {
     private boolean webhookAuthorizationConfigured;
     private boolean strictProductMapping;
     private boolean productionReady;
+    private boolean apiEnabled;
+    private boolean apiSecretConfigured;
+    private boolean apiProjectConfigured;
+    private String apiBaseUrl;
+    private String apiCurrency;
     private List<String> missingRequiredConfig;
     private List<String> warnings;
     private List<String> plusEntitlements;

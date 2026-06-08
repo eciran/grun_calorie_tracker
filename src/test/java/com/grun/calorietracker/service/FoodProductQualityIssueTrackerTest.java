@@ -122,4 +122,48 @@ class FoodProductQualityIssueTrackerTest {
         assertTrue(product.getQualityScore() >= 60);
         assertFalse(tracker.deriveFieldIssues(product).containsKey(FoodProductQualityIssue.LOW_QUALITY));
     }
+
+    @Test
+    void deriveFieldIssues_whenMicronutrientsAndNutrientQualityFieldsAreMissing_flagsReviewNeeds() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        product.setName("Incomplete Product");
+        product.setNormalizedBarcode("1234567890123");
+        product.setMarketRegion(MarketRegion.UK_IE);
+        product.setCalories(100.0);
+        product.setProtein(3.0);
+        product.setFat(4.0);
+        product.setCarbs(5.0);
+        product.setServingSizeGrams(100.0);
+        product.setImageUrl("https://cdn.grun.app/products/1234567890123.jpg");
+
+        var issues = tracker.deriveFieldIssues(product);
+
+        assertTrue(issues.containsKey(FoodProductQualityIssue.MISSING_MICRONUTRIENTS));
+        assertTrue(issues.containsKey(FoodProductQualityIssue.MISSING_NUTRIENT_QUALITY_FIELDS));
+    }
+
+    @Test
+    void deriveFieldIssues_whenNutrientQualityValuesAreImpossible_flagsSuspiciousQuality() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        product.setName("Suspicious Nutrient Product");
+        product.setNormalizedBarcode("1234567890124");
+        product.setMarketRegion(MarketRegion.UK_IE);
+        product.setCalories(100.0);
+        product.setProtein(3.0);
+        product.setFat(4.0);
+        product.setCarbs(5.0);
+        product.setFiber(2.0);
+        product.setSugar(8.0);
+        product.setSodium(0.1);
+        product.setSaturatedFat(6.0);
+        product.setTransFat(0.0);
+        product.setServingSizeGrams(100.0);
+        product.setImageUrl("https://cdn.grun.app/products/1234567890124.jpg");
+
+        var issues = tracker.deriveFieldIssues(product);
+
+        assertTrue(issues.containsKey(FoodProductQualityIssue.SUSPICIOUS_NUTRIENT_QUALITY));
+    }
 }

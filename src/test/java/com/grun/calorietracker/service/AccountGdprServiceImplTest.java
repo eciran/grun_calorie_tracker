@@ -10,6 +10,8 @@ import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
+import com.grun.calorietracker.repository.FastingPlanRepository;
+import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -72,6 +74,8 @@ class AccountGdprServiceImplTest {
     @Mock private AiRequestHistoryRepository aiRequestHistoryRepository;
     @Mock private WaterLogRepository waterLogRepository;
     @Mock private WaterReminderSettingsRepository waterReminderSettingsRepository;
+    @Mock private FastingPlanRepository fastingPlanRepository;
+    @Mock private FastingSessionRepository fastingSessionRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     private AccountGdprServiceImpl service;
@@ -106,6 +110,8 @@ class AccountGdprServiceImplTest {
                 aiRequestHistoryRepository,
                 waterLogRepository,
                 waterReminderSettingsRepository,
+                fastingPlanRepository,
+                fastingSessionRepository,
                 passwordEncoder
         );
 
@@ -138,6 +144,7 @@ class AccountGdprServiceImplTest {
         when(userConsentRepository.countByUser(user)).thenReturn(2L);
         when(aiRequestHistoryRepository.countByUser(user)).thenReturn(6L);
         when(waterLogRepository.countByUser(user)).thenReturn(9L);
+        when(fastingSessionRepository.countByUser(user)).thenReturn(3L);
 
         GdprDataExportDto dto = service.exportMyData("user@grun.app");
 
@@ -146,6 +153,7 @@ class AccountGdprServiceImplTest {
         assertEquals(2L, dto.getConsentCount());
         assertEquals(6L, dto.getAiRequestCount());
         assertEquals(9L, dto.getWaterLogCount());
+        assertEquals(3L, dto.getFastingSessionCount());
         assertEquals(100, dto.getSubscription().getAiMonthlyQuota());
         assertEquals(0, dto.getFoodLogs().size());
     }
@@ -162,6 +170,8 @@ class AccountGdprServiceImplTest {
         verify(foodLogsRepository).deleteByUser(user);
         verify(waterLogRepository).deleteByUser(user);
         verify(waterReminderSettingsRepository).deleteByUser(user);
+        verify(fastingSessionRepository).deleteByUser(user);
+        verify(fastingPlanRepository).deleteByUser(user);
         verify(subscriptionProviderEventRepository).anonymizeUserReferences(user, "deleted-user:10", "{}");
         verify(aiRequestHistoryRepository).deleteByUser(user);
         verify(subscriptionRepository).deleteByUser(user);

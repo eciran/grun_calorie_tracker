@@ -17,7 +17,7 @@ public class FoodProductImportWarningDto {
     @Schema(description = "Barcode, source key, or row identifier.", example = "3017620422003")
     private String identifier;
 
-    @Schema(description = "Machine-readable warning code.", example = "MISSING_IMAGE")
+    @Schema(description = "Machine-readable warning code.", example = "MISSING_MACROS")
     private String code;
 
     @Schema(description = "Human-readable warning reason.", example = "Product has no image URL.")

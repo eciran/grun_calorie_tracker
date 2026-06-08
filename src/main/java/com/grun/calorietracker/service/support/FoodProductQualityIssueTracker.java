@@ -49,9 +49,6 @@ public class FoodProductQualityIssueTracker {
         if (product.getQualityScore() == null || product.getQualityScore() < 60) {
             issues.put(FoodProductQualityIssue.LOW_QUALITY, "Product quality score is below review threshold.");
         }
-        if (isBlank(product.getImageUrl()) && isBlank(product.getExternalImageUrl()) && isBlank(product.getDisplayImageUrl())) {
-            issues.put(FoodProductQualityIssue.MISSING_IMAGE, "Product has no image URL.");
-        }
         if (product.getCalories() == null) {
             issues.put(FoodProductQualityIssue.MISSING_CALORIES, "Product has no calories value.");
         } else if (product.getCalories() > 1000) {
@@ -61,6 +58,15 @@ public class FoodProductQualityIssueTracker {
             issues.put(FoodProductQualityIssue.MISSING_MACROS, "Product has no protein, fat, or carbohydrate values.");
         } else if (isSuspiciousMacro(product.getProtein()) || isSuspiciousMacro(product.getFat()) || isSuspiciousMacro(product.getCarbs())) {
             issues.put(FoodProductQualityIssue.SUSPICIOUS_MACROS, "Product macro values are unusually high for a 100g/ml nutrition basis.");
+        }
+        if (isMissingMicronutrients(product)) {
+            issues.put(FoodProductQualityIssue.MISSING_MICRONUTRIENTS, "Product has no vitamin or mineral values.");
+        }
+        if (isMissingNutrientQualityFields(product)) {
+            issues.put(FoodProductQualityIssue.MISSING_NUTRIENT_QUALITY_FIELDS, "Product has no fiber, sugar, sodium, saturated fat, or trans fat values.");
+        }
+        if (hasSuspiciousNutrientQuality(product)) {
+            issues.put(FoodProductQualityIssue.SUSPICIOUS_NUTRIENT_QUALITY, "Product nutrient quality values are inconsistent or unusually high for a 100g/ml nutrition basis.");
         }
         if (product.getServingSizeGrams() == null) {
             issues.put(FoodProductQualityIssue.MISSING_SERVING_SIZE, "Product has no serving size value.");
@@ -130,6 +136,47 @@ public class FoodProductQualityIssueTracker {
 
     private boolean isSuspiciousMacro(Double value) {
         return value != null && value > 100;
+    }
+
+    private boolean isMissingMicronutrients(FoodItemEntity product) {
+        return product.getPotassium() == null
+                && product.getCalcium() == null
+                && product.getIron() == null
+                && product.getMagnesium() == null
+                && product.getZinc() == null
+                && product.getVitaminA() == null
+                && product.getVitaminC() == null
+                && product.getVitaminD() == null
+                && product.getVitaminE() == null
+                && product.getVitaminB12() == null;
+    }
+
+    private boolean isMissingNutrientQualityFields(FoodItemEntity product) {
+        return product.getFiber() == null
+                && product.getSugar() == null
+                && product.getSodium() == null
+                && product.getSaturatedFat() == null
+                && product.getTransFat() == null;
+    }
+
+    private boolean hasSuspiciousNutrientQuality(FoodItemEntity product) {
+        return isNegative(product.getFiber())
+                || isNegative(product.getSugar())
+                || isNegative(product.getSodium())
+                || isNegative(product.getSaturatedFat())
+                || isNegative(product.getTransFat())
+                || isGreaterThan(product.getSugar(), product.getCarbs())
+                || isGreaterThan(product.getSaturatedFat(), product.getFat())
+                || isGreaterThan(product.getTransFat(), product.getFat())
+                || isGreaterThan(product.getSodium(), 10.0);
+    }
+
+    private boolean isNegative(Double value) {
+        return value != null && value < 0;
+    }
+
+    private boolean isGreaterThan(Double value, Double limit) {
+        return value != null && limit != null && value > limit;
     }
 
     private String resolveIdentifier(FoodItemEntity product) {

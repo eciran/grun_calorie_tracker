@@ -34,11 +34,14 @@ public class GdprDataExportDto {
     private Long consentCount;
     private Long aiRequestCount;
     private Long waterLogCount;
+    private Long fastingSessionCount;
     private SubscriptionSnapshotDto subscription;
     private List<LinkedIdentityDto> linkedIdentities;
     private List<ConsentExportDto> consents;
     private List<FoodLogExportDto> foodLogs;
     private List<WaterLogExportDto> waterLogs;
+    private FastingPlanExportDto fastingPlan;
+    private List<FastingSessionExportDto> fastingSessions;
     private List<ExerciseLogExportDto> exerciseLogs;
     private List<ProgressLogExportDto> progressLogs;
     private List<FoodDiaryNoteExportDto> foodDiaryNotes;
@@ -100,6 +103,37 @@ public class GdprDataExportDto {
         private Integer amountMl;
         private String source;
         private LocalDateTime loggedAt;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class FastingPlanExportDto {
+        private Long id;
+        private String planType;
+        private Integer fastingHours;
+        private Integer eatingWindowHours;
+        private String preferredStartTime;
+        private Boolean active;
+        private Boolean reminderEnabled;
+        private String note;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class FastingSessionExportDto {
+        private Long id;
+        private String status;
+        private LocalDate fastingDate;
+        private LocalDateTime startedAt;
+        private LocalDateTime targetEndAt;
+        private LocalDateTime endedAt;
+        private Integer targetMinutes;
+        private Integer actualMinutes;
+        private Boolean targetReached;
+        private String note;
         private LocalDateTime createdAt;
     }
 

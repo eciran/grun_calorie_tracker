@@ -279,6 +279,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         applyDoubleChange(audits, product, reviewedBy, "fiber", product.getFiber(), NutritionValueNormalizer.macro(request.getFiber()), product::setFiber, reviewNote);
         applyDoubleChange(audits, product, reviewedBy, "sugar", product.getSugar(), NutritionValueNormalizer.macro(request.getSugar()), product::setSugar, reviewNote);
         applyDoubleChange(audits, product, reviewedBy, "sodium", product.getSodium(), NutritionValueNormalizer.sodium(request.getSodium()), product::setSodium, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "potassium", product.getPotassium(), NutritionValueNormalizer.micronutrient(request.getPotassium()), product::setPotassium, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "cholesterol", product.getCholesterol(), NutritionValueNormalizer.micronutrient(request.getCholesterol()), product::setCholesterol, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "calcium", product.getCalcium(), NutritionValueNormalizer.micronutrient(request.getCalcium()), product::setCalcium, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "iron", product.getIron(), NutritionValueNormalizer.micronutrient(request.getIron()), product::setIron, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "magnesium", product.getMagnesium(), NutritionValueNormalizer.micronutrient(request.getMagnesium()), product::setMagnesium, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "zinc", product.getZinc(), NutritionValueNormalizer.micronutrient(request.getZinc()), product::setZinc, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "vitaminA", product.getVitaminA(), NutritionValueNormalizer.micronutrient(request.getVitaminA()), product::setVitaminA, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "vitaminC", product.getVitaminC(), NutritionValueNormalizer.micronutrient(request.getVitaminC()), product::setVitaminC, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "vitaminD", product.getVitaminD(), NutritionValueNormalizer.micronutrient(request.getVitaminD()), product::setVitaminD, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "vitaminE", product.getVitaminE(), NutritionValueNormalizer.micronutrient(request.getVitaminE()), product::setVitaminE, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "vitaminB12", product.getVitaminB12(), NutritionValueNormalizer.micronutrient(request.getVitaminB12()), product::setVitaminB12, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "saturatedFat", product.getSaturatedFat(), NutritionValueNormalizer.macro(request.getSaturatedFat()), product::setSaturatedFat, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "transFat", product.getTransFat(), NutritionValueNormalizer.macro(request.getTransFat()), product::setTransFat, reviewNote);
+        applyDoubleChange(audits, product, reviewedBy, "sugarAlcohol", product.getSugarAlcohol(), NutritionValueNormalizer.macro(request.getSugarAlcohol()), product::setSugarAlcohol, reviewNote);
         applyDoubleChange(
                 audits,
                 product,
@@ -505,16 +519,12 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             throw new IllegalArgumentException("Verified product must have a product name.");
         }
 
-        if (product.getImageStatus() == ImageStatus.APPROVED && trimToNull(product.getDisplayImageUrl()) == null) {
-            throw new IllegalArgumentException("Approved product image must have a display image URL.");
-        }
     }
 
     private void validateRejectionNote(FoodProductReviewRequestDto request, String reviewNote) {
         boolean rejectsProduct = request.getVerificationStatus() == VerificationStatus.REJECTED;
-        boolean rejectsImage = request.getImageStatus() == ImageStatus.REJECTED;
-        if ((rejectsProduct || rejectsImage) && reviewNote == null) {
-            throw new IllegalArgumentException("Review note is required when rejecting product data or image.");
+        if (rejectsProduct && reviewNote == null) {
+            throw new IllegalArgumentException("Review note is required when rejecting product data.");
         }
     }
 
@@ -699,6 +709,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         request.setFiber(parseDouble(row, "fiber", "fiber_100g"));
         request.setSugar(parseDouble(row, "sugar", "sugars_100g"));
         request.setSodium(parseDouble(row, "sodium", "sodium_100g"));
+        request.setPotassium(parseDouble(row, "potassium", "potassium_100g"));
+        request.setCholesterol(parseDouble(row, "cholesterol", "cholesterol_100g"));
+        request.setCalcium(parseDouble(row, "calcium", "calcium_100g"));
+        request.setIron(parseDouble(row, "iron", "iron_100g"));
+        request.setMagnesium(parseDouble(row, "magnesium", "magnesium_100g"));
+        request.setZinc(parseDouble(row, "zinc", "zinc_100g"));
+        request.setVitaminA(parseDouble(row, "vitamin_a", "vitamina", "vitamin_a_100g", "vitamina_100g"));
+        request.setVitaminC(parseDouble(row, "vitamin_c", "vitaminc", "vitamin_c_100g", "vitaminc_100g"));
+        request.setVitaminD(parseDouble(row, "vitamin_d", "vitamind", "vitamin_d_100g", "vitamind_100g"));
+        request.setVitaminE(parseDouble(row, "vitamin_e", "vitamine", "vitamin_e_100g", "vitamine_100g"));
+        request.setVitaminB12(parseDouble(row, "vitamin_b12", "vitaminb12", "vitamin_b12_100g", "vitaminb12_100g"));
+        request.setSaturatedFat(parseDouble(row, "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g"));
+        request.setTransFat(parseDouble(row, "trans_fat", "transfat", "trans_fat_100g", "transfat_100g"));
+        request.setSugarAlcohol(parseDouble(row, "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g"));
         request.setServingSizeGrams(parseDouble(row, "servingsizegrams", "serving_size_grams", "serving_size", "serving_quantity"));
         request.setServingUnit(firstText(row, "servingunit", "serving_unit", "serving_quantity_unit"));
         request.setDisplayImageUrl(firstText(row, "displayimageurl", "display_image_url", "curated_image_url"));
@@ -851,12 +875,12 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         VerificationStatus effectiveVerificationStatus = verificationStatus == null
                 ? VerificationStatus.RAW_IMPORTED
                 : verificationStatus;
-        ImageStatus effectiveImageStatus = imageStatus == null ? ImageStatus.NEEDS_REVIEW : imageStatus;
-
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.equal(root.get("verificationStatus"), effectiveVerificationStatus));
-            predicates.add(criteriaBuilder.equal(root.get("imageStatus"), effectiveImageStatus));
+            if (imageStatus != null) {
+                predicates.add(criteriaBuilder.equal(root.get("imageStatus"), imageStatus));
+            }
             if (marketRegion != null) {
                 predicates.add(criteriaBuilder.equal(root.get("marketRegion"), marketRegion));
             }
@@ -890,11 +914,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     criteriaBuilder.isNull(root.get("qualityScore")),
                     criteriaBuilder.lessThan(root.get("qualityScore"), 60)
             );
-            case MISSING_IMAGE -> criteriaBuilder.and(
-                    isBlank(root, criteriaBuilder, "imageUrl"),
-                    isBlank(root, criteriaBuilder, "externalImageUrl"),
-                    isBlank(root, criteriaBuilder, "displayImageUrl")
-            );
+            case MISSING_IMAGE -> null;
             case MISSING_CALORIES -> criteriaBuilder.isNull(root.get("calories"));
             case MISSING_MACROS -> criteriaBuilder.and(
                     criteriaBuilder.isNull(root.get("protein")),
@@ -918,6 +938,36 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     criteriaBuilder.greaterThan(root.get("protein"), 100.0),
                     criteriaBuilder.greaterThan(root.get("fat"), 100.0),
                     criteriaBuilder.greaterThan(root.get("carbs"), 100.0)
+            );
+            case MISSING_MICRONUTRIENTS -> criteriaBuilder.and(
+                    criteriaBuilder.isNull(root.get("potassium")),
+                    criteriaBuilder.isNull(root.get("calcium")),
+                    criteriaBuilder.isNull(root.get("iron")),
+                    criteriaBuilder.isNull(root.get("magnesium")),
+                    criteriaBuilder.isNull(root.get("zinc")),
+                    criteriaBuilder.isNull(root.get("vitaminA")),
+                    criteriaBuilder.isNull(root.get("vitaminC")),
+                    criteriaBuilder.isNull(root.get("vitaminD")),
+                    criteriaBuilder.isNull(root.get("vitaminE")),
+                    criteriaBuilder.isNull(root.get("vitaminB12"))
+            );
+            case MISSING_NUTRIENT_QUALITY_FIELDS -> criteriaBuilder.and(
+                    criteriaBuilder.isNull(root.get("fiber")),
+                    criteriaBuilder.isNull(root.get("sugar")),
+                    criteriaBuilder.isNull(root.get("sodium")),
+                    criteriaBuilder.isNull(root.get("saturatedFat")),
+                    criteriaBuilder.isNull(root.get("transFat"))
+            );
+            case SUSPICIOUS_NUTRIENT_QUALITY -> criteriaBuilder.or(
+                    criteriaBuilder.lessThan(root.get("fiber"), 0.0),
+                    criteriaBuilder.lessThan(root.get("sugar"), 0.0),
+                    criteriaBuilder.lessThan(root.get("sodium"), 0.0),
+                    criteriaBuilder.lessThan(root.get("saturatedFat"), 0.0),
+                    criteriaBuilder.lessThan(root.get("transFat"), 0.0),
+                    criteriaBuilder.greaterThan(root.get("sugar"), root.get("carbs")),
+                    criteriaBuilder.greaterThan(root.get("saturatedFat"), root.get("fat")),
+                    criteriaBuilder.greaterThan(root.get("transFat"), root.get("fat")),
+                    criteriaBuilder.greaterThan(root.get("sodium"), 10.0)
             );
         };
         return derivedPredicate == null

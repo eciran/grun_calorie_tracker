@@ -20,6 +20,10 @@ public final class NutritionValueNormalizer {
         return round(value, 3);
     }
 
+    public static Double micronutrient(Double value) {
+        return round(value, 3);
+    }
+
     public static Double servingSize(Double value) {
         return round(value, 1);
     }

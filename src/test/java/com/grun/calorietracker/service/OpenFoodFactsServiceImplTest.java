@@ -54,7 +54,14 @@ class OpenFoodFactsServiceImplTest {
                       "carbohydrates_100g": 57.5,
                       "fiber_100g": 3.4,
                       "sugars_100g": 56.3,
-                      "sodium_100g": 0.107
+                      "sodium_100g": 0.107,
+                      "potassium_100g": 0.3578,
+                      "calcium_100g": 0.1824,
+                      "iron_100g": 0.0045,
+                      "vitamin-a_100g": 0.0009,
+                      "vitamin-c_100g": 0.0123,
+                      "saturated-fat_100g": 10.6,
+                      "trans-fat_100g": 0.01
                     }
                   }
                 }
@@ -73,6 +80,13 @@ class OpenFoodFactsServiceImplTest {
         assertEquals("https://images.openfoodfacts.org/nutella.jpg", product.getExternalImageUrl());
         assertEquals(539.0, product.getCalories());
         assertEquals(6.3, product.getProtein());
+        assertEquals(0.358, product.getPotassium());
+        assertEquals(0.182, product.getCalcium());
+        assertEquals(0.005, product.getIron());
+        assertEquals(0.001, product.getVitaminA());
+        assertEquals(0.012, product.getVitaminC());
+        assertEquals(10.6, product.getSaturatedFat());
+        assertEquals(0.0, product.getTransFat());
         assertEquals("e", product.getNutriScore());
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, product.getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, product.getVerificationStatus());

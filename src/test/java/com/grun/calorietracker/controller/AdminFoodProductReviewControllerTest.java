@@ -322,7 +322,7 @@ class AdminFoodProductReviewControllerTest {
                 MarketRegion.TR,
                 FoodCatalogType.BRANDED_PRODUCT,
                 FoodDataSource.OPEN_FOOD_FACTS,
-                FoodProductQualityIssue.MISSING_IMAGE,
+                FoodProductQualityIssue.MISSING_CALORIES,
                 0,
                 25
         )).thenReturn(page);
@@ -333,7 +333,7 @@ class AdminFoodProductReviewControllerTest {
                         .param("region", "TR")
                         .param("catalogType", "BRANDED_PRODUCT")
                         .param("dataSource", "OPEN_FOOD_FACTS")
-                        .param("qualityIssue", "MISSING_IMAGE"))
+                        .param("qualityIssue", "MISSING_CALORIES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
