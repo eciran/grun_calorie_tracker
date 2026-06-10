@@ -13,6 +13,8 @@ import {
   AdminBrevoSender,
   AdminBrevoSenderList,
   AdminMailMonitoring,
+  AdminAchievementDefinition,
+  AdminAchievementMetrics,
   AiMealDraft,
   AuditEntry,
   DashboardSummary,
@@ -47,6 +49,7 @@ type SectionKey =
   | "productNutrition"
   | "productRejected"
   | "recipes"
+  | "achievements"
   | "users"
   | "admins"
   | "userVerification"
@@ -91,6 +94,7 @@ const sections: SectionMeta[] = [
   { key: "productNutrition", label: "Nutrition Review", hint: "Macro quality", icon: "N" },
   { key: "productRejected", label: "Rejected Products", hint: "Review archive", icon: "R" },
   { key: "recipes", label: "Recipes", hint: "User recipes", icon: "C" },
+  { key: "achievements", label: "Achievements", hint: "Badge rules", icon: "B" },
   { key: "users", label: "Users", hint: "Accounts", icon: "U" },
   { key: "admins", label: "Admins", hint: "Admin accounts", icon: "A" },
   { key: "userVerification", label: "Verification", hint: "Email status", icon: "V" },
@@ -149,38 +153,39 @@ const navigation: NavigationItem[] = [
       sections[14],
       sections[15],
       sections[16],
-      sections[17]
+      sections[17],
+      sections[18]
     ]
   },
   {
-    ...sections[18],
+    ...sections[19],
     children: [
       { key: "users", label: "App Users", hint: "Customer accounts", icon: "U" },
-      sections[19],
-      sections[20]
+      sections[20],
+      sections[21]
     ]
   },
   {
-    ...sections[21],
+    ...sections[22],
     children: [
       { key: "subscriptions", label: "Overview", hint: "Plan summary", icon: "O" },
-      sections[22],
       sections[23],
       sections[24],
-      sections[25]
+      sections[25],
+      sections[26]
     ]
   },
-  sections[26],
   sections[27],
   sections[28],
+  sections[29],
   {
-    ...sections[29],
+    ...sections[30],
     children: [
       { key: "system", label: "Overview", hint: "Health summary", icon: "O" },
-      sections[30],
       sections[31],
       sections[32],
-      sections[33]
+      sections[33],
+      sections[34]
     ]
   }
 ];
@@ -193,6 +198,30 @@ const CATALOG_TYPES = ["BRANDED_PRODUCT", "GENERIC_INGREDIENT", "LOCAL_DISH", "U
 const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA", "USER_CUSTOM"];
 const MEAL_TYPES = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
 const RECIPE_VISIBILITIES = ["PRIVATE", "PUBLIC_ADMIN", "COMMUNITY_PENDING"];
+const ACHIEVEMENT_CATEGORIES = ["ONBOARDING", "FOOD", "EXERCISE", "FASTING", "PROGRESS", "WATER"];
+const ACHIEVEMENT_TIERS = ["BRONZE", "SILVER", "GOLD"];
+const RECIPE_CATEGORIES = [
+  "VEGAN",
+  "VEGETARIAN",
+  "HIGH_PROTEIN",
+  "LOW_CARB",
+  "LOW_CALORIE",
+  "HIGH_FIBER",
+  "GLUTEN_FREE",
+  "DAIRY_FREE",
+  "BREAKFAST",
+  "LUNCH",
+  "DINNER",
+  "SNACK",
+  "VEGETABLES",
+  "SOUP",
+  "SALAD",
+  "QUICK_MEAL",
+  "MEAL_PREP",
+  "TURKISH",
+  "MEDITERRANEAN",
+  "UK_IE"
+];
 const QUALITY_ISSUES = [
   "LOW_QUALITY",
   "MISSING_IMAGE",
@@ -372,6 +401,7 @@ export default function App() {
           {active === "productNutrition" && <ProductReviewView mode="nutrition" onError={setError} />}
           {active === "productRejected" && <ProductReviewView mode="rejected" onError={setError} />}
           {active === "recipes" && <RecipeAdminView onError={setError} />}
+          {active === "achievements" && <AchievementAdminView onError={setError} />}
           {active === "users" && <UsersView mode="users" onError={setError} />}
           {active === "admins" && <UsersView mode="admins" onError={setError} />}
           {active === "userVerification" && <UsersView mode="verification" onError={setError} />}
@@ -849,6 +879,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [pageSize, setPageSize] = useState(20);
   const [selectedRecipe, setSelectedRecipe] = useState<AdminRecipe | null>(null);
   const [draftStatus, setDraftStatus] = useState("");
+  const [draftVisibility, setDraftVisibility] = useState("");
   const [draftArchived, setDraftArchived] = useState("false");
   const [draftImageUrl, setDraftImageUrl] = useState("");
   const [draftImageStatus, setDraftImageStatus] = useState("");
@@ -899,6 +930,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   function openRecipe(recipe: AdminRecipe) {
     setSelectedRecipe(recipe);
     setDraftStatus(recipe.verificationStatus ?? "");
+    setDraftVisibility(recipe.visibility ?? "");
     setDraftArchived(recipe.archived ? "true" : "false");
     setDraftImageUrl(recipe.imageUrl ?? "");
     setDraftImageStatus(recipe.imageStatus ?? "");
@@ -926,6 +958,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         method: "PATCH",
         body: {
           verificationStatus: draftStatus || null,
+          visibility: draftVisibility || null,
           archived: draftArchived === "true",
           imageUrl: draftImageUrl || null,
           imageStatus: draftImageStatus || null,
@@ -1107,6 +1140,12 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                       {VERIFICATION_STATUSES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
                     </select>
                   </EditableDetail>
+                  <EditableDetail label="Visibility">
+                    <select value={draftVisibility} onChange={(event) => setDraftVisibility(event.target.value)}>
+                      <option value="">Keep current</option>
+                      {RECIPE_VISIBILITIES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                    </select>
+                  </EditableDetail>
                   <EditableDetail label="Archive state">
                     <select value={draftArchived} onChange={(event) => setDraftArchived(event.target.value)}>
                       <option value="false">Active</option>
@@ -1122,6 +1161,13 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                   <DetailItem label="Fiber" value={`${formatValue(selectedRecipe.fiber)} g`} />
                   <DetailItem label="Sugar" value={`${formatValue(selectedRecipe.sugar)} g`} />
                 </div>
+                <Panel title="Public categories">
+                  <div className="tag-cloud">
+                    {(selectedRecipe.categories ?? []).length
+                      ? selectedRecipe.categories?.map((category) => <Badge key={category} value={category} tone="neutral" />)
+                      : <span className="muted-text">No category assigned. Public approval will be blocked until at least one category is present.</span>}
+                  </div>
+                </Panel>
                 <Panel title="Ingredients">
                   <DataTable
                     columns={["Food", "Portion", "Normalized"]}
@@ -1140,6 +1186,35 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
             </div>
             <footer className="modal-actions">
               <button className="ghost-button" onClick={closeRecipe} type="button">Cancel</button>
+              <button
+                className="ghost-button"
+                disabled={saving}
+                onClick={() => {
+                  setDraftStatus("REJECTED");
+                  setDraftVisibility("PRIVATE");
+                  setDraftArchived("false");
+                  setDraftImageStatus(draftImageStatus || "REJECTED");
+                  setReviewNote(reviewNote || "Rejected from admin recipe review.");
+                }}
+                type="button"
+              >
+                Mark rejected
+              </button>
+              <button
+                className="ghost-button"
+                disabled={saving}
+                onClick={() => {
+                  setDraftStatus("VERIFIED");
+                  setDraftVisibility("PUBLIC_ADMIN");
+                  setDraftArchived("false");
+                  setDraftImageStatus("APPROVED");
+                  setDraftImageSource(draftImageSource || "ADMIN_UPLOAD");
+                  setReviewNote(reviewNote || "Approved for public recipe discovery.");
+                }}
+                type="button"
+              >
+                Prepare public approval
+              </button>
               <button className="primary-button" disabled={saving} onClick={saveRecipeReview} type="button">{saving ? "Saving..." : "Save review"}</button>
             </footer>
           </section>
@@ -1155,6 +1230,223 @@ function RecipeEngagementCell({ recipe }: { recipe: AdminRecipe }) {
     <div className="table-stack">
       <span>{average} avg | {formatValue(recipe.ratingCount)} ratings</span>
       <small>{formatValue(recipe.savedCount)} saved | {formatValue(recipe.favoriteCount)} favorites</small>
+    </div>
+  );
+}
+
+type AchievementForm = {
+  code: string;
+  title: string;
+  description: string;
+  metricKey: string;
+  category: string;
+  tier: string;
+  targetValue: string;
+  active: string;
+  sortOrder: string;
+};
+
+const emptyAchievementForm: AchievementForm = {
+  code: "",
+  title: "",
+  description: "",
+  metricKey: "",
+  category: "FOOD",
+  tier: "BRONZE",
+  targetValue: "1",
+  active: "true",
+  sortOrder: "1000"
+};
+
+function AchievementAdminView({ onError }: { onError: (message: string | null) => void }) {
+  const { data, state, reload } = useEndpoint<AdminAchievementDefinition[]>("/api/v1/admin/achievements", onError);
+  const { data: metrics, state: metricState } = useEndpoint<AdminAchievementMetrics>("/api/v1/admin/achievements/metrics", onError);
+  const [selected, setSelected] = useState<AdminAchievementDefinition | null>(null);
+  const [form, setForm] = useState<AchievementForm>(emptyAchievementForm);
+  const [saving, setSaving] = useState(false);
+  const definitions = data ?? [];
+  const metricKeys = metrics?.metricKeys ?? [];
+  const activeCount = definitions.filter((item) => item.active).length;
+  const inactiveCount = definitions.length - activeCount;
+
+  function startCreate() {
+    setSelected(null);
+    setForm({ ...emptyAchievementForm, metricKey: metricKeys[0] ?? "" });
+  }
+
+  function startEdit(definition: AdminAchievementDefinition) {
+    setSelected(definition);
+    setForm({
+      code: definition.code ?? "",
+      title: definition.title ?? "",
+      description: definition.description ?? "",
+      metricKey: definition.metricKey ?? metricKeys[0] ?? "",
+      category: definition.category ?? "FOOD",
+      tier: definition.tier ?? "BRONZE",
+      targetValue: String(definition.targetValue ?? 1),
+      active: definition.active ? "true" : "false",
+      sortOrder: String(definition.sortOrder ?? 1000)
+    });
+  }
+
+  function updateForm(key: keyof AchievementForm, value: string) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function saveDefinition(event: FormEvent) {
+    event.preventDefault();
+    const payload = {
+      code: form.code.trim().toUpperCase(),
+      title: form.title.trim(),
+      description: form.description.trim(),
+      metricKey: form.metricKey,
+      category: form.category,
+      tier: form.tier,
+      targetValue: Number(form.targetValue),
+      active: form.active === "true",
+      sortOrder: Number(form.sortOrder)
+    };
+    if (!payload.code || !payload.title || !payload.description || !payload.metricKey) {
+      onError("Code, title, description and metric key are required.");
+      return;
+    }
+    setSaving(true);
+    onError(null);
+    try {
+      await request<AdminAchievementDefinition>(
+        selected?.code ? `/api/v1/admin/achievements/${selected.code}` : "/api/v1/admin/achievements",
+        {
+          method: selected?.code ? "PUT" : "POST",
+          body: payload
+        }
+      );
+      await reload();
+      setSelected(null);
+      setForm(emptyAchievementForm);
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deactivate(definition: AdminAchievementDefinition) {
+    if (!definition.code) return;
+    setSaving(true);
+    onError(null);
+    try {
+      await request<AdminAchievementDefinition>(`/api/v1/admin/achievements/${definition.code}`, { method: "DELETE" });
+      await reload();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <SectionToolbar title="Achievement definitions" state={combineStates([state, metricState])} onReload={reload}>
+        <button className="primary-button" onClick={startCreate} type="button">New achievement</button>
+      </SectionToolbar>
+
+      <div className="user-summary-grid">
+        <MetricCard label="Definitions" value={formatValue(definitions.length)} hint="Total configured rules" />
+        <MetricCard label="Active" value={formatValue(activeCount)} hint="Visible to app users" />
+        <MetricCard label="Inactive" value={formatValue(inactiveCount)} hint="Hidden from user achievement list" />
+      </div>
+
+      <Panel title={selected ? `Edit ${selected.code}` : "Create achievement"}>
+        <form className="review-filter-grid" onSubmit={saveDefinition}>
+          <label>
+            Code
+            <input
+              disabled={Boolean(selected)}
+              value={form.code}
+              onChange={(event) => updateForm("code", event.target.value.toUpperCase())}
+              placeholder="FOOD_LOG_30_DAYS"
+            />
+          </label>
+          <label>
+            Title
+            <input value={form.title} onChange={(event) => updateForm("title", event.target.value)} placeholder="30 Day Food Logger" />
+          </label>
+          <label>
+            Metric
+            <select value={form.metricKey} onChange={(event) => updateForm("metricKey", event.target.value)}>
+              <option value="">Select metric</option>
+              {metricKeys.map((metric) => <option key={metric} value={metric}>{humanizeFeature(metric)}</option>)}
+            </select>
+          </label>
+          <label>
+            Category
+            <select value={form.category} onChange={(event) => updateForm("category", event.target.value)}>
+              {ACHIEVEMENT_CATEGORIES.map((category) => <option key={category} value={category}>{humanizeFeature(category)}</option>)}
+            </select>
+          </label>
+          <label>
+            Tier
+            <select value={form.tier} onChange={(event) => updateForm("tier", event.target.value)}>
+              {ACHIEVEMENT_TIERS.map((tier) => <option key={tier} value={tier}>{humanizeFeature(tier)}</option>)}
+            </select>
+          </label>
+          <label>
+            Target
+            <input min="1" type="number" value={form.targetValue} onChange={(event) => updateForm("targetValue", event.target.value)} />
+          </label>
+          <label>
+            Sort
+            <input min="0" type="number" value={form.sortOrder} onChange={(event) => updateForm("sortOrder", event.target.value)} />
+          </label>
+          <label>
+            Status
+            <select value={form.active} onChange={(event) => updateForm("active", event.target.value)}>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </label>
+          <label className="wide-field">
+            Description
+            <input value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder="Describe what the user needs to do." />
+          </label>
+          <div className="form-actions">
+            <button className="ghost-button" onClick={() => {
+              setSelected(null);
+              setForm(emptyAchievementForm);
+            }} type="button">Clear</button>
+            <button className="primary-button" disabled={saving} type="submit">{saving ? "Saving..." : selected ? "Save changes" : "Create"}</button>
+          </div>
+        </form>
+      </Panel>
+
+      <DataTable
+        columns={["Achievement", "Metric", "Target", "State", "Order"]}
+        rows={definitions.map((definition) => [
+          <div className="entity-cell">
+            <strong>{definition.title ?? definition.code ?? "-"}</strong>
+            <small>{definition.code ?? "-"} | {definition.description ?? "-"}</small>
+          </div>,
+          <div className="badge-stack">
+            <Badge value={definition.metricKey} />
+            <Badge value={definition.category} tone="neutral" />
+          </div>,
+          <div className="table-stack">
+            <span>{formatValue(definition.targetValue)}</span>
+            <small>{definition.tier ?? "-"}</small>
+          </div>,
+          <Badge value={definition.active ? "ACTIVE" : "INACTIVE"} tone={definition.active ? "good" : "warn"} />,
+          <div className="table-stack">
+            <span>{formatValue(definition.sortOrder)}</span>
+            <button className="ghost-button" disabled={saving || !definition.active} onClick={(event) => {
+              event.stopPropagation();
+              deactivate(definition);
+            }} type="button">Deactivate</button>
+          </div>
+        ])}
+        rowData={definitions}
+        onRowClick={startEdit}
+        empty="No achievement definitions found."
+      />
     </div>
   );
 }

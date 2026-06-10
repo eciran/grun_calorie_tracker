@@ -39,6 +39,24 @@ export type UserProfile = {
   goalRecalculationReason?: string;
 };
 
+export type AdminAchievementDefinition = {
+  id?: number;
+  code?: string;
+  title?: string;
+  description?: string;
+  metricKey?: string;
+  category?: string;
+  tier?: string;
+  targetValue?: number;
+  active?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+};
+
+export type AdminAchievementMetrics = {
+  metricKeys?: string[];
+};
+
 export type FoodProduct = {
   id?: number;
   barcode?: string;
@@ -130,6 +148,7 @@ export type AdminRecipe = {
   favoriteCount?: number;
   ratingCount?: number;
   averageRating?: number;
+  categories?: string[];
   archived?: boolean;
   ingredientCount?: number;
   createdAt?: string;
