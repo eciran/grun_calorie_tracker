@@ -111,16 +111,18 @@ public class FoodItemServiceImpl implements FoodItemService {
 
             String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {
-                String pattern = "%" + searchQuery.toLowerCase(Locale.ROOT) + "%";
+                List<Predicate> searchPredicates = new ArrayList<>();
+                for (String term : FoodProductNormalizationRules.expandSearchTerms(searchQuery)) {
+                    String pattern = "%" + term.toLowerCase(Locale.ROOT) + "%";
+                    searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern));
+                }
                 String normalizedBarcodeQuery = FoodProductNormalizationRules.normalizeBarcode(searchQuery);
                 String barcodePattern = normalizedBarcodeQuery == null
-                        ? pattern
+                        ? "%" + searchQuery.toLowerCase(Locale.ROOT) + "%"
                         : "%" + normalizedBarcodeQuery.toLowerCase(Locale.ROOT) + "%";
-                predicates.add(criteriaBuilder.or(
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern),
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), pattern),
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern)
-                ));
+                searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), barcodePattern));
+                searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern));
+                predicates.add(criteriaBuilder.or(searchPredicates.toArray(new Predicate[0])));
             }
 
             String nutriScore = FoodProductNormalizationRules.normalizeText(criteria.getNutriScore());

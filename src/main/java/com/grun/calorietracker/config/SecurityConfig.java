@@ -49,6 +49,7 @@ public class SecurityConfig {
                         "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/ai/meal-drafts/photo-references/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/avatars/*").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess

@@ -3,11 +3,13 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiProvider;
+import com.grun.calorietracker.enums.ProductAnalyticsEventType;
 import com.grun.calorietracker.service.impl.AdminSystemHealthServiceImpl;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.ProductAnalyticsEventRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
@@ -34,6 +36,7 @@ class AdminSystemHealthServiceImplTest {
         SubscriptionRepository subscriptionRepository = mock(SubscriptionRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
         AiRequestHistoryRepository aiRequestHistoryRepository = mock(AiRequestHistoryRepository.class);
+        ProductAnalyticsEventRepository productAnalyticsEventRepository = mock(ProductAnalyticsEventRepository.class);
         AiProperties aiProperties = aiProperties(false, AiProvider.DISABLED);
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.isValid(2)).thenReturn(true);
@@ -51,8 +54,12 @@ class AdminSystemHealthServiceImplTest {
         when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.CONFIRMED), org.mockito.ArgumentMatchers.any())).thenReturn(8L);
         when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.REJECTED), org.mockito.ArgumentMatchers.any())).thenReturn(1L);
         when(aiRequestHistoryRepository.countByRejectionReasonAndRejectedAtAfter(org.mockito.ArgumentMatchers.eq(AiDraftRejectReason.WRONG_PORTION), org.mockito.ArgumentMatchers.any())).thenReturn(1L);
+        when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.LOG_FLOW_COMPLETED), org.mockito.ArgumentMatchers.any())).thenReturn(12L);
+        when(productAnalyticsEventRepository.averageDurationMs(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.LOG_FLOW_COMPLETED), org.mockito.ArgumentMatchers.any())).thenReturn(9000.0);
+        when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.QUICK_LOG_SUGGESTION_APPLIED), org.mockito.ArgumentMatchers.any())).thenReturn(7L);
+        when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.SEARCH_STARTED), org.mockito.ArgumentMatchers.any())).thenReturn(20L);
 
-        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository);
+        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository, productAnalyticsEventRepository);
 
         var result = service.getHealth();
 
@@ -79,6 +86,10 @@ class AdminSystemHealthServiceImplTest {
         assertEquals(1L, result.getAiRejectionReasonsLast7d().get("WRONG_PORTION"));
         assertEquals(1L, result.getOpenAiDraftsLast7d());
         assertEquals(0.8, result.getAiDraftConfirmationRateLast7d());
+        assertEquals(12L, result.getLogFlowCompletedLast24h());
+        assertEquals(9000L, result.getAverageLogFlowDurationMsLast24h());
+        assertEquals(7L, result.getQuickLogSuggestionAppliedLast24h());
+        assertEquals(20L, result.getSearchStartedLast24h());
         assertEquals(0, result.getWarnings().size());
         assertNotNull(result.getCheckedAt());
     }
@@ -91,6 +102,7 @@ class AdminSystemHealthServiceImplTest {
         SubscriptionRepository subscriptionRepository = mock(SubscriptionRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
         AiRequestHistoryRepository aiRequestHistoryRepository = mock(AiRequestHistoryRepository.class);
+        ProductAnalyticsEventRepository productAnalyticsEventRepository = mock(ProductAnalyticsEventRepository.class);
         AiProperties aiProperties = aiProperties(true, AiProvider.LOG);
         when(dataSource.getConnection()).thenThrow(new SQLException("connection refused"));
         when(environment.getProperty("spring.application.name", "grun-calorie-tracker")).thenReturn("grun-calorie-tracker");
@@ -107,8 +119,12 @@ class AdminSystemHealthServiceImplTest {
         when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.CONFIRMED), org.mockito.ArgumentMatchers.any())).thenReturn(2L);
         when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(AiRequestStatus.REJECTED), org.mockito.ArgumentMatchers.any())).thenReturn(8L);
         when(aiRequestHistoryRepository.countByRejectionReasonAndRejectedAtAfter(org.mockito.ArgumentMatchers.eq(AiDraftRejectReason.IRRELEVANT_RESULT), org.mockito.ArgumentMatchers.any())).thenReturn(6L);
+        when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.LOG_FLOW_COMPLETED), org.mockito.ArgumentMatchers.any())).thenReturn(15L);
+        when(productAnalyticsEventRepository.averageDurationMs(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.LOG_FLOW_COMPLETED), org.mockito.ArgumentMatchers.any())).thenReturn(35_000.0);
+        when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.QUICK_LOG_SUGGESTION_APPLIED), org.mockito.ArgumentMatchers.any())).thenReturn(2L);
+        when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.SEARCH_STARTED), org.mockito.ArgumentMatchers.any())).thenReturn(40L);
 
-        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository);
+        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository, productAnalyticsEventRepository);
 
         var result = service.getHealth();
 
@@ -126,7 +142,11 @@ class AdminSystemHealthServiceImplTest {
         assertEquals(6L, result.getAiRejectionReasonsLast7d().get("IRRELEVANT_RESULT"));
         assertEquals(30L, result.getOpenAiDraftsLast7d());
         assertEquals(0.05, result.getAiDraftConfirmationRateLast7d());
-        assertEquals(8, result.getWarnings().size());
+        assertEquals(15L, result.getLogFlowCompletedLast24h());
+        assertEquals(35_000L, result.getAverageLogFlowDurationMsLast24h());
+        assertEquals(2L, result.getQuickLogSuggestionAppliedLast24h());
+        assertEquals(40L, result.getSearchStartedLast24h());
+        assertEquals(9, result.getWarnings().size());
     }
 
     private AiProperties aiProperties(boolean enabled, AiProvider provider) {

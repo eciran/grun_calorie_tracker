@@ -4,6 +4,7 @@ import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
+import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -13,6 +14,7 @@ import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +47,9 @@ class LocalDemoSeedConfigTest {
     private FoodLogsRepository foodLogsRepository;
 
     @Mock
+    private RecipeRepository recipeRepository;
+
+    @Mock
     private ExerciseItemRepository exerciseItemRepository;
 
     @Mock
@@ -62,6 +67,8 @@ class LocalDemoSeedConfigTest {
         when(passwordEncoder.encode("DemoUserPass1!")).thenReturn("encoded-password");
         when(foodItemRepository.findByNormalizedBarcode(any())).thenReturn(Optional.empty());
         when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(recipeRepository.findByVisibilityAndArchivedFalseOrderByUpdatedAtDesc(any())).thenReturn(List.of());
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
                 any(UserEntity.class),
                 any(String.class),
@@ -78,6 +85,7 @@ class LocalDemoSeedConfigTest {
                 userRepository,
                 foodItemRepository,
                 foodLogsRepository,
+                recipeRepository,
                 exerciseItemRepository,
                 exerciseLogRepository,
                 passwordEncoder,
@@ -107,6 +115,7 @@ class LocalDemoSeedConfigTest {
         assertEquals(ImageStatus.NEEDS_REVIEW, reviewProduct.getImageStatus());
 
         verify(foodLogsRepository, times(3)).save(any(FoodLogsEntity.class));
+        verify(recipeRepository, times(2)).save(any(RecipeEntity.class));
         verify(exerciseLogRepository).save(any(ExerciseLogsEntity.class));
     }
 
@@ -118,6 +127,7 @@ class LocalDemoSeedConfigTest {
                 userRepository,
                 foodItemRepository,
                 foodLogsRepository,
+                recipeRepository,
                 exerciseItemRepository,
                 exerciseLogRepository,
                 passwordEncoder,

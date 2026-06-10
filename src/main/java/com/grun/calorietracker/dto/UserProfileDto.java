@@ -58,6 +58,9 @@ public class UserProfileDto {
     @Schema(description = "User's selected application language. Food region remains independent from language.", example = "EN")
     private PreferredLanguage preferredLanguage;
 
+    @Schema(description = "Public URL of the user's uploaded avatar image.", example = "https://api.grun.app/api/v1/users/avatars/u1-550e8400-e29b-41d4-a716-446655440000.jpg")
+    private String avatarUrl;
+
     @Schema(
             description = "Whether the mobile app should ask the user to recalculate and confirm calorie goals after profile changes.",
             example = "true"

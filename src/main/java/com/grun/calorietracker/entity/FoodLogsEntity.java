@@ -42,6 +42,41 @@ public class FoodLogsEntity {
 
     private Double snapshotFat;
 
+    private Double snapshotFiber;
+
+    private Double snapshotSugar;
+
+    private Double snapshotSaturatedFat;
+
+    private Double snapshotSodium;
+
+    private Double snapshotPotassium;
+
+    private Double snapshotCholesterol;
+
+    private Double snapshotCalcium;
+
+    private Double snapshotIron;
+
+    private Double snapshotMagnesium;
+
+    private Double snapshotZinc;
+
+    @Column(name = "snapshot_vitamin_a")
+    private Double snapshotVitaminA;
+
+    @Column(name = "snapshot_vitamin_c")
+    private Double snapshotVitaminC;
+
+    @Column(name = "snapshot_vitamin_d")
+    private Double snapshotVitaminD;
+
+    @Column(name = "snapshot_vitamin_e")
+    private Double snapshotVitaminE;
+
+    @Column(name = "snapshot_vitamin_b12")
+    private Double snapshotVitaminB12;
+
     private String mealType;
 
     private LocalDateTime logDate;

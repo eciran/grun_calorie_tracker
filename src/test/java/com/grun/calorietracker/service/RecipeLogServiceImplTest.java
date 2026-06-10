@@ -62,10 +62,22 @@ class RecipeLogServiceImplTest {
     void updateRecipeLog_recalculatesSnapshotForNewServingCount() {
         UserEntity user = user();
         RecipeEntity recipe = recipe();
+        recipe.setDefaultServingGrams(999.0);
+        recipe.setSnapshotCalories(999.0);
+        recipe.setSnapshotProtein(999.0);
         RecipeLogEntity existing = new RecipeLogEntity();
         existing.setId(9L);
         existing.setUser(user);
         existing.setRecipe(recipe);
+        existing.setServingGrams(200.0);
+        existing.setServingCount(1.0);
+        existing.setSnapshotCalories(250.0);
+        existing.setSnapshotProtein(20.0);
+        existing.setSnapshotCarbs(40.0);
+        existing.setSnapshotFat(5.0);
+        existing.setSnapshotFiber(3.0);
+        existing.setSnapshotSugar(4.0);
+        existing.setSnapshotSodium(250.0);
         RecipeLogRequestDto request = logRequest(null, 2.0, "lunch", LocalDateTime.of(2026, 6, 8, 12, 15));
         when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
         when(recipeLogRepository.findByIdAndUser(9L, user)).thenReturn(Optional.of(existing));

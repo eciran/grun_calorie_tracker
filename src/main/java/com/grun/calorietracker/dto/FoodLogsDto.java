@@ -49,6 +49,51 @@ public class FoodLogsDto {
     @Schema(description = "Fat captured at log time for the entered portion.", example = "11.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double snapshotFat;
 
+    @Schema(description = "Fiber captured at log time for the entered portion.", example = "4.2", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotFiber;
+
+    @Schema(description = "Sugar captured at log time for the entered portion.", example = "8.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotSugar;
+
+    @Schema(description = "Saturated fat captured at log time for the entered portion.", example = "3.1", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotSaturatedFat;
+
+    @Schema(description = "Sodium captured at log time for the entered portion in mg.", example = "210.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotSodium;
+
+    @Schema(description = "Potassium captured at log time for the entered portion in mg.", example = "380.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotPotassium;
+
+    @Schema(description = "Cholesterol captured at log time for the entered portion in mg.", example = "45.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotCholesterol;
+
+    @Schema(description = "Calcium captured at log time for the entered portion in mg.", example = "120.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotCalcium;
+
+    @Schema(description = "Iron captured at log time for the entered portion in mg.", example = "2.1", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotIron;
+
+    @Schema(description = "Magnesium captured at log time for the entered portion in mg.", example = "35.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotMagnesium;
+
+    @Schema(description = "Zinc captured at log time for the entered portion in mg.", example = "1.2", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotZinc;
+
+    @Schema(description = "Vitamin A captured at log time for the entered portion in micrograms.", example = "250.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotVitaminA;
+
+    @Schema(description = "Vitamin C captured at log time for the entered portion in mg.", example = "18.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotVitaminC;
+
+    @Schema(description = "Vitamin D captured at log time for the entered portion in micrograms.", example = "4.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotVitaminD;
+
+    @Schema(description = "Vitamin E captured at log time for the entered portion in mg.", example = "2.5", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotVitaminE;
+
+    @Schema(description = "Vitamin B12 captured at log time for the entered portion in micrograms.", example = "1.1", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double snapshotVitaminB12;
+
     @NotBlank(message = "{validation.food-log.meal-type.required}")
     @Pattern(regexp = "(?i)BREAKFAST|LUNCH|DINNER|SNACK", message = "{validation.food-log.meal-type.invalid}")
     @Schema(description = "Meal category.", example = "BREAKFAST", allowableValues = {"BREAKFAST", "LUNCH", "DINNER", "SNACK"}, requiredMode = Schema.RequiredMode.REQUIRED)

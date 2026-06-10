@@ -60,6 +60,10 @@ class AdminSystemControllerTest {
                 Map.of("IRRELEVANT_RESULT", 2L),
                 5L,
                 0.75,
+                22L,
+                8400L,
+                11L,
+                70L,
                 List.of(),
                 LocalDateTime.of(2026, 5, 27, 14, 0)
         );
@@ -83,6 +87,10 @@ class AdminSystemControllerTest {
                 .andExpect(jsonPath("$.aiRejectionReasonsLast7d.IRRELEVANT_RESULT").value(2))
                 .andExpect(jsonPath("$.openAiDraftsLast7d").value(5))
                 .andExpect(jsonPath("$.aiDraftConfirmationRateLast7d").value(0.75))
+                .andExpect(jsonPath("$.logFlowCompletedLast24h").value(22))
+                .andExpect(jsonPath("$.averageLogFlowDurationMsLast24h").value(8400))
+                .andExpect(jsonPath("$.quickLogSuggestionAppliedLast24h").value(11))
+                .andExpect(jsonPath("$.searchStartedLast24h").value(70))
                 .andExpect(jsonPath("$.aiProvider").value("DISABLED"));
     }
 
