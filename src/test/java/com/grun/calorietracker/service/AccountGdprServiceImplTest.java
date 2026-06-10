@@ -26,6 +26,7 @@ import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
+import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
@@ -57,6 +58,7 @@ class AccountGdprServiceImplTest {
     @Mock private FederatedIdentityRepository federatedIdentityRepository;
     @Mock private MealTemplateRepository mealTemplateRepository;
     @Mock private UserFavoriteRepository userFavoriteRepository;
+    @Mock private UserAchievementRepository userAchievementRepository;
     @Mock private DeviceDataRepository deviceDataRepository;
     @Mock private SubscriptionRepository subscriptionRepository;
     @Mock private AccountIdentityService accountIdentityService;
@@ -93,6 +95,7 @@ class AccountGdprServiceImplTest {
                 federatedIdentityRepository,
                 mealTemplateRepository,
                 userFavoriteRepository,
+                userAchievementRepository,
                 deviceDataRepository,
                 subscriptionRepository,
                 accountIdentityService,

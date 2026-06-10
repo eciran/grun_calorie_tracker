@@ -224,6 +224,21 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setTotalProtein(toDouble(row[2]));
         dto.setTotalCarbs(toDouble(row[3]));
         dto.setTotalFat(toDouble(row[4]));
+        dto.setTotalFiber(toNullableDouble(row, 5));
+        dto.setTotalSugar(toNullableDouble(row, 6));
+        dto.setTotalSaturatedFat(toNullableDouble(row, 7));
+        dto.setTotalSodium(toNullableDouble(row, 8));
+        dto.setTotalPotassium(toNullableDouble(row, 9));
+        dto.setTotalCholesterol(toNullableDouble(row, 10));
+        dto.setTotalCalcium(toNullableDouble(row, 11));
+        dto.setTotalIron(toNullableDouble(row, 12));
+        dto.setTotalMagnesium(toNullableDouble(row, 13));
+        dto.setTotalZinc(toNullableDouble(row, 14));
+        dto.setTotalVitaminA(toNullableDouble(row, 15));
+        dto.setTotalVitaminC(toNullableDouble(row, 16));
+        dto.setTotalVitaminD(toNullableDouble(row, 17));
+        dto.setTotalVitaminE(toNullableDouble(row, 18));
+        dto.setTotalVitaminB12(toNullableDouble(row, 19));
         return dto;
     }
 
@@ -259,6 +274,21 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         existing.setTotalProtein(round(existing.getTotalProtein() + addition.getTotalProtein()));
         existing.setTotalCarbs(round(existing.getTotalCarbs() + addition.getTotalCarbs()));
         existing.setTotalFat(round(existing.getTotalFat() + addition.getTotalFat()));
+        existing.setTotalFiber(addNullable(existing.getTotalFiber(), addition.getTotalFiber()));
+        existing.setTotalSugar(addNullable(existing.getTotalSugar(), addition.getTotalSugar()));
+        existing.setTotalSaturatedFat(addNullable(existing.getTotalSaturatedFat(), addition.getTotalSaturatedFat()));
+        existing.setTotalSodium(addNullable(existing.getTotalSodium(), addition.getTotalSodium()));
+        existing.setTotalPotassium(addNullable(existing.getTotalPotassium(), addition.getTotalPotassium()));
+        existing.setTotalCholesterol(addNullable(existing.getTotalCholesterol(), addition.getTotalCholesterol()));
+        existing.setTotalCalcium(addNullable(existing.getTotalCalcium(), addition.getTotalCalcium()));
+        existing.setTotalIron(addNullable(existing.getTotalIron(), addition.getTotalIron()));
+        existing.setTotalMagnesium(addNullable(existing.getTotalMagnesium(), addition.getTotalMagnesium()));
+        existing.setTotalZinc(addNullable(existing.getTotalZinc(), addition.getTotalZinc()));
+        existing.setTotalVitaminA(addNullable(existing.getTotalVitaminA(), addition.getTotalVitaminA()));
+        existing.setTotalVitaminC(addNullable(existing.getTotalVitaminC(), addition.getTotalVitaminC()));
+        existing.setTotalVitaminD(addNullable(existing.getTotalVitaminD(), addition.getTotalVitaminD()));
+        existing.setTotalVitaminE(addNullable(existing.getTotalVitaminE(), addition.getTotalVitaminE()));
+        existing.setTotalVitaminB12(addNullable(existing.getTotalVitaminB12(), addition.getTotalVitaminB12()));
     }
 
     private FoodLogRecentMealDto toRecentMeal(UserEntity user, LocalDate sourceDate, String mealType) {
@@ -323,7 +353,19 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setSnapshotFat(log.getSnapshotFat());
         dto.setSnapshotFiber(log.getSnapshotFiber());
         dto.setSnapshotSugar(log.getSnapshotSugar());
+        dto.setSnapshotSaturatedFat(log.getSnapshotSaturatedFat());
         dto.setSnapshotSodium(log.getSnapshotSodium());
+        dto.setSnapshotPotassium(log.getSnapshotPotassium());
+        dto.setSnapshotCholesterol(log.getSnapshotCholesterol());
+        dto.setSnapshotCalcium(log.getSnapshotCalcium());
+        dto.setSnapshotIron(log.getSnapshotIron());
+        dto.setSnapshotMagnesium(log.getSnapshotMagnesium());
+        dto.setSnapshotZinc(log.getSnapshotZinc());
+        dto.setSnapshotVitaminA(log.getSnapshotVitaminA());
+        dto.setSnapshotVitaminC(log.getSnapshotVitaminC());
+        dto.setSnapshotVitaminD(log.getSnapshotVitaminD());
+        dto.setSnapshotVitaminE(log.getSnapshotVitaminE());
+        dto.setSnapshotVitaminB12(log.getSnapshotVitaminB12());
         return dto;
     }
 
@@ -354,6 +396,20 @@ public class FoodLogsServiceImpl implements FoodLogsService {
             return number.doubleValue();
         }
         return Double.parseDouble(value.toString());
+    }
+
+    private Double toNullableDouble(Object[] row, int index) {
+        if (row == null || row.length <= index || row[index] == null) {
+            return null;
+        }
+        return round(toDouble(row[index]));
+    }
+
+    private Double addNullable(Double first, Double second) {
+        if (first == null && second == null) {
+            return null;
+        }
+        return round((first == null ? 0.0 : first) + (second == null ? 0.0 : second));
     }
 
     private Double round(Double value) {
@@ -410,6 +466,21 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         copy.setSnapshotProtein(source.getSnapshotProtein());
         copy.setSnapshotCarbs(source.getSnapshotCarbs());
         copy.setSnapshotFat(source.getSnapshotFat());
+        copy.setSnapshotFiber(source.getSnapshotFiber());
+        copy.setSnapshotSugar(source.getSnapshotSugar());
+        copy.setSnapshotSaturatedFat(source.getSnapshotSaturatedFat());
+        copy.setSnapshotSodium(source.getSnapshotSodium());
+        copy.setSnapshotPotassium(source.getSnapshotPotassium());
+        copy.setSnapshotCholesterol(source.getSnapshotCholesterol());
+        copy.setSnapshotCalcium(source.getSnapshotCalcium());
+        copy.setSnapshotIron(source.getSnapshotIron());
+        copy.setSnapshotMagnesium(source.getSnapshotMagnesium());
+        copy.setSnapshotZinc(source.getSnapshotZinc());
+        copy.setSnapshotVitaminA(source.getSnapshotVitaminA());
+        copy.setSnapshotVitaminC(source.getSnapshotVitaminC());
+        copy.setSnapshotVitaminD(source.getSnapshotVitaminD());
+        copy.setSnapshotVitaminE(source.getSnapshotVitaminE());
+        copy.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
         copy.setMealType(normalizeMealType(source.getMealType()));
         copy.setLogDate(targetDate.atTime(source.getLogDate().toLocalTime()));
         return copy;
@@ -449,6 +520,21 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setSnapshotProtein(entity.getSnapshotProtein());
         dto.setSnapshotCarbs(entity.getSnapshotCarbs());
         dto.setSnapshotFat(entity.getSnapshotFat());
+        dto.setSnapshotFiber(entity.getSnapshotFiber());
+        dto.setSnapshotSugar(entity.getSnapshotSugar());
+        dto.setSnapshotSaturatedFat(entity.getSnapshotSaturatedFat());
+        dto.setSnapshotSodium(entity.getSnapshotSodium());
+        dto.setSnapshotPotassium(entity.getSnapshotPotassium());
+        dto.setSnapshotCholesterol(entity.getSnapshotCholesterol());
+        dto.setSnapshotCalcium(entity.getSnapshotCalcium());
+        dto.setSnapshotIron(entity.getSnapshotIron());
+        dto.setSnapshotMagnesium(entity.getSnapshotMagnesium());
+        dto.setSnapshotZinc(entity.getSnapshotZinc());
+        dto.setSnapshotVitaminA(entity.getSnapshotVitaminA());
+        dto.setSnapshotVitaminC(entity.getSnapshotVitaminC());
+        dto.setSnapshotVitaminD(entity.getSnapshotVitaminD());
+        dto.setSnapshotVitaminE(entity.getSnapshotVitaminE());
+        dto.setSnapshotVitaminB12(entity.getSnapshotVitaminB12());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;
@@ -462,11 +548,33 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), grams));
         entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), grams));
         entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), grams));
+        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), grams));
+        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), grams));
+        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), grams));
+        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), grams));
+        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), grams));
+        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), grams));
+        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), grams));
+        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), grams));
+        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), grams));
+        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), grams));
+        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), grams));
+        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), grams));
+        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), grams));
+        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), grams));
+        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), grams));
     }
 
     private Double calculateNutritionValue(Double perHundredGrams, Double grams) {
         return round((perHundredGrams == null ? 0.0 : perHundredGrams)
                 * (grams == null ? 0.0 : grams)
                 / 100.0);
+    }
+
+    private Double calculateNullableNutritionValue(Double perHundredGrams, Double grams) {
+        if (perHundredGrams == null || grams == null) {
+            return null;
+        }
+        return round(perHundredGrams * grams / 100.0);
     }
 }

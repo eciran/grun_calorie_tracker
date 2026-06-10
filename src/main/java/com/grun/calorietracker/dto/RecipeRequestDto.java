@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -10,6 +11,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Schema(description = "Create or update request for a private user recipe.")
@@ -47,6 +49,9 @@ public class RecipeRequestDto {
     @Positive
     @Schema(description = "Optional serving count.", example = "4")
     private Integer servingCount;
+
+    @Schema(description = "Standard categories used for public recipe discovery.", example = "[\"VEGAN\", \"HIGH_PROTEIN\"]")
+    private Set<RecipeCategory> categories;
 
     @Valid
     @NotEmpty

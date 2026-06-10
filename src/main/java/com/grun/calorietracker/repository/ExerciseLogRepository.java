@@ -27,6 +27,19 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
     Optional<ExerciseLogsEntity> findByUserAndSourceAndExternalId(UserEntity user, String source, String externalId);
 
     @Query(value = """
+            SELECT COALESCE(SUM(e.calories_burned), 0)
+            FROM exercise_logs e
+            WHERE e.user_id = :userId
+              AND e.log_date >= :start
+              AND e.log_date < :end
+            """, nativeQuery = true)
+    double sumCaloriesBurnedByUserIdAndLogDateBetween(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query(value = """
     SELECT date_trunc(:range, e.log_date) as bucket,
            SUM(e.duration_minutes) as total_duration,
            SUM(e.calories_burned) as total_calories

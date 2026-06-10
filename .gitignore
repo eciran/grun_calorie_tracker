@@ -27,7 +27,7 @@ target/
 /.nb-gradle/
 build/
 node_modules/
-admin-ui/
+admin-ui/node_modules/
 admin-ui/dist/
 admin-ui/vite-dev*.log
 admin-ui/tsconfig.tsbuildinfo

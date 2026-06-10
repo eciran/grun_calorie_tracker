@@ -38,6 +38,20 @@ public interface FastingSessionRepository extends JpaRepository<FastingSessionEn
             LocalDateTime end
     );
 
+    long countByUserAndStatusAndTargetReachedTrue(UserEntity user, FastingSessionStatus status);
+
+    @Query(value = """
+            SELECT COUNT(DISTINCT fasting_date)
+            FROM fasting_sessions
+            WHERE user_id = :userId
+              AND status = :status
+              AND target_reached = TRUE
+            """, nativeQuery = true)
+    long countDistinctCompletedTargetReachedDays(
+            @Param("userId") Long userId,
+            @Param("status") String status
+    );
+
     @Query("""
             select session
             from FastingSessionEntity session

@@ -21,5 +21,17 @@ public class RecipeLogDto {
     private Double snapshotFat;
     private Double snapshotFiber;
     private Double snapshotSugar;
+    private Double snapshotSaturatedFat;
     private Double snapshotSodium;
+    private Double snapshotPotassium;
+    private Double snapshotCholesterol;
+    private Double snapshotCalcium;
+    private Double snapshotIron;
+    private Double snapshotMagnesium;
+    private Double snapshotZinc;
+    private Double snapshotVitaminA;
+    private Double snapshotVitaminC;
+    private Double snapshotVitaminD;
+    private Double snapshotVitaminE;
+    private Double snapshotVitaminB12;
 }

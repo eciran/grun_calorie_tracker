@@ -16,6 +16,7 @@ public class AiProperties {
     private Safety safety = new Safety();
     private Photo photo = new Photo();
     private HttpJson httpJson = new HttpJson();
+    private RecipeImageModeration recipeImageModeration = new RecipeImageModeration();
 
     @Data
     public static class Safety {
@@ -41,5 +42,15 @@ public class AiProperties {
         private String endpoint = "";
         private String apiKey = "";
         private Duration timeout = Duration.ofSeconds(30);
+    }
+
+    @Data
+    public static class RecipeImageModeration {
+        private boolean enabled = false;
+        private String endpoint = "";
+        private String apiKey = "";
+        private Duration timeout = Duration.ofSeconds(15);
+        private double rejectThreshold = 0.85;
+        private double approveThreshold = 0.95;
     }
 }

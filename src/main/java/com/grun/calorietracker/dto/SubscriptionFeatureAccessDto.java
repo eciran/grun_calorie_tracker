@@ -11,6 +11,7 @@ public class SubscriptionFeatureAccessDto {
     private SubscriptionPlan planType;
     private Boolean activeEntitlement;
     private Boolean aiWorkoutPlanner;
+    private Boolean aiRecipeGeneration;
     private Boolean healthIntegration;
     private Boolean advancedAnalytics;
     private Boolean adFree;

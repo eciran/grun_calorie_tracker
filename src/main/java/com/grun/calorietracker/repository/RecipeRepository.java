@@ -4,13 +4,14 @@ import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface RecipeRepository extends JpaRepository<RecipeEntity, Long> {
+public interface RecipeRepository extends JpaRepository<RecipeEntity, Long>, JpaSpecificationExecutor<RecipeEntity> {
     List<RecipeEntity> findByOwnerUserAndArchivedFalseOrderByUpdatedAtDesc(UserEntity ownerUser);
 
     @Query("""

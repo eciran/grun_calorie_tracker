@@ -41,6 +41,7 @@ import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
+import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
@@ -73,6 +74,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final FederatedIdentityRepository federatedIdentityRepository;
     private final MealTemplateRepository mealTemplateRepository;
     private final UserFavoriteRepository userFavoriteRepository;
+    private final UserAchievementRepository userAchievementRepository;
     private final DeviceDataRepository deviceDataRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final AccountIdentityService accountIdentityService;
@@ -190,6 +192,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         user.setWeight(null);
         user.setBodyFatPercentage(null);
         user.setBmi(null);
+        user.setAvatarUrl(null);
         user.setEmailVerified(false);
         user.setPasswordSet(false);
 
@@ -209,6 +212,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         mealTemplateRepository.deleteByUser(user);
         foodDiaryNoteRepository.deleteByUser(user);
         notificationRepository.deleteByUser(user);
+        userAchievementRepository.deleteByUser(user);
         deviceDataRepository.deleteByUser(user);
         healthConnectionRepository.deleteByUser(user);
         goalRepository.deleteByUser(user);

@@ -54,4 +54,7 @@ public class UserEntity {
     @Column(name = "password_set", nullable = false)
     private Boolean passwordSet = true;
 
+    @Column(name = "avatar_url", length = 2048)
+    private String avatarUrl;
+
 }

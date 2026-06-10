@@ -35,6 +35,25 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
     boolean existsByFoodItem(FoodItemEntity foodItem);
 
     @Query(value = """
+            SELECT COUNT(DISTINCT CAST(f.log_date AS DATE))
+            FROM food_logs f
+            WHERE f.user_id = :userId
+            """, nativeQuery = true)
+    long countDistinctLogDaysByUserId(@Param("userId") Long userId);
+
+    @Query(value = """
+            SELECT COALESCE(MAX(meal_count), 0)
+            FROM (
+                SELECT CAST(f.log_date AS DATE) AS log_day, COUNT(DISTINCT UPPER(f.meal_type)) AS meal_count
+                FROM food_logs f
+                WHERE f.user_id = :userId
+                  AND UPPER(f.meal_type) IN ('BREAKFAST', 'LUNCH', 'DINNER')
+                GROUP BY CAST(f.log_date AS DATE)
+            ) daily_meals
+            """, nativeQuery = true)
+    int maxCoreMealTypesLoggedInSingleDay(@Param("userId") Long userId);
+
+    @Query(value = """
             SELECT f.food_id
             FROM food_logs f
             JOIN food_items fi ON fi.id = f.food_id
@@ -72,17 +91,32 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
     );
 
     @Query(value = """
-    SELECT DATE(f.log_date) as logDate,
+    SELECT CAST(f.log_date AS DATE) as logDate,
            SUM(COALESCE(f.snapshot_calories, COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as calories,
            SUM(COALESCE(f.snapshot_protein, COALESCE(fi.protein, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as protein,
            SUM(COALESCE(f.snapshot_carbs, COALESCE(fi.carbs, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as carbs,
-           SUM(COALESCE(f.snapshot_fat, COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as fat
+           SUM(COALESCE(f.snapshot_fat, COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100)) as fat,
+           SUM(f.snapshot_fiber) as fiber,
+           SUM(f.snapshot_sugar) as sugar,
+           SUM(f.snapshot_saturated_fat) as saturatedFat,
+           SUM(f.snapshot_sodium) as sodium,
+           SUM(f.snapshot_potassium) as potassium,
+           SUM(f.snapshot_cholesterol) as cholesterol,
+           SUM(f.snapshot_calcium) as calcium,
+           SUM(f.snapshot_iron) as iron,
+           SUM(f.snapshot_magnesium) as magnesium,
+           SUM(f.snapshot_zinc) as zinc,
+           SUM(f.snapshot_vitamin_a) as vitaminA,
+           SUM(f.snapshot_vitamin_c) as vitaminC,
+           SUM(f.snapshot_vitamin_d) as vitaminD,
+           SUM(f.snapshot_vitamin_e) as vitaminE,
+           SUM(f.snapshot_vitamin_b12) as vitaminB12
     FROM food_logs f
     JOIN food_items fi ON f.food_id = fi.id
     WHERE f.user_id = :userId
       AND f.log_date BETWEEN :start AND :end
-    GROUP BY DATE(f.log_date)
-    ORDER BY DATE(f.log_date)
+    GROUP BY CAST(f.log_date AS DATE)
+    ORDER BY CAST(f.log_date AS DATE)
     """, nativeQuery = true)
     List<Object[]> getDailyStatsByUserAndDateBetween(
             @Param("userId") Long userId,
@@ -94,7 +128,22 @@ SELECT
     COALESCE(SUM(COALESCE(f.snapshot_calories, COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
     COALESCE(SUM(COALESCE(f.snapshot_protein, COALESCE(fi.protein, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
     COALESCE(SUM(COALESCE(f.snapshot_carbs, COALESCE(fi.carbs, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
-    COALESCE(SUM(COALESCE(f.snapshot_fat, COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0)
+    COALESCE(SUM(COALESCE(f.snapshot_fat, COALESCE(fi.fat, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0),
+    SUM(f.snapshot_fiber),
+    SUM(f.snapshot_sugar),
+    SUM(f.snapshot_saturated_fat),
+    SUM(f.snapshot_sodium),
+    SUM(f.snapshot_potassium),
+    SUM(f.snapshot_cholesterol),
+    SUM(f.snapshot_calcium),
+    SUM(f.snapshot_iron),
+    SUM(f.snapshot_magnesium),
+    SUM(f.snapshot_zinc),
+    SUM(f.snapshot_vitamin_a),
+    SUM(f.snapshot_vitamin_c),
+    SUM(f.snapshot_vitamin_d),
+    SUM(f.snapshot_vitamin_e),
+    SUM(f.snapshot_vitamin_b12)
 FROM food_logs f
 JOIN food_items fi ON f.food_id = fi.id
 WHERE f.user_id = :userId
