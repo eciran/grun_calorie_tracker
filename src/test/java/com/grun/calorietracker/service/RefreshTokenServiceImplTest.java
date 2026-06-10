@@ -108,6 +108,31 @@ class RefreshTokenServiceImplTest {
     }
 
     @Test
+    void refreshAccessToken_whenUsedTokenReplayed_revokesActiveTokensForUser() {
+        RefreshTokenEntity reused = new RefreshTokenEntity();
+        reused.setUser(user);
+        reused.setUsedAt(LocalDateTime.now().minusMinutes(1));
+        reused.setExpiresAt(LocalDateTime.now().plusDays(1));
+        RefreshTokenEntity active = new RefreshTokenEntity();
+        active.setUser(user);
+        active.setExpiresAt(LocalDateTime.now().plusDays(1));
+
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(reused));
+        when(refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user))
+                .thenReturn(List.of(active));
+
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("raw-refresh-token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Refresh token is invalid or expired");
+
+        assertThat(reused.getRevokedAt()).isNotNull();
+        assertThat(active.getRevokedAt()).isNotNull();
+        verify(refreshTokenRepository).save(reused);
+    }
+
+    @Test
     void revokeAllForUser_marksAllActiveTokensRevoked() {
         RefreshTokenEntity first = new RefreshTokenEntity();
         RefreshTokenEntity second = new RefreshTokenEntity();

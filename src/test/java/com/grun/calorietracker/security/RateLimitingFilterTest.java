@@ -157,6 +157,43 @@ class RateLimitingFilterTest {
         assertEquals(429, secondResponse.getStatus());
     }
 
+    @Test
+    void ignoresForwardedForWhenNoTrustedProxyIsConfigured() throws Exception {
+        RateLimitingFilter filter = buildFilter(1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        MockHttpServletRequest firstRequest = post("/api/v1/auth/login");
+        firstRequest.addHeader("X-Forwarded-For", "198.51.100.1");
+        filter.doFilter(firstRequest, new MockHttpServletResponse(), filterChain);
+
+        MockHttpServletRequest secondRequest = post("/api/v1/auth/login");
+        secondRequest.addHeader("X-Forwarded-For", "203.0.113.99");
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(secondRequest, secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
+    @Test
+    void usesRightmostForwardedForValueWhenOneTrustedProxyIsConfigured() throws Exception {
+        RateLimitingFilter filter = buildFilter(1);
+        ReflectionTestUtils.setField(filter, "trustedProxyCount", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        MockHttpServletRequest firstRequest = post("/api/v1/auth/login");
+        firstRequest.addHeader("X-Forwarded-For", "198.51.100.1, 10.0.0.10");
+        filter.doFilter(firstRequest, new MockHttpServletResponse(), filterChain);
+
+        MockHttpServletRequest secondRequest = post("/api/v1/auth/login");
+        secondRequest.addHeader("X-Forwarded-For", "203.0.113.99, 10.0.0.10");
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(secondRequest, secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
     private MockHttpServletRequest post(String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", uri);
         request.setRemoteAddr("127.0.0.1");
@@ -180,6 +217,7 @@ class RateLimitingFilterTest {
         ReflectionTestUtils.setField(filter, "passwordResetMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "trustedProxyCount", 0);
         return filter;
     }
 }

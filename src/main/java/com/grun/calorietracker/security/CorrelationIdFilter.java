@@ -45,7 +45,10 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     private String resolveCorrelationId(HttpServletRequest request) {
         String header = request.getHeader(CORRELATION_ID_HEADER);
         if (header != null && !header.isBlank() && header.length() <= 128) {
-            return header.trim();
+            String sanitized = header.trim().replaceAll("[\\r\\n\\t]", "");
+            if (!sanitized.isBlank()) {
+                return sanitized;
+            }
         }
         return UUID.randomUUID().toString();
     }

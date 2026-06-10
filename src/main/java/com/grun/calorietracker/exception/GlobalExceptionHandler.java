@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -18,6 +19,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -144,6 +146,35 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponseDto> handleDateTimeParseException(DateTimeParseException ex,
                                                                             HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+                                                                                   HttpServletRequest request) {
+        return buildResponse(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "error.upload.too-large",
+                "Upload too large",
+                "Uploaded file exceeds the maximum allowed size.",
+                request
+        );
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDataIntegrityViolationException(DataIntegrityViolationException ex,
+                                                                                    HttpServletRequest request) {
+        log.warn(
+                "Data integrity violation correlationId={} path={}",
+                correlationId(request),
+                request.getRequestURI()
+        );
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "error.data-integrity",
+                "Invalid request",
+                "Request conflicts with existing data.",
+                request
+        );
     }
 
     @ExceptionHandler(Exception.class)

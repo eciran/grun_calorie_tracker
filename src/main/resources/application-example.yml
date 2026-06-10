@@ -59,7 +59,7 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET:Q0hBTkdFX01FX0xPQ0FMX0RFVkVMT1BNRU5UX1NFQ1JFVF9LRVlfMTIzNDU2Nzg5MA==}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 
 openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
@@ -133,8 +133,11 @@ grun:
       api-url: ${GRUN_BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
   refresh-token:
     expiration-days: ${GRUN_REFRESH_TOKEN_EXPIRATION_DAYS:30}
+  tokens:
+    cleanup-interval-ms: ${GRUN_TOKENS_CLEANUP_INTERVAL_MS:3600000}
   rate-limit:
     enabled: ${GRUN_RATE_LIMIT_ENABLED:true}
+    trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
       enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
     auth:

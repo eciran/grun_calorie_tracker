@@ -24,6 +24,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -119,9 +121,19 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
 
     private void validateAuthorization(String authorizationHeader) {
         String expected = properties.getWebhookAuthorization();
-        if (expected != null && !expected.isBlank() && !expected.equals(authorizationHeader)) {
+        if (expected == null || expected.isBlank()) {
+            throw new AccessDeniedException("RevenueCat webhook authorization is not configured.");
+        }
+        if (authorizationHeader == null || !constantTimeEquals(expected, authorizationHeader)) {
             throw new AccessDeniedException("Invalid RevenueCat webhook authorization header.");
         }
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     private RevenueCatWebhookEventDto toWebhook(JsonNode payload) {
