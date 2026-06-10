@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -10,6 +11,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Schema(description = "Admin recipe detail response.")
@@ -44,6 +46,7 @@ public class AdminRecipeDto {
     private Long favoriteCount;
     private Long ratingCount;
     private Double averageRating;
+    private Set<RecipeCategory> categories;
     private Boolean archived;
     private Integer ingredientCount;
     private LocalDateTime createdAt;

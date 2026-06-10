@@ -105,6 +105,7 @@ public class UserServiceImpl implements UserService {
         dto.setPasswordSet(user.getPasswordSet());
         dto.setMarketRegion(user.getMarketRegion());
         dto.setPreferredLanguage(user.getPreferredLanguage());
+        dto.setAvatarUrl(user.getAvatarUrl());
         if (user.getHeight() != null && user.getWeight() != null && user.getHeight() > 0) {
             double heightM = user.getHeight() / 100.0;
             double bmi = user.getWeight() / (heightM * heightM);
@@ -220,6 +221,7 @@ public class UserServiceImpl implements UserService {
         dto.setPasswordSet(user.getPasswordSet());
         dto.setMarketRegion(user.getMarketRegion());
         dto.setPreferredLanguage(user.getPreferredLanguage());
+        dto.setAvatarUrl(user.getAvatarUrl());
         return dto;
     }
 }

@@ -7,6 +7,7 @@ import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.RecipeRepository;
@@ -19,8 +20,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -43,12 +46,14 @@ class AdminRecipeServiceImplTest {
         RecipeEntity recipe = new RecipeEntity();
         recipe.setId(12L);
         recipe.setName("Admin checked recipe");
-        recipe.setVisibility(RecipeVisibility.PRIVATE);
-        recipe.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        makePublicReady(recipe);
+        recipe.setVisibility(RecipeVisibility.COMMUNITY_PENDING);
+        recipe.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
         recipe.setArchived(false);
         AdminRecipeReviewRequestDto request = new AdminRecipeReviewRequestDto();
         request.setVerificationStatus(VerificationStatus.VERIFIED);
-        request.setArchived(true);
+        request.setVisibility(RecipeVisibility.PUBLIC_ADMIN);
+        request.setArchived(false);
         request.setReviewNote("Checked from admin UI.");
         when(recipeRepository.findById(12L)).thenReturn(Optional.of(recipe));
         when(recipeRepository.save(recipe)).thenReturn(recipe);
@@ -56,7 +61,8 @@ class AdminRecipeServiceImplTest {
         AdminRecipeDto result = service.updateRecipeReview(12L, request, "admin@grun.local");
 
         assertEquals(VerificationStatus.VERIFIED, result.getVerificationStatus());
-        assertEquals(true, result.getArchived());
+        assertEquals(RecipeVisibility.PUBLIC_ADMIN, result.getVisibility());
+        assertEquals(false, result.getArchived());
         verify(adminAuditService).record(
                 eq("admin@grun.local"),
                 eq(AdminAuditActionType.RECIPE_REVIEW_UPDATE),
@@ -102,5 +108,31 @@ class AdminRecipeServiceImplTest {
                 any(),
                 eq(null)
         );
+    }
+
+    @Test
+    void updateRecipeReview_whenPublicApprovalIsIncomplete_rejectsRequest() {
+        RecipeEntity recipe = new RecipeEntity();
+        recipe.setId(12L);
+        recipe.setName("Incomplete public recipe");
+        recipe.setVisibility(RecipeVisibility.COMMUNITY_PENDING);
+        recipe.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        recipe.setArchived(false);
+        AdminRecipeReviewRequestDto request = new AdminRecipeReviewRequestDto();
+        request.setVisibility(RecipeVisibility.PUBLIC_ADMIN);
+        request.setVerificationStatus(VerificationStatus.VERIFIED);
+        when(recipeRepository.findById(12L)).thenReturn(Optional.of(recipe));
+
+        assertThrows(IllegalArgumentException.class, () -> service.updateRecipeReview(12L, request, "admin@grun.local"));
+    }
+
+    private void makePublicReady(RecipeEntity recipe) {
+        recipe.setCategories(Set.of(RecipeCategory.VEGAN));
+        recipe.setTotalYieldGrams(400.0);
+        recipe.setDefaultServingGrams(100.0);
+        recipe.setSnapshotCalories(250.0);
+        recipe.setImageUrl("https://cdn.grun.app/reviewed/recipe.jpg");
+        recipe.setImageSource(ImageSource.ADMIN_UPLOAD);
+        recipe.setImageStatus(ImageStatus.APPROVED);
     }
 }

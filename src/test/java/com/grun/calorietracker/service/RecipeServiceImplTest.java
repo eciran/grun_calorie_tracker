@@ -7,11 +7,14 @@ import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
@@ -26,8 +29,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -159,6 +164,62 @@ class RecipeServiceImplTest {
     }
 
     @Test
+    void requestPublication_marksRecipePendingReview() {
+        UserEntity user = user();
+        RecipeEntity recipe = recipeEntity(user);
+        recipe.setCategories(new LinkedHashSet<>(Set.of(RecipeCategory.VEGAN, RecipeCategory.HIGH_PROTEIN)));
+        recipe.setTotalYieldGrams(400.0);
+        recipe.setDefaultServingGrams(100.0);
+        recipe.setSnapshotCalories(160.0);
+        RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
+        ingredient.setRecipe(recipe);
+        ingredient.setFoodItem(product());
+        ingredient.setPortionSize(200.0);
+        ingredient.setPortionUnit(FoodPortionUnit.GRAM);
+        ingredient.setNormalizedPortionGrams(200.0);
+        recipe.getIngredients().add(ingredient);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+        when(recipeRepository.save(recipe)).thenReturn(recipe);
+
+        RecipeDto result = service.requestPublication("user@test.com", 10L);
+
+        assertEquals(RecipeVisibility.COMMUNITY_PENDING, result.getVisibility());
+        assertEquals(VerificationStatus.NEEDS_REVIEW, result.getVerificationStatus());
+    }
+
+    @Test
+    void requestPublication_withoutCategories_rejectsRequest() {
+        UserEntity user = user();
+        RecipeEntity recipe = recipeEntity(user);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+
+        assertThrows(IllegalArgumentException.class, () -> service.requestPublication("user@test.com", 10L));
+    }
+
+    @Test
+    void copyPublicRecipe_createsPrivateCopyForUser() {
+        UserEntity user = user();
+        RecipeEntity source = publicRecipeEntity();
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findById(10L)).thenReturn(Optional.of(source));
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> {
+            RecipeEntity copy = invocation.getArgument(0);
+            copy.setId(20L);
+            return copy;
+        });
+
+        RecipeDto result = service.copyPublicRecipe("user@test.com", 10L);
+
+        assertEquals(20L, result.getId());
+        assertEquals(RecipeVisibility.PRIVATE, result.getVisibility());
+        assertEquals(VerificationStatus.RAW_IMPORTED, result.getVerificationStatus());
+        assertEquals(Set.of(RecipeCategory.VEGAN), result.getCategories());
+        assertEquals(1, result.getIngredients().size());
+    }
+
+    @Test
     void createRecipe_whenServingIsLargerThanYield_rejectsRequest() {
         RecipeRequestDto request = recipeRequest(200.0, 250.0, 1);
 
@@ -224,6 +285,27 @@ class RecipeServiceImplTest {
         recipe.setOwnerUser(user);
         recipe.setName("Lentil soup");
         recipe.setArchived(false);
+        return recipe;
+    }
+
+    private RecipeEntity publicRecipeEntity() {
+        RecipeEntity recipe = recipeEntity(user());
+        recipe.setVisibility(RecipeVisibility.PUBLIC_ADMIN);
+        recipe.setVerificationStatus(VerificationStatus.VERIFIED);
+        recipe.setCategories(new LinkedHashSet<>(Set.of(RecipeCategory.VEGAN)));
+        recipe.setTotalYieldGrams(400.0);
+        recipe.setDefaultServingGrams(100.0);
+        recipe.setServingCount(4);
+        recipe.setSnapshotCalories(160.0);
+        recipe.setSnapshotProtein(48.0);
+        RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
+        ingredient.setRecipe(recipe);
+        ingredient.setFoodItem(product());
+        ingredient.setPortionSize(200.0);
+        ingredient.setPortionUnit(FoodPortionUnit.GRAM);
+        ingredient.setNormalizedPortionGrams(200.0);
+        ingredient.setItemOrder(0);
+        recipe.getIngredients().add(ingredient);
         return recipe;
     }
 }

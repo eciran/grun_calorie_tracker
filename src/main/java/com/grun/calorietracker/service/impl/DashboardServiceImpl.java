@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.DailySummaryDto;
 import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.MicronutrientTotalsDto;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
@@ -14,6 +15,7 @@ import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.service.DashboardService;
 import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.SubscriptionService;
@@ -36,6 +38,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final FoodLogsRepository foodLogsRepository;
     private final ExerciseLogRepository exerciseLogRepository;
     private final ProgressLogRepository progressLogRepository;
+    private final RecipeLogRepository recipeLogRepository;
     private final HealthIntegrationService healthIntegrationService;
     private final SubscriptionService subscriptionService;
 
@@ -50,6 +53,9 @@ public class DashboardServiceImpl implements DashboardService {
         Object[] foodTotals = extractSingleRow(
                 foodLogsRepository.getSummaryTotalsByUserAndDateBetween(user.getId(), start, end)
         );
+        Object[] recipeTotals = extractSingleRow(
+                recipeLogRepository.getSummaryTotalsByUserAndDateBetween(user.getId(), start, end)
+        );
         Object[] exerciseTotals = extractSingleRow(
                 exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(user.getId(), start, end)
         );
@@ -57,10 +63,11 @@ public class DashboardServiceImpl implements DashboardService {
         Optional<UserGoalEntity> goalOpt = goalRepository.findByUser(user);
         Optional<ProgressLogEntity> latestProgressOpt = progressLogRepository.findTopByUserOrderByLogDateDesc(user);
 
-        Double consumedCalories = getDouble(foodTotals, 0);
-        Double consumedProtein = getDouble(foodTotals, 1);
-        Double consumedCarbs = getDouble(foodTotals, 2);
-        Double consumedFat = getDouble(foodTotals, 3);
+        Double consumedCalories = round(getDouble(foodTotals, 0) + getDouble(recipeTotals, 0));
+        Double consumedProtein = round(getDouble(foodTotals, 1) + getDouble(recipeTotals, 1));
+        Double consumedCarbs = round(getDouble(foodTotals, 2) + getDouble(recipeTotals, 2));
+        Double consumedFat = round(getDouble(foodTotals, 3) + getDouble(recipeTotals, 3));
+        MicronutrientTotalsDto consumedMicros = combineMicros(foodTotals, recipeTotals);
 
         Double burnedCalories = getDouble(exerciseTotals, 0);
         Integer totalExerciseMinutes = getInteger(exerciseTotals, 1);
@@ -112,6 +119,7 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setProteinProgressPercent(percent(consumedProtein, targetProtein));
         dto.setFatProgressPercent(percent(consumedFat, targetFat));
         dto.setCarbsProgressPercent(percent(consumedCarbs, targetCarbs));
+        dto.setConsumedMicros(consumedMicros);
 
         dto.setCurrentWeight(currentWeight);
         dto.setTargetWeight(targetWeight);
@@ -139,9 +147,66 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setPortionSize(entity.getPortionSize());
         dto.setPortionUnit(entity.getPortionUnit());
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
+        dto.setSnapshotCalories(entity.getSnapshotCalories());
+        dto.setSnapshotProtein(entity.getSnapshotProtein());
+        dto.setSnapshotCarbs(entity.getSnapshotCarbs());
+        dto.setSnapshotFat(entity.getSnapshotFat());
+        dto.setSnapshotFiber(entity.getSnapshotFiber());
+        dto.setSnapshotSugar(entity.getSnapshotSugar());
+        dto.setSnapshotSaturatedFat(entity.getSnapshotSaturatedFat());
+        dto.setSnapshotSodium(entity.getSnapshotSodium());
+        dto.setSnapshotPotassium(entity.getSnapshotPotassium());
+        dto.setSnapshotCholesterol(entity.getSnapshotCholesterol());
+        dto.setSnapshotCalcium(entity.getSnapshotCalcium());
+        dto.setSnapshotIron(entity.getSnapshotIron());
+        dto.setSnapshotMagnesium(entity.getSnapshotMagnesium());
+        dto.setSnapshotZinc(entity.getSnapshotZinc());
+        dto.setSnapshotVitaminA(entity.getSnapshotVitaminA());
+        dto.setSnapshotVitaminC(entity.getSnapshotVitaminC());
+        dto.setSnapshotVitaminD(entity.getSnapshotVitaminD());
+        dto.setSnapshotVitaminE(entity.getSnapshotVitaminE());
+        dto.setSnapshotVitaminB12(entity.getSnapshotVitaminB12());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;
+    }
+
+    private MicronutrientTotalsDto combineMicros(Object[] foodTotals, Object[] recipeTotals) {
+        MicronutrientTotalsDto dto = new MicronutrientTotalsDto();
+        dto.setFiber(addNullable(getNullableDouble(foodTotals, 4), getNullableDouble(recipeTotals, 4)));
+        dto.setSugar(addNullable(getNullableDouble(foodTotals, 5), getNullableDouble(recipeTotals, 5)));
+        dto.setSaturatedFat(addNullable(getNullableDouble(foodTotals, 6), getNullableDouble(recipeTotals, 6)));
+        dto.setSodium(addNullable(getNullableDouble(foodTotals, 7), getNullableDouble(recipeTotals, 7)));
+        dto.setPotassium(addNullable(getNullableDouble(foodTotals, 8), getNullableDouble(recipeTotals, 8)));
+        dto.setCholesterol(addNullable(getNullableDouble(foodTotals, 9), getNullableDouble(recipeTotals, 9)));
+        dto.setCalcium(addNullable(getNullableDouble(foodTotals, 10), getNullableDouble(recipeTotals, 10)));
+        dto.setIron(addNullable(getNullableDouble(foodTotals, 11), getNullableDouble(recipeTotals, 11)));
+        dto.setMagnesium(addNullable(getNullableDouble(foodTotals, 12), getNullableDouble(recipeTotals, 12)));
+        dto.setZinc(addNullable(getNullableDouble(foodTotals, 13), getNullableDouble(recipeTotals, 13)));
+        dto.setVitaminA(addNullable(getNullableDouble(foodTotals, 14), getNullableDouble(recipeTotals, 14)));
+        dto.setVitaminC(addNullable(getNullableDouble(foodTotals, 15), getNullableDouble(recipeTotals, 15)));
+        dto.setVitaminD(addNullable(getNullableDouble(foodTotals, 16), getNullableDouble(recipeTotals, 16)));
+        dto.setVitaminE(addNullable(getNullableDouble(foodTotals, 17), getNullableDouble(recipeTotals, 17)));
+        dto.setVitaminB12(addNullable(getNullableDouble(foodTotals, 18), getNullableDouble(recipeTotals, 18)));
+        return hasAnyMicronutrient(dto) ? dto : null;
+    }
+
+    private boolean hasAnyMicronutrient(MicronutrientTotalsDto dto) {
+        return dto.getFiber() != null
+                || dto.getSugar() != null
+                || dto.getSaturatedFat() != null
+                || dto.getSodium() != null
+                || dto.getPotassium() != null
+                || dto.getCholesterol() != null
+                || dto.getCalcium() != null
+                || dto.getIron() != null
+                || dto.getMagnesium() != null
+                || dto.getZinc() != null
+                || dto.getVitaminA() != null
+                || dto.getVitaminC() != null
+                || dto.getVitaminD() != null
+                || dto.getVitaminE() != null
+                || dto.getVitaminB12() != null;
     }
 
     private ExerciseLogsDto toExerciseLogDto(ExerciseLogsEntity entity) {
@@ -170,6 +235,20 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         throw new IllegalStateException("Expected numeric value at index " + index + " but got: " + value.getClass().getName());
+    }
+
+    private Double getNullableDouble(Object[] row, int index) {
+        if (row == null || row.length <= index || row[index] == null) {
+            return null;
+        }
+        return getDouble(row, index);
+    }
+
+    private Double addNullable(Double first, Double second) {
+        if (first == null && second == null) {
+            return null;
+        }
+        return round((first == null ? 0.0 : first) + (second == null ? 0.0 : second));
     }
 
     private Integer getInteger(Object[] row, int index) {

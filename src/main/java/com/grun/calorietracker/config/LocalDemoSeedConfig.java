@@ -4,16 +4,23 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
+import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,8 +34,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Configuration
 @Profile("local")
@@ -42,6 +51,7 @@ public class LocalDemoSeedConfig {
             UserRepository userRepository,
             FoodItemRepository foodItemRepository,
             FoodLogsRepository foodLogsRepository,
+            RecipeRepository recipeRepository,
             ExerciseItemRepository exerciseItemRepository,
             ExerciseLogRepository exerciseLogRepository,
             PasswordEncoder passwordEncoder,
@@ -53,6 +63,7 @@ public class LocalDemoSeedConfig {
             seedDemoReviewProduct(foodItemRepository);
             demoUser.ifPresent(user -> {
                 seedDemoFoodLogs(foodLogsRepository, user, demoProducts);
+                seedDemoPublicRecipes(recipeRepository, user, demoProducts);
                 seedDemoExerciseLog(exerciseItemRepository, exerciseLogRepository, user);
             });
             log.info("Local demo seed completed.");
@@ -219,6 +230,119 @@ public class LocalDemoSeedConfig {
         exerciseLogRepository.save(logEntity);
     }
 
+    private void seedDemoPublicRecipes(
+            RecipeRepository recipeRepository,
+            UserEntity user,
+            List<FoodItemEntity> demoProducts) {
+        if (demoProducts.size() < 3) {
+            log.warn("Local demo seed could not create public recipes because demo products are missing.");
+            return;
+        }
+        createRecipeIfMissing(
+                recipeRepository,
+                user,
+                "GRun Demo High Protein Yogurt Bowl",
+                "Greek yogurt and banana bowl for a quick high protein breakfast.",
+                "BREAKFAST",
+                MarketRegion.UK_IE,
+                "en",
+                "https://cdn.grun.app/demo/recipes/high-protein-yogurt-bowl.jpg",
+                new LinkedHashSet<>(Set.of(RecipeCategory.HIGH_PROTEIN, RecipeCategory.BREAKFAST, RecipeCategory.QUICK_MEAL)),
+                List.of(
+                        new DemoRecipeIngredient(demoProducts.get(0), 250.0),
+                        new DemoRecipeIngredient(demoProducts.get(1), 120.0)
+                )
+        );
+        createRecipeIfMissing(
+                recipeRepository,
+                user,
+                "GRun Demo Chicken Meal Prep Salad",
+                "Simple chicken salad prepared for meal prep and public recipe testing.",
+                "LUNCH",
+                MarketRegion.UK_IE,
+                "en",
+                "https://cdn.grun.app/demo/recipes/chicken-meal-prep-salad.jpg",
+                new LinkedHashSet<>(Set.of(RecipeCategory.HIGH_PROTEIN, RecipeCategory.SALAD, RecipeCategory.MEAL_PREP)),
+                List.of(
+                        new DemoRecipeIngredient(demoProducts.get(2), 180.0),
+                        new DemoRecipeIngredient(demoProducts.get(1), 80.0)
+                )
+        );
+    }
+
+    private void createRecipeIfMissing(
+            RecipeRepository recipeRepository,
+            UserEntity user,
+            String name,
+            String description,
+            String mealType,
+            MarketRegion marketRegion,
+            String language,
+            String imageUrl,
+            Set<RecipeCategory> categories,
+            List<DemoRecipeIngredient> ingredients) {
+        boolean exists = recipeRepository.findByVisibilityAndArchivedFalseOrderByUpdatedAtDesc(RecipeVisibility.PUBLIC_ADMIN).stream()
+                .anyMatch(recipe -> name.equals(recipe.getName()));
+        if (exists) {
+            return;
+        }
+        RecipeEntity recipe = new RecipeEntity();
+        recipe.setOwnerUser(user);
+        recipe.setName(name);
+        recipe.setDescription(description);
+        recipe.setMealType(mealType);
+        recipe.setVisibility(RecipeVisibility.PUBLIC_ADMIN);
+        recipe.setVerificationStatus(VerificationStatus.VERIFIED);
+        recipe.setMarketRegion(marketRegion);
+        recipe.setLanguage(language);
+        recipe.setImageUrl(imageUrl);
+        recipe.setImageSource(ImageSource.ADMIN_UPLOAD);
+        recipe.setImageStatus(ImageStatus.APPROVED);
+        recipe.setCategories(categories);
+        recipe.setServingCount(1);
+        double totalYield = 0.0;
+        for (int index = 0; index < ingredients.size(); index++) {
+            DemoRecipeIngredient item = ingredients.get(index);
+            RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
+            ingredient.setRecipe(recipe);
+            ingredient.setFoodItem(item.foodItem());
+            ingredient.setPortionSize(item.grams());
+            ingredient.setPortionUnit(FoodPortionUnit.GRAM);
+            ingredient.setNormalizedPortionGrams(item.grams());
+            ingredient.setItemOrder(index);
+            recipe.getIngredients().add(ingredient);
+            totalYield += item.grams();
+        }
+        recipe.setTotalYieldGrams(totalYield);
+        recipe.setDefaultServingGrams(totalYield);
+        recipe.setSnapshotCalories(totalNutrient(ingredients, "calories"));
+        recipe.setSnapshotProtein(totalNutrient(ingredients, "protein"));
+        recipe.setSnapshotCarbs(totalNutrient(ingredients, "carbs"));
+        recipe.setSnapshotFat(totalNutrient(ingredients, "fat"));
+        recipe.setSnapshotFiber(totalNutrient(ingredients, "fiber"));
+        recipe.setSnapshotSugar(totalNutrient(ingredients, "sugar"));
+        recipeRepository.save(recipe);
+    }
+
+    private double totalNutrient(List<DemoRecipeIngredient> ingredients, String nutrient) {
+        return ingredients.stream()
+                .mapToDouble(ingredient -> nutrientValue(ingredient.foodItem(), nutrient) * ingredient.grams() / 100.0)
+                .sum();
+    }
+
+    private double nutrientValue(FoodItemEntity foodItem, String nutrient) {
+        Double value = switch (nutrient) {
+            case "calories" -> foodItem.getCalories();
+            case "protein" -> foodItem.getProtein();
+            case "carbs" -> foodItem.getCarbs();
+            case "fat" -> foodItem.getFat();
+            case "fiber" -> foodItem.getFiber();
+            case "sugar" -> foodItem.getSugar();
+            default -> null;
+        };
+        return value == null ? 0.0 : value;
+    }
+
     private List<DemoFoodProduct> demoFoodProducts() {
         return List.of(
                 new DemoFoodProduct(
@@ -278,5 +402,8 @@ public class LocalDemoSeedConfig {
         String normalizedBarcode() {
             return barcode;
         }
+    }
+
+    private record DemoRecipeIngredient(FoodItemEntity foodItem, Double grams) {
     }
 }

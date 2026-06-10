@@ -3,6 +3,7 @@ package com.grun.calorietracker.flow;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.*;
+import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -41,6 +42,8 @@ class MobileFoodDiaryFlowIntegrationTest {
     private ObjectMapper objectMapper;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private FoodItemRepository foodItemRepository;
     @MockBean
     private EmailVerificationMailSender emailVerificationMailSender;
 
@@ -95,6 +98,7 @@ class MobileFoodDiaryFlowIntegrationTest {
                 .andExpect(jsonPath("$.subscription.planType").value("FREE"));
 
         long customFoodId = createCustomFood(token);
+        addMicronutrients(customFoodId);
         logBreakfast(token, customFoodId);
 
         mockMvc.perform(get("/api/v1/food-logs/meals")
@@ -102,7 +106,9 @@ class MobileFoodDiaryFlowIntegrationTest {
                         .param("date", "2026-05-22"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].mealType").value("BREAKFAST"))
-                .andExpect(jsonPath("$[0].logs[0].foodItemId").value(customFoodId));
+                .andExpect(jsonPath("$[0].logs[0].foodItemId").value(customFoodId))
+                .andExpect(jsonPath("$[0].logs[0].snapshotFiber").value(8.0))
+                .andExpect(jsonPath("$[0].logs[0].snapshotSodium").value(96.0));
 
         mockMvc.perform(get("/api/v1/food-logs/recent-meals")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
@@ -116,7 +122,18 @@ class MobileFoodDiaryFlowIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(token))
                         .param("date", "2026-05-23"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.foodLogs[0].foodItemId").value(customFoodId));
+                .andExpect(jsonPath("$.foodLogs[0].foodItemId").value(customFoodId))
+                .andExpect(jsonPath("$.foodLogs[0].snapshotFiber").value(8.0))
+                .andExpect(jsonPath("$.consumedMicros.fiber").value(8.0))
+                .andExpect(jsonPath("$.consumedMicros.sodium").value(96.0));
+
+        mockMvc.perform(get("/api/v1/food-logs/stats")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .param("start", "2026-05-23")
+                        .param("end", "2026-05-23"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].totalFiber").value(8.0))
+                .andExpect(jsonPath("$[0].totalSodium").value(96.0));
 
         org.junit.jupiter.api.Assertions.assertTrue(userRepository.findByEmail(email).orElseThrow().getEmailVerified());
     }
@@ -189,6 +206,18 @@ class MobileFoodDiaryFlowIntegrationTest {
                 .getResponse()
                 .getContentAsString();
         return objectMapper.readTree(response).get("id").asLong();
+    }
+
+    private void addMicronutrients(long foodId) {
+        var food = foodItemRepository.findById(foodId).orElseThrow();
+        food.setFiber(10.0);
+        food.setSugar(12.0);
+        food.setSaturatedFat(1.5);
+        food.setSodium(120.0);
+        food.setPotassium(240.0);
+        food.setCalcium(80.0);
+        food.setIron(2.0);
+        foodItemRepository.save(food);
     }
 
     private void logBreakfast(String token, long foodId) throws Exception {

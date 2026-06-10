@@ -52,6 +52,9 @@ public class DailySummaryDto {
     @Schema(description = "Consumed carbohydrates as percentage of target carbohydrates.", example = "53.85")
     private Double carbsProgressPercent;
 
+    @Schema(description = "Micronutrients consumed on the summary date. Null means no micronutrient data was available.")
+    private MicronutrientTotalsDto consumedMicros;
+
     @Schema(description = "Current user weight from latest progress log or user profile.", example = "82.0")
     private Double currentWeight;
     @Schema(description = "Target weight from active user goal.", example = "78.0")

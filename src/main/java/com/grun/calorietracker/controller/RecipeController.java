@@ -6,7 +6,10 @@ import com.grun.calorietracker.dto.RecipeInteractionDto;
 import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.dto.RecipeLogRequestDto;
+import com.grun.calorietracker.dto.RecipePageDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.service.RecipeLogService;
 import com.grun.calorietracker.service.RecipeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/recipes")
@@ -61,6 +65,59 @@ public class RecipeController {
             @Parameter(description = "Optional meal type filter.", example = "LUNCH") @RequestParam(required = false) String mealType,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(recipeService.getMyRecipes(userDetails.getUsername(), query, mealType));
+    }
+
+    @GetMapping("/public")
+    @Operation(summary = "Discover public recipes", description = "Returns admin-approved public recipes. Supports query, meal type, region, language, and category filtering for mobile discovery screens.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Public recipes returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipePageDto> getPublicRecipes(
+            @Parameter(description = "Optional case-insensitive name or description search.", example = "soup") @RequestParam(required = false) String query,
+            @Parameter(description = "Optional meal type filter.", example = "LUNCH") @RequestParam(required = false) String mealType,
+            @Parameter(description = "Optional region filter.", example = "TR") @RequestParam(required = false) MarketRegion marketRegion,
+            @Parameter(description = "Optional language code filter.", example = "tr") @RequestParam(required = false) String language,
+            @Parameter(description = "Required categories. Recipe must include all selected categories.", example = "VEGAN,HIGH_PROTEIN") @RequestParam(required = false) Set<RecipeCategory> categories,
+            @Parameter(description = "Page number.", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size.", example = "20") @RequestParam(defaultValue = "20") int size,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(recipeService.getPublicRecipes(
+                userDetails.getUsername(),
+                query,
+                mealType,
+                marketRegion,
+                language,
+                categories,
+                page,
+                size
+        ));
+    }
+
+    @GetMapping("/public/{id}")
+    @Operation(summary = "Get public recipe", description = "Returns one admin-approved public recipe.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Public recipe returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Public recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipeDto> getPublicRecipe(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Public recipe id.", example = "1") @PathVariable Long id) {
+        return ResponseEntity.ok(recipeService.getPublicRecipe(userDetails.getUsername(), id));
+    }
+
+    @PostMapping("/public/{id}/copy")
+    @Operation(summary = "Copy public recipe", description = "Copies an admin-approved public recipe into the authenticated user's private recipe list.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe copied to private list."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Public recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipeDto> copyPublicRecipe(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Public recipe id.", example = "1") @PathVariable Long id) {
+        return ResponseEntity.ok(recipeService.copyPublicRecipe(userDetails.getUsername(), id));
     }
 
     @GetMapping("/{id}")
@@ -120,6 +177,20 @@ public class RecipeController {
                                               @Parameter(description = "Recipe id.", example = "1") @PathVariable Long id) {
         recipeService.archiveRecipe(userDetails.getUsername(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/publish-request")
+    @Operation(summary = "Request public recipe review", description = "Moves an owned private recipe into the community pending queue. Admin approval is required before it appears in public discovery.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe submitted for review."),
+            @ApiResponse(responseCode = "400", description = "Recipe is not ready for publication.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipeDto> requestRecipePublication(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Recipe id.", example = "1") @PathVariable Long id) {
+        return ResponseEntity.ok(recipeService.requestPublication(userDetails.getUsername(), id));
     }
 
     @PutMapping("/{id}/interaction")
@@ -200,7 +271,7 @@ public class RecipeController {
     }
 
     @PutMapping("/logs/{logId}")
-    @Operation(summary = "Update a recipe diary log", description = "Updates meal type, log date, and consumed amount for one recipe diary log owned by the authenticated user. Nutrition snapshot is recalculated from the recipe snapshot.")
+    @Operation(summary = "Update a recipe diary log", description = "Updates meal type, log date, and consumed amount for one recipe diary log owned by the authenticated user. Nutrition remains based on the immutable log snapshot captured when it was created.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Recipe log updated."),
             @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),

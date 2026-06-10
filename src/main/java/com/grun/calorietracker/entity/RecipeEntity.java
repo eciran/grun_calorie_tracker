@@ -3,6 +3,7 @@ package com.grun.calorietracker.entity;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
@@ -12,7 +13,9 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "recipes")
@@ -75,7 +78,29 @@ public class RecipeEntity {
     private Double snapshotFat;
     private Double snapshotFiber;
     private Double snapshotSugar;
+    private Double snapshotSaturatedFat;
     private Double snapshotSodium;
+    private Double snapshotPotassium;
+    private Double snapshotCholesterol;
+    private Double snapshotCalcium;
+    private Double snapshotIron;
+    private Double snapshotMagnesium;
+    private Double snapshotZinc;
+
+    @Column(name = "snapshot_vitamin_a")
+    private Double snapshotVitaminA;
+
+    @Column(name = "snapshot_vitamin_c")
+    private Double snapshotVitaminC;
+
+    @Column(name = "snapshot_vitamin_d")
+    private Double snapshotVitaminD;
+
+    @Column(name = "snapshot_vitamin_e")
+    private Double snapshotVitaminE;
+
+    @Column(name = "snapshot_vitamin_b12")
+    private Double snapshotVitaminB12;
 
     private Boolean archived = false;
     private LocalDateTime createdAt;
@@ -84,6 +109,12 @@ public class RecipeEntity {
     @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("itemOrder ASC, id ASC")
     private List<RecipeIngredientEntity> ingredients = new ArrayList<>();
+
+    @ElementCollection(targetClass = RecipeCategory.class)
+    @CollectionTable(name = "recipe_categories", joinColumns = @JoinColumn(name = "recipe_id"))
+    @Column(name = "category", nullable = false, length = 60)
+    @Enumerated(EnumType.STRING)
+    private Set<RecipeCategory> categories = new LinkedHashSet<>();
 
     @PrePersist
     protected void onCreate() {

@@ -96,6 +96,18 @@ public class AdminSystemHealthDto {
     @Schema(description = "AI draft confirmation rate in the last 7 days, between 0 and 1.", example = "0.72")
     private Double aiDraftConfirmationRateLast7d;
 
+    @Schema(description = "Food log completion events recorded in the last 24 hours.", example = "320")
+    private Long logFlowCompletedLast24h;
+
+    @Schema(description = "Average measured food logging duration in milliseconds in the last 24 hours.", example = "8700")
+    private Long averageLogFlowDurationMsLast24h;
+
+    @Schema(description = "Quick-log suggestion apply events recorded in the last 24 hours.", example = "180")
+    private Long quickLogSuggestionAppliedLast24h;
+
+    @Schema(description = "Product search start events recorded in the last 24 hours.", example = "540")
+    private Long searchStartedLast24h;
+
     @Schema(description = "Operational warnings derived from current runtime and integration counters.")
     private List<String> warnings;
 

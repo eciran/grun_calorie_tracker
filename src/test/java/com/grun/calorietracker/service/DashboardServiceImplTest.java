@@ -6,6 +6,7 @@ import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.service.impl.DashboardServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,9 @@ class DashboardServiceImplTest {
     private ProgressLogRepository progressLogRepository;
 
     @Mock
+    private RecipeLogRepository recipeLogRepository;
+
+    @Mock
     private HealthIntegrationService healthIntegrationService;
 
     @Mock
@@ -56,6 +60,7 @@ class DashboardServiceImplTest {
                 foodLogsRepository,
                 exerciseLogRepository,
                 progressLogRepository,
+                recipeLogRepository,
                 healthIntegrationService,
                 subscriptionService
         );
@@ -73,6 +78,7 @@ class DashboardServiceImplTest {
 
         when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(foodLogsRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end))).thenReturn(List.of());
+        when(recipeLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end))).thenReturn(List.of());
         when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
                 .thenReturn(List.of());
         when(exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end))).thenReturn(List.of());
@@ -139,6 +145,8 @@ class DashboardServiceImplTest {
         when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(foodLogsRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end)))
                 .thenReturn(Collections.singletonList(new Object[]{1100.0, 70.0, 125.0, 35.0}));
+        when(recipeLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end)))
+                .thenReturn(Collections.singletonList(new Object[]{0.0, 0.0, 0.0, 0.0}));
         when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
                 .thenReturn(List.of());
         when(exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end)))

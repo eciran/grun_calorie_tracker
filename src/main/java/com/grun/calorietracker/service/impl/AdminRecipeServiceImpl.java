@@ -92,6 +92,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             recipe.setVerificationStatus(request.getVerificationStatus());
             changed = true;
         }
+        if (request.getVisibility() != null && !Objects.equals(recipe.getVisibility(), request.getVisibility())) {
+            recipe.setVisibility(request.getVisibility());
+            changed = true;
+        }
         if (request.getArchived() != null && !Objects.equals(recipe.getArchived(), request.getArchived())) {
             recipe.setArchived(request.getArchived());
             changed = true;
@@ -116,6 +120,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 && request.getImageStatus() != ImageStatus.APPROVED) {
             recipe.setImageReviewNote(request.getReviewNote().trim());
             changed = true;
+        }
+        if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
+                || recipe.getVerificationStatus() == VerificationStatus.VERIFIED) {
+            validatePublicRecipeApproval(recipe);
         }
         if (changed) {
             recipe = recipeRepository.save(recipe);
@@ -225,6 +233,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setFavoriteCount(recipeUserInteractionRepository.countByRecipeAndFavoriteTrue(recipe));
         dto.setRatingCount(recipeUserInteractionRepository.countByRecipeAndRatingIsNotNull(recipe));
         dto.setAverageRating(round(recipeUserInteractionRepository.averageRating(recipe)));
+        dto.setCategories(recipe.getCategories());
         dto.setArchived(Boolean.TRUE.equals(recipe.getArchived()));
         dto.setIngredientCount(recipe.getIngredients() == null ? 0 : recipe.getIngredients().size());
         dto.setCreatedAt(recipe.getCreatedAt());
@@ -248,12 +257,37 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
     private Map<String, Object> auditState(RecipeEntity recipe) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("id", recipe.getId());
+        values.put("visibility", recipe.getVisibility());
         values.put("verificationStatus", recipe.getVerificationStatus());
         values.put("archived", recipe.getArchived());
         values.put("imageUrl", recipe.getImageUrl());
         values.put("imageSource", recipe.getImageSource());
         values.put("imageStatus", recipe.getImageStatus());
         return values;
+    }
+
+    private void validatePublicRecipeApproval(RecipeEntity recipe) {
+        if (recipe.getVisibility() != RecipeVisibility.PUBLIC_ADMIN
+                || recipe.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            throw new IllegalArgumentException("Public recipes must be approved as PUBLIC_ADMIN and VERIFIED together.");
+        }
+        if (Boolean.TRUE.equals(recipe.getArchived())) {
+            throw new IllegalArgumentException("Archived recipes cannot be approved for public discovery.");
+        }
+        if (recipe.getCategories() == null || recipe.getCategories().isEmpty()) {
+            throw new IllegalArgumentException("At least one recipe category is required before public approval.");
+        }
+        if (recipe.getTotalYieldGrams() == null || recipe.getTotalYieldGrams() <= 0
+                || recipe.getDefaultServingGrams() == null || recipe.getDefaultServingGrams() <= 0) {
+            throw new IllegalArgumentException("Recipe yield and default serving must be valid before public approval.");
+        }
+        if (recipe.getSnapshotCalories() == null || recipe.getSnapshotCalories() <= 0) {
+            throw new IllegalArgumentException("Recipe nutrition must be calculated before public approval.");
+        }
+        if (recipe.getImageUrl() == null || recipe.getImageUrl().isBlank()
+                || recipe.getImageStatus() != ImageStatus.APPROVED) {
+            throw new IllegalArgumentException("Public recipes require an approved image.");
+        }
     }
 
     private Double round(Double value) {

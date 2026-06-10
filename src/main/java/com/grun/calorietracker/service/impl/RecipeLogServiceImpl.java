@@ -86,9 +86,21 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         log.setSnapshotProtein(scale(recipe.getSnapshotProtein(), factor));
         log.setSnapshotCarbs(scale(recipe.getSnapshotCarbs(), factor));
         log.setSnapshotFat(scale(recipe.getSnapshotFat(), factor));
-        log.setSnapshotFiber(scale(recipe.getSnapshotFiber(), factor));
-        log.setSnapshotSugar(scale(recipe.getSnapshotSugar(), factor));
-        log.setSnapshotSodium(scale(recipe.getSnapshotSodium(), factor));
+        log.setSnapshotFiber(scaleNullable(recipe.getSnapshotFiber(), factor));
+        log.setSnapshotSugar(scaleNullable(recipe.getSnapshotSugar(), factor));
+        log.setSnapshotSaturatedFat(scaleNullable(recipe.getSnapshotSaturatedFat(), factor));
+        log.setSnapshotSodium(scaleNullable(recipe.getSnapshotSodium(), factor));
+        log.setSnapshotPotassium(scaleNullable(recipe.getSnapshotPotassium(), factor));
+        log.setSnapshotCholesterol(scaleNullable(recipe.getSnapshotCholesterol(), factor));
+        log.setSnapshotCalcium(scaleNullable(recipe.getSnapshotCalcium(), factor));
+        log.setSnapshotIron(scaleNullable(recipe.getSnapshotIron(), factor));
+        log.setSnapshotMagnesium(scaleNullable(recipe.getSnapshotMagnesium(), factor));
+        log.setSnapshotZinc(scaleNullable(recipe.getSnapshotZinc(), factor));
+        log.setSnapshotVitaminA(scaleNullable(recipe.getSnapshotVitaminA(), factor));
+        log.setSnapshotVitaminC(scaleNullable(recipe.getSnapshotVitaminC(), factor));
+        log.setSnapshotVitaminD(scaleNullable(recipe.getSnapshotVitaminD(), factor));
+        log.setSnapshotVitaminE(scaleNullable(recipe.getSnapshotVitaminE(), factor));
+        log.setSnapshotVitaminB12(scaleNullable(recipe.getSnapshotVitaminB12(), factor));
     }
 
     private void applyUpdateRequest(RecipeLogEntity log, RecipeLogRequestDto request) {
@@ -106,9 +118,21 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         log.setSnapshotProtein(scale(log.getSnapshotProtein(), factor));
         log.setSnapshotCarbs(scale(log.getSnapshotCarbs(), factor));
         log.setSnapshotFat(scale(log.getSnapshotFat(), factor));
-        log.setSnapshotFiber(scale(log.getSnapshotFiber(), factor));
-        log.setSnapshotSugar(scale(log.getSnapshotSugar(), factor));
-        log.setSnapshotSodium(scale(log.getSnapshotSodium(), factor));
+        log.setSnapshotFiber(scaleNullable(log.getSnapshotFiber(), factor));
+        log.setSnapshotSugar(scaleNullable(log.getSnapshotSugar(), factor));
+        log.setSnapshotSaturatedFat(scaleNullable(log.getSnapshotSaturatedFat(), factor));
+        log.setSnapshotSodium(scaleNullable(log.getSnapshotSodium(), factor));
+        log.setSnapshotPotassium(scaleNullable(log.getSnapshotPotassium(), factor));
+        log.setSnapshotCholesterol(scaleNullable(log.getSnapshotCholesterol(), factor));
+        log.setSnapshotCalcium(scaleNullable(log.getSnapshotCalcium(), factor));
+        log.setSnapshotIron(scaleNullable(log.getSnapshotIron(), factor));
+        log.setSnapshotMagnesium(scaleNullable(log.getSnapshotMagnesium(), factor));
+        log.setSnapshotZinc(scaleNullable(log.getSnapshotZinc(), factor));
+        log.setSnapshotVitaminA(scaleNullable(log.getSnapshotVitaminA(), factor));
+        log.setSnapshotVitaminC(scaleNullable(log.getSnapshotVitaminC(), factor));
+        log.setSnapshotVitaminD(scaleNullable(log.getSnapshotVitaminD(), factor));
+        log.setSnapshotVitaminE(scaleNullable(log.getSnapshotVitaminE(), factor));
+        log.setSnapshotVitaminB12(scaleNullable(log.getSnapshotVitaminB12(), factor));
     }
 
     private void validateLogRequest(RecipeLogRequestDto request) {
@@ -168,6 +192,10 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         return value == null ? 0.0 : Math.round(value * factor * 100.0) / 100.0;
     }
 
+    private Double scaleNullable(Double value, double factor) {
+        return value == null ? null : Math.round(value * factor * 100.0) / 100.0;
+    }
+
     private RecipeLogDto toDto(RecipeLogEntity log) {
         RecipeLogDto dto = new RecipeLogDto();
         dto.setId(log.getId());
@@ -183,7 +211,19 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         dto.setSnapshotFat(log.getSnapshotFat());
         dto.setSnapshotFiber(log.getSnapshotFiber());
         dto.setSnapshotSugar(log.getSnapshotSugar());
+        dto.setSnapshotSaturatedFat(log.getSnapshotSaturatedFat());
         dto.setSnapshotSodium(log.getSnapshotSodium());
+        dto.setSnapshotPotassium(log.getSnapshotPotassium());
+        dto.setSnapshotCholesterol(log.getSnapshotCholesterol());
+        dto.setSnapshotCalcium(log.getSnapshotCalcium());
+        dto.setSnapshotIron(log.getSnapshotIron());
+        dto.setSnapshotMagnesium(log.getSnapshotMagnesium());
+        dto.setSnapshotZinc(log.getSnapshotZinc());
+        dto.setSnapshotVitaminA(log.getSnapshotVitaminA());
+        dto.setSnapshotVitaminC(log.getSnapshotVitaminC());
+        dto.setSnapshotVitaminD(log.getSnapshotVitaminD());
+        dto.setSnapshotVitaminE(log.getSnapshotVitaminE());
+        dto.setSnapshotVitaminB12(log.getSnapshotVitaminB12());
         return dto;
     }
 

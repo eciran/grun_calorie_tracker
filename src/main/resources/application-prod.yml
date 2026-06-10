@@ -33,6 +33,12 @@ logging:
 grun:
   errors:
     include-internal-details: false
+  profile-media:
+    avatar:
+      max-upload-bytes: ${GRUN_PROFILE_AVATAR_MAX_UPLOAD_BYTES:2097152}
+      allowed-content-types: ${GRUN_PROFILE_AVATAR_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+      storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
+      public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
   ai:
     enabled: ${GRUN_AI_ENABLED:false}
     provider: ${GRUN_AI_PROVIDER:DISABLED}

@@ -4,9 +4,11 @@ import com.grun.calorietracker.dto.AdminSystemHealthDto;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiRequestStatus;
+import com.grun.calorietracker.enums.ProductAnalyticsEventType;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.ProductAnalyticsEventRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
@@ -37,6 +39,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     private final NotificationRepository notificationRepository;
     private final AiProperties aiProperties;
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
+    private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
 
     @Override
     public AdminSystemHealthDto getHealth() {
@@ -45,8 +48,9 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         RevenueCatSnapshot revenueCatSnapshot = revenueCatSnapshot();
         SubscriptionSnapshot subscriptionSnapshot = subscriptionSnapshot();
         AiSnapshot aiSnapshot = aiSnapshot();
+        ProductAnalyticsSnapshot productAnalyticsSnapshot = productAnalyticsSnapshot();
         long systemAlertsLast24h = systemAlertsLast24h();
-        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, aiSnapshot, systemAlertsLast24h);
+        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, aiSnapshot, productAnalyticsSnapshot, systemAlertsLast24h);
         String status = "UP".equals(databaseCheck.status()) && warnings.isEmpty() ? "UP" : "DEGRADED";
 
         return new AdminSystemHealthDto(
@@ -77,6 +81,10 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
                 aiSnapshot.rejectionReasonsLast7d(),
                 aiSnapshot.openDraftsLast7d(),
                 aiSnapshot.confirmationRateLast7d(),
+                productAnalyticsSnapshot.logFlowCompletedLast24h(),
+                productAnalyticsSnapshot.averageLogFlowDurationMsLast24h(),
+                productAnalyticsSnapshot.quickLogSuggestionAppliedLast24h(),
+                productAnalyticsSnapshot.searchStartedLast24h(),
                 warnings,
                 LocalDateTime.now()
         );
@@ -147,6 +155,17 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         return new AiSnapshot(requests, failed, failureRate, drafts, confirmedDrafts, rejectedDrafts, rejectionReasons, openDrafts, confirmationRate);
     }
 
+    private ProductAnalyticsSnapshot productAnalyticsSnapshot() {
+        LocalDateTime since = LocalDateTime.now().minus(Duration.ofHours(24));
+        Double averageDuration = productAnalyticsEventRepository.averageDurationMs(ProductAnalyticsEventType.LOG_FLOW_COMPLETED, since);
+        return new ProductAnalyticsSnapshot(
+                productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(ProductAnalyticsEventType.LOG_FLOW_COMPLETED, since),
+                averageDuration == null ? null : Math.round(averageDuration),
+                productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(ProductAnalyticsEventType.QUICK_LOG_SUGGESTION_APPLIED, since),
+                productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(ProductAnalyticsEventType.SEARCH_STARTED, since)
+        );
+    }
+
     private Map<String, Long> aiRejectionReasons(LocalDateTime since) {
         Map<String, Long> result = new LinkedHashMap<>();
         for (AiDraftRejectReason reason : AiDraftRejectReason.values()) {
@@ -164,6 +183,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
             RevenueCatSnapshot revenueCatSnapshot,
             SubscriptionSnapshot subscriptionSnapshot,
             AiSnapshot aiSnapshot,
+            ProductAnalyticsSnapshot productAnalyticsSnapshot,
             long systemAlertsLast24h
     ) {
         List<String> warnings = new ArrayList<>();
@@ -193,6 +213,11 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         }
         if (aiSnapshot.rejectionReasonsLast7d().getOrDefault(AiDraftRejectReason.IRRELEVANT_RESULT.name(), 0L) >= 5) {
             warnings.add("AI draft irrelevant-result rejections are high in the last 7 days.");
+        }
+        if (productAnalyticsSnapshot.logFlowCompletedLast24h() >= 10
+                && productAnalyticsSnapshot.averageLogFlowDurationMsLast24h() != null
+                && productAnalyticsSnapshot.averageLogFlowDurationMsLast24h() > 30_000) {
+            warnings.add("Average measured food logging duration is above 30 seconds in the last 24 hours.");
         }
         if (systemAlertsLast24h > 0) {
             warnings.add("System alerts were created in the last 24 hours.");
@@ -226,6 +251,14 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
             Map<String, Long> rejectionReasonsLast7d,
             long openDraftsLast7d,
             double confirmationRateLast7d
+    ) {
+    }
+
+    private record ProductAnalyticsSnapshot(
+            long logFlowCompletedLast24h,
+            Long averageLogFlowDurationMsLast24h,
+            long quickLogSuggestionAppliedLast24h,
+            long searchStartedLast24h
     ) {
     }
 }
