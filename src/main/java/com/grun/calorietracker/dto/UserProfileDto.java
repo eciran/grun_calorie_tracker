@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.UnitPreference;
 import com.grun.calorietracker.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -52,6 +53,12 @@ public class UserProfileDto {
     @Schema(description = "Whether the account has a user-managed password set.", example = "false")
     private Boolean passwordSet;
 
+    @Schema(description = "Whether the account is allowed to authenticate.", example = "true")
+    private Boolean accountEnabled;
+
+    @Schema(description = "Whether the account is locked by admin/security action.", example = "false")
+    private Boolean accountLocked;
+
     @Schema(description = "User's selected market region for localized food search.", example = "UK_IE")
     private MarketRegion marketRegion;
 
@@ -60,6 +67,12 @@ public class UserProfileDto {
 
     @Schema(description = "Public URL of the user's uploaded avatar image.", example = "https://api.grun.app/api/v1/users/avatars/u1-550e8400-e29b-41d4-a716-446655440000.jpg")
     private String avatarUrl;
+
+    @Schema(description = "User's IANA time zone id used for daily summaries and reminders.", example = "Europe/Dublin")
+    private String timeZone;
+
+    @Schema(description = "User's preferred measurement system for mobile display.", example = "METRIC")
+    private UnitPreference unitPreference;
 
     @Schema(
             description = "Whether the mobile app should ask the user to recalculate and confirm calorie goals after profile changes.",

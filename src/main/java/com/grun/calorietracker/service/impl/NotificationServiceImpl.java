@@ -27,6 +27,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public NotificationPageDto listNotifications(String email, Boolean unreadOnly, String type, int page, int size) {
         UserEntity user = getUser(email);
         PageRequest pageable = PageRequest.of(

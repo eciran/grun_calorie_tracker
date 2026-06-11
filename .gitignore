@@ -56,3 +56,8 @@ aws/
 *.env
 !.env.example
 src/main/resources/application.yml
+
+# Local-only notes and sample data
+GIT_COMMANDS_CHEATSHEET.md
+frontend_mikro_besin_entegrasyon_notu_2026-06-10.txt
+sample-data/

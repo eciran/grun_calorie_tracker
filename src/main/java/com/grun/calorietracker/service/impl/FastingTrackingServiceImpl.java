@@ -22,6 +22,7 @@ import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FastingTrackingService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -52,6 +53,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private final FastingSessionRepository fastingSessionRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @Value("${grun.fasting.reminders.enabled:true}")
     private boolean fastingRemindersEnabled;
@@ -95,7 +97,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         if (!Boolean.TRUE.equals(plan.getActive())) {
             throw new IllegalArgumentException("Active fasting plan is required to start a session.");
         }
-        LocalDateTime startedAt = request.getStartedAt() == null ? LocalDateTime.now() : request.getStartedAt();
+        LocalDateTime startedAt = request.getStartedAt() == null ? userTimeZoneSupport.now(user) : request.getStartedAt();
         int targetMinutes = request.getTargetMinutes() == null
                 ? Math.max(30, plan.getFastingHours() * 60)
                 : request.getTargetMinutes();
@@ -123,7 +125,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
             throw new IllegalArgumentException("Only active fasting sessions can be finished.");
         }
 
-        LocalDateTime endedAt = request.getEndedAt() == null ? LocalDateTime.now() : request.getEndedAt();
+        LocalDateTime endedAt = request.getEndedAt() == null ? userTimeZoneSupport.now(user) : request.getEndedAt();
         if (endedAt.isBefore(session.getStartedAt())) {
             throw new IllegalArgumentException("endedAt must be after startedAt.");
         }
@@ -147,7 +149,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
             throw new IllegalArgumentException("Only active fasting sessions can be cancelled.");
         }
 
-        LocalDateTime cancelledAt = request.getCancelledAt() == null ? LocalDateTime.now() : request.getCancelledAt();
+        LocalDateTime cancelledAt = request.getCancelledAt() == null ? userTimeZoneSupport.now(user) : request.getCancelledAt();
         if (cancelledAt.isBefore(session.getStartedAt())) {
             throw new IllegalArgumentException("cancelledAt must be after startedAt.");
         }
@@ -183,7 +185,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
                 .mapToInt(FastingSessionDto::getActualMinutes)
                 .sum());
         if (activeSession != null) {
-            int elapsed = Math.max(0, toWholeMinutes(activeSession.getStartedAt(), LocalDateTime.now()));
+            int elapsed = Math.max(0, toWholeMinutes(activeSession.getStartedAt(), userTimeZoneSupport.now(user)));
             summary.setActiveElapsedMinutes(elapsed);
             summary.setActiveRemainingMinutes(Math.max(0, activeSession.getTargetMinutes() - elapsed));
         } else {
@@ -241,22 +243,20 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         if (!fastingRemindersEnabled) {
             return 0;
         }
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threshold = now.plusMinutes(Math.max(1, fastingReminderLeadMinutes));
-        List<FastingSessionEntity> dueSessions = fastingSessionRepository.findDueReminderSessions(
-                FastingSessionStatus.ACTIVE,
-                now,
-                threshold
-        );
+        List<FastingSessionEntity> dueSessions = fastingSessionRepository.findReminderCandidateSessions(FastingSessionStatus.ACTIVE)
+                .stream()
+                .filter(this::isReminderDue)
+                .toList();
         dueSessions.forEach(session -> {
+            LocalDateTime userNow = userTimeZoneSupport.now(session.getUser());
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(session.getUser());
             notification.setType(FASTING_REMINDER_TYPE);
             notification.setMessage(FASTING_REMINDER_MESSAGE);
             notification.setIsRead(false);
-            notification.setCreatedAt(now);
+            notification.setCreatedAt(userNow);
             notificationRepository.save(notification);
-            session.setReminderSentAt(now);
+            session.setReminderSentAt(userNow);
         });
         fastingSessionRepository.saveAll(dueSessions);
         return dueSessions.size();
@@ -355,6 +355,12 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private int toWholeMinutes(LocalDateTime start, LocalDateTime end) {
         long minutes = Duration.between(start, end).toMinutes();
         return minutes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) minutes;
+    }
+
+    private boolean isReminderDue(FastingSessionEntity session) {
+        LocalDateTime now = userTimeZoneSupport.now(session.getUser());
+        LocalDateTime threshold = now.plusMinutes(Math.max(1, fastingReminderLeadMinutes));
+        return !session.getTargetEndAt().isBefore(now) && !session.getTargetEndAt().isAfter(threshold);
     }
 
     private String normalizeNote(String note) {

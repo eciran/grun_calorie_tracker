@@ -3,6 +3,7 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,6 +18,7 @@ import java.util.Optional;
 @Repository
 public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> {
     List<FoodLogsEntity> findByUser(UserEntity user);
+    Page<FoodLogsEntity> findByUserOrderByLogDateDesc(UserEntity user, Pageable pageable);
     long countByUser(UserEntity user);
     Optional<FoodLogsEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
     List<FoodLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
@@ -151,6 +153,29 @@ WHERE f.user_id = :userId
   AND f.log_date < :end
 """, nativeQuery = true)
     List<Object[]> getSummaryTotalsByUserAndDateBetween(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query(value = """
+            SELECT log_day
+            FROM (
+                SELECT CAST(f.log_date AS DATE) AS log_day
+                FROM food_logs f
+                WHERE f.user_id = :userId
+                  AND f.log_date >= :start
+                  AND f.log_date < :end
+                UNION
+                SELECT CAST(e.log_date AS DATE) AS log_day
+                FROM exercise_logs e
+                WHERE e.user_id = :userId
+                  AND e.log_date >= :start
+                  AND e.log_date < :end
+            ) diary_days
+            ORDER BY log_day DESC
+            """, nativeQuery = true)
+    List<Object> findDiaryEntryDates(
             @Param("userId") Long userId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end

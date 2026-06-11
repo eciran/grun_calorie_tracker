@@ -80,6 +80,9 @@ public class DailySummaryDto {
     @Schema(description = "Whether any food or exercise diary entry exists on the summary date.", example = "true")
     private Boolean hasAnyDiaryEntry;
 
+    @Schema(description = "Current consecutive day streak with at least one food or exercise diary entry, ending on the summary date.", example = "7")
+    private Integer currentLogStreakDays;
+
     @Schema(description = "Food diary entries logged on the summary date.")
     private List<FoodLogsDto> foodLogs;
 

@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +68,17 @@ public class FoodItemServiceImpl implements FoodItemService {
         }
 
         return fetchAndCacheExternalProduct(normalizedBarcode);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FoodProductDto getFoodItemById(Long id, String email) {
+        FoodItemEntity product = foodItemRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
+        if (isRejected(product) || !isVisibleToUser(product, email)) {
+            throw new ProductNotFoundException("Product not found: " + id);
+        }
+        return FoodItemMapper.mapEntityToDto(product);
     }
 
     @Override
@@ -319,6 +332,16 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private boolean isRejected(FoodItemEntity product) {
         return product.getVerificationStatus() == VerificationStatus.REJECTED;
+    }
+
+    private boolean isVisibleToUser(FoodItemEntity product, String email) {
+        if (!Boolean.TRUE.equals(product.getIsCustom())) {
+            return true;
+        }
+        UserEntity owner = product.getCreatedByUser();
+        return owner != null
+                && owner.getEmail() != null
+                && owner.getEmail().equalsIgnoreCase(email);
     }
 
     private int normalizePageSize(int size) {

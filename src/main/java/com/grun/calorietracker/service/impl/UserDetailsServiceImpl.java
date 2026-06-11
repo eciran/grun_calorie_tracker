@@ -9,6 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -30,9 +31,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                true, true, true, true,
+                Boolean.TRUE.equals(user.getAccountEnabled()),
+                true,
+                true,
+                !Boolean.TRUE.equals(user.getAccountLocked()) && !isTemporarilyLoginLocked(user),
                 AuthorityUtils.createAuthorityList("ROLE_" + user.getRole())
         );
+    }
+
+    private boolean isTemporarilyLoginLocked(UserEntity user) {
+        return user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(LocalDateTime.now());
     }
 
     private Collection<? extends GrantedAuthority> getAuthorities(UserRole role) {

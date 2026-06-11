@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     private final ExerciseItemMapper exerciseItemMapper;
 
     @Override
+    @Transactional(readOnly = true)
     public List<ExerciseItemDto> getAllItems() {
         return exerciseItemRepository.findAll()
                 .stream()
@@ -38,6 +40,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ExerciseItemPageDto searchItems(String query,
                                            String primaryMuscleGroup,
                                            String equipment,

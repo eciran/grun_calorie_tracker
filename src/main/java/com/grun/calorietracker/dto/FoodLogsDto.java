@@ -34,6 +34,12 @@ public class FoodLogsDto {
     @Schema(description = "Unit for portionSize. If omitted, GRAM is used. GRAM and MILLILITER use the entered amount directly for nutrition calculation; SERVING and PIECE multiply by servingSizeGrams.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "SERVING", "PIECE"})
     private FoodPortionUnit portionUnit;
 
+    @Schema(description = "Optional product-specific serving option id. When supplied, the log uses this serving option's gram/ml conversion instead of the product's legacy servingSizeGrams.", example = "5")
+    private Long servingOptionId;
+
+    @Schema(description = "Display label of the serving option used for this log.", example = "1 slice", accessMode = Schema.AccessMode.READ_ONLY)
+    private String servingOptionLabel;
+
     @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double normalizedPortionGrams;
 

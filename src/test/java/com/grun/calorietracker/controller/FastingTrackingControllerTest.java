@@ -14,6 +14,8 @@ import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
 import com.grun.calorietracker.enums.FastingPlanType;
 import com.grun.calorietracker.enums.FastingSessionStatus;
 import com.grun.calorietracker.service.FastingTrackingService;
+import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
@@ -56,7 +58,11 @@ class FastingTrackingControllerTest {
     void setUp() {
         fastingTrackingService = mock(FastingTrackingService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new FastingTrackingController(fastingTrackingService))
+                .standaloneSetup(new FastingTrackingController(
+                        fastingTrackingService,
+                        mock(UserService.class),
+                        new UserTimeZoneSupport()
+                ))
                 .setCustomArgumentResolvers(new TestAuthenticationPrincipalResolver())
                 .build();
         objectMapper = new ObjectMapper();

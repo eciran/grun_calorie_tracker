@@ -23,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,6 +33,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -72,6 +74,26 @@ class MealTemplateServiceImplTest {
         assertEquals(4L, result.getId());
         assertEquals("BREAKFAST", result.getMealType());
         assertEquals("Egg", result.getItems().get(0).getFoodName());
+    }
+
+    @Test
+    void getTemplates_clampsPagination() {
+        UserEntity user = user();
+        MealTemplateEntity template = new MealTemplateEntity();
+        template.setId(7L);
+        template.setUser(user);
+        template.setName("Breakfast");
+        template.setMealType("BREAKFAST");
+        template.setItems(List.of());
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealTemplateRepository.findByUserOrderByCreatedAtDesc(
+                any(UserEntity.class),
+                argThat((Pageable pageable) -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 100)
+        )).thenReturn(List.of(template));
+
+        List<MealTemplateDto> result = service.getTemplates("user@test.com", -1, 500);
+
+        assertEquals(List.of("Breakfast"), result.stream().map(MealTemplateDto::getName).toList());
     }
 
     @Test

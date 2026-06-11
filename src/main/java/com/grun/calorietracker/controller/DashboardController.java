@@ -1,7 +1,11 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.DailySummaryDto;
+import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.service.DashboardService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,6 +29,8 @@ import java.time.LocalDate;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final UserService userService;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @GetMapping("/daily-summary")
     @Operation(
@@ -43,8 +49,13 @@ public class DashboardController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate date
     ) {
-        LocalDate targetDate = date != null ? date : LocalDate.now();
+        LocalDate targetDate = date != null ? date : userTimeZoneSupport.today(currentUser(userDetails.getUsername()));
         DailySummaryDto response = dashboardService.getDailySummary(userDetails.getUsername(), targetDate);
         return ResponseEntity.ok(response);
+    }
+
+    private UserEntity currentUser(String email) {
+        return userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 }

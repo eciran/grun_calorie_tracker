@@ -57,7 +57,7 @@ class ProgressLogControllerTest {
         mockMvc.perform(post("/api/v1/progress")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(progressRequest())))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -87,7 +87,7 @@ class ProgressLogControllerTest {
     @Test
     void testGetProgress_Unauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/progress"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -115,10 +117,16 @@ class ExerciseLogsServiceImplTest {
         dto.setSource("GOOGLE_FIT");
 
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        when(exerciseLogsRepository.findByUserAndSource(user, "GOOGLE_FIT")).thenReturn(List.of(entity));
+        when(exerciseLogsRepository.findByUserAndSource(any(UserEntity.class), any(String.class), any(Pageable.class)))
+                .thenAnswer(invocation -> {
+                    Pageable pageable = invocation.getArgument(2);
+                    assertEquals(0, pageable.getPageNumber());
+                    assertEquals(100, pageable.getPageSize());
+                    return new PageImpl<>(List.of(entity), pageable, 1);
+                });
         when(exerciseLogsMapper.toDto(entity)).thenReturn(dto);
 
-        List<ExerciseLogsDto> result = exerciseLogsService.getExerciseLogsBySource("test@test.com", "google_fit");
+        List<ExerciseLogsDto> result = exerciseLogsService.getExerciseLogsBySource("test@test.com", "google_fit", -1, 500);
 
         assertEquals(1, result.size());
         assertEquals(5L, result.get(0).getId());

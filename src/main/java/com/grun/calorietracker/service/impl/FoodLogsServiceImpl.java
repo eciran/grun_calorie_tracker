@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -15,6 +16,7 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -42,6 +44,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private final FoodLogsRepository foodLogsRepository;
     private final FoodItemRepository foodItemRepository;
     private final RecipeLogRepository recipeLogRepository;
+    private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -55,12 +58,14 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         FoodLogsEntity entity = new FoodLogsEntity();
         entity.setUser(user);
         entity.setFoodItem(foodItem);
+        entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
         entity.setPortionSize(dto.getPortionSize());
         entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
         entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
                 dto.getPortionSize(),
                 entity.getPortionUnit(),
-                foodItem
+                foodItem,
+                entity.getServingOption()
         ));
         applyNutritionSnapshot(entity, foodItem);
         entity.setMealType(normalizeMealType(dto.getMealType()));
@@ -103,12 +108,14 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         ensureFoodItemAvailableToUser(foodItem, user);
 
         entity.setFoodItem(foodItem);
+        entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
         entity.setPortionSize(dto.getPortionSize());
         entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
         entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
                 dto.getPortionSize(),
                 entity.getPortionUnit(),
-                foodItem
+                foodItem,
+                entity.getServingOption()
         ));
         applyNutritionSnapshot(entity, foodItem);
         entity.setMealType(normalizeMealType(dto.getMealType()));
@@ -118,7 +125,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
-    public List<FoodLogsDto> getFoodLogs(String email, String date) {
+    @Transactional(readOnly = true)
+    public List<FoodLogsDto> getFoodLogs(String email, String date, int page, int size) {
         List<FoodLogsEntity> logs;
         UserEntity user = getUser(email);
         if (date != null) {
@@ -129,12 +137,16 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                     targetDate.plusDays(1).atStartOfDay()
             );
         } else {
-            logs = foodLogsRepository.findByUser(user);
+            logs = foodLogsRepository.findByUserOrderByLogDateDesc(
+                    user,
+                    PageRequest.of(normalizePage(page), normalizeHistoryPageSize(size))
+            ).getContent();
         }
         return logs.stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodLogsDto> getFoodLogsHistory(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = getUser(email);
         return foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
@@ -147,6 +159,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodLogMealSummaryDto> getMealSummaries(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = getUser(email);
         List<FoodLogsEntity> logs = foodLogsRepository
@@ -175,6 +188,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodLogRecentMealDto> getRecentMeals(String email, int limit) {
         UserEntity user = getUser(email);
         return foodLogsRepository.findRecentMealKeys(
@@ -187,6 +201,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodLogsDto getFoodLogById(Long id, String email) {
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
@@ -203,6 +218,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodLogDailyStatsDto> getDailyStats(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = getUser(email);
         Map<String, FoodLogDailyStatsDto> statsByDate = new LinkedHashMap<>();
@@ -459,6 +475,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         FoodLogsEntity copy = new FoodLogsEntity();
         copy.setUser(user);
         copy.setFoodItem(source.getFoodItem());
+        copy.setServingOption(source.getServingOption());
         copy.setPortionSize(source.getPortionSize());
         copy.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
         copy.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
@@ -508,11 +525,26 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return Math.min(limit, 30);
     }
 
+    private int normalizePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int normalizeHistoryPageSize(int size) {
+        if (size < 1) {
+            return 50;
+        }
+        return Math.min(size, 100);
+    }
+
     private FoodLogsDto toDto(FoodLogsEntity entity) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(entity.getId());
         dto.setFoodItemId(entity.getFoodItem().getId());
         dto.setFoodName(entity.getFoodItem().getName());
+        if (entity.getServingOption() != null) {
+            dto.setServingOptionId(entity.getServingOption().getId());
+            dto.setServingOptionLabel(entity.getServingOption().getLabel());
+        }
         dto.setPortionSize(entity.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(entity.getPortionUnit()));
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
@@ -576,5 +608,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
             return null;
         }
         return round(perHundredGrams * grams / 100.0);
+
+    private FoodItemServingOptionEntity resolveServingOption(Long servingOptionId, FoodItemEntity foodItem) {
+        if (servingOptionId == null) {
+            return null;
+        }
+        return foodItemServingOptionRepository.findByIdAndFoodItem(servingOptionId, foodItem)
+                .orElseThrow(() -> new IllegalArgumentException("Serving option does not belong to the selected food item."));
     }
 }

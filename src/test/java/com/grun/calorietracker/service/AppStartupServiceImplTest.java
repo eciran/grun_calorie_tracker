@@ -15,6 +15,7 @@ import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.impl.AppStartupServiceImpl;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -54,7 +55,8 @@ class AppStartupServiceImplTest {
                 goalRepository,
                 federatedIdentityRepository,
                 subscriptionService,
-                healthIntegrationService
+                healthIntegrationService,
+                new UserTimeZoneSupport()
         );
     }
 
@@ -88,6 +90,7 @@ class AppStartupServiceImplTest {
         assertEquals(true, result.getProfile().getPasswordSet());
         assertEquals(MarketRegion.UK_IE, result.getProfile().getMarketRegion());
         assertEquals(PreferredLanguage.EN, result.getProfile().getPreferredLanguage());
+        assertEquals("Europe/Dublin", result.getProfile().getTimeZone());
         assertEquals(1, result.getLinkedIdentities().size());
         assertEquals(AuthProvider.GOOGLE, result.getLinkedIdentities().get(0).provider());
         assertEquals(SubscriptionPlan.PLUS, result.getSubscription().getPlanType());

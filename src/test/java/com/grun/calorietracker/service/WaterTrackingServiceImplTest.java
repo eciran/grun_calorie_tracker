@@ -15,6 +15,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.impl.WaterTrackingServiceImpl;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockitoAnnotations;
@@ -57,12 +58,14 @@ class WaterTrackingServiceImplTest {
                 waterReminderSettingsRepository,
                 notificationRepository,
                 userRepository,
-                properties
+                properties,
+                new UserTimeZoneSupport()
         );
 
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@grun.app");
+        user.setTimeZone("Europe/Dublin");
     }
 
     @Test
@@ -199,7 +202,8 @@ class WaterTrackingServiceImplTest {
     void createDueReminderNotifications_whenReminderIsDue_createsNotification() {
         WaterReminderSettingsEntity settings = reminderSettings();
         settings.setLastReminderAt(LocalDateTime.now().minusMinutes(130));
-        when(waterReminderSettingsRepository.findByEnabledTrue()).thenReturn(List.of(settings));
+        when(waterReminderSettingsRepository.findByEnabledTrue())
+                .thenReturn(List.of(settings));
 
         int created = service.createDueReminderNotifications();
 
@@ -217,7 +221,8 @@ class WaterTrackingServiceImplTest {
                 waterReminderSettingsRepository,
                 notificationRepository,
                 userRepository,
-                properties
+                properties,
+                new UserTimeZoneSupport()
         );
 
         int created = service.createDueReminderNotifications();
@@ -230,8 +235,9 @@ class WaterTrackingServiceImplTest {
     @Test
     void createDueReminderNotifications_whenReminderIsNotDue_doesNotCreateNotification() {
         WaterReminderSettingsEntity settings = reminderSettings();
-        settings.setLastReminderAt(LocalDateTime.now().minusMinutes(10));
-        when(waterReminderSettingsRepository.findByEnabledTrue()).thenReturn(List.of(settings));
+        settings.setLastReminderAt(LocalDateTime.now().minusMinutes(40));
+        when(waterReminderSettingsRepository.findByEnabledTrue())
+                .thenReturn(List.of(settings));
 
         int created = service.createDueReminderNotifications();
 

@@ -8,12 +8,14 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_batch_fetch_size: 25
 
   flyway:
     enabled: true
@@ -73,6 +75,10 @@ grun:
       allowed-content-types: ${GRUN_PROFILE_AVATAR_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
       storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
+  security:
+    login:
+      max-failed-attempts: ${GRUN_SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}
+      lock-minutes: ${GRUN_SECURITY_LOGIN_LOCK_MINUTES:15}
   ai:
     enabled: ${GRUN_AI_ENABLED:false}
     provider: ${GRUN_AI_PROVIDER:DISABLED}

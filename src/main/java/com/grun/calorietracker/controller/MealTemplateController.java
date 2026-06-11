@@ -9,10 +9,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/meal-templates")
 @RequiredArgsConstructor
+@Validated
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Meal Templates", description = "User-saved reusable meals separated from recent diary history.")
 public class MealTemplateController {
@@ -42,8 +46,12 @@ public class MealTemplateController {
     @GetMapping
     @Operation(summary = "List saved meal templates", description = "Returns explicit user-saved reusable meals.")
     public ResponseEntity<List<MealTemplateDto>> getTemplates(
+            @Parameter(description = "Zero-based page number.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size. Maximum 100.", example = "50")
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(mealTemplateService.getTemplates(userDetails.getUsername()));
+        return ResponseEntity.ok(mealTemplateService.getTemplates(userDetails.getUsername(), page, size));
     }
 
     @PutMapping("/{id}")

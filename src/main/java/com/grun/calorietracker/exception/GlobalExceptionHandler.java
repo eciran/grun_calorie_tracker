@@ -2,6 +2,7 @@ package com.grun.calorietracker.exception;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.security.CorrelationIdFilter;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -11,6 +12,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -173,6 +175,23 @@ public class GlobalExceptionHandler {
                 "error.data-integrity",
                 "Invalid request",
                 "Request conflicts with existing data.",
+                request
+        );
+    }
+
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<ApiErrorResponseDto> handleOptimisticLockException(Exception ex,
+                                                                            HttpServletRequest request) {
+        log.warn(
+                "Optimistic locking conflict correlationId={} path={}",
+                correlationId(request),
+                request.getRequestURI()
+        );
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "error.concurrent-update",
+                "Concurrent update",
+                "Resource was updated by another request. Please reload and retry.",
                 request
         );
     }

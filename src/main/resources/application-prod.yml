@@ -1,9 +1,11 @@
 spring:
   jpa:
+    open-in-view: false
     show-sql: false
     properties:
       hibernate:
         format_sql: false
+        default_batch_fetch_size: 25
   flyway:
     baseline-on-migrate: false
   servlet:
@@ -51,6 +53,9 @@ grun:
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
   security:
     swagger-public: false
+    login:
+      max-failed-attempts: ${GRUN_SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}
+      lock-minutes: ${GRUN_SECURITY_LOGIN_LOCK_MINUTES:15}
   http-client:
     connect-timeout: ${GRUN_HTTP_CLIENT_CONNECT_TIMEOUT:3s}
     read-timeout: ${GRUN_HTTP_CLIENT_READ_TIMEOUT:10s}

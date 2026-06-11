@@ -6,13 +6,18 @@ import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
+import com.grun.calorietracker.enums.FoodServingOptionSource;
+import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -22,6 +27,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.sql.Date;
 import java.math.BigDecimal;
@@ -33,6 +40,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
 
 class FoodLogsServiceImplTest {
 
@@ -42,6 +50,8 @@ class FoodLogsServiceImplTest {
     private FoodItemRepository foodItemRepository;
     @Mock
     private RecipeLogRepository recipeLogRepository;
+    @Mock
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
     @Mock
     private UserRepository userRepository;
 
@@ -345,6 +355,94 @@ class FoodLogsServiceImplTest {
         assertEquals(1, result.size());
         assertEquals("LUNCH", result.get(0).getMealType());
         assertEquals(entity.getLogDate(), result.get(0).getLogDate());
+    }
+
+    @Test
+    void addFoodLog_whenServingOptionProvided_usesServingOptionWeightForNutritionBasis() {
+        FoodItemServingOptionEntity slice = new FoodItemServingOptionEntity();
+        slice.setId(5L);
+        slice.setFoodItem(foodItem);
+        slice.setLabel("1 slice");
+        slice.setUnitType(FoodServingOptionUnit.SLICE);
+        slice.setQuantity(1.0);
+        slice.setGramWeight(28.0);
+        slice.setIsDefault(true);
+        slice.setSource(FoodServingOptionSource.ADMIN);
+        slice.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setServingOptionId(5L);
+        dto.setPortionSize(2.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("breakfast");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(foodItemServingOptionRepository.findByIdAndFoodItem(5L, foodItem)).thenReturn(Optional.of(slice));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(15L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
+
+        assertEquals(5L, result.getServingOptionId());
+        assertEquals("1 slice", result.getServingOptionLabel());
+        assertEquals(56.0, result.getNormalizedPortionGrams());
+        assertEquals(86.8, result.getSnapshotCalories());
+        assertEquals(7.28, result.getSnapshotProtein());
+        verify(foodLogsRepository).save(argThat(entity ->
+                entity.getServingOption() == slice
+                        && entity.getNormalizedPortionGrams().equals(56.0)
+                        && entity.getSnapshotCalories().equals(86.8)
+        ));
+    }
+
+    @Test
+    void addFoodLog_whenServingOptionDoesNotBelongToFood_rejectsRequest() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setServingOptionId(99L);
+        dto.setPortionSize(1.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("breakfast");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodItemServingOptionRepository.findByIdAndFoodItem(99L, foodItem)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> foodLogsService.addFoodLog(dto, "test@test.com"));
+
+        verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
+    }
+
+    @Test
+    void getFoodLogs_whenDateIsMissing_returnsPagedRecentHistory() {
+        FoodLogsEntity entity = new FoodLogsEntity();
+        entity.setId(31L);
+        entity.setUser(user);
+        entity.setFoodItem(foodItem);
+        entity.setPortionSize(100.0);
+        entity.setPortionUnit(FoodPortionUnit.GRAM);
+        entity.setMealType("DINNER");
+        entity.setLogDate(LocalDateTime.of(2026, 5, 18, 19, 0));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserOrderByLogDateDesc(eq(user), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(entity)));
+
+        List<FoodLogsDto> result = foodLogsService.getFoodLogs("test@test.com", null, 0, 500);
+
+        assertEquals(1, result.size());
+        assertEquals("DINNER", result.get(0).getMealType());
+        verify(foodLogsRepository).findByUserOrderByLogDateDesc(eq(user), argThat(pageable ->
+                pageable.getPageNumber() == 0 && pageable.getPageSize() == 100
+        ));
+        verify(foodLogsRepository, never()).findByUser(user);
     }
 
     @Test

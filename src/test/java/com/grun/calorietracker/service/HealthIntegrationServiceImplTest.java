@@ -13,11 +13,13 @@ import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.HealthIntegrationServiceImpl;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,11 +41,18 @@ class HealthIntegrationServiceImplTest {
         healthConnectionRepository = mock(HealthConnectionRepository.class);
         deviceDataRepository = mock(DeviceDataRepository.class);
         subscriptionService = mock(SubscriptionService.class);
-        service = new HealthIntegrationServiceImpl(userRepository, healthConnectionRepository, deviceDataRepository, subscriptionService);
+        service = new HealthIntegrationServiceImpl(
+                userRepository,
+                healthConnectionRepository,
+                deviceDataRepository,
+                subscriptionService,
+                new UserTimeZoneSupport()
+        );
 
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
+        user.setTimeZone("Europe/Dublin");
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
     }
 
@@ -247,6 +256,27 @@ class HealthIntegrationServiceImplTest {
         assertEquals(1, result.getInsertedCount());
         assertEquals(1, result.getUpdatedCount());
         assertEquals(LocalDateTime.of(2026, 5, 26, 9, 0), result.getLatestRecordedAt());
+    }
+
+    @Test
+    void syncMetrics_whenBatchExceedsLimit_rejectsBeforeRepositoryWork() {
+        List<HealthMetricSyncRequestDto> metrics = new ArrayList<>();
+        for (int i = 0; i < 501; i++) {
+            HealthMetricSyncRequestDto metric = new HealthMetricSyncRequestDto();
+            metric.setSteps(i);
+            metric.setRecordedAt(LocalDateTime.of(2026, 5, 26, 8, 0).plusMinutes(i));
+            metrics.add(metric);
+        }
+        HealthMetricBatchSyncRequestDto request = new HealthMetricBatchSyncRequestDto();
+        request.setMetrics(metrics);
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.syncMetrics("user@example.com", HealthProvider.APPLE_HEALTH, request)
+        );
+
+        assertEquals("Health metric batch cannot exceed 500 metrics.", ex.getMessage());
+        verify(deviceDataRepository, never()).save(any());
     }
 
     @Test

@@ -17,6 +17,7 @@ import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.FastingTrackingServiceImpl;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -56,13 +57,15 @@ class FastingTrackingServiceImplTest {
                 fastingPlanRepository,
                 fastingSessionRepository,
                 notificationRepository,
-                userRepository
+                userRepository,
+                new UserTimeZoneSupport()
         );
         ReflectionTestUtils.setField(service, "fastingRemindersEnabled", true);
         ReflectionTestUtils.setField(service, "fastingReminderLeadMinutes", 30);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@grun.app");
+        user.setTimeZone("Europe/Dublin");
     }
 
     @Test
@@ -243,11 +246,7 @@ class FastingTrackingServiceImplTest {
         session.setPlan(plan);
         session.setTargetEndAt(LocalDateTime.now().plusMinutes(20));
 
-        when(fastingSessionRepository.findDueReminderSessions(
-                any(FastingSessionStatus.class),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(List.of(session));
+        when(fastingSessionRepository.findReminderCandidateSessions(any(FastingSessionStatus.class))).thenReturn(List.of(session));
 
         int created = service.createDueReminderNotifications();
 

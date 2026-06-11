@@ -27,6 +27,10 @@ public class FoodLogsEntity {
     @JoinColumn(name = "food_id")
     private FoodItemEntity foodItem;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "serving_option_id")
+    private FoodItemServingOptionEntity servingOption;
+
     private Double portionSize;
 
     @Enumerated(EnumType.STRING)

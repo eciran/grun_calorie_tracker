@@ -14,6 +14,7 @@ import com.grun.calorietracker.service.MealTemplateService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class MealTemplateServiceImpl implements MealTemplateService {
+
+    private static final int DEFAULT_TEMPLATE_PAGE_SIZE = 50;
+    private static final int MAX_TEMPLATE_PAGE_SIZE = 100;
 
     private final UserRepository userRepository;
     private final FoodLogsRepository foodLogsRepository;
@@ -68,8 +72,12 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     }
 
     @Override
-    public List<MealTemplateDto> getTemplates(String email) {
-        return mealTemplateRepository.findByUserOrderByCreatedAtDesc(getUser(email)).stream()
+    @Transactional(readOnly = true)
+    public List<MealTemplateDto> getTemplates(String email, int page, int size) {
+        return mealTemplateRepository.findByUserOrderByCreatedAtDesc(
+                        getUser(email),
+                        PageRequest.of(safePage(page), safePageSize(size))
+                ).stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -269,6 +277,16 @@ public class MealTemplateServiceImpl implements MealTemplateService {
 
     private Double round(Double value) {
         return Math.round(value * 100.0) / 100.0;
+
+    private int safePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int safePageSize(int size) {
+        if (size < 1) {
+            return DEFAULT_TEMPLATE_PAGE_SIZE;
+        }
+        return Math.min(size, MAX_TEMPLATE_PAGE_SIZE);
     }
 
 }

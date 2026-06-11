@@ -16,8 +16,10 @@ import com.grun.calorietracker.service.AppStartupService;
 import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -34,8 +36,10 @@ public class AppStartupServiceImpl implements AppStartupService {
     private final FederatedIdentityRepository federatedIdentityRepository;
     private final SubscriptionService subscriptionService;
     private final HealthIntegrationService healthIntegrationService;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @Override
+    @Transactional(readOnly = true)
     public AppStartupDto getStartupState(String email) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
@@ -59,7 +63,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .passwordSet(passwordSet)
                 .linkedIdentities(linkedIdentities(email))
                 .subscription(subscriptionService.getCurrentSubscription(email))
-                .healthSummary(healthAccessAllowed ? healthIntegrationService.getDailySummary(email, java.time.LocalDate.now()) : null)
+                .healthSummary(healthAccessAllowed ? healthIntegrationService.getDailySummary(email, userTimeZoneSupport.today(user)) : null)
                 .dashboardReady(dashboardReady)
                 .nextStep(resolveNextStep(emailVerified, onboardingCompleted))
                 .build();
@@ -71,7 +75,8 @@ public class AppStartupServiceImpl implements AppStartupService {
                 && user.getHeight() != null
                 && user.getWeight() != null
                 && user.getMarketRegion() != null
-                && user.getPreferredLanguage() != null;
+                && user.getPreferredLanguage() != null
+                && user.getTimeZone() != null;
     }
 
     private String resolveNextStep(boolean emailVerified, boolean onboardingCompleted) {
@@ -99,6 +104,8 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .passwordSet(user.getPasswordSet())
                 .marketRegion(user.getMarketRegion())
                 .preferredLanguage(user.getPreferredLanguage())
+                .timeZone(userTimeZoneSupport.normalizeOrDefault(user.getTimeZone()))
+                .unitPreference(user.getUnitPreference())
                 .goalRecalculationRecommended(false)
                 .build();
         profile.setGoalRecalculationReason(null);

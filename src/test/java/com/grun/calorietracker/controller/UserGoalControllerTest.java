@@ -147,7 +147,7 @@ class UserGoalControllerTest {
         mockMvc.perform(post("/api/v1/goals/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(goalRequest)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -162,7 +162,7 @@ class UserGoalControllerTest {
     @Test
     void testDeleteGoal_Unauthorized() throws Exception {
         mockMvc.perform(delete("/api/v1/goals/delete"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }
 

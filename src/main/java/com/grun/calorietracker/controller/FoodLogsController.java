@@ -99,7 +99,7 @@ public class FoodLogsController {
     @GetMapping
     @Operation(
             summary = "List food logs",
-            description = "Returns the authenticated user's food logs. A date filter can be supplied for a single day. Local demo seed creates today's BREAKFAST, SNACK, and LUNCH logs for demo.user@grun.local."
+            description = "Returns the authenticated user's food logs. Use date for one diary day. Without date, the endpoint returns a paged recent-history slice instead of the full diary history."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food logs returned."),
@@ -108,8 +108,12 @@ public class FoodLogsController {
     public ResponseEntity<List<FoodLogsDto>> getFoodLogs(
             @Parameter(description = "Optional log date in ISO format. Use today's date to inspect local demo seed logs.", example = "2026-05-16")
             @RequestParam(required = false) String date,
+            @Parameter(description = "Recent-history page index when date is omitted.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Recent-history page size when date is omitted. Maximum 100.", example = "50")
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(),date);
+        List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(), date, page, size);
         return ResponseEntity.ok(logs);
     }
 

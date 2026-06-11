@@ -22,11 +22,15 @@ import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.sql.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 // Service implementation for dashboard operations
 @Service
@@ -43,6 +47,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final SubscriptionService subscriptionService;
 
     @Override
+    @Transactional(readOnly = true)
     public DailySummaryDto getDailySummary(String email, LocalDate date) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
@@ -130,6 +135,7 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setHasFoodLogs(!foodLogs.isEmpty());
         dto.setHasExerciseLogs(!exerciseLogs.isEmpty());
         dto.setHasAnyDiaryEntry(!foodLogs.isEmpty() || !exerciseLogs.isEmpty());
+        dto.setCurrentLogStreakDays(calculateCurrentLogStreakDays(user.getId(), date));
         dto.setFoodLogs(foodLogs);
         dto.setExerciseLogs(exerciseLogs);
         if (subscriptionService.hasFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION)) {
@@ -137,6 +143,45 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return dto;
+    }
+
+    private int calculateCurrentLogStreakDays(Long userId, LocalDate summaryDate) {
+        LocalDate startDate = summaryDate.minusDays(29);
+        List<Object> rows = foodLogsRepository.findDiaryEntryDates(
+                userId,
+                startDate.atStartOfDay(),
+                summaryDate.plusDays(1).atStartOfDay()
+        );
+        Set<LocalDate> loggedDates = new HashSet<>();
+        for (Object row : rows) {
+            LocalDate date = toLocalDate(row);
+            if (date != null) {
+                loggedDates.add(date);
+            }
+        }
+        int streak = 0;
+        LocalDate cursor = summaryDate;
+        while (!cursor.isBefore(startDate) && loggedDates.contains(cursor)) {
+            streak++;
+            cursor = cursor.minusDays(1);
+        }
+        return streak;
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof Date sqlDate) {
+            return sqlDate.toLocalDate();
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toLocalDateTime().toLocalDate();
+        }
+        if (value instanceof java.time.LocalDateTime localDateTime) {
+            return localDateTime.toLocalDate();
+        }
+        return value == null ? null : LocalDate.parse(value.toString());
     }
 
     private FoodLogsDto toFoodLogDto(FoodLogsEntity entity) {

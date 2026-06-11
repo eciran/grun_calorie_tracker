@@ -15,7 +15,7 @@ public interface FoodLogsService {
         FoodLogsDto addFoodLog(FoodLogsDto dto, String user);
         List<FoodLogsDto> copyMeal(String email, FoodLogCopyMealRequestDto request);
         FoodLogsDto updateFoodLog(Long id, FoodLogsDto dto, String email);
-        List<FoodLogsDto> getFoodLogs(String email, String date);
+        List<FoodLogsDto> getFoodLogs(String email, String date, int page, int size);
         List<FoodLogsDto> getFoodLogsHistory(String email, LocalDateTime start, LocalDateTime end);
         List<FoodLogMealSummaryDto> getMealSummaries(String email, LocalDateTime start, LocalDateTime end);
         List<FoodLogRecentMealDto> getRecentMeals(String email, int limit);

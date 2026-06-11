@@ -1,7 +1,9 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.DailySummaryDto;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.service.DashboardService;
+import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -11,6 +13,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,6 +30,8 @@ class DashboardControllerTest {
 
     @MockBean
     private DashboardService dashboardService;
+    @MockBean
+    private UserService userService;
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
@@ -67,6 +72,26 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.hasAnyDiaryEntry").value(false));
 
         verify(dashboardService).getDailySummary("user@example.com", date);
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void getDailySummary_whenDateMissing_usesUserTimeZoneToday() throws Exception {
+        UserEntity user = new UserEntity();
+        user.setEmail("user@example.com");
+        user.setTimeZone("Pacific/Kiritimati");
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        LocalDate expectedDate = LocalDate.now(java.time.ZoneId.of("Pacific/Kiritimati"));
+        DailySummaryDto summary = new DailySummaryDto();
+        summary.setSummaryDate(expectedDate);
+        when(dashboardService.getDailySummary("user@example.com", expectedDate)).thenReturn(summary);
+
+        mockMvc.perform(get("/api/v1/dashboard/daily-summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summaryDate").value(expectedDate.toString()));
+
+        verify(dashboardService).getDailySummary("user@example.com", expectedDate);
     }
 }
 

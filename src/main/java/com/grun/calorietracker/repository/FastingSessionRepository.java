@@ -59,11 +59,6 @@ public interface FastingSessionRepository extends JpaRepository<FastingSessionEn
             where session.status = :status
               and session.reminderSentAt is null
               and plan.reminderEnabled = true
-              and session.targetEndAt between :now and :threshold
             """)
-    List<FastingSessionEntity> findDueReminderSessions(
-            @Param("status") FastingSessionStatus status,
-            @Param("now") LocalDateTime now,
-            @Param("threshold") LocalDateTime threshold
-    );
+    List<FastingSessionEntity> findReminderCandidateSessions(@Param("status") FastingSessionStatus status);
 }

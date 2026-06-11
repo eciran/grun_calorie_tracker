@@ -32,6 +32,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UserProductLibraryServiceImpl implements UserProductLibraryService {
 
+    private static final int DEFAULT_LIBRARY_PAGE_SIZE = 50;
+    private static final int MAX_LIBRARY_PAGE_SIZE = 100;
+
     private final UserRepository userRepository;
     private final FoodItemRepository foodItemRepository;
     private final FoodLogsRepository foodLogsRepository;
@@ -39,6 +42,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     private final UserFavoriteRepository userFavoriteRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodProductDto> getRecentProducts(String email, int limit) {
         UserEntity user = getUser(email);
         List<Long> ids = foodLogsRepository.findRecentAvailableFoodItemIds(
@@ -56,11 +60,13 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     }
 
     @Override
-    public List<FoodProductDto> getFavoriteProducts(String email) {
+    @Transactional(readOnly = true)
+    public List<FoodProductDto> getFavoriteProducts(String email, int page, int size) {
         UserEntity user = getUser(email);
         return userFavoriteRepository.findAvailableFavorites(
                         user,
-                        VerificationStatus.REJECTED
+                        VerificationStatus.REJECTED,
+                        PageRequest.of(safePage(page), safePageSize(size))
                 ).stream()
                 .map(UserFavoriteEntity::getFoodItem)
                 .map(FoodItemMapper::mapEntityToDto)
@@ -131,9 +137,13 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     }
 
     @Override
-    public List<FoodProductDto> getCustomFoods(String email) {
+    @Transactional(readOnly = true)
+    public List<FoodProductDto> getCustomFoods(String email, int page, int size) {
         UserEntity user = getUser(email);
-        return foodItemRepository.findByCreatedByUserAndIsCustomTrueOrderByNameAsc(user).stream()
+        return foodItemRepository.findByCreatedByUserAndIsCustomTrueOrderByNameAsc(
+                        user,
+                        PageRequest.of(safePage(page), safePageSize(size))
+                ).stream()
                 .map(FoodItemMapper::mapEntityToDto)
                 .toList();
     }
@@ -178,6 +188,17 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
             return 10;
         }
         return Math.min(limit, 50);
+    }
+
+    private int safePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int safePageSize(int size) {
+        if (size < 1) {
+            return DEFAULT_LIBRARY_PAGE_SIZE;
+        }
+        return Math.min(size, MAX_LIBRARY_PAGE_SIZE);
     }
 
     private String trimToNull(String value) {

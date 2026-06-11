@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,6 +58,22 @@ class MealTemplateControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(3L))
                 .andExpect(jsonPath("$.mealType").value("BREAKFAST"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getTemplates_passesPagination() throws Exception {
+        MealTemplateDto template = new MealTemplateDto();
+        template.setId(3L);
+        template.setName("Breakfast");
+        template.setMealType("BREAKFAST");
+        when(mealTemplateService.getTemplates("user@test.com", 1, 20)).thenReturn(java.util.List.of(template));
+
+        mockMvc.perform(get("/api/v1/meal-templates")
+                        .param("page", "1")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(3L));
     }
 
     @Test
