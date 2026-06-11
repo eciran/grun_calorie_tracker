@@ -182,6 +182,20 @@ class RevenueCatWebhookServiceImplTest {
     }
 
     @Test
+    void processWebhook_whenAuthorizationNotConfigured_throwsAccessDenied() throws Exception {
+        RevenueCatProperties properties = new RevenueCatProperties();
+        RevenueCatWebhookServiceImpl unsecuredService =
+                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionService);
+        String payload = """
+                {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
+                """;
+
+        assertThrows(AccessDeniedException.class,
+                () -> unsecuredService.processWebhook("Bearer rc-secret", objectMapper.readTree(payload)));
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+    }
+
+    @Test
     void processWebhook_whenUserCannotBeResolved_storesFailedEvent() throws Exception {
         String payload = """
                 {"event":{"id":"evt_404","type":"RENEWAL","app_user_id":"missing@example.com","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}

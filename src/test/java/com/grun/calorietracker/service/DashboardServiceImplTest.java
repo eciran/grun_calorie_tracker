@@ -15,6 +15,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.sql.Date;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -84,6 +85,8 @@ class DashboardServiceImplTest {
         when(exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(eq(1L), eq(start), eq(end))).thenReturn(List.of());
         when(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
                 .thenReturn(List.of());
+        when(foodLogsRepository.findDiaryEntryDates(eq(1L), eq(date.minusDays(29).atStartOfDay()), eq(end)))
+                .thenReturn(List.of());
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
         com.grun.calorietracker.dto.HealthDailySummaryDto healthSummary = new com.grun.calorietracker.dto.HealthDailySummaryDto();
@@ -117,6 +120,7 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasFoodLogs());
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());
+        assertEquals(0, result.getCurrentLogStreakDays());
         assertEquals(List.of(), result.getFoodLogs());
         assertEquals(List.of(), result.getExerciseLogs());
         assertEquals(false, result.getHealthSummary().getHasHealthData());
@@ -153,6 +157,13 @@ class DashboardServiceImplTest {
                 .thenReturn(Collections.singletonList(new Object[]{300.0, 45}));
         when(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(eq(user), eq(start), eq(end)))
                 .thenReturn(List.of());
+        when(foodLogsRepository.findDiaryEntryDates(eq(1L), eq(date.minusDays(29).atStartOfDay()), eq(end)))
+                .thenReturn(List.of(
+                        Date.valueOf(date),
+                        Date.valueOf(date.minusDays(1)),
+                        Date.valueOf(date.minusDays(2)),
+                        Date.valueOf(date.minusDays(4))
+                ));
         when(goalRepository.findByUser(user)).thenReturn(Optional.of(goal));
         when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
         when(healthIntegrationService.getDailySummary("user@example.com", date))
@@ -176,5 +187,6 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasFoodLogs());
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());
+        assertEquals(3, result.getCurrentLogStreakDays());
     }
 }

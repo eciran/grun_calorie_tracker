@@ -60,14 +60,12 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     private final AiMealDraftSafetyService safetyService;
 
     @Override
-    @Transactional
     public AiMealDraftResponseDto createVoiceFoodDraft(String email, AiVoiceFoodDraftRequestDto request) {
         safetyService.validateVoiceRequest(request);
         return createDraft(email, AiRequestType.VOICE_FOOD_LOG, request, () -> activeProvider().createVoiceFoodDraft(request));
     }
 
     @Override
-    @Transactional
     public AiMealDraftResponseDto createPhotoMealDraft(String email, AiPhotoMealDraftRequestDto request) {
         safetyService.validatePhotoRequest(request);
         return createDraft(email, AiRequestType.PHOTO_MEAL_LOG, request, () -> activeProvider().createPhotoMealDraft(request));

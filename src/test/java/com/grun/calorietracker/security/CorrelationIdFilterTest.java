@@ -42,4 +42,18 @@ class CorrelationIdFilterTest {
                 request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE)
         );
     }
+
+    @Test
+    void stripsLineBreaksFromIncomingCorrelationId() throws Exception {
+        CorrelationIdFilter filter = new CorrelationIdFilter();
+        FilterChain filterChain = mock(FilterChain.class);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/products/search");
+        request.addHeader(CorrelationIdFilter.CORRELATION_ID_HEADER, "mobile\r\n-request\t1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals("mobile-request1", response.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER));
+        assertEquals("mobile-request1", request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE));
+    }
 }

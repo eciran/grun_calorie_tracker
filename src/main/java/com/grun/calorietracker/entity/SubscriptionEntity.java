@@ -21,6 +21,10 @@ public class SubscriptionEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     @OneToOne
     @JoinColumn(name = "user_id")
     private UserEntity user;

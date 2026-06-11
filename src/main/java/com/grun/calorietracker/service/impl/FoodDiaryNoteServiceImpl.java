@@ -36,6 +36,7 @@ public class FoodDiaryNoteServiceImpl implements FoodDiaryNoteService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodDiaryNoteDto getNote(String email, LocalDate diaryDate) {
         UserEntity user = getUser(email);
         return foodDiaryNoteRepository.findByUserAndDiaryDate(user, diaryDate)

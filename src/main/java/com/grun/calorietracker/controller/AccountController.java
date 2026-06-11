@@ -9,9 +9,11 @@ import com.grun.calorietracker.dto.GdprDeleteResponseDto;
 import com.grun.calorietracker.dto.LinkAppleRequestDto;
 import com.grun.calorietracker.dto.LinkGoogleRequestDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
+import com.grun.calorietracker.dto.NotificationPreferenceDto;
 import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
+import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -45,6 +47,7 @@ public class AccountController {
 
     private final AccountIdentityService accountIdentityService;
     private final AccountGdprService accountGdprService;
+    private final UserService userService;
 
     @GetMapping("/linked-identities")
     @Operation(
@@ -123,6 +126,35 @@ public class AccountController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid AccountPasswordRequestDto request) {
         return ResponseEntity.ok(accountIdentityService.updatePassword(userDetails.getUsername(), request));
+    }
+
+    @GetMapping("/notification-preferences")
+    @Operation(
+            summary = "Get notification preferences",
+            description = "Returns account-level notification toggles used by mobile settings screens."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Notification preferences returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<NotificationPreferenceDto> getNotificationPreferences(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userService.getNotificationPreferences(userDetails.getUsername()));
+    }
+
+    @PutMapping("/notification-preferences")
+    @Operation(
+            summary = "Update notification preferences",
+            description = "Updates account-level notification toggles. Null fields are ignored so mobile can send only changed values."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Notification preferences updated."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<NotificationPreferenceDto> updateNotificationPreferences(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody NotificationPreferenceDto request) {
+        return ResponseEntity.ok(userService.updateNotificationPreferences(userDetails.getUsername(), request));
     }
 
     @GetMapping("/gdpr/export")

@@ -29,6 +29,8 @@ import java.util.List;
 @Tag(name = "Exercise Logs", description = "Authenticated exercise logging and date range reporting.")
 public class ExerciseLogsController {
 
+    private static final long MAX_EXERCISE_HISTORY_RANGE_DAYS = 366;
+
     private final ExerciseLogsService exerciseLogsService;
 
     @PostMapping
@@ -102,6 +104,7 @@ public class ExerciseLogsController {
             @RequestParam(defaultValue = "day") String range) {
         LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
         LocalDateTime end = LocalDate.parse(endDate).atTime(23, 59, 59);
+        validateDateRange(start.toLocalDate(), end.toLocalDate());
 
         List<ExerciseLogsDto> stats = exerciseLogsService.getExerciseLogsByDateAndUser(userDetails.getUsername(), start, end, range);
         return ResponseEntity.ok(stats);
@@ -126,6 +129,7 @@ public class ExerciseLogsController {
         if (endDate.isBefore(startDate)) {
             throw new IllegalArgumentException("History end date must not be before start date.");
         }
+        validateDateRange(startDate, endDate);
         return ResponseEntity.ok(exerciseLogsService.getExerciseLogsHistory(
                 userDetails.getUsername(),
                 startDate.atStartOfDay(),
@@ -145,8 +149,10 @@ public class ExerciseLogsController {
     })
     public ResponseEntity<List<ExerciseLogsDto>> getExerciseLogsBySource(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
-            @Parameter(description = "Exercise log source.", example = "LOCAL_DEMO") @PathVariable String source) {
-        List<ExerciseLogsDto> logs = exerciseLogsService.getExerciseLogsBySource(userDetails.getUsername(), source);
+            @Parameter(description = "Exercise log source.", example = "LOCAL_DEMO") @PathVariable String source,
+            @Parameter(description = "Zero-based page number.", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size. Maximum 100.", example = "50") @RequestParam(defaultValue = "50") int size) {
+        List<ExerciseLogsDto> logs = exerciseLogsService.getExerciseLogsBySource(userDetails.getUsername(), source, page, size);
         return ResponseEntity.ok(logs);
     }
 
@@ -183,5 +189,11 @@ public class ExerciseLogsController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         exerciseLogsService.deleteExerciseLog(id, userDetails.getUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) > MAX_EXERCISE_HISTORY_RANGE_DAYS) {
+            throw new IllegalArgumentException("Exercise date range must not exceed 366 days.");
+        }
     }
 }

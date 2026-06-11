@@ -7,11 +7,13 @@ import com.grun.calorietracker.dto.GdprDataExportDto;
 import com.grun.calorietracker.dto.GdprDeleteRequestDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.LinkGoogleRequestDto;
+import com.grun.calorietracker.dto.NotificationPreferenceDto;
 import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
+import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -47,6 +49,9 @@ class AccountControllerTest {
 
     @MockitoBean
     private AccountGdprService accountGdprService;
+
+    @MockitoBean
+    private UserService userService;
 
     @Test
     @WithMockUser(username = "user@grun.app")
@@ -99,6 +104,35 @@ class AccountControllerTest {
 
     @Test
     @WithMockUser(username = "user@grun.app")
+    void getNotificationPreferences_returnsCurrentSettings() throws Exception {
+        when(userService.getNotificationPreferences("user@grun.app"))
+                .thenReturn(new NotificationPreferenceDto(true, false, true));
+
+        mockMvc.perform(get("/api/v1/account/notification-preferences"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pushNotificationsEnabled").value(true))
+                .andExpect(jsonPath("$.mealRemindersEnabled").value(false))
+                .andExpect(jsonPath("$.hydrationRemindersEnabled").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "user@grun.app")
+    void updateNotificationPreferences_returnsUpdatedSettings() throws Exception {
+        NotificationPreferenceDto request = new NotificationPreferenceDto(false, true, false);
+        when(userService.updateNotificationPreferences("user@grun.app", request))
+                .thenReturn(request);
+
+        mockMvc.perform(put("/api/v1/account/notification-preferences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pushNotificationsEnabled").value(false))
+                .andExpect(jsonPath("$.mealRemindersEnabled").value(true))
+                .andExpect(jsonPath("$.hydrationRemindersEnabled").value(false));
+    }
+
+    @Test
+    @WithMockUser(username = "user@grun.app")
     void exportMyData_returnsGdprSnapshot() throws Exception {
         when(accountGdprService.exportMyData("user@grun.app"))
                 .thenReturn(new GdprDataExportDto(
@@ -108,6 +142,7 @@ class AccountControllerTest {
                         UserRole.STANDARD,
                         null,
                         PreferredLanguage.EN,
+                        "Europe/Dublin",
                         true,
                         null,
                         null,

@@ -4,6 +4,7 @@ import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.UnitPreference;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -58,6 +59,12 @@ public class OnboardingCompleteRequestDto {
     @Schema(description = "User's selected application language. Supported values: EN, TR.", example = "EN", requiredMode = Schema.RequiredMode.REQUIRED)
     private PreferredLanguage preferredLanguage;
 
+    @Schema(description = "User's IANA time zone id used for daily summaries and reminders.", example = "Europe/Dublin")
+    private String timeZone;
+
+    @Schema(description = "User's preferred measurement system for mobile display.", example = "METRIC")
+    private UnitPreference unitPreference;
+
     @NotNull(message = "{validation.user-goal.target-weight.required}")
     @Min(value = 30, message = "{validation.user-goal.target-weight.min}")
     @Schema(description = "Target body weight in kilograms.", example = "78.0", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -84,6 +91,8 @@ public class OnboardingCompleteRequestDto {
                 .bodyFat(bodyFat)
                 .marketRegion(marketRegion)
                 .preferredLanguage(preferredLanguage)
+                .timeZone(timeZone)
+                .unitPreference(unitPreference)
                 .build();
     }
 

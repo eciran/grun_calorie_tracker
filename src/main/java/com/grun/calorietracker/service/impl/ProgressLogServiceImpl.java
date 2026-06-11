@@ -11,6 +11,7 @@ import com.grun.calorietracker.service.ProgressLogService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,6 +45,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ProgressLogDto getLog(Long id, String email) {
         UserEntity user = getUserByEmail(email);
         return progressLogMapper.toDto(getOwnedLog(id, user));
@@ -56,6 +58,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ProgressLogDto> getUserLogs(String email) {
         UserEntity user = getUserByEmail(email);
         return progressLogRepository.findByUserOrderByLogDateAsc(user)
@@ -65,6 +68,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ProgressLogDto> getUserLogs(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = getUserByEmail(email);
         return progressLogRepository

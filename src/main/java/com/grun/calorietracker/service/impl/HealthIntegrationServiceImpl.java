@@ -21,6 +21,7 @@ import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,12 +36,16 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class HealthIntegrationServiceImpl implements HealthIntegrationService {
 
+    private static final int MAX_HEALTH_METRICS_PER_BATCH = 500;
+
     private final UserRepository userRepository;
     private final HealthConnectionRepository healthConnectionRepository;
     private final DeviceDataRepository deviceDataRepository;
     private final SubscriptionService subscriptionService;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @Override
+    @Transactional(readOnly = true)
     public List<HealthConnectionDto> getConnections(String email) {
         UserEntity user = getUser(email);
         return healthConnectionRepository.findByUserOrderByProviderAsc(user).stream()
@@ -49,10 +54,11 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public HealthDailySummaryDto getDailySummary(String email, LocalDate date) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
         UserEntity user = getUser(email);
-        LocalDate summaryDate = date == null ? LocalDate.now() : date;
+        LocalDate summaryDate = date == null ? userTimeZoneSupport.today(user) : date;
         LocalDateTime start = summaryDate.atStartOfDay();
         LocalDateTime end = summaryDate.plusDays(1).atStartOfDay();
 
@@ -81,9 +87,11 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public HealthRangeSummaryDto getRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
-        LocalDate resolvedEnd = endDate == null ? LocalDate.now() : endDate;
+        UserEntity user = getUser(email);
+        LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
         if (resolvedStart.isAfter(resolvedEnd)) {
             throw new IllegalArgumentException("Health summary startDate must be before or equal to endDate.");
@@ -200,6 +208,9 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
         if (request == null || request.getMetrics() == null || request.getMetrics().isEmpty()) {
             throw new IllegalArgumentException("At least one health metric is required.");
+        }
+        if (request.getMetrics().size() > MAX_HEALTH_METRICS_PER_BATCH) {
+            throw new IllegalArgumentException("Health metric batch cannot exceed 500 metrics.");
         }
 
         List<HealthMetricSyncResponseDto> results = request.getMetrics().stream()

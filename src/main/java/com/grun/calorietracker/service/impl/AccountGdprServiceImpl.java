@@ -131,6 +131,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 user.getRole(),
                 user.getMarketRegion(),
                 user.getPreferredLanguage(),
+                user.getTimeZone(),
                 user.getEmailVerified(),
                 latestFoodLog,
                 latestExerciseLog,

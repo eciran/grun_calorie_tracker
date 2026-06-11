@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,7 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
     private final RevenueCatWebhookService revenueCatWebhookService;
 
     @Override
+    @Transactional(readOnly = true)
     public SubscriptionProviderEventPageDto getEvents(SubscriptionProviderEventStatus status, String eventType, String productId, Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
@@ -50,11 +52,13 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
     }
 
     @Override
+    @Transactional(readOnly = true)
     public SubscriptionProviderEventPageDto getUserHistory(Long userId, int page, int size) {
         return getEvents(null, null, null, userId, page, size);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public SubscriptionProviderEventDetailDto getEvent(Long id) {
         return toDetailDto(eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Subscription provider event not found")));

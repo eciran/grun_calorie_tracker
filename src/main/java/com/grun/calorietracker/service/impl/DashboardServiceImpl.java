@@ -3,7 +3,9 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.DailySummaryDto;
 import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.MealMacroDistributionDto;
 import com.grun.calorietracker.dto.MicronutrientTotalsDto;
+import com.grun.calorietracker.dto.WeightTrendDto;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
@@ -22,11 +24,17 @@ import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.sql.Date;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 // Service implementation for dashboard operations
 @Service
@@ -43,6 +51,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final SubscriptionService subscriptionService;
 
     @Override
+    @Transactional(readOnly = true)
     public DailySummaryDto getDailySummary(String email, LocalDate date) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
@@ -120,9 +129,16 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setFatProgressPercent(percent(consumedFat, targetFat));
         dto.setCarbsProgressPercent(percent(consumedCarbs, targetCarbs));
         dto.setConsumedMicros(consumedMicros);
+        dto.setProteinTargetHit(targetProtein > 0 && consumedProtein >= targetProtein);
+        dto.setFiberTargetHit(consumedMicros != null && consumedMicros.getFiber() != null && consumedMicros.getFiber() >= 25.0);
+        dto.setSugarWarning(consumedMicros != null && consumedMicros.getSugar() != null && consumedMicros.getSugar() > 50.0);
+        dto.setSodiumWarning(consumedMicros != null && consumedMicros.getSodium() != null && consumedMicros.getSodium() > 2300.0);
+        dto.setNutritionQualityScore(calculateNutritionQualityScore(dto));
+        dto.setMealMacroDistribution(calculateMealMacroDistribution(foodLogs, consumedCalories));
 
         dto.setCurrentWeight(currentWeight);
         dto.setTargetWeight(targetWeight);
+        dto.setWeightTrend(calculateWeightTrend(user, date, targetWeight));
         dto.setGoalType(goalType);
         dto.setTotalExerciseMinutes(totalExerciseMinutes);
         dto.setHasActiveGoal(hasActiveGoal);
@@ -130,6 +146,7 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setHasFoodLogs(!foodLogs.isEmpty());
         dto.setHasExerciseLogs(!exerciseLogs.isEmpty());
         dto.setHasAnyDiaryEntry(!foodLogs.isEmpty() || !exerciseLogs.isEmpty());
+        dto.setCurrentLogStreakDays(calculateCurrentLogStreakDays(user.getId(), date));
         dto.setFoodLogs(foodLogs);
         dto.setExerciseLogs(exerciseLogs);
         if (subscriptionService.hasFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION)) {
@@ -137,6 +154,45 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return dto;
+    }
+
+    private int calculateCurrentLogStreakDays(Long userId, LocalDate summaryDate) {
+        LocalDate startDate = summaryDate.minusDays(29);
+        List<Object> rows = foodLogsRepository.findDiaryEntryDates(
+                userId,
+                startDate.atStartOfDay(),
+                summaryDate.plusDays(1).atStartOfDay()
+        );
+        Set<LocalDate> loggedDates = new HashSet<>();
+        for (Object row : rows) {
+            LocalDate date = toLocalDate(row);
+            if (date != null) {
+                loggedDates.add(date);
+            }
+        }
+        int streak = 0;
+        LocalDate cursor = summaryDate;
+        while (!cursor.isBefore(startDate) && loggedDates.contains(cursor)) {
+            streak++;
+            cursor = cursor.minusDays(1);
+        }
+        return streak;
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof Date sqlDate) {
+            return sqlDate.toLocalDate();
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toLocalDateTime().toLocalDate();
+        }
+        if (value instanceof java.time.LocalDateTime localDateTime) {
+            return localDateTime.toLocalDate();
+        }
+        return value == null ? null : LocalDate.parse(value.toString());
     }
 
     private FoodLogsDto toFoodLogDto(FoodLogsEntity entity) {
@@ -166,6 +222,7 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setSnapshotVitaminD(entity.getSnapshotVitaminD());
         dto.setSnapshotVitaminE(entity.getSnapshotVitaminE());
         dto.setSnapshotVitaminB12(entity.getSnapshotVitaminB12());
+        dto.setSource(entity.getSource());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;
@@ -275,6 +332,101 @@ public class DashboardServiceImpl implements DashboardService {
                 && user.getGender() != null
                 && user.getHeight() != null
                 && user.getWeight() != null;
+    }
+
+    private Integer calculateNutritionQualityScore(DailySummaryDto dto) {
+        int score = 0;
+        if (Boolean.TRUE.equals(dto.getProteinTargetHit())) {
+            score += 25;
+        }
+        if (Boolean.TRUE.equals(dto.getFiberTargetHit())) {
+            score += 25;
+        }
+        if (!Boolean.TRUE.equals(dto.getSugarWarning())) {
+            score += 25;
+        }
+        if (!Boolean.TRUE.equals(dto.getSodiumWarning())) {
+            score += 25;
+        }
+        return score;
+    }
+
+    private List<MealMacroDistributionDto> calculateMealMacroDistribution(List<FoodLogsDto> foodLogs, Double totalCalories) {
+        Map<String, List<FoodLogsDto>> byMeal = foodLogs.stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        log -> log.getMealType() == null ? "UNKNOWN" : log.getMealType(),
+                        LinkedHashMap::new,
+                        java.util.stream.Collectors.toList()
+                ));
+        return byMeal.entrySet().stream()
+                .map(entry -> {
+                    MealMacroDistributionDto dto = new MealMacroDistributionDto();
+                    dto.setMealType(entry.getKey());
+                    dto.setCalories(round(entry.getValue().stream().mapToDouble(log -> value(log.getSnapshotCalories())).sum()));
+                    dto.setProtein(round(entry.getValue().stream().mapToDouble(log -> value(log.getSnapshotProtein())).sum()));
+                    dto.setCarbs(round(entry.getValue().stream().mapToDouble(log -> value(log.getSnapshotCarbs())).sum()));
+                    dto.setFat(round(entry.getValue().stream().mapToDouble(log -> value(log.getSnapshotFat())).sum()));
+                    dto.setCalorieSharePercent(percent(dto.getCalories(), totalCalories));
+                    return dto;
+                })
+                .toList();
+    }
+
+    private WeightTrendDto calculateWeightTrend(UserEntity user, LocalDate summaryDate, Double targetWeight) {
+        LocalDateTime start = summaryDate.minusDays(13).atStartOfDay();
+        LocalDateTime end = summaryDate.plusDays(1).atStartOfDay();
+        List<ProgressLogEntity> logs = progressLogRepository
+                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end);
+        if (logs.isEmpty()) {
+            return null;
+        }
+        List<ProgressLogEntity> current = logs.stream()
+                .filter(log -> !log.getLogDate().toLocalDate().isBefore(summaryDate.minusDays(6)))
+                .toList();
+        List<ProgressLogEntity> previous = logs.stream()
+                .filter(log -> log.getLogDate().toLocalDate().isBefore(summaryDate.minusDays(6)))
+                .toList();
+        WeightTrendDto dto = new WeightTrendDto();
+        dto.setCurrentSevenDayAverageKg(averageWeight(current));
+        dto.setPreviousSevenDayAverageKg(averageWeight(previous));
+        if (dto.getCurrentSevenDayAverageKg() != null && dto.getPreviousSevenDayAverageKg() != null) {
+            dto.setWeeklyChangeKg(round(dto.getCurrentSevenDayAverageKg() - dto.getPreviousSevenDayAverageKg()));
+            dto.setTrendDirection(resolveTrendDirection(dto.getWeeklyChangeKg()));
+            dto.setProjectedGoalDate(projectGoalDate(dto.getCurrentSevenDayAverageKg(), targetWeight, dto.getWeeklyChangeKg(), summaryDate));
+        } else {
+            dto.setTrendDirection("INSUFFICIENT_DATA");
+        }
+        return dto;
+    }
+
+    private Double averageWeight(List<ProgressLogEntity> logs) {
+        if (logs == null || logs.isEmpty()) {
+            return null;
+        }
+        return round(logs.stream().mapToDouble(ProgressLogEntity::getWeight).average().orElse(0.0));
+    }
+
+    private String resolveTrendDirection(Double weeklyChangeKg) {
+        if (weeklyChangeKg == null || Math.abs(weeklyChangeKg) < 0.1) {
+            return "STABLE";
+        }
+        return weeklyChangeKg > 0 ? "GAINING" : "LOSING";
+    }
+
+    private LocalDate projectGoalDate(Double currentWeight, Double targetWeight, Double weeklyChangeKg, LocalDate summaryDate) {
+        if (currentWeight == null || targetWeight == null || weeklyChangeKg == null || Math.abs(weeklyChangeKg) < 0.1) {
+            return null;
+        }
+        double remaining = targetWeight - currentWeight;
+        if (Math.signum(remaining) != Math.signum(weeklyChangeKg)) {
+            return null;
+        }
+        long weeks = (long) Math.ceil(Math.abs(remaining / weeklyChangeKg));
+        return summaryDate.plusWeeks(Math.min(weeks, 260));
+    }
+
+    private double value(Double value) {
+        return value == null ? 0.0 : value;
     }
 
     private Object[] extractSingleRow(java.util.List<Object[]> rows) {

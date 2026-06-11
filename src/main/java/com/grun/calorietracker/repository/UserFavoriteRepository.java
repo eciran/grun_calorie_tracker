@@ -4,6 +4,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.enums.VerificationStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -27,7 +28,8 @@ public interface UserFavoriteRepository extends JpaRepository<UserFavoriteEntity
             """)
     List<UserFavoriteEntity> findAvailableFavorites(
             @Param("user") UserEntity user,
-            @Param("rejectedStatus") VerificationStatus rejectedStatus
+            @Param("rejectedStatus") VerificationStatus rejectedStatus,
+            Pageable pageable
     );
 
     @Modifying

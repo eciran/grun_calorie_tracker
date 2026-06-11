@@ -9,7 +9,11 @@ import com.grun.calorietracker.dto.FastingSessionCancelRequestDto;
 import com.grun.calorietracker.dto.FastingSessionDto;
 import com.grun.calorietracker.dto.FastingSessionFinishRequestDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
+import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.FastingTrackingService;
+import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -42,6 +46,8 @@ import java.time.LocalDate;
 public class FastingTrackingController {
 
     private final FastingTrackingService fastingTrackingService;
+    private final UserService userService;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @GetMapping("/plan")
     @Operation(
@@ -139,7 +145,9 @@ public class FastingTrackingController {
             @Parameter(description = "Summary date in ISO format. Defaults to today if omitted.", example = "2026-06-05")
             @RequestParam(required = false) String date,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        LocalDate summaryDate = date == null || date.isBlank() ? LocalDate.now() : LocalDate.parse(date);
+        LocalDate summaryDate = date == null || date.isBlank()
+                ? userTimeZoneSupport.today(currentUser(userDetails.getUsername()))
+                : LocalDate.parse(date);
         return ResponseEntity.ok(fastingTrackingService.getDailySummary(userDetails.getUsername(), summaryDate));
     }
 
@@ -164,5 +172,10 @@ public class FastingTrackingController {
                 LocalDate.parse(startDate),
                 LocalDate.parse(endDate)
         ));
+    }
+
+    private UserEntity currentUser(String email) {
+        return userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 }

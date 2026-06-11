@@ -58,6 +58,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     @Value("${grun.rate-limit.ai-draft.max-requests-per-minute:10}")
     private int aiDraftMaxRequestsPerMinute;
 
+    @Value("${grun.rate-limit.trusted-proxy-count:0}")
+    private int trustedProxyCount;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -90,11 +93,24 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private String clientKey(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        String ip = forwardedFor == null || forwardedFor.isBlank()
-                ? request.getRemoteAddr()
-                : forwardedFor.split(",")[0].trim();
+        String ip = resolveClientIp(request);
         return ip + ":" + request.getRequestURI();
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (trustedProxyCount <= 0 || forwardedFor == null || forwardedFor.isBlank()) {
+            return request.getRemoteAddr();
+        }
+
+        String[] chain = forwardedFor.split(",");
+        int index = chain.length - trustedProxyCount;
+        if (index < 0 || index >= chain.length) {
+            return request.getRemoteAddr();
+        }
+
+        String candidate = chain[index].trim();
+        return candidate.isBlank() ? request.getRemoteAddr() : candidate;
     }
 
     private int resolveMaxRequests(HttpServletRequest request) {

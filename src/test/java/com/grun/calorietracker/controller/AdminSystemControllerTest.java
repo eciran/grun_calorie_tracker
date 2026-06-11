@@ -100,4 +100,13 @@ class AdminSystemControllerTest {
         mockMvc.perform(get("/api/v1/admin/system/health"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void getHealth_whenJwtMalformed_returnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/system/health")
+                        .header("Authorization", "Bearer not-a-jwt"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("JWT token is missing or invalid."));
+    }
 }

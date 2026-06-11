@@ -2,7 +2,9 @@ package com.grun.calorietracker.config;
 
 import com.grun.calorietracker.security.JwtAuthenticationFilter;
 import com.grun.calorietracker.security.RateLimitingFilter;
+import com.grun.calorietracker.security.RestAuthenticationEntryPoint;
 import com.grun.calorietracker.service.impl.UserDetailsServiceImpl;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -23,13 +25,19 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RateLimitingFilter rateLimitingFilter;
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
     private final UserDetailsServiceImpl userDetailsService;
+    private final boolean swaggerPublic;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           RateLimitingFilter rateLimitingFilter,
+                          RestAuthenticationEntryPoint authenticationEntryPoint,
+                          @Value("${grun.security.swagger-public:true}") boolean swaggerPublic,
                           UserDetailsServiceImpl userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.rateLimitingFilter = rateLimitingFilter;
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.swaggerPublic = swaggerPublic;
         this.userDetailsService = userDetailsService;
     }
 
@@ -38,20 +46,25 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> {
+                    auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/webhooks/revenuecat").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                        .requestMatchers(
-                        "/admin-ui/**",
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/ai/meal-drafts/photo-references/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/users/avatars/*").permitAll()
-                        .anyRequest().authenticated()
-                )
+                        .requestMatchers("/admin-ui/**").permitAll();
+                    if (swaggerPublic) {
+                        auth.requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll();
+                    }
+                    auth
+                            .requestMatchers(HttpMethod.GET, "/api/v1/ai/meal-drafts/photo-references/*").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/v1/users/avatars/*").permitAll()
+                            .anyRequest().authenticated();
+                })
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(authenticationEntryPoint))
                 .sessionManagement(sess -> sess
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)

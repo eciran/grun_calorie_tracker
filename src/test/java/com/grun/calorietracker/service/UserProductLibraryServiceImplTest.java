@@ -26,6 +26,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -77,6 +78,25 @@ class UserProductLibraryServiceImplTest {
 
         assertEquals("Banana", result.getProductName());
         verify(userFavoriteRepository, never()).save(any());
+    }
+
+    @Test
+    void getFavoriteProducts_clampsPagination() {
+        UserEntity user = user();
+        FoodItemEntity product = product(5L, "Banana");
+        UserFavoriteEntity favorite = new UserFavoriteEntity();
+        favorite.setUser(user);
+        favorite.setFoodItem(product);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(userFavoriteRepository.findAvailableFavorites(
+                eq(user),
+                eq(VerificationStatus.REJECTED),
+                argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 100)
+        )).thenReturn(List.of(favorite));
+
+        List<FoodProductDto> result = service.getFavoriteProducts("user@test.com", -1, 500);
+
+        assertEquals(List.of("Banana"), result.stream().map(FoodProductDto::getProductName).toList());
     }
 
     @Test
@@ -136,6 +156,21 @@ class UserProductLibraryServiceImplTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> service.deleteCustomFood("user@test.com", 10L));
         verify(foodItemRepository, never()).delete(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void getCustomFoods_clampsPagination() {
+        UserEntity user = user();
+        FoodItemEntity product = product(10L, "Soup");
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findByCreatedByUserAndIsCustomTrueOrderByNameAsc(
+                eq(user),
+                argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 100)
+        )).thenReturn(List.of(product));
+
+        List<FoodProductDto> result = service.getCustomFoods("user@test.com", -1, 500);
+
+        assertEquals(List.of("Soup"), result.stream().map(FoodProductDto::getProductName).toList());
     }
 
     private UserEntity user() {

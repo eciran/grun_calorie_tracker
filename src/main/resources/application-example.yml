@@ -8,12 +8,14 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_batch_fetch_size: 25
 
   flyway:
     enabled: true
@@ -59,7 +61,7 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET:Q0hBTkdFX01FX0xPQ0FMX0RFVkVMT1BNRU5UX1NFQ1JFVF9LRVlfMTIzNDU2Nzg5MA==}
-  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 
 openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
@@ -73,6 +75,10 @@ grun:
       allowed-content-types: ${GRUN_PROFILE_AVATAR_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
       storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
+  security:
+    login:
+      max-failed-attempts: ${GRUN_SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}
+      lock-minutes: ${GRUN_SECURITY_LOGIN_LOCK_MINUTES:15}
   ai:
     enabled: ${GRUN_AI_ENABLED:false}
     provider: ${GRUN_AI_PROVIDER:DISABLED}
@@ -133,8 +139,11 @@ grun:
       api-url: ${GRUN_BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
   refresh-token:
     expiration-days: ${GRUN_REFRESH_TOKEN_EXPIRATION_DAYS:30}
+  tokens:
+    cleanup-interval-ms: ${GRUN_TOKENS_CLEANUP_INTERVAL_MS:3600000}
   rate-limit:
     enabled: ${GRUN_RATE_LIMIT_ENABLED:true}
+    trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
       enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
     auth:

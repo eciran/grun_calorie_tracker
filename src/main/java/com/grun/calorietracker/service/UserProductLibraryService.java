@@ -7,11 +7,11 @@ import java.util.List;
 
 public interface UserProductLibraryService {
     List<FoodProductDto> getRecentProducts(String email, int limit);
-    List<FoodProductDto> getFavoriteProducts(String email);
+    List<FoodProductDto> getFavoriteProducts(String email, int page, int size);
     FoodProductDto addFavoriteProduct(String email, Long productId);
     void removeFavoriteProduct(String email, Long productId);
     FoodProductDto createCustomFood(String email, CustomFoodRequestDto request);
     FoodProductDto updateCustomFood(String email, Long productId, CustomFoodRequestDto request);
     void deleteCustomFood(String email, Long productId);
-    List<FoodProductDto> getCustomFoods(String email);
+    List<FoodProductDto> getCustomFoods(String email, int page, int size);
 }

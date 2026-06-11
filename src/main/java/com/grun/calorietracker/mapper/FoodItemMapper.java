@@ -2,6 +2,9 @@ package com.grun.calorietracker.mapper;
 
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.ProductQualityLabel;
+import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 
 import java.util.List;
@@ -118,6 +121,8 @@ public class FoodItemMapper {
         dto.setAllergens(entity.getAllergens());
         dto.setNutriScore(entity.getNutriScore());
         dto.setCustom(entity.getIsCustom());
+        dto.setProductQualityLabel(resolveQualityLabel(entity));
+        dto.setProductQualityMessage(resolveQualityMessage(dto.getProductQualityLabel()));
         return dto;
     }
 
@@ -148,5 +153,24 @@ public class FoodItemMapper {
 
     private static String formatLocalDateTime(java.time.LocalDateTime value) {
         return value == null ? null : value.toString();
+    }
+
+    private static ProductQualityLabel resolveQualityLabel(FoodItemEntity entity) {
+        if (entity.getVerificationStatus() == VerificationStatus.VERIFIED) {
+            return Boolean.TRUE.equals(entity.getIsCustom()) ? ProductQualityLabel.COMMUNITY : ProductQualityLabel.VERIFIED;
+        }
+        if (entity.getDataSource() == FoodDataSource.OPEN_FOOD_FACTS) {
+            return ProductQualityLabel.IMPORTED;
+        }
+        return ProductQualityLabel.NEEDS_REVIEW;
+    }
+
+    private static String resolveQualityMessage(ProductQualityLabel label) {
+        return switch (label) {
+            case VERIFIED -> "Verified by GRun";
+            case COMMUNITY -> "User-created food";
+            case IMPORTED -> "Imported data, review recommended";
+            case NEEDS_REVIEW -> "Nutrition data needs review";
+        };
     }
 }

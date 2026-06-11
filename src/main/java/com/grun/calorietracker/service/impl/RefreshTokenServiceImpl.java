@@ -49,9 +49,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     @Transactional(noRollbackFor = IllegalArgumentException.class)
     public AuthResponse refreshAccessToken(String rawRefreshToken) {
+        String tokenHash = hashToken(rawRefreshToken);
         RefreshTokenEntity token = refreshTokenRepository
-                .findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(hashToken(rawRefreshToken))
-                .orElseThrow(() -> new IllegalArgumentException("Refresh token is invalid or expired"));
+                .findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(tokenHash)
+                .orElseGet(() -> handlePotentialTokenReuse(tokenHash));
 
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
             token.setUsedAt(LocalDateTime.now());
@@ -93,6 +94,23 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         LocalDateTime now = LocalDateTime.now();
         refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user)
                 .forEach(token -> token.setRevokedAt(now));
+    }
+
+    private RefreshTokenEntity handlePotentialTokenReuse(String tokenHash) {
+        refreshTokenRepository.findByTokenHash(tokenHash)
+                .filter(token -> token.getUsedAt() != null && token.getUser() != null)
+                .ifPresent(this::revokeTokenFamilyAfterReuse);
+        throw new IllegalArgumentException("Refresh token is invalid or expired");
+    }
+
+    private void revokeTokenFamilyAfterReuse(RefreshTokenEntity reusedToken) {
+        LocalDateTime now = LocalDateTime.now();
+        if (reusedToken.getRevokedAt() == null) {
+            reusedToken.setRevokedAt(now);
+            refreshTokenRepository.save(reusedToken);
+        }
+        refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(reusedToken.getUser())
+                .forEach(activeToken -> activeToken.setRevokedAt(now));
     }
 
     private String generateRawToken() {

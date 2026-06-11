@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service.support;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 
 public final class FoodPortionCalculator {
@@ -15,14 +16,36 @@ public final class FoodPortionCalculator {
     }
 
     public static Double normalizeToGrams(Double portionSize, FoodPortionUnit portionUnit, FoodItemEntity foodItem) {
+        return normalizeToGrams(portionSize, portionUnit, foodItem, null);
+    }
+
+    public static Double normalizeToGrams(
+            Double portionSize,
+            FoodPortionUnit portionUnit,
+            FoodItemEntity foodItem,
+            FoodItemServingOptionEntity servingOption
+    ) {
         if (portionSize == null) {
             return null;
+        }
+        if (servingOption != null) {
+            return portionSize * servingOptionWeightInGrams(servingOption);
         }
         FoodPortionUnit resolvedUnit = resolveUnit(portionUnit);
         if (resolvedUnit == FoodPortionUnit.SERVING || resolvedUnit == FoodPortionUnit.PIECE) {
             return portionSize * servingSizeGrams(foodItem);
         }
         return portionSize;
+    }
+
+    private static double servingOptionWeightInGrams(FoodItemServingOptionEntity servingOption) {
+        if (servingOption.getGramWeight() != null && servingOption.getGramWeight() > 0) {
+            return servingOption.getGramWeight();
+        }
+        if (servingOption.getMlVolume() != null && servingOption.getMlVolume() > 0) {
+            return servingOption.getMlVolume();
+        }
+        throw new IllegalArgumentException("Serving option must define a positive gram weight or milliliter volume.");
     }
 
     private static double servingSizeGrams(FoodItemEntity foodItem) {

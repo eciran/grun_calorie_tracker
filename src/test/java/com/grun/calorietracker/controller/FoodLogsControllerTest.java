@@ -190,7 +190,7 @@ class FoodLogsControllerTest {
     @WithMockUser(username = "test@test.com", roles = "USER")
     void testGetFoodLogs_success() throws Exception {
         when(userService.findByEmail(anyString())).thenReturn(java.util.Optional.of(user));
-        when(foodLogsService.getFoodLogs(eq(user.getEmail()), anyString()))
+        when(foodLogsService.getFoodLogs(eq(user.getEmail()), anyString(), anyInt(), anyInt()))
                 .thenReturn(Collections.emptyList());
 
         mockMvc.perform(get("/api/v1/food-logs")

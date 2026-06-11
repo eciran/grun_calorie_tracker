@@ -3,10 +3,12 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
+import com.grun.calorietracker.dto.FoodServingOptionDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.service.FoodItemService;
+import com.grun.calorietracker.service.FoodServingOptionService;
 import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,9 @@ class FoodItemControllerTest {
 
     @MockBean
     private FoodItemService foodItemService;
+
+    @MockBean
+    private FoodServingOptionService foodServingOptionService;
 
     @MockBean
     private UserProductLibraryService userProductLibraryService;
@@ -179,6 +184,37 @@ class FoodItemControllerTest {
 
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
+    void getProductById_whenProductVisible_returnsProduct() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(12L);
+        product.setProductName("Greek yogurt");
+        when(foodItemService.getFoodItemById(12L, "user@test.com")).thenReturn(product);
+
+        mockMvc.perform(get("/api/v1/products/12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(12L))
+                .andExpect(jsonPath("$.productName").value("Greek yogurt"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getServingOptions_returnsProductSpecificOptions() throws Exception {
+        FoodServingOptionDto option = new FoodServingOptionDto();
+        option.setId(5L);
+        option.setFoodItemId(12L);
+        option.setLabel("1 slice");
+        option.setGramWeight(28.0);
+        when(foodServingOptionService.getServingOptions(12L, "user@test.com")).thenReturn(List.of(option));
+
+        mockMvc.perform(get("/api/v1/products/12/serving-options"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(5L))
+                .andExpect(jsonPath("$[0].label").value("1 slice"))
+                .andExpect(jsonPath("$[0].gramWeight").value(28.0));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
     void getRecentProducts_returnsCurrentUserProducts() throws Exception {
         FoodProductDto product = new FoodProductDto();
         product.setId(3L);
@@ -203,6 +239,21 @@ class FoodItemControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(4L))
                 .andExpect(jsonPath("$.productName").value("Banana"));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getFavoriteProducts_passesPagination() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(4L);
+        product.setProductName("Banana");
+        when(userProductLibraryService.getFavoriteProducts("user@test.com", 2, 25)).thenReturn(List.of(product));
+
+        mockMvc.perform(get("/api/v1/products/favorites")
+                        .param("page", "2")
+                        .param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(4L));
     }
 
     @Test
@@ -251,6 +302,22 @@ class FoodItemControllerTest {
     void deleteCustomFood_returnsNoContent() throws Exception {
         mockMvc.perform(delete("/api/v1/products/custom/9"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getCustomFoods_passesPagination() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(9L);
+        product.setProductName("Homemade soup");
+        product.setCustom(true);
+        when(userProductLibraryService.getCustomFoods("user@test.com", 1, 20)).thenReturn(List.of(product));
+
+        mockMvc.perform(get("/api/v1/products/custom")
+                        .param("page", "1")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].custom").value(true));
     }
 }
 

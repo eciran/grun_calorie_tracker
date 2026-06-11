@@ -7,7 +7,9 @@ import com.grun.calorietracker.dto.FoodDiaryNoteRequestDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
+import com.grun.calorietracker.dto.FoodLogRecentPortionDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.FoodDiaryNoteService;
@@ -99,7 +101,7 @@ public class FoodLogsController {
     @GetMapping
     @Operation(
             summary = "List food logs",
-            description = "Returns the authenticated user's food logs. A date filter can be supplied for a single day. Local demo seed creates today's BREAKFAST, SNACK, and LUNCH logs for demo.user@grun.local."
+            description = "Returns the authenticated user's food logs. Use date for one diary day. Without date, the endpoint returns a paged recent-history slice instead of the full diary history."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food logs returned."),
@@ -108,8 +110,12 @@ public class FoodLogsController {
     public ResponseEntity<List<FoodLogsDto>> getFoodLogs(
             @Parameter(description = "Optional log date in ISO format. Use today's date to inspect local demo seed logs.", example = "2026-05-16")
             @RequestParam(required = false) String date,
+            @Parameter(description = "Recent-history page index when date is omitted.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Recent-history page size when date is omitted. Maximum 100.", example = "50")
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(),date);
+        List<FoodLogsDto> logs = foodLogsService.getFoodLogs(userDetails.getUsername(), date, page, size);
         return ResponseEntity.ok(logs);
     }
 
@@ -175,6 +181,30 @@ public class FoodLogsController {
             @RequestParam(defaultValue = "10") @Min(1) @Max(30) int limit,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodLogsService.getRecentMeals(userDetails.getUsername(), limit));
+    }
+
+    @GetMapping("/recent-portions/{foodItemId}")
+    @Operation(
+            summary = "List recent portions for a product",
+            description = "Returns recently used portions for one product so mobile can speed up repeat food logging."
+    )
+    public ResponseEntity<List<FoodLogRecentPortionDto>> getRecentPortions(
+            @Parameter(description = "Food product id.", example = "12") @PathVariable Long foodItemId,
+            @Parameter(description = "Maximum recent portion count. Maximum 30.", example = "5")
+            @RequestParam(defaultValue = "5") @Min(1) @Max(30) int limit,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodLogsService.getRecentPortions(userDetails.getUsername(), foodItemId, limit));
+    }
+
+    @PostMapping("/quick-calorie")
+    @Operation(
+            summary = "Quick add calories",
+            description = "Creates a food diary entry from a calorie-only value without requiring product search."
+    )
+    public ResponseEntity<FoodLogsDto> quickAddCalories(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid QuickCalorieLogRequestDto request) {
+        return ResponseEntity.ok(foodLogsService.quickAddCalories(userDetails.getUsername(), request));
     }
 
     @PutMapping("/diary-note")

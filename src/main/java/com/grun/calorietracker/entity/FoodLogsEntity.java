@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodLogSource;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,6 +27,10 @@ public class FoodLogsEntity {
     @ManyToOne
     @JoinColumn(name = "food_id")
     private FoodItemEntity foodItem;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "serving_option_id")
+    private FoodItemServingOptionEntity servingOption;
 
     private Double portionSize;
 
@@ -76,6 +81,9 @@ public class FoodLogsEntity {
 
     @Column(name = "snapshot_vitamin_b12")
     private Double snapshotVitaminB12;
+
+    @Enumerated(EnumType.STRING)
+    private FoodLogSource source;
 
     private String mealType;
 

@@ -19,6 +19,7 @@ public class GdprDataExportDto {
     private UserRole role;
     private MarketRegion marketRegion;
     private PreferredLanguage preferredLanguage;
+    private String timeZone;
     private Boolean emailVerified;
     private LocalDateTime latestFoodLogAt;
     private LocalDateTime latestExerciseLogAt;

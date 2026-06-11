@@ -5,5 +5,6 @@ public enum AdminAuditTargetType {
     AI_REQUEST,
     SUBSCRIPTION_FEATURE,
     RETENTION_POLICY,
-    RECIPE
+    RECIPE,
+    USER_ACCOUNT
 }

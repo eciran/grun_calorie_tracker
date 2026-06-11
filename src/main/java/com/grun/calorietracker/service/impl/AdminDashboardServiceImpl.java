@@ -13,6 +13,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AdminDashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +28,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final SubscriptionProviderEventRepository subscriptionProviderEventRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public AdminDashboardSummaryDto getSummary() {
         long verifiedProducts = foodItemRepository.countByVerificationStatus(VerificationStatus.VERIFIED);
         long rawImportedProducts = foodItemRepository.countByVerificationStatus(VerificationStatus.RAW_IMPORTED);

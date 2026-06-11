@@ -16,6 +16,6 @@ public interface ExerciseLogsService {
     void deleteExerciseLog(Long id, String email);
 
     ExerciseLogsDto addExerciseLogFromExternal(ExerciseLogsDto dto, String email);
-    List<ExerciseLogsDto> getExerciseLogsBySource(String email, String source);
+    List<ExerciseLogsDto> getExerciseLogsBySource(String email, String source, int page, int size);
 
 }

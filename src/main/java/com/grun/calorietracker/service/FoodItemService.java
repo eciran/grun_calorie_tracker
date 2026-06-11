@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface FoodItemService {
     FoodItemEntity getOrSaveFoodItemByBarcode(String barcode);
+    FoodProductDto getFoodItemById(Long id, String email);
     List<FoodProductDto> searchFoodItems(FoodSearchCriteriaDto criteria);
     FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size);
 }

@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -11,6 +12,7 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,9 @@ class FoodItemServiceImplTest {
 
     @Mock
     private FoodItemRepository foodItemRepository;
+
+    @Mock
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
 
     @Mock
     private OpenFoodFactsService openFoodFactsService;
@@ -143,6 +148,35 @@ class FoodItemServiceImplTest {
     void getOrSaveFoodItemByBarcode_whenBarcodeIsBlank_throwsProductNotFound() {
         assertThrows(ProductNotFoundException.class,
                 () -> foodItemService.getOrSaveFoodItemByBarcode(" "));
+    }
+
+    @Test
+    void getFoodItemById_whenSharedProductExists_returnsProductDto() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(12L);
+        product.setName("Greek yogurt");
+        product.setIsCustom(false);
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+
+        FoodProductDto result = foodItemService.getFoodItemById(12L, "user@example.com");
+
+        assertEquals(12L, result.getId());
+        assertEquals("Greek yogurt", result.getProductName());
+    }
+
+    @Test
+    void getFoodItemById_whenCustomProductBelongsToAnotherUser_throwsProductNotFound() {
+        UserEntity owner = new UserEntity();
+        owner.setEmail("owner@example.com");
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(12L);
+        product.setName("Private food");
+        product.setIsCustom(true);
+        product.setCreatedByUser(owner);
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+
+        assertThrows(ProductNotFoundException.class,
+                () -> foodItemService.getFoodItemById(12L, "other@example.com"));
     }
 
     @Test

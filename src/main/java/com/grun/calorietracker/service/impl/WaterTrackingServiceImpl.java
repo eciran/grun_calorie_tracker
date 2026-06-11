@@ -17,6 +17,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.WaterTrackingService;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -33,12 +34,14 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
 
     private static final String WATER_REMINDER_TYPE = "water_reminder";
     private static final String WATER_REMINDER_MESSAGE = "Time to drink water.";
+    private static final int MIN_REMINDER_INTERVAL_MINUTES = 30;
 
     private final WaterLogRepository waterLogRepository;
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final WaterTrackingProperties waterTrackingProperties;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @Override
     @Transactional
@@ -50,7 +53,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         entity.setLogDate(request.getLogDate());
         entity.setAmountMl(request.getAmountMl());
         entity.setSource(normalizeSource(request.getSource()));
-        entity.setLoggedAt(resolveLoggedAt(request));
+        entity.setLoggedAt(resolveLoggedAt(request, user));
         return toDto(waterLogRepository.save(entity));
     }
 
@@ -116,23 +119,22 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         if (!waterTrackingProperties.getReminders().isEnabled()) {
             return 0;
         }
-        LocalDateTime now = LocalDateTime.now();
-        LocalTime currentTime = now.toLocalTime();
-        List<WaterReminderSettingsEntity> dueSettings = waterReminderSettingsRepository.findByEnabledTrue()
+        List<WaterReminderSettingsEntity> dueSettings = waterReminderSettingsRepository
+                .findByEnabledTrue()
                 .stream()
-                .filter(settings -> isWithinWindow(settings, currentTime))
-                .filter(settings -> isDue(settings, now))
+                .filter(this::isDue)
                 .toList();
 
         dueSettings.forEach(settings -> {
+            LocalDateTime userNow = userTimeZoneSupport.now(settings.getUser());
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(settings.getUser());
             notification.setType(WATER_REMINDER_TYPE);
             notification.setMessage(WATER_REMINDER_MESSAGE);
             notification.setIsRead(false);
-            notification.setCreatedAt(now);
+            notification.setCreatedAt(userNow);
             notificationRepository.save(notification);
-            settings.setLastReminderAt(now);
+            settings.setLastReminderAt(userNow);
         });
         waterReminderSettingsRepository.saveAll(dueSettings);
         return dueSettings.size();
@@ -155,11 +157,11 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         }
     }
 
-    private LocalDateTime resolveLoggedAt(WaterLogRequestDto request) {
+    private LocalDateTime resolveLoggedAt(WaterLogRequestDto request, UserEntity user) {
         if (request.getLoggedAt() != null) {
             return request.getLoggedAt();
         }
-        return request.getLogDate().atTime(LocalTime.now());
+        return request.getLogDate().atTime(userTimeZoneSupport.currentTime(user));
     }
 
     private WaterReminderSettingsEntity getOrDefaultSettings(UserEntity user) {
@@ -176,11 +178,12 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         return settings;
     }
 
-    private boolean isWithinWindow(WaterReminderSettingsEntity settings, LocalTime currentTime) {
-        return !currentTime.isBefore(settings.getStartTime()) && currentTime.isBefore(settings.getEndTime());
-    }
-
-    private boolean isDue(WaterReminderSettingsEntity settings, LocalDateTime now) {
+    private boolean isDue(WaterReminderSettingsEntity settings) {
+        LocalDateTime now = userTimeZoneSupport.now(settings.getUser());
+        LocalTime currentTime = now.toLocalTime();
+        if (currentTime.isBefore(settings.getStartTime()) || !currentTime.isBefore(settings.getEndTime())) {
+            return false;
+        }
         return settings.getLastReminderAt() == null
                 || !settings.getLastReminderAt().plusMinutes(settings.getIntervalMinutes()).isAfter(now);
     }

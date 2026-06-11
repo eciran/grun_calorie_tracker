@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -33,6 +34,12 @@ public class FoodLogsDto {
 
     @Schema(description = "Unit for portionSize. If omitted, GRAM is used. GRAM and MILLILITER use the entered amount directly for nutrition calculation; SERVING and PIECE multiply by servingSizeGrams.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "SERVING", "PIECE"})
     private FoodPortionUnit portionUnit;
+
+    @Schema(description = "Optional product-specific serving option id. When supplied, the log uses this serving option's gram/ml conversion instead of the product's legacy servingSizeGrams.", example = "5")
+    private Long servingOptionId;
+
+    @Schema(description = "Display label of the serving option used for this log.", example = "1 slice", accessMode = Schema.AccessMode.READ_ONLY)
+    private String servingOptionLabel;
 
     @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double normalizedPortionGrams;
@@ -93,6 +100,9 @@ public class FoodLogsDto {
 
     @Schema(description = "Vitamin B12 captured at log time for the entered portion in micrograms.", example = "1.1", accessMode = Schema.AccessMode.READ_ONLY)
     private Double snapshotVitaminB12;
+
+    @Schema(description = "How this food log was created.", example = "SEARCH")
+    private FoodLogSource source;
 
     @NotBlank(message = "{validation.food-log.meal-type.required}")
     @Pattern(regexp = "(?i)BREAKFAST|LUNCH|DINNER|SNACK", message = "{validation.food-log.meal-type.invalid}")

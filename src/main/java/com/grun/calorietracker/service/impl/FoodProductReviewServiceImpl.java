@@ -37,13 +37,13 @@ import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
-import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
@@ -88,11 +88,13 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodProductDto> getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus) {
         return getProductsForReview(verificationStatus, imageStatus, 0, 100).getContent();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductReviewPageDto getProductsForReview(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
@@ -103,6 +105,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductReviewPageDto getProductsForReview(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
@@ -114,6 +117,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductReviewPageDto getProductsForReview(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
@@ -126,6 +130,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductReviewPageDto getProductsForReview(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
@@ -139,6 +144,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductReviewPageDto getProductsForReview(
             VerificationStatus verificationStatus,
             ImageStatus imageStatus,
@@ -332,6 +338,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductReviewAuditPageDto getProductReviewAudits(Long productId, int page, int size) {
         if (!foodItemRepository.existsById(productId)) {
             throw new ResourceNotFoundException("Food product not found with id: " + productId);
@@ -357,6 +364,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodProductQualityIssueDto> getProductQualityIssues(Long productId, boolean activeOnly) {
         if (!foodItemRepository.existsById(productId)) {
             throw new ResourceNotFoundException("Food product not found with id: " + productId);
@@ -370,6 +378,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FoodProductDuplicateGroupPageDto getDuplicateProductGroups(int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size));
         Page<String> duplicateBarcodes = foodItemRepository.findDuplicateNormalizedBarcodes(pageable);

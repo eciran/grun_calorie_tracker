@@ -110,7 +110,7 @@ class ExerciseLogsControllerTest {
         response.setSource("GOOGLE_FIT");
         response.setExternalId("fit-123");
 
-        when(exerciseLogsService.getExerciseLogsBySource("test@test.com", "GOOGLE_FIT"))
+        when(exerciseLogsService.getExerciseLogsBySource("test@test.com", "GOOGLE_FIT", 0, 50))
                 .thenReturn(List.of(response));
 
         mockMvc.perform(get("/api/v1/exercise-logs/source/GOOGLE_FIT"))
@@ -118,6 +118,20 @@ class ExerciseLogsControllerTest {
                 .andExpect(jsonPath("$[0].id").value(10L))
                 .andExpect(jsonPath("$[0].source").value("GOOGLE_FIT"))
                 .andExpect(jsonPath("$[0].externalId").value("fit-123"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getExerciseLogsBySource_withPaginationParams_usesRequestedPage() throws Exception {
+        when(exerciseLogsService.getExerciseLogsBySource("test@test.com", "GOOGLE_FIT", 2, 25))
+                .thenReturn(List.of(new ExerciseLogsDto()));
+
+        mockMvc.perform(get("/api/v1/exercise-logs/source/GOOGLE_FIT")
+                        .param("page", "2")
+                        .param("size", "25"))
+                .andExpect(status().isOk());
+
+        verify(exerciseLogsService).getExerciseLogsBySource("test@test.com", "GOOGLE_FIT", 2, 25);
     }
 
     @Test
@@ -168,6 +182,16 @@ class ExerciseLogsControllerTest {
                         .param("end", "2026-05-01"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.path").value("/api/v1/exercise-logs/history"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void getExerciseLogHistory_WhenRangeTooLarge_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/exercise-logs/history")
+                        .param("start", "2025-01-01")
+                        .param("end", "2026-06-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Exercise date range must not exceed 366 days."));
     }
 }
 

@@ -16,6 +16,7 @@ import com.grun.calorietracker.service.AdminSystemHealthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.lang.management.ManagementFactory;
@@ -42,6 +43,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public AdminSystemHealthDto getHealth() {
         DatabaseCheck databaseCheck = checkDatabase();
         RuntimeSnapshot runtimeSnapshot = runtimeSnapshot();

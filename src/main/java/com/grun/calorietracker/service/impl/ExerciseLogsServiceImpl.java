@@ -14,7 +14,10 @@ import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -25,6 +28,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ExerciseLogsServiceImpl implements ExerciseLogsService {
+
+    private static final int DEFAULT_SOURCE_PAGE_SIZE = 50;
+    private static final int MAX_SOURCE_PAGE_SIZE = 100;
 
     private final ExerciseLogRepository exerciseLogsRepository;
     private final ExerciseItemRepository exerciseItemRepository;
@@ -56,6 +62,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ExerciseLogsDto> getExerciseLogsByDateAndUser(String email, LocalDateTime startDate, LocalDateTime endDate, String range) {
         UserEntity user = getUserByEmail(email);
 
@@ -70,6 +77,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ExerciseLogsDto> getExerciseLogsHistory(String email, LocalDateTime startDate, LocalDateTime endDate) {
         UserEntity user = getUserByEmail(email);
         return exerciseLogsRepository
@@ -80,6 +88,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ExerciseLogsDto getExerciseLogById(Long id, String email) {
         UserEntity user = getUserByEmail(email);
         ExerciseLogsEntity entity = getLogsItemById(id,user);
@@ -114,10 +123,19 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
-    public List<ExerciseLogsDto> getExerciseLogsBySource(String email, String source) {
+    @Transactional(readOnly = true)
+    public List<ExerciseLogsDto> getExerciseLogsBySource(String email, String source, int page, int size) {
         UserEntity user = getUserByEmail(email);
         String normalizedSource = normalizeRequired(source, "Source is required.");
-        return exerciseLogsRepository.findByUserAndSource(user, normalizedSource).stream()
+        int safePage = Math.max(page, 0);
+        int safeSize = size <= 0 ? DEFAULT_SOURCE_PAGE_SIZE : Math.min(size, MAX_SOURCE_PAGE_SIZE);
+        return exerciseLogsRepository.findByUserAndSource(
+                        user,
+                        normalizedSource,
+                        PageRequest.of(safePage, safeSize, Sort.by("logDate").descending())
+                )
+                .getContent()
+                .stream()
                 .map(exerciseLogsMapper::toDto)
                 .collect(Collectors.toList());
     }

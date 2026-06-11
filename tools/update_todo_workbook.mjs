@@ -2,49 +2,61 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
 
-const preferredInputPath = "C:/Users/emrah/Downloads/TODO_List.xlsx";
 const outputDir = path.resolve("outputs");
 const outputPath = path.join(outputDir, "TODO_List_updated.xlsx");
 const previewPath = path.join(outputDir, "TODO_List_updated_preview.png");
+const preferredInputPath = "C:/Users/emrah/Downloads/TODO_List.xlsx";
 const fallbackInputPath = outputPath;
-const sheetName = "Yapılacaklar Listesi";
+const sheetName = "Yapilacaklar Listesi";
 
 const rows = [
-  [null, "Yapılacaklar Listesi", null, null, null, null, null],
-  [null, "Proje Modülleri", "Yapılacaklar/Geliştirilecekler", "Açıklama", "TAMAMLANMA YÜZDESİ", "TAMAMLANDI MI?", "NOTLAR"],
-  [null, "Food ve Exercise Modülleri", "Yiyecek ve egzersiz giriş/analiz altyapısı", "Food log, custom food, meal template, recipe builder, portion unit, exercise log ve ürün arama akışları backend tarafında hazır.", 0.88, "Kısmi", "Geniş ve doğrulanmış food catalog, gerçek regional import, recipe mobil UI ve mobil entegrasyon eksik."],
-  [null, "Custom Recipe Builder", "Kullanıcının kendi tarifini oluşturup diary'ye eklemesi", "Private recipe create/list/search/update/archive, ingredient gram normalization, total/per-serving/per-100g nutrition, recipe diary log create/update/list/delete, food diary summary entegrasyonu ve admin review altyapısı eklendi.", 0.82, "Kısmi", "Backend MVP ve servis testleri hazır. Public/community recipe library, recipe versioning, image moderation ve mobil ekran entegrasyonu sonraya kaldı."],
-  [null, "Market Region / Localized Food Catalog", "IRL/TR/UK bölgesel katalog ve arama önceliği", "Kullanıcı onboarding sırasında market region seçer; food ürünleri IRL/TR/UK region bilgisi taşır.", 0.75, "Kısmi", "Backend region enum, migration, onboarding, search default region, admin filter ve CSV import desteği hazır. Gerçek regional pilot import ve daha geniş katalog bekliyor."],
-  [null, "Food Database Bulk Import", "Bölgesel Open Food Facts import ve katalog büyütme", "IRL/TR/UK için küçük pilot importlardan başlayıp kontrollü şekilde 500 ve sonra 10.000+ ürüne çıkma süreci.", 0.3, "Kısmi", "Convert script, admin import ve pilot CSV hazır. Gerçek OFF regional dataset importu yapılmadı."],
-  [null, "Çoklu Dil Desteği (i18n)", "Tüm endpoint ve hata mesajları için TR/ENG", "API validasyon ve hata mesajlarının Türkçe/İngilizce desteklenmesi.", 0.7, "Kısmi", "Temel i18n var. Swagger açıklamaları, yeni modüller ve mobil görünen metinler için periyodik kontrol gerekli."],
-  [null, "Mail Bildirimleri", "Şifre yenileme, doğrulama, bilgi e-postası için altyapı", "Şifre sıfırlama, email verification ve configurable mail provider altyapısı.", 0.85, "Kısmi", "Token tabloları, request/confirm endpointleri ve provider abstraction hazır. Production domain/API key/smoke test eksik."],
-  [null, "Brevo Production Mail Setup", "Brevo transactional email production kurulumu", "Email verification ve password reset maillerinin Brevo üzerinden gerçek gönderimi.", 0.75, "Kısmi", "Brevo branch development'a merge edildi. Sender/domain doğrulama, SPF/DKIM/DMARC ve gerçek mail smoke testleri bekliyor."],
-  [null, "Abonelik ve Promosyon Sistemi", "Free/Plus/Pro, AI quota, ek kota ve ödeme entegrasyonu", "Kullanıcı planı, AI kota, tek seferlik ek quota, feature entitlement ve RevenueCat uyumlu ödeme altyapısı.", 0.8, "Kısmi", "Backend entitlement/quota/add-on quota hazır. RevenueCat sandbox katalog ve mapping kuruldu. Production store bağlantıları ve gerçek purchase/refund webhook testleri eksik."],
-  [null, "RevenueCat Payment Integration", "App Store / Google Play subscription webhook ve entitlement eşleşmesi", "Mobil subscription ödemelerinin RevenueCat ile backend subscription modeline bağlanması.", 0.9, "Kısmi", "RevenueCat config endpointleri, mapping validation, config smoke ve webhook smoke scriptleri hazır. Gerçek App Store/Google Play sandbox purchase/refund testi mobil build ile yapılacak."],
-  [null, "AI Voice & Photo Meal Logging", "Sesli girdi ve fotoğraftan yemek taslağı üretme", "Provider-agnostic AI altyapısı, draft-only akış, kullanıcı onayı, request history, GDPR export/delete ve kota guardrail temeli ayrı branch üzerinde kuruluyor.", 1, "Tamamlandı", "Backend AI meal draft altyapısı tamamlandı: kota sadece başarılı draft sonrasında backend tarafından düşüyor, public quota consume endpoint kaldırıldı, concurrent kota harcama lock ile korundu, HTTP_JSON gerçek generic transport, secret/config validation, structured response validation, mevcut food_items üzerinden hafif catalog matching, reviewRequired/matchReason alanları, confirmation güvenlik testi, AI draft rate limit, latency/token/cost telemetry, admin health AI usage/failure summary, safety guard, backend photo upload/reference contract, privacy-safe history input metadata, kısa ömürlü photo reference cleanup, orijinal AI draft output korunarak confirmation/correction metadata saklama, opsiyonel reject reason/feedback, admin rejection reason monitoring ve request-level cap kontrollü admin kota iadesi audit trail ile eklendi. Kalanlar backend geliştirme değil: gerçek provider seçimi/API key/model, provider-specific prompt/schema smoke ve mobil AI flow testi."],
-  [null, "Fasting Tracking", "Intermittent fasting plan, session ve reminder akışı", "Kullanıcı fasting planını yönetir, session başlatır/bitirir/iptal eder ve günlük summary/streak bilgisi alır.", 0.85, "Kısmi", "Backend plan/session/summary/cancel akışı, GDPR export/delete, mobile contract ve hedef bitişe yaklaşan aktif session için in-app reminder notification altyapısı hazır. Mobil ekran, push provider bağlantısı ve haftalık/aylık istatistikler eksik."],
-  [null, "Admin Paneli ve Analiz Ekranları", "Kullanıcı takibi, katalog review ve operasyon ekranları", "Admin user list, dashboard summary, product review queue, audit history, duplicate merge ve geçici admin UI.", 0.7, "Kısmi", "Backend admin API ve local geçici admin UI var. AI draft usage/failure/confirmation/open-draft monitoring health response'a eklendi. AI review queue ve request-level capped quota refund admin UI aksiyonu eklendi. Final web admin panel, finansal raporlar, user-level abuse monitoring ve detaylı metrikler eksik."],
-  [null, "Mobile API Contract", "Mobil uygulama için backend sözleşmesi", "Auth, startup, onboarding, food/water/fasting/recipe tracking, subscription, region, health ve AI meal draft davranışlarının mobil için sabitlenmesi.", 0.93, "Kısmi", "Mobile API contract güncel; fasting plan/session/cancel/summary, recipe builder/logging, water reminders, public AI quota consume endpoint kaldırılması, AI draft endpointleri, photo upload/reference contract ve review-first AI confirmation akışı dokümante edildi. Frontend entegrasyonu, native health payload doğrulaması, gerçek mobil AI flow testi ve push provider bağlantısı eksik."],
-  [null, "Google ve Apple ile Login/Register", "Google/Apple kimlikleri ile giriş/kayıt", "Mobil social login için Google ve Apple token verification ve identity linking.", 0.7, "Kısmi", "Backend endpointleri ve verification servisleri eklendi. Production client id/audience/Apple setup ve mobil native flow testi eksik."],
-  [null, "Onboarding ve Kullanıcı Hedef Akışı", "Register/login sonrası profil, region ve hedef kurulumu", "Profil, market region, hedef tipi, aktivite seviyesi ve hedef kilo tek onboarding request ile alınır; kalori/makro hedefi hesaplanır.", 0.9, "Kısmi", "POST /api/v1/onboarding/complete, startup state ve region zorunluluğu hazır. Mobil ekran entegrasyonu ve canlı kullanıcı testi eksik."],
-  [null, "Vücut Kitle İndeksi (BMI) ve Vücut Yağ Oranı Hesaplama", "Profil bilgilerinden BMI/body fat hesaplama", "Boy, kilo, yaş ve cinsiyet ile BMI/body fat hesaplama ve profil response desteği.", 0.85, "Kısmi", "Backend hesaplama var. Mobil anlık feedback ve edge-case UX eksik."],
-  [null, "Üçüncü Parti Health Entegrasyonları", "Apple Health, Apple Watch, Google Fit, Health Connect", "Wearable ve health platformlarından mobil izinle veri okuyup backend'e normalize metric sync etme.", 0.8, "Kısmi", "Backend provider connection, batch sync, daily/range summary, delete/revoke ve paid feature gating hazır. Native iOS HealthKit, Android Health Connect, store privacy beyanları ve canlı cihaz testi eksik."],
-  [null, "Frontend (mobil/web) geliştirme", "Kullanıcı dostu mobil/web arayüz", "Mobil uygulama ekranlarının ve varsa web/admin UI'ın geliştirilmesi.", 0.05, "Hayır", "Backend mobil kontrata hazırlanıyor. Asıl mobil frontend henüz repo içinde başlamadı."],
-  [null, "Reklam Yönetimi", "Standart kullanıcılara reklam ve gelir modeli", "Reklam placement, frequency cap ve kullanıcıyı rahatsız etmeyen gelir modeli.", 0, "Hayır", "Sadece strateji konuşuldu. MVP sonrasında değerlendirilmesi öneriliyor."],
-  [null, "Veri Anonimleştirme & GDPR Uyumlu Altyapı", "Kullanıcı verilerinin gizliliği ve yasal uyum", "GDPR/UK GDPR/KVKK için veri silme, export, consent ve audit süreçleri.", 0.78, "Kısmi", "Kullanıcı data export, current-password kontrollü anonymize/delete, consent history, retention policy admin API ve RevenueCat payment event scrub akışı eklendi. Legal metinlerin final versiyonları ve canlı acceptance testi eksik."],
-  [null, "Production Readiness", "Prod profile, logging, secrets, deployment checklist", "Production ortamına çıkış için config, observability, secret ve deployment hazırlığı.", 0.55, "Kısmi", "Docker/local run, Flyway, Redis rate-limit altyapısı, production gate ve smoke scriptleri var. Recipe backend compile ve servis testleri geçti. AWS deployment, secret inventory, monitoring alarm eşikleri, food database büyütme, store sandbox testleri ve prod profile sertleştirme eksik."],
-  [null, "Trainer / Gym Marketplace", "Bölgesel trainer, diyetisyen ve salon listeleme modeli", "Kullanıcının bölgesine göre profesyonel destek alabilmesi ve trainer/salonlardan ek gelir modeli.", 0, "Uzun Vade", "MVP dışı uzun vadeli fikir. Professional profile, verification, legal/privacy ve B2B payment modeli ayrıca tasarlanmalı."],
-  [null, "AI Workout Planner", "AI ile kişisel antrenman planı ve egzersiz kütüphanesi", "Kullanıcı hedefi, seviyesi, ekipmanı ve geçmiş loglarına göre AI plan üretimi.", 0, "Uzun Vade", "Uzun vadeli vizyon olarak kayıtlı. Exercise library, safety layer, AI recommendation history ve provider maliyet modeli ileride tasarlanacak."],
+  [null, "Yapilacaklar Listesi", null, null, null, null, null],
+  [null, "Proje Modulleri", "Yapilacaklar/Gelistirilecekler", "Aciklama", "TAMAMLANMA YUZDESI", "TAMAMLANDI MI?", "NOTLAR"],
+  [null, "Backend Core & Hardening", "Security, transaction, migration, scale ve hata yonetimi", "Flyway, Open-In-View kapatma, read-only transaction cleanup, pagination/index, account login protection, optimistic locking ve global error handling guclendirildi.", 0.9, "Kismi", "Temel backend guclu. Kalan isler daha cok production ortam, full real smoke ve provider testleri."],
+  [null, "Food ve Exercise Modulleri", "Yiyecek ve egzersiz giris/analiz altyapisi", "Food log, portion unit, custom food, favorites, recent meals, meal template, exercise log, source history ve dashboard summary akislari backend tarafinda hazir.", 0.92, "Kismi", "Genis ve dogrulanmis food catalog, gercek regional import, mobil UI entegrasyonu ve buyuk veri performans testi eksik."],
+  [null, "Recipe Builder", "Custom recipe, recipe log, rating/favorite/save ve AI recipe temeli", "Recipe CRUD, nutrition calculation, diary log entegrasyonu, social interaction temeli, AI recipe generation altyapisi ve image moderation metadata kuruldu.", 0.9, "Kismi", "Public/community recipe library, final mobile ekran testi ve gercek visual moderation provider canli testi sonraya birakildi."],
+  [null, "Water Tracking", "Su takibi, gunluk summary ve reminder tercihleri", "Water log, daily hydration summary, reminder settings ve account-level hydration notification preference hazir.", 0.9, "Kismi", "Production push provider baglantisi ve mobil notification permission flow eksik."],
+  [null, "Fasting Tracking", "Intermittent fasting plan, session, summary ve reminder akisi", "Plan/session/start/finish/cancel, daily summary, streak ve timezone-aware in-app reminder altyapisi hazir.", 0.9, "Kismi", "5:2 urun davranisi netlesirse CUSTOM disinda ayri model tasarlanacak. Mobil ekran ve push provider testi eksik."],
+  [null, "Market Region / Localized Food Catalog", "EU/UK_IE/TR/GLOBAL katalog ve arama onceligi", "User onboarding market region, localized search fallback ve product region modeli hazir.", 0.85, "Kismi", "Gercek EU/UK_IE/TR dataset importu ve bolgesel kalite/coverage olcumu bekliyor."],
+  [null, "Food Database Bulk Import", "Open Food Facts import ve katalog buyutme", "CSV/import pipeline, admin import, kalite alanlari ve duplicate/review altyapisi hazir.", 0.35, "Kismi", "10k+ gercek regional import bilincli olarak ertelendi. Pilot dataset ile ilerleniyor."],
+  [null, "Food Product Admin Review", "Katalog kalite, gorsel, audit, duplicate ve issue yonetimi", "Admin review queue, status/image review, audit history, quality issue, duplicate group/merge ve product detail endpointleri hazir.", 0.9, "Kismi", "Final admin UX, bulk curation workflow ve buyuk katalog operasyon testleri eksik."],
+  [null, "Coklu Dil Destegi (i18n)", "TR/ENG hata ve mesaj altyapisi", "Temel i18n ve Accept-Language hata kategorileri var.", 0.75, "Kismi", "Yeni moduller, Swagger aciklamalari ve mobil gorunen metinler periyodik kontrol istiyor."],
+  [null, "Mail Bildirimleri", "Password reset, email verification ve provider abstraction", "Password reset, email verification, token hash, resend cooldown, failed delivery admin alert ve configurable provider altyapisi hazir.", 0.92, "Kismi", "Final domain reputation, SPF/DKIM/DMARC production kontrolu ve periyodik deliverability izleme eksik."],
+  [null, "Brevo Production Mail Setup", "Brevo transactional email ve admin monitoring", "Brevo mail gonderimi manuel Swagger/prod smoke ile dogrulandi; sender monitoring/admin ekranlari eklendi.", 0.9, "Kismi", "Canli domain/mail reputation izleme ve production alarm esikleri netlesecek."],
+  [null, "Abonelik ve Promosyon Sistemi", "Free/Plus/Pro, entitlement, AI quota ve add-on quota", "Plan feature matrix, entitlement snapshot, AI kota, tek seferlik add-on quota, concurrency guard ve admin yonetim altyapisi hazir.", 0.88, "Kismi", "Fiyat/urun kararlari, store product mapping final ve mobil satin alma testi eksik."],
+  [null, "RevenueCat Payment Integration", "Store subscription webhook, config ve monitoring", "RevenueCat config, product mapping, webhook, smoke script, sandbox/production monitoring ekranlari ve chart altyapisi hazir.", 0.86, "Kismi", "Gercek App Store / Google Play sandbox purchase/refund/cancel/renew testleri mobil build ile yapilacak."],
+  [null, "AI Voice & Photo Meal Logging", "Sesli/fotografli meal draft ve quota guardrail", "Provider-agnostic AI draft, review-first confirmation, quota lock, rate limit, request history, photo reference contract, telemetry, safety guard, admin monitoring ve GDPR destegi tamamlandi.", 0.95, "Kismi", "Gercek provider/model/key secimi, provider-specific prompt/schema smoke ve mobil AI flow testi bekliyor."],
+  [null, "Admin Paneli ve Analiz Ekranlari", "Operasyonel admin UI ve monitoring", "Local modern admin UI; users, food ops, product review, subscriptions, mail/Brevo, RevenueCat, health, audit ve system pages uzerinde calisiyor.", 0.82, "Kismi", "Final production admin auth/hosting, detayli financial analytics ve long-term abuse monitoring eksik."],
+  [null, "Mobile API Contract", "Mobil uygulama icin backend sozlesmesi", "Auth, startup, onboarding, food/water/fasting, recipe, subscription, region, health, AI draft, notification preference ve product detail kontratlari guncel.", 0.96, "Kismi", "Gercek mobil entegrasyon, native health payload testi, push provider ve store purchase flow testleri eksik."],
+  [null, "Google ve Apple ile Login/Register", "Federated auth ve identity linking", "Google/Apple token verification, account linking/unlink ve password setup akislari backend tarafinda hazir.", 0.78, "Kismi", "Production client id/audience/Apple nonce native flow ve canli mobil test eksik."],
+  [null, "Onboarding ve Kullanici Hedef Akisi", "Register/login sonrasi profil, region, timezone, units ve goal kurulumu", "Tek onboarding complete endpointi profil, market region, language, timezone, unit preference ve kalori/makro goal akisini destekliyor.", 0.95, "Kismi", "Mobil ekran entegrasyonu ve canli kullanici flow testi eksik."],
+  [null, "BMI ve Body Fat", "Profil metriklerinden BMI/body fat hesaplama", "Backend hesaplama ve profile response destegi var.", 0.9, "Kismi", "Mobil anlik feedback ve edge-case UX eksik."],
+  [null, "Health Entegrasyonlari", "Apple Health / Health Connect backend sync", "Provider connection, batch sync, daily/range summary, delete/revoke, paid feature gating ve timezone destegi hazir.", 0.82, "Kismi", "Native iOS HealthKit, Android Health Connect ve gercek cihaz/store privacy testleri eksik."],
+  [null, "Notifications", "In-app notification ve tercih altyapisi", "Notification list/read/read-all, system alerts, water/fasting in-app reminders ve account notification preferences hazir.", 0.82, "Kismi", "Push notification provider ve mobile permission/token lifecycle eksik."],
+  [null, "GDPR / Legal", "Export, delete, consent ve retention", "Data export/delete, password-controlled anonymize/delete, consent history, retention policy admin API ve payment event scrub akislari var.", 0.88, "Kismi", "Final legal metinler, store declarations ve production acceptance kayitlari eksik."],
+  [null, "Production Readiness", "Prod config, observability, scripts ve AWS hazirligi", "Prod config checklist, production gate, smoke scripts, Redis rate limit, JPA hardening, admin system health ve deployment notlari hazir.", 0.72, "Kismi", "AWS deploy, secret inventory, CloudWatch alarms, RDS sizing ve full staging smoke bekliyor."],
+  [null, "Frontend Mobil/Web", "Mobil app ve final admin web UI", "Backend mobil kontrata hazir. Admin UI local olarak gelisti; asil mobil app ayri calisiliyor.", 0.1, "Hayir", "Mobil frontend repo/entegrasyon, native flows ve final design QA ana bekleyen alan."],
+  [null, "Reklam Yonetimi", "Ad placement, frequency cap ve gelir modeli", "Sadece strateji olarak konusuldu.", 0, "Hayir", "MVP sonrasinda ve subscription dengesi netlesince degerlendirilmeli."],
+  [null, "Trainer / Gym Marketplace", "Bolgesel trainer, diyetisyen ve salon modeli", "Kullanici bolgesine gore profesyonel destek ve B2B gelir modeli fikri kayitli.", 0, "Uzun Vade", "MVP disi. Professional verification, legal/privacy ve marketplace payment ayri tasarlanacak."],
+  [null, "AI Workout Planner", "AI ile antrenman plani ve exercise library", "Uzun vadeli urun vizyonu olarak kayitli.", 0, "Uzun Vade", "Exercise library, safety layer, AI recommendation history ve provider maliyet modeli daha sonra tasarlanacak."],
+  [null, "Exercise Technique Library", "Spor salonu/ev hareket anlatimi ve animasyonlu gosterim", "Kullanici bir egzersizi nasil yapacagini merak ettiginde bakabilecegi hareket detay sayfasi planlandi. Her hareket icin adim adim aciklama, hedef kas grubu, ekipman, zorluk, ev/salon uygunlugu, sik yapilan hatalar, guvenlik notlari ve animasyon/video/gif gosterimi desteklenecek.", 0, "Uzun Vade", "ExerciseItem modeli bu ihtiyaca gore genisletilecek. Ilk asamada admin tarafindan yonetilen dogrulanmis hareket katalogu kurulacak; AI workout planner ileride bu katalogdan referans verecek."],
 ];
 
 await fs.mkdir(outputDir, { recursive: true });
 
-const inputPath = await fileExists(preferredInputPath) ? preferredInputPath : fallbackInputPath;
+const inputPath = await fs.access(preferredInputPath)
+  .then(() => preferredInputPath)
+  .catch(() => fallbackInputPath);
 const input = await FileBlob.load(inputPath);
 const workbook = await SpreadsheetFile.importXlsx(input);
-const sheet = workbook.worksheets.getItem(sheetName);
+let sheet;
+try {
+  sheet = workbook.worksheets.getItem(sheetName);
+} catch {
+  sheet = workbook.worksheets.getItem("Yap\u0131lacaklar Listesi");
+}
 
-sheet.getRange("A1:G40").clear({ applyTo: "contents" });
+sheet.getRange("A1:G60").clear({ applyTo: "contents" });
 sheet.getRangeByIndexes(0, 0, rows.length, 7).values = rows;
 
 sheet.getRange("B1:G1").merge();
@@ -81,7 +93,7 @@ sheet.getRange(`3:${rows.length}`).format.rowHeightPx = 72;
 sheet.freezePanes.freezeRows(2);
 
 const preview = await workbook.render({
-  sheetName,
+  sheetName: sheet.name,
   range: `A1:G${rows.length}`,
   scale: 1,
   format: "png",
@@ -92,12 +104,3 @@ const exported = await SpreadsheetFile.exportXlsx(workbook);
 await exported.save(outputPath);
 
 console.log(JSON.stringify({ outputPath, previewPath, rows: rows.length }));
-
-async function fileExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}

@@ -2,6 +2,8 @@ package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,6 +26,7 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
   //  List<ExerciseLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
     Optional<ExerciseLogsEntity> findByIdAndUser(Long id, UserEntity user);
     List<ExerciseLogsEntity> findByUserAndSource(UserEntity user, String source);
+    Page<ExerciseLogsEntity> findByUserAndSource(UserEntity user, String source, Pageable pageable);
     Optional<ExerciseLogsEntity> findByUserAndSourceAndExternalId(UserEntity user, String source, String externalId);
 
     @Query(value = """

@@ -94,11 +94,11 @@ class OnboardingControllerTest {
     }
 
     @Test
-    void completeOnboarding_whenUnauthenticated_returnsForbidden() throws Exception {
+    void completeOnboarding_whenUnauthenticated_returnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/v1/onboarding/complete")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest())))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     private OnboardingCompleteRequestDto validRequest() {
