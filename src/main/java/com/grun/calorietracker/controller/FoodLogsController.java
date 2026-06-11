@@ -7,7 +7,9 @@ import com.grun.calorietracker.dto.FoodDiaryNoteRequestDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
+import com.grun.calorietracker.dto.FoodLogRecentPortionDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.FoodDiaryNoteService;
@@ -179,6 +181,30 @@ public class FoodLogsController {
             @RequestParam(defaultValue = "10") @Min(1) @Max(30) int limit,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodLogsService.getRecentMeals(userDetails.getUsername(), limit));
+    }
+
+    @GetMapping("/recent-portions/{foodItemId}")
+    @Operation(
+            summary = "List recent portions for a product",
+            description = "Returns recently used portions for one product so mobile can speed up repeat food logging."
+    )
+    public ResponseEntity<List<FoodLogRecentPortionDto>> getRecentPortions(
+            @Parameter(description = "Food product id.", example = "12") @PathVariable Long foodItemId,
+            @Parameter(description = "Maximum recent portion count. Maximum 30.", example = "5")
+            @RequestParam(defaultValue = "5") @Min(1) @Max(30) int limit,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodLogsService.getRecentPortions(userDetails.getUsername(), foodItemId, limit));
+    }
+
+    @PostMapping("/quick-calorie")
+    @Operation(
+            summary = "Quick add calories",
+            description = "Creates a food diary entry from a calorie-only value without requiring product search."
+    )
+    public ResponseEntity<FoodLogsDto> quickAddCalories(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid QuickCalorieLogRequestDto request) {
+        return ResponseEntity.ok(foodLogsService.quickAddCalories(userDetails.getUsername(), request));
     }
 
     @PutMapping("/diary-note")

@@ -12,6 +12,7 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class FoodItemServiceImplTest {
 
     @Mock
     private FoodItemRepository foodItemRepository;
+
+    @Mock
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
 
     @Mock
     private OpenFoodFactsService openFoodFactsService;

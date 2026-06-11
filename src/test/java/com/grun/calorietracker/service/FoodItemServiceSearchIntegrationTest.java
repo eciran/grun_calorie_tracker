@@ -7,6 +7,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,13 +26,21 @@ class FoodItemServiceSearchIntegrationTest {
     @Autowired
     private FoodItemRepository foodItemRepository;
 
+    @Autowired
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
+
     private FoodItemServiceImpl foodItemService;
 
     @BeforeEach
     void setUp() {
         OpenFoodFactsService openFoodFactsService = Mockito.mock(OpenFoodFactsService.class);
         FoodProductQualityIssueTracker foodProductQualityIssueTracker = Mockito.mock(FoodProductQualityIssueTracker.class);
-        foodItemService = new FoodItemServiceImpl(foodItemRepository, openFoodFactsService, foodProductQualityIssueTracker);
+        foodItemService = new FoodItemServiceImpl(
+                foodItemRepository,
+                foodItemServingOptionRepository,
+                openFoodFactsService,
+                foodProductQualityIssueTracker
+        );
     }
 
     @Test

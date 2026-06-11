@@ -5,12 +5,17 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodServingOptionDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
+import com.grun.calorietracker.dto.ProductCorrectionSuggestionDto;
+import com.grun.calorietracker.dto.ProductCorrectionSuggestionRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.mapper.FoodItemMapper;
+import com.grun.calorietracker.exception.ProductNotFoundException;
+import com.grun.calorietracker.service.FailedBarcodeScanService;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.FoodServingOptionService;
+import com.grun.calorietracker.service.ProductCorrectionSuggestionService;
 import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +44,8 @@ public class FoodItemController {
 
     private final FoodItemService foodItemService;
     private final FoodServingOptionService foodServingOptionService;
+    private final FailedBarcodeScanService failedBarcodeScanService;
+    private final ProductCorrectionSuggestionService productCorrectionSuggestionService;
     private final UserProductLibraryService userProductLibraryService;
     private final UserService userService;
 
@@ -95,9 +102,21 @@ public class FoodItemController {
     })
     public ResponseEntity<FoodProductDto> getProductByBarcode(
             @Parameter(description = "Product barcode.", example = "3017620422003")
-            @PathVariable String barcode) {
-        FoodItemEntity foodItemEntity = foodItemService.getOrSaveFoodItemByBarcode(barcode);
-        return ResponseEntity.ok(FoodItemMapper.mapEntityToDto(foodItemEntity));
+            @PathVariable String barcode,
+            @Parameter(description = "Optional market region used when recording failed barcode scans.", example = "UK_IE")
+            @RequestParam(required = false) MarketRegion region,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            FoodItemEntity foodItemEntity = foodItemService.getOrSaveFoodItemByBarcode(barcode);
+            return ResponseEntity.ok(FoodItemMapper.mapEntityToDto(foodItemEntity));
+        } catch (ProductNotFoundException ex) {
+            failedBarcodeScanService.recordFailedScan(
+                    barcode,
+                    region,
+                    userDetails == null ? null : userDetails.getUsername()
+            );
+            throw ex;
+        }
     }
 
     @GetMapping("/{id}")
@@ -130,6 +149,18 @@ public class FoodItemController {
             @Parameter(description = "Food product id.", example = "12") @PathVariable Long id,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodServingOptionService.getServingOptions(id, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{id}/correction-suggestions")
+    @Operation(
+            summary = "Suggest product correction",
+            description = "Creates a user-submitted nutrition correction suggestion for admin review."
+    )
+    public ResponseEntity<ProductCorrectionSuggestionDto> suggestProductCorrection(
+            @Parameter(description = "Food product id.", example = "12") @PathVariable Long id,
+            @RequestBody @Valid ProductCorrectionSuggestionRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productCorrectionSuggestionService.suggestCorrection(id, userDetails.getUsername(), request));
     }
 
     @GetMapping("/recent")

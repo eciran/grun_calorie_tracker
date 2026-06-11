@@ -85,6 +85,26 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
             Pageable pageable
     );
 
+    @Query(value = """
+            SELECT f.portion_size,
+                   f.portion_unit,
+                   f.serving_option_id,
+                   so.label,
+                   f.normalized_portion_grams,
+                   f.source
+            FROM food_logs f
+            LEFT JOIN food_item_serving_options so ON so.id = f.serving_option_id
+            WHERE f.user_id = :userId
+              AND f.food_id = :foodItemId
+            GROUP BY f.portion_size, f.portion_unit, f.serving_option_id, so.label, f.normalized_portion_grams, f.source
+            ORDER BY MAX(f.log_date) DESC
+            """, nativeQuery = true)
+    List<Object[]> findRecentPortionsByUserAndFoodItem(
+            @Param("userId") Long userId,
+            @Param("foodItemId") Long foodItemId,
+            Pageable pageable
+    );
+
     @Modifying
     @Query("UPDATE FoodLogsEntity foodLog SET foodLog.foodItem = :targetFoodItem WHERE foodLog.foodItem.id IN :sourceFoodItemIds")
     int reassignFoodItemReferences(

@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodLogSource;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -80,6 +81,9 @@ public class FoodLogsEntity {
 
     @Column(name = "snapshot_vitamin_b12")
     private Double snapshotVitaminB12;
+
+    @Enumerated(EnumType.STRING)
+    private FoodLogSource source;
 
     private String mealType;
 

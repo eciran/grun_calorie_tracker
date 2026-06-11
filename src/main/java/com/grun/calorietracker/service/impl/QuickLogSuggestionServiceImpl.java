@@ -31,9 +31,9 @@ public class QuickLogSuggestionServiceImpl implements QuickLogSuggestionService 
         dto.setTargetDate(targetDate == null ? LocalDate.now() : targetDate);
         dto.setSuggestedMealType(mealType);
         dto.setRecentMeals(foodLogsService.getRecentMeals(email, safeLimit));
-        dto.setMealTemplates(sortTemplates(mealTemplateService.getTemplates(email), mealType, safeLimit));
+        dto.setMealTemplates(sortTemplates(mealTemplateService.getTemplates(email, 0, safeLimit), mealType, safeLimit));
         dto.setRecentProducts(userProductLibraryService.getRecentProducts(email, safeLimit));
-        dto.setFavoriteProducts(userProductLibraryService.getFavoriteProducts(email).stream().limit(safeLimit).toList());
+        dto.setFavoriteProducts(userProductLibraryService.getFavoriteProducts(email, 0, safeLimit).stream().limit(safeLimit).toList());
         return dto;
     }
 

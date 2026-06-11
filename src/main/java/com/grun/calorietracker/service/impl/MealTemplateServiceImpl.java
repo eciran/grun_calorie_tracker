@@ -277,6 +277,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
 
     private Double round(Double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
 
     private int safePage(int page) {
         return Math.max(page, 0);

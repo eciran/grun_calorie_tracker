@@ -39,6 +39,7 @@ const rows = [
   [null, "Reklam Yonetimi", "Ad placement, frequency cap ve gelir modeli", "Sadece strateji olarak konusuldu.", 0, "Hayir", "MVP sonrasinda ve subscription dengesi netlesince degerlendirilmeli."],
   [null, "Trainer / Gym Marketplace", "Bolgesel trainer, diyetisyen ve salon modeli", "Kullanici bolgesine gore profesyonel destek ve B2B gelir modeli fikri kayitli.", 0, "Uzun Vade", "MVP disi. Professional verification, legal/privacy ve marketplace payment ayri tasarlanacak."],
   [null, "AI Workout Planner", "AI ile antrenman plani ve exercise library", "Uzun vadeli urun vizyonu olarak kayitli.", 0, "Uzun Vade", "Exercise library, safety layer, AI recommendation history ve provider maliyet modeli daha sonra tasarlanacak."],
+  [null, "Exercise Technique Library", "Spor salonu/ev hareket anlatimi ve animasyonlu gosterim", "Kullanici bir egzersizi nasil yapacagini merak ettiginde bakabilecegi hareket detay sayfasi planlandi. Her hareket icin adim adim aciklama, hedef kas grubu, ekipman, zorluk, ev/salon uygunlugu, sik yapilan hatalar, guvenlik notlari ve animasyon/video/gif gosterimi desteklenecek.", 0, "Uzun Vade", "ExerciseItem modeli bu ihtiyaca gore genisletilecek. Ilk asamada admin tarafindan yonetilen dogrulanmis hareket katalogu kurulacak; AI workout planner ileride bu katalogdan referans verecek."],
 ];
 
 await fs.mkdir(outputDir, { recursive: true });

@@ -4,13 +4,19 @@ import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
+import com.grun.calorietracker.dto.FoodLogRecentPortionDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodLogSource;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
@@ -24,7 +30,6 @@ import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,6 +75,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         applyNutritionSnapshot(entity, foodItem);
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
+        entity.setSource(resolveSource(dto.getSource(), FoodLogSource.MANUAL));
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         markFoodItemUsed(foodItem);
@@ -120,6 +126,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         applyNutritionSnapshot(entity, foodItem);
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
+        entity.setSource(resolveSource(dto.getSource(), entity.getSource()));
 
         return toDto(foodLogsRepository.save(entity));
     }
@@ -198,6 +205,37 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 ).stream()
                 .map(key -> toRecentMeal(user, toLocalDate(key[0]), normalizeMealType((String) key[1])))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FoodLogRecentPortionDto> getRecentPortions(String email, Long foodItemId, int limit) {
+        UserEntity user = getUser(email);
+        FoodItemEntity foodItem = foodItemRepository.findById(foodItemId)
+                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+        ensureFoodItemAvailableToUser(foodItem, user);
+        return foodLogsRepository.findRecentPortionsByUserAndFoodItem(
+                        user.getId(),
+                        foodItem.getId(),
+                        PageRequest.of(0, normalizeLimit(limit))
+                ).stream()
+                .map(this::toRecentPortionDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public FoodLogsDto quickAddCalories(String email, QuickCalorieLogRequestDto request) {
+        UserEntity user = getUser(email);
+        FoodItemEntity quickCalories = getOrCreateQuickCaloriesFood(user);
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(quickCalories.getId());
+        dto.setPortionSize(request.getCalories());
+        dto.setPortionUnit(FoodPortionUnit.GRAM);
+        dto.setMealType(request.getMealType());
+        dto.setLogDate(request.getLogDate());
+        dto.setSource(FoodLogSource.QUICK_ADD);
+        return addFoodLog(dto, email);
     }
 
     @Override
@@ -498,6 +536,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         copy.setSnapshotVitaminD(source.getSnapshotVitaminD());
         copy.setSnapshotVitaminE(source.getSnapshotVitaminE());
         copy.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
+        copy.setSource(FoodLogSource.RECENT);
         copy.setMealType(normalizeMealType(source.getMealType()));
         copy.setLogDate(targetDate.atTime(source.getLogDate().toLocalTime()));
         return copy;
@@ -567,6 +606,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setSnapshotVitaminD(entity.getSnapshotVitaminD());
         dto.setSnapshotVitaminE(entity.getSnapshotVitaminE());
         dto.setSnapshotVitaminB12(entity.getSnapshotVitaminB12());
+        dto.setSource(resolveSource(entity.getSource(), FoodLogSource.MANUAL));
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;
@@ -608,6 +648,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
             return null;
         }
         return round(perHundredGrams * grams / 100.0);
+    }
 
     private FoodItemServingOptionEntity resolveServingOption(Long servingOptionId, FoodItemEntity foodItem) {
         if (servingOptionId == null) {
@@ -615,5 +656,44 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         }
         return foodItemServingOptionRepository.findByIdAndFoodItem(servingOptionId, foodItem)
                 .orElseThrow(() -> new IllegalArgumentException("Serving option does not belong to the selected food item."));
+    }
+
+    private FoodLogSource resolveSource(FoodLogSource source, FoodLogSource fallback) {
+        return source == null ? fallback : source;
+    }
+
+    private FoodLogRecentPortionDto toRecentPortionDto(Object[] row) {
+        FoodLogRecentPortionDto dto = new FoodLogRecentPortionDto();
+        dto.setPortionSize(toDouble(row[0]));
+        dto.setPortionUnit(row[1] == null ? FoodPortionUnit.GRAM : FoodPortionUnit.valueOf(row[1].toString()));
+        dto.setServingOptionId(row[2] == null ? null : ((Number) row[2]).longValue());
+        dto.setServingOptionLabel(row[3] == null ? null : row[3].toString());
+        dto.setNormalizedPortionGrams(toDouble(row[4]));
+        dto.setSource(row[5] == null ? FoodLogSource.MANUAL : FoodLogSource.valueOf(row[5].toString()));
+        return dto;
+    }
+
+    private FoodItemEntity getOrCreateQuickCaloriesFood(UserEntity user) {
+        String sourceKey = "quick-calorie:user:" + user.getId();
+        return foodItemRepository.findBySourceKey(sourceKey)
+                .orElseGet(() -> {
+                    FoodItemEntity item = new FoodItemEntity();
+                    item.setName("Quick calories");
+                    item.setSourceKey(sourceKey);
+                    item.setCalories(100.0);
+                    item.setProtein(0.0);
+                    item.setCarbs(0.0);
+                    item.setFat(0.0);
+                    item.setServingSizeGrams(100.0);
+                    item.setServingUnit("kcal");
+                    item.setDataSource(FoodDataSource.MANUAL);
+                    item.setCatalogType(FoodCatalogType.USER_CUSTOM);
+                    item.setVerificationStatus(VerificationStatus.VERIFIED);
+                    item.setIsCustom(true);
+                    item.setCreatedByUser(user);
+                    item.setUsageCount(0L);
+                    FoodProductQualityRules.updateQualityAndReviewPriority(item);
+                    return foodItemRepository.save(item);
+                });
     }
 }

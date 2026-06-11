@@ -14,6 +14,7 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
@@ -38,15 +39,18 @@ import java.util.Objects;
 public class FoodItemServiceImpl implements FoodItemService {
 
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final OpenFoodFactsService openFoodFactsService;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     public FoodItemServiceImpl(
             FoodItemRepository foodItemRepository,
+            FoodItemServingOptionRepository foodItemServingOptionRepository,
             OpenFoodFactsService openFoodFactsService,
             FoodProductQualityIssueTracker foodProductQualityIssueTracker
     ) {
         this.foodItemRepository = foodItemRepository;
+        this.foodItemServingOptionRepository = foodItemServingOptionRepository;
         this.openFoodFactsService = openFoodFactsService;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
     }
@@ -78,7 +82,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         if (isRejected(product) || !isVisibleToUser(product, email)) {
             throw new ProductNotFoundException("Product not found: " + id);
         }
-        return FoodItemMapper.mapEntityToDto(product);
+        return toProductDto(product);
     }
 
     @Override
@@ -419,7 +423,7 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private FoodProductSearchPageDto toSearchPageDto(Page<FoodItemEntity> products) {
         FoodProductSearchPageDto dto = new FoodProductSearchPageDto();
-        dto.setContent(FoodItemMapper.mapEntityListToDtoList(products.getContent()));
+        dto.setContent(products.getContent().stream().map(this::toProductDto).toList());
         dto.setPage(products.getNumber());
         dto.setSize(products.getSize());
         dto.setTotalElements(products.getTotalElements());
@@ -433,4 +437,12 @@ public class FoodItemServiceImpl implements FoodItemService {
         return toSearchPageDto(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
     }
 
+    private FoodProductDto toProductDto(FoodItemEntity product) {
+        FoodProductDto dto = FoodItemMapper.mapEntityToDto(product);
+        foodItemServingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product)
+                .stream()
+                .findFirst()
+                .ifPresent(option -> dto.setDefaultServingOptionId(option.getId()));
+        return dto;
+    }
 }

@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -99,6 +100,9 @@ public class FoodLogsDto {
 
     @Schema(description = "Vitamin B12 captured at log time for the entered portion in micrograms.", example = "1.1", accessMode = Schema.AccessMode.READ_ONLY)
     private Double snapshotVitaminB12;
+
+    @Schema(description = "How this food log was created.", example = "SEARCH")
+    private FoodLogSource source;
 
     @NotBlank(message = "{validation.food-log.meal-type.required}")
     @Pattern(regexp = "(?i)BREAKFAST|LUNCH|DINNER|SNACK", message = "{validation.food-log.meal-type.invalid}")

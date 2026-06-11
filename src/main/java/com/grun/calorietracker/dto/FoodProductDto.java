@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualityLabel;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -160,4 +161,13 @@ public class FoodProductDto {
 
     @Schema(description = "Whether this product was manually created by the authenticated user.", example = "false")
     private Boolean custom;
+
+    @Schema(description = "User-facing product data quality label.", example = "VERIFIED")
+    private ProductQualityLabel productQualityLabel;
+
+    @Schema(description = "Short user-facing data quality message.", example = "Verified by GRun")
+    private String productQualityMessage;
+
+    @Schema(description = "Default product-specific serving option id when available.", example = "5")
+    private Long defaultServingOptionId;
 }

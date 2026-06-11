@@ -55,10 +55,31 @@ public class DailySummaryDto {
     @Schema(description = "Micronutrients consumed on the summary date. Null means no micronutrient data was available.")
     private MicronutrientTotalsDto consumedMicros;
 
+    @Schema(description = "Simple nutrition quality score from 0 to 100 based on macro and selected micronutrient targets.")
+    private Integer nutritionQualityScore;
+
+    @Schema(description = "Whether protein target is reached on this summary date.", example = "true")
+    private Boolean proteinTargetHit;
+
+    @Schema(description = "Whether fiber intake is at or above the default daily target.", example = "false")
+    private Boolean fiberTargetHit;
+
+    @Schema(description = "Warning when sugar intake is above the default daily threshold.", example = "true")
+    private Boolean sugarWarning;
+
+    @Schema(description = "Warning when sodium intake is above the default daily threshold.", example = "false")
+    private Boolean sodiumWarning;
+
+    @Schema(description = "Meal-level macro and calorie distribution.")
+    private List<MealMacroDistributionDto> mealMacroDistribution;
+
     @Schema(description = "Current user weight from latest progress log or user profile.", example = "82.0")
     private Double currentWeight;
     @Schema(description = "Target weight from active user goal.", example = "78.0")
     private Double targetWeight;
+
+    @Schema(description = "Smoothed weight trend based on recent progress logs.")
+    private WeightTrendDto weightTrend;
 
     @Schema(description = "Active goal type.", example = "LOSE_WEIGHT")
     private String goalType;
