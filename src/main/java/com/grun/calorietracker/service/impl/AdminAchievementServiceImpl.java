@@ -31,7 +31,10 @@ public class AdminAchievementServiceImpl implements AdminAchievementService {
             AchievementServiceImpl.PROGRESS_LOG_COUNT,
             AchievementServiceImpl.WEIGHT_PROGRESS_KG,
             AchievementServiceImpl.WATER_LOG_COUNT,
-            AchievementServiceImpl.WATER_TARGET_HIT_COUNT
+            AchievementServiceImpl.WATER_TARGET_HIT_COUNT,
+            AchievementServiceImpl.STEP_TARGET_HIT_DAYS,
+            AchievementServiceImpl.STEP_CURRENT_STREAK_DAYS,
+            AchievementServiceImpl.STEP_BEST_DAILY_STEPS
     );
 
     private static final Set<String> SUPPORTED_METRIC_KEY_SET = Set.copyOf(SUPPORTED_METRIC_KEYS);

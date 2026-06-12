@@ -6,5 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public enum HealthProvider {
     APPLE_HEALTH,
     GOOGLE_FIT,
-    HEALTH_CONNECT
+    HEALTH_CONNECT,
+    MANUAL
 }

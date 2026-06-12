@@ -89,4 +89,19 @@ public class UserEntity {
     @Column(name = "hydration_reminders_enabled", nullable = false)
     private Boolean hydrationRemindersEnabled = true;
 
+    @Column(name = "step_reminders_enabled", nullable = false)
+    private Boolean stepRemindersEnabled = true;
+
+    @Column(name = "fasting_reminders_enabled", nullable = false)
+    private Boolean fastingRemindersEnabled = true;
+
+    @Column(name = "recipe_suggestions_enabled", nullable = false)
+    private Boolean recipeSuggestionsEnabled = true;
+
+    @Column(name = "ai_insights_enabled", nullable = false)
+    private Boolean aiInsightsEnabled = true;
+
+    @Column(name = "weekly_reports_enabled", nullable = false)
+    private Boolean weeklyReportsEnabled = true;
+
 }

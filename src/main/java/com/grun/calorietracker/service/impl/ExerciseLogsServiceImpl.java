@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.exception.DuplicateExternalExerciseLogException;
 import com.grun.calorietracker.exception.ExerciseItemNotFoundException;
 import com.grun.calorietracker.exception.ExerciseLogNotFoundException;
@@ -54,7 +55,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         ExerciseLogsEntity entity = getLogsItemById(id, user);
         ExerciseItemEntity exerciseItem = getExerciseItemById(dto.getExerciseItemId());
         entity.setExerciseItem(exerciseItem);
-        entity.setDurationMinutes(dto.getDurationMinutes());
+        applyExerciseMetrics(entity, dto);
         entity.setCaloriesBurned(dto.getCaloriesBurned());
         entity.setLogDate(dto.getLogDate());
         entity.setExtraData(dto.getExtraData());
@@ -144,11 +145,71 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         ExerciseLogsEntity entity = new ExerciseLogsEntity();
         entity.setUser(user);
         entity.setExerciseItem(exerciseItem);
-        entity.setDurationMinutes(dto.getDurationMinutes());
+        applyExerciseMetrics(entity, dto);
         entity.setCaloriesBurned(dto.getCaloriesBurned());
         entity.setLogDate(dto.getLogDate());
         entity.setExtraData(dto.getExtraData());
         return entity;
+    }
+
+    private void applyExerciseMetrics(ExerciseLogsEntity entity, ExerciseLogsDto dto) {
+        validateAtLeastOneMeasurement(dto);
+        entity.setDurationMinutes(dto.getDurationMinutes());
+        entity.setSetCount(dto.getSetCount());
+        entity.setReps(dto.getReps());
+        entity.setWeightKg(dto.getWeightKg());
+        entity.setDistanceKm(dto.getDistanceKm());
+        entity.setMeasurementType(resolveMeasurementType(dto));
+    }
+
+    private void validateAtLeastOneMeasurement(ExerciseLogsDto dto) {
+        if (positive(dto.getDurationMinutes())
+                || positive(dto.getSetCount())
+                || positive(dto.getReps())
+                || positive(dto.getWeightKg())
+                || positive(dto.getDistanceKm())) {
+            return;
+        }
+        throw new IllegalArgumentException("Exercise log requires at least one measurement: durationMinutes, setCount, reps, weightKg, or distanceKm.");
+    }
+
+    private ExerciseLogMeasurementType resolveMeasurementType(ExerciseLogsDto dto) {
+        if (dto.getMeasurementType() != null) {
+            return dto.getMeasurementType();
+        }
+        boolean hasDuration = positive(dto.getDurationMinutes());
+        boolean hasSets = positive(dto.getSetCount());
+        boolean hasReps = positive(dto.getReps());
+        boolean hasWeight = positive(dto.getWeightKg());
+        boolean hasDistance = positive(dto.getDistanceKm());
+        int metricKinds = (hasDuration ? 1 : 0)
+                + (hasSets || hasReps ? 1 : 0)
+                + (hasWeight ? 1 : 0)
+                + (hasDistance ? 1 : 0);
+        if (metricKinds > 1 && !(hasWeight && hasReps && metricKinds == 2)) {
+            return ExerciseLogMeasurementType.MIXED;
+        }
+        if (hasWeight && hasReps) {
+            return ExerciseLogMeasurementType.WEIGHT_REPS;
+        }
+        if (hasSets && hasReps) {
+            return ExerciseLogMeasurementType.SETS_REPS;
+        }
+        if (hasReps) {
+            return ExerciseLogMeasurementType.REPS;
+        }
+        if (hasDistance) {
+            return ExerciseLogMeasurementType.DISTANCE;
+        }
+        return ExerciseLogMeasurementType.DURATION;
+    }
+
+    private boolean positive(Integer value) {
+        return value != null && value > 0;
+    }
+
+    private boolean positive(Double value) {
+        return value != null && value > 0;
     }
 
     private String normalizeSource(String source, String defaultSource) {

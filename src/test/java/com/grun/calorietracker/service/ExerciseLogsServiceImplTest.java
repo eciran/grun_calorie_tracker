@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.exception.DuplicateExternalExerciseLogException;
 import com.grun.calorietracker.mapper.ExerciseLogsMapper;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
@@ -158,6 +159,49 @@ class ExerciseLogsServiceImplTest {
         assertEquals(60, result.getDurationMinutes());
         assertEquals(500.0, existing.getCaloriesBurned());
         assertEquals(request.getLogDate(), existing.getLogDate());
+    }
+
+    @Test
+    void addExerciseLog_whenRepsOnly_setsRepMeasurement() {
+        ExerciseLogsDto request = new ExerciseLogsDto();
+        request.setExerciseItemId(3L);
+        request.setReps(30);
+        request.setCaloriesBurned(40.0);
+        request.setLogDate(LocalDateTime.of(2026, 6, 12, 8, 0));
+
+        ExerciseLogsDto response = new ExerciseLogsDto();
+        response.setId(20L);
+        response.setMeasurementType(ExerciseLogMeasurementType.REPS);
+        response.setReps(30);
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(exerciseItemRepository.findById(3L)).thenReturn(Optional.of(exerciseItem));
+        when(exerciseLogsRepository.save(any(ExerciseLogsEntity.class))).thenAnswer(invocation -> {
+            ExerciseLogsEntity entity = invocation.getArgument(0);
+            assertEquals(ExerciseLogMeasurementType.REPS, entity.getMeasurementType());
+            assertEquals(30, entity.getReps());
+            assertEquals("MANUAL", entity.getSource());
+            return entity;
+        });
+        when(exerciseLogsMapper.toDto(any(ExerciseLogsEntity.class))).thenReturn(response);
+
+        ExerciseLogsDto result = exerciseLogsService.addExerciseLog(request, "test@test.com");
+
+        assertEquals(ExerciseLogMeasurementType.REPS, result.getMeasurementType());
+        assertEquals(30, result.getReps());
+    }
+
+    @Test
+    void addExerciseLog_whenNoMeasurementProvided_rejects() {
+        ExerciseLogsDto request = new ExerciseLogsDto();
+        request.setExerciseItemId(3L);
+        request.setCaloriesBurned(40.0);
+        request.setLogDate(LocalDateTime.of(2026, 6, 12, 8, 0));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(exerciseItemRepository.findById(3L)).thenReturn(Optional.of(exerciseItem));
+
+        assertThrows(IllegalArgumentException.class, () -> exerciseLogsService.addExerciseLog(request, "test@test.com"));
     }
 
     @Test

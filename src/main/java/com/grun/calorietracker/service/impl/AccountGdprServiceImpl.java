@@ -38,6 +38,7 @@ import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
+import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
@@ -94,6 +95,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
     private final FastingPlanRepository fastingPlanRepository;
     private final FastingSessionRepository fastingSessionRepository;
+    private final StepGoalRepository stepGoalRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -215,6 +217,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         notificationRepository.deleteByUser(user);
         userAchievementRepository.deleteByUser(user);
         deviceDataRepository.deleteByUser(user);
+        stepGoalRepository.deleteByUser(user);
         healthConnectionRepository.deleteByUser(user);
         goalRepository.deleteByUser(user);
         appliedPromoRepository.deleteByUser(user);
@@ -309,6 +312,11 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 log.getId(),
                 log.getExerciseItem() == null ? null : log.getExerciseItem().getName(),
                 log.getDurationMinutes(),
+                log.getMeasurementType() == null ? null : log.getMeasurementType().name(),
+                log.getSetCount(),
+                log.getReps(),
+                log.getWeightKg(),
+                log.getDistanceKm(),
                 log.getCaloriesBurned(),
                 log.getLogDate(),
                 log.getSource(),

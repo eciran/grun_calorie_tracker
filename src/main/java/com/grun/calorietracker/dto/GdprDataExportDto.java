@@ -144,6 +144,11 @@ public class GdprDataExportDto {
         private Long id;
         private String exerciseName;
         private Integer durationMinutes;
+        private String measurementType;
+        private Integer setCount;
+        private Integer reps;
+        private Double weightKg;
+        private Double distanceKm;
         private Double caloriesBurned;
         private LocalDateTime logDate;
         private String source;

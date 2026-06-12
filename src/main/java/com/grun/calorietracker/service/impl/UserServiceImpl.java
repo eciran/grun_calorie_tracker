@@ -280,6 +280,21 @@ public class UserServiceImpl implements UserService {
         if (request.getHydrationRemindersEnabled() != null) {
             user.setHydrationRemindersEnabled(request.getHydrationRemindersEnabled());
         }
+        if (request.getStepRemindersEnabled() != null) {
+            user.setStepRemindersEnabled(request.getStepRemindersEnabled());
+        }
+        if (request.getFastingRemindersEnabled() != null) {
+            user.setFastingRemindersEnabled(request.getFastingRemindersEnabled());
+        }
+        if (request.getRecipeSuggestionsEnabled() != null) {
+            user.setRecipeSuggestionsEnabled(request.getRecipeSuggestionsEnabled());
+        }
+        if (request.getAiInsightsEnabled() != null) {
+            user.setAiInsightsEnabled(request.getAiInsightsEnabled());
+        }
+        if (request.getWeeklyReportsEnabled() != null) {
+            user.setWeeklyReportsEnabled(request.getWeeklyReportsEnabled());
+        }
         return toNotificationPreferenceDto(userRepository.save(user));
     }
 
@@ -391,7 +406,12 @@ public class UserServiceImpl implements UserService {
         return new NotificationPreferenceDto(
                 user.getPushNotificationsEnabled(),
                 user.getMealRemindersEnabled(),
-                user.getHydrationRemindersEnabled()
+                user.getHydrationRemindersEnabled(),
+                user.getStepRemindersEnabled(),
+                user.getFastingRemindersEnabled(),
+                user.getRecipeSuggestionsEnabled(),
+                user.getAiInsightsEnabled(),
+                user.getWeeklyReportsEnabled()
         );
     }
 }

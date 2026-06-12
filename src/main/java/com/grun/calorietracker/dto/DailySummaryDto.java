@@ -55,6 +55,12 @@ public class DailySummaryDto {
     @Schema(description = "Micronutrients consumed on the summary date. Null means no micronutrient data was available.")
     private MicronutrientTotalsDto consumedMicros;
 
+    @Schema(description = "Default daily micronutrient targets used by the dashboard quality model.")
+    private MicronutrientTotalsDto targetMicros;
+
+    @Schema(description = "Remaining amount to reach default daily micronutrient targets. Values can be negative when intake is above target.")
+    private MicronutrientTotalsDto remainingMicros;
+
     @Schema(description = "Simple nutrition quality score from 0 to 100 based on macro and selected micronutrient targets.")
     private Integer nutritionQualityScore;
 
@@ -112,4 +118,7 @@ public class DailySummaryDto {
 
     @Schema(description = "Third-party health data summary for the same date.")
     private HealthDailySummaryDto healthSummary;
+
+    @Schema(description = "Dedicated step tracking summary for the same date.")
+    private StepDailySummaryDto stepSummary;
 }
