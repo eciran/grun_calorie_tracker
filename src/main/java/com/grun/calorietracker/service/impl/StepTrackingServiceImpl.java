@@ -16,6 +16,7 @@ import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.StepTrackingService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     private final StepGoalRepository stepGoalRepository;
     private final DeviceDataRepository deviceDataRepository;
     private final NotificationRepository notificationRepository;
+    private final PushDeliveryService pushDeliveryService;
     private final UserTimeZoneSupport userTimeZoneSupport;
 
     @Override
@@ -150,7 +152,8 @@ public class StepTrackingServiceImpl implements StepTrackingService {
             notification.setMessage(STEP_REMINDER_MESSAGE);
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
-            notificationRepository.save(notification);
+            NotificationEntity saved = notificationRepository.save(notification);
+            pushDeliveryService.deliver(saved);
             goal.setLastReminderAt(userNow);
         });
         stepGoalRepository.saveAll(dueGoals);

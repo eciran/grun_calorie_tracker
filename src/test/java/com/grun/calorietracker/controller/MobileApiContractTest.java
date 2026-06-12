@@ -94,6 +94,8 @@ class MobileApiContractTest {
                 "/api/v1/meal-plans/{planId}/duplicate",
                 "/api/v1/meal-plans/{planId}/grocery-list",
                 "/api/v1/notifications",
+                "/api/v1/devices/push-tokens",
+                "/api/v1/devices/push-tokens/{id}",
                 "/api/v1/account/legal/consents",
                 "/api/v1/account/gdpr/export",
                 "/api/v1/health/connections"

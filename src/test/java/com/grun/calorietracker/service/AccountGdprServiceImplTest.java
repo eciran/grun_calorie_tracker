@@ -29,6 +29,7 @@ import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
+import com.grun.calorietracker.repository.UserPushTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
@@ -80,6 +81,7 @@ class AccountGdprServiceImplTest {
     @Mock private FastingPlanRepository fastingPlanRepository;
     @Mock private FastingSessionRepository fastingSessionRepository;
     @Mock private StepGoalRepository stepGoalRepository;
+    @Mock private UserPushTokenRepository userPushTokenRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     private AccountGdprServiceImpl service;
@@ -118,6 +120,7 @@ class AccountGdprServiceImplTest {
                 fastingPlanRepository,
                 fastingSessionRepository,
                 stepGoalRepository,
+                userPushTokenRepository,
                 passwordEncoder
         );
 
@@ -179,6 +182,7 @@ class AccountGdprServiceImplTest {
         verify(fastingSessionRepository).deleteByUser(user);
         verify(fastingPlanRepository).deleteByUser(user);
         verify(stepGoalRepository).deleteByUser(user);
+        verify(userPushTokenRepository).deleteByUser(user);
         verify(subscriptionProviderEventRepository).anonymizeUserReferences(user, "deleted-user:10", "{}");
         verify(aiRequestHistoryRepository).deleteByUser(user);
         verify(subscriptionRepository).deleteByUser(user);

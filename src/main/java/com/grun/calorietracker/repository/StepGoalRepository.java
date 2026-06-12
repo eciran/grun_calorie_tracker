@@ -10,5 +10,6 @@ import java.util.Optional;
 public interface StepGoalRepository extends JpaRepository<StepGoalEntity, Long> {
     Optional<StepGoalEntity> findByUser(UserEntity user);
     List<StepGoalEntity> findByReminderEnabledTrue();
+    long countByReminderEnabledTrue();
     long deleteByUser(UserEntity user);
 }

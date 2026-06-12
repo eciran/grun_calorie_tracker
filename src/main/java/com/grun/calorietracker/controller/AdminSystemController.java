@@ -1,10 +1,12 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminSystemHealthDto;
+import com.grun.calorietracker.dto.AdminPushMonitoringDto;
 import com.grun.calorietracker.dto.AiProviderSmokeResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.service.AiProviderSmokeService;
+import com.grun.calorietracker.service.AdminPushMonitoringService;
 import com.grun.calorietracker.service.AdminSystemHealthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,6 +34,7 @@ public class AdminSystemController {
 
     private final AdminSystemHealthService adminSystemHealthService;
     private final AiProviderSmokeService aiProviderSmokeService;
+    private final AdminPushMonitoringService adminPushMonitoringService;
 
     @GetMapping("/health")
     @Operation(
@@ -49,6 +52,20 @@ public class AdminSystemController {
     })
     public ResponseEntity<AdminSystemHealthDto> getHealth() {
         return ResponseEntity.ok(adminSystemHealthService.getHealth());
+    }
+
+    @GetMapping("/push-monitoring")
+    @Operation(
+            summary = "Get push notification monitoring summary",
+            description = "Returns safe push provider configuration and delivery counters. Secrets and raw tokens are never returned."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Push monitoring summary returned.", content = @Content(schema = @Schema(implementation = AdminPushMonitoringDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AdminPushMonitoringDto> getPushMonitoring() {
+        return ResponseEntity.ok(adminPushMonitoringService.getMonitoring());
     }
 
     @PostMapping("/ai-provider/smoke")

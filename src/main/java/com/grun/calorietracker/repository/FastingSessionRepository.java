@@ -25,6 +25,8 @@ public interface FastingSessionRepository extends JpaRepository<FastingSessionEn
     );
     List<FastingSessionEntity> findByUserOrderByStartedAtAsc(UserEntity user);
     long countByUser(UserEntity user);
+    long countByStartedAtAfter(LocalDateTime startedAt);
+    long countByStatus(FastingSessionStatus status);
     long deleteByUser(UserEntity user);
     boolean existsByUserAndFastingDateAndStatusAndTargetReachedTrue(
             UserEntity user,
@@ -39,6 +41,33 @@ public interface FastingSessionRepository extends JpaRepository<FastingSessionEn
     );
 
     long countByUserAndStatusAndTargetReachedTrue(UserEntity user, FastingSessionStatus status);
+
+    @Query("""
+            SELECT COUNT(DISTINCT session.user.id)
+            FROM FastingSessionEntity session
+            WHERE session.startedAt >= :startedAt
+            """)
+    long countDistinctUsersByStartedAtAfter(@Param("startedAt") LocalDateTime startedAt);
+
+    @Query("""
+            SELECT COALESCE(SUM(session.actualMinutes), 0)
+            FROM FastingSessionEntity session
+            WHERE session.startedAt >= :startedAt
+              AND session.actualMinutes IS NOT NULL
+            """)
+    long sumActualMinutesByStartedAtAfter(@Param("startedAt") LocalDateTime startedAt);
+
+    @Query("""
+            SELECT session.fastingDate, COUNT(session), COUNT(DISTINCT session.user.id), COALESCE(SUM(session.actualMinutes), 0)
+            FROM FastingSessionEntity session
+            WHERE session.fastingDate BETWEEN :startDate AND :endDate
+            GROUP BY session.fastingDate
+            ORDER BY session.fastingDate
+            """)
+    List<Object[]> aggregateDailyFasting(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 
     @Query(value = """
             SELECT COUNT(DISTINCT fasting_date)

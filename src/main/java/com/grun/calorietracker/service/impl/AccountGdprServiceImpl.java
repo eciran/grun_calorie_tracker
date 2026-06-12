@@ -37,6 +37,7 @@ import com.grun.calorietracker.repository.MealTemplateRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.UserPushTokenRepository;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
@@ -96,6 +97,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final FastingPlanRepository fastingPlanRepository;
     private final FastingSessionRepository fastingSessionRepository;
     private final StepGoalRepository stepGoalRepository;
+    private final UserPushTokenRepository userPushTokenRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -218,6 +220,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         userAchievementRepository.deleteByUser(user);
         deviceDataRepository.deleteByUser(user);
         stepGoalRepository.deleteByUser(user);
+        userPushTokenRepository.deleteByUser(user);
         healthConnectionRepository.deleteByUser(user);
         goalRepository.deleteByUser(user);
         appliedPromoRepository.deleteByUser(user);

@@ -22,6 +22,7 @@ import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FastingTrackingService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +55,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final PushDeliveryService pushDeliveryService;
 
     @Value("${grun.fasting.reminders.enabled:true}")
     private boolean fastingRemindersEnabled;
@@ -255,7 +257,8 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
             notification.setMessage(FASTING_REMINDER_MESSAGE);
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
-            notificationRepository.save(notification);
+            NotificationEntity saved = notificationRepository.save(notification);
+            pushDeliveryService.deliver(saved);
             session.setReminderSentAt(userNow);
         });
         fastingSessionRepository.saveAll(dueSessions);

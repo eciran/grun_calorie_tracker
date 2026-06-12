@@ -30,12 +30,14 @@ class StepTrackingServiceImplTest {
     private final StepGoalRepository stepGoalRepository = mock(StepGoalRepository.class);
     private final DeviceDataRepository deviceDataRepository = mock(DeviceDataRepository.class);
     private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
+    private final PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
     private final UserTimeZoneSupport userTimeZoneSupport = mock(UserTimeZoneSupport.class);
     private final StepTrackingServiceImpl service = new StepTrackingServiceImpl(
             userRepository,
             stepGoalRepository,
             deviceDataRepository,
             notificationRepository,
+            pushDeliveryService,
             userTimeZoneSupport
     );
 

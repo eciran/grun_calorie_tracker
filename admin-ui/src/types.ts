@@ -285,6 +285,53 @@ export type AdminMailMonitoring = {
   checkedAt?: string;
 };
 
+export type AdminPushMonitoring = {
+  enabled?: boolean;
+  provider?: string;
+  activeTokenCount?: number;
+  activeTokensByProvider?: Record<string, number>;
+  sentLast24h?: number;
+  failedLast24h?: number;
+  expoConfigured?: boolean;
+  fcmConfigured?: boolean;
+  oneSignalConfigured?: boolean;
+};
+
+export type AdminTrackingModuleSummary = {
+  module?: string;
+  recordsLastRange?: number;
+  activeUsersLastRange?: number;
+  totalValueLastRange?: number;
+  totalValueUnit?: string;
+  configuredUsers?: number;
+  reminderEnabledUsers?: number;
+  activeNow?: number;
+};
+
+export type AdminTrackingTrendPoint = {
+  date?: string;
+  waterMl?: number;
+  waterLogs?: number;
+  waterUsers?: number;
+  fastingMinutes?: number;
+  fastingSessions?: number;
+  fastingUsers?: number;
+  steps?: number;
+  stepRecords?: number;
+  stepUsers?: number;
+};
+
+export type AdminTrackingSummary = {
+  generatedAt?: string;
+  rangeDays?: number;
+  startDate?: string;
+  endDate?: string;
+  water?: AdminTrackingModuleSummary;
+  fasting?: AdminTrackingModuleSummary;
+  steps?: AdminTrackingModuleSummary;
+  trends?: AdminTrackingTrendPoint[];
+};
+
 export type AdminBrevoSender = {
   id?: number;
   name?: string;

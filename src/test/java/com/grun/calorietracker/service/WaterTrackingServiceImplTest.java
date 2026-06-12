@@ -44,6 +44,8 @@ class WaterTrackingServiceImplTest {
     private WaterReminderSettingsRepository waterReminderSettingsRepository;
     @Mock
     private NotificationRepository notificationRepository;
+    @Mock
+    private PushDeliveryService pushDeliveryService;
 
     private WaterTrackingServiceImpl service;
     private UserEntity user;
@@ -59,7 +61,8 @@ class WaterTrackingServiceImplTest {
                 notificationRepository,
                 userRepository,
                 properties,
-                new UserTimeZoneSupport()
+                new UserTimeZoneSupport(),
+                pushDeliveryService
         );
 
         user = new UserEntity();
@@ -222,7 +225,8 @@ class WaterTrackingServiceImplTest {
                 notificationRepository,
                 userRepository,
                 properties,
-                new UserTimeZoneSupport()
+                new UserTimeZoneSupport(),
+                pushDeliveryService
         );
 
         int created = service.createDueReminderNotifications();

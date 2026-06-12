@@ -46,6 +46,8 @@ class FastingTrackingServiceImplTest {
     private NotificationRepository notificationRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private PushDeliveryService pushDeliveryService;
 
     private FastingTrackingServiceImpl service;
     private UserEntity user;
@@ -58,7 +60,8 @@ class FastingTrackingServiceImplTest {
                 fastingSessionRepository,
                 notificationRepository,
                 userRepository,
-                new UserTimeZoneSupport()
+                new UserTimeZoneSupport(),
+                pushDeliveryService
         );
         ReflectionTestUtils.setField(service, "fastingRemindersEnabled", true);
         ReflectionTestUtils.setField(service, "fastingReminderLeadMinutes", 30);
