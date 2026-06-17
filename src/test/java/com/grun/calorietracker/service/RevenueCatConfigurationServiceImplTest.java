@@ -81,7 +81,18 @@ class RevenueCatConfigurationServiceImplTest {
     }
 
     @Test
-    void validateMapping_whenProductTokenMatches_returnsSubscription() {
+    void validateMapping_whenStrictMappingAndOnlyProductTokenMatches_returnsFailed() {
+        RevenueCatMappingValidationRequestDto request = request("INITIAL_PURCHASE", "store_pro_yearly", List.of());
+
+        RevenueCatMappingValidationResponseDto result = service.validateMapping(request);
+
+        assertThat(result.isRecognized()).isFalse();
+        assertThat(result.getMappingType()).isEqualTo("FAILED");
+    }
+
+    @Test
+    void validateMapping_whenStrictMappingDisabledAndProductTokenMatches_returnsSubscription() {
+        properties.setStrictProductMapping(false);
         RevenueCatMappingValidationRequestDto request = request("INITIAL_PURCHASE", "store_pro_yearly", List.of());
 
         RevenueCatMappingValidationResponseDto result = service.validateMapping(request);

@@ -108,6 +108,42 @@ class RefreshTokenServiceImplTest {
     }
 
     @Test
+    void refreshAccessToken_whenAccountDisabled_revokesTokenAndThrows() {
+        user.setAccountEnabled(false);
+        RefreshTokenEntity existing = new RefreshTokenEntity();
+        existing.setUser(user);
+        existing.setExpiresAt(LocalDateTime.now().plusDays(1));
+
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("raw-refresh-token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Refresh token is invalid or expired");
+
+        assertThat(existing.getRevokedAt()).isNotNull();
+        verify(refreshTokenRepository).save(existing);
+    }
+
+    @Test
+    void refreshAccessToken_whenAccountLocked_revokesTokenAndThrows() {
+        user.setAccountLocked(true);
+        RefreshTokenEntity existing = new RefreshTokenEntity();
+        existing.setUser(user);
+        existing.setExpiresAt(LocalDateTime.now().plusDays(1));
+
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("raw-refresh-token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Refresh token is invalid or expired");
+
+        assertThat(existing.getRevokedAt()).isNotNull();
+        verify(refreshTokenRepository).save(existing);
+    }
+
+    @Test
     void refreshAccessToken_whenUsedTokenReplayed_revokesActiveTokensForUser() {
         RefreshTokenEntity reused = new RefreshTokenEntity();
         reused.setUser(user);

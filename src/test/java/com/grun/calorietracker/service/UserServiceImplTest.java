@@ -44,6 +44,9 @@ class UserServiceImplTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     @Spy
     private UserTimeZoneSupport userTimeZoneSupport = new UserTimeZoneSupport();
 
@@ -57,6 +60,7 @@ class UserServiceImplTest {
                 passwordEncoder,
                 authenticationManager,
                 jwtUtil,
+                refreshTokenService,
                 userTimeZoneSupport,
                 5,
                 15
@@ -311,6 +315,7 @@ class UserServiceImplTest {
 
         assertEquals(false, result.getAccountEnabled());
         assertEquals(true, result.getAccountLocked());
+        verify(refreshTokenService).revokeAllForUser(testUser);
         verify(userRepository).save(testUser);
     }
 

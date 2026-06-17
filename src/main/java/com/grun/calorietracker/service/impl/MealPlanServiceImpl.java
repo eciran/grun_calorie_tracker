@@ -16,6 +16,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.MealPlanItemType;
 import com.grun.calorietracker.enums.MealPlanStatus;
+import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
@@ -181,6 +182,9 @@ public class MealPlanServiceImpl implements MealPlanService {
             if (itemRequest.getItemType() == MealPlanItemType.FOOD_ITEM) {
                 FoodItemEntity foodItem = foodItemRepository.findById(itemRequest.getFoodItemId())
                         .orElseThrow(() -> new ResourceNotFoundException("Food item not found"));
+                if (!isVisibleToUser(foodItem, user)) {
+                    throw new ResourceNotFoundException("Food item not found");
+                }
                 item.setFoodItem(foodItem);
                 item.setPortionSize(itemRequest.getPortionSize());
                 item.setPortionUnit(itemRequest.getPortionUnit());
@@ -272,6 +276,18 @@ public class MealPlanServiceImpl implements MealPlanService {
         return mealPlanRepository.findByIdAndUser(planId, user)
                 .filter(plan -> plan.getStatus() != MealPlanStatus.ARCHIVED)
                 .orElseThrow(() -> new ResourceNotFoundException("Meal plan not found"));
+    }
+
+    private boolean isVisibleToUser(FoodItemEntity foodItem, UserEntity user) {
+        if (foodItem.getVerificationStatus() == VerificationStatus.REJECTED) {
+            return false;
+        }
+        if (!Boolean.TRUE.equals(foodItem.getIsCustom())) {
+            return true;
+        }
+        return foodItem.getCreatedByUser() != null
+                && user.getId() != null
+                && user.getId().equals(foodItem.getCreatedByUser().getId());
     }
 
     private void addFood(Map<Long, GroceryAccumulator> accumulator, FoodItemEntity foodItem, double grams, int uses) {

@@ -5,6 +5,9 @@ import com.grun.calorietracker.enums.MailProvider;
 import com.grun.calorietracker.exception.MailDeliveryException;
 import com.grun.calorietracker.service.impl.ConfigurableMailDeliveryService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -17,7 +20,9 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.assertj.core.api.Assertions.assertThat;
 
+@ExtendWith(OutputCaptureExtension.class)
 class ConfigurableMailDeliveryServiceTest {
 
     @Test
@@ -94,6 +99,26 @@ class ConfigurableMailDeliveryServiceTest {
                 .hasMessageContaining("Brevo rejected transactional email request");
 
         server.verify();
+    }
+
+    @Test
+    void sendTransactionalEmailWhenProviderIsLogRedactsSensitiveLinks(CapturedOutput output) {
+        RestClient.Builder builder = RestClient.builder();
+        MailProperties properties = new MailProperties();
+        properties.setProvider(MailProvider.LOG);
+        ConfigurableMailDeliveryService service = new ConfigurableMailDeliveryService(builder, properties);
+
+        service.sendTransactionalEmail(
+                "user@example.com",
+                "Reset",
+                "Use https://app.grun.local/reset?token=raw-token&state=raw-state",
+                "<a href=\"https://app.grun.local/reset?token=raw-token\">Reset</a>"
+        );
+
+        assertThat(output).doesNotContain("raw-token");
+        assertThat(output).doesNotContain("raw-state");
+        assertThat(output).contains("token=[REDACTED]");
+        assertThat(output).contains("state=[REDACTED]");
     }
 
     private MailProperties brevoProperties() {

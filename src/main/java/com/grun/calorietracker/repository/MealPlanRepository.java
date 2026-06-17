@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MealPlanRepository extends JpaRepository<MealPlanEntity, Long> {
+    long countByUser(UserEntity user);
+    List<MealPlanEntity> findByUserOrderByStartDateDesc(UserEntity user);
     List<MealPlanEntity> findByUserAndStatusNotOrderByStartDateDesc(UserEntity user, MealPlanStatus status);
     Optional<MealPlanEntity> findByIdAndUser(Long id, UserEntity user);
+    long deleteByUser(UserEntity user);
 }

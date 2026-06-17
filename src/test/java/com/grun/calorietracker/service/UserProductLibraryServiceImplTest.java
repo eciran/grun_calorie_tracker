@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.MealTemplateItemRepository;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -77,6 +79,23 @@ class UserProductLibraryServiceImplTest {
         FoodProductDto result = service.addFavoriteProduct("user@test.com", 5L);
 
         assertEquals("Banana", result.getProductName());
+        verify(userFavoriteRepository, never()).save(any());
+    }
+
+    @Test
+    void addFavoriteProduct_whenCustomFoodBelongsToAnotherUser_rejects() {
+        UserEntity user = user();
+        UserEntity owner = new UserEntity();
+        owner.setId(2L);
+        owner.setEmail("owner@test.com");
+        FoodItemEntity product = product(5L, "Private soup");
+        product.setIsCustom(true);
+        product.setCreatedByUser(owner);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(5L)).thenReturn(Optional.of(product));
+
+        assertThrows(ProductNotFoundException.class, () -> service.addFavoriteProduct("user@test.com", 5L));
+
         verify(userFavoriteRepository, never()).save(any());
     }
 

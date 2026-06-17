@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.RevenueCatWebhookEventDto;
 import com.grun.calorietracker.dto.RevenueCatWebhookResponseDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
+import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.RevenueCatEventType;
@@ -16,6 +17,7 @@ import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
+import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RevenueCatWebhookService;
 import com.grun.calorietracker.service.SubscriptionService;
@@ -43,11 +45,13 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
 
     private static final String REFUND_CANCEL_REASON = "CUSTOMER_SUPPORT";
     private static final Pattern FIRST_NUMBER = Pattern.compile("(\\d+)");
+    private static final Pattern APP_USER_ID = Pattern.compile("^user:(\\d+)$");
 
     private final RevenueCatProperties properties;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final SubscriptionProviderEventRepository eventRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
 
     @Override
@@ -98,6 +102,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 return new RevenueCatWebhookResponseDto(true, false, providerEventId, "FAILED", audit.getProcessingError());
             }
             audit.setUser(user.get());
+            assertRevenueCatCustomerBinding(user.get(), event);
             SubscriptionProviderEventCommand command = toCommand(event, providerEventId);
             if (command == null) {
                 audit.setStatus(SubscriptionProviderEventStatus.IGNORED);
@@ -168,19 +173,38 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     }
 
     private Optional<UserEntity> resolveUser(RevenueCatWebhookEventDto.Event event) {
-        String appUserId = firstNonBlank(event.getAppUserId(), event.getOriginalAppUserId());
-        if (appUserId == null) {
+        Long appUserId = parseAppUserId(event.getAppUserId());
+        Long originalAppUserId = parseAppUserId(event.getOriginalAppUserId());
+        if (appUserId == null && originalAppUserId == null) {
             return Optional.empty();
         }
-        String normalized = appUserId.trim();
-        if (normalized.startsWith("user:")) {
-            normalized = normalized.substring("user:".length());
+        if (appUserId != null && originalAppUserId != null && !appUserId.equals(originalAppUserId)) {
+            throw new IllegalArgumentException("RevenueCat app_user_id and original_app_user_id refer to different users.");
         }
-        try {
-            return userRepository.findById(Long.parseLong(normalized));
-        } catch (NumberFormatException ignored) {
-            return userRepository.findByEmail(appUserId.trim());
+        return userRepository.findById(appUserId == null ? originalAppUserId : appUserId);
+    }
+
+    private Long parseAppUserId(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
+        Matcher matcher = APP_USER_ID.matcher(value.trim());
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("RevenueCat app_user_id must use the backend-issued user:<id> format.");
+        }
+        return Long.parseLong(matcher.group(1));
+    }
+
+    private void assertRevenueCatCustomerBinding(UserEntity user, RevenueCatWebhookEventDto.Event event) {
+        String providerCustomerId = firstNonBlank(event.getAppUserId(), event.getOriginalAppUserId());
+        subscriptionRepository.findByUser(user)
+                .filter(subscription -> subscription.getProvider() == PaymentProvider.REVENUECAT)
+                .map(SubscriptionEntity::getProviderCustomerId)
+                .filter(existingCustomerId -> existingCustomerId != null && !existingCustomerId.isBlank())
+                .filter(existingCustomerId -> !existingCustomerId.equals(providerCustomerId))
+                .ifPresent(existingCustomerId -> {
+                    throw new IllegalArgumentException("RevenueCat customer id is already bound to this user.");
+                });
     }
 
     private SubscriptionProviderEventCommand toCommand(RevenueCatWebhookEventDto.Event event, String providerEventId) {
@@ -277,6 +301,9 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         if (configured != null) {
             return configured;
         }
+        if (properties.isStrictProductMapping()) {
+            return null;
+        }
         String lower = productId.toLowerCase(Locale.ROOT);
         if (!lower.contains("ai") || !lower.contains("credit")) {
             return null;
@@ -301,6 +328,9 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         }
         if (configuredProducts.contains(productId)) {
             return true;
+        }
+        if (properties.isStrictProductMapping()) {
+            return false;
         }
         return hasProductToken(productId, fallbackToken);
     }

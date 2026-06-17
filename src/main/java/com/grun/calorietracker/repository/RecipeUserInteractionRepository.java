@@ -11,7 +11,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RecipeUserInteractionRepository extends JpaRepository<RecipeUserInteractionEntity, Long> {
+    long countByUser(UserEntity user);
+
     Optional<RecipeUserInteractionEntity> findByUserAndRecipe(UserEntity user, RecipeEntity recipe);
+
+    List<RecipeUserInteractionEntity> findByUserOrderByUpdatedAtDesc(UserEntity user);
 
     List<RecipeUserInteractionEntity> findByUserAndSavedTrueOrderByUpdatedAtDesc(UserEntity user);
 
@@ -25,4 +29,6 @@ public interface RecipeUserInteractionRepository extends JpaRepository<RecipeUse
 
     @Query("SELECT AVG(interaction.rating) FROM RecipeUserInteractionEntity interaction WHERE interaction.recipe = :recipe AND interaction.rating IS NOT NULL")
     Double averageRating(@Param("recipe") RecipeEntity recipe);
+
+    long deleteByUser(UserEntity user);
 }

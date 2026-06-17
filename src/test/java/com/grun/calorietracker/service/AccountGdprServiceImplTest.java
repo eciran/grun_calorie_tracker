@@ -12,16 +12,22 @@ import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingPlanRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
+import com.grun.calorietracker.repository.FailedBarcodeScanRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
+import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
+import com.grun.calorietracker.repository.ProductAnalyticsEventRepository;
+import com.grun.calorietracker.repository.ProductCorrectionSuggestionRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.RecipeLogRepository;
+import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
@@ -82,6 +88,12 @@ class AccountGdprServiceImplTest {
     @Mock private FastingSessionRepository fastingSessionRepository;
     @Mock private StepGoalRepository stepGoalRepository;
     @Mock private UserPushTokenRepository userPushTokenRepository;
+    @Mock private MealPlanRepository mealPlanRepository;
+    @Mock private RecipeLogRepository recipeLogRepository;
+    @Mock private RecipeUserInteractionRepository recipeUserInteractionRepository;
+    @Mock private FailedBarcodeScanRepository failedBarcodeScanRepository;
+    @Mock private ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
+    @Mock private ProductAnalyticsEventRepository productAnalyticsEventRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     private AccountGdprServiceImpl service;
@@ -121,6 +133,12 @@ class AccountGdprServiceImplTest {
                 fastingSessionRepository,
                 stepGoalRepository,
                 userPushTokenRepository,
+                mealPlanRepository,
+                recipeLogRepository,
+                recipeUserInteractionRepository,
+                failedBarcodeScanRepository,
+                productCorrectionSuggestionRepository,
+                productAnalyticsEventRepository,
                 passwordEncoder
         );
 
@@ -154,6 +172,12 @@ class AccountGdprServiceImplTest {
         when(aiRequestHistoryRepository.countByUser(user)).thenReturn(6L);
         when(waterLogRepository.countByUser(user)).thenReturn(9L);
         when(fastingSessionRepository.countByUser(user)).thenReturn(3L);
+        when(mealPlanRepository.countByUser(user)).thenReturn(2L);
+        when(recipeLogRepository.countByUser(user)).thenReturn(12L);
+        when(recipeUserInteractionRepository.countByUser(user)).thenReturn(4L);
+        when(failedBarcodeScanRepository.countByUser(user)).thenReturn(1L);
+        when(productCorrectionSuggestionRepository.countByUser(user)).thenReturn(2L);
+        when(productAnalyticsEventRepository.countByUser(user)).thenReturn(13L);
 
         GdprDataExportDto dto = service.exportMyData("user@grun.app");
 
@@ -163,6 +187,12 @@ class AccountGdprServiceImplTest {
         assertEquals(6L, dto.getAiRequestCount());
         assertEquals(9L, dto.getWaterLogCount());
         assertEquals(3L, dto.getFastingSessionCount());
+        assertEquals(2L, dto.getMealPlanCount());
+        assertEquals(12L, dto.getRecipeLogCount());
+        assertEquals(4L, dto.getRecipeInteractionCount());
+        assertEquals(1L, dto.getFailedBarcodeScanCount());
+        assertEquals(2L, dto.getProductCorrectionSuggestionCount());
+        assertEquals(13L, dto.getProductAnalyticsEventCount());
         assertEquals(100, dto.getSubscription().getAiMonthlyQuota());
         assertEquals(0, dto.getFoodLogs().size());
     }
@@ -181,8 +211,14 @@ class AccountGdprServiceImplTest {
         verify(waterReminderSettingsRepository).deleteByUser(user);
         verify(fastingSessionRepository).deleteByUser(user);
         verify(fastingPlanRepository).deleteByUser(user);
+        verify(mealPlanRepository).deleteByUser(user);
+        verify(recipeLogRepository).deleteByUser(user);
         verify(stepGoalRepository).deleteByUser(user);
         verify(userPushTokenRepository).deleteByUser(user);
+        verify(recipeUserInteractionRepository).deleteByUser(user);
+        verify(failedBarcodeScanRepository).deleteByUser(user);
+        verify(productCorrectionSuggestionRepository).deleteByUser(user);
+        verify(productAnalyticsEventRepository).deleteByUser(user);
         verify(subscriptionProviderEventRepository).anonymizeUserReferences(user, "deleted-user:10", "{}");
         verify(aiRequestHistoryRepository).deleteByUser(user);
         verify(subscriptionRepository).deleteByUser(user);

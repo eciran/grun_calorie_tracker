@@ -7,12 +7,18 @@ import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.FastingPlanEntity;
 import com.grun.calorietracker.entity.FastingSessionEntity;
+import com.grun.calorietracker.entity.FailedBarcodeScanEntity;
 import com.grun.calorietracker.entity.FoodDiaryNoteEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.HealthConnectionEntity;
+import com.grun.calorietracker.entity.MealPlanEntity;
 import com.grun.calorietracker.entity.MealTemplateEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
+import com.grun.calorietracker.entity.ProductAnalyticsEventEntity;
+import com.grun.calorietracker.entity.ProductCorrectionSuggestionEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
+import com.grun.calorietracker.entity.RecipeLogEntity;
+import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.UserConsentEntity;
@@ -27,16 +33,22 @@ import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingPlanRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
+import com.grun.calorietracker.repository.FailedBarcodeScanRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
+import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
+import com.grun.calorietracker.repository.ProductAnalyticsEventRepository;
+import com.grun.calorietracker.repository.ProductCorrectionSuggestionRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.RecipeLogRepository;
+import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.repository.UserPushTokenRepository;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
@@ -98,6 +110,12 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final FastingSessionRepository fastingSessionRepository;
     private final StepGoalRepository stepGoalRepository;
     private final UserPushTokenRepository userPushTokenRepository;
+    private final MealPlanRepository mealPlanRepository;
+    private final RecipeLogRepository recipeLogRepository;
+    private final RecipeUserInteractionRepository recipeUserInteractionRepository;
+    private final FailedBarcodeScanRepository failedBarcodeScanRepository;
+    private final ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
+    private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -152,6 +170,12 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 aiRequestHistoryRepository.countByUser(user),
                 waterLogRepository.countByUser(user),
                 fastingSessionRepository.countByUser(user),
+                mealPlanRepository.countByUser(user),
+                recipeLogRepository.countByUser(user),
+                recipeUserInteractionRepository.countByUser(user),
+                failedBarcodeScanRepository.countByUser(user),
+                productCorrectionSuggestionRepository.countByUser(user),
+                productAnalyticsEventRepository.countByUser(user),
                 subscriptionDto,
                 identities,
                 userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
@@ -163,11 +187,17 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 progressLogRepository.findByUserOrderByLogDateAsc(user).stream().map(this::toProgressLogExport).toList(),
                 foodDiaryNoteRepository.findByUserOrderByDiaryDateAsc(user).stream().map(this::toFoodDiaryNoteExport).toList(),
                 mealTemplateRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toMealTemplateExport).toList(),
+                mealPlanRepository.findByUserOrderByStartDateDesc(user).stream().map(this::toMealPlanExport).toList(),
                 userFavoriteRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toFavoriteFoodExport).toList(),
                 healthConnectionRepository.findByUserOrderByProviderAsc(user).stream().map(this::toHealthConnectionExport).toList(),
                 deviceDataRepository.findByUserOrderByRecordedAtAsc(user).stream().map(this::toHealthMetricExport).toList(),
                 notificationRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toNotificationExport).toList(),
                 aiRequestHistoryRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toAiRequestExport).toList(),
+                recipeLogRepository.findByUserOrderByLogDateAsc(user).stream().map(this::toRecipeLogExport).toList(),
+                recipeUserInteractionRepository.findByUserOrderByUpdatedAtDesc(user).stream().map(this::toRecipeInteractionExport).toList(),
+                failedBarcodeScanRepository.findByUserOrderByLastScannedAtDesc(user).stream().map(this::toFailedBarcodeScanExport).toList(),
+                productCorrectionSuggestionRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toProductCorrectionSuggestionExport).toList(),
+                productAnalyticsEventRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toProductAnalyticsEventExport).toList(),
                 subscriptionProviderEventRepository.findByUserOrderByReceivedAtDesc(user).stream().map(this::toSubscriptionEventExport).toList()
         );
     }
@@ -214,13 +244,19 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         fastingPlanRepository.deleteByUser(user);
         exerciseLogRepository.deleteByUser(user);
         progressLogRepository.deleteByUser(user);
+        recipeLogRepository.deleteByUser(user);
         mealTemplateRepository.deleteByUser(user);
+        mealPlanRepository.deleteByUser(user);
         foodDiaryNoteRepository.deleteByUser(user);
         notificationRepository.deleteByUser(user);
         userAchievementRepository.deleteByUser(user);
         deviceDataRepository.deleteByUser(user);
         stepGoalRepository.deleteByUser(user);
         userPushTokenRepository.deleteByUser(user);
+        recipeUserInteractionRepository.deleteByUser(user);
+        failedBarcodeScanRepository.deleteByUser(user);
+        productCorrectionSuggestionRepository.deleteByUser(user);
+        productAnalyticsEventRepository.deleteByUser(user);
         healthConnectionRepository.deleteByUser(user);
         goalRepository.deleteByUser(user);
         appliedPromoRepository.deleteByUser(user);
@@ -359,6 +395,19 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         );
     }
 
+    private GdprDataExportDto.MealPlanExportDto toMealPlanExport(MealPlanEntity plan) {
+        return new GdprDataExportDto.MealPlanExportDto(
+                plan.getId(),
+                plan.getName(),
+                plan.getStartDate(),
+                plan.getEndDate(),
+                plan.getStatus() == null ? null : plan.getStatus().name(),
+                plan.getItems() == null ? 0 : plan.getItems().size(),
+                plan.getCreatedAt(),
+                plan.getUpdatedAt()
+        );
+    }
+
     private GdprDataExportDto.FavoriteFoodExportDto toFavoriteFoodExport(UserFavoriteEntity favorite) {
         return new GdprDataExportDto.FavoriteFoodExportDto(
                 favorite.getId(),
@@ -442,6 +491,77 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 request.getConfirmedAt(),
                 request.getRejectedAt(),
                 request.getQuotaRefundedAt()
+        );
+    }
+
+    private GdprDataExportDto.RecipeLogExportDto toRecipeLogExport(RecipeLogEntity log) {
+        return new GdprDataExportDto.RecipeLogExportDto(
+                log.getId(),
+                log.getRecipe() == null ? null : log.getRecipe().getName(),
+                log.getMealType(),
+                log.getServingGrams(),
+                log.getServingCount(),
+                log.getSnapshotCalories(),
+                log.getSnapshotProtein(),
+                log.getSnapshotCarbs(),
+                log.getSnapshotFat(),
+                log.getLogDate(),
+                log.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.RecipeInteractionExportDto toRecipeInteractionExport(RecipeUserInteractionEntity interaction) {
+        return new GdprDataExportDto.RecipeInteractionExportDto(
+                interaction.getId(),
+                interaction.getRecipe() == null ? null : interaction.getRecipe().getName(),
+                interaction.getSaved(),
+                interaction.getFavorite(),
+                interaction.getRating(),
+                interaction.getCreatedAt(),
+                interaction.getUpdatedAt()
+        );
+    }
+
+    private GdprDataExportDto.FailedBarcodeScanExportDto toFailedBarcodeScanExport(FailedBarcodeScanEntity scan) {
+        return new GdprDataExportDto.FailedBarcodeScanExportDto(
+                scan.getId(),
+                scan.getBarcode(),
+                scan.getMarketRegion() == null ? null : scan.getMarketRegion().name(),
+                scan.getScanCount(),
+                scan.getFirstScannedAt(),
+                scan.getLastScannedAt()
+        );
+    }
+
+    private GdprDataExportDto.ProductCorrectionSuggestionExportDto toProductCorrectionSuggestionExport(ProductCorrectionSuggestionEntity suggestion) {
+        return new GdprDataExportDto.ProductCorrectionSuggestionExportDto(
+                suggestion.getId(),
+                suggestion.getFoodItem() == null ? null : suggestion.getFoodItem().getName(),
+                suggestion.getSuggestedCalories(),
+                suggestion.getSuggestedProtein(),
+                suggestion.getSuggestedCarbs(),
+                suggestion.getSuggestedFat(),
+                suggestion.getNote(),
+                suggestion.getImageUrl(),
+                suggestion.getStatus() == null ? null : suggestion.getStatus().name(),
+                suggestion.getCreatedAt()
+        );
+    }
+
+    private GdprDataExportDto.ProductAnalyticsEventExportDto toProductAnalyticsEventExport(ProductAnalyticsEventEntity event) {
+        return new GdprDataExportDto.ProductAnalyticsEventExportDto(
+                event.getId(),
+                event.getEventType() == null ? null : event.getEventType().name(),
+                event.getSurface(),
+                event.getMarketRegion(),
+                event.getLanguage(),
+                event.getStartedAt(),
+                event.getCompletedAt(),
+                event.getDurationMs(),
+                event.getTargetType(),
+                event.getTargetId(),
+                event.getMetadataJson(),
+                event.getCreatedAt()
         );
     }
 }

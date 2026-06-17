@@ -77,9 +77,9 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         history.setQuotaConsumed(false);
 
         long startedAt = System.nanoTime();
+        SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
         try {
             AiRecipeDraftResponseDto response = normalize(activeProvider().createRecipeDraft(request), user);
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
@@ -91,8 +91,11 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
+            boolean refunded = refundConsumedQuota(user);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
+            history.setQuotaConsumed(!refunded);
+            history.setQuotaConsumedAmount(refunded ? 0 : 1);
             history.setLatencyMs(elapsedMs(startedAt));
             aiRequestHistoryRepository.save(history);
             throw ex;
@@ -287,5 +290,14 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
 
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
+    }
+
+    private boolean refundConsumedQuota(UserEntity user) {
+        try {
+            subscriptionService.refundConsumedAiQuota(user.getId(), 1);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 }

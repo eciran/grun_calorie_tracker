@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.RevenueCatProperties;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
+import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
+import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.RevenueCatWebhookServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +41,9 @@ class RevenueCatWebhookServiceImplTest {
     private SubscriptionProviderEventRepository eventRepository;
 
     @Mock
+    private SubscriptionRepository subscriptionRepository;
+
+    @Mock
     private SubscriptionService subscriptionService;
 
     private RevenueCatWebhookServiceImpl service;
@@ -53,10 +59,11 @@ class RevenueCatWebhookServiceImplTest {
         properties.getProducts().setPlus(List.of("grun_plus_monthly", "grun_plus_yearly"));
         properties.getProducts().getAiAddonQuotas().put("grun_ai_15_credits", 15);
         properties.getProducts().getAiAddonValidityDays().put("grun_ai_15_credits", 30);
-        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionService);
+        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionRepository, subscriptionService);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.empty());
     }
 
     @Test
@@ -118,7 +125,7 @@ class RevenueCatWebhookServiceImplTest {
                   "event": {
                     "id": "evt_addon",
                     "type": "NON_RENEWING_PURCHASE",
-                    "app_user_id": "1",
+                    "app_user_id": "user:1",
                     "product_id": "grun_ai_15_credits",
                     "transaction_id": "tx_addon",
                     "event_timestamp_ms": 1771950000000
@@ -185,7 +192,7 @@ class RevenueCatWebhookServiceImplTest {
     void processWebhook_whenAuthorizationNotConfigured_throwsAccessDenied() throws Exception {
         RevenueCatProperties properties = new RevenueCatProperties();
         RevenueCatWebhookServiceImpl unsecuredService =
-                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionService);
+                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionRepository, subscriptionService);
         String payload = """
                 {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
                 """;
@@ -198,10 +205,10 @@ class RevenueCatWebhookServiceImplTest {
     @Test
     void processWebhook_whenUserCannotBeResolved_storesFailedEvent() throws Exception {
         String payload = """
-                {"event":{"id":"evt_404","type":"RENEWAL","app_user_id":"missing@example.com","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
+                {"event":{"id":"evt_404","type":"RENEWAL","app_user_id":"user:404","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
                 """;
         when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
-        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findById(404L)).thenReturn(Optional.empty());
         when(eventRepository.save(any(SubscriptionProviderEventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
@@ -210,6 +217,40 @@ class RevenueCatWebhookServiceImplTest {
         ArgumentCaptor<SubscriptionProviderEventEntity> captor = ArgumentCaptor.forClass(SubscriptionProviderEventEntity.class);
         verify(eventRepository).save(captor.capture());
         assertEquals(SubscriptionProviderEventStatus.FAILED, captor.getValue().getStatus());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+    }
+
+    @Test
+    void processWebhook_whenAppUserIdIsEmail_storesFailedEvent() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_email","type":"RENEWAL","app_user_id":"user@example.com","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(eventRepository.save(any(SubscriptionProviderEventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        assertEquals("FAILED", result.getStatus());
+        verify(userRepository, never()).findByEmail(any());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+    }
+
+    @Test
+    void processWebhook_whenExistingRevenueCatCustomerDiffers_storesFailedEvent() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_customer_mismatch","type":"RENEWAL","app_user_id":"user:1","original_app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
+                """;
+        SubscriptionEntity subscription = new SubscriptionEntity();
+        subscription.setProvider(PaymentProvider.REVENUECAT);
+        subscription.setProviderCustomerId("user:999");
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(subscription));
+        when(eventRepository.save(any(SubscriptionProviderEventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        assertEquals("FAILED", result.getStatus());
         verify(subscriptionService, never()).applyProviderEvent(any(), any());
     }
 

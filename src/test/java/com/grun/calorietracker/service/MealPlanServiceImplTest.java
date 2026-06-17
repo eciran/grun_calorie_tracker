@@ -12,6 +12,7 @@ import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.MealPlanItemType;
+import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
@@ -63,6 +64,22 @@ class MealPlanServiceImplTest {
         assertEquals(2, result.getItems().size());
         assertEquals(MealPlanItemType.FOOD_ITEM, result.getItems().get(0).getItemType());
         assertEquals(MealPlanItemType.RECIPE, result.getItems().get(1).getItemType());
+    }
+
+    @Test
+    void createMealPlan_whenFoodItemIsAnotherUsersCustomFood_rejects() {
+        UserEntity user = user();
+        UserEntity owner = new UserEntity();
+        owner.setId(2L);
+        owner.setEmail("owner@test.com");
+        FoodItemEntity privateFood = food(10L, "Private soup");
+        privateFood.setIsCustom(true);
+        privateFood.setCreatedByUser(owner);
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(10L)).thenReturn(Optional.of(privateFood));
+
+        assertThrows(ResourceNotFoundException.class, () -> service.createMealPlan("user@test.com", request()));
     }
 
     @Test

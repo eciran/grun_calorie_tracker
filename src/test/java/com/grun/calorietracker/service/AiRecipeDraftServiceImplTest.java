@@ -122,6 +122,41 @@ class AiRecipeDraftServiceImplTest {
     }
 
     @Test
+    void createRecipeDraft_whenQuotaUnavailable_doesNotCallProvider() {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionService.consumeAiQuota("user@example.com"))
+                .thenThrow(new IllegalArgumentException("AI quota is not available for the current subscription."));
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.createRecipeDraft("user@example.com", request()));
+
+        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
+        verify(providerClient, org.mockito.Mockito.never()).createRecipeDraft(any());
+        verify(historyRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void createRecipeDraft_whenProviderResponseInvalid_refundsQuotaAndStoresFailedHistory() {
+        AiRecipeDraftResponseDto invalid = providerResponse();
+        invalid.setSuggestedRecipe(null);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(providerClient.provider()).thenReturn(AiProvider.LOG);
+        when(providerClient.createRecipeDraft(any())).thenReturn(invalid);
+        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(new SubscriptionDto());
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.createRecipeDraft("user@example.com", request()));
+
+        verify(subscriptionService).consumeAiQuota("user@example.com");
+        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
+        ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
+        verify(historyRepository).save(captor.capture());
+        assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
+        assertEquals(false, captor.getValue().getQuotaConsumed());
+    }
+
+    @Test
     void createRecipeDraft_matchesSuggestedIngredientsAgainstCatalog() {
         AiRecipeDraftResponseDto providerResponse = providerResponse();
         AiRecipeIngredientSuggestionDto suggestion = new AiRecipeIngredientSuggestionDto();

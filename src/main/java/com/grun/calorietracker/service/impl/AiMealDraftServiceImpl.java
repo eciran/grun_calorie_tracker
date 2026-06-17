@@ -135,6 +135,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         history.setQuotaConsumed(false);
 
         long startedAt = System.nanoTime();
+        SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
         try {
             AiMealDraftResponseDto response = responseValidator.validateAndNormalize(
                     supplier.get(),
@@ -144,7 +145,6 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             );
             response.setSafety(safetyService.reviewProviderResponse(response, requestType));
             matchFoodCatalog(response, user);
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
@@ -155,8 +155,11 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
+            boolean refunded = refundConsumedQuota(user);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
+            history.setQuotaConsumed(!refunded);
+            history.setQuotaConsumedAmount(refunded ? 0 : 1);
             history.setLatencyMs(elapsedMs(startedAt));
             aiRequestHistoryRepository.save(history);
             throw ex;
@@ -257,6 +260,15 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
 
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
+    }
+
+    private boolean refundConsumedQuota(UserEntity user) {
+        try {
+            subscriptionService.refundConsumedAiQuota(user.getId(), 1);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private String writeJson(Object value) {

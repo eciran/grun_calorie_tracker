@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
@@ -23,6 +24,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,7 +66,7 @@ class FederatedAuthServiceImplTest {
                 jwtUtil,
                 refreshTokenService
         );
-        when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
+        lenient().when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
     }
 
     @Test
@@ -135,6 +138,23 @@ class FederatedAuthServiceImplTest {
     }
 
     @Test
+    void loginWithGoogle_whenExistingAccountDisabled_rejectsSession() {
+        UserEntity user = user("oauth@grun.app", true);
+        user.setAccountEnabled(false);
+        FederatedIdentityEntity identity = new FederatedIdentityEntity();
+        identity.setUser(user);
+        when(googleIdTokenVerifierService.verify("raw-id-token"))
+                .thenReturn(new VerifiedGoogleIdentityDto("google-sub", user.getEmail(), "OAuth User", true));
+        when(federatedIdentityRepository.findByProviderAndProviderSubject(AuthProvider.GOOGLE, "google-sub"))
+                .thenReturn(Optional.of(identity));
+
+        assertThrows(InvalidCredentialsException.class, () -> federatedAuthService.loginWithGoogle("raw-id-token"));
+
+        verify(jwtUtil, never()).generateToken(any());
+        verify(refreshTokenService, never()).createRefreshToken(any());
+    }
+
+    @Test
     void loginWithApple_newProviderIdentity_createsVerifiedStandardUserAndLink() {
         VerifiedAppleIdentityDto appleIdentity = new VerifiedAppleIdentityDto(
                 "apple-new-sub",
@@ -164,6 +184,8 @@ class FederatedAuthServiceImplTest {
         user.setEmail(email);
         user.setEmailVerified(emailVerified);
         user.setRole(UserRole.STANDARD);
+        user.setAccountEnabled(true);
+        user.setAccountLocked(false);
         return user;
     }
 }

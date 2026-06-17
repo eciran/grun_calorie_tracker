@@ -14,11 +14,15 @@ import org.springframework.web.client.RestClient;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ConfigurableMailDeliveryService implements MailDeliveryService {
+
+    private static final Pattern SENSITIVE_QUERY_PARAM =
+            Pattern.compile("(?i)([?&](?:token|code|state)=)[^&\\s\"'<>]+");
 
     private final RestClient.Builder restClientBuilder;
     private final MailProperties mailProperties;
@@ -34,9 +38,16 @@ public class ConfigurableMailDeliveryService implements MailDeliveryService {
                 "Transactional email provider=LOG, to={}, subject={}, textBody={}, htmlBody={}",
                 recipientEmail,
                 subject,
-                textBody,
-                htmlBody
+                sanitizeForLog(textBody),
+                sanitizeForLog(htmlBody)
         );
+    }
+
+    private String sanitizeForLog(String value) {
+        if (value == null) {
+            return null;
+        }
+        return SENSITIVE_QUERY_PARAM.matcher(value).replaceAll("$1[REDACTED]");
     }
 
     private void sendWithBrevo(String recipientEmail, String subject, String textBody, String htmlBody) {

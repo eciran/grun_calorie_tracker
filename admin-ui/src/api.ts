@@ -34,19 +34,19 @@ const UNAUTHORIZED_EVENT = "grun-admin-unauthorized";
 const DEFAULT_TIMEOUT_MS = 20000;
 
 export function getToken(): string | null {
-  return window.localStorage.getItem(TOKEN_KEY);
+  return window.sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function saveTokens(response: LoginResponse) {
-  window.localStorage.setItem(TOKEN_KEY, response.token);
+  window.sessionStorage.setItem(TOKEN_KEY, response.token);
   if (response.refreshToken) {
-    window.localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
+    window.sessionStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
   }
 }
 
 export function clearTokens() {
-  window.localStorage.removeItem(TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.sessionStorage.removeItem(TOKEN_KEY);
+  window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 export function isUnauthorizedError(error: unknown): boolean {
