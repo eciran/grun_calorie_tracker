@@ -60,6 +60,9 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
     }
 
     private AuthResponse buildSession(UserEntity user, String message) {
+        if (!isSessionAllowed(user)) {
+            throw new InvalidCredentialsException("Account is disabled or locked");
+        }
         return new AuthResponse(
                 jwtUtil.generateToken(user.getEmail()),
                 refreshTokenService.createRefreshToken(user),
@@ -90,6 +93,13 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
         federatedIdentity.setCreatedAt(LocalDateTime.now());
         federatedIdentityRepository.save(federatedIdentity);
         return user;
+    }
+
+    private boolean isSessionAllowed(UserEntity user) {
+        return user != null
+                && !Boolean.FALSE.equals(user.getAccountEnabled())
+                && !Boolean.TRUE.equals(user.getAccountLocked())
+                && (user.getLoginLockedUntil() == null || !user.getLoginLockedUntil().isAfter(LocalDateTime.now()));
     }
 
     private UserEntity verifyExistingProviderEmail(UserEntity user, boolean emailVerified) {

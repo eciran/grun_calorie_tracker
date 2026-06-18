@@ -61,16 +61,21 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         }
 
         UserEntity user = token.getUser();
-        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+        if (!isSessionAllowed(user)) {
             token.setRevokedAt(LocalDateTime.now());
             refreshTokenRepository.save(token);
-            throw new IllegalArgumentException("Email address is not verified");
+            throw new IllegalArgumentException("Refresh token is invalid or expired");
         }
 
         token.setUsedAt(LocalDateTime.now());
         refreshTokenRepository.save(token);
 
         UserEntity managedUser = userRepository.findById(user.getId()).orElse(user);
+        if (!isSessionAllowed(managedUser)) {
+            refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(managedUser)
+                    .forEach(activeToken -> activeToken.setRevokedAt(LocalDateTime.now()));
+            throw new IllegalArgumentException("Refresh token is invalid or expired");
+        }
         String newRefreshToken = createRefreshToken(managedUser);
         String accessToken = jwtUtil.generateToken(managedUser.getEmail());
 
@@ -101,6 +106,14 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .filter(token -> token.getUsedAt() != null && token.getUser() != null)
                 .ifPresent(this::revokeTokenFamilyAfterReuse);
         throw new IllegalArgumentException("Refresh token is invalid or expired");
+    }
+
+    private boolean isSessionAllowed(UserEntity user) {
+        return user != null
+                && Boolean.TRUE.equals(user.getEmailVerified())
+                && !Boolean.FALSE.equals(user.getAccountEnabled())
+                && !Boolean.TRUE.equals(user.getAccountLocked())
+                && (user.getLoginLockedUntil() == null || !user.getLoginLockedUntil().isAfter(LocalDateTime.now()));
     }
 
     private void revokeTokenFamilyAfterReuse(RefreshTokenEntity reusedToken) {

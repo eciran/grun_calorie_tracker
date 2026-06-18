@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface WaterReminderSettingsRepository extends JpaRepository<WaterReminderSettingsEntity, Long> {
     Optional<WaterReminderSettingsEntity> findByUser(UserEntity user);
     List<WaterReminderSettingsEntity> findByEnabledTrue();
+    long countByEnabledTrue();
 
     long deleteByUser(UserEntity user);
 }

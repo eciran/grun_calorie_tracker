@@ -48,6 +48,9 @@ class DashboardServiceImplTest {
     private HealthIntegrationService healthIntegrationService;
 
     @Mock
+    private StepTrackingService stepTrackingService;
+
+    @Mock
     private SubscriptionService subscriptionService;
 
     private DashboardServiceImpl dashboardService;
@@ -63,6 +66,7 @@ class DashboardServiceImplTest {
                 progressLogRepository,
                 recipeLogRepository,
                 healthIntegrationService,
+                stepTrackingService,
                 subscriptionService
         );
     }
@@ -94,6 +98,9 @@ class DashboardServiceImplTest {
         when(healthIntegrationService.getDailySummary("user@example.com", date)).thenReturn(healthSummary);
         when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
                 .thenReturn(true);
+        com.grun.calorietracker.dto.StepDailySummaryDto stepSummary = new com.grun.calorietracker.dto.StepDailySummaryDto();
+        stepSummary.setTotalSteps(0);
+        when(stepTrackingService.getDailySummary("user@example.com", date)).thenReturn(stepSummary);
 
         DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
 
@@ -121,9 +128,13 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());
         assertEquals(0, result.getCurrentLogStreakDays());
+        assertEquals(25.0, result.getTargetMicros().getFiber());
+        assertEquals(25.0, result.getRemainingMicros().getFiber());
+        assertEquals(2300.0, result.getTargetMicros().getSodium());
         assertEquals(List.of(), result.getFoodLogs());
         assertEquals(List.of(), result.getExerciseLogs());
         assertEquals(false, result.getHealthSummary().getHasHealthData());
+        assertEquals(0, result.getStepSummary().getTotalSteps());
     }
 
     @Test
@@ -170,6 +181,9 @@ class DashboardServiceImplTest {
                 .thenReturn(new com.grun.calorietracker.dto.HealthDailySummaryDto());
         when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
                 .thenReturn(true);
+        com.grun.calorietracker.dto.StepDailySummaryDto stepSummary = new com.grun.calorietracker.dto.StepDailySummaryDto();
+        stepSummary.setTotalSteps(5000);
+        when(stepTrackingService.getDailySummary("user@example.com", date)).thenReturn(stepSummary);
 
         DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
 
@@ -188,5 +202,7 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());
         assertEquals(3, result.getCurrentLogStreakDays());
+        assertEquals(25.0, result.getTargetMicros().getFiber());
+        assertEquals(25.0, result.getRemainingMicros().getFiber());
     }
 }

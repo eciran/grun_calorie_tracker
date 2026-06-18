@@ -160,25 +160,41 @@ class AiMealDraftServiceImplTest {
     }
 
     @Test
-    void createVoiceFoodDraft_whenProviderResponseInvalid_storesFailedHistoryWithoutConsumingQuota() {
+    void createVoiceFoodDraft_whenProviderResponseInvalid_refundsQuotaAndStoresFailedHistory() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         AiMealDraftResponseDto invalid = providerResponse();
         invalid.setItems(List.of());
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(invalid);
+        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.createVoiceFoodDraft("user@example.com", request()));
 
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
-        verify(subscriptionService, org.mockito.Mockito.never()).consumeAiQuota("user@example.com");
+        verify(subscriptionService).consumeAiQuota("user@example.com");
+        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository).save(captor.capture());
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getLatencyMs());
+    }
+
+    @Test
+    void createVoiceFoodDraft_whenQuotaUnavailable_doesNotCallProvider() {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionService.consumeAiQuota("user@example.com"))
+                .thenThrow(new IllegalArgumentException("AI quota is not available for the current subscription."));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.createVoiceFoodDraft("user@example.com", request()));
+
+        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
+        verify(providerClient, org.mockito.Mockito.never()).createVoiceFoodDraft(any());
+        verify(historyRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

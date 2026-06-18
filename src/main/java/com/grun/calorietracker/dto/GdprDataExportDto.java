@@ -36,6 +36,12 @@ public class GdprDataExportDto {
     private Long aiRequestCount;
     private Long waterLogCount;
     private Long fastingSessionCount;
+    private Long mealPlanCount;
+    private Long recipeLogCount;
+    private Long recipeInteractionCount;
+    private Long failedBarcodeScanCount;
+    private Long productCorrectionSuggestionCount;
+    private Long productAnalyticsEventCount;
     private SubscriptionSnapshotDto subscription;
     private List<LinkedIdentityDto> linkedIdentities;
     private List<ConsentExportDto> consents;
@@ -47,11 +53,17 @@ public class GdprDataExportDto {
     private List<ProgressLogExportDto> progressLogs;
     private List<FoodDiaryNoteExportDto> foodDiaryNotes;
     private List<MealTemplateExportDto> mealTemplates;
+    private List<MealPlanExportDto> mealPlans;
     private List<FavoriteFoodExportDto> favoriteFoods;
     private List<HealthConnectionExportDto> healthConnections;
     private List<HealthMetricExportDto> healthMetrics;
     private List<NotificationExportDto> notifications;
     private List<AiRequestExportDto> aiRequests;
+    private List<RecipeLogExportDto> recipeLogs;
+    private List<RecipeInteractionExportDto> recipeInteractions;
+    private List<FailedBarcodeScanExportDto> failedBarcodeScans;
+    private List<ProductCorrectionSuggestionExportDto> productCorrectionSuggestions;
+    private List<ProductAnalyticsEventExportDto> productAnalyticsEvents;
     private List<SubscriptionEventExportDto> subscriptionEvents;
 
     @Data
@@ -144,6 +156,11 @@ public class GdprDataExportDto {
         private Long id;
         private String exerciseName;
         private Integer durationMinutes;
+        private String measurementType;
+        private Integer setCount;
+        private Integer reps;
+        private Double weightKg;
+        private Double distanceKm;
         private Double caloriesBurned;
         private LocalDateTime logDate;
         private String source;
@@ -180,6 +197,19 @@ public class GdprDataExportDto {
         private String name;
         private String mealType;
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class MealPlanExportDto {
+        private Long id;
+        private String name;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private String status;
+        private Integer itemCount;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
     }
 
     @Data
@@ -251,6 +281,77 @@ public class GdprDataExportDto {
         private LocalDateTime confirmedAt;
         private LocalDateTime rejectedAt;
         private LocalDateTime quotaRefundedAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class RecipeLogExportDto {
+        private Long id;
+        private String recipeName;
+        private String mealType;
+        private Double servingGrams;
+        private Double servingCount;
+        private Double calories;
+        private Double protein;
+        private Double carbs;
+        private Double fat;
+        private LocalDateTime logDate;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class RecipeInteractionExportDto {
+        private Long id;
+        private String recipeName;
+        private Boolean saved;
+        private Boolean favorite;
+        private Integer rating;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class FailedBarcodeScanExportDto {
+        private Long id;
+        private String barcode;
+        private String marketRegion;
+        private Long scanCount;
+        private LocalDateTime firstScannedAt;
+        private LocalDateTime lastScannedAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ProductCorrectionSuggestionExportDto {
+        private Long id;
+        private String foodName;
+        private Double suggestedCalories;
+        private Double suggestedProtein;
+        private Double suggestedCarbs;
+        private Double suggestedFat;
+        private String note;
+        private String imageUrl;
+        private String status;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class ProductAnalyticsEventExportDto {
+        private Long id;
+        private String eventType;
+        private String surface;
+        private String marketRegion;
+        private String language;
+        private LocalDateTime startedAt;
+        private LocalDateTime completedAt;
+        private Long durationMs;
+        private String targetType;
+        private Long targetId;
+        private String metadataJson;
+        private LocalDateTime createdAt;
     }
 
     @Data

@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -112,7 +113,8 @@ class AccountControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pushNotificationsEnabled").value(true))
                 .andExpect(jsonPath("$.mealRemindersEnabled").value(false))
-                .andExpect(jsonPath("$.hydrationRemindersEnabled").value(true));
+                .andExpect(jsonPath("$.hydrationRemindersEnabled").value(true))
+                .andExpect(jsonPath("$.fastingRemindersEnabled").value(nullValue()));
     }
 
     @Test
@@ -159,12 +161,24 @@ class AccountControllerTest {
                         0L,
                         0L,
                         0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
                         null,
                         List.of(),
                         List.of(),
                         List.of(),
                         List.of(),
                         null,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
                         List.of(),
                         List.of(),
                         List.of(),

@@ -4,17 +4,21 @@ import com.grun.calorietracker.config.WaterTrackingProperties;
 import com.grun.calorietracker.dto.AchievementDto;
 import com.grun.calorietracker.dto.AchievementSummaryDto;
 import com.grun.calorietracker.entity.AchievementDefinitionEntity;
+import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
+import com.grun.calorietracker.entity.StepGoalEntity;
 import com.grun.calorietracker.entity.UserAchievementEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.FastingSessionStatus;
 import com.grun.calorietracker.repository.AchievementDefinitionRepository;
+import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
+import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
@@ -28,6 +32,8 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +52,9 @@ public class AchievementServiceImpl implements AchievementService {
     public static final String WEIGHT_PROGRESS_KG = "WEIGHT_PROGRESS_KG";
     public static final String WATER_LOG_COUNT = "WATER_LOG_COUNT";
     public static final String WATER_TARGET_HIT_COUNT = "WATER_TARGET_HIT_COUNT";
+    public static final String STEP_TARGET_HIT_DAYS = "STEP_TARGET_HIT_DAYS";
+    public static final String STEP_CURRENT_STREAK_DAYS = "STEP_CURRENT_STREAK_DAYS";
+    public static final String STEP_BEST_DAILY_STEPS = "STEP_BEST_DAILY_STEPS";
 
     private final AchievementDefinitionRepository achievementDefinitionRepository;
     private final UserAchievementRepository userAchievementRepository;
@@ -56,6 +65,8 @@ public class AchievementServiceImpl implements AchievementService {
     private final FastingSessionRepository fastingSessionRepository;
     private final ProgressLogRepository progressLogRepository;
     private final WaterLogRepository waterLogRepository;
+    private final StepGoalRepository stepGoalRepository;
+    private final DeviceDataRepository deviceDataRepository;
     private final WaterTrackingProperties waterTrackingProperties;
 
     @Override
@@ -155,6 +166,7 @@ public class AchievementServiceImpl implements AchievementService {
         int weightProgressKg = weightProgressKg(user, goal);
         long waterCount = waterLogRepository.countByUser(user);
         int maxWaterMl = waterLogRepository.maxDailyAmountMlByUserId(user.getId());
+        StepMetrics stepMetrics = calculateStepMetrics(user);
 
         return new EvaluationSnapshot(
                 isProfileComplete(user),
@@ -169,7 +181,10 @@ public class AchievementServiceImpl implements AchievementService {
                 progressCount,
                 weightProgressKg,
                 waterCount,
-                maxWaterMl
+                maxWaterMl,
+                stepMetrics.targetHitDays(),
+                stepMetrics.currentStreakDays(),
+                stepMetrics.bestDailySteps()
         );
     }
 
@@ -188,8 +203,35 @@ public class AchievementServiceImpl implements AchievementService {
             case WEIGHT_PROGRESS_KG -> snapshot.weightProgressKg();
             case WATER_LOG_COUNT -> safeLongToInt(snapshot.waterLogCount());
             case WATER_TARGET_HIT_COUNT -> snapshot.maxWaterMl() >= waterTrackingProperties.getDefaultDailyTargetMl() ? 1 : 0;
+            case STEP_TARGET_HIT_DAYS -> snapshot.stepTargetHitDays();
+            case STEP_CURRENT_STREAK_DAYS -> snapshot.stepCurrentStreakDays();
+            case STEP_BEST_DAILY_STEPS -> snapshot.stepBestDailySteps();
             default -> 0;
         };
+    }
+
+    private StepMetrics calculateStepMetrics(UserEntity user) {
+        int targetSteps = stepGoalRepository.findByUser(user)
+                .map(StepGoalEntity::getTargetSteps)
+                .filter(Objects::nonNull)
+                .orElse(10000);
+        Map<java.time.LocalDate, Integer> stepsByDate = deviceDataRepository.findByUserOrderByRecordedAtAsc(user)
+                .stream()
+                .filter(metric -> metric.getSteps() != null && metric.getRecordedAt() != null)
+                .collect(Collectors.groupingBy(
+                        metric -> metric.getRecordedAt().toLocalDate(),
+                        Collectors.summingInt(DeviceDataEntity::getSteps)
+                ));
+        int hitDays = (int) stepsByDate.values().stream().filter(steps -> steps >= targetSteps).count();
+        int bestDailySteps = stepsByDate.values().stream().max(Integer::compareTo).orElse(0);
+        int streak = 0;
+        java.time.LocalDate cursor = java.time.LocalDate.now();
+        java.time.LocalDate lowerBound = cursor.minusDays(365);
+        while (!cursor.isBefore(lowerBound) && stepsByDate.getOrDefault(cursor, 0) >= targetSteps) {
+            streak++;
+            cursor = cursor.minusDays(1);
+        }
+        return new StepMetrics(hitDays, streak, bestDailySteps);
     }
 
     private int weightProgressKg(UserEntity user, UserGoalEntity goal) {
@@ -242,7 +284,17 @@ public class AchievementServiceImpl implements AchievementService {
             long progressLogCount,
             int weightProgressKg,
             long waterLogCount,
-            int maxWaterMl
+            int maxWaterMl,
+            int stepTargetHitDays,
+            int stepCurrentStreakDays,
+            int stepBestDailySteps
+    ) {
+    }
+
+    private record StepMetrics(
+            int targetHitDays,
+            int currentStreakDays,
+            int bestDailySteps
     ) {
     }
 }

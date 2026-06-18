@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.ExerciseLogsDto;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.exception.DuplicateExternalExerciseLogException;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import org.junit.jupiter.api.Test;
@@ -100,6 +101,39 @@ class ExerciseLogsControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation error"))
                 .andExpect(jsonPath("$.path").value("/api/v1/exercise-logs"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
+    void addExerciseLog_whenBodyweightRepsProvided_returnsCreatedLog() throws Exception {
+        ExerciseLogsDto request = new ExerciseLogsDto();
+        request.setExerciseItemId(3L);
+        request.setMeasurementType(ExerciseLogMeasurementType.SETS_REPS);
+        request.setSetCount(4);
+        request.setReps(20);
+        request.setCaloriesBurned(80.0);
+        request.setLogDate(LocalDateTime.of(2026, 6, 12, 8, 0));
+
+        ExerciseLogsDto response = new ExerciseLogsDto();
+        response.setId(22L);
+        response.setExerciseItemId(3L);
+        response.setMeasurementType(ExerciseLogMeasurementType.SETS_REPS);
+        response.setSetCount(4);
+        response.setReps(20);
+        response.setCaloriesBurned(80.0);
+        response.setLogDate(request.getLogDate());
+
+        when(exerciseLogsService.addExerciseLog(any(ExerciseLogsDto.class), eq("test@test.com")))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/exercise-logs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(22L))
+                .andExpect(jsonPath("$.measurementType").value("SETS_REPS"))
+                .andExpect(jsonPath("$.setCount").value(4))
+                .andExpect(jsonPath("$.reps").value(20));
     }
 
     @Test

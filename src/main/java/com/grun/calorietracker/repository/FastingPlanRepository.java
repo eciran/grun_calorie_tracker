@@ -10,5 +10,7 @@ import java.util.Optional;
 @Repository
 public interface FastingPlanRepository extends JpaRepository<FastingPlanEntity, Long> {
     Optional<FastingPlanEntity> findByUser(UserEntity user);
+    long countByActiveTrue();
+    long countByReminderEnabledTrue();
     long deleteByUser(UserEntity user);
 }

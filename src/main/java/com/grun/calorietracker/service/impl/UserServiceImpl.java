@@ -10,6 +10,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
+import com.grun.calorietracker.service.RefreshTokenService;
 import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenService refreshTokenService;
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final int maxFailedLoginAttempts;
     private final int loginLockMinutes;
@@ -51,6 +53,7 @@ public class UserServiceImpl implements UserService {
                            PasswordEncoder passwordEncoder,
                            AuthenticationManager authenticationManager,
                            JwtUtil jwtUtil,
+                           RefreshTokenService refreshTokenService,
                            UserTimeZoneSupport userTimeZoneSupport,
                            @Value("${grun.security.login.max-failed-attempts:" + DEFAULT_MAX_FAILED_LOGIN_ATTEMPTS + "}") int maxFailedLoginAttempts,
                            @Value("${grun.security.login.lock-minutes:" + DEFAULT_LOGIN_LOCK_MINUTES + "}") int loginLockMinutes) {
@@ -58,6 +61,7 @@ public class UserServiceImpl implements UserService {
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
+        this.refreshTokenService = refreshTokenService;
         this.userTimeZoneSupport = userTimeZoneSupport;
         this.maxFailedLoginAttempts = Math.max(1, maxFailedLoginAttempts);
         this.loginLockMinutes = Math.max(1, loginLockMinutes);
@@ -171,6 +175,9 @@ public class UserServiceImpl implements UserService {
 
         user.setAccountEnabled(request.getAccountEnabled());
         user.setAccountLocked(request.getAccountLocked());
+        if (Boolean.FALSE.equals(request.getAccountEnabled()) || Boolean.TRUE.equals(request.getAccountLocked())) {
+            refreshTokenService.revokeAllForUser(user);
+        }
         return mapToUserProfileDto(userRepository.save(user));
     }
 
@@ -279,6 +286,21 @@ public class UserServiceImpl implements UserService {
         }
         if (request.getHydrationRemindersEnabled() != null) {
             user.setHydrationRemindersEnabled(request.getHydrationRemindersEnabled());
+        }
+        if (request.getStepRemindersEnabled() != null) {
+            user.setStepRemindersEnabled(request.getStepRemindersEnabled());
+        }
+        if (request.getFastingRemindersEnabled() != null) {
+            user.setFastingRemindersEnabled(request.getFastingRemindersEnabled());
+        }
+        if (request.getRecipeSuggestionsEnabled() != null) {
+            user.setRecipeSuggestionsEnabled(request.getRecipeSuggestionsEnabled());
+        }
+        if (request.getAiInsightsEnabled() != null) {
+            user.setAiInsightsEnabled(request.getAiInsightsEnabled());
+        }
+        if (request.getWeeklyReportsEnabled() != null) {
+            user.setWeeklyReportsEnabled(request.getWeeklyReportsEnabled());
         }
         return toNotificationPreferenceDto(userRepository.save(user));
     }
@@ -391,7 +413,12 @@ public class UserServiceImpl implements UserService {
         return new NotificationPreferenceDto(
                 user.getPushNotificationsEnabled(),
                 user.getMealRemindersEnabled(),
-                user.getHydrationRemindersEnabled()
+                user.getHydrationRemindersEnabled(),
+                user.getStepRemindersEnabled(),
+                user.getFastingRemindersEnabled(),
+                user.getRecipeSuggestionsEnabled(),
+                user.getAiInsightsEnabled(),
+                user.getWeeklyReportsEnabled()
         );
     }
 }

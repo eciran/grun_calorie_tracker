@@ -44,6 +44,9 @@ class UserServiceImplTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     @Spy
     private UserTimeZoneSupport userTimeZoneSupport = new UserTimeZoneSupport();
 
@@ -57,6 +60,7 @@ class UserServiceImplTest {
                 passwordEncoder,
                 authenticationManager,
                 jwtUtil,
+                refreshTokenService,
                 userTimeZoneSupport,
                 5,
                 15
@@ -79,6 +83,7 @@ class UserServiceImplTest {
         testUser.setPushNotificationsEnabled(true);
         testUser.setMealRemindersEnabled(true);
         testUser.setHydrationRemindersEnabled(true);
+        testUser.setStepRemindersEnabled(true);
     }
 
     @Test
@@ -235,6 +240,11 @@ class UserServiceImplTest {
         testUser.setPushNotificationsEnabled(false);
         testUser.setMealRemindersEnabled(true);
         testUser.setHydrationRemindersEnabled(false);
+        testUser.setStepRemindersEnabled(false);
+        testUser.setFastingRemindersEnabled(true);
+        testUser.setRecipeSuggestionsEnabled(false);
+        testUser.setAiInsightsEnabled(true);
+        testUser.setWeeklyReportsEnabled(false);
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
 
         NotificationPreferenceDto result = userService.getNotificationPreferences("test@example.com");
@@ -242,11 +252,19 @@ class UserServiceImplTest {
         assertEquals(false, result.getPushNotificationsEnabled());
         assertEquals(true, result.getMealRemindersEnabled());
         assertEquals(false, result.getHydrationRemindersEnabled());
+        assertEquals(false, result.getStepRemindersEnabled());
+        assertEquals(true, result.getFastingRemindersEnabled());
+        assertEquals(false, result.getRecipeSuggestionsEnabled());
+        assertEquals(true, result.getAiInsightsEnabled());
+        assertEquals(false, result.getWeeklyReportsEnabled());
     }
 
     @Test
     void updateNotificationPreferences_updatesOnlyProvidedFields() {
         NotificationPreferenceDto request = new NotificationPreferenceDto(false, null, false);
+        request.setFastingRemindersEnabled(false);
+        request.setStepRemindersEnabled(false);
+        request.setAiInsightsEnabled(false);
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
         when(userRepository.save(testUser)).thenReturn(testUser);
 
@@ -255,9 +273,15 @@ class UserServiceImplTest {
         assertEquals(false, testUser.getPushNotificationsEnabled());
         assertEquals(true, testUser.getMealRemindersEnabled());
         assertEquals(false, testUser.getHydrationRemindersEnabled());
+        assertEquals(false, testUser.getStepRemindersEnabled());
+        assertEquals(false, testUser.getFastingRemindersEnabled());
+        assertEquals(false, testUser.getAiInsightsEnabled());
         assertEquals(false, result.getPushNotificationsEnabled());
         assertEquals(true, result.getMealRemindersEnabled());
         assertEquals(false, result.getHydrationRemindersEnabled());
+        assertEquals(false, result.getStepRemindersEnabled());
+        assertEquals(false, result.getFastingRemindersEnabled());
+        assertEquals(false, result.getAiInsightsEnabled());
     }
 
     @Test
@@ -291,6 +315,7 @@ class UserServiceImplTest {
 
         assertEquals(false, result.getAccountEnabled());
         assertEquals(true, result.getAccountLocked());
+        verify(refreshTokenService).revokeAllForUser(testUser);
         verify(userRepository).save(testUser);
     }
 

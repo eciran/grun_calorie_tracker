@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -22,10 +23,28 @@ public class ExerciseLogsDto {
     @Schema(description = "Exercise display name captured for the log.", example = "Running")
     private String exerciseItemName;
 
-    @NotNull(message = "{validation.exercise-log.duration-minutes.required}")
     @Positive(message = "{validation.exercise-log.duration-minutes.positive}")
-    @Schema(description = "Exercise duration in minutes.", example = "45", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Exercise duration in minutes. Required for duration-based activities; optional for rep/set based activities.", example = "45")
     private Integer durationMinutes;
+
+    @Schema(description = "How this exercise log is primarily measured.", example = "SETS_REPS", allowableValues = {"DURATION", "REPS", "SETS_REPS", "WEIGHT_REPS", "DISTANCE", "MIXED"})
+    private ExerciseLogMeasurementType measurementType;
+
+    @Positive(message = "{validation.exercise-log.set-count.positive}")
+    @Schema(description = "Number of sets for strength/bodyweight exercises.", example = "4")
+    private Integer setCount;
+
+    @Positive(message = "{validation.exercise-log.reps.positive}")
+    @Schema(description = "Total repetitions or repetitions per set, depending on mobile UI context.", example = "20")
+    private Integer reps;
+
+    @Positive(message = "{validation.exercise-log.weight-kg.positive}")
+    @Schema(description = "External load in kilograms for weighted exercises.", example = "60.0")
+    private Double weightKg;
+
+    @Positive(message = "{validation.exercise-log.distance-km.positive}")
+    @Schema(description = "Distance in kilometers for cardio activities.", example = "5.2")
+    private Double distanceKm;
 
     @NotNull(message = "{validation.exercise-log.calories-burned.required}")
     @Positive(message = "{validation.exercise-log.calories-burned.positive}")

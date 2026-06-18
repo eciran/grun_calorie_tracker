@@ -77,7 +77,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     @Transactional
     public FoodProductDto addFavoriteProduct(String email, Long productId) {
         UserEntity user = getUser(email);
-        FoodItemEntity product = getAvailableProduct(productId);
+        FoodItemEntity product = getAvailableProduct(productId, user);
         UserFavoriteEntity favorite = userFavoriteRepository.findByUserAndFoodItem(user, product)
                 .orElseGet(() -> {
                     UserFavoriteEntity created = new UserFavoriteEntity();
@@ -153,13 +153,22 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
-    private FoodItemEntity getAvailableProduct(Long productId) {
+    private FoodItemEntity getAvailableProduct(Long productId, UserEntity user) {
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
-        if (product.getVerificationStatus() == VerificationStatus.REJECTED) {
+        if (product.getVerificationStatus() == VerificationStatus.REJECTED || !isVisibleToUser(product, user)) {
             throw new ProductNotFoundException("Food item is not available");
         }
         return product;
+    }
+
+    private boolean isVisibleToUser(FoodItemEntity product, UserEntity user) {
+        if (!Boolean.TRUE.equals(product.getIsCustom())) {
+            return true;
+        }
+        return product.getCreatedByUser() != null
+                && user.getId() != null
+                && user.getId().equals(product.getCreatedByUser().getId());
     }
 
     private FoodItemEntity getOwnedCustomFood(UserEntity user, Long productId) {

@@ -16,6 +16,7 @@ import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.WaterTrackingService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     private final UserRepository userRepository;
     private final WaterTrackingProperties waterTrackingProperties;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final PushDeliveryService pushDeliveryService;
 
     @Override
     @Transactional
@@ -133,7 +135,8 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
             notification.setMessage(WATER_REMINDER_MESSAGE);
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
-            notificationRepository.save(notification);
+            NotificationEntity saved = notificationRepository.save(notification);
+            pushDeliveryService.deliver(saved);
             settings.setLastReminderAt(userNow);
         });
         waterReminderSettingsRepository.saveAll(dueSettings);

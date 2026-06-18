@@ -166,6 +166,9 @@ public class RevenueCatConfigurationServiceImpl implements RevenueCatConfigurati
         if (configured != null) {
             return configured;
         }
+        if (properties.isStrictProductMapping()) {
+            return null;
+        }
         String lower = productId.toLowerCase(Locale.ROOT);
         if (!lower.contains("ai") || !lower.contains("credit")) {
             return null;
@@ -190,6 +193,9 @@ public class RevenueCatConfigurationServiceImpl implements RevenueCatConfigurati
         }
         if (configuredProducts.contains(productId)) {
             return true;
+        }
+        if (properties.isStrictProductMapping()) {
+            return false;
         }
         return hasProductToken(productId, fallbackToken);
     }

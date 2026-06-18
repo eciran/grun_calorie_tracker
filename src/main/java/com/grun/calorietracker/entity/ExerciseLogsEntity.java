@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,6 +39,12 @@ public class ExerciseLogsEntity {
     private ExerciseItemEntity exerciseItem;
 
     private Integer durationMinutes;
+    @Enumerated(EnumType.STRING)
+    private ExerciseLogMeasurementType measurementType;
+    private Integer setCount;
+    private Integer reps;
+    private Double weightKg;
+    private Double distanceKm;
     private Double caloriesBurned;
     private LocalDateTime logDate;
     private String source;     // Data source (e.g., MANUAL, GOOGLE_FIT, APPLE_HEALTH)

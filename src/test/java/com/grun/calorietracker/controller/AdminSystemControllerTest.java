@@ -1,6 +1,10 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminSystemHealthDto;
+import com.grun.calorietracker.dto.AiProviderSmokeResponseDto;
+import com.grun.calorietracker.enums.AiProvider;
+import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.service.AiProviderSmokeService;
 import com.grun.calorietracker.service.AdminSystemHealthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +20,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,6 +33,9 @@ class AdminSystemControllerTest {
 
     @MockBean
     private AdminSystemHealthService adminSystemHealthService;
+
+    @MockBean
+    private AiProviderSmokeService aiProviderSmokeService;
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
@@ -108,5 +116,30 @@ class AdminSystemControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.message").value("JWT token is missing or invalid."));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void smokeAiProvider_whenAdmin_returnsSmokeResult() throws Exception {
+        AiProviderSmokeResponseDto response = new AiProviderSmokeResponseDto();
+        response.setProvider(AiProvider.LOG);
+        response.setModel("log-model");
+        response.setRequestType(AiRequestType.VOICE_FOOD_LOG);
+        response.setConfigured(true);
+        response.setProviderReachable(true);
+        response.setStatus("OK");
+        response.setMessage("AI provider returned a smoke draft response.");
+        response.setReturnedItemCount(1);
+        response.setCheckedAt(LocalDateTime.of(2026, 6, 11, 12, 0));
+
+        when(aiProviderSmokeService.smoke(AiRequestType.VOICE_FOOD_LOG)).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/system/ai-provider/smoke")
+                        .param("requestType", "VOICE_FOOD_LOG"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("LOG"))
+                .andExpect(jsonPath("$.configured").value(true))
+                .andExpect(jsonPath("$.providerReachable").value(true))
+                .andExpect(jsonPath("$.returnedItemCount").value(1));
     }
 }

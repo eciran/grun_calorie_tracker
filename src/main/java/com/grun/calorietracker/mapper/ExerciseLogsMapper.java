@@ -15,6 +15,11 @@ public class ExerciseLogsMapper {
             dto.setExerciseItemName(entity.getExerciseItem().getName());
         }
         dto.setDurationMinutes(entity.getDurationMinutes());
+        dto.setMeasurementType(entity.getMeasurementType());
+        dto.setSetCount(entity.getSetCount());
+        dto.setReps(entity.getReps());
+        dto.setWeightKg(entity.getWeightKg());
+        dto.setDistanceKm(entity.getDistanceKm());
         dto.setCaloriesBurned(entity.getCaloriesBurned());
         dto.setLogDate(entity.getLogDate());
         dto.setSource(entity.getSource());

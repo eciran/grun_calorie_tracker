@@ -13,6 +13,10 @@ import {
   AdminBrevoSender,
   AdminBrevoSenderList,
   AdminMailMonitoring,
+  AdminPushMonitoring,
+  AdminTrackingModuleSummary,
+  AdminTrackingSummary,
+  AdminTrackingTrendPoint,
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AiMealDraft,
@@ -61,6 +65,11 @@ type SectionKey =
   | "ai"
   | "audits"
   | "notifications"
+  | "pushDelivery"
+  | "tracking"
+  | "trackingWater"
+  | "trackingFasting"
+  | "trackingSteps"
   | "system"
   | "systemRuntime"
   | "systemDatabase"
@@ -106,6 +115,11 @@ const sections: SectionMeta[] = [
   { key: "ai", label: "AI Review", hint: "Drafts/refunds", icon: "A" },
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
   { key: "notifications", label: "Notifications", hint: "System alerts", icon: "N" },
+  { key: "pushDelivery", label: "Push Delivery", hint: "Device tokens", icon: "P" },
+  { key: "tracking", label: "Tracking", hint: "Usage analytics", icon: "T" },
+  { key: "trackingWater", label: "Water", hint: "Hydration usage", icon: "W" },
+  { key: "trackingFasting", label: "Fasting", hint: "Session usage", icon: "F" },
+  { key: "trackingSteps", label: "Steps", hint: "Device activity", icon: "S" },
   { key: "system", label: "System Health", hint: "Runtime state", icon: "H" },
   { key: "systemRuntime", label: "Runtime", hint: "App process", icon: "R" },
   { key: "systemDatabase", label: "Database", hint: "Postgres/Flyway", icon: "D" },
@@ -177,15 +191,30 @@ const navigation: NavigationItem[] = [
   },
   sections[27],
   sections[28],
-  sections[29],
   {
-    ...sections[30],
+    ...sections[29],
     children: [
-      { key: "system", label: "Overview", hint: "Health summary", icon: "O" },
-      sections[31],
+      { key: "notifications", label: "In-app Alerts", hint: "System alerts", icon: "N" },
+      sections[30]
+    ]
+  },
+  {
+    ...sections[31],
+    children: [
+      { key: "tracking", label: "Overview", hint: "Module summary", icon: "O" },
       sections[32],
       sections[33],
       sections[34]
+    ]
+  },
+  {
+    ...sections[35],
+    children: [
+      { key: "system", label: "Overview", hint: "Health summary", icon: "O" },
+      sections[36],
+      sections[37],
+      sections[38],
+      sections[39]
     ]
   }
 ];
@@ -413,6 +442,11 @@ export default function App() {
           {active === "ai" && <AiReviewView onError={setError} />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "notifications" && <NotificationsView onError={setError} />}
+          {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
+          {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
+          {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
+          {active === "trackingFasting" && <TrackingMonitoringView mode="fasting" onError={setError} />}
+          {active === "trackingSteps" && <TrackingMonitoringView mode="steps" onError={setError} />}
           {active === "system" && <SystemHealthView mode="overview" onError={setError} />}
           {active === "systemRuntime" && <SystemHealthView mode="runtime" onError={setError} />}
           {active === "systemDatabase" && <SystemHealthView mode="database" onError={setError} />}
@@ -2764,6 +2798,187 @@ function NotificationsView({ onError }: { onError: (message: string | null) => v
   );
 }
 
+function PushDeliveryView({ onError }: { onError: (message: string | null) => void }) {
+  const { data, state, reload } = useEndpoint<AdminPushMonitoring>("/api/v1/admin/system/push-monitoring", onError);
+  const providerEntries = Object.entries(data?.activeTokensByProvider ?? {}).sort(([left], [right]) => left.localeCompare(right));
+  const configuredProviders = [
+    ["Expo", data?.expoConfigured],
+    ["FCM", data?.fcmConfigured],
+    ["OneSignal", data?.oneSignalConfigured]
+  ];
+  const failed = data?.failedLast24h ?? 0;
+  const sent = data?.sentLast24h ?? 0;
+  const totalDelivery = sent + failed;
+
+  return (
+    <div className="stack">
+      <SectionToolbar title="Push delivery monitoring" state={state} onReload={reload} />
+      <div className="review-workspace-summary">
+        <MetricCard label="Delivery state" value={data?.enabled ? "Enabled" : "Disabled"} hint={`Selected provider: ${formatValue(data?.provider)}`} />
+        <MetricCard label="Active tokens" value={formatValue(data?.activeTokenCount)} hint="Enabled device token records" />
+        <MetricCard label="Sent 24h" value={formatValue(sent)} hint="Push delivery logs marked SENT" />
+        <MetricCard label="Failed 24h" value={formatValue(failed)} hint={`${percent(failed, totalDelivery)}% of logged attempts`} />
+      </div>
+
+      <div className="ops-grid">
+        <Panel title="Provider token distribution">
+          <div className="distribution-list">
+            {providerEntries.map(([provider, count]) => (
+              <div key={provider}>
+                <div>
+                  <span>{provider}</span>
+                  <strong>{formatValue(count)}</strong>
+                </div>
+                <div className="progress-track">
+                  <span className="good" style={{ width: `${percent(count, data?.activeTokenCount ?? 0)}%` }} />
+                </div>
+              </div>
+            ))}
+            {!providerEntries.length && <EmptyState message="No active push token returned." />}
+          </div>
+        </Panel>
+        <Panel title="Provider configuration">
+          <div className="config-grid">
+            {configuredProviders.map(([provider, configured]) => (
+              <div className="config-block" key={String(provider)}>
+                <span>{provider}</span>
+                <strong>{configured ? "Configured" : "Missing"}</strong>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Operational policy">
+        <div className="roadmap-strip">
+          <span>Raw device tokens are never exposed in admin responses</span>
+          <span>Invalid provider-token responses disable the stored token</span>
+          <span>Provider credentials stay in environment configuration</span>
+          <span>Real delivery validation requires mobile device tokens</span>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+type TrackingMode = "overview" | "water" | "fasting" | "steps";
+
+function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError: (message: string | null) => void }) {
+  const [days, setDays] = useState(30);
+  const { data, state, reload } = useEndpoint<AdminTrackingSummary>(`/api/v1/admin/tracking/summary?days=${days}`, onError);
+  const title = {
+    overview: "Tracking monitoring",
+    water: "Water tracking",
+    fasting: "Fasting tracking",
+    steps: "Step tracking"
+  }[mode];
+  const selectedModule = mode === "water"
+    ? data?.water
+    : mode === "fasting"
+      ? data?.fasting
+      : mode === "steps"
+        ? data?.steps
+        : undefined;
+  const visibleModules = mode === "overview"
+    ? [data?.water, data?.fasting, data?.steps].filter(Boolean) as AdminTrackingModuleSummary[]
+    : [selectedModule].filter(Boolean) as AdminTrackingModuleSummary[];
+  const trends = data?.trends ?? [];
+
+  return (
+    <div className="stack">
+      <SectionToolbar title={title} state={state} onReload={reload}>
+        <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
+          <option value={7}>7 days</option>
+          <option value={30}>30 days</option>
+          <option value={90}>90 days</option>
+        </select>
+      </SectionToolbar>
+
+      <div className="mail-hero">
+        <div>
+          <p className="eyebrow">Aggregate tracking</p>
+          <h2>Water, fasting, and step adoption without exposing user-level logs.</h2>
+          <p>{formatDate(data?.startDate)} - {formatDate(data?.endDate)} window. Generated {formatDate(data?.generatedAt)}.</p>
+        </div>
+        <div className="mail-hero-status">
+          <Badge value={`${formatValue(data?.rangeDays ?? days)} days`} />
+          <span>Admin-only operational summary</span>
+        </div>
+      </div>
+
+      <div className="review-workspace-summary">
+        {visibleModules.map((module) => (
+          <MetricCard
+            key={module.module}
+            label={humanizeFeature(module.module)}
+            value={formatModuleTotal(module)}
+            hint={`${formatValue(module.activeUsersLastRange)} active users / ${formatValue(module.recordsLastRange)} records`}
+          />
+        ))}
+      </div>
+
+      {mode === "overview" && (
+        <div className="chart-grid">
+          <MiniBarChart
+            label="Records by module"
+            items={[
+              ["Water", data?.water?.recordsLastRange ?? 0],
+              ["Fasting", data?.fasting?.recordsLastRange ?? 0],
+              ["Steps", data?.steps?.recordsLastRange ?? 0]
+            ]}
+          />
+          <MiniBarChart
+            label="Active users by module"
+            items={[
+              ["Water", data?.water?.activeUsersLastRange ?? 0],
+              ["Fasting", data?.fasting?.activeUsersLastRange ?? 0],
+              ["Steps", data?.steps?.activeUsersLastRange ?? 0]
+            ]}
+          />
+          <MiniBarChart
+            label="Reminder enabled users"
+            items={[
+              ["Water", data?.water?.reminderEnabledUsers ?? 0],
+              ["Fasting", data?.fasting?.reminderEnabledUsers ?? 0],
+              ["Steps", data?.steps?.reminderEnabledUsers ?? 0]
+            ]}
+          />
+        </div>
+      )}
+
+      {mode !== "overview" && visibleModules[0] && (
+        <div className="ops-grid">
+          <Panel title="Module configuration">
+            <div className="config-grid">
+              <div className="config-block">
+                <span>Configured users</span>
+                <strong>{formatValue(visibleModules[0].configuredUsers)}</strong>
+              </div>
+              <div className="config-block">
+                <span>Reminder enabled</span>
+                <strong>{formatValue(visibleModules[0].reminderEnabledUsers)}</strong>
+              </div>
+              <div className="config-block">
+                <span>Active now</span>
+                <strong>{formatValue(visibleModules[0].activeNow)}</strong>
+              </div>
+            </div>
+          </Panel>
+          <Panel title="Recent trend">
+            <MiniBarChart label={humanizeFeature(mode)} items={trendBarItems(mode, trends)} />
+          </Panel>
+        </div>
+      )}
+
+      <DataTable
+        columns={trackingTrendColumns(mode)}
+        rows={trackingTrendRows(mode, trends)}
+        empty="No tracking trend returned."
+      />
+    </div>
+  );
+}
+
 type SystemHealthMode = "overview" | "runtime" | "database" | "providers" | "production";
 
 function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: (message: string | null) => void }) {
@@ -3682,6 +3897,78 @@ function formatAuditValue(value?: string | null): string {
 
 function humanize(value: string): string {
   return value.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
+}
+
+function formatModuleTotal(module?: AdminTrackingModuleSummary): string {
+  if (!module) return "-";
+  const total = formatValue(module.totalValueLastRange);
+  switch (module.totalValueUnit) {
+    case "ml":
+      return `${total} ml`;
+    case "minutes":
+      return `${total} min`;
+    case "steps":
+      return `${total} steps`;
+    default:
+      return total;
+  }
+}
+
+function trendBarItems(mode: TrackingMode, trends: AdminTrackingTrendPoint[]): Array<[string, number]> {
+  return trends.slice(-10).map((point) => [
+    formatChartDate(point.date),
+    trackingTrendValue(mode, point)
+  ]);
+}
+
+function trackingTrendValue(mode: TrackingMode, point: AdminTrackingTrendPoint): number {
+  if (mode === "water") return point.waterMl ?? 0;
+  if (mode === "fasting") return point.fastingMinutes ?? 0;
+  if (mode === "steps") return point.steps ?? 0;
+  return (point.waterLogs ?? 0) + (point.fastingSessions ?? 0) + (point.stepRecords ?? 0);
+}
+
+function trackingTrendColumns(mode: TrackingMode): string[] {
+  if (mode === "water") return ["Date", "Water", "Logs", "Users"];
+  if (mode === "fasting") return ["Date", "Fasting", "Sessions", "Users"];
+  if (mode === "steps") return ["Date", "Steps", "Records", "Users"];
+  return ["Date", "Water", "Fasting", "Steps", "Users"];
+}
+
+function trackingTrendRows(mode: TrackingMode, trends: AdminTrackingTrendPoint[]): ReactNode[][] {
+  return trends.slice().reverse().map((point) => {
+    if (mode === "water") {
+      return [
+        formatDate(point.date),
+        `${formatValue(point.waterMl)} ml`,
+        formatValue(point.waterLogs),
+        formatValue(point.waterUsers)
+      ];
+    }
+    if (mode === "fasting") {
+      return [
+        formatDate(point.date),
+        `${formatValue(point.fastingMinutes)} min`,
+        formatValue(point.fastingSessions),
+        formatValue(point.fastingUsers)
+      ];
+    }
+    if (mode === "steps") {
+      return [
+        formatDate(point.date),
+        formatValue(point.steps),
+        formatValue(point.stepRecords),
+        formatValue(point.stepUsers)
+      ];
+    }
+    return [
+      formatDate(point.date),
+      `${formatValue(point.waterMl)} ml`,
+      `${formatValue(point.fastingMinutes)} min`,
+      formatValue(point.steps),
+      `${formatValue(Math.max(point.waterUsers ?? 0, point.fastingUsers ?? 0, point.stepUsers ?? 0))} max`
+    ];
+  });
 }
 
 function healthCategories(data: SystemHealth): HealthCategory[] {

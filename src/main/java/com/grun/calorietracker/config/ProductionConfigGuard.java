@@ -37,6 +37,24 @@ public class ProductionConfigGuard {
             requireSecret(errors, "GRUN_BREVO_API_KEY", "grun.mail.brevo.api-key");
         }
 
+        boolean pushEnabled = environment.getProperty("grun.push.enabled", Boolean.class, false);
+        String pushProvider = environment.getProperty("grun.push.provider", "LOG");
+        if (pushEnabled) {
+            if ("LOG".equalsIgnoreCase(pushProvider)) {
+                errors.add("GRUN_PUSH_PROVIDER must not be LOG when push is enabled in prod.");
+            } else if ("EXPO".equalsIgnoreCase(pushProvider)) {
+                requireSecret(errors, "GRUN_PUSH_EXPO_URL", "grun.push.expo.url");
+            } else if ("FCM".equalsIgnoreCase(pushProvider)) {
+                requireSecret(errors, "GRUN_PUSH_FCM_PROJECT_ID", "grun.push.fcm.project-id");
+                requireSecret(errors, "GRUN_PUSH_FCM_ACCESS_TOKEN", "grun.push.fcm.access-token");
+            } else if ("ONESIGNAL".equalsIgnoreCase(pushProvider)) {
+                requireSecret(errors, "GRUN_PUSH_ONESIGNAL_APP_ID", "grun.push.onesignal.app-id");
+                requireSecret(errors, "GRUN_PUSH_ONESIGNAL_API_KEY", "grun.push.onesignal.api-key");
+            } else {
+                errors.add("GRUN_PUSH_PROVIDER is unsupported.");
+            }
+        }
+
         if (!errors.isEmpty()) {
             throw new IllegalStateException("Invalid production configuration: " + String.join(" ", errors));
         }

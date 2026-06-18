@@ -11,6 +11,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RecipeLogRepository extends JpaRepository<RecipeLogEntity, Long> {
+    long countByUser(UserEntity user);
+
+    List<RecipeLogEntity> findByUserOrderByLogDateAsc(UserEntity user);
+
     List<RecipeLogEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
             UserEntity user,
             LocalDateTime start,
@@ -25,6 +29,8 @@ public interface RecipeLogRepository extends JpaRepository<RecipeLogEntity, Long
     );
 
     Optional<RecipeLogEntity> findByIdAndUser(Long id, UserEntity user);
+
+    long deleteByUser(UserEntity user);
 
     @Query(value = """
             SELECT CAST(r.log_date AS DATE) as logDate,
