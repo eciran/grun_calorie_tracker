@@ -138,6 +138,81 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals("Organic Porridge Oats Bar", result.getContent().get(1).getProductName());
     }
 
+    @Test
+    void searchFoodItems_defaultRanking_prioritizesWholeWordFoodMatchBeforeSubstringMatch() {
+        FoodItemEntity milkChocolate = product("Milk Chocolate", "111001", VerificationStatus.RAW_IMPORTED);
+        milkChocolate.setMarketRegion(MarketRegion.UK_IE);
+        milkChocolate.setQualityScore(100);
+        milkChocolate.setUsageCount(1000L);
+
+        FoodItemEntity wholeMilk = product("Whole Milk", "111002", VerificationStatus.RAW_IMPORTED);
+        wholeMilk.setMarketRegion(MarketRegion.UK_IE);
+        wholeMilk.setQualityScore(60);
+        wholeMilk.setUsageCount(0L);
+
+        FoodItemEntity shortbread = product("All Butter Scottish Shortbread Fingers", "111003", VerificationStatus.RAW_IMPORTED);
+        shortbread.setMarketRegion(MarketRegion.UK_IE);
+        shortbread.setQualityScore(100);
+        shortbread.setUsageCount(1000L);
+
+        FoodItemEntity whiteBread = product("White Bread", "111004", VerificationStatus.RAW_IMPORTED);
+        whiteBread.setMarketRegion(MarketRegion.UK_IE);
+        whiteBread.setQualityScore(60);
+        whiteBread.setUsageCount(0L);
+
+        foodItemRepository.saveAll(List.of(milkChocolate, wholeMilk, shortbread, whiteBread));
+
+        FoodSearchCriteriaDto milkCriteria = new FoodSearchCriteriaDto();
+        milkCriteria.setQuery("milk");
+        milkCriteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto milkResult = foodItemService.searchFoodItems(milkCriteria, 0, 25);
+
+        assertEquals("Whole Milk", milkResult.getContent().get(0).getProductName());
+        assertEquals("Milk Chocolate", milkResult.getContent().get(1).getProductName());
+
+        FoodSearchCriteriaDto breadCriteria = new FoodSearchCriteriaDto();
+        breadCriteria.setQuery("bread");
+        breadCriteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto breadResult = foodItemService.searchFoodItems(breadCriteria, 0, 25);
+
+        assertEquals("White Bread", breadResult.getContent().get(0).getProductName());
+        assertEquals("All Butter Scottish Shortbread Fingers", breadResult.getContent().get(1).getProductName());
+    }
+
+    @Test
+    void searchFoodItems_whenBrandProvided_filtersByBrandAndSupportsBrandSearchText() {
+        FoodItemEntity tescoMilk = product("Semi Skimmed Milk", "222001", VerificationStatus.RAW_IMPORTED);
+        tescoMilk.setBrand("Tesco");
+        tescoMilk.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodItemEntity dunnesMilk = product("Semi Skimmed Milk", "222002", VerificationStatus.RAW_IMPORTED);
+        dunnesMilk.setBrand("Dunnes Stores");
+        dunnesMilk.setMarketRegion(MarketRegion.UK_IE);
+
+        foodItemRepository.saveAll(List.of(tescoMilk, dunnesMilk));
+
+        FoodSearchCriteriaDto brandFilterCriteria = new FoodSearchCriteriaDto();
+        brandFilterCriteria.setQuery("milk");
+        brandFilterCriteria.setBrand("tesco");
+        brandFilterCriteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto filtered = foodItemService.searchFoodItems(brandFilterCriteria, 0, 25);
+
+        assertEquals(1, filtered.getContent().size());
+        assertEquals("Tesco", filtered.getContent().get(0).getBrand());
+
+        FoodSearchCriteriaDto brandSearchCriteria = new FoodSearchCriteriaDto();
+        brandSearchCriteria.setQuery("dunnes");
+        brandSearchCriteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto brandSearch = foodItemService.searchFoodItems(brandSearchCriteria, 0, 25);
+
+        assertEquals(1, brandSearch.getContent().size());
+        assertEquals("Dunnes Stores", brandSearch.getContent().get(0).getBrand());
+    }
+
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {
         FoodItemEntity product = new FoodItemEntity();
         product.setName(name);

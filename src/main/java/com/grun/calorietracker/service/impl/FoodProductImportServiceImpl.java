@@ -240,7 +240,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             RegionResolution regionResolution
     ) {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(firstText(row, "barcode", "code", "gtin", "ean", "upc"));
-        String name = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
+        String rawName = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
+        String name = FoodProductNormalizationRules.normalizeProductDisplayName(rawName);
         if (name == null) {
             return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), firstText(row, "barcode", "code", "fdc_id"), "Product name is required."));
         }
@@ -270,6 +271,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setNormalizedBarcode(normalizedBarcode);
         product.setSourceKey(sourceKey);
         product.setName(name);
+        String brand = firstText(row, "brand", "brands", "manufacturer", "producer");
+        if (brand != null) {
+            product.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(brand));
+        }
         product.setCatalogType(catalogType);
         product.setMarketRegion(regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
@@ -416,7 +421,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             product.setDataSource(dataSource);
             product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
             product.setImageSource(dataSource == FoodDataSource.OPEN_FOOD_FACTS ? ImageSource.OPEN_FOOD_FACTS : ImageSource.ADMIN_UPLOAD);
-            product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+            product.setImageStatus(resolvePassiveImageStatus(row));
             product.setReviewedBy(null);
             product.setLastReviewedAt(null);
             copyExternalImageIfMissing(product, row);
@@ -451,8 +456,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
 
     private boolean requiresReview(FoodItemEntity product) {
+        if (product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW) {
+            return true;
+        }
         return product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED
-                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW;
+                && !Boolean.TRUE.equals(product.getAutoApprovedForCatalog());
     }
 
     private void addQualityWarnings(
@@ -601,6 +609,23 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         boolean hasDisplayImage = firstText(row, "displayimageurl", "display_image_url", "imageurl", "image_url") != null;
         return hasDisplayImage ? ImageStatus.APPROVED : ImageStatus.NEEDS_REVIEW;
+    }
+
+    private ImageStatus resolvePassiveImageStatus(CsvRow row) {
+        String explicitStatus = FoodProductNormalizationRules.normalizeText(row.value("imagestatus"));
+        if (explicitStatus == null) {
+            explicitStatus = FoodProductNormalizationRules.normalizeText(row.value("image_status"));
+        }
+        if (explicitStatus != null) {
+            try {
+                return ImageStatus.valueOf(explicitStatus.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return ImageStatus.RAW;
+            }
+        }
+
+        boolean hasExternalImage = firstText(row, "displayimageurl", "display_image_url", "externalimageurl", "external_image_url", "imageurl", "image_url", "image_front_url") != null;
+        return hasExternalImage ? ImageStatus.APPROVED : ImageStatus.RAW;
     }
 
     private RegionResolution resolveMarketRegion(CsvRow row, MarketRegion fallback) {

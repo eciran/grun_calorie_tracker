@@ -101,6 +101,28 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_normalizesProductAndBrandDisplayNames() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,brand,calories,protein,fat,carbs,market_region
+                1234567890123,milk,almond breeze,48,4,2,5,UK_IE
+                1234567890124,PEANUT BUTTER PROTEIN BAR,M&S FOOD,357,35,14,36.7,UK_IE
+                """);
+
+        foodProductImportService.importCsv(file, "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals("Milk", savedProducts.get(0).getName());
+        assertEquals("Almond Breeze", savedProducts.get(0).getBrand());
+        assertEquals("Peanut Butter Protein Bar", savedProducts.get(1).getName());
+        assertEquals("M&S Food", savedProducts.get(1).getBrand());
+    }
+    @Test
     void importCsv_pilotFileSupportsUkIeTrAndEuRegions() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -209,7 +231,9 @@ class FoodProductImportServiceImplTest {
 
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, imported.getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, imported.getVerificationStatus());
-        assertEquals(ImageStatus.NEEDS_REVIEW, imported.getImageStatus());
+        assertEquals(80, imported.getConfidenceScore());
+        assertEquals(true, imported.getAutoApprovedForCatalog());
+        assertEquals(ImageStatus.APPROVED, imported.getImageStatus());
         assertEquals("https://images.openfoodfacts.org/coke.jpg", imported.getExternalImageUrl());
         assertEquals(null, imported.getDisplayImageUrl());
         assertEquals(null, imported.getReviewedBy());
@@ -244,7 +268,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(MarketRegion.TR, savedProducts.get(1).getMarketRegion());
         assertEquals(MarketRegion.UK_IE, savedProducts.get(2).getMarketRegion());
         assertEquals(VerificationStatus.RAW_IMPORTED, savedProducts.get(0).getVerificationStatus());
-        assertEquals(ImageStatus.NEEDS_REVIEW, savedProducts.get(0).getImageStatus());
+        assertEquals(ImageStatus.APPROVED, savedProducts.get(0).getImageStatus());
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, savedProducts.get(0).getDataSource());
     }
 
@@ -403,7 +427,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(10, result.getTotalRows());
         assertEquals(10, result.getInsertedRows());
         assertEquals(0, result.getSkippedRows());
-        assertEquals(10, result.getReviewRequiredRows());
+        assertEquals(0, result.getReviewRequiredRows());
         assertEquals(10, result.getMarketRegionCounts().get("UK_IE"));
         assertEquals(10, result.getDataSourceCounts().get("OPEN_FOOD_FACTS"));
 
@@ -413,7 +437,8 @@ class FoodProductImportServiceImplTest {
 
         assertEquals(10, savedProducts.stream().filter(product -> product.getMarketRegion() == MarketRegion.UK_IE).count());
         assertEquals(10, savedProducts.stream().filter(product -> product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED).count());
-        assertEquals(10, savedProducts.stream().filter(product -> product.getImageStatus() == ImageStatus.NEEDS_REVIEW).count());
+        assertEquals(10, savedProducts.stream().filter(product -> Boolean.TRUE.equals(product.getAutoApprovedForCatalog())).count());
+        assertEquals(10, savedProducts.stream().filter(product -> product.getImageStatus() == ImageStatus.APPROVED).count());
     }
 
     @Test

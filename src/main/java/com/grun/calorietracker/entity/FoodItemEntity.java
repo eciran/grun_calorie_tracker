@@ -29,6 +29,7 @@ public class FoodItemEntity {
     private String barcode;
     private String normalizedBarcode;
     private String sourceKey;
+    private String brand;
     private String imageUrl;
     private String externalImageUrl;
     private String displayImageUrl;
@@ -55,6 +56,8 @@ public class FoodItemEntity {
 
     private Long usageCount;
     private Integer qualityScore;
+    private Integer confidenceScore;
+    private Boolean autoApprovedForCatalog;
     private Integer reviewPriority;
     private LocalDateTime lastExternalSyncAt;
     private LocalDateTime lastReviewedAt;

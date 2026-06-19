@@ -151,6 +151,25 @@ class FoodLogsControllerTest {
 
     @Test
     @WithMockUser(username = "test@test.com", roles = "USER")
+    void quickCalorie_whenLogDateIsDateOnly_returnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/food-logs/quick-calorie")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "calories": 250,
+                                  "mealType": "SNACK",
+                                  "logDate": "2026-06-18"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Invalid request"))
+                .andExpect(jsonPath("$.message").value("Malformed JSON request. Check date/time formats and field types."))
+                .andExpect(jsonPath("$.path").value("/api/v1/food-logs/quick-calorie"));
+    }
+
+    @Test
+    @WithMockUser(username = "test@test.com", roles = "USER")
     void copyMeal_success() throws Exception {
         FoodLogCopyMealRequestDto request = new FoodLogCopyMealRequestDto();
         request.setSourceDate(java.time.LocalDate.of(2026, 5, 21));

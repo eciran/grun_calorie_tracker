@@ -1,3 +1,7 @@
+param(
+    [int] $ServerPort = 8080
+)
+
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -32,6 +36,7 @@ if (Test-Path $envFile) {
 if (-not $env:POSTGRES_USER) { $env:POSTGRES_USER = "postgres" }
 if (-not $env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD = "postgres" }
 if (-not $env:POSTGRES_DB) { $env:POSTGRES_DB = "grun_calorie_db" }
+$env:SERVER_PORT = "$ServerPort"
 
 Push-Location $projectRoot
 try {
@@ -68,7 +73,7 @@ try {
         Write-Error "Redis did not become ready in time. Check container logs with: docker logs grun-redis"
     }
 
-    Write-Host "PostgreSQL and Redis are ready. Starting Spring Boot API..."
+    Write-Host "PostgreSQL and Redis are ready. Starting Spring Boot API on port $ServerPort..."
     .\mvnw.cmd spring-boot:run
 } finally {
     Pop-Location

@@ -69,6 +69,12 @@ public class FoodProductDto {
     @Schema(description = "Computed product data quality score from 0 to 100.", example = "85")
     private Integer qualityScore;
 
+    @Schema(description = "Automated product data confidence score from 0 to 100. This does not mean admin verification.", example = "88")
+    private Integer confidenceScore;
+
+    @Schema(description = "Whether the product is safe enough for catalog use without manual admin review.", example = "true")
+    private Boolean autoApprovedForCatalog;
+
     @Schema(description = "Computed admin review priority. Higher values should be reviewed first.", example = "120")
     private Integer reviewPriority;
 

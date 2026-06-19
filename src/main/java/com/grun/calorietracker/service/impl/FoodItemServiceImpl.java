@@ -132,6 +132,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                 for (String term : FoodProductNormalizationRules.expandSearchTerms(searchQuery)) {
                     String pattern = "%" + term.toLowerCase(Locale.ROOT) + "%";
                     searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern));
+                    searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), pattern));
                 }
                 String normalizedBarcodeQuery = FoodProductNormalizationRules.normalizeBarcode(searchQuery);
                 String barcodePattern = normalizedBarcodeQuery == null
@@ -140,6 +141,14 @@ public class FoodItemServiceImpl implements FoodItemService {
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), barcodePattern));
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern));
                 predicates.add(criteriaBuilder.or(searchPredicates.toArray(new Predicate[0])));
+            }
+
+            String brand = FoodProductNormalizationRules.normalizeText(criteria.getBrand());
+            if (brand != null) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("brand")),
+                        "%" + brand.toLowerCase(Locale.ROOT) + "%"
+                ));
             }
 
             String nutriScore = FoodProductNormalizationRules.normalizeText(criteria.getNutriScore());
@@ -187,10 +196,25 @@ public class FoodItemServiceImpl implements FoodItemService {
 
         if (searchQuery != null) {
             String normalizedQuery = searchQuery.toLowerCase(Locale.ROOT);
+            var lowerName = criteriaBuilder.lower(root.get("name"));
+            var lowerBrand = criteriaBuilder.lower(root.get("brand"));
             orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
-                    .when(criteriaBuilder.equal(criteriaBuilder.lower(root.get("name")), normalizedQuery), 0)
-                    .when(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), normalizedQuery + "%"), 1)
-                    .otherwise(2)));
+                    .when(criteriaBuilder.equal(lowerName, normalizedQuery), 0)
+                    .when(criteriaBuilder.equal(lowerBrand, normalizedQuery), 1)
+                    .when(criteriaBuilder.or(
+                            criteriaBuilder.like(lowerName, normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery),
+                            criteriaBuilder.like(lowerBrand, normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerBrand, "% " + normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerBrand, "% " + normalizedQuery)
+                    ), 2)
+                    .when(criteriaBuilder.or(
+                            criteriaBuilder.like(lowerName, normalizedQuery + "%"),
+                            criteriaBuilder.like(lowerBrand, normalizedQuery + "%")
+                    ), 3)
+                    .otherwise(4)));
+            orders.add(criteriaBuilder.asc(criteriaBuilder.length(root.get("name"))));
         }
 
         orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()

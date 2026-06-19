@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ProductQualityLabel;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 
 import java.util.List;
@@ -20,7 +21,8 @@ public class FoodItemMapper {
         entity.setBarcode(dto.getBarcode());
         entity.setNormalizedBarcode(dto.getNormalizedBarcode());
         entity.setSourceKey(dto.getSourceKey());
-        entity.setName(dto.getProductName());
+        entity.setName(FoodProductNormalizationRules.normalizeProductDisplayName(dto.getProductName()));
+        entity.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(dto.getBrand()));
         entity.setImageUrl(dto.getImageUrl());
         entity.setExternalImageUrl(dto.getExternalImageUrl());
         entity.setDisplayImageUrl(dto.getDisplayImageUrl());
@@ -32,6 +34,8 @@ public class FoodItemMapper {
         entity.setMarketRegion(dto.getMarketRegion());
         entity.setUsageCount(dto.getUsageCount());
         entity.setQualityScore(dto.getQualityScore());
+        entity.setConfidenceScore(dto.getConfidenceScore());
+        entity.setAutoApprovedForCatalog(dto.getAutoApprovedForCatalog());
         entity.setReviewPriority(dto.getReviewPriority());
         entity.setLastExternalSyncAt(parseLocalDateTime(dto.getLastExternalSyncAt()));
         entity.setLastReviewedAt(parseLocalDateTime(dto.getLastReviewedAt()));
@@ -77,7 +81,7 @@ public class FoodItemMapper {
         dto.setNormalizedBarcode(entity.getNormalizedBarcode());
         dto.setSourceKey(entity.getSourceKey());
         dto.setProductName(entity.getName());
-        // FoodItemEntity does not currently store brand.
+        dto.setBrand(entity.getBrand());
         dto.setImageUrl(entity.getImageUrl());
         dto.setExternalImageUrl(entity.getExternalImageUrl());
         dto.setDisplayImageUrl(entity.getDisplayImageUrl());
@@ -89,6 +93,8 @@ public class FoodItemMapper {
         dto.setMarketRegion(entity.getMarketRegion());
         dto.setUsageCount(entity.getUsageCount());
         dto.setQualityScore(entity.getQualityScore());
+        dto.setConfidenceScore(entity.getConfidenceScore());
+        dto.setAutoApprovedForCatalog(entity.getAutoApprovedForCatalog());
         dto.setReviewPriority(entity.getReviewPriority());
         dto.setLastExternalSyncAt(formatLocalDateTime(entity.getLastExternalSyncAt()));
         dto.setLastReviewedAt(formatLocalDateTime(entity.getLastReviewedAt()));

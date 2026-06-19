@@ -70,11 +70,14 @@ public class FoodItemController {
             @RequestParam(required = false) MarketRegion region,
             @Parameter(description = "Optional catalog type filter.", example = "BRANDED_PRODUCT")
             @RequestParam(required = false) FoodCatalogType catalogType,
+            @Parameter(description = "Optional brand filter.", example = "Tesco")
+            @RequestParam(required = false) String brand,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery(q);
         criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
         criteria.setCatalogType(catalogType);
+        criteria.setBrand(brand);
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 
