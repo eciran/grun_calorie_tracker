@@ -85,6 +85,7 @@ class PasswordResetServiceImplTest {
         PasswordResetTokenEntity savedToken = tokenCaptor.getValue();
 
         assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
+        assertThat(response.getRetryAfterSeconds()).isEqualTo(60L);
         assertThat(savedToken.getUser()).isEqualTo(user);
         assertThat(savedToken.getTokenHash()).isNotBlank();
         assertThat(savedToken.getExpiresAt()).isAfter(LocalDateTime.now());
@@ -101,6 +102,7 @@ class PasswordResetServiceImplTest {
         PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
 
         assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
+        assertThat(response.getRetryAfterSeconds()).isEqualTo(60L);
         verify(passwordResetTokenRepository, never()).save(any());
         verify(passwordResetMailSender, never()).sendPasswordResetToken(anyString(), anyString(), anyString());
     }
@@ -120,6 +122,7 @@ class PasswordResetServiceImplTest {
         PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
 
         assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
+        assertThat(response.getRetryAfterSeconds()).isEqualTo(60L);
         verify(passwordResetTokenRepository, never()).save(any());
         verify(passwordResetMailSender, never()).sendPasswordResetToken(anyString(), anyString(), anyString());
     }
@@ -140,16 +143,18 @@ class PasswordResetServiceImplTest {
         PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
 
         assertThat(response.getMessage()).isEqualTo("If the email exists, a password reset link has been sent.");
+        assertThat(response.getRetryAfterSeconds()).isEqualTo(60L);
         assertThat(oldToken.getUsedAt()).isNotNull();
         verify(passwordResetTokenRepository).save(any(PasswordResetTokenEntity.class));
         verify(passwordResetMailSender).sendPasswordResetToken(anyString(), anyString(), anyString());
     }
 
     @Test
-    void confirmPasswordReset_whenTokenIsValid_updatesPasswordAndMarksTokenUsed() {
+    void confirmPasswordReset_whenTokenIsValid_updatesPasswordVerifiesEmailAndMarksTokenUsed() {
         PasswordResetConfirmRequestDto request = new PasswordResetConfirmRequestDto();
         request.setToken("raw-token");
         request.setNewPassword("NewStrongPass1!");
+        user.setEmailVerified(false);
 
         PasswordResetTokenEntity token = new PasswordResetTokenEntity();
         token.setUser(user);
@@ -162,6 +167,7 @@ class PasswordResetServiceImplTest {
 
         assertThat(response.getMessage()).isEqualTo("Password has been reset successfully.");
         assertThat(user.getPassword()).isEqualTo("encoded-new-password");
+        assertThat(user.getEmailVerified()).isTrue();
         assertThat(token.getUsedAt()).isNotNull();
         verify(userRepository).save(user);
         verify(refreshTokenService).revokeAllForUser(user);

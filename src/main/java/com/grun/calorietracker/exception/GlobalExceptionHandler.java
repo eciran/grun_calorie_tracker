@@ -12,6 +12,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -148,6 +149,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponseDto> handleDateTimeParseException(DateTimeParseException ex,
                                                                             HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex,
+                                                                                    HttpServletRequest request) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "error.invalid.request",
+                "Invalid request",
+                "Malformed JSON request. Check date/time formats and field types.",
+                request
+        );
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

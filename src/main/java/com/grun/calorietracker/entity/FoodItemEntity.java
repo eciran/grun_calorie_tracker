@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "food_items")
@@ -105,4 +107,7 @@ public class FoodItemEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private UserEntity createdByUser;
+
+    @OneToMany(mappedBy = "foodItem", fetch = FetchType.LAZY)
+    private Set<FoodItemSearchAliasEntity> searchAliases = new HashSet<>();
 }

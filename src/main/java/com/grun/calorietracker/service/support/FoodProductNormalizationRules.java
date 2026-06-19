@@ -141,6 +141,18 @@ public final class FoodProductNormalizationRules {
         return result.toString();
     }
 
+
+    public static String normalizeSearchAlias(String value) {
+        String normalized = stripDiacritics(value);
+        if (normalized == null) {
+            return null;
+        }
+        normalized = normalized
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
+    }
     public static List<String> expandSearchTerms(String value) {
         String normalized = normalizeText(value);
         if (normalized == null) {

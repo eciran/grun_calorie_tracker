@@ -37,7 +37,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     @Value("${grun.email-verification.expiration-minutes:1440}")
     private long expirationMinutes;
 
-    @Value("${grun.email-verification.base-url:http://localhost:8080/verify-email}")
+    @Value("${grun.email-verification.base-url:http://localhost:8082/verify-email}")
     private String verificationBaseUrl;
 
     @Value("${grun.email-verification.resend-cooldown-level-1-seconds:30}")

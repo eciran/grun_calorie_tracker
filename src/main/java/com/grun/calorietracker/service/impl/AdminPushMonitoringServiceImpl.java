@@ -39,7 +39,9 @@ public class AdminPushMonitoringServiceImpl implements AdminPushMonitoringServic
                 pushDeliveryLogRepository.countByStatusAndCreatedAtAfter(PushDeliveryStatus.SENT, since),
                 pushDeliveryLogRepository.countByStatusAndCreatedAtAfter(PushDeliveryStatus.FAILED, since),
                 !isBlank(pushProperties.getExpo().getUrl()),
-                !isBlank(pushProperties.getFcm().getProjectId()) && !isBlank(pushProperties.getFcm().getAccessToken()),
+                !isBlank(pushProperties.getFcm().getProjectId())
+                        && (!isBlank(pushProperties.getFcm().getCredentialsJson())
+                        || !isBlank(pushProperties.getFcm().getAccessToken())),
                 !isBlank(pushProperties.getOnesignal().getAppId()) && !isBlank(pushProperties.getOnesignal().getApiKey())
         );
     }

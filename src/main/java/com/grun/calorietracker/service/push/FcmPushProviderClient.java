@@ -22,10 +22,14 @@ import java.util.Map;
 public class FcmPushProviderClient implements PushProviderClient {
 
     private final PushProperties properties;
+    private final FcmAccessTokenProvider accessTokenProvider;
     private final RestTemplate restTemplate;
 
-    public FcmPushProviderClient(PushProperties properties, RestTemplateBuilder restTemplateBuilder) {
+    public FcmPushProviderClient(PushProperties properties,
+                                 FcmAccessTokenProvider accessTokenProvider,
+                                 RestTemplateBuilder restTemplateBuilder) {
         this.properties = properties;
+        this.accessTokenProvider = accessTokenProvider;
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofSeconds(5))
                 .setReadTimeout(Duration.ofSeconds(10))
@@ -40,9 +44,16 @@ public class FcmPushProviderClient implements PushProviderClient {
     @Override
     public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification) {
         String projectId = properties.getFcm().getProjectId();
-        String accessToken = properties.getFcm().getAccessToken();
+        String accessToken;
+        try {
+            accessToken = accessTokenProvider.getAccessToken();
+        } catch (RuntimeException ex) {
+            log.warn("fcm_access_token_failed tokenId={} notificationId={} reason={}",
+                    token.getId(), notification.getId(), ex.getMessage());
+            return PushProviderSendResult.failed(ex.getMessage());
+        }
         if (isBlank(projectId) || isBlank(accessToken)) {
-            return PushProviderSendResult.failed("FCM project id or access token is not configured.");
+            return PushProviderSendResult.failed("FCM project id or credentials are not configured.");
         }
         String url = "https://fcm.googleapis.com/v1/projects/" + projectId + "/messages:send";
         HttpHeaders headers = new HttpHeaders();

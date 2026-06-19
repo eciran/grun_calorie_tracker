@@ -40,7 +40,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Value("${grun.password-reset.expiration-minutes:30}")
     private long expirationMinutes;
 
-    @Value("${grun.password-reset.base-url:http://localhost:8080/reset-password}")
+    @Value("${grun.password-reset.base-url:http://localhost:8082/reset-password}")
     private String resetBaseUrl;
 
     @Value("${grun.password-reset.request-cooldown-seconds:60}")
@@ -65,7 +65,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             passwordResetMailSender.sendPasswordResetToken(user.getEmail(), rawToken, buildResetLink(rawToken));
         });
 
-        return new PasswordResetResponseDto(REQUEST_MESSAGE);
+        return new PasswordResetResponseDto(REQUEST_MESSAGE, Math.max(requestCooldownSeconds, 0L));
     }
 
     @Override
@@ -83,6 +83,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         UserEntity user = token.getUser();
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setPasswordSet(true);
+        user.setEmailVerified(true);
         userRepository.save(user);
         refreshTokenService.revokeAllForUser(user);
 

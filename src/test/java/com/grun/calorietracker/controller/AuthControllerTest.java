@@ -16,6 +16,7 @@ import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.FederatedAuthService;
@@ -30,10 +31,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,6 +57,12 @@ class AuthControllerTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    @MockBean
+    private GoalRepository goalRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @MockBean
     private PasswordResetService passwordResetService;
@@ -107,11 +114,16 @@ class AuthControllerTest {
 
         when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.empty());
         when(userRepository.save(any(UserEntity.class))).thenReturn(sampleUser);
+        when(refreshTokenService.createRefreshToken(any(UserEntity.class))).thenReturn("register-refresh-token");
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").value("register-refresh-token"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.message").value("User registered successfully. Email verification can be completed later."));
 
         verify(userRepository).save(any(UserEntity.class));
         verify(emailVerificationService).createVerificationTokenForUser(any(UserEntity.class));
@@ -122,6 +134,7 @@ class AuthControllerTest {
         AuthRequest request = new AuthRequest();
         request.setEmail("testuser@example.com");
         request.setPassword("Password1!");
+        sampleUser.setPassword(passwordEncoder.encode("DifferentPass1!"));
 
         when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.of(sampleUser));
 
@@ -165,13 +178,14 @@ class AuthControllerTest {
         request.setEmail("testuser@example.com");
 
         when(passwordResetService.requestPasswordReset(any(PasswordResetRequestDto.class)))
-                .thenReturn(new PasswordResetResponseDto("If the email exists, a password reset link has been sent."));
+                .thenReturn(new PasswordResetResponseDto("If the email exists, a password reset link has been sent.", 60L));
 
         mockMvc.perform(post("/api/v1/auth/password-reset/request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("If the email exists, a password reset link has been sent."));
+                .andExpect(jsonPath("$.message").value("If the email exists, a password reset link has been sent."))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(60));
     }
 
     @Test
@@ -205,24 +219,22 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_whenEmailIsNotVerified_returnsForbiddenErrorResponse() throws Exception {
+    void login_whenEmailIsNotVerified_returnsSessionAndAllowsReminderFlow() throws Exception {
         AuthRequest request = new AuthRequest();
         request.setEmail("testuser@example.com");
         request.setPassword("Password1!");
         sampleUser.setEmailVerified(false);
 
         when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.of(sampleUser));
+        when(refreshTokenService.createRefreshToken(sampleUser)).thenReturn("refresh-token");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("Email not verified"))
-                .andExpect(jsonPath("$.message").value("Email address is not verified"))
-                .andExpect(jsonPath("$.path").value("/api/v1/auth/login"));
-
-        verify(refreshTokenService, never()).createRefreshToken(any(UserEntity.class));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
+                .andExpect(jsonPath("$.message").value("Login successful"));
     }
 
     @Test
@@ -374,11 +386,34 @@ class AuthControllerTest {
     }
 
     @Test
-    void openApi_loginForbidden_usesErrorResponseSchema() throws Exception {
+    void openApi_loginDoesNotRequireEmailVerification() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses['403'].content['application/json'].schema['$ref']")
-                        .value("#/components/schemas/ApiErrorResponseDto"));
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses['403']").doesNotExist());
+    }
+
+    @Test
+    void register_whenExistingAccountHasIncompleteOnboardingAndPasswordMatches_resumesRegistration() throws Exception {
+        AuthRequest request = new AuthRequest();
+        request.setEmail("testuser@example.com");
+        request.setPassword("Password1!");
+        sampleUser.setPassword(passwordEncoder.encode("Password1!"));
+        sampleUser.setEmailVerified(false);
+        sampleUser.setMarketRegion(null);
+
+        when(userRepository.findByEmail("testuser@example.com")).thenReturn(java.util.Optional.of(sampleUser));
+        when(goalRepository.findByUser(sampleUser)).thenReturn(java.util.Optional.empty());
+        when(refreshTokenService.createRefreshToken(sampleUser)).thenReturn("resume-refresh-token");
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").value("resume-refresh-token"))
+                .andExpect(jsonPath("$.message").value("Registration resumed. Continue onboarding."));
+
+        verify(emailVerificationService).resendVerification(any(EmailVerificationRequestDto.class));
     }
 }
 
