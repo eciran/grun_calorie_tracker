@@ -13,4 +13,11 @@ public class PasswordResetResponseDto {
 
     @Schema(description = "Human-readable password reset result.", example = "If the email exists, a password reset link has been sent.")
     private String message;
+
+    @Schema(description = "Recommended client-side wait time before allowing another password reset request.", example = "60")
+    private Long retryAfterSeconds;
+
+    public PasswordResetResponseDto(String message) {
+        this.message = message;
+    }
 }

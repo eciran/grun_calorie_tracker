@@ -1,4 +1,20 @@
 spring:
+  datasource:
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:2}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${SPRING_DATASOURCE_HIKARI_MAX_LIFETIME:1800000}
+      leak-detection-threshold: ${SPRING_DATASOURCE_HIKARI_LEAK_DETECTION_THRESHOLD:0}
+  cache:
+    type: ${SPRING_CACHE_TYPE:simple}
+    cache-names: foodProductById,foodProductByBarcode,foodProductSearch
+    redis:
+      time-to-live: ${SPRING_CACHE_REDIS_TIME_TO_LIVE:10m}
+      cache-null-values: false
+      use-key-prefix: true
+      key-prefix: grun:prod:
   jpa:
     open-in-view: false
     show-sql: false
@@ -96,7 +112,7 @@ grun:
     enabled: true
     trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
-      enabled: true
+      enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
   revenuecat:
     strict-product-mapping: true
     api:

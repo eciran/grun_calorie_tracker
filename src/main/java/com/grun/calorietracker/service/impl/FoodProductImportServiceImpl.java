@@ -4,21 +4,26 @@ import com.grun.calorietracker.dto.FoodProductImportErrorDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodProductImportWarningDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,6 +52,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private static final int MAX_WARNING_DETAILS = 50;
 
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemSearchAliasRepository foodItemSearchAliasRepository;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     @Override
@@ -60,6 +66,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductImportResultDto importCsv(MultipartFile file, String importedBy, FoodProductImportMode importMode, FoodProductImportFormat importFormat) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required.");
@@ -110,7 +117,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 unsupportedMarketRegionRows++;
             }
             productsToSave.add(rowResult.product());
-            productImportContexts.add(new ProductImportContext(rowResult.product(), regionResolution));
+            productImportContexts.add(new ProductImportContext(rowResult.product(), regionResolution, row));
             String regionKey = rowResult.product().getMarketRegion() == null ? "UNSPECIFIED" : rowResult.product().getMarketRegion().name();
             marketRegionCounts.merge(regionKey, 1, Integer::sum);
             String catalogTypeKey = rowResult.product().getCatalogType() == null ? "UNSPECIFIED" : rowResult.product().getCatalogType().name();
@@ -129,6 +136,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         List<FoodItemEntity> savedProducts = new ArrayList<>();
         foodItemRepository.saveAll(productsToSave).forEach(savedProducts::add);
         syncQualityIssues(savedProducts, productImportContexts, importedBy);
+        syncSearchAliases(savedProducts, productImportContexts);
         int skippedRows = parsedCsv.rows().size() - productsToSave.size();
         int reviewRequiredRows = (int) productsToSave.stream()
                 .filter(this::requiresReview)
@@ -240,7 +248,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             RegionResolution regionResolution
     ) {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(firstText(row, "barcode", "code", "gtin", "ean", "upc"));
-        String name = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
+        String rawName = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
+        String name = FoodProductNormalizationRules.normalizeProductDisplayName(rawName);
         if (name == null) {
             return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), firstText(row, "barcode", "code", "fdc_id"), "Product name is required."));
         }
@@ -270,6 +279,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setNormalizedBarcode(normalizedBarcode);
         product.setSourceKey(sourceKey);
         product.setName(name);
+        String brand = firstText(row, "brand", "brands", "manufacturer", "producer");
+        if (brand != null) {
+            product.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(brand));
+        }
         product.setCatalogType(catalogType);
         product.setMarketRegion(regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
@@ -416,7 +429,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             product.setDataSource(dataSource);
             product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
             product.setImageSource(dataSource == FoodDataSource.OPEN_FOOD_FACTS ? ImageSource.OPEN_FOOD_FACTS : ImageSource.ADMIN_UPLOAD);
-            product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+            product.setImageStatus(resolvePassiveImageStatus(row));
             product.setReviewedBy(null);
             product.setLastReviewedAt(null);
             copyExternalImageIfMissing(product, row);
@@ -451,8 +464,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
 
     private boolean requiresReview(FoodItemEntity product) {
+        if (product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW) {
+            return true;
+        }
         return product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED
-                || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW;
+                && !Boolean.TRUE.equals(product.getAutoApprovedForCatalog());
     }
 
     private void addQualityWarnings(
@@ -485,6 +501,121 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
     }
 
+    private void syncSearchAliases(
+            List<FoodItemEntity> savedProducts,
+            List<ProductImportContext> productImportContexts
+    ) {
+        if (productImportContexts.isEmpty()) {
+            return;
+        }
+
+        List<FoodItemSearchAliasEntity> aliasesToSave = new ArrayList<>();
+        for (int index = 0; index < productImportContexts.size(); index++) {
+            ProductImportContext context = productImportContexts.get(index);
+            FoodItemEntity product = index < savedProducts.size() ? savedProducts.get(index) : context.product();
+            aliasesToSave.addAll(resolveSearchAliases(product, context.row()));
+        }
+
+        if (!aliasesToSave.isEmpty()) {
+            foodItemSearchAliasRepository.saveAll(aliasesToSave);
+        }
+    }
+
+    private List<FoodItemSearchAliasEntity> resolveSearchAliases(FoodItemEntity product, CsvRow row) {
+        if (product == null || row == null) {
+            return List.of();
+        }
+
+        Map<String, FoodItemSearchAliasEntity> existingAliases = new LinkedHashMap<>();
+        if (product.getId() != null) {
+            List<FoodItemSearchAliasEntity> aliases = foodItemSearchAliasRepository.findByFoodItemIdOrderByActiveDescLanguageAscAliasAsc(product.getId());
+            if (aliases != null) {
+                aliases.forEach(alias -> existingAliases.put(aliasKey(alias.getLanguage(), alias.getNormalizedAlias()), alias));
+            }
+        }
+
+        List<FoodItemSearchAliasEntity> aliasesToSave = new ArrayList<>();
+        Set<String> seenAliases = new HashSet<>();
+        FoodSearchAliasType explicitAliasType = resolveAliasType(row, FoodSearchAliasType.ADMIN_MANUAL);
+        collectAliases(aliasesToSave, seenAliases, existingAliases, product, row, PreferredLanguage.TR, explicitAliasType,
+                "alias_tr", "aliases_tr", "search_alias_tr", "search_aliases_tr", "turkish_alias", "turkish_aliases");
+        collectAliases(aliasesToSave, seenAliases, existingAliases, product, row, PreferredLanguage.EN, explicitAliasType,
+                "alias_en", "aliases_en", "search_alias_en", "search_aliases_en", "english_alias", "english_aliases");
+
+        PreferredLanguage defaultLanguage = product.getMarketRegion() == MarketRegion.TR ? PreferredLanguage.TR : PreferredLanguage.EN;
+        collectAliases(aliasesToSave, seenAliases, existingAliases, product, row, defaultLanguage, FoodSearchAliasType.COMMON_NAME,
+                "alias", "aliases", "search_alias", "search_aliases");
+        return aliasesToSave;
+    }
+
+    private void collectAliases(
+            List<FoodItemSearchAliasEntity> aliasesToSave,
+            Set<String> seenAliases,
+            Map<String, FoodItemSearchAliasEntity> existingAliases,
+            FoodItemEntity product,
+            CsvRow row,
+            PreferredLanguage language,
+            FoodSearchAliasType aliasType,
+            String... columns
+    ) {
+        for (String column : columns) {
+            String rawAliases = firstText(row, column);
+            if (rawAliases != null) {
+                addAliasesFromText(aliasesToSave, seenAliases, existingAliases, product, language, aliasType, rawAliases);
+            }
+        }
+    }
+
+    private void addAliasesFromText(
+            List<FoodItemSearchAliasEntity> aliasesToSave,
+            Set<String> seenAliases,
+            Map<String, FoodItemSearchAliasEntity> existingAliases,
+            FoodItemEntity product,
+            PreferredLanguage language,
+            FoodSearchAliasType aliasType,
+            String rawAliases
+    ) {
+        String normalizedProductName = FoodProductNormalizationRules.normalizeSearchAlias(product.getName());
+        for (String candidate : rawAliases.split("[|;,]")) {
+            String aliasText = FoodProductNormalizationRules.normalizeText(candidate);
+            String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(aliasText);
+            if (aliasText == null || normalizedAlias == null || normalizedAlias.equals(normalizedProductName)) {
+                continue;
+            }
+
+            String key = aliasKey(language, normalizedAlias);
+            if (!seenAliases.add(key)) {
+                continue;
+            }
+
+            FoodItemSearchAliasEntity alias = existingAliases.getOrDefault(key, new FoodItemSearchAliasEntity());
+            alias.setFoodItem(product);
+            alias.setAlias(aliasText);
+            alias.setNormalizedAlias(normalizedAlias);
+            alias.setLanguage(language);
+            alias.setAliasType(aliasType);
+            alias.setSource("admin-import");
+            alias.setActive(true);
+            aliasesToSave.add(alias);
+        }
+    }
+
+    private FoodSearchAliasType resolveAliasType(CsvRow row, FoodSearchAliasType fallback) {
+        String value = firstText(row, "aliastype", "alias_type", "search_alias_type");
+        if (value == null) {
+            return fallback;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        try {
+            return FoodSearchAliasType.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
+        }
+    }
+
+    private String aliasKey(PreferredLanguage language, String normalizedAlias) {
+        return language.name() + ":" + normalizedAlias;
+    }
     private void syncQualityIssues(
             List<FoodItemEntity> savedProducts,
             List<ProductImportContext> productImportContexts,
@@ -601,6 +732,23 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         boolean hasDisplayImage = firstText(row, "displayimageurl", "display_image_url", "imageurl", "image_url") != null;
         return hasDisplayImage ? ImageStatus.APPROVED : ImageStatus.NEEDS_REVIEW;
+    }
+
+    private ImageStatus resolvePassiveImageStatus(CsvRow row) {
+        String explicitStatus = FoodProductNormalizationRules.normalizeText(row.value("imagestatus"));
+        if (explicitStatus == null) {
+            explicitStatus = FoodProductNormalizationRules.normalizeText(row.value("image_status"));
+        }
+        if (explicitStatus != null) {
+            try {
+                return ImageStatus.valueOf(explicitStatus.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return ImageStatus.RAW;
+            }
+        }
+
+        boolean hasExternalImage = firstText(row, "displayimageurl", "display_image_url", "externalimageurl", "external_image_url", "imageurl", "image_url", "image_front_url") != null;
+        return hasExternalImage ? ImageStatus.APPROVED : ImageStatus.RAW;
     }
 
     private RegionResolution resolveMarketRegion(CsvRow row, MarketRegion fallback) {
@@ -843,6 +991,6 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private record RegionResolution(MarketRegion region, boolean missing, boolean unsupported) {
     }
 
-    private record ProductImportContext(FoodItemEntity product, RegionResolution regionResolution) {
+    private record ProductImportContext(FoodItemEntity product, RegionResolution regionResolution, CsvRow row) {
     }
 }

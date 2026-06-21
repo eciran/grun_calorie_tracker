@@ -12,19 +12,24 @@ import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.dto.FoodSearchAliasDto;
+import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
+import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
@@ -37,6 +42,7 @@ import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -69,6 +75,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final UserFavoriteRepository userFavoriteRepository;
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
     private final FoodProductQualityIssueRepository foodProductQualityIssueRepository;
+    private final FoodItemSearchAliasRepository foodItemSearchAliasRepository;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     public FoodProductReviewServiceImpl(
@@ -77,6 +84,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             UserFavoriteRepository userFavoriteRepository,
             FoodProductReviewAuditRepository foodProductReviewAuditRepository,
             FoodProductQualityIssueRepository foodProductQualityIssueRepository,
+            FoodItemSearchAliasRepository foodItemSearchAliasRepository,
             FoodProductQualityIssueTracker foodProductQualityIssueTracker
     ) {
         this.foodItemRepository = foodItemRepository;
@@ -84,9 +92,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         this.userFavoriteRepository = userFavoriteRepository;
         this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
         this.foodProductQualityIssueRepository = foodProductQualityIssueRepository;
+        this.foodItemSearchAliasRepository = foodItemSearchAliasRepository;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
     }
-
     @Override
     @Transactional(readOnly = true)
     public List<FoodProductDto> getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus) {
@@ -113,7 +121,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
-        return getProductsForReview(verificationStatus, imageStatus, marketRegion, null, null, null, page, size);
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, null, null, null, null, page, size);
     }
 
     @Override
@@ -126,7 +134,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
-        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, null, null, page, size);
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, null, null, null, page, size);
     }
 
     @Override
@@ -140,7 +148,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
-        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, page, size);
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, null, page, size);
     }
 
     @Override
@@ -155,9 +163,35 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
+        return getProductsForReview(
+                verificationStatus,
+                imageStatus,
+                marketRegion,
+                catalogType,
+                dataSource,
+                qualityIssue,
+                null,
+                page,
+                size
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery,
+            int page,
+            int size
+    ) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
         Page<FoodItemEntity> products = foodItemRepository.findAll(
-                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue),
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery),
                 pageable
         );
         return toPageDto(products);
@@ -165,6 +199,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy) {
         if (request == null) {
             throw new IllegalArgumentException("Review request must not be empty.");
@@ -336,6 +371,89 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
         return FoodItemMapper.mapEntityToDto(savedProduct);
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<FoodSearchAliasDto> getProductSearchAliases(Long productId, boolean activeOnly) {
+        FoodItemEntity product = foodItemRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
+        List<FoodItemSearchAliasEntity> aliases = activeOnly
+                ? foodItemSearchAliasRepository.findByFoodItemIdAndActiveTrueOrderByLanguageAscAliasAsc(product.getId())
+                : foodItemSearchAliasRepository.findByFoodItemIdOrderByActiveDescLanguageAscAliasAsc(product.getId());
+        return aliases.stream().map(this::toFoodSearchAliasDto).toList();
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    public FoodSearchAliasDto addProductSearchAlias(Long productId, FoodSearchAliasRequestDto request, String reviewedBy) {
+        FoodItemEntity product = foodItemRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
+        String aliasText = trimToNull(request.getAlias());
+        if (aliasText == null) {
+            throw new IllegalArgumentException("Alias must not be empty.");
+        }
+        String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(aliasText);
+        if (normalizedAlias == null) {
+            throw new IllegalArgumentException("Alias must contain searchable text.");
+        }
+
+        FoodItemSearchAliasEntity alias = foodItemSearchAliasRepository
+                .findByFoodItemIdAndNormalizedAliasAndLanguage(product.getId(), normalizedAlias, request.getLanguage())
+                .orElseGet(FoodItemSearchAliasEntity::new);
+        boolean isNewAlias = alias.getId() == null;
+        String oldValue = isNewAlias ? null : alias.getAlias() + "|" + alias.getActive();
+
+        alias.setFoodItem(product);
+        alias.setAlias(aliasText);
+        alias.setNormalizedAlias(normalizedAlias);
+        alias.setLanguage(request.getLanguage());
+        alias.setAliasType(request.getAliasType() == null ? FoodSearchAliasType.ADMIN_MANUAL : request.getAliasType());
+        alias.setSource(trimToNull(request.getSource()) == null ? "admin" : request.getSource().trim());
+        alias.setActive(request.getActive() == null || request.getActive());
+        FoodItemSearchAliasEntity savedAlias = foodItemSearchAliasRepository.save(alias);
+
+        List<FoodProductReviewAuditEntity> audits = new ArrayList<>();
+        addAuditIfChanged(
+                audits,
+                product,
+                reviewedBy,
+                FoodProductReviewAuditAction.SEARCH_ALIAS_CHANGE,
+                "searchAlias",
+                oldValue,
+                savedAlias.getAlias() + "|" + savedAlias.getActive(),
+                isNewAlias ? "alias created" : "alias updated/reactivated"
+        );
+        foodProductReviewAuditRepository.saveAll(audits);
+        return toFoodSearchAliasDto(savedAlias);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    public FoodSearchAliasDto updateProductSearchAliasStatus(Long productId, Long aliasId, boolean active, String reviewedBy) {
+        FoodItemEntity product = foodItemRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
+        FoodItemSearchAliasEntity alias = foodItemSearchAliasRepository.findByIdAndFoodItemId(aliasId, product.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Food search alias not found: " + aliasId));
+        Boolean oldValue = alias.getActive();
+        alias.setActive(active);
+        FoodItemSearchAliasEntity savedAlias = foodItemSearchAliasRepository.save(alias);
+
+        List<FoodProductReviewAuditEntity> audits = new ArrayList<>();
+        addAuditIfChanged(
+                audits,
+                product,
+                reviewedBy,
+                FoodProductReviewAuditAction.SEARCH_ALIAS_CHANGE,
+                "searchAlias.active",
+                oldValue,
+                active,
+                "alias status updated: " + savedAlias.getAlias()
+        );
+        foodProductReviewAuditRepository.saveAll(audits);
+        return toFoodSearchAliasDto(savedAlias);
+    }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -397,6 +515,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy) {
         validateMergeRequest(request);
 
@@ -475,13 +594,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    public FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy) {
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    public FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun, boolean markVerified) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required.");
         }
 
         int totalRows = 0;
         int updatedRows = 0;
+        int candidateRows = 0;
         List<String> errors = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
@@ -501,8 +622,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 try {
                     FoodItemEntity product = resolveCorrectionProduct(row);
                     FoodProductReviewRequestDto request = toCorrectionRequest(row);
-                    updateProductReview(product.getId(), request, reviewedBy);
-                    updatedRows++;
+                    if (markVerified && request.getVerificationStatus() == null) {
+                        request.setVerificationStatus(VerificationStatus.VERIFIED);
+                    }
+                    if (dryRun) {
+                        candidateRows++;
+                    } else {
+                        updateProductReview(product.getId(), request, reviewedBy);
+                        updatedRows++;
+                    }
                 } catch (RuntimeException ex) {
                     if (errors.size() < 50) {
                         errors.add("Row " + row.rowNumber() + ": " + ex.getMessage());
@@ -513,9 +641,116 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             throw new IllegalArgumentException("CSV file could not be read.");
         }
 
-        return new FoodProductNutritionCorrectionImportResultDto(totalRows, updatedRows, totalRows - updatedRows, errors);
+        int successfulRows = dryRun ? candidateRows : updatedRows;
+        return new FoodProductNutritionCorrectionImportResultDto(totalRows, updatedRows, totalRows - successfulRows, errors, dryRun, candidateRows);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery,
+            int limit
+    ) {
+        int safeLimit = Math.max(1, Math.min(limit, 10000));
+        Page<FoodItemEntity> products = foodItemRepository.findAll(
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery),
+                PageRequest.of(0, safeLimit, buildReviewSort())
+        );
+        StringBuilder csv = new StringBuilder();
+        csv.append(String.join(",",
+                "id",
+                "barcode",
+                "source_key",
+                "product_name",
+                "brand",
+                "market_region",
+                "catalog_type",
+                "verification_status",
+                "image_status",
+                "image_source",
+                "display_image_url",
+                "calories",
+                "protein",
+                "fat",
+                "carbs",
+                "fiber",
+                "sugar",
+                "sodium",
+                "potassium",
+                "cholesterol",
+                "calcium",
+                "iron",
+                "magnesium",
+                "zinc",
+                "vitamin_a",
+                "vitamin_c",
+                "vitamin_d",
+                "vitamin_e",
+                "vitamin_b12",
+                "saturated_fat",
+                "trans_fat",
+                "sugar_alcohol",
+                "serving_size_grams",
+                "serving_unit"
+        )).append('\n');
+        products.getContent().forEach(product -> appendExportRow(csv, product));
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private void appendExportRow(StringBuilder csv, FoodItemEntity product) {
+        csv.append(csv(product.getId()))
+                .append(',').append(csv(product.getBarcode()))
+                .append(',').append(csv(product.getSourceKey()))
+                .append(',').append(csv(product.getName()))
+                .append(',').append(csv(product.getBrand()))
+                .append(',').append(csv(product.getMarketRegion()))
+                .append(',').append(csv(product.getCatalogType()))
+                .append(',').append(csv(product.getVerificationStatus()))
+                .append(',').append(csv(product.getImageStatus()))
+                .append(',').append(csv(product.getImageSource()))
+                .append(',').append(csv(product.getDisplayImageUrl()))
+                .append(',').append(csv(product.getCalories()))
+                .append(',').append(csv(product.getProtein()))
+                .append(',').append(csv(product.getFat()))
+                .append(',').append(csv(product.getCarbs()))
+                .append(',').append(csv(product.getFiber()))
+                .append(',').append(csv(product.getSugar()))
+                .append(',').append(csv(product.getSodium()))
+                .append(',').append(csv(product.getPotassium()))
+                .append(',').append(csv(product.getCholesterol()))
+                .append(',').append(csv(product.getCalcium()))
+                .append(',').append(csv(product.getIron()))
+                .append(',').append(csv(product.getMagnesium()))
+                .append(',').append(csv(product.getZinc()))
+                .append(',').append(csv(product.getVitaminA()))
+                .append(',').append(csv(product.getVitaminC()))
+                .append(',').append(csv(product.getVitaminD()))
+                .append(',').append(csv(product.getVitaminE()))
+                .append(',').append(csv(product.getVitaminB12()))
+                .append(',').append(csv(product.getSaturatedFat()))
+                .append(',').append(csv(product.getTransFat()))
+                .append(',').append(csv(product.getSugarAlcohol()))
+                .append(',').append(csv(product.getServingSizeGrams()))
+                .append(',').append(csv(product.getServingUnit()))
+                .append('\n');
+    }
+
+    private String csv(Object value) {
+        if (value == null) {
+            return "";
+        }
+        String text = String.valueOf(value);
+        if (text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r")) {
+            return "\"" + text.replace("\"", "\"\"") + "\"";
+        }
+        return text;
+    }
     private String trimToNull(String value) {
         if (value == null || value.trim().isEmpty()) {
             return null;
@@ -608,6 +843,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         return value == null ? null : String.valueOf(value);
     }
 
+
+    private FoodSearchAliasDto toFoodSearchAliasDto(FoodItemSearchAliasEntity alias) {
+        return new FoodSearchAliasDto(
+                alias.getId(),
+                alias.getFoodItem().getId(),
+                alias.getAlias(),
+                alias.getNormalizedAlias(),
+                alias.getLanguage(),
+                alias.getAliasType(),
+                alias.getSource(),
+                alias.getActive(),
+                alias.getCreatedAt() == null ? null : alias.getCreatedAt().toString()
+        );
+    }
     private FoodProductReviewAuditDto toAuditDto(FoodProductReviewAuditEntity audit) {
         FoodProductReviewAuditDto dto = new FoodProductReviewAuditDto();
         dto.setId(audit.getId());
@@ -879,7 +1128,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             MarketRegion marketRegion,
             FoodCatalogType catalogType,
             FoodDataSource dataSource,
-            FoodProductQualityIssue qualityIssue
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery
     ) {
         VerificationStatus effectiveVerificationStatus = verificationStatus == null
                 ? VerificationStatus.RAW_IMPORTED
@@ -902,6 +1152,17 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             Predicate qualityPredicate = buildQualityIssuePredicate(root, query, criteriaBuilder, qualityIssue);
             if (qualityPredicate != null) {
                 predicates.add(qualityPredicate);
+            }
+            String normalizedSearchQuery = trimToNull(searchQuery);
+            if (normalizedSearchQuery != null) {
+                String like = "%" + normalizedSearchQuery.toLowerCase(Locale.ROOT) + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), like),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), like),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), like),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), like),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("sourceKey")), like)
+                ));
             }
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };

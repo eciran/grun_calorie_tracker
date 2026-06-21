@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
@@ -22,6 +23,7 @@ import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -75,7 +77,15 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     @Override
+    @Transactional
+    @Cacheable(cacheNames = "foodProductByBarcode", key = "T(com.grun.calorietracker.service.support.FoodProductCacheKeys).barcode(#barcode)", unless = "#result == null")
+    public FoodProductDto getFoodProductByBarcode(String barcode) {
+        return toProductDto(getOrSaveFoodItemByBarcode(barcode));
+    }
+
+    @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + (#email == null ? 'anonymous' : #email.toLowerCase())", unless = "#result == null")
     public FoodProductDto getFoodItemById(Long id, String email) {
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
@@ -91,6 +101,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     @Override
+    @Cacheable(cacheNames = "foodProductSearch", key = "T(com.grun.calorietracker.service.support.FoodProductCacheKeys).search(#criteria, #page, #size)", unless = "#result == null")
     public FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;
         Sort sort = hasExplicitSort(safeCriteria) ? buildSort(safeCriteria) : Sort.unsorted();
@@ -131,7 +142,22 @@ public class FoodItemServiceImpl implements FoodItemService {
                 List<Predicate> searchPredicates = new ArrayList<>();
                 for (String term : FoodProductNormalizationRules.expandSearchTerms(searchQuery)) {
                     String pattern = "%" + term.toLowerCase(Locale.ROOT) + "%";
+                    String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(term);
+                    String normalizedAliasPattern = normalizedAlias == null ? pattern : "%" + normalizedAlias + "%";
                     searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern));
+                    searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), pattern));
+                    var aliasSubquery = query.subquery(Long.class);
+                    var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
+                    aliasSubquery.select(aliasRoot.get("id"));
+                    aliasSubquery.where(
+                            criteriaBuilder.equal(aliasRoot.get("foodItem"), root),
+                            criteriaBuilder.isTrue(aliasRoot.get("active")),
+                            criteriaBuilder.or(
+                                    criteriaBuilder.like(criteriaBuilder.lower(aliasRoot.get("alias")), pattern),
+                                    criteriaBuilder.like(criteriaBuilder.lower(aliasRoot.get("normalizedAlias")), normalizedAliasPattern)
+                            )
+                    );
+                    searchPredicates.add(criteriaBuilder.exists(aliasSubquery));
                 }
                 String normalizedBarcodeQuery = FoodProductNormalizationRules.normalizeBarcode(searchQuery);
                 String barcodePattern = normalizedBarcodeQuery == null
@@ -140,6 +166,13 @@ public class FoodItemServiceImpl implements FoodItemService {
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), barcodePattern));
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern));
                 predicates.add(criteriaBuilder.or(searchPredicates.toArray(new Predicate[0])));
+            }
+            String brand = FoodProductNormalizationRules.normalizeText(criteria.getBrand());
+            if (brand != null) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("brand")),
+                        "%" + brand.toLowerCase(Locale.ROOT) + "%"
+                ));
             }
 
             String nutriScore = FoodProductNormalizationRules.normalizeText(criteria.getNutriScore());
@@ -187,10 +220,25 @@ public class FoodItemServiceImpl implements FoodItemService {
 
         if (searchQuery != null) {
             String normalizedQuery = searchQuery.toLowerCase(Locale.ROOT);
+            var lowerName = criteriaBuilder.lower(root.get("name"));
+            var lowerBrand = criteriaBuilder.lower(root.get("brand"));
             orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
-                    .when(criteriaBuilder.equal(criteriaBuilder.lower(root.get("name")), normalizedQuery), 0)
-                    .when(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), normalizedQuery + "%"), 1)
-                    .otherwise(2)));
+                    .when(criteriaBuilder.equal(lowerName, normalizedQuery), 0)
+                    .when(criteriaBuilder.equal(lowerBrand, normalizedQuery), 1)
+                    .when(criteriaBuilder.or(
+                            criteriaBuilder.like(lowerName, normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery),
+                            criteriaBuilder.like(lowerBrand, normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerBrand, "% " + normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerBrand, "% " + normalizedQuery)
+                    ), 2)
+                    .when(criteriaBuilder.or(
+                            criteriaBuilder.like(lowerName, normalizedQuery + "%"),
+                            criteriaBuilder.like(lowerBrand, normalizedQuery + "%")
+                    ), 3)
+                    .otherwise(4)));
+            orders.add(criteriaBuilder.asc(criteriaBuilder.length(root.get("name"))));
         }
 
         orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()

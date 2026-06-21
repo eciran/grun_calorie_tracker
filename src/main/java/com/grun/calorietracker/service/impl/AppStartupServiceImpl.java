@@ -27,7 +27,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AppStartupServiceImpl implements AppStartupService {
 
-    private static final String NEXT_STEP_VERIFY_EMAIL = "VERIFY_EMAIL";
     private static final String NEXT_STEP_COMPLETE_ONBOARDING = "COMPLETE_ONBOARDING";
     private static final String NEXT_STEP_OPEN_DASHBOARD = "OPEN_DASHBOARD";
 
@@ -50,7 +49,7 @@ public class AppStartupServiceImpl implements AppStartupService {
         boolean onboardingCompleted = profileComplete && hasActiveGoal;
         boolean emailVerified = Boolean.TRUE.equals(user.getEmailVerified());
         boolean passwordSet = Boolean.TRUE.equals(user.getPasswordSet());
-        boolean dashboardReady = emailVerified && onboardingCompleted;
+        boolean dashboardReady = onboardingCompleted;
         boolean healthAccessAllowed = subscriptionService.hasFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
 
         return AppStartupDto.builder()
@@ -65,7 +64,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .subscription(subscriptionService.getCurrentSubscription(email))
                 .healthSummary(healthAccessAllowed ? healthIntegrationService.getDailySummary(email, userTimeZoneSupport.today(user)) : null)
                 .dashboardReady(dashboardReady)
-                .nextStep(resolveNextStep(emailVerified, onboardingCompleted))
+                .nextStep(resolveNextStep(onboardingCompleted))
                 .build();
     }
 
@@ -79,10 +78,7 @@ public class AppStartupServiceImpl implements AppStartupService {
                 && user.getTimeZone() != null;
     }
 
-    private String resolveNextStep(boolean emailVerified, boolean onboardingCompleted) {
-        if (!emailVerified) {
-            return NEXT_STEP_VERIFY_EMAIL;
-        }
+    private String resolveNextStep(boolean onboardingCompleted) {
         if (!onboardingCompleted) {
             return NEXT_STEP_COMPLETE_ONBOARDING;
         }

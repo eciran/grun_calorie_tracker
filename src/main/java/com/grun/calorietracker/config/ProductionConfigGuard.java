@@ -46,7 +46,7 @@ public class ProductionConfigGuard {
                 requireSecret(errors, "GRUN_PUSH_EXPO_URL", "grun.push.expo.url");
             } else if ("FCM".equalsIgnoreCase(pushProvider)) {
                 requireSecret(errors, "GRUN_PUSH_FCM_PROJECT_ID", "grun.push.fcm.project-id");
-                requireSecret(errors, "GRUN_PUSH_FCM_ACCESS_TOKEN", "grun.push.fcm.access-token");
+                requireSecret(errors, "GRUN_PUSH_FCM_CREDENTIALS_JSON", "grun.push.fcm.credentials-json");
             } else if ("ONESIGNAL".equalsIgnoreCase(pushProvider)) {
                 requireSecret(errors, "GRUN_PUSH_ONESIGNAL_APP_ID", "grun.push.onesignal.app-id");
                 requireSecret(errors, "GRUN_PUSH_ONESIGNAL_API_KEY", "grun.push.onesignal.api-key");

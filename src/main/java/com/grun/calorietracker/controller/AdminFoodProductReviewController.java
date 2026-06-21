@@ -11,6 +11,8 @@ import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.dto.FoodSearchAliasDto;
+import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
@@ -34,6 +36,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,6 +53,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -113,7 +119,7 @@ public class AdminFoodProductReviewController {
     @PostMapping(value = "/nutrition-corrections/import", consumes = "multipart/form-data")
     @Operation(
             summary = "Import product nutrition corrections",
-            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Supported correction headers include product_name, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
+            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Use markVerified=true to approve valid imported rows after correction. Supported correction headers include product_name, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Nutrition correction import completed."),
@@ -124,13 +130,62 @@ public class AdminFoodProductReviewController {
     public ResponseEntity<FoodProductNutritionCorrectionImportResultDto> importNutritionCorrections(
             @Parameter(description = "CSV/TSV file containing product correction rows.")
             @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Validate the file and report candidate rows without applying changes.", example = "true")
+            @RequestParam(defaultValue = "false") boolean dryRun,
+            @Parameter(description = "Mark successfully imported products as VERIFIED when the row does not provide verification_status.", example = "true")
+            @RequestParam(defaultValue = "false") boolean markVerified,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductReviewService.importNutritionCorrections(
                 file,
-                userDetails == null ? null : userDetails.getUsername()
+                userDetails == null ? null : userDetails.getUsername(),
+                dryRun,
+                markVerified
         ));
     }
 
+    @GetMapping(value = "/review/export", produces = "text/csv")
+    @Operation(
+            summary = "Export products matching review filters",
+            description = "Exports the current admin review filter as a CSV that can be corrected externally and re-imported through the nutrition correction import endpoint. The export is capped at 10,000 rows."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "CSV export returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<byte[]> exportProductsForReview(
+            @Parameter(description = "Optional product verification status.", example = "RAW_IMPORTED")
+            @RequestParam(required = false) VerificationStatus verificationStatus,
+            @Parameter(description = "Optional image review status.", example = "NEEDS_REVIEW")
+            @RequestParam(required = false) ImageStatus imageStatus,
+            @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
+            @RequestParam(required = false) MarketRegion region,
+            @Parameter(description = "Optional catalog type filter.", example = "LOCAL_DISH")
+            @RequestParam(required = false) FoodCatalogType catalogType,
+            @Parameter(description = "Optional data source filter.", example = "OPEN_FOOD_FACTS")
+            @RequestParam(required = false) FoodDataSource dataSource,
+            @Parameter(description = "Optional derived quality issue filter.", example = "MISSING_CALORIES")
+            @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
+            @Parameter(description = "Optional product name, brand, barcode, or source key search text.", example = "almond")
+            @RequestParam(required = false) String query,
+            @Parameter(description = "Maximum number of exported rows. Maximum 10000.", example = "1000")
+            @RequestParam(defaultValue = "1000") @Min(1) @Max(10000) int limit) {
+        byte[] csv = foodProductReviewService.exportProductsForReview(
+                verificationStatus,
+                imageStatus,
+                region,
+                catalogType,
+                dataSource,
+                qualityIssue,
+                query,
+                limit
+        );
+        String filename = "grun-product-review-export-" + LocalDate.now() + ".csv";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(csv);
+    }
     @GetMapping("/review")
     @Operation(
             summary = "List products pending review",
@@ -154,6 +209,8 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) FoodDataSource dataSource,
             @Parameter(description = "Optional derived quality issue filter.", example = "MISSING_CALORIES")
             @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
+            @Parameter(description = "Optional product name, brand, barcode, or source key search text.", example = "almond")
+            @RequestParam(required = false) String query,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -165,11 +222,83 @@ public class AdminFoodProductReviewController {
                 catalogType,
                 dataSource,
                 qualityIssue,
+                query,
                 page,
                 size
         ));
     }
 
+
+    @GetMapping("/{id}/search-aliases")
+    @Operation(
+            summary = "List product search aliases",
+            description = "Returns multilingual search aliases for a product. Aliases allow users to find a single product through multiple languages without duplicating product rows."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Search aliases returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Product was not found.")
+    })
+    public ResponseEntity<List<FoodSearchAliasDto>> getProductSearchAliases(
+            @Parameter(description = "Product id.", example = "123")
+            @PathVariable Long id,
+            @Parameter(description = "When true, only active aliases are returned.", example = "true")
+            @RequestParam(defaultValue = "true") boolean activeOnly) {
+        return ResponseEntity.ok(foodProductReviewService.getProductSearchAliases(id, activeOnly));
+    }
+
+    @PostMapping("/{id}/search-aliases")
+    @Operation(
+            summary = "Create or reactivate a product search alias",
+            description = "Adds a multilingual search alias to a product. If the same normalized alias and language already exist for the product, the existing alias is updated/reactivated instead of creating duplicate product data."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Search alias created or updated."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Product was not found.")
+    })
+    public ResponseEntity<FoodSearchAliasDto> addProductSearchAlias(
+            @Parameter(description = "Product id.", example = "123")
+            @PathVariable Long id,
+            @Valid @RequestBody FoodSearchAliasRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.addProductSearchAlias(
+                id,
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @PatchMapping("/{id}/search-aliases/{aliasId}/status")
+    @Operation(
+            summary = "Enable or disable a product search alias",
+            description = "Toggles whether an alias participates in product search. This keeps historical alias data without deleting it."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Search alias status updated."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Product or alias was not found.")
+    })
+    public ResponseEntity<FoodSearchAliasDto> updateProductSearchAliasStatus(
+            @Parameter(description = "Product id.", example = "123")
+            @PathVariable Long id,
+            @Parameter(description = "Alias id.", example = "10")
+            @PathVariable Long aliasId,
+            @Parameter(description = "Whether alias should be active in search.", example = "false")
+            @RequestParam boolean active,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.updateProductSearchAliasStatus(
+                id,
+                aliasId,
+                active,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @GetMapping("/duplicates")
     @Operation(
             summary = "List duplicate product groups",

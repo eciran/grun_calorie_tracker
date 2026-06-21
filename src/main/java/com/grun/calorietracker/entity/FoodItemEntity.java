@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "food_items")
@@ -29,6 +31,7 @@ public class FoodItemEntity {
     private String barcode;
     private String normalizedBarcode;
     private String sourceKey;
+    private String brand;
     private String imageUrl;
     private String externalImageUrl;
     private String displayImageUrl;
@@ -55,6 +58,8 @@ public class FoodItemEntity {
 
     private Long usageCount;
     private Integer qualityScore;
+    private Integer confidenceScore;
+    private Boolean autoApprovedForCatalog;
     private Integer reviewPriority;
     private LocalDateTime lastExternalSyncAt;
     private LocalDateTime lastReviewedAt;
@@ -102,4 +107,7 @@ public class FoodItemEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private UserEntity createdByUser;
+
+    @OneToMany(mappedBy = "foodItem", fetch = FetchType.LAZY)
+    private Set<FoodItemSearchAliasEntity> searchAliases = new HashSet<>();
 }

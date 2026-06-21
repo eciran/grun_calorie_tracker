@@ -7,10 +7,8 @@ import com.grun.calorietracker.dto.FoodServingOptionDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.dto.ProductCorrectionSuggestionDto;
 import com.grun.calorietracker.dto.ProductCorrectionSuggestionRequestDto;
-import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.MarketRegion;
-import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.service.FailedBarcodeScanService;
 import com.grun.calorietracker.service.FoodItemService;
@@ -70,11 +68,14 @@ public class FoodItemController {
             @RequestParam(required = false) MarketRegion region,
             @Parameter(description = "Optional catalog type filter.", example = "BRANDED_PRODUCT")
             @RequestParam(required = false) FoodCatalogType catalogType,
+            @Parameter(description = "Optional brand filter.", example = "Tesco")
+            @RequestParam(required = false) String brand,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery(q);
         criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
         criteria.setCatalogType(catalogType);
+        criteria.setBrand(brand);
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 
@@ -107,8 +108,7 @@ public class FoodItemController {
             @RequestParam(required = false) MarketRegion region,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            FoodItemEntity foodItemEntity = foodItemService.getOrSaveFoodItemByBarcode(barcode);
-            return ResponseEntity.ok(FoodItemMapper.mapEntityToDto(foodItemEntity));
+            return ResponseEntity.ok(foodItemService.getFoodProductByBarcode(barcode));
         } catch (ProductNotFoundException ex) {
             failedBarcodeScanService.recordFailedScan(
                     barcode,

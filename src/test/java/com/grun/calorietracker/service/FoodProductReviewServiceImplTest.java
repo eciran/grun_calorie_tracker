@@ -564,4 +564,30 @@ class FoodProductReviewServiceImplTest {
         assertEquals("https://cdn.grun.app/products/3017620422003.jpg", product.getDisplayImageUrl());
         verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
     }
+    @Test
+    void importNutritionCorrections_whenMarkVerified_marksImportedProductVerified() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(2L);
+        product.setName("Corrected Product");
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "corrections.csv",
+                "text/csv",
+                "barcode,product_name,calories\n3017620422003,Corrected Product,539\n".getBytes()
+        );
+
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.of(product));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductReviewService.importNutritionCorrections(file, "admin@grun.app", false, true);
+
+        assertEquals(1, result.getUpdatedRows());
+        assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
+        assertEquals(539.0, product.getCalories());
+    }
 }

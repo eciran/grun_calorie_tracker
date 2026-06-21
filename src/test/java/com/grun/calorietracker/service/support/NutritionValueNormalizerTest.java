@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.support;
 
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import org.junit.jupiter.api.Test;
 
@@ -79,5 +80,40 @@ class NutritionValueNormalizerTest {
         assertEquals(10.6, entity.getSaturatedFat());
         assertEquals(0.0, entity.getTransFat());
         assertEquals(15.6, entity.getServingSizeGrams());
+    }
+    @Test
+    void productResponseForSolidFoodDoesNotExposeMilliliterPortionUnit() {
+        FoodItemEntity entity = new FoodItemEntity();
+        entity.setName("Chicken breast");
+        entity.setServingUnit("g");
+
+        FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
+
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
+    }
+
+    @Test
+    void productResponseForLiquidFoodExposesMilliliterAsDefaultPortionUnit() {
+        FoodItemEntity entity = new FoodItemEntity();
+        entity.setName("Milk");
+        entity.setServingUnit("ml");
+
+        FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
+
+        assertEquals(java.util.List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(FoodPortionUnit.MILLILITER, dto.getDefaultPortionUnit());
+    }
+
+    @Test
+    void productResponseForCountableFoodExposesPieceAsDefaultPortionUnit() {
+        FoodItemEntity entity = new FoodItemEntity();
+        entity.setName("Egg");
+        entity.setServingUnit("piece");
+
+        FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
+
+        assertEquals(java.util.List.of(FoodPortionUnit.PIECE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(FoodPortionUnit.PIECE, dto.getDefaultPortionUnit());
     }
 }

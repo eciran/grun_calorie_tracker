@@ -127,7 +127,7 @@ class AppStartupServiceImplTest {
     }
 
     @Test
-    void getStartupState_whenEmailNotVerified_returnsVerifyEmailStep() {
+    void getStartupState_whenEmailNotVerified_keepsDashboardOpenForReminderFlow() {
         UserEntity user = completeUser();
         user.setEmailVerified(false);
         UserGoalEntity goal = goal();
@@ -146,8 +146,8 @@ class AppStartupServiceImplTest {
 
         assertEquals(true, result.isOnboardingCompleted());
         assertEquals(false, result.isEmailVerified());
-        assertEquals(false, result.isDashboardReady());
-        assertEquals("VERIFY_EMAIL", result.getNextStep());
+        assertEquals(true, result.isDashboardReady());
+        assertEquals("OPEN_DASHBOARD", result.getNextStep());
     }
 
     private UserEntity completeUser() {

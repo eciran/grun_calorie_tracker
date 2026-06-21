@@ -17,7 +17,7 @@ import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
-import com.grun.calorietracker.exception.EmailNotVerifiedException;
+import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.EmailVerificationService;
@@ -48,6 +48,7 @@ import java.time.LocalDateTime;
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final GoalRepository goalRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
@@ -60,7 +61,7 @@ public class AuthController {
     @PostMapping("/register")
     @Operation(
             summary = "Register a new user",
-            description = "Creates a standard user account, marks the email as unverified, and sends an email verification link."
+            description = "Creates a standard user account, sends an email verification link, and returns session tokens so onboarding can continue."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User registered successfully."),
@@ -76,16 +77,33 @@ public class AuthController {
             )
     })
     public ResponseEntity<?> register(@RequestBody @Valid AuthRequest request, HttpServletRequest httpRequest) {
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().body(new ApiErrorResponseDto(
-                    LocalDateTime.now(),
-                    400,
-                    "Validation error",
-                    "Email already registered",
-                    httpRequest.getRequestURI()
-            ));
+        java.util.Optional<UserEntity> existingUser = userRepository.findByEmail(request.getEmail());
+        if (existingUser.isPresent()) {
+            return resumeIncompleteRegistrationOrReject(existingUser.get(), request, httpRequest);
+        }
+        return createNewUserRegistration(request);
+    }
+
+    private ResponseEntity<?> resumeIncompleteRegistrationOrReject(
+            UserEntity existingUser,
+            AuthRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        if (canResumeIncompleteRegistration(existingUser, request.getPassword())) {
+            resendVerificationIfNeeded(existingUser);
+            return ResponseEntity.ok(buildAuthResponse(existingUser, "Registration resumed. Continue onboarding."));
         }
 
+        return ResponseEntity.badRequest().body(new ApiErrorResponseDto(
+                LocalDateTime.now(),
+                400,
+                "Validation error",
+                "Email already registered",
+                httpRequest.getRequestURI()
+        ));
+    }
+
+    private ResponseEntity<AuthResponse> createNewUserRegistration(AuthRequest request) {
         UserEntity newUser = new UserEntity();
         newUser.setEmail(request.getEmail());
         newUser.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -96,9 +114,48 @@ public class AuthController {
         UserEntity savedUser = userRepository.save(newUser);
         emailVerificationService.createVerificationTokenForUser(savedUser);
 
-        return ResponseEntity.ok(new AuthResponse(null, "User registered successfully. Please verify your email address."));
+        return ResponseEntity.ok(buildAuthResponse(savedUser,
+                "User registered successfully. Email verification can be completed later."));
     }
 
+    private boolean canResumeIncompleteRegistration(UserEntity user, String rawPassword) {
+        if (!Boolean.TRUE.equals(user.getAccountEnabled()) || Boolean.TRUE.equals(user.getAccountLocked())) {
+            return false;
+        }
+        if (user.getPassword() == null || !passwordEncoder.matches(rawPassword, user.getPassword())) {
+            return false;
+        }
+        return !isOnboardingComplete(user);
+    }
+
+    private boolean isOnboardingComplete(UserEntity user) {
+        return isProfileComplete(user) && goalRepository.findByUser(user).isPresent();
+    }
+
+    private boolean isProfileComplete(UserEntity user) {
+        return user.getAge() != null
+                && user.getGender() != null
+                && user.getHeight() != null
+                && user.getWeight() != null
+                && user.getMarketRegion() != null
+                && user.getPreferredLanguage() != null
+                && user.getTimeZone() != null;
+    }
+
+    private void resendVerificationIfNeeded(UserEntity user) {
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            return;
+        }
+        EmailVerificationRequestDto request = new EmailVerificationRequestDto();
+        request.setEmail(user.getEmail());
+        emailVerificationService.resendVerification(request);
+    }
+
+    private AuthResponse buildAuthResponse(UserEntity user, String message) {
+        String token = jwtUtil.generateToken(user.getEmail());
+        String refreshToken = refreshTokenService.createRefreshToken(user);
+        return new AuthResponse(token, refreshToken, "Bearer", jwtUtil.getExpirationSeconds(), message);
+    }
 
     @PostMapping("/login")
     @Operation(
@@ -118,11 +175,6 @@ public class AuthController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
             ),
             @ApiResponse(
-                    responseCode = "403",
-                    description = "Email address is not verified.",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
-            ),
-            @ApiResponse(
                     responseCode = "429",
                     description = "Too many requests from the same client.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))
@@ -135,10 +187,6 @@ public class AuthController {
 
         UserEntity user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid credentials"));
-
-        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
-            throw new EmailNotVerifiedException("Email address is not verified");
-        }
 
         String token = jwtUtil.generateToken(user.getEmail());
         String refreshToken = refreshTokenService.createRefreshToken(user);

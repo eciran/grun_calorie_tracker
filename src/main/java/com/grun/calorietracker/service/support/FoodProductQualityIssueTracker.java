@@ -46,7 +46,7 @@ public class FoodProductQualityIssueTracker {
         if (product == null) {
             return issues;
         }
-        if (product.getQualityScore() == null || product.getQualityScore() < 60) {
+        if (product.getConfidenceScore() == null || product.getConfidenceScore() < 70) {
             issues.put(FoodProductQualityIssue.LOW_QUALITY, "Product quality score is below review threshold.");
         }
         if (product.getCalories() == null) {

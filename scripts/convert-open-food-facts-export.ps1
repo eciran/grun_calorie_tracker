@@ -18,8 +18,18 @@ param(
 
     [switch] $RequireKnownNutriScore,
 
-    [ValidateSet("IRL", "TR", "UK")]
-    [string] $MarketRegion
+    [ValidateSet("UK_IE", "TR", "EU", "GLOBAL")]
+    [string] $MarketRegion = "GLOBAL",
+
+    [string[]] $CountryTerms = @(),
+
+    [string[]] $PriorityStoreTerms = @(),
+
+    [ValidateRange(0, 100)]
+    [int] $PriorityStoreTargetPercent = 60,
+
+    [ValidateRange(1, 100000000)]
+    [int] $MaxRowsToRead = 1000000
 )
 
 $ErrorActionPreference = "Stop"
@@ -72,7 +82,8 @@ function Get-TextValue {
 function Get-DecimalText {
     param(
         [pscustomobject] $Row,
-        [string[]] $Names
+        [string[]] $Names,
+        [int] $DecimalPlaces = 1
     )
 
     $value = Get-TextValue -Row $Row -Names $Names
@@ -88,7 +99,8 @@ function Get-DecimalText {
             [System.Globalization.CultureInfo]::InvariantCulture,
             [ref] $parsed
         )) {
-        return $parsed.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+        $rounded = [Math]::Round($parsed, $DecimalPlaces, [MidpointRounding]::AwayFromZero)
+        return $rounded.ToString("0." + ("#" * $DecimalPlaces), [System.Globalization.CultureInfo]::InvariantCulture)
     }
 
     return $null
@@ -108,6 +120,61 @@ function Get-Barcode {
     }
 
     return $normalized
+}
+
+function Test-AnyTermMatch {
+    param(
+        [string] $Value,
+        [string[]] $Terms
+    )
+
+    if ($null -eq $Terms -or $Terms.Count -eq 0) {
+        return $true
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+
+    $normalizedValue = $Value.ToLowerInvariant()
+    foreach ($term in $Terms) {
+        if ([string]::IsNullOrWhiteSpace($term)) {
+            continue
+        }
+        if ($normalizedValue.Contains($term.Trim().ToLowerInvariant())) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-RegionCountryTerms {
+    param([string] $Region)
+
+    if ($CountryTerms.Count -gt 0) {
+        return $CountryTerms
+    }
+
+    switch ($Region) {
+        "UK_IE" { return @("united kingdom", "en:united-kingdom", "ireland", "en:ireland") }
+        "TR" { return @("turkey", "turkiye", "türkiye", "en:turkey") }
+        "EU" { return @("european union", "europe", "france", "germany", "spain", "italy", "netherlands", "belgium", "poland", "ireland", "united kingdom") }
+        default { return @() }
+    }
+}
+
+function Get-RegionPriorityStoreTerms {
+    param([string] $Region)
+
+    if ($PriorityStoreTerms.Count -gt 0) {
+        return $PriorityStoreTerms
+    }
+
+    switch ($Region) {
+        "UK_IE" { return @("tesco", "dunnes", "dunnes stores") }
+        default { return @() }
+    }
 }
 
 function Get-ServingSizeGrams {
@@ -144,18 +211,29 @@ $resolvedOutput = Resolve-OutputFile -Path $OutputPath
 $rowsRead = 0
 $rowsSkipped = 0
 $rowsWritten = 0
+$priorityRowsWritten = 0
+$fallbackRowsWritten = 0
+$countryFilteredRows = 0
+$priorityCandidateRows = 0
 $seenBarcodes = [System.Collections.Generic.HashSet[string]]::new()
-$grunRows = [System.Collections.Generic.List[object]]::new()
+$priorityRows = [System.Collections.Generic.List[object]]::new()
+$fallbackRows = [System.Collections.Generic.List[object]]::new()
+$regionCountryTerms = Get-RegionCountryTerms -Region $MarketRegion
+$regionPriorityStoreTerms = Get-RegionPriorityStoreTerms -Region $MarketRegion
+$priorityTarget = [int][Math]::Ceiling($Limit * ($PriorityStoreTargetPercent / 100.0))
 
 foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter)) {
     $rowsRead++
+    if ($rowsRead -gt $MaxRowsToRead) {
+        break
+    }
 
     $barcode = Get-Barcode -Row $row
     $name = Get-TextValue -Row $row -Names @("product_name", "product_name_en", "generic_name", "name")
-    $calories = Get-DecimalText -Row $row -Names @("energy-kcal_100g", "energy_kcal_100g", "calories")
-    $protein = Get-DecimalText -Row $row -Names @("proteins_100g", "protein_100g", "protein")
-    $fat = Get-DecimalText -Row $row -Names @("fat_100g", "fat")
-    $carbs = Get-DecimalText -Row $row -Names @("carbohydrates_100g", "carbs_100g", "carbs")
+    $calories = Get-DecimalText -Row $row -Names @("energy-kcal_100g", "energy_kcal_100g", "calories") -DecimalPlaces 0
+    $protein = Get-DecimalText -Row $row -Names @("proteins_100g", "protein_100g", "protein") -DecimalPlaces 1
+    $fat = Get-DecimalText -Row $row -Names @("fat_100g", "fat") -DecimalPlaces 1
+    $carbs = Get-DecimalText -Row $row -Names @("carbohydrates_100g", "carbs_100g", "carbs") -DecimalPlaces 1
     $imageUrl = Get-TextValue -Row $row -Names @("image_url", "image_front_url")
     $nutriScore = Get-TextValue -Row $row -Names @("nutrition_grade_fr", "nutriscore_grade", "nutri_score")
 
@@ -189,9 +267,26 @@ foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter))
         continue
     }
 
-    $grunRows.Add([pscustomobject]@{
+    $countryValue = Get-TextValue -Row $row -Names @("countries_tags", "countries_en", "countries", "country")
+    if (-not (Test-AnyTermMatch -Value $countryValue -Terms $regionCountryTerms)) {
+        $countryFilteredRows++
+        $rowsSkipped++
+        continue
+    }
+
+    $storeValue = Get-TextValue -Row $row -Names @("stores_tags", "stores", "retailers", "retailer")
+    $isPriorityStore = $regionPriorityStoreTerms.Count -gt 0 -and (Test-AnyTermMatch -Value $storeValue -Terms $regionPriorityStoreTerms)
+    if ($isPriorityStore) {
+        $priorityCandidateRows++
+    }
+
+    $grunRow = [pscustomobject]@{
+            catalog_type = "BRANDED_PRODUCT"
+            data_source = "OPEN_FOOD_FACTS"
             barcode = $barcode
+            source_key = "barcode:$barcode"
             name = $name
+            brand = Get-TextValue -Row $row -Names @("brands", "brand")
             calories = $calories
             protein = $protein
             fat = $fat
@@ -204,15 +299,36 @@ foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter))
             market_region = $MarketRegion
             image_url = $imageUrl
             external_image_url = $imageUrl
+            display_image_url = $null
             allergens = Get-TextValue -Row $row -Names @("allergens_tags", "allergens")
             nutri_score = $nutriScore
-        }) | Out-Null
+        }
 
-    $rowsWritten++
-    if ($rowsWritten -ge $Limit) {
+    if ($isPriorityStore -and $priorityRows.Count -lt $priorityTarget) {
+        $priorityRows.Add($grunRow) | Out-Null
+    } elseif ($fallbackRows.Count -lt $Limit) {
+        $fallbackRows.Add($grunRow) | Out-Null
+    } elseif ($priorityRows.Count -ge $priorityTarget) {
         break
     }
 }
+
+$grunRows = [System.Collections.Generic.List[object]]::new()
+foreach ($priorityRow in $priorityRows) {
+    if ($grunRows.Count -ge $Limit) {
+        break
+    }
+    $grunRows.Add($priorityRow) | Out-Null
+    $priorityRowsWritten++
+}
+foreach ($fallbackRow in $fallbackRows) {
+    if ($grunRows.Count -ge $Limit) {
+        break
+    }
+    $grunRows.Add($fallbackRow) | Out-Null
+    $fallbackRowsWritten++
+}
+$rowsWritten = $grunRows.Count
 
 if ($rowsWritten -eq 0) {
     throw "No valid rows were produced. Check OFF headers, filter switches, and delimiter."
@@ -228,11 +344,19 @@ $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
     rowsRead = $rowsRead
     rowsWritten = $rowsWritten
     rowsSkipped = $rowsSkipped
+    countryFilteredRows = $countryFilteredRows
+    priorityCandidateRows = $priorityCandidateRows
+    priorityRowsWritten = $priorityRowsWritten
+    fallbackRowsWritten = $fallbackRowsWritten
     limit = $Limit
+    maxRowsToRead = $MaxRowsToRead
     delimiter = if ($Delimiter -eq "`t") { "TAB" } else { $Delimiter }
     requireCalories = $RequireCalories.IsPresent
     requireMacroData = $RequireMacroData.IsPresent
     requireImage = $RequireImage.IsPresent
     requireKnownNutriScore = $RequireKnownNutriScore.IsPresent
     marketRegion = $MarketRegion
+    countryTerms = $regionCountryTerms
+    priorityStoreTerms = $regionPriorityStoreTerms
+    priorityStoreTargetPercent = $PriorityStoreTargetPercent
 } | ConvertTo-Json

@@ -108,6 +108,17 @@ export type FoodProduct = {
   nutriScore?: string;
   custom?: boolean;
 };
+export type FoodSearchAlias = {
+  id?: number;
+  foodItemId?: number;
+  alias?: string;
+  normalizedAlias?: string;
+  language?: string;
+  aliasType?: string;
+  source?: string;
+  active?: boolean;
+  createdAt?: string;
+};
 
 export type RecipeIngredient = {
   foodItemId?: number;
