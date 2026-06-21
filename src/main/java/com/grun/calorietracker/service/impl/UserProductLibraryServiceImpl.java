@@ -20,6 +20,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -100,6 +101,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
     public FoodProductDto createCustomFood(String email, CustomFoodRequestDto request) {
         UserEntity user = getUser(email);
         FoodItemEntity product = new FoodItemEntity();
@@ -118,6 +120,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
     public FoodProductDto updateCustomFood(String email, Long productId, CustomFoodRequestDto request) {
         FoodItemEntity product = getOwnedCustomFood(getUser(email), productId);
         updateManualNutrition(product, request);
@@ -127,6 +130,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
     public void deleteCustomFood(String email, Long productId) {
         FoodItemEntity product = getOwnedCustomFood(getUser(email), productId);
         if (foodLogsRepository.existsByFoodItem(product) || mealTemplateItemRepository.existsByFoodItem(product)) {

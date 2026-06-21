@@ -23,6 +23,7 @@ import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -76,7 +77,15 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     @Override
+    @Transactional
+    @Cacheable(cacheNames = "foodProductByBarcode", key = "T(com.grun.calorietracker.service.support.FoodProductCacheKeys).barcode(#barcode)", unless = "#result == null")
+    public FoodProductDto getFoodProductByBarcode(String barcode) {
+        return toProductDto(getOrSaveFoodItemByBarcode(barcode));
+    }
+
+    @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + (#email == null ? 'anonymous' : #email.toLowerCase())", unless = "#result == null")
     public FoodProductDto getFoodItemById(Long id, String email) {
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
@@ -92,6 +101,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     @Override
+    @Cacheable(cacheNames = "foodProductSearch", key = "T(com.grun.calorietracker.service.support.FoodProductCacheKeys).search(#criteria, #page, #size)", unless = "#result == null")
     public FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;
         Sort sort = hasExplicitSort(safeCriteria) ? buildSort(safeCriteria) : Sort.unsorted();

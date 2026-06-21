@@ -23,6 +23,7 @@ import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -65,6 +66,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductImportResultDto importCsv(MultipartFile file, String importedBy, FoodProductImportMode importMode, FoodProductImportFormat importFormat) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required.");

@@ -42,6 +42,7 @@ import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -198,6 +199,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy) {
         if (request == null) {
             throw new IllegalArgumentException("Review request must not be empty.");
@@ -382,6 +384,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodSearchAliasDto addProductSearchAlias(Long productId, FoodSearchAliasRequestDto request, String reviewedBy) {
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
@@ -426,6 +429,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodSearchAliasDto updateProductSearchAliasStatus(Long productId, Long aliasId, boolean active, String reviewedBy) {
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
@@ -511,6 +515,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy) {
         validateMergeRequest(request);
 
@@ -589,6 +594,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun, boolean markVerified) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required.");
