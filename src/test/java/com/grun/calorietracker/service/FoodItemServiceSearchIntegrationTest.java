@@ -3,10 +3,14 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
@@ -28,6 +32,9 @@ class FoodItemServiceSearchIntegrationTest {
 
     @Autowired
     private FoodItemServingOptionRepository foodItemServingOptionRepository;
+
+    @Autowired
+    private FoodItemSearchAliasRepository foodItemSearchAliasRepository;
 
     private FoodItemServiceImpl foodItemService;
 
@@ -211,6 +218,36 @@ class FoodItemServiceSearchIntegrationTest {
 
         assertEquals(1, brandSearch.getContent().size());
         assertEquals("Dunnes Stores", brandSearch.getContent().get(0).getBrand());
+    }
+
+
+    @Test
+    void searchFoodItems_matchesDbSearchAliasWithoutDuplicatingProductData() {
+        FoodItemEntity semiSkimmedMilk = product("Semi Skimmed Milk", "222003", VerificationStatus.RAW_IMPORTED);
+        semiSkimmedMilk.setBrand("Tesco");
+        semiSkimmedMilk.setMarketRegion(MarketRegion.UK_IE);
+        FoodItemEntity savedProduct = foodItemRepository.save(semiSkimmedMilk);
+
+        FoodItemSearchAliasEntity alias = new FoodItemSearchAliasEntity();
+        alias.setFoodItem(savedProduct);
+        alias.setAlias("yarım yağlı süt");
+        alias.setNormalizedAlias("yarim yagli sut");
+        alias.setLanguage(PreferredLanguage.TR);
+        alias.setAliasType(FoodSearchAliasType.TRANSLATION);
+        alias.setSource("test");
+        alias.setActive(true);
+        foodItemSearchAliasRepository.save(alias);
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("yarım yağlı süt");
+        criteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals(savedProduct.getId(), result.getContent().get(0).getId());
+        assertEquals("Semi Skimmed Milk", result.getContent().get(0).getProductName());
+        assertEquals("Tesco", result.getContent().get(0).getBrand());
     }
 
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {

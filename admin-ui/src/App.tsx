@@ -6,6 +6,8 @@ import {
   login,
   PageResponse,
   request,
+  requestBlob,
+  requestFormData,
   saveTokens,
   subscribeUnauthorized
 } from "./api";
@@ -24,6 +26,7 @@ import {
   DashboardSummary,
   FeatureMatrixItem,
   FoodProduct,
+  FoodSearchAlias,
   AdminRecipe,
   Notification,
   RevenueCatChart,
@@ -225,6 +228,8 @@ const IMAGE_STATUSES = ["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
 const IMAGE_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_UPLOAD", "USER_UPLOAD", "BRAND_OFFICIAL", "AI_GENERATED"];
 const CATALOG_TYPES = ["BRANDED_PRODUCT", "GENERIC_INGREDIENT", "LOCAL_DISH", "USER_CUSTOM"];
 const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA", "USER_CUSTOM"];
+const PREFERRED_LANGUAGES = ["EN", "TR"];
+const FOOD_SEARCH_ALIAS_TYPES = ["ADMIN_MANUAL", "TRANSLATION", "SYNONYM", "ASCII_NORMALIZED", "COMMON_NAME"];
 const MEAL_TYPES = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
 const RECIPE_VISIBILITIES = ["PRIVATE", "PUBLIC_ADMIN", "COMMUNITY_PENDING"];
 const ACHIEVEMENT_CATEGORIES = ["ONBOARDING", "FOOD", "EXERCISE", "FASTING", "PROGRESS", "WATER"];
@@ -292,7 +297,85 @@ type ProductReviewDraft = {
   imageStatus: string;
   imageSource: string;
   catalogType: string;
+  calories: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+  sugar: string;
+  sodium: string;
+  potassium: string;
+  cholesterol: string;
+  calcium: string;
+  iron: string;
+  magnesium: string;
+  zinc: string;
+  vitaminA: string;
+  vitaminC: string;
+  vitaminD: string;
+  vitaminE: string;
+  vitaminB12: string;
+  saturatedFat: string;
+  transFat: string;
+  sugarAlcohol: string;
+  servingSizeGrams: string;
+  servingUnit: string;
 };
+
+type ProductReviewNumberField = Extract<keyof ProductReviewDraft,
+  | "calories"
+  | "protein"
+  | "carbs"
+  | "fat"
+  | "fiber"
+  | "sugar"
+  | "sodium"
+  | "potassium"
+  | "cholesterol"
+  | "calcium"
+  | "iron"
+  | "magnesium"
+  | "zinc"
+  | "vitaminA"
+  | "vitaminC"
+  | "vitaminD"
+  | "vitaminE"
+  | "vitaminB12"
+  | "saturatedFat"
+  | "transFat"
+  | "sugarAlcohol"
+  | "servingSizeGrams"
+>;
+
+const PRODUCT_MACRO_FIELDS: Array<{ key: ProductReviewNumberField; label: string; suffix: string }> = [
+  { key: "calories", label: "Calories", suffix: "kcal" },
+  { key: "protein", label: "Protein", suffix: "g" },
+  { key: "carbs", label: "Carbs", suffix: "g" },
+  { key: "fat", label: "Fat", suffix: "g" },
+  { key: "fiber", label: "Fiber", suffix: "g" },
+  { key: "sugar", label: "Sugar", suffix: "g" },
+  { key: "saturatedFat", label: "Saturated fat", suffix: "g" },
+  { key: "transFat", label: "Trans fat", suffix: "g" },
+  { key: "sugarAlcohol", label: "Sugar alcohol", suffix: "g" }
+];
+
+const PRODUCT_MINERAL_FIELDS: Array<{ key: ProductReviewNumberField; label: string; suffix: string }> = [
+  { key: "sodium", label: "Sodium", suffix: "mg" },
+  { key: "potassium", label: "Potassium", suffix: "mg" },
+  { key: "cholesterol", label: "Cholesterol", suffix: "mg" },
+  { key: "calcium", label: "Calcium", suffix: "mg" },
+  { key: "iron", label: "Iron", suffix: "mg" },
+  { key: "magnesium", label: "Magnesium", suffix: "mg" },
+  { key: "zinc", label: "Zinc", suffix: "mg" }
+];
+
+const PRODUCT_VITAMIN_FIELDS: Array<{ key: ProductReviewNumberField; label: string; suffix: string }> = [
+  { key: "vitaminA", label: "Vitamin A", suffix: "ug" },
+  { key: "vitaminC", label: "Vitamin C", suffix: "mg" },
+  { key: "vitaminD", label: "Vitamin D", suffix: "ug" },
+  { key: "vitaminE", label: "Vitamin E", suffix: "mg" },
+  { key: "vitaminB12", label: "Vitamin B12", suffix: "ug" }
+];
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(getToken()));
@@ -623,7 +706,17 @@ function DashboardView({ onError }: { onError: (message: string | null) => void 
 
 type ProductReviewMode = "queue" | "images" | "nutrition" | "rejected";
 
+type NutritionCorrectionImportResult = {
+  totalRows?: number;
+  updatedRows?: number;
+  skippedRows?: number;
+  candidateRows?: number;
+  dryRun?: boolean;
+  errors?: string[];
+};
+
 function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError: (message: string | null) => void }) {
+  const [query, setQuery] = useState("");
   const [verificationStatus, setVerificationStatus] = useState("RAW_IMPORTED");
   const [imageStatus, setImageStatus] = useState("");
   const [region, setRegion] = useState("");
@@ -637,7 +730,12 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
   const [reviewNote, setReviewNote] = useState("");
   const [rejectConfirmationOpen, setRejectConfirmationOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [correctionFile, setCorrectionFile] = useState<File | null>(null);
+  const [correctionResult, setCorrectionResult] = useState<NutritionCorrectionImportResult | null>(null);
+  const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
+  const [transferState, setTransferState] = useState<LoadState>("idle");
   const path = buildProductReviewPath({
+    query,
     verificationStatus,
     imageStatus,
     region,
@@ -652,7 +750,7 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
   const totalElements = data?.totalElements ?? rows.length;
   const highPriorityCount = rows.filter((item) => (item.reviewPriority ?? 0) >= 100).length;
   const missingImageCount = rows.filter((item) => !item.displayImageUrl && !item.imageUrl && !item.externalImageUrl).length;
-  const activeFilterCount = [verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue].filter(Boolean).length;
+  const activeFilterCount = [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue].filter(Boolean).length;
   const modeTitle = {
     queue: "Food product review queue",
     images: "Product image review",
@@ -662,13 +760,14 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
 
   useEffect(() => {
     setPage(0);
-  }, [verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, pageSize]);
+  }, [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, pageSize]);
 
   useEffect(() => {
     applyModeDefaults();
   }, [mode]);
 
   function applyModeDefaults() {
+    setQuery("");
     setRegion("");
     setCatalogType("");
     setDataSource("");
@@ -730,6 +829,7 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
           imageStatus: draft.imageStatus || null,
           imageSource: draft.imageSource || null,
           catalogType: draft.catalogType || null,
+          ...productReviewNutritionPayload(draft),
           reviewNote: reviewNote || "Updated from admin panel."
         }
       });
@@ -760,6 +860,7 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
           marketRegion: draft.marketRegion || item.marketRegion,
           imageSource: draft.imageSource || item.imageSource,
           catalogType: draft.catalogType || item.catalogType,
+          ...productReviewNutritionPayload(draft),
           verificationStatus: status,
           imageStatus: status === "VERIFIED" ? "APPROVED" : "REJECTED",
           reviewNote: reviewNote || (status === "VERIFIED" ? "Reviewed from admin panel." : "Rejected from admin panel.")
@@ -775,6 +876,54 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
     }
   }
 
+  async function exportCurrentFilter() {
+    setTransferState("loading");
+    onError(null);
+    try {
+      const exportPath = buildProductReviewExportPath({
+        query,
+        verificationStatus,
+        imageStatus,
+        region,
+        catalogType,
+        dataSource,
+        qualityIssue,
+        limit: 10000
+      });
+      const blob = await requestBlob(exportPath, { timeoutMs: 60000 });
+      downloadBlob(blob, `grun-product-review-export-${new Date().toISOString().slice(0, 10)}.csv`);
+      setTransferState("ready");
+    } catch (err) {
+      setTransferState("error");
+      onError(formatRequestError(err));
+    }
+  }
+
+  async function importNutritionCorrections(dryRun: boolean) {
+    if (!correctionFile) {
+      onError("Correction CSV/TSV file is required.");
+      return;
+    }
+    setTransferState("loading");
+    onError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", correctionFile);
+      const result = await requestFormData<NutritionCorrectionImportResult>(
+        `/api/v1/admin/products/nutrition-corrections/import?dryRun=${dryRun}&markVerified=${markVerifiedOnImport}`,
+        formData,
+        { timeoutMs: 120000 }
+      );
+      setCorrectionResult(result);
+      setTransferState("ready");
+      if (!dryRun) {
+        await reload();
+      }
+    } catch (err) {
+      setTransferState("error");
+      onError(formatRequestError(err));
+    }
+  }
   return (
     <div className="stack">
       <SectionToolbar title={modeTitle} state={state} onReload={reload}>
@@ -790,6 +939,10 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
 
       <Panel title="Review filters">
         <div className="review-filter-grid">
+          <label>
+            Product search
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, brand, barcode" />
+          </label>
           <label>
             Verification
             <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)}>
@@ -832,6 +985,35 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
               {QUALITY_ISSUES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
             </select>
           </label>
+        </div>
+        <div className="review-transfer-panel">
+          <div>
+            <strong>Bulk correction workflow</strong>
+            <span>Export the current filter, correct values externally, dry-run the file, then apply it. Enable verified marking only after dry-run looks clean.</span>
+          </div>
+          <div className="review-transfer-actions">
+            <button className="ghost-button" type="button" disabled={transferState === "loading"} onClick={exportCurrentFilter}>Export current filter</button>
+            <label className="file-picker">
+              Correction file
+              <input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onChange={(event) => setCorrectionFile(event.target.files?.[0] ?? null)} />
+            </label>
+            <label className="inline-check review-transfer-check">
+              <input type="checkbox" checked={markVerifiedOnImport} onChange={(event) => setMarkVerifiedOnImport(event.target.checked)} />
+              Mark imported rows verified
+            </label>
+            <button className="ghost-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(true)}>Dry-run import</button>
+            <button className="primary-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(false)}>Apply import</button>
+          </div>
+          {correctionResult && <div className="correction-result-grid">
+            <MetricPill label="Mode" value={correctionResult.dryRun ? "Dry-run" : "Applied"} />
+            <MetricPill label="Total rows" value={formatValue(correctionResult.totalRows)} />
+            <MetricPill label="Matched rows" value={formatValue(correctionResult.candidateRows ?? correctionResult.updatedRows)} />
+            <MetricPill label="Updated rows" value={formatValue(correctionResult.updatedRows)} />
+            <MetricPill label="Skipped rows" value={formatValue(correctionResult.skippedRows)} />
+          </div>}
+          {correctionResult?.errors?.length ? <div className="correction-error-list">
+            {correctionResult.errors.slice(0, 5).map((error) => <span key={error}>{error}</span>)}
+          </div> : null}
         </div>
       </Panel>
 
@@ -882,6 +1064,7 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
           saving={saving}
           setDraft={setReviewDraft}
           setReviewNote={setReviewNote}
+          onError={onError}
         />
       )}
       {selectedProduct && rejectConfirmationOpen && (
@@ -2135,8 +2318,8 @@ function DatePickerButton({
           <div className="admin-calendar-head">
             <strong>{monthLabel}</strong>
             <div>
-              <button onClick={() => setViewDate(addMonths(viewDate, -1))} type="button">‹</button>
-              <button onClick={() => setViewDate(addMonths(viewDate, 1))} type="button">›</button>
+              <button onClick={() => setViewDate(addMonths(viewDate, -1))} type="button">Ã¢â‚¬Â¹</button>
+              <button onClick={() => setViewDate(addMonths(viewDate, 1))} type="button">Ã¢â‚¬Âº</button>
             </div>
           </div>
           <div className="admin-calendar-weekdays">
@@ -3322,7 +3505,8 @@ function ProductReviewModal({
   reviewNote,
   saving,
   setDraft,
-  setReviewNote
+  setReviewNote,
+  onError
 }: {
   item: FoodProduct;
   onClose: () => void;
@@ -3334,6 +3518,7 @@ function ProductReviewModal({
   saving: boolean;
   setDraft: (value: ProductReviewDraft) => void;
   setReviewNote: (value: string) => void;
+  onError: (message: string | null) => void;
 }) {
   const image = item.displayImageUrl ?? item.imageUrl ?? item.externalImageUrl;
   function updateDraft<K extends keyof ProductReviewDraft>(key: K, value: ProductReviewDraft[K]) {
@@ -3397,13 +3582,50 @@ function ProductReviewModal({
               <DetailItem label="Review priority" value={formatValue(item.reviewPriority)} />
               <DetailItem label="Usage count" value={formatValue(item.usageCount)} />
             </div>
-            <div className="macro-strip">
-              <MetricPill label="Calories" value={`${formatValue(item.calories)} kcal`} />
-              <MetricPill label="Protein" value={`${formatValue(item.protein)} g`} />
-              <MetricPill label="Carbs" value={`${formatValue(item.carbs)} g`} />
-              <MetricPill label="Fat" value={`${formatValue(item.fat)} g`} />
-              <MetricPill label="Fiber" value={`${formatValue(item.fiber)} g`} />
-              <MetricPill label="Sugar" value={`${formatValue(item.sugar)} g`} />
+            <ProductAliasManager productId={item.id} onError={onError} />
+            <div className="nutrition-editor">
+              <div className="nutrition-editor-heading">
+                <div>
+                  <span>Nutrition values</span>
+                  <strong>Editable per 100g/ml review data</strong>
+                </div>
+                <small>Saved values update the catalog product directly.</small>
+              </div>
+              <NutritionInputGrid title="Macros" fields={PRODUCT_MACRO_FIELDS} draft={draft} onChange={updateDraft} />
+              <NutritionInputGrid title="Minerals" fields={PRODUCT_MINERAL_FIELDS} draft={draft} onChange={updateDraft} />
+              <NutritionInputGrid title="Vitamins" fields={PRODUCT_VITAMIN_FIELDS} draft={draft} onChange={updateDraft} />
+              <div className="nutrition-section">
+                <div className="nutrition-section-header">
+                  <h3>Serving</h3>
+                  <span>Optional display metadata</span>
+                </div>
+                <div className="nutrition-input-grid serving-edit-grid">
+                  <label className="nutrition-input">
+                    <span>Serving size</span>
+                    <div className="nutrition-input-control">
+                      <input
+                        inputMode="decimal"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={draft.servingSizeGrams}
+                        onChange={(event) => updateDraft("servingSizeGrams", event.target.value)}
+                      />
+                      <em>g/ml</em>
+                    </div>
+                  </label>
+                  <label className="nutrition-input">
+                    <span>Serving unit</span>
+                    <div className="nutrition-input-control single">
+                      <input
+                        value={draft.servingUnit}
+                        onChange={(event) => updateDraft("servingUnit", event.target.value)}
+                        placeholder="g, ml, piece"
+                      />
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
             <label>
               Review note
@@ -3421,6 +3643,134 @@ function ProductReviewModal({
   );
 }
 
+function ProductAliasManager({ productId, onError }: { productId?: number; onError: (message: string | null) => void }) {
+  const [aliases, setAliases] = useState<FoodSearchAlias[]>([]);
+  const [aliasText, setAliasText] = useState("");
+  const [language, setLanguage] = useState("TR");
+  const [aliasType, setAliasType] = useState("ADMIN_MANUAL");
+  const [loading, setLoading] = useState(false);
+  const [savingAlias, setSavingAlias] = useState(false);
+
+  useEffect(() => {
+    if (!productId) {
+      setAliases([]);
+      return;
+    }
+    void loadAliases();
+  }, [productId]);
+
+  async function loadAliases() {
+    if (!productId) return;
+    setLoading(true);
+    try {
+      const result = await request<FoodSearchAlias[]>(`/api/v1/admin/products/${productId}/search-aliases?activeOnly=false`);
+      setAliases(result ?? []);
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addAlias() {
+    if (!productId) {
+      onError("Product id is missing.");
+      return;
+    }
+    const trimmed = aliasText.trim();
+    if (!trimmed) {
+      onError("Search alias is required.");
+      return;
+    }
+    setSavingAlias(true);
+    onError(null);
+    try {
+      await request<FoodSearchAlias>(`/api/v1/admin/products/${productId}/search-aliases`, {
+        method: "POST",
+        body: {
+          alias: trimmed,
+          language,
+          aliasType,
+          source: "admin-ui",
+          active: true
+        }
+      });
+      setAliasText("");
+      await loadAliases();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSavingAlias(false);
+    }
+  }
+
+  async function setAliasActive(alias: FoodSearchAlias, active: boolean) {
+    if (!productId || !alias.id) return;
+    setSavingAlias(true);
+    onError(null);
+    try {
+      const updated = await request<FoodSearchAlias>(`/api/v1/admin/products/${productId}/search-aliases/${alias.id}/status?active=${active}`, {
+        method: "PATCH"
+      });
+      setAliases((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSavingAlias(false);
+    }
+  }
+
+  return (
+    <div className="alias-manager">
+      <div className="alias-manager-heading">
+        <div>
+          <span>Search aliases</span>
+          <strong>Multilingual product discovery</strong>
+        </div>
+        <small>{loading ? "Loading aliases..." : `${formatValue(aliases.length)} aliases`}</small>
+      </div>
+      <div className="alias-form">
+        <label>
+          Alias
+          <input value={aliasText} onChange={(event) => setAliasText(event.target.value)} placeholder="süt, yarım yağlı süt, skimmed milk" />
+        </label>
+        <label>
+          Language
+          <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+            {PREFERRED_LANGUAGES.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>
+          Type
+          <select value={aliasType} onChange={(event) => setAliasType(event.target.value)}>
+            {FOOD_SEARCH_ALIAS_TYPES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+          </select>
+        </label>
+        <button className="primary-button" type="button" disabled={savingAlias || !aliasText.trim()} onClick={addAlias}>Add alias</button>
+      </div>
+      <div className="alias-list">
+        {aliases.length ? aliases.map((alias) => (
+          <div className={alias.active ? "alias-row" : "alias-row inactive"} key={alias.id ?? `${alias.language}-${alias.alias}`}>
+            <div>
+              <strong>{alias.alias}</strong>
+              <small>{alias.normalizedAlias ?? "-"}</small>
+            </div>
+            <Badge value={alias.language} tone="neutral" />
+            <Badge value={alias.aliasType} />
+            <button
+              className="ghost-button"
+              type="button"
+              disabled={savingAlias}
+              onClick={() => setAliasActive(alias, !alias.active)}
+            >
+              {alias.active ? "Disable" : "Enable"}
+            </button>
+          </div>
+        )) : <span className="muted-text">No aliases yet. Add Turkish or English search terms without duplicating this product.</span>}
+      </div>
+    </div>
+  );
+}
 function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div className="detail-item">
@@ -3439,6 +3789,44 @@ function EditableDetail({ label, children }: { label: string; children: ReactNod
   );
 }
 
+function NutritionInputGrid({
+  title,
+  fields,
+  draft,
+  onChange
+}: {
+  title: string;
+  fields: Array<{ key: ProductReviewNumberField; label: string; suffix: string }>;
+  draft: ProductReviewDraft;
+  onChange: <K extends keyof ProductReviewDraft>(key: K, value: ProductReviewDraft[K]) => void;
+}) {
+  return (
+    <div className="nutrition-section">
+      <div className="nutrition-section-header">
+        <h3>{title}</h3>
+        <span>Leave blank to clear a value</span>
+      </div>
+      <div className="nutrition-input-grid">
+        {fields.map((field) => (
+          <label className="nutrition-input" key={field.key}>
+            <span>{field.label}</span>
+            <div className="nutrition-input-control">
+              <input
+                inputMode="decimal"
+                type="number"
+                min="0"
+                step="0.01"
+                value={draft[field.key]}
+                onChange={(event) => onChange(field.key, event.target.value)}
+              />
+              <em>{field.suffix}</em>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
 function MetricPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="metric-pill">
@@ -3754,7 +4142,7 @@ function formatRevenueCatMetric(metric: { value?: string; unit?: string }): stri
     return value;
   }
   if (metric.unit === "EUR") {
-    return `€${value}`;
+    return `Ã¢â€šÂ¬${value}`;
   }
   if (metric.unit === "USD" || metric.unit === "GBP") {
     return `${metric.unit} ${value}`;
@@ -3765,7 +4153,7 @@ function formatRevenueCatMetric(metric: { value?: string; unit?: string }): stri
 function formatRevenueCatChartTick(value: number, currency?: string): string {
   const rounded = value >= 10 ? Math.round(value) : Number(value.toFixed(1));
   if (currency === "EUR") {
-    return `€${formatValue(rounded)}`;
+    return `Ã¢â€šÂ¬${formatValue(rounded)}`;
   }
   if (currency === "USD" || currency === "GBP") {
     return `${currency} ${formatValue(rounded)}`;
@@ -4104,6 +4492,7 @@ function listPreview(values?: string[]): string {
 }
 
 function buildProductReviewPath(filters: {
+  query: string;
   verificationStatus: string;
   imageStatus: string;
   region: string;
@@ -4122,6 +4511,33 @@ function buildProductReviewPath(filters: {
   return `/api/v1/admin/products/review?${params.toString()}`;
 }
 
+function buildProductReviewExportPath(filters: {
+  query: string;
+  verificationStatus: string;
+  imageStatus: string;
+  region: string;
+  catalogType: string;
+  dataSource: string;
+  qualityIssue: string;
+  limit: number;
+}): string {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, String(value));
+  });
+  return `/api/v1/admin/products/review/export?${params.toString()}`;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
 function buildRecipeAdminPath(filters: {
   query: string;
   verificationStatus: string;
@@ -4187,8 +4603,70 @@ function toProductReviewDraft(item: FoodProduct): ProductReviewDraft {
     verificationStatus: item.verificationStatus ?? "",
     imageStatus: item.imageStatus ?? "",
     imageSource: item.imageSource ?? "",
-    catalogType: item.catalogType ?? ""
+    catalogType: item.catalogType ?? "",
+    calories: numberInputValue(item.calories),
+    protein: numberInputValue(item.protein),
+    carbs: numberInputValue(item.carbs),
+    fat: numberInputValue(item.fat),
+    fiber: numberInputValue(item.fiber),
+    sugar: numberInputValue(item.sugar),
+    sodium: numberInputValue(item.sodium),
+    potassium: numberInputValue(item.potassium),
+    cholesterol: numberInputValue(item.cholesterol),
+    calcium: numberInputValue(item.calcium),
+    iron: numberInputValue(item.iron),
+    magnesium: numberInputValue(item.magnesium),
+    zinc: numberInputValue(item.zinc),
+    vitaminA: numberInputValue(item.vitaminA),
+    vitaminC: numberInputValue(item.vitaminC),
+    vitaminD: numberInputValue(item.vitaminD),
+    vitaminE: numberInputValue(item.vitaminE),
+    vitaminB12: numberInputValue(item.vitaminB12),
+    saturatedFat: numberInputValue(item.saturatedFat),
+    transFat: numberInputValue(item.transFat),
+    sugarAlcohol: numberInputValue(item.sugarAlcohol),
+    servingSizeGrams: numberInputValue(item.servingSize),
+    servingUnit: item.servingUnit ?? ""
   };
+}
+
+function productReviewNutritionPayload(draft: ProductReviewDraft) {
+  return {
+    calories: parseOptionalNumber(draft.calories),
+    protein: parseOptionalNumber(draft.protein),
+    carbs: parseOptionalNumber(draft.carbs),
+    fat: parseOptionalNumber(draft.fat),
+    fiber: parseOptionalNumber(draft.fiber),
+    sugar: parseOptionalNumber(draft.sugar),
+    sodium: parseOptionalNumber(draft.sodium),
+    potassium: parseOptionalNumber(draft.potassium),
+    cholesterol: parseOptionalNumber(draft.cholesterol),
+    calcium: parseOptionalNumber(draft.calcium),
+    iron: parseOptionalNumber(draft.iron),
+    magnesium: parseOptionalNumber(draft.magnesium),
+    zinc: parseOptionalNumber(draft.zinc),
+    vitaminA: parseOptionalNumber(draft.vitaminA),
+    vitaminC: parseOptionalNumber(draft.vitaminC),
+    vitaminD: parseOptionalNumber(draft.vitaminD),
+    vitaminE: parseOptionalNumber(draft.vitaminE),
+    vitaminB12: parseOptionalNumber(draft.vitaminB12),
+    saturatedFat: parseOptionalNumber(draft.saturatedFat),
+    transFat: parseOptionalNumber(draft.transFat),
+    sugarAlcohol: parseOptionalNumber(draft.sugarAlcohol),
+    servingSizeGrams: parseOptionalNumber(draft.servingSizeGrams),
+    servingUnit: draft.servingUnit.trim() || null
+  };
+}
+
+function numberInputValue(value?: number | null): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function parseOptionalNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function productName(item: FoodProduct): string {

@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ProductQualityLabel;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
+import com.grun.calorietracker.service.support.FoodPortionUnitResolver;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 
 import java.util.List;
@@ -129,6 +130,8 @@ public class FoodItemMapper {
         dto.setCustom(entity.getIsCustom());
         dto.setProductQualityLabel(resolveQualityLabel(entity));
         dto.setProductQualityMessage(resolveQualityMessage(dto.getProductQualityLabel()));
+        dto.setAllowedPortionUnits(FoodPortionUnitResolver.allowedUnits(entity));
+        dto.setDefaultPortionUnit(FoodPortionUnitResolver.defaultUnit(entity));
         return dto;
     }
 

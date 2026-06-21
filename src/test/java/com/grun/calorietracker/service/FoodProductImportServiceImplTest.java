@@ -2,14 +2,17 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.service.impl.FoodProductImportServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +41,9 @@ class FoodProductImportServiceImplTest {
     private FoodItemRepository foodItemRepository;
 
     @Mock
+    private FoodItemSearchAliasRepository foodItemSearchAliasRepository;
+
+    @Mock
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     private FoodProductImportServiceImpl foodProductImportService;
@@ -45,7 +51,7 @@ class FoodProductImportServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        foodProductImportService = new FoodProductImportServiceImpl(foodItemRepository, foodProductQualityIssueTracker);
+        foodProductImportService = new FoodProductImportServiceImpl(foodItemRepository, foodItemSearchAliasRepository, foodProductQualityIssueTracker);
     }
 
     @Test
@@ -121,6 +127,31 @@ class FoodProductImportServiceImplTest {
         assertEquals("Almond Breeze", savedProducts.get(0).getBrand());
         assertEquals("Peanut Butter Protein Bar", savedProducts.get(1).getName());
         assertEquals("M&S Food", savedProducts.get(1).getBrand());
+    }
+
+    @Test
+    void importCsv_importsMultilingualSearchAliases() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemSearchAliasRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,brand,calories,protein,fat,carbs,market_region,aliases_tr,aliases_en
+                1234567890123,Semi Skimmed Milk,Tesco,48,4,2,5,UK_IE,yarım yağlı süt|az yağlı süt,semi skim milk|milk
+                """);
+
+        foodProductImportService.importCsv(file, "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+
+        ArgumentCaptor<List<FoodItemSearchAliasEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemSearchAliasRepository).saveAll(captor.capture());
+        List<FoodItemSearchAliasEntity> aliases = captor.getValue();
+
+        assertEquals(4, aliases.size());
+        assertEquals(PreferredLanguage.TR, aliases.get(0).getLanguage());
+        assertEquals("yarım yağlı süt", aliases.get(0).getAlias());
+        assertEquals("yarim yagli sut", aliases.get(0).getNormalizedAlias());
+        assertEquals(PreferredLanguage.EN, aliases.get(2).getLanguage());
+        assertEquals("semi skim milk", aliases.get(2).getNormalizedAlias());
     }
     @Test
     void importCsv_pilotFileSupportsUkIeTrAndEuRegions() {

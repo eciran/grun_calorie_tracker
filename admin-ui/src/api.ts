@@ -126,6 +126,69 @@ export async function request<T>(
   return data as T;
 }
 
+
+export async function requestFormData<T>(
+  path: string,
+  formData: FormData,
+  options: { method?: string; timeoutMs?: number } = {}
+): Promise<T> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: options.method ?? "POST",
+      headers,
+      body: formData,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiRequestError("Request timed out. Check whether the backend is running.", 0, path);
+    }
+    throw new ApiRequestError(error instanceof Error ? error.message : "Network request failed", 0, path);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+  const text = await response.text();
+  const data = text ? safeJson(text) : null;
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
+    throw new ApiRequestError(message, response.status, path);
+  }
+  return data as T;
+}
+
+export async function requestBlob(path: string, options: { timeoutMs?: number } = {}): Promise<Blob> {
+  const headers: Record<string, string> = { Accept: "text/csv" };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(path, { headers, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiRequestError("Request timed out. Check whether the backend is running.", 0, path);
+    }
+    throw new ApiRequestError(error instanceof Error ? error.message : "Network request failed", 0, path);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    const data = text ? safeJson(text) : null;
+    if (response.status === 401) window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
+    throw new ApiRequestError(message, response.status, path);
+  }
+  return response.blob();
+}
 export function subscribeUnauthorized(handler: () => void): () => void {
   window.addEventListener(UNAUTHORIZED_EVENT, handler);
   return () => window.removeEventListener(UNAUTHORIZED_EVENT, handler);

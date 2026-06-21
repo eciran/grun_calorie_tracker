@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
@@ -131,8 +132,22 @@ public class FoodItemServiceImpl implements FoodItemService {
                 List<Predicate> searchPredicates = new ArrayList<>();
                 for (String term : FoodProductNormalizationRules.expandSearchTerms(searchQuery)) {
                     String pattern = "%" + term.toLowerCase(Locale.ROOT) + "%";
+                    String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(term);
+                    String normalizedAliasPattern = normalizedAlias == null ? pattern : "%" + normalizedAlias + "%";
                     searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern));
                     searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), pattern));
+                    var aliasSubquery = query.subquery(Long.class);
+                    var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
+                    aliasSubquery.select(aliasRoot.get("id"));
+                    aliasSubquery.where(
+                            criteriaBuilder.equal(aliasRoot.get("foodItem"), root),
+                            criteriaBuilder.isTrue(aliasRoot.get("active")),
+                            criteriaBuilder.or(
+                                    criteriaBuilder.like(criteriaBuilder.lower(aliasRoot.get("alias")), pattern),
+                                    criteriaBuilder.like(criteriaBuilder.lower(aliasRoot.get("normalizedAlias")), normalizedAliasPattern)
+                            )
+                    );
+                    searchPredicates.add(criteriaBuilder.exists(aliasSubquery));
                 }
                 String normalizedBarcodeQuery = FoodProductNormalizationRules.normalizeBarcode(searchQuery);
                 String barcodePattern = normalizedBarcodeQuery == null
@@ -142,7 +157,6 @@ public class FoodItemServiceImpl implements FoodItemService {
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern));
                 predicates.add(criteriaBuilder.or(searchPredicates.toArray(new Predicate[0])));
             }
-
             String brand = FoodProductNormalizationRules.normalizeText(criteria.getBrand());
             if (brand != null) {
                 predicates.add(criteriaBuilder.like(

@@ -14,15 +14,19 @@ import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.dto.FoodSearchAliasDto;
+import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
+import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
@@ -47,6 +51,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -123,6 +128,7 @@ class AdminFoodProductReviewControllerTest {
                 null,
                 null,
                 null,
+                null,
                 0,
                 25
         )).thenReturn(page);
@@ -157,6 +163,7 @@ class AdminFoodProductReviewControllerTest {
                 null,
                 null,
                 null,
+                null,
                 0,
                 25
         )).thenReturn(page);
@@ -167,6 +174,89 @@ class AdminFoodProductReviewControllerTest {
                         .param("region", "TR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
+    }
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductSearchAliases_whenAdmin_returnsAliases() throws Exception {
+        FoodSearchAliasDto alias = new FoodSearchAliasDto(
+                10L,
+                1L,
+                "yarım yağlı süt",
+                "yarim yagli sut",
+                PreferredLanguage.TR,
+                FoodSearchAliasType.TRANSLATION,
+                "admin",
+                true,
+                "2026-06-19T13:45:00"
+        );
+        when(foodProductReviewService.getProductSearchAliases(1L, true)).thenReturn(List.of(alias));
+
+        mockMvc.perform(get("/api/v1/admin/products/1/search-aliases"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(10L))
+                .andExpect(jsonPath("$[0].alias").value("yarım yağlı süt"))
+                .andExpect(jsonPath("$[0].normalizedAlias").value("yarim yagli sut"));
+
+        verify(foodProductReviewService).getProductSearchAliases(1L, true);
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void addProductSearchAlias_whenAdmin_returnsAlias() throws Exception {
+        FoodSearchAliasRequestDto request = new FoodSearchAliasRequestDto();
+        request.setAlias("yarım yağlı süt");
+        request.setLanguage(PreferredLanguage.TR);
+        request.setAliasType(FoodSearchAliasType.TRANSLATION);
+
+        FoodSearchAliasDto response = new FoodSearchAliasDto(
+                10L,
+                1L,
+                "yarım yağlı süt",
+                "yarim yagli sut",
+                PreferredLanguage.TR,
+                FoodSearchAliasType.TRANSLATION,
+                "admin",
+                true,
+                "2026-06-19T13:45:00"
+        );
+        when(foodProductReviewService.addProductSearchAlias(eq(1L), any(FoodSearchAliasRequestDto.class), eq("admin@test.com")))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/products/1/search-aliases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10L))
+                .andExpect(jsonPath("$.alias").value("yarım yağlı süt"))
+                .andExpect(jsonPath("$.language").value("TR"));
+
+        verify(foodProductReviewService).addProductSearchAlias(eq(1L), any(FoodSearchAliasRequestDto.class), eq("admin@test.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void updateProductSearchAliasStatus_whenAdmin_returnsAlias() throws Exception {
+        FoodSearchAliasDto response = new FoodSearchAliasDto(
+                10L,
+                1L,
+                "yarım yağlı süt",
+                "yarim yagli sut",
+                PreferredLanguage.TR,
+                FoodSearchAliasType.TRANSLATION,
+                "admin",
+                false,
+                "2026-06-19T13:45:00"
+        );
+        when(foodProductReviewService.updateProductSearchAliasStatus(1L, 10L, false, "admin@test.com"))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/admin/products/1/search-aliases/10/status")
+                        .param("active", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10L))
+                .andExpect(jsonPath("$.active").value(false));
+
+        verify(foodProductReviewService).updateProductSearchAliasStatus(1L, 10L, false, "admin@test.com");
     }
 
     @Test
@@ -199,7 +289,7 @@ class AdminFoodProductReviewControllerTest {
         FoodProductNutritionCorrectionImportResultDto response =
                 new FoodProductNutritionCorrectionImportResultDto(1, 1, 0, List.of());
 
-        when(foodProductReviewService.importNutritionCorrections(any(), eq("admin@test.com"))).thenReturn(response);
+        when(foodProductReviewService.importNutritionCorrections(any(), eq("admin@test.com"), eq(false), eq(false))).thenReturn(response);
 
         mockMvc.perform(multipart("/api/v1/admin/products/nutrition-corrections/import")
                         .file(file))
@@ -208,9 +298,48 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.updatedRows").value(1))
                 .andExpect(jsonPath("$.skippedRows").value(0));
 
-        verify(foodProductReviewService).importNutritionCorrections(any(), eq("admin@test.com"));
+        verify(foodProductReviewService).importNutritionCorrections(any(), eq("admin@test.com"), eq(false), eq(false));
     }
 
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void exportProductsForReview_whenAdmin_returnsCsvForCurrentFilter() throws Exception {
+        byte[] csv = "id,product_name\n1,Almond\n".getBytes();
+
+        when(foodProductReviewService.exportProductsForReview(
+                VerificationStatus.RAW_IMPORTED,
+                ImageStatus.NEEDS_REVIEW,
+                MarketRegion.UK_IE,
+                FoodCatalogType.BRANDED_PRODUCT,
+                FoodDataSource.OPEN_FOOD_FACTS,
+                FoodProductQualityIssue.MISSING_CALORIES,
+                "almond",
+                1000
+        )).thenReturn(csv);
+
+        mockMvc.perform(get("/api/v1/admin/products/review/export")
+                        .param("verificationStatus", "RAW_IMPORTED")
+                        .param("imageStatus", "NEEDS_REVIEW")
+                        .param("region", "UK_IE")
+                        .param("catalogType", "BRANDED_PRODUCT")
+                        .param("dataSource", "OPEN_FOOD_FACTS")
+                        .param("qualityIssue", "MISSING_CALORIES")
+                        .param("query", "almond")
+                        .param("limit", "1000"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("id,product_name\n1,Almond\n"));
+
+        verify(foodProductReviewService).exportProductsForReview(
+                VerificationStatus.RAW_IMPORTED,
+                ImageStatus.NEEDS_REVIEW,
+                MarketRegion.UK_IE,
+                FoodCatalogType.BRANDED_PRODUCT,
+                FoodDataSource.OPEN_FOOD_FACTS,
+                FoodProductQualityIssue.MISSING_CALORIES,
+                "almond",
+                1000
+        );
+    }
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void getProductQualityIssues_whenAdmin_returnsIssues() throws Exception {
@@ -258,6 +387,7 @@ class AdminFoodProductReviewControllerTest {
                 FoodCatalogType.LOCAL_DISH,
                 null,
                 null,
+                null,
                 0,
                 25
         )).thenReturn(page);
@@ -289,6 +419,7 @@ class AdminFoodProductReviewControllerTest {
                 MarketRegion.TR,
                 FoodCatalogType.BRANDED_PRODUCT,
                 FoodDataSource.OPEN_FOOD_FACTS,
+                null,
                 null,
                 0,
                 25
@@ -323,6 +454,7 @@ class AdminFoodProductReviewControllerTest {
                 FoodCatalogType.BRANDED_PRODUCT,
                 FoodDataSource.OPEN_FOOD_FACTS,
                 FoodProductQualityIssue.MISSING_CALORIES,
+                null,
                 0,
                 25
         )).thenReturn(page);

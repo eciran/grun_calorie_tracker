@@ -9,6 +9,8 @@ import com.grun.calorietracker.dto.FoodProductQualityIssueBackfillResultDto;
 import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.dto.FoodSearchAliasDto;
+import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
@@ -27,6 +29,7 @@ public interface FoodProductReviewService {
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, int page, int size);
+    FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, int page, int size);
     default FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request) {
         return updateProductReview(id, request, null);
     }
@@ -39,5 +42,15 @@ public interface FoodProductReviewService {
     }
     FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy);
     FoodProductQualityIssueBackfillResultDto backfillQualityIssues(int pageSize, String triggeredBy);
-    FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy);
+    default FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy) {
+        return importNutritionCorrections(file, reviewedBy, false, false);
+    }
+    default FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun) {
+        return importNutritionCorrections(file, reviewedBy, dryRun, false);
+    }
+    FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun, boolean markVerified);
+    byte[] exportProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, int limit);
+    List<FoodSearchAliasDto> getProductSearchAliases(Long productId, boolean activeOnly);
+    FoodSearchAliasDto addProductSearchAlias(Long productId, FoodSearchAliasRequestDto request, String reviewedBy);
+    FoodSearchAliasDto updateProductSearchAliasStatus(Long productId, Long aliasId, boolean active, String reviewedBy);
 }

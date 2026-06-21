@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -11,6 +12,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -176,4 +179,10 @@ public class FoodProductDto {
 
     @Schema(description = "Default product-specific serving option id when available.", example = "5")
     private Long defaultServingOptionId;
+
+    @Schema(description = "Portion units mobile should show for this product. This prevents volume choices for solid foods such as chicken.", example = "[\"GRAM\", \"SERVING\"]")
+    private List<FoodPortionUnit> allowedPortionUnits;
+
+    @Schema(description = "Recommended default portion unit for the product add-food screen.", example = "GRAM")
+    private FoodPortionUnit defaultPortionUnit;
 }
