@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.dto.ProductCorrectionSuggestionDto;
 import com.grun.calorietracker.dto.ProductCorrectionSuggestionRequestDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.service.FailedBarcodeScanService;
@@ -70,12 +71,15 @@ public class FoodItemController {
             @RequestParam(required = false) FoodCatalogType catalogType,
             @Parameter(description = "Optional brand filter.", example = "Tesco")
             @RequestParam(required = false) String brand,
+            @Parameter(description = "Optional preparation/cooking state filter.", example = "COOKED")
+            @RequestParam(required = false) FoodPreparationState preparationState,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery(q);
         criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
         criteria.setCatalogType(catalogType);
         criteria.setBrand(brand);
+        criteria.setPreparationState(preparationState);
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 

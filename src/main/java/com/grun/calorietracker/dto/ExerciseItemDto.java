@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ExerciseDifficulty;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -8,6 +9,8 @@ import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 
 @Data
@@ -64,6 +67,12 @@ public class ExerciseItemDto {
 
     @Schema(description = "Animation or GIF URL for quick movement preview.", example = "https://cdn.grun.app/exercises/squat.gif")
     private String animationUrl;
+
+    @Schema(description = "Default measurement type mobile should preselect when logging this exercise.", example = "DISTANCE")
+    private ExerciseLogMeasurementType defaultMeasurementType;
+
+    @Schema(description = "Measurement types accepted for this exercise. Backend rejects exercise logs outside this list.", example = "[\"DURATION\", \"DISTANCE\", \"MIXED\"]")
+    private List<ExerciseLogMeasurementType> allowedMeasurementTypes;
 
     @Schema(description = "Whether this exercise can be used by future AI workout planner recommendations.", example = "true")
     private Boolean aiEligible;
