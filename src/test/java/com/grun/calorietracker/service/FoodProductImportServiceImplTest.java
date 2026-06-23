@@ -7,6 +7,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -213,9 +214,9 @@ class FoodProductImportServiceImplTest {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = csv("""
-                catalog_type,name,calories,protein,fat,carbs,market_region,serving_size_grams,serving_unit
-                LOCAL_DISH,Mercimek Corbasi,92,5.8,2.4,12.1,TR,250,bowl
-                GENERIC_INGREDIENT,Rolled Oats,389,16.9,6.9,66.3,UK_IE,100,g
+                catalog_type,name,calories,protein,fat,carbs,market_region,preparation_state,serving_size_grams,serving_unit
+                LOCAL_DISH,Mercimek Corbasi,92,5.8,2.4,12.1,TR,PREPARED,250,bowl
+                GENERIC_INGREDIENT,Rolled Oats,389,16.9,6.9,66.3,UK_IE,RAW,100,g
                 """);
 
         FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
@@ -232,12 +233,39 @@ class FoodProductImportServiceImplTest {
         List<FoodItemEntity> savedProducts = captor.getValue();
 
         assertEquals(FoodCatalogType.LOCAL_DISH, savedProducts.get(0).getCatalogType());
-        assertEquals("TR:LOCAL_DISH:mercimek_corbasi", savedProducts.get(0).getSourceKey());
+        assertEquals("TR:LOCAL_DISH:PREPARED:mercimek_corbasi", savedProducts.get(0).getSourceKey());
+        assertEquals(FoodPreparationState.PREPARED, savedProducts.get(0).getPreparationState());
         assertEquals(null, savedProducts.get(0).getBarcode());
         assertEquals(FoodCatalogType.GENERIC_INGREDIENT, savedProducts.get(1).getCatalogType());
-        assertEquals("UK_IE:GENERIC_INGREDIENT:rolled_oats", savedProducts.get(1).getSourceKey());
+        assertEquals("UK_IE:GENERIC_INGREDIENT:RAW:rolled_oats", savedProducts.get(1).getSourceKey());
+        assertEquals(FoodPreparationState.RAW, savedProducts.get(1).getPreparationState());
     }
 
+
+    @Test
+    void importCsv_keepsRawAndCookedNonBarcodeFoodsSeparate() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,name,calories,market_region,preparation_state
+                GENERIC_INGREDIENT,Rice,360,GLOBAL,RAW
+                GENERIC_INGREDIENT,Rice,130,GLOBAL,COOKED
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getSavedRows());
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> savedProducts = captor.getValue();
+
+        assertEquals("GLOBAL:GENERIC_INGREDIENT:RAW:rice", savedProducts.get(0).getSourceKey());
+        assertEquals(FoodPreparationState.RAW, savedProducts.get(0).getPreparationState());
+        assertEquals("GLOBAL:GENERIC_INGREDIENT:COOKED:rice", savedProducts.get(1).getSourceKey());
+        assertEquals(FoodPreparationState.COOKED, savedProducts.get(1).getPreparationState());
+    }
     @Test
     void importCsv_whenRawExternal_keepsProductsInReviewState() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());

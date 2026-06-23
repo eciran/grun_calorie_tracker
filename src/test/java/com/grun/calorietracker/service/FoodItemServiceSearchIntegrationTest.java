@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -220,6 +221,34 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals("Dunnes Stores", brandSearch.getContent().get(0).getBrand());
     }
 
+    @Test
+    void searchFoodItems_whenPreparationStateProvided_filtersProducts() {
+        FoodItemEntity rawRice = product("Rice", null, VerificationStatus.VERIFIED);
+        rawRice.setSourceKey("GLOBAL:GENERIC_INGREDIENT:RAW:rice");
+        rawRice.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        rawRice.setMarketRegion(MarketRegion.GLOBAL);
+        rawRice.setPreparationState(FoodPreparationState.RAW);
+        rawRice.setCalories(360.0);
+
+        FoodItemEntity cookedRice = product("Rice", null, VerificationStatus.VERIFIED);
+        cookedRice.setSourceKey("GLOBAL:GENERIC_INGREDIENT:COOKED:rice");
+        cookedRice.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        cookedRice.setMarketRegion(MarketRegion.GLOBAL);
+        cookedRice.setPreparationState(FoodPreparationState.COOKED);
+        cookedRice.setCalories(130.0);
+
+        foodItemRepository.saveAll(List.of(rawRice, cookedRice));
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("rice");
+        criteria.setPreparationState(FoodPreparationState.COOKED);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals(FoodPreparationState.COOKED, result.getContent().get(0).getPreparationState());
+        assertEquals(130.0, result.getContent().get(0).getCalories());
+    }
 
     @Test
     void searchFoodItems_matchesDbSearchAliasWithoutDuplicatingProductData() {
@@ -230,7 +259,7 @@ class FoodItemServiceSearchIntegrationTest {
 
         FoodItemSearchAliasEntity alias = new FoodItemSearchAliasEntity();
         alias.setFoodItem(savedProduct);
-        alias.setAlias("yarım yağlı süt");
+        alias.setAlias("yar\u0131m ya\u011fl\u0131 s\u00fct");
         alias.setNormalizedAlias("yarim yagli sut");
         alias.setLanguage(PreferredLanguage.TR);
         alias.setAliasType(FoodSearchAliasType.TRANSLATION);
@@ -239,7 +268,7 @@ class FoodItemServiceSearchIntegrationTest {
         foodItemSearchAliasRepository.save(alias);
 
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
-        criteria.setQuery("yarım yağlı süt");
+        criteria.setQuery("yar\u0131m ya\u011fl\u0131 s\u00fct");
         criteria.setMarketRegion(MarketRegion.UK_IE);
 
         FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
@@ -250,6 +279,31 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals("Tesco", result.getContent().get(0).getBrand());
     }
 
+
+    @Test
+    void searchFoodItems_ignoresInactiveAliasMatches() {
+        FoodItemEntity milkChocolate = product("Milk Chocolate", "222004", VerificationStatus.RAW_IMPORTED);
+        milkChocolate.setMarketRegion(MarketRegion.UK_IE);
+        FoodItemEntity savedProduct = foodItemRepository.save(milkChocolate);
+
+        FoodItemSearchAliasEntity inactiveAlias = new FoodItemSearchAliasEntity();
+        inactiveAlias.setFoodItem(savedProduct);
+        inactiveAlias.setAlias("hidden-local-name");
+        inactiveAlias.setNormalizedAlias("hidden-local-name");
+        inactiveAlias.setLanguage(PreferredLanguage.TR);
+        inactiveAlias.setAliasType(FoodSearchAliasType.TRANSLATION);
+        inactiveAlias.setSource("test");
+        inactiveAlias.setActive(false);
+        foodItemSearchAliasRepository.save(inactiveAlias);
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("hidden-local-name");
+        criteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(0, result.getContent().size());
+    }
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {
         FoodItemEntity product = new FoodItemEntity();
         product.setName(name);

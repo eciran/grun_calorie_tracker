@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.ExerciseItemDto;
 import com.grun.calorietracker.dto.ExerciseItemPageDto;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.enums.ExerciseDifficulty;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.exception.DuplicateExerciseItemException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.ExerciseItemMapper;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -102,6 +104,8 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
         existing.setThumbnailUrl(dto.getThumbnailUrl());
         existing.setVideoUrl(dto.getVideoUrl());
         existing.setAnimationUrl(dto.getAnimationUrl());
+        existing.setDefaultMeasurementType(dto.getDefaultMeasurementType());
+        existing.setAllowedMeasurementTypes(com.grun.calorietracker.mapper.ExerciseItemMapper.toAllowedMeasurementTypesCsv(dto.getAllowedMeasurementTypes()));
         existing.setAiEligible(dto.getAiEligible());
         existing.setActive(dto.getActive());
         applyCatalogDefaults(existing);
