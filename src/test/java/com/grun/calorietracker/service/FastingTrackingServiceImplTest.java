@@ -22,6 +22,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -198,6 +200,37 @@ class FastingTrackingServiceImplTest {
         assertEquals(1, result.getCurrentStreakDays());
     }
 
+    @Test
+    void getSessions_returnsPagedFilteredHistory() {
+        FastingSessionEntity completed = activeSession();
+        completed.setStatus(FastingSessionStatus.COMPLETED);
+        completed.setEndedAt(LocalDateTime.of(2026, 6, 6, 12, 0));
+        completed.setActualMinutes(960);
+        completed.setTargetReached(true);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(fastingSessionRepository.findHistory(
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+        )).thenReturn(new PageImpl<>(List.of(completed), PageRequest.of(0, 20), 1));
+
+        var result = service.getSessions(
+                "user@grun.app",
+                FastingSessionStatus.COMPLETED,
+                LocalDate.of(2026, 6, 1),
+                LocalDate.of(2026, 6, 24),
+                0,
+                20
+        );
+
+        assertEquals(1, result.getContent().size());
+        assertEquals(FastingSessionStatus.COMPLETED, result.getContent().get(0).getStatus());
+        assertEquals(1, result.getTotalElements());
+        assertEquals(1, result.getTotalPages());
+    }
     @Test
     void getRangeSummary_returnsTrendMetrics() {
         FastingSessionEntity reached = activeSession();

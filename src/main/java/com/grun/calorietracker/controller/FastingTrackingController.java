@@ -8,8 +8,10 @@ import com.grun.calorietracker.dto.FastingRangeSummaryDto;
 import com.grun.calorietracker.dto.FastingSessionCancelRequestDto;
 import com.grun.calorietracker.dto.FastingSessionDto;
 import com.grun.calorietracker.dto.FastingSessionFinishRequestDto;
+import com.grun.calorietracker.dto.FastingSessionPageDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.FastingSessionStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.FastingTrackingService;
 import com.grun.calorietracker.service.UserService;
@@ -131,6 +133,37 @@ public class FastingTrackingController {
         return ResponseEntity.ok(fastingTrackingService.cancelSession(userDetails.getUsername(), id, request));
     }
 
+    @GetMapping("/sessions")
+    @Operation(
+            summary = "List fasting sessions",
+            description = "Returns paged fasting session history for the authenticated user. Use status=COMPLETED for the completed fasting history screen."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fasting sessions returned."),
+            @ApiResponse(responseCode = "400", description = "Date format or date range is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<FastingSessionPageDto> getSessions(
+            @Parameter(description = "Optional session status filter. Use COMPLETED for completed fasting history.", example = "COMPLETED")
+            @RequestParam(required = false) FastingSessionStatus status,
+            @Parameter(description = "Optional fasting-date range start in ISO format.", example = "2026-06-01")
+            @RequestParam(required = false) String startDate,
+            @Parameter(description = "Optional fasting-date range end in ISO format.", example = "2026-06-24")
+            @RequestParam(required = false) String endDate,
+            @Parameter(description = "Zero-based page number.", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size. Backend caps very large values.", example = "20")
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fastingTrackingService.getSessions(
+                userDetails.getUsername(),
+                status,
+                parseOptionalDate(startDate),
+                parseOptionalDate(endDate),
+                page,
+                size
+        ));
+    }
     @GetMapping("/summary")
     @Operation(
             summary = "Get fasting daily summary",
@@ -174,6 +207,9 @@ public class FastingTrackingController {
         ));
     }
 
+    private LocalDate parseOptionalDate(String value) {
+        return value == null || value.isBlank() ? null : LocalDate.parse(value);
+    }
     private UserEntity currentUser(String email) {
         return userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));

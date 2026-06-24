@@ -10,6 +10,7 @@ import com.grun.calorietracker.dto.FastingRangeSummaryDto;
 import com.grun.calorietracker.dto.FastingSessionCancelRequestDto;
 import com.grun.calorietracker.dto.FastingSessionDto;
 import com.grun.calorietracker.dto.FastingSessionFinishRequestDto;
+import com.grun.calorietracker.dto.FastingSessionPageDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
 import com.grun.calorietracker.enums.FastingPlanType;
 import com.grun.calorietracker.enums.FastingSessionStatus;
@@ -35,6 +36,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -141,6 +143,28 @@ class FastingTrackingControllerTest {
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
+    @Test
+    void getSessions_returnsPagedCompletedHistory() throws Exception {
+        FastingSessionPageDto page = new FastingSessionPageDto();
+        page.setContent(List.of(sessionDto(FastingSessionStatus.COMPLETED)));
+        page.setPage(0);
+        page.setSize(20);
+        page.setTotalElements(1);
+        page.setTotalPages(1);
+
+        when(fastingTrackingService.getSessions(any(), any(), any(), any(), anyInt(), anyInt())).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/fasting/sessions")
+                        .param("status", "COMPLETED")
+                        .param("startDate", "2026-06-01")
+                        .param("endDate", "2026-06-24")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+    }
     @Test
     void getDailySummary_returnsSummary() throws Exception {
         FastingDailySummaryDto summary = new FastingDailySummaryDto();
