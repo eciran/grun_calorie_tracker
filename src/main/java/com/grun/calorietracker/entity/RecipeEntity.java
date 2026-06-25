@@ -3,6 +3,7 @@ package com.grun.calorietracker.entity;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -119,6 +120,12 @@ public class RecipeEntity {
     @Column(name = "category", nullable = false, length = 60)
     @Enumerated(EnumType.STRING)
     private Set<RecipeCategory> categories = new LinkedHashSet<>();
+
+    @ElementCollection(targetClass = RecipeAllergen.class)
+    @CollectionTable(name = "recipe_allergens", joinColumns = @JoinColumn(name = "recipe_id"))
+    @Column(name = "allergen", nullable = false, length = 60)
+    @Enumerated(EnumType.STRING)
+    private Set<RecipeAllergen> allergens = new LinkedHashSet<>();
 
     @PrePersist
     protected void onCreate() {

@@ -8,6 +8,7 @@ public enum RecipeCategory {
     VEGETARIAN,
     HIGH_PROTEIN,
     LOW_CARB,
+    LOW_FAT,
     LOW_CALORIE,
     HIGH_FIBER,
     GLUTEN_FREE,

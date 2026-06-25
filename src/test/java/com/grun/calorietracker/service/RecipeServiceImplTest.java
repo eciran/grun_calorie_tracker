@@ -16,6 +16,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeReportReason;
 import com.grun.calorietracker.enums.RecipeReportStatus;
@@ -88,6 +89,25 @@ class RecipeServiceImplTest {
     }
 
     @Test
+    void createRecipe_derivesAndMergesRecipeAllergens() {
+        UserEntity user = user();
+        FoodItemEntity lentils = product();
+        lentils.setAllergens("en:milk,en:nuts");
+        RecipeRequestDto request = recipeRequest(400.0, 100.0, 4);
+        request.setAllergens(Set.of(RecipeAllergen.SESAME));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(lentils));
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> {
+            RecipeEntity recipe = invocation.getArgument(0);
+            recipe.setId(10L);
+            return recipe;
+        });
+
+        RecipeDto result = service.createRecipe("user@test.com", request);
+
+        assertEquals(Set.of(RecipeAllergen.MILK, RecipeAllergen.TREE_NUTS, RecipeAllergen.SESAME), result.getAllergens());
+    }
+    @Test
     void createRecipe_whenImageUrlProvided_marksImageNeedsReview() {
         UserEntity user = user();
         FoodItemEntity lentils = product();
@@ -131,6 +151,28 @@ class RecipeServiceImplTest {
         assertEquals(ImageStatus.REJECTED, result.getImageStatus());
     }
 
+
+    @Test
+    void updateRecipe_whenImageUrlOmitted_preservesExistingImage() {
+        UserEntity user = user();
+        FoodItemEntity lentils = product();
+        RecipeEntity recipe = recipeEntity(user);
+        recipe.setImageUrl("http://localhost:8080/api/v1/recipes/images/r10-u1-photo.jpg");
+        recipe.setImageSource(ImageSource.USER_UPLOAD);
+        recipe.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        RecipeRequestDto request = recipeRequest(400.0, 100.0, 4);
+        request.setImageUrl(null);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(lentils));
+        when(recipeRepository.save(recipe)).thenReturn(recipe);
+
+        RecipeDto result = service.updateRecipe("user@test.com", 10L, request);
+
+        assertEquals("http://localhost:8080/api/v1/recipes/images/r10-u1-photo.jpg", result.getImageUrl());
+        assertEquals(ImageSource.USER_UPLOAD, result.getImageSource());
+        assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
+    }
     @Test
     void updateInteraction_savesFavoriteAndRating() {
         UserEntity user = user();

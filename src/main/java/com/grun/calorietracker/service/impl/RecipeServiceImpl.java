@@ -23,6 +23,7 @@ import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipePublicSort;
 import com.grun.calorietracker.enums.RecipeReportStatus;
@@ -40,6 +41,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeImageModerationService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.RecipeAllergenResolver;
 import lombok.RequiredArgsConstructor;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
@@ -177,16 +179,17 @@ public class RecipeServiceImpl implements RecipeService {
                                           MarketRegion marketRegion,
                                           String language,
                                           Set<RecipeCategory> categories,
+                                          Set<RecipeAllergen> excludeAllergens,
                                           RecipePublicSort sort,
                                           int page,
                                           int size) {
         UserEntity viewer = email == null ? null : getUser(email);
         RecipePublicSort resolvedSort = sort == null ? RecipePublicSort.NEWEST : sort;
         if (resolvedSort != RecipePublicSort.NEWEST) {
-            return getSortedPublicRecipes(viewer, query, mealType, marketRegion, language, categories, resolvedSort, page, size);
+            return getSortedPublicRecipes(viewer, query, mealType, marketRegion, language, categories, excludeAllergens, resolvedSort, page, size);
         }
         Page<RecipeEntity> recipes = recipeRepository.findAll(
-                publicRecipeSpecification(query, mealType, marketRegion, language, categories),
+                publicRecipeSpecification(query, mealType, marketRegion, language, categories, excludeAllergens),
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50), Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
         RecipePageDto dto = new RecipePageDto();
@@ -252,6 +255,7 @@ public class RecipeServiceImpl implements RecipeService {
         copy.setSnapshotVitaminE(source.getSnapshotVitaminE());
         copy.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
         copy.setCategories(new LinkedHashSet<>(source.getCategories()));
+        copy.setAllergens(source.getAllergens() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(source.getAllergens()));
         for (int index = 0; index < source.getCookingSteps().size(); index++) {
             RecipeCookingStepEntity sourceStep = source.getCookingSteps().get(index);
             RecipeCookingStepEntity step = new RecipeCookingStepEntity();
@@ -361,7 +365,9 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setMealType(normalizeMealType(request.getMealType()));
         recipe.setMarketRegion(request.getMarketRegion());
         recipe.setLanguage(trimToNull(request.getLanguage()));
-        applyImageUrl(recipe, trimToNull(request.getImageUrl()));
+        if (request.getImageUrl() != null) {
+            applyImageUrl(recipe, trimToNull(request.getImageUrl()));
+        }
         recipe.setServingCount(request.getServingCount());
         recipe.setCategories(normalizeCategories(request.getCategories()));
 
@@ -369,6 +375,7 @@ public class RecipeServiceImpl implements RecipeService {
             recipe.getIngredients().add(toIngredient(recipe, request.getIngredients().get(index), user, index));
         }
         applyCookingSteps(recipe, request.getCookingSteps());
+        applyAllergens(recipe, request.getAllergens());
         recalculateNutrition(recipe, request);
     }
 
@@ -587,6 +594,7 @@ public class RecipeServiceImpl implements RecipeService {
         dto.setUpdatedAt(recipe.getUpdatedAt());
         dto.setIngredients(recipe.getIngredients().stream().map(this::toIngredientDto).toList());
         dto.setCookingSteps(recipe.getCookingSteps().stream().map(this::toStepDto).toList());
+        dto.setAllergens(recipe.getAllergens() == null ? Set.of() : new LinkedHashSet<>(recipe.getAllergens()));
         return dto;
     }
 
@@ -625,6 +633,20 @@ public class RecipeServiceImpl implements RecipeService {
         return dto;
     }
 
+    private void applyAllergens(RecipeEntity recipe, Set<RecipeAllergen> requestedAllergens) {
+        LinkedHashSet<RecipeAllergen> resolvedAllergens = new LinkedHashSet<>();
+        if (recipe.getIngredients() != null) {
+            for (RecipeIngredientEntity ingredient : recipe.getIngredients()) {
+                if (ingredient.getFoodItem() != null) {
+                    resolvedAllergens.addAll(RecipeAllergenResolver.resolve(ingredient.getFoodItem().getAllergens()));
+                }
+            }
+        }
+        if (requestedAllergens != null) {
+            resolvedAllergens.addAll(requestedAllergens);
+        }
+        recipe.setAllergens(resolvedAllergens);
+    }
     private void applyCookingSteps(RecipeEntity recipe, List<RecipeStepRequestDto> steps) {
         if (steps == null || steps.isEmpty()) {
             return;
@@ -789,11 +811,12 @@ public class RecipeServiceImpl implements RecipeService {
                                                  MarketRegion marketRegion,
                                                  String language,
                                                  Set<RecipeCategory> categories,
+                                                 Set<RecipeAllergen> excludeAllergens,
                                                  RecipePublicSort sort,
                                                  int page,
                                                  int size) {
         List<RecipeEntity> recipes = new ArrayList<>(recipeRepository.findAll(
-                publicRecipeSpecification(query, mealType, marketRegion, language, categories)
+                publicRecipeSpecification(query, mealType, marketRegion, language, categories, excludeAllergens)
         ));
         Comparator<RecipeEntity> comparator = switch (sort) {
             case POPULAR -> Comparator
@@ -828,8 +851,10 @@ public class RecipeServiceImpl implements RecipeService {
                                                                   String mealType,
                                                                   MarketRegion marketRegion,
                                                                   String language,
-                                                                  Set<RecipeCategory> categories) {
+                                                                  Set<RecipeCategory> categories,
+                                                                  Set<RecipeAllergen> excludeAllergens) {
         Set<RecipeCategory> normalizedCategories = normalizeCategories(categories);
+        Set<RecipeAllergen> normalizedExcludedAllergens = normalizeAllergens(excludeAllergens);
         return (root, criteriaQuery, criteriaBuilder) -> {
             if (criteriaQuery != null && !Long.class.equals(criteriaQuery.getResultType())) {
                 criteriaQuery.distinct(true);
@@ -860,6 +885,17 @@ public class RecipeServiceImpl implements RecipeService {
             for (RecipeCategory category : normalizedCategories) {
                 Join<RecipeEntity, RecipeCategory> categoryJoin = root.joinSet("categories", JoinType.INNER);
                 predicates.add(criteriaBuilder.equal(categoryJoin, category));
+            }
+            if (!normalizedExcludedAllergens.isEmpty() && criteriaQuery != null) {
+                var allergenSubquery = criteriaQuery.subquery(Long.class);
+                var allergenRoot = allergenSubquery.from(RecipeEntity.class);
+                Join<RecipeEntity, RecipeAllergen> allergenJoin = allergenRoot.joinSet("allergens", JoinType.INNER);
+                allergenSubquery.select(allergenRoot.get("id"));
+                allergenSubquery.where(
+                        criteriaBuilder.equal(allergenRoot.get("id"), root.get("id")),
+                        allergenJoin.in(normalizedExcludedAllergens)
+                );
+                predicates.add(criteriaBuilder.not(criteriaBuilder.exists(allergenSubquery)));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
@@ -907,6 +943,10 @@ public class RecipeServiceImpl implements RecipeService {
 
     private Set<RecipeCategory> normalizeCategories(Set<RecipeCategory> categories) {
         return categories == null ? new LinkedHashSet<>() : new LinkedHashSet<>(categories);
+    }
+
+    private Set<RecipeAllergen> normalizeAllergens(Set<RecipeAllergen> allergens) {
+        return allergens == null ? new LinkedHashSet<>() : new LinkedHashSet<>(allergens);
     }
 
     private RecipeReportDto toReportDto(RecipeReportEntity report) {

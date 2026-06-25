@@ -121,5 +121,17 @@ class MobileApiContractTest {
 
         removedOrNonVersionedPaths.forEach(path ->
                 assertFalse(paths.has(path), () -> "Non-versioned or removed path should not be exposed: " + path));
+
+        JsonNode publicRecipeParameters = paths.path("/api/v1/recipes/public").path("get").path("parameters");
+        assertTrue(hasParameter(publicRecipeParameters, "excludeAllergens"), "Public recipe discovery should expose excludeAllergens filter.");
+    }
+
+    private boolean hasParameter(JsonNode parameters, String name) {
+        for (JsonNode parameter : parameters) {
+            if (name.equals(parameter.path("name").asText())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

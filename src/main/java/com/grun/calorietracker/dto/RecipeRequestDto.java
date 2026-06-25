@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -52,6 +53,9 @@ public class RecipeRequestDto {
 
     @Schema(description = "Standard categories used for public recipe discovery.", example = "[\"VEGAN\", \"HIGH_PROTEIN\"]")
     private Set<RecipeCategory> categories;
+
+    @Schema(description = "Known allergens manually assigned by the user or client. Ingredient-derived allergens are added automatically.", example = "[\"MILK\", \"TREE_NUTS\"]")
+    private Set<RecipeAllergen> allergens;
 
     @Valid
     @NotEmpty
