@@ -12,6 +12,7 @@ import com.grun.calorietracker.dto.RecipeReportDto;
 import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipePublicSort;
 import com.grun.calorietracker.service.RecipeImageService;
@@ -79,7 +80,7 @@ public class RecipeController {
     }
 
     @GetMapping("/public")
-    @Operation(summary = "Discover public recipes", description = "Returns admin-approved public recipes. Supports query, meal type, region, language, and category filtering for mobile discovery screens.")
+    @Operation(summary = "Discover public recipes", description = "Returns admin-approved public recipes. Supports query, meal type, region, language, category, and allergen exclusion filtering for mobile discovery screens.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Public recipes returned."),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
@@ -90,6 +91,7 @@ public class RecipeController {
             @Parameter(description = "Optional region filter.", example = "TR") @RequestParam(required = false) MarketRegion marketRegion,
             @Parameter(description = "Optional language code filter.", example = "tr") @RequestParam(required = false) String language,
             @Parameter(description = "Required categories. Recipe must include all selected categories.", example = "VEGAN,HIGH_PROTEIN") @RequestParam(required = false) Set<RecipeCategory> categories,
+            @Parameter(description = "Allergens to exclude from public discovery results. This is a best-effort filter based on known recipe allergens, not an allergen-free safety claim.", example = "MILK,WHEAT") @RequestParam(required = false) Set<RecipeAllergen> excludeAllergens,
             @Parameter(description = "Public recipe sort mode.", example = "POPULAR") @RequestParam(defaultValue = "NEWEST") RecipePublicSort sort,
             @Parameter(description = "Page number.", example = "0") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size.", example = "20") @RequestParam(defaultValue = "20") int size,
@@ -101,6 +103,7 @@ public class RecipeController {
                 marketRegion,
                 language,
                 categories,
+                excludeAllergens,
                 sort,
                 page,
                 size

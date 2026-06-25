@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.RecipeReportDto;
 import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipePublicSort;
 
@@ -33,6 +34,7 @@ public interface RecipeService {
                                    MarketRegion marketRegion,
                                    String language,
                                    Set<RecipeCategory> categories,
+                                   Set<RecipeAllergen> excludeAllergens,
                                    RecipePublicSort sort,
                                    int page,
                                    int size);

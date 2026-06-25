@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -25,6 +26,9 @@ public class AdminRecipeReviewRequestDto {
 
     @Schema(description = "Admin-controlled public discovery categories.", example = "[\"HIGH_PROTEIN\", \"MEAL_PREP\"]")
     private Set<RecipeCategory> categories;
+
+    @Schema(description = "Admin-reviewed allergens displayed on public recipe detail.", example = "[\"MILK\", \"TREE_NUTS\"]")
+    private Set<RecipeAllergen> allergens;
     @Size(max = 1024)
     @Schema(description = "Reviewed display image URL for the recipe.")
     private String imageUrl;

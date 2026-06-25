@@ -15,6 +15,7 @@ import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -24,6 +25,7 @@ import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminRecipeService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -62,10 +65,11 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                                           MarketRegion marketRegion,
                                           ImageStatus imageStatus,
                                           ImageSource imageSource,
+                                          RecipeAllergen allergen,
                                           int page,
                                           int size) {
         Page<RecipeEntity> recipes = recipeRepository.findAll(
-                buildSpecification(query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource),
+                buildSpecification(query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, allergen),
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
         AdminRecipePageDto dto = new AdminRecipePageDto();
@@ -179,6 +183,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             recipe.setCategories(new LinkedHashSet<>(request.getCategories()));
             changed = true;
         }
+        if (request.getAllergens() != null && !Objects.equals(recipe.getAllergens(), request.getAllergens())) {
+            recipe.setAllergens(new LinkedHashSet<>(request.getAllergens()));
+            changed = true;
+        }
         String imageUrl = trimToNull(request.getImageUrl());
         if (request.getImageUrl() != null && !Objects.equals(recipe.getImageUrl(), imageUrl)) {
             recipe.setImageUrl(imageUrl);
@@ -239,7 +247,8 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                                                            String mealType,
                                                            MarketRegion marketRegion,
                                                            ImageStatus imageStatus,
-                                                           ImageSource imageSource) {
+                                                           ImageSource imageSource,
+                                                           RecipeAllergen allergen) {
         return (root, criteriaQuery, criteriaBuilder) -> {
             if (criteriaQuery != null && RecipeEntity.class.equals(criteriaQuery.getResultType())) {
                 root.fetch("ownerUser", JoinType.LEFT);
@@ -276,6 +285,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             }
             if (imageSource != null) {
                 predicates.add(criteriaBuilder.equal(root.get("imageSource"), imageSource));
+            }
+            if (allergen != null) {
+                Join<RecipeEntity, RecipeAllergen> allergenJoin = root.joinSet("allergens", JoinType.INNER);
+                predicates.add(criteriaBuilder.equal(allergenJoin, allergen));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
@@ -321,6 +334,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setRatingCount(recipeUserInteractionRepository.countByRecipeAndRatingIsNotNull(recipe));
         dto.setAverageRating(round(recipeUserInteractionRepository.averageRating(recipe)));
         dto.setCategories(copyCategories(recipe));
+        dto.setAllergens(copyAllergens(recipe));
         dto.setArchived(Boolean.TRUE.equals(recipe.getArchived()));
         dto.setIngredientCount(recipe.getIngredients() == null ? 0 : recipe.getIngredients().size());
         dto.setCreatedAt(recipe.getCreatedAt());
@@ -336,6 +350,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
 
     private LinkedHashSet<com.grun.calorietracker.enums.RecipeCategory> copyCategories(RecipeEntity recipe) {
         return recipe.getCategories() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(recipe.getCategories());
+    }
+
+    private LinkedHashSet<com.grun.calorietracker.enums.RecipeAllergen> copyAllergens(RecipeEntity recipe) {
+        return recipe.getAllergens() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(recipe.getAllergens());
     }
 
     private RecipeStepDto toStepDto(RecipeCookingStepEntity step) {
@@ -360,6 +378,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         values.put("visibility", recipe.getVisibility());
         values.put("verificationStatus", recipe.getVerificationStatus());
         values.put("categories", copyCategories(recipe));
+        values.put("allergens", copyAllergens(recipe));
         values.put("archived", recipe.getArchived());
         values.put("imageUrl", recipe.getImageUrl());
         values.put("imageSource", recipe.getImageSource());

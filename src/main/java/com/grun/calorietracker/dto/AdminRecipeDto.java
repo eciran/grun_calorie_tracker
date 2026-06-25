@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -47,6 +48,7 @@ public class AdminRecipeDto {
     private Long ratingCount;
     private Double averageRating;
     private Set<RecipeCategory> categories;
+    private Set<RecipeAllergen> allergens;
     private Boolean archived;
     private Integer ingredientCount;
     private LocalDateTime createdAt;

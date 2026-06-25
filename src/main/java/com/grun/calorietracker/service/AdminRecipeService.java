@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 
@@ -20,6 +21,7 @@ public interface AdminRecipeService {
                                    MarketRegion marketRegion,
                                    ImageStatus imageStatus,
                                    ImageSource imageSource,
+                                   RecipeAllergen allergen,
                                    int page,
                                    int size);
 

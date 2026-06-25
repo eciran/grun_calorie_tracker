@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.AdminRecipeService;
@@ -75,6 +76,8 @@ public class AdminRecipeController {
             @RequestParam(required = false) ImageStatus imageStatus,
             @Parameter(description = "Optional image source filter.", example = "USER_UPLOAD")
             @RequestParam(required = false) ImageSource imageSource,
+            @Parameter(description = "Optional allergen filter. Returns recipes containing this known allergen.", example = "MILK")
+            @RequestParam(required = false) RecipeAllergen allergen,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -89,6 +92,7 @@ public class AdminRecipeController {
                 marketRegion,
                 imageStatus,
                 imageSource,
+                allergen,
                 page,
                 size
         ));
