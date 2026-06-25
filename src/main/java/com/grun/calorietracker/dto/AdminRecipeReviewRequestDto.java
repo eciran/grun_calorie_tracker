@@ -2,11 +2,14 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+
+import java.util.Set;
 
 @Data
 @Schema(description = "Admin recipe review update request.")
@@ -20,6 +23,8 @@ public class AdminRecipeReviewRequestDto {
     @Schema(description = "Whether the recipe should be archived by admin moderation.", example = "false")
     private Boolean archived;
 
+    @Schema(description = "Admin-controlled public discovery categories.", example = "[\"HIGH_PROTEIN\", \"MEAL_PREP\"]")
+    private Set<RecipeCategory> categories;
     @Size(max = 1024)
     @Schema(description = "Reviewed display image URL for the recipe.")
     private String imageUrl;

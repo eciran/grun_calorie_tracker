@@ -21,6 +21,7 @@ import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -311,6 +312,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     reviewNote
             );
             product.setCatalogType(request.getCatalogType());
+        }
+
+        if (request.getPreparationState() != null) {
+            addAuditIfChanged(
+                    audits,
+                    product,
+                    reviewedBy,
+                    FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "preparationState",
+                    product.getPreparationState(),
+                    request.getPreparationState(),
+                    reviewNote
+            );
+            product.setPreparationState(request.getPreparationState());
         }
 
         applyDoubleChange(audits, product, reviewedBy, "calories", product.getCalories(), NutritionValueNormalizer.calories(request.getCalories()), product::setCalories, reviewNote);
@@ -671,6 +686,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 "brand",
                 "market_region",
                 "catalog_type",
+                "preparation_state",
                 "verification_status",
                 "image_status",
                 "image_source",
@@ -711,6 +727,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 .append(',').append(csv(product.getBrand()))
                 .append(',').append(csv(product.getMarketRegion()))
                 .append(',').append(csv(product.getCatalogType()))
+                .append(',').append(csv(product.getPreparationState()))
                 .append(',').append(csv(product.getVerificationStatus()))
                 .append(',').append(csv(product.getImageStatus()))
                 .append(',').append(csv(product.getImageSource()))
@@ -986,6 +1003,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         request.setDisplayImageUrl(firstText(row, "displayimageurl", "display_image_url", "curated_image_url"));
         request.setMarketRegion(parseEnum(MarketRegion.class, firstText(row, "market_region", "marketregion", "region"), "market_region"));
         request.setCatalogType(parseEnum(FoodCatalogType.class, firstText(row, "catalog_type", "catalogtype", "type"), "catalog_type"));
+        request.setPreparationState(parseEnum(FoodPreparationState.class, firstText(row, "preparation_state", "preparationstate", "prep_state", "cooking_state", "state"), "preparation_state"));
         request.setVerificationStatus(parseEnum(VerificationStatus.class, firstText(row, "verification_status", "verificationstatus"), "verification_status"));
         request.setImageStatus(parseEnum(ImageStatus.class, firstText(row, "image_status", "imagestatus"), "image_status"));
         String reviewNote = firstText(row, "reviewnote", "review_note", "note");

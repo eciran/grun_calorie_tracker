@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -65,6 +66,9 @@ public class FoodProductDto {
 
     @Schema(description = "Market region this food product belongs to.", example = "UK_IE")
     private MarketRegion marketRegion;
+
+    @Schema(description = "Preparation/cooking state for raw, cooked, grilled, fried, baked, or prepared foods.", example = "COOKED")
+    private FoodPreparationState preparationState;
 
     @Schema(description = "How many times this product has been added to food logs.", example = "42")
     private Long usageCount;
@@ -153,7 +157,7 @@ public class FoodProductDto {
     @Schema(description = "Sugar alcohol amount in grams per 100g/ml or configured product base.", example = "0.0")
     private Double sugarAlcohol;
 
-    @Schema(description = "Serving size in grams used for SERVING and PIECE food log conversion.", example = "30.0")
+    @Schema(description = "Serving size in grams used for SERVING, PIECE, and SLICE food log conversion.", example = "30.0")
     private Double servingSize;
 
     @Schema(description = "Display unit for the serving size.", example = "g")

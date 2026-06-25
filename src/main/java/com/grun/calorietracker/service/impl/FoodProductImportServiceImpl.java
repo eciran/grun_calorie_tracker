@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -255,7 +256,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
 
         FoodCatalogType catalogType = resolveCatalogType(row, normalizedBarcode);
-        String sourceKey = resolveSourceKey(row, normalizedBarcode, name, catalogType, regionResolution.region());
+        FoodPreparationState preparationState = resolvePreparationState(row);
+        String sourceKey = resolveSourceKey(row, normalizedBarcode, name, catalogType, regionResolution.region(), preparationState);
         if (sourceKey == null) {
             return RowResult.error(new FoodProductImportErrorDto(
                     row.rowNumber(),
@@ -284,6 +286,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             product.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(brand));
         }
         product.setCatalogType(catalogType);
+        product.setPreparationState(preparationState);
         product.setMarketRegion(regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
 
@@ -357,7 +360,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(firstText(row, "barcode", "code", "gtin", "ean", "upc"));
         String name = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
         FoodCatalogType catalogType = resolveCatalogType(row, normalizedBarcode);
-        return resolveSourceKey(row, normalizedBarcode, name, catalogType, marketRegion);
+        FoodPreparationState preparationState = resolvePreparationState(row);
+        return resolveSourceKey(row, normalizedBarcode, name, catalogType, marketRegion, preparationState);
     }
 
     private FoodCatalogType resolveCatalogType(CsvRow row, String normalizedBarcode) {
@@ -380,12 +384,33 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return FoodCatalogType.BRANDED_PRODUCT;
     }
 
+
+    private FoodPreparationState resolvePreparationState(CsvRow row) {
+        String value = firstText(row, "preparationstate", "preparation_state", "prepstate", "prep_state", "cookingstate", "cooking_state", "state");
+        if (value == null) {
+            return FoodPreparationState.UNSPECIFIED;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        if ("UNCOOKED".equals(normalized) || "FRESH".equals(normalized)) {
+            normalized = FoodPreparationState.RAW.name();
+        } else if ("COOK".equals(normalized)) {
+            normalized = FoodPreparationState.COOKED.name();
+        } else if ("MIXED".equals(normalized) || "DISH".equals(normalized) || "RECIPE".equals(normalized)) {
+            normalized = FoodPreparationState.PREPARED.name();
+        }
+        try {
+            return FoodPreparationState.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return FoodPreparationState.UNSPECIFIED;
+        }
+    }
     private String resolveSourceKey(
             CsvRow row,
             String normalizedBarcode,
             String name,
             FoodCatalogType catalogType,
-            MarketRegion marketRegion
+            MarketRegion marketRegion,
+            FoodPreparationState preparationState
     ) {
         String explicitSourceKey = firstText(row, "sourcekey", "source_key", "externalid", "external_id");
         if (explicitSourceKey != null) {
@@ -402,7 +427,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return null;
         }
         MarketRegion effectiveRegion = marketRegion == null ? MarketRegion.GLOBAL : marketRegion;
-        return effectiveRegion.name() + ":" + catalogType.name() + ":" + slug(name);
+        FoodPreparationState effectivePreparationState = preparationState == null ? FoodPreparationState.UNSPECIFIED : preparationState;
+        return effectiveRegion.name() + ":" + catalogType.name() + ":" + effectivePreparationState.name() + ":" + slug(name);
     }
 
     private String slug(String value) {

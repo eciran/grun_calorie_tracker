@@ -5,19 +5,26 @@ import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.dto.RecipeInteractionDto;
 import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
+import com.grun.calorietracker.dto.RecipeReportDto;
+import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
+import com.grun.calorietracker.entity.RecipeReportEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipeReportReason;
+import com.grun.calorietracker.enums.RecipeReportStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.exception.DuplicateRecipePublicationRequestException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
+import com.grun.calorietracker.repository.RecipeReportRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeImageModerationService;
@@ -49,6 +56,8 @@ class RecipeServiceImplTest {
     private FoodItemRepository foodItemRepository;
     @Mock
     private RecipeRepository recipeRepository;
+    @Mock
+    private RecipeReportRepository recipeReportRepository;
     @Mock
     private RecipeUserInteractionRepository recipeUserInteractionRepository;
     @Mock
@@ -199,6 +208,29 @@ class RecipeServiceImplTest {
     }
 
     @Test
+    void requestPublication_whenAlreadyPending_rejectsDuplicateRequest() {
+        UserEntity user = user();
+        RecipeEntity recipe = recipeEntity(user);
+        recipe.setVisibility(RecipeVisibility.COMMUNITY_PENDING);
+        recipe.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+
+        assertThrows(DuplicateRecipePublicationRequestException.class, () -> service.requestPublication("user@test.com", 10L));
+    }
+
+    @Test
+    void requestPublication_whenAlreadyPublished_rejectsDuplicateRequest() {
+        UserEntity user = user();
+        RecipeEntity recipe = recipeEntity(user);
+        recipe.setVisibility(RecipeVisibility.PUBLIC_ADMIN);
+        recipe.setVerificationStatus(VerificationStatus.VERIFIED);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+
+        assertThrows(DuplicateRecipePublicationRequestException.class, () -> service.requestPublication("user@test.com", 10L));
+    }
+    @Test
     void copyPublicRecipe_createsPrivateCopyForUser() {
         UserEntity user = user();
         RecipeEntity source = publicRecipeEntity();
@@ -219,6 +251,30 @@ class RecipeServiceImplTest {
         assertEquals(1, result.getIngredients().size());
     }
 
+    @Test
+    void reportPublicRecipe_updatesExistingOpenReport() {
+        UserEntity user = user();
+        RecipeEntity source = publicRecipeEntity();
+        RecipeReportEntity report = new RecipeReportEntity();
+        report.setId(55L);
+        report.setUser(user);
+        report.setRecipe(source);
+        report.setStatus(RecipeReportStatus.OPEN);
+        RecipeReportRequestDto request = new RecipeReportRequestDto();
+        request.setReason(RecipeReportReason.INCORRECT_NUTRITION);
+        request.setNote("Calories look too low.");
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findById(10L)).thenReturn(Optional.of(source));
+        when(recipeReportRepository.findByUserAndRecipeAndStatus(user, source, RecipeReportStatus.OPEN)).thenReturn(Optional.of(report));
+        when(recipeReportRepository.save(report)).thenReturn(report);
+
+        RecipeReportDto result = service.reportPublicRecipe("user@test.com", 10L, request);
+
+        assertEquals(55L, result.getId());
+        assertEquals(10L, result.getRecipeId());
+        assertEquals(RecipeReportReason.INCORRECT_NUTRITION, result.getReason());
+        assertEquals("Calories look too low.", report.getNote());
+    }
     @Test
     void createRecipe_whenServingIsLargerThanYield_rejectsRequest() {
         RecipeRequestDto request = recipeRequest(200.0, 250.0, 1);

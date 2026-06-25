@@ -9,6 +9,7 @@ import com.grun.calorietracker.exception.DuplicateExternalExerciseLogException;
 import com.grun.calorietracker.exception.ExerciseItemNotFoundException;
 import com.grun.calorietracker.exception.ExerciseLogNotFoundException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.mapper.ExerciseItemMapper;
 import com.grun.calorietracker.mapper.ExerciseLogsMapper;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -23,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -173,6 +176,97 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         throw new IllegalArgumentException("Exercise log requires at least one measurement: durationMinutes, setCount, reps, weightKg, or distanceKm.");
     }
 
+
+    private void validateMeasurementAgainstExercise(ExerciseItemEntity exerciseItem, ExerciseLogsDto dto) {
+        ExerciseLogMeasurementType measurementType = resolveMeasurementType(dto);
+        Set<ExerciseLogMeasurementType> allowedTypes = allowedMeasurementTypes(exerciseItem);
+        if (!allowedTypes.contains(measurementType)) {
+            throw new IllegalArgumentException("Exercise " + exerciseItem.getName() + " does not allow measurement type " + measurementType + ". Allowed types: " + allowedTypes);
+        }
+
+        switch (measurementType) {
+            case DURATION -> {
+                require(dto.getDurationMinutes(), "durationMinutes is required for DURATION exercise logs.");
+                reject(dto.getSetCount(), "setCount is not allowed for DURATION exercise logs.");
+                reject(dto.getReps(), "reps is not allowed for DURATION exercise logs.");
+                reject(dto.getWeightKg(), "weightKg is not allowed for DURATION exercise logs.");
+                reject(dto.getDistanceKm(), "distanceKm is not allowed for DURATION exercise logs. Use DISTANCE or MIXED.");
+            }
+            case DISTANCE -> {
+                require(dto.getDistanceKm(), "distanceKm is required for DISTANCE exercise logs.");
+                reject(dto.getSetCount(), "setCount is not allowed for DISTANCE exercise logs.");
+                reject(dto.getReps(), "reps is not allowed for DISTANCE exercise logs.");
+                reject(dto.getWeightKg(), "weightKg is not allowed for DISTANCE exercise logs.");
+            }
+            case REPS -> {
+                require(dto.getReps(), "reps is required for REPS exercise logs.");
+                reject(dto.getDurationMinutes(), "durationMinutes is not allowed for REPS exercise logs.");
+                reject(dto.getSetCount(), "setCount is not allowed for REPS exercise logs. Use SETS_REPS.");
+                reject(dto.getWeightKg(), "weightKg is not allowed for REPS exercise logs. Use WEIGHT_REPS.");
+                reject(dto.getDistanceKm(), "distanceKm is not allowed for REPS exercise logs.");
+            }
+            case SETS_REPS -> {
+                require(dto.getSetCount(), "setCount is required for SETS_REPS exercise logs.");
+                require(dto.getReps(), "reps is required for SETS_REPS exercise logs.");
+                reject(dto.getDurationMinutes(), "durationMinutes is not allowed for SETS_REPS exercise logs.");
+                reject(dto.getWeightKg(), "weightKg is not allowed for SETS_REPS exercise logs. Use WEIGHT_REPS.");
+                reject(dto.getDistanceKm(), "distanceKm is not allowed for SETS_REPS exercise logs.");
+            }
+            case WEIGHT_REPS -> {
+                require(dto.getWeightKg(), "weightKg is required for WEIGHT_REPS exercise logs.");
+                require(dto.getReps(), "reps is required for WEIGHT_REPS exercise logs.");
+                reject(dto.getDurationMinutes(), "durationMinutes is not allowed for WEIGHT_REPS exercise logs.");
+                reject(dto.getDistanceKm(), "distanceKm is not allowed for WEIGHT_REPS exercise logs.");
+            }
+            case MIXED -> validateMixedMeasurement(dto);
+        }
+    }
+
+    private Set<ExerciseLogMeasurementType> allowedMeasurementTypes(ExerciseItemEntity exerciseItem) {
+        List<ExerciseLogMeasurementType> configured = ExerciseItemMapper.parseAllowedMeasurementTypes(exerciseItem.getAllowedMeasurementTypes());
+        if (!configured.isEmpty()) {
+            return EnumSet.copyOf(configured);
+        }
+        return EnumSet.of(ExerciseLogMeasurementType.DURATION);
+    }
+
+    private void validateMixedMeasurement(ExerciseLogsDto dto) {
+        boolean hasDuration = positive(dto.getDurationMinutes());
+        boolean hasDistance = positive(dto.getDistanceKm());
+        boolean hasSetsOrReps = positive(dto.getSetCount()) || positive(dto.getReps());
+        boolean hasWeight = positive(dto.getWeightKg());
+        int metricKinds = (hasDuration ? 1 : 0) + (hasDistance ? 1 : 0) + (hasSetsOrReps ? 1 : 0) + (hasWeight ? 1 : 0);
+        if (metricKinds < 2) {
+            throw new IllegalArgumentException("MIXED exercise logs require at least two compatible measurement groups.");
+        }
+        if (hasSetsOrReps || hasWeight) {
+            throw new IllegalArgumentException("MIXED exercise logs currently support cardio-style duration/distance combinations only.");
+        }
+    }
+
+    private void require(Integer value, String message) {
+        if (!positive(value)) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void require(Double value, String message) {
+        if (!positive(value)) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void reject(Integer value, String message) {
+        if (positive(value)) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void reject(Double value, String message) {
+        if (positive(value)) {
+            throw new IllegalArgumentException(message);
+        }
+    }
     private ExerciseLogMeasurementType resolveMeasurementType(ExerciseLogsDto dto) {
         if (dto.getMeasurementType() != null) {
             return dto.getMeasurementType();

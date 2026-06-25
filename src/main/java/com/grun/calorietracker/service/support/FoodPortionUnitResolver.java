@@ -9,9 +9,9 @@ import java.util.Locale;
 
 public final class FoodPortionUnitResolver {
 
-    private static final List<FoodPortionUnit> LIQUID_UNITS = List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.SERVING);
-    private static final List<FoodPortionUnit> COUNTABLE_UNITS = List.of(FoodPortionUnit.PIECE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING);
-    private static final List<FoodPortionUnit> DEFAULT_SOLID_UNITS = List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> LIQUID_UNITS = List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> COUNTABLE_UNITS = List.of(FoodPortionUnit.PIECE, FoodPortionUnit.SLICE, FoodPortionUnit.GRAM, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> DEFAULT_SOLID_UNITS = List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SLICE, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
 
     private static final List<String> LIQUID_KEYWORDS = List.of(
             "water", "milk", "juice", "drink", "beverage", "smoothie", "shake", "soda", "cola",

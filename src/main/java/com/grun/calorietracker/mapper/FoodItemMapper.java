@@ -33,6 +33,7 @@ public class FoodItemMapper {
         entity.setImageSource(dto.getImageSource());
         entity.setImageStatus(dto.getImageStatus());
         entity.setMarketRegion(dto.getMarketRegion());
+        entity.setPreparationState(dto.getPreparationState());
         entity.setUsageCount(dto.getUsageCount());
         entity.setQualityScore(dto.getQualityScore());
         entity.setConfidenceScore(dto.getConfidenceScore());
@@ -92,6 +93,7 @@ public class FoodItemMapper {
         dto.setImageSource(entity.getImageSource());
         dto.setImageStatus(entity.getImageStatus());
         dto.setMarketRegion(entity.getMarketRegion());
+        dto.setPreparationState(entity.getPreparationState());
         dto.setUsageCount(entity.getUsageCount());
         dto.setQualityScore(entity.getQualityScore());
         dto.setConfidenceScore(entity.getConfidenceScore());

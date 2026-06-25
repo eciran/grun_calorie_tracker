@@ -16,6 +16,9 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
+import com.grun.calorietracker.dto.ProductQualitySuggestionDto;
+import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
+import com.grun.calorietracker.dto.ProductQualitySuggestionScanResultDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
@@ -27,9 +30,13 @@ import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.ProductQualitySuggestionSource;
+import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
+import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
+import com.grun.calorietracker.service.ProductQualitySuggestionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -70,6 +77,9 @@ class AdminFoodProductReviewControllerTest {
 
     @MockBean
     private FoodProductImportService foodProductImportService;
+
+    @MockBean
+    private ProductQualitySuggestionService productQualitySuggestionService;
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
@@ -181,7 +191,7 @@ class AdminFoodProductReviewControllerTest {
         FoodSearchAliasDto alias = new FoodSearchAliasDto(
                 10L,
                 1L,
-                "yarım yağlı süt",
+                "yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t",
                 "yarim yagli sut",
                 PreferredLanguage.TR,
                 FoodSearchAliasType.TRANSLATION,
@@ -194,7 +204,7 @@ class AdminFoodProductReviewControllerTest {
         mockMvc.perform(get("/api/v1/admin/products/1/search-aliases"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(10L))
-                .andExpect(jsonPath("$[0].alias").value("yarım yağlı süt"))
+                .andExpect(jsonPath("$[0].alias").value("yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t"))
                 .andExpect(jsonPath("$[0].normalizedAlias").value("yarim yagli sut"));
 
         verify(foodProductReviewService).getProductSearchAliases(1L, true);
@@ -204,14 +214,14 @@ class AdminFoodProductReviewControllerTest {
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void addProductSearchAlias_whenAdmin_returnsAlias() throws Exception {
         FoodSearchAliasRequestDto request = new FoodSearchAliasRequestDto();
-        request.setAlias("yarım yağlı süt");
+        request.setAlias("yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t");
         request.setLanguage(PreferredLanguage.TR);
         request.setAliasType(FoodSearchAliasType.TRANSLATION);
 
         FoodSearchAliasDto response = new FoodSearchAliasDto(
                 10L,
                 1L,
-                "yarım yağlı süt",
+                "yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t",
                 "yarim yagli sut",
                 PreferredLanguage.TR,
                 FoodSearchAliasType.TRANSLATION,
@@ -227,7 +237,7 @@ class AdminFoodProductReviewControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(10L))
-                .andExpect(jsonPath("$.alias").value("yarım yağlı süt"))
+                .andExpect(jsonPath("$.alias").value("yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t"))
                 .andExpect(jsonPath("$.language").value("TR"));
 
         verify(foodProductReviewService).addProductSearchAlias(eq(1L), any(FoodSearchAliasRequestDto.class), eq("admin@test.com"));
@@ -239,7 +249,7 @@ class AdminFoodProductReviewControllerTest {
         FoodSearchAliasDto response = new FoodSearchAliasDto(
                 10L,
                 1L,
-                "yarım yağlı süt",
+                "yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t",
                 "yarim yagli sut",
                 PreferredLanguage.TR,
                 FoodSearchAliasType.TRANSLATION,
@@ -257,6 +267,58 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.active").value(false));
 
         verify(foodProductReviewService).updateProductSearchAliasStatus(1L, 10L, false, "admin@test.com");
+    }
+
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void scanProductQualitySuggestions_whenAdmin_returnsScanResult() throws Exception {
+        ProductQualitySuggestionScanResultDto response = new ProductQualitySuggestionScanResultDto(50, 12, 3);
+        when(productQualitySuggestionService.scanSuggestions(MarketRegion.UK_IE, 50)).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/products/quality-suggestions/scan")
+                        .param("region", "UK_IE")
+                        .param("limit", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scannedProducts").value(50))
+                .andExpect(jsonPath("$.createdSuggestions").value(12))
+                .andExpect(jsonPath("$.skippedExistingSuggestions").value(3));
+
+        verify(productQualitySuggestionService).scanSuggestions(MarketRegion.UK_IE, 50);
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductQualitySuggestions_whenAdmin_returnsSuggestions() throws Exception {
+        ProductQualitySuggestionDto suggestion = new ProductQualitySuggestionDto(
+                1L,
+                10L,
+                "Semi Skimmed Milk",
+                "Tesco",
+                ProductQualitySuggestionType.SEARCH_ALIAS,
+                ProductQualitySuggestionSource.RULE_BASED,
+                ProductQualitySuggestionStatus.OPEN,
+                80,
+                null,
+                "sut",
+                "Turkish users should be able to find plain milk products with 'sut'.",
+                LocalDateTime.of(2026, 6, 22, 10, 0),
+                null,
+                null
+        );
+        ProductQualitySuggestionPageDto response = new ProductQualitySuggestionPageDto(List.of(suggestion), 0, 25, 1, 1);
+        when(productQualitySuggestionService.getSuggestions(ProductQualitySuggestionStatus.OPEN, 0, 25)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/products/quality-suggestions")
+                        .param("status", "OPEN")
+                        .param("page", "0")
+                        .param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].foodItemId").value(10))
+                .andExpect(jsonPath("$.content[0].suggestionType").value("SEARCH_ALIAS"))
+                .andExpect(jsonPath("$.content[0].suggestedValue").value("sut"));
+
+        verify(productQualitySuggestionService).getSuggestions(ProductQualitySuggestionStatus.OPEN, 0, 25);
     }
 
     @Test

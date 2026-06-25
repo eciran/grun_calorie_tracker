@@ -14,18 +14,21 @@ import java.util.Optional;
 public interface RecipeRepository extends JpaRepository<RecipeEntity, Long>, JpaSpecificationExecutor<RecipeEntity> {
     List<RecipeEntity> findByOwnerUserAndArchivedFalseOrderByUpdatedAtDesc(UserEntity ownerUser);
 
-    @Query("""
-            SELECT r
-            FROM RecipeEntity r
-            WHERE r.ownerUser = :ownerUser
-              AND r.archived = false
-              AND (:query IS NULL OR lower(r.name) LIKE lower(concat('%', :query, '%')))
-              AND (:mealType IS NULL OR r.mealType = :mealType)
-            ORDER BY r.updatedAt DESC
-            """)
-    List<RecipeEntity> searchOwnedRecipes(@Param("ownerUser") UserEntity ownerUser,
-                                           @Param("query") String query,
-                                           @Param("mealType") String mealType);
+    List<RecipeEntity> findByOwnerUserAndArchivedFalseAndNameContainingIgnoreCaseOrderByUpdatedAtDesc(
+            UserEntity ownerUser,
+            String name
+    );
+
+    List<RecipeEntity> findByOwnerUserAndArchivedFalseAndMealTypeOrderByUpdatedAtDesc(
+            UserEntity ownerUser,
+            String mealType
+    );
+
+    List<RecipeEntity> findByOwnerUserAndArchivedFalseAndNameContainingIgnoreCaseAndMealTypeOrderByUpdatedAtDesc(
+            UserEntity ownerUser,
+            String name,
+            String mealType
+    );
 
     Optional<RecipeEntity> findByIdAndOwnerUserAndArchivedFalse(Long id, UserEntity ownerUser);
 

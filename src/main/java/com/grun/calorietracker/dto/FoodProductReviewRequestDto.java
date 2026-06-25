@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -30,6 +31,9 @@ public class FoodProductReviewRequestDto {
 
     @Schema(description = "Food catalog classification.", example = "BRANDED_PRODUCT")
     private FoodCatalogType catalogType;
+
+    @Schema(description = "Preparation/cooking state for raw, cooked, grilled, fried, baked, or prepared foods.", example = "COOKED")
+    private FoodPreparationState preparationState;
 
     @Schema(description = "Calories per 100g/ml or configured product base.", example = "539.0")
     private Double calories;
@@ -94,7 +98,7 @@ public class FoodProductReviewRequestDto {
     @Schema(description = "Sugar alcohol amount in grams per 100g/ml or configured product base.", example = "0.0")
     private Double sugarAlcohol;
 
-    @Schema(description = "Serving size in grams used for SERVING and PIECE food log conversion.", example = "30.0")
+    @Schema(description = "Serving size in grams used for SERVING, PIECE, and SLICE food log conversion.", example = "30.0")
     private Double servingSizeGrams;
 
     @Schema(description = "Display unit for the serving size.", example = "g")
@@ -157,6 +161,14 @@ public class FoodProductReviewRequestDto {
 
     public void setCatalogType(FoodCatalogType catalogType) {
         this.catalogType = catalogType;
+    }
+
+    public FoodPreparationState getPreparationState() {
+        return preparationState;
+    }
+
+    public void setPreparationState(FoodPreparationState preparationState) {
+        this.preparationState = preparationState;
     }
 
     public Double getCalories() {

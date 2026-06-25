@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.FastingRangeSummaryDto;
 import com.grun.calorietracker.dto.FastingSessionCancelRequestDto;
 import com.grun.calorietracker.dto.FastingSessionDto;
 import com.grun.calorietracker.dto.FastingSessionFinishRequestDto;
+import com.grun.calorietracker.dto.FastingSessionPageDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
 import com.grun.calorietracker.entity.FastingPlanEntity;
 import com.grun.calorietracker.entity.FastingSessionEntity;
@@ -26,6 +27,8 @@ import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +52,8 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private static final int DEFAULT_EATING_WINDOW_HOURS = 8;
     private static final String FASTING_REMINDER_TYPE = "fasting_reminder";
     private static final String FASTING_REMINDER_MESSAGE = "Your fasting window is almost complete.";
+    private static final int DEFAULT_SESSION_PAGE_SIZE = 20;
+    private static final int MAX_SESSION_PAGE_SIZE = 100;
 
     private final FastingPlanRepository fastingPlanRepository;
     private final FastingSessionRepository fastingSessionRepository;
@@ -239,6 +244,36 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public FastingSessionPageDto getSessions(
+            String email,
+            FastingSessionStatus status,
+            LocalDate startDate,
+            LocalDate endDate,
+            int page,
+            int size
+    ) {
+        if (startDate != null && endDate != null) {
+            validateRange(startDate, endDate);
+        }
+        UserEntity user = getUser(email);
+        Page<FastingSessionEntity> sessionPage = fastingSessionRepository.findHistory(
+                user,
+                status,
+                startDate,
+                endDate,
+                PageRequest.of(safePage(page), safePageSize(size))
+        );
+
+        FastingSessionPageDto dto = new FastingSessionPageDto();
+        dto.setContent(sessionPage.getContent().stream().map(this::toSessionDto).toList());
+        dto.setPage(sessionPage.getNumber());
+        dto.setSize(sessionPage.getSize());
+        dto.setTotalElements(sessionPage.getTotalElements());
+        dto.setTotalPages(sessionPage.getTotalPages());
+        return dto;
+    }
+    @Override
     @Scheduled(fixedDelayString = "${grun.fasting.reminders.scan-interval-ms:300000}")
     @Transactional
     public int createDueReminderNotifications() {
@@ -373,6 +408,16 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         return note.trim();
     }
 
+    private int safePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int safePageSize(int size) {
+        if (size < 1) {
+            return DEFAULT_SESSION_PAGE_SIZE;
+        }
+        return Math.min(size, MAX_SESSION_PAGE_SIZE);
+    }
     private FastingPlanDto toPlanDto(FastingPlanEntity entity) {
         FastingPlanDto dto = new FastingPlanDto();
         dto.setId(entity.getId());

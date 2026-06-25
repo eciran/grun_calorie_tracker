@@ -7,7 +7,9 @@ import com.grun.calorietracker.dto.FastingRangeSummaryDto;
 import com.grun.calorietracker.dto.FastingSessionCancelRequestDto;
 import com.grun.calorietracker.dto.FastingSessionDto;
 import com.grun.calorietracker.dto.FastingSessionFinishRequestDto;
+import com.grun.calorietracker.dto.FastingSessionPageDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
+import com.grun.calorietracker.enums.FastingSessionStatus;
 
 import java.time.LocalDate;
 
@@ -19,5 +21,6 @@ public interface FastingTrackingService {
     FastingSessionDto cancelSession(String email, Long sessionId, FastingSessionCancelRequestDto request);
     FastingDailySummaryDto getDailySummary(String email, LocalDate date);
     FastingRangeSummaryDto getRangeSummary(String email, LocalDate startDate, LocalDate endDate);
+    FastingSessionPageDto getSessions(String email, FastingSessionStatus status, LocalDate startDate, LocalDate endDate, int page, int size);
     int createDueReminderNotifications();
 }

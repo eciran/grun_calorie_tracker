@@ -203,6 +203,10 @@ public class FoodItemServiceImpl implements FoodItemService {
                 predicates.add(criteriaBuilder.equal(root.get("catalogType"), criteria.getCatalogType()));
             }
 
+            if (criteria.getPreparationState() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("preparationState"), criteria.getPreparationState()));
+            }
+
             if (applyDefaultOrdering && query != null) {
                 query.orderBy(buildDefaultSearchOrders(root, criteriaBuilder, searchQuery));
             }
@@ -447,6 +451,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         copy.setNutriScore(criteria.getNutriScore());
         copy.setMarketRegion(region);
         copy.setCatalogType(criteria.getCatalogType());
+        copy.setPreparationState(criteria.getPreparationState());
         return copy;
     }
 

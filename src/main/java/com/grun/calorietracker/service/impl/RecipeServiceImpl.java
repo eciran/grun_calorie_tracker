@@ -7,10 +7,16 @@ import com.grun.calorietracker.dto.RecipeInteractionDto;
 import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
 import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.RecipePageDto;
+import com.grun.calorietracker.dto.RecipeReportDto;
+import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
+import com.grun.calorietracker.dto.RecipeStepDto;
+import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
+import com.grun.calorietracker.entity.RecipeReportEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
@@ -18,13 +24,17 @@ import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipePublicSort;
+import com.grun.calorietracker.enums.RecipeReportStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.exception.DuplicateRecipePublicationRequestException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
+import com.grun.calorietracker.repository.RecipeReportRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeImageModerationService;
@@ -42,6 +52,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -54,11 +65,13 @@ public class RecipeServiceImpl implements RecipeService {
 
     private static final int MAX_INGREDIENTS = 50;
     private static final int MAX_CATEGORIES = 8;
+    private static final int MAX_COOKING_STEPS = 30;
     private static final List<String> ALLOWED_MEAL_TYPES = List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK");
 
     private final UserRepository userRepository;
     private final FoodItemRepository foodItemRepository;
     private final RecipeRepository recipeRepository;
+    private final RecipeReportRepository recipeReportRepository;
     private final RecipeUserInteractionRepository recipeUserInteractionRepository;
     private final RecipeImageModerationService recipeImageModerationService;
 
@@ -79,11 +92,29 @@ public class RecipeServiceImpl implements RecipeService {
     @Transactional(readOnly = true)
     public List<RecipeDto> getMyRecipes(String email, String query, String mealType) {
         UserEntity user = getUser(email);
-        return recipeRepository.searchOwnedRecipes(
-                        user,
-                        trimToNull(query),
-                        normalizeMealType(mealType)
-                ).stream()
+        String normalizedQuery = trimToNull(query);
+        String normalizedMealType = normalizeMealType(mealType);
+        List<RecipeEntity> recipes;
+        if (normalizedQuery != null && normalizedMealType != null) {
+            recipes = recipeRepository.findByOwnerUserAndArchivedFalseAndNameContainingIgnoreCaseAndMealTypeOrderByUpdatedAtDesc(
+                    user,
+                    normalizedQuery,
+                    normalizedMealType
+            );
+        } else if (normalizedQuery != null) {
+            recipes = recipeRepository.findByOwnerUserAndArchivedFalseAndNameContainingIgnoreCaseOrderByUpdatedAtDesc(
+                    user,
+                    normalizedQuery
+            );
+        } else if (normalizedMealType != null) {
+            recipes = recipeRepository.findByOwnerUserAndArchivedFalseAndMealTypeOrderByUpdatedAtDesc(
+                    user,
+                    normalizedMealType
+            );
+        } else {
+            recipes = recipeRepository.findByOwnerUserAndArchivedFalseOrderByUpdatedAtDesc(user);
+        }
+        return recipes.stream()
                 .map(recipe -> toDto(recipe, user))
                 .toList();
     }
@@ -103,6 +134,7 @@ public class RecipeServiceImpl implements RecipeService {
         RecipeEntity recipe = recipeRepository.findByIdAndOwnerUserAndArchivedFalse(recipeId, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
         recipe.getIngredients().clear();
+        recipe.getCookingSteps().clear();
         applyRequest(recipe, request, user);
         markForReviewIfPublic(recipe);
         return toDto(recipeRepository.save(recipe), user);
@@ -121,6 +153,13 @@ public class RecipeServiceImpl implements RecipeService {
     public RecipeDto requestPublication(String email, Long recipeId) {
         UserEntity user = getUser(email);
         RecipeEntity recipe = getOwnedRecipe(user, recipeId);
+        if (recipe.getVisibility() == RecipeVisibility.COMMUNITY_PENDING) {
+            throw new DuplicateRecipePublicationRequestException("Recipe is already waiting for admin review.");
+        }
+        if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
+                && recipe.getVerificationStatus() == VerificationStatus.VERIFIED) {
+            throw new DuplicateRecipePublicationRequestException("Recipe is already published.");
+        }
         if (recipe.getCategories() == null || recipe.getCategories().isEmpty()) {
             throw new IllegalArgumentException("At least one recipe category is required before publishing.");
         }
@@ -138,9 +177,14 @@ public class RecipeServiceImpl implements RecipeService {
                                           MarketRegion marketRegion,
                                           String language,
                                           Set<RecipeCategory> categories,
+                                          RecipePublicSort sort,
                                           int page,
                                           int size) {
         UserEntity viewer = email == null ? null : getUser(email);
+        RecipePublicSort resolvedSort = sort == null ? RecipePublicSort.NEWEST : sort;
+        if (resolvedSort != RecipePublicSort.NEWEST) {
+            return getSortedPublicRecipes(viewer, query, mealType, marketRegion, language, categories, resolvedSort, page, size);
+        }
         Page<RecipeEntity> recipes = recipeRepository.findAll(
                 publicRecipeSpecification(query, mealType, marketRegion, language, categories),
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50), Sort.by(Sort.Direction.DESC, "updatedAt"))
@@ -208,6 +252,14 @@ public class RecipeServiceImpl implements RecipeService {
         copy.setSnapshotVitaminE(source.getSnapshotVitaminE());
         copy.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
         copy.setCategories(new LinkedHashSet<>(source.getCategories()));
+        for (int index = 0; index < source.getCookingSteps().size(); index++) {
+            RecipeCookingStepEntity sourceStep = source.getCookingSteps().get(index);
+            RecipeCookingStepEntity step = new RecipeCookingStepEntity();
+            step.setRecipe(copy);
+            step.setInstruction(sourceStep.getInstruction());
+            step.setStepOrder(index);
+            copy.getCookingSteps().add(step);
+        }
         for (int index = 0; index < source.getIngredients().size(); index++) {
             RecipeIngredientEntity sourceIngredient = source.getIngredients().get(index);
             RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
@@ -222,6 +274,29 @@ public class RecipeServiceImpl implements RecipeService {
         return toDto(recipeRepository.save(copy), user);
     }
 
+    @Override
+    @Transactional
+    public RecipeReportDto reportPublicRecipe(String email, Long recipeId, RecipeReportRequestDto request) {
+        if (request == null || request.getReason() == null) {
+            throw new IllegalArgumentException("Recipe report reason is required.");
+        }
+        UserEntity user = getUser(email);
+        RecipeEntity recipe = recipeRepository.findById(recipeId)
+                .filter(this::isPublicVerifiedRecipe)
+                .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
+        RecipeReportEntity report = recipeReportRepository
+                .findByUserAndRecipeAndStatus(user, recipe, RecipeReportStatus.OPEN)
+                .orElseGet(() -> {
+                    RecipeReportEntity entity = new RecipeReportEntity();
+                    entity.setUser(user);
+                    entity.setRecipe(recipe);
+                    entity.setStatus(RecipeReportStatus.OPEN);
+                    return entity;
+                });
+        report.setReason(request.getReason());
+        report.setNote(trimToNull(request.getNote()));
+        return toReportDto(recipeReportRepository.save(report));
+    }
     @Override
     @Transactional
     public RecipeInteractionDto updateInteraction(String email, Long recipeId, RecipeInteractionRequestDto request) {
@@ -261,6 +336,7 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<RecipeDto> getSavedRecipes(String email) {
         UserEntity user = getUser(email);
         return recipeUserInteractionRepository.findByUserAndSavedTrueOrderByUpdatedAtDesc(user).stream()
@@ -270,6 +346,7 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<RecipeDto> getFavoriteRecipes(String email) {
         UserEntity user = getUser(email);
         return recipeUserInteractionRepository.findByUserAndFavoriteTrueOrderByUpdatedAtDesc(user).stream()
@@ -291,6 +368,7 @@ public class RecipeServiceImpl implements RecipeService {
         for (int index = 0; index < request.getIngredients().size(); index++) {
             recipe.getIngredients().add(toIngredient(recipe, request.getIngredients().get(index), user, index));
         }
+        applyCookingSteps(recipe, request.getCookingSteps());
         recalculateNutrition(recipe, request);
     }
 
@@ -310,6 +388,7 @@ public class RecipeServiceImpl implements RecipeService {
         if (request.getCategories() != null && request.getCategories().size() > MAX_CATEGORIES) {
             throw new IllegalArgumentException("Recipe can contain at most " + MAX_CATEGORIES + " categories.");
         }
+        validateCookingSteps(request.getCookingSteps());
         String mealType = normalizeMealType(request.getMealType());
         if (mealType != null && !ALLOWED_MEAL_TYPES.contains(mealType)) {
             throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
@@ -507,6 +586,7 @@ public class RecipeServiceImpl implements RecipeService {
         dto.setCreatedAt(recipe.getCreatedAt());
         dto.setUpdatedAt(recipe.getUpdatedAt());
         dto.setIngredients(recipe.getIngredients().stream().map(this::toIngredientDto).toList());
+        dto.setCookingSteps(recipe.getCookingSteps().stream().map(this::toStepDto).toList());
         return dto;
     }
 
@@ -515,7 +595,7 @@ public class RecipeServiceImpl implements RecipeService {
         dto.setFavoriteCount(recipeUserInteractionRepository.countByRecipeAndFavoriteTrue(recipe));
         dto.setRatingCount(recipeUserInteractionRepository.countByRecipeAndRatingIsNotNull(recipe));
         dto.setAverageRating(round(recipeUserInteractionRepository.averageRating(recipe)));
-        dto.setCategories(recipe.getCategories() == null ? Set.of() : recipe.getCategories());
+        dto.setCategories(recipe.getCategories() == null ? Set.of() : new LinkedHashSet<>(recipe.getCategories()));
         if (viewer == null) {
             dto.setSavedByMe(false);
             dto.setFavoriteByMe(false);
@@ -545,6 +625,43 @@ public class RecipeServiceImpl implements RecipeService {
         return dto;
     }
 
+    private void applyCookingSteps(RecipeEntity recipe, List<RecipeStepRequestDto> steps) {
+        if (steps == null || steps.isEmpty()) {
+            return;
+        }
+        for (int index = 0; index < steps.size(); index++) {
+            RecipeStepRequestDto request = steps.get(index);
+            RecipeCookingStepEntity step = new RecipeCookingStepEntity();
+            step.setRecipe(recipe);
+            step.setStepOrder(index);
+            step.setInstruction(request.getInstruction().trim());
+            recipe.getCookingSteps().add(step);
+        }
+    }
+
+    private void validateCookingSteps(List<RecipeStepRequestDto> steps) {
+        if (steps == null) {
+            return;
+        }
+        if (steps.size() > MAX_COOKING_STEPS) {
+            throw new IllegalArgumentException("Recipe can contain at most " + MAX_COOKING_STEPS + " cooking steps.");
+        }
+        for (RecipeStepRequestDto step : steps) {
+            if (step == null || step.getInstruction() == null || step.getInstruction().isBlank()) {
+                throw new IllegalArgumentException("Recipe cooking steps must not be blank.");
+            }
+            if (step.getInstruction().length() > 1000) {
+                throw new IllegalArgumentException("Recipe cooking step can contain at most 1000 characters.");
+            }
+        }
+    }
+
+    private RecipeStepDto toStepDto(RecipeCookingStepEntity step) {
+        RecipeStepDto dto = new RecipeStepDto();
+        dto.setStepNumber(step.getStepOrder() == null ? null : step.getStepOrder() + 1);
+        dto.setInstruction(step.getInstruction());
+        return dto;
+    }
     private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
         dto.setFoodItemId(ingredient.getFoodItem().getId());
@@ -666,6 +783,47 @@ public class RecipeServiceImpl implements RecipeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
     }
 
+    private RecipePageDto getSortedPublicRecipes(UserEntity viewer,
+                                                 String query,
+                                                 String mealType,
+                                                 MarketRegion marketRegion,
+                                                 String language,
+                                                 Set<RecipeCategory> categories,
+                                                 RecipePublicSort sort,
+                                                 int page,
+                                                 int size) {
+        List<RecipeEntity> recipes = new ArrayList<>(recipeRepository.findAll(
+                publicRecipeSpecification(query, mealType, marketRegion, language, categories)
+        ));
+        Comparator<RecipeEntity> comparator = switch (sort) {
+            case POPULAR -> Comparator
+                    .comparingLong((RecipeEntity recipe) -> recipeUserInteractionRepository.countByRecipeAndSavedTrue(recipe)
+                            + recipeUserInteractionRepository.countByRecipeAndFavoriteTrue(recipe))
+                    .thenComparing(recipe -> safeDate(recipe.getUpdatedAt()));
+            case RATING -> Comparator
+                    .comparingDouble((RecipeEntity recipe) -> {
+                        Double averageRating = recipeUserInteractionRepository.averageRating(recipe);
+                        return averageRating == null ? 0.0 : averageRating;
+                    })
+                    .thenComparingLong(recipe -> recipeUserInteractionRepository.countByRecipeAndRatingIsNotNull(recipe))
+                    .thenComparing(recipe -> safeDate(recipe.getUpdatedAt()));
+            case NEWEST -> Comparator.comparing(recipe -> safeDate(recipe.getUpdatedAt()));
+        };
+        recipes.sort(comparator.reversed());
+        int resolvedPage = Math.max(page, 0);
+        int resolvedSize = Math.min(Math.max(size, 1), 50);
+        int from = Math.min(resolvedPage * resolvedSize, recipes.size());
+        int to = Math.min(from + resolvedSize, recipes.size());
+        RecipePageDto dto = new RecipePageDto();
+        dto.setContent(recipes.subList(from, to).stream().map(recipe -> toDto(recipe, viewer)).toList());
+        dto.setPage(resolvedPage);
+        dto.setSize(resolvedSize);
+        dto.setTotalElements(recipes.size());
+        dto.setTotalPages((int) Math.ceil((double) recipes.size() / resolvedSize));
+        dto.setFirst(resolvedPage == 0);
+        dto.setLast(to >= recipes.size());
+        return dto;
+    }
     private Specification<RecipeEntity> publicRecipeSpecification(String query,
                                                                   String mealType,
                                                                   MarketRegion marketRegion,
@@ -751,6 +909,19 @@ public class RecipeServiceImpl implements RecipeService {
         return categories == null ? new LinkedHashSet<>() : new LinkedHashSet<>(categories);
     }
 
+    private RecipeReportDto toReportDto(RecipeReportEntity report) {
+        RecipeReportDto dto = new RecipeReportDto();
+        dto.setId(report.getId());
+        dto.setRecipeId(report.getRecipe().getId());
+        dto.setReason(report.getReason());
+        dto.setStatus(report.getStatus());
+        dto.setCreatedAt(report.getCreatedAt());
+        return dto;
+    }
+
+    private java.time.LocalDateTime safeDate(java.time.LocalDateTime value) {
+        return value == null ? java.time.LocalDateTime.MIN : value;
+    }
     private UserEntity getUser(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));

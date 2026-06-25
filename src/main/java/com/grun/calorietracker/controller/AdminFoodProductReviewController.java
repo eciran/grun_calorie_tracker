@@ -13,6 +13,9 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
+import com.grun.calorietracker.dto.ProductQualitySuggestionDto;
+import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
+import com.grun.calorietracker.dto.ProductQualitySuggestionScanResultDto;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
@@ -20,9 +23,11 @@ import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.FoodProductReviewService;
+import com.grun.calorietracker.service.ProductQualitySuggestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -68,6 +73,7 @@ public class AdminFoodProductReviewController {
 
     private final FoodProductReviewService foodProductReviewService;
     private final FoodProductImportService foodProductImportService;
+    private final ProductQualitySuggestionService productQualitySuggestionService;
 
     @PostMapping(value = "/import", consumes = "multipart/form-data")
     @Operation(
@@ -96,6 +102,88 @@ public class AdminFoodProductReviewController {
         ));
     }
 
+
+    @PostMapping("/quality-suggestions/scan")
+    @Operation(
+            summary = "Scan products for quality suggestions",
+            description = "Creates admin-reviewable product quality suggestions such as display name cleanup and multilingual search aliases. Suggestions do not modify product data until an admin reviews them."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality suggestion scan completed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<ProductQualitySuggestionScanResultDto> scanProductQualitySuggestions(
+            @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
+            @RequestParam(required = false) MarketRegion region,
+            @Parameter(description = "Maximum number of products to scan. Maximum 1000.", example = "500")
+            @RequestParam(defaultValue = "500") @Min(1) @Max(1000) int limit) {
+        return ResponseEntity.ok(productQualitySuggestionService.scanSuggestions(region, limit));
+    }
+
+    @GetMapping("/quality-suggestions")
+    @Operation(
+            summary = "List product quality suggestions",
+            description = "Returns product quality suggestions created by rule-based or AI-assisted checks for admin review."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality suggestions returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<ProductQualitySuggestionPageDto> getProductQualitySuggestions(
+            @Parameter(description = "Suggestion status filter.", example = "OPEN")
+            @RequestParam(defaultValue = "OPEN") ProductQualitySuggestionStatus status,
+            @Parameter(description = "Zero-based page number.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size. Maximum 100.", example = "25")
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(productQualitySuggestionService.getSuggestions(status, page, size));
+    }
+
+    @PatchMapping("/quality-suggestions/{suggestionId}/accept")
+    @Operation(
+            summary = "Accept product quality suggestion",
+            description = "Applies an open quality suggestion to product data. Name cleanup updates the product display name; search alias suggestions create or reactivate a Turkish alias. The change is recorded in product review audit history."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality suggestion accepted and applied."),
+            @ApiResponse(responseCode = "400", description = "Suggestion cannot be applied."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Suggestion was not found.")
+    })
+    public ResponseEntity<ProductQualitySuggestionDto> acceptProductQualitySuggestion(
+            @Parameter(description = "Product quality suggestion id.", example = "1")
+            @PathVariable Long suggestionId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.acceptSuggestion(
+                suggestionId,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @PatchMapping("/quality-suggestions/{suggestionId}/reject")
+    @Operation(
+            summary = "Reject product quality suggestion",
+            description = "Closes an open quality suggestion without changing product data."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality suggestion rejected."),
+            @ApiResponse(responseCode = "400", description = "Suggestion is already reviewed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Suggestion was not found.")
+    })
+    public ResponseEntity<ProductQualitySuggestionDto> rejectProductQualitySuggestion(
+            @Parameter(description = "Product quality suggestion id.", example = "1")
+            @PathVariable Long suggestionId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.rejectSuggestion(
+                suggestionId,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @PostMapping("/quality-issues/backfill")
     @Operation(
             summary = "Backfill product quality issues",

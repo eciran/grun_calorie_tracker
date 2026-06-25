@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -55,6 +56,9 @@ public class FoodItemEntity {
 
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
+
+    @Enumerated(EnumType.STRING)
+    private FoodPreparationState preparationState;
 
     private Long usageCount;
     private Integer qualityScore;

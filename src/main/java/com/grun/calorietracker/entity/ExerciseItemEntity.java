@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.ExerciseDifficulty;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,6 +39,12 @@ public class ExerciseItemEntity {
     private String thumbnailUrl;
     private String videoUrl;
     private String animationUrl;
+
+    @Enumerated(EnumType.STRING)
+    private ExerciseLogMeasurementType defaultMeasurementType;
+
+    @Column(length = 255)
+    private String allowedMeasurementTypes;
     private Boolean aiEligible = true;
     private Boolean active = true;
 }

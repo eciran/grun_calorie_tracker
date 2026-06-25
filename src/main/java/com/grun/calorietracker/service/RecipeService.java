@@ -4,9 +4,12 @@ import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.RecipeInteractionDto;
 import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
 import com.grun.calorietracker.dto.RecipePageDto;
+import com.grun.calorietracker.dto.RecipeReportDto;
+import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipePublicSort;
 
 import java.util.List;
 import java.util.Set;
@@ -30,12 +33,15 @@ public interface RecipeService {
                                    MarketRegion marketRegion,
                                    String language,
                                    Set<RecipeCategory> categories,
+                                   RecipePublicSort sort,
                                    int page,
                                    int size);
 
     RecipeDto getPublicRecipe(String email, Long recipeId);
 
     RecipeDto copyPublicRecipe(String email, Long recipeId);
+
+    RecipeReportDto reportPublicRecipe(String email, Long recipeId, RecipeReportRequestDto request);
 
     RecipeInteractionDto updateInteraction(String email, Long recipeId, RecipeInteractionRequestDto request);
 

@@ -114,6 +114,21 @@ class ExerciseItemControllerTest {
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
+    void getExerciseItem_whenAuthenticatedUser_returnsItem() throws Exception {
+        ExerciseItemDto item = new ExerciseItemDto();
+        item.setId(5L);
+        item.setName("Bodyweight Squat");
+        item.setMetCode("BODYWEIGHT_SQUAT");
+
+        when(exerciseItemService.getItem(5L)).thenReturn(item);
+
+        mockMvc.perform(get("/api/v1/exercise-items/5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5L))
+                .andExpect(jsonPath("$.name").value("Bodyweight Squat"));
+    }
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
     void addExerciseItem_whenNotAdmin_returnsForbidden() throws Exception {
         ExerciseItemDto request = buildRequest();
 

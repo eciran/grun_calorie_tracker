@@ -39,38 +39,48 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     public MealTemplateDto createFromLoggedMeal(String email, MealTemplateCreateRequestDto request) {
         UserEntity user = getUser(email);
         String mealType = normalizeMealType(request.getMealType());
-        List<FoodLogsEntity> sourceLogs = foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
-                user,
-                mealType,
-                request.getSourceDate().atStartOfDay(),
-                request.getSourceDate().plusDays(1).atStartOfDay()
-        );
-        if (sourceLogs.isEmpty()) {
-            throw new IllegalArgumentException("Source meal has no diary entries");
-        }
 
         MealTemplateEntity template = new MealTemplateEntity();
         template.setUser(user);
         template.setName(request.getName().trim());
         template.setMealType(mealType);
+
         List<MealTemplateItemEntity> items = new ArrayList<>();
-        for (int index = 0; index < sourceLogs.size(); index++) {
-            FoodLogsEntity source = sourceLogs.get(index);
-            ensureFoodAvailable(source.getFoodItem(), user);
-            MealTemplateItemEntity item = new MealTemplateItemEntity();
-            item.setTemplate(template);
-            item.setFoodItem(source.getFoodItem());
-            item.setPortionSize(source.getPortionSize());
-            item.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
-            item.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
-            item.setLogTime(source.getLogDate() == null ? null : source.getLogDate().toLocalTime());
-            item.setItemOrder(index);
-            items.add(item);
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            for (int index = 0; index < request.getItems().size(); index++) {
+                items.add(toTemplateItem(template, request.getItems().get(index), user, index));
+            }
+        } else {
+            if (request.getSourceDate() == null) {
+                throw new IllegalArgumentException("sourceDate is required when items is empty");
+            }
+            List<FoodLogsEntity> sourceLogs = foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(
+                    user,
+                    mealType,
+                    request.getSourceDate().atStartOfDay(),
+                    request.getSourceDate().plusDays(1).atStartOfDay()
+            );
+            if (sourceLogs.isEmpty()) {
+                throw new IllegalArgumentException("Source meal has no diary entries");
+            }
+            for (int index = 0; index < sourceLogs.size(); index++) {
+                FoodLogsEntity source = sourceLogs.get(index);
+                ensureFoodAvailable(source.getFoodItem(), user);
+                MealTemplateItemEntity item = new MealTemplateItemEntity();
+                item.setTemplate(template);
+                item.setFoodItem(source.getFoodItem());
+                item.setPortionSize(source.getPortionSize());
+                item.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
+                item.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
+                item.setLogTime(source.getLogDate() == null ? null : source.getLogDate().toLocalTime());
+                item.setItemOrder(index);
+                items.add(item);
+            }
         }
+
         template.setItems(items);
         return toDto(mealTemplateRepository.save(template));
     }
-
     @Override
     @Transactional(readOnly = true)
     public List<MealTemplateDto> getTemplates(String email, int page, int size) {
@@ -145,20 +155,32 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         dto.setName(template.getName());
         dto.setMealType(template.getMealType());
         dto.setCreatedAt(template.getCreatedAt());
-        dto.setItems(template.getItems().stream().map(this::toItemDto).toList());
+        List<MealTemplateItemDto> items = template.getItems().stream().map(this::toItemDto).toList();
+        dto.setItems(items);
+        dto.setTotalCalories(round(items.stream().mapToDouble(item -> safe(item.getCalories())).sum()));
+        dto.setTotalProtein(round(items.stream().mapToDouble(item -> safe(item.getProtein())).sum()));
+        dto.setTotalCarbs(round(items.stream().mapToDouble(item -> safe(item.getCarbs())).sum()));
+        dto.setTotalFat(round(items.stream().mapToDouble(item -> safe(item.getFat())).sum()));
         return dto;
     }
 
     private MealTemplateItemDto toItemDto(MealTemplateItemEntity item) {
         MealTemplateItemDto dto = new MealTemplateItemDto();
-        dto.setFoodItemId(item.getFoodItem().getId());
-        dto.setFoodName(item.getFoodItem().getName());
+        FoodItemEntity foodItem = item.getFoodItem();
+        Double grams = item.getNormalizedPortionGrams() != null
+                ? item.getNormalizedPortionGrams()
+                : item.getPortionSize();
+        dto.setFoodItemId(foodItem.getId());
+        dto.setFoodName(foodItem.getName());
         dto.setPortionSize(item.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(item.getPortionUnit()));
         dto.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
+        dto.setCalories(calculateNutritionValue(foodItem.getCalories(), grams));
+        dto.setProtein(calculateNutritionValue(foodItem.getProtein(), grams));
+        dto.setCarbs(calculateNutritionValue(foodItem.getCarbs(), grams));
+        dto.setFat(calculateNutritionValue(foodItem.getFat(), grams));
         return dto;
     }
-
     private MealTemplateItemEntity toTemplateItem(MealTemplateEntity template,
                                                   MealTemplateItemRequestDto request,
                                                   UserEntity user,
@@ -273,6 +295,10 @@ public class MealTemplateServiceImpl implements MealTemplateService {
             return null;
         }
         return round(perHundredGrams * grams / 100.0);
+    }
+
+    private Double safe(Double value) {
+        return value == null ? 0.0 : value;
     }
 
     private Double round(Double value) {

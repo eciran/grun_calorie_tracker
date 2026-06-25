@@ -4,12 +4,17 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.RecipeInteractionDto;
 import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
+import com.grun.calorietracker.dto.RecipeCategoryDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.dto.RecipeLogRequestDto;
 import com.grun.calorietracker.dto.RecipePageDto;
+import com.grun.calorietracker.dto.RecipeReportDto;
+import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipePublicSort;
+import com.grun.calorietracker.service.RecipeImageService;
 import com.grun.calorietracker.service.RecipeLogService;
 import com.grun.calorietracker.service.RecipeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,13 +27,18 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @RestController
@@ -40,6 +50,7 @@ public class RecipeController {
 
     private final RecipeService recipeService;
     private final RecipeLogService recipeLogService;
+    private final RecipeImageService recipeImageService;
 
     @PostMapping
     @Operation(summary = "Create a custom recipe", description = "Creates a private recipe for the authenticated user and calculates nutrition snapshots from ingredient gram amounts.")
@@ -79,6 +90,7 @@ public class RecipeController {
             @Parameter(description = "Optional region filter.", example = "TR") @RequestParam(required = false) MarketRegion marketRegion,
             @Parameter(description = "Optional language code filter.", example = "tr") @RequestParam(required = false) String language,
             @Parameter(description = "Required categories. Recipe must include all selected categories.", example = "VEGAN,HIGH_PROTEIN") @RequestParam(required = false) Set<RecipeCategory> categories,
+            @Parameter(description = "Public recipe sort mode.", example = "POPULAR") @RequestParam(defaultValue = "NEWEST") RecipePublicSort sort,
             @Parameter(description = "Page number.", example = "0") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size.", example = "20") @RequestParam(defaultValue = "20") int size,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
@@ -89,9 +101,22 @@ public class RecipeController {
                 marketRegion,
                 language,
                 categories,
+                sort,
                 page,
                 size
         ));
+    }
+
+    @GetMapping("/public/categories")
+    @Operation(summary = "List public recipe categories", description = "Returns stable category codes and default labels for mobile public recipe filters.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe categories returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<RecipeCategoryDto>> getPublicRecipeCategories() {
+        return ResponseEntity.ok(Arrays.stream(RecipeCategory.values())
+                .map(category -> new RecipeCategoryDto(category, toCategoryLabel(category)))
+                .toList());
     }
 
     @GetMapping("/public/{id}")
@@ -120,6 +145,45 @@ public class RecipeController {
         return ResponseEntity.ok(recipeService.copyPublicRecipe(userDetails.getUsername(), id));
     }
 
+    @PostMapping("/public/{id}/report")
+    @Operation(summary = "Report public recipe", description = "Creates or updates the authenticated user's open report for one public recipe.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe report accepted.", content = @Content(schema = @Schema(implementation = RecipeReportDto.class))),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Public recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipeReportDto> reportPublicRecipe(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Public recipe id.", example = "1") @PathVariable Long id,
+            @RequestBody @Valid RecipeReportRequestDto request) {
+        return ResponseEntity.ok(recipeService.reportPublicRecipe(userDetails.getUsername(), id, request));
+    }
+
+    @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload recipe image", description = "Stores a JPEG, PNG, or WebP image for an owned recipe. The image becomes USER_UPLOAD and NEEDS_REVIEW. Admin approval is required only before public discovery.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe image uploaded and recipe returned."),
+            @ApiResponse(responseCode = "400", description = "File is missing, too large, or has an unsupported content type.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Recipe was not found or is not owned by the authenticated user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<RecipeDto> uploadRecipeImage(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Owned recipe id.", example = "1") @PathVariable Long id,
+            @Parameter(description = "Recipe image file. Supported content types are image/jpeg, image/png, and image/webp.")
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(recipeImageService.uploadRecipeImage(userDetails.getUsername(), id, file));
+    }
+
+    @GetMapping("/images/{filename}")
+    @Operation(summary = "Get uploaded recipe image", description = "Returns a public recipe image by storage filename.")
+    public ResponseEntity<Resource> getRecipeImage(@PathVariable String filename) {
+        Resource resource = recipeImageService.loadRecipeImage(filename);
+        return ResponseEntity.ok()
+                .contentType(mediaType(filename))
+                .body(resource);
+    }
     @GetMapping("/{id}")
     @Operation(summary = "Get my custom recipe", description = "Returns one non-archived recipe owned by the authenticated user.")
     @ApiResponses({
@@ -185,6 +249,7 @@ public class RecipeController {
             @ApiResponse(responseCode = "200", description = "Recipe submitted for review."),
             @ApiResponse(responseCode = "400", description = "Recipe is not ready for publication.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "409", description = "Recipe is already pending review or already published.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
             @ApiResponse(responseCode = "404", description = "Recipe was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<RecipeDto> requestRecipePublication(
@@ -295,5 +360,20 @@ public class RecipeController {
                                                 @Parameter(description = "Recipe log id.", example = "1") @PathVariable Long logId) {
         recipeLogService.deleteRecipeLog(userDetails.getUsername(), logId);
         return ResponseEntity.noContent().build();
+    }
+
+    private MediaType mediaType(String filename) {
+        String lower = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".png")) {
+            return MediaType.IMAGE_PNG;
+        }
+        if (lower.endsWith(".webp")) {
+            return MediaType.parseMediaType("image/webp");
+        }
+        return MediaType.IMAGE_JPEG;
+    }
+    private String toCategoryLabel(RecipeCategory category) {
+        String value = category.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 }

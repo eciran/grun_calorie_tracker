@@ -89,7 +89,7 @@ class NutritionValueNormalizerTest {
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SLICE, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
         assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
     }
 
@@ -101,7 +101,7 @@ class NutritionValueNormalizerTest {
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(java.util.List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
         assertEquals(FoodPortionUnit.MILLILITER, dto.getDefaultPortionUnit());
     }
 
@@ -113,7 +113,7 @@ class NutritionValueNormalizerTest {
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.PIECE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(java.util.List.of(FoodPortionUnit.PIECE, FoodPortionUnit.SLICE, FoodPortionUnit.GRAM, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
         assertEquals(FoodPortionUnit.PIECE, dto.getDefaultPortionUnit());
     }
 }

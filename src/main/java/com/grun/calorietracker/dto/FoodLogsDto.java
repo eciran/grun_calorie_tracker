@@ -29,10 +29,10 @@ public class FoodLogsDto {
 
     @NotNull(message = "{validation.food-log.portion-size.required}")
     @Positive(message = "{validation.food-log.portion-size.positive}")
-    @Schema(description = "User-entered amount. For GRAM this is grams, for MILLILITER this is milliliters, and for SERVING/PIECE this is the count multiplied by the product serving size.", example = "150.0", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "User-entered amount. GRAM and MILLILITER use the entered amount directly; TABLESPOON is normalized as 15g/ml, TEASPOON as 5g/ml; SERVING, PIECE, and SLICE are multiplied by the product serving size.", example = "150.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double portionSize;
 
-    @Schema(description = "Unit for portionSize. If omitted, GRAM is used. GRAM and MILLILITER use the entered amount directly for nutrition calculation; SERVING and PIECE multiply by servingSizeGrams.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "SERVING", "PIECE"})
+    @Schema(description = "Unit for portionSize. If omitted, GRAM is used. TABLESPOON and TEASPOON support recipe-style spoon measurements.", example = "GRAM", allowableValues = {"GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"})
     private FoodPortionUnit portionUnit;
 
     @Schema(description = "Optional product-specific serving option id. When supplied, the log uses this serving option's gram/ml conversion instead of the product's legacy servingSizeGrams.", example = "5")

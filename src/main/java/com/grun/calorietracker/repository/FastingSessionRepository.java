@@ -3,6 +3,8 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.FastingSessionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FastingSessionStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,6 +40,23 @@ public interface FastingSessionRepository extends JpaRepository<FastingSessionEn
             UserEntity user,
             LocalDateTime start,
             LocalDateTime end
+    );
+
+    @Query("""
+            SELECT session
+            FROM FastingSessionEntity session
+            WHERE session.user = :user
+              AND (:status IS NULL OR session.status = :status)
+              AND (:startDate IS NULL OR session.fastingDate >= :startDate)
+              AND (:endDate IS NULL OR session.fastingDate <= :endDate)
+            ORDER BY session.fastingDate DESC, session.startedAt DESC
+            """)
+    Page<FastingSessionEntity> findHistory(
+            @Param("user") UserEntity user,
+            @Param("status") FastingSessionStatus status,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable
     );
 
     long countByUserAndStatusAndTargetReachedTrue(UserEntity user, FastingSessionStatus status);

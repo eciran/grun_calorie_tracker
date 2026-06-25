@@ -67,6 +67,20 @@ public class ExerciseItemController {
         ));
     }
 
+    @GetMapping("/{id}")
+    @Operation(
+            summary = "Get exercise item by id",
+            description = "Returns one active exercise catalog item. This endpoint is for exercise logging/detail use; public Technique Library screens must still use approved-only backend endpoints once technique status fields are available."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Exercise item returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Exercise item was not found or is inactive.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<ExerciseItemDto> getExerciseItem(
+            @Parameter(description = "Exercise item id.", example = "1") @PathVariable Long id) {
+        return ResponseEntity.ok(exerciseItemService.getItem(id));
+    }
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(

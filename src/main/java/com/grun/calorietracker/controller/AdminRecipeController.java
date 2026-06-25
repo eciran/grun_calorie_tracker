@@ -1,5 +1,6 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
@@ -24,8 +25,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -91,6 +94,27 @@ public class AdminRecipeController {
         ));
     }
 
+
+    @PostMapping
+    @Operation(
+            summary = "Create recipe from admin panel",
+            description = "Creates a recipe on behalf of a user or the authenticated admin. Nutrition is calculated from ingredient amounts using the normal recipe builder rules."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe created."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Owner or ingredient food item was not found.")
+    })
+    public ResponseEntity<AdminRecipeDto> createRecipe(
+            @RequestBody @Valid AdminRecipeCreateRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminRecipeService.createRecipe(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @GetMapping("/{id}")
     @Operation(summary = "Get recipe detail for admin", description = "Returns recipe owner, metadata, nutrition snapshot, and ingredient details for admin review.")
     @ApiResponses({
@@ -104,10 +128,27 @@ public class AdminRecipeController {
         return ResponseEntity.ok(adminRecipeService.getRecipe(id));
     }
 
+    @DeleteMapping("/{id}")
+    @Operation(
+            summary = "Archive recipe from admin panel",
+            description = "Soft-deletes a recipe by marking it archived. Existing recipe diary logs retain their immutable nutrition snapshots."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Recipe archived."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Recipe was not found.")
+    })
+    public ResponseEntity<Void> archiveRecipe(
+            @Parameter(description = "Recipe id.", example = "1") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        adminRecipeService.archiveRecipe(id, userDetails == null ? null : userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
     @PatchMapping("/{id}/review")
     @Operation(
             summary = "Update recipe admin review state",
-            description = "Updates recipe verification status and archive state. Public recipe publishing is intentionally outside this MVP scope."
+            description = "Updates recipe verification, visibility, public categories, image moderation, and archive state for admin review."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Recipe review state updated."),

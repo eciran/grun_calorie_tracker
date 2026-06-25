@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
@@ -24,5 +25,9 @@ public interface AdminRecipeService {
 
     AdminRecipeDto getRecipe(Long id);
 
+    AdminRecipeDto createRecipe(AdminRecipeCreateRequestDto request, String adminEmail);
+
     AdminRecipeDto updateRecipeReview(Long id, AdminRecipeReviewRequestDto request, String adminEmail);
+
+    void archiveRecipe(Long id, String adminEmail);
 }

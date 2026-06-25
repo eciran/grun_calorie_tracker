@@ -52,4 +52,5 @@ public class AdminRecipeDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<RecipeIngredientDto> ingredients;
+    private List<RecipeStepDto> cookingSteps;
 }

@@ -110,6 +110,10 @@ public class RecipeEntity {
     @OrderBy("itemOrder ASC, id ASC")
     private List<RecipeIngredientEntity> ingredients = new ArrayList<>();
 
+    @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("stepOrder ASC, id ASC")
+    private List<RecipeCookingStepEntity> cookingSteps = new ArrayList<>();
+
     @ElementCollection(targetClass = RecipeCategory.class)
     @CollectionTable(name = "recipe_categories", joinColumns = @JoinColumn(name = "recipe_id"))
     @Column(name = "category", nullable = false, length = 60)

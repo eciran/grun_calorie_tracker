@@ -231,6 +231,7 @@ const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA", "USER_
 const PREFERRED_LANGUAGES = ["EN", "TR"];
 const FOOD_SEARCH_ALIAS_TYPES = ["ADMIN_MANUAL", "TRANSLATION", "SYNONYM", "ASCII_NORMALIZED", "COMMON_NAME"];
 const MEAL_TYPES = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
+const PORTION_UNITS = ["GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"];
 const RECIPE_VISIBILITIES = ["PRIVATE", "PUBLIC_ADMIN", "COMMUNITY_PENDING"];
 const ACHIEVEMENT_CATEGORIES = ["ONBOARDING", "FOOD", "EXERCISE", "FASTING", "PROGRESS", "WATER"];
 const ACHIEVEMENT_TIERS = ["BRONZE", "SILVER", "GOLD"];
@@ -1082,6 +1083,61 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
   );
 }
 
+
+type AdminRecipeIngredientForm = {
+  foodItemId: string;
+  productSearchQuery: string;
+  productLabel: string;
+  portionSize: string;
+  portionUnit: string;
+};
+
+type AdminRecipeCreateForm = {
+  ownerEmail: string;
+  name: string;
+  description: string;
+  mealType: string;
+  marketRegion: string;
+  language: string;
+  imageUrl: string;
+  totalYieldGrams: string;
+  defaultServingGrams: string;
+  servingCount: string;
+  visibility: string;
+  verificationStatus: string;
+  imageStatus: string;
+  imageSource: string;
+  reviewNote: string;
+  categories: string[];
+  ingredients: AdminRecipeIngredientForm[];
+};
+
+const emptyRecipeCreateForm: AdminRecipeCreateForm = {
+  ownerEmail: "",
+  name: "",
+  description: "",
+  mealType: "LUNCH",
+  marketRegion: "",
+  language: "en",
+  imageUrl: "",
+  totalYieldGrams: "",
+  defaultServingGrams: "",
+  servingCount: "",
+  visibility: "PRIVATE",
+  verificationStatus: "RAW_IMPORTED",
+  imageStatus: "",
+  imageSource: "",
+  reviewNote: "",
+  categories: [],
+  ingredients: [{ foodItemId: "", productSearchQuery: "", productLabel: "", portionSize: "100", portionUnit: "GRAM" }]
+};
+
+function numericOrNull(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 function RecipeAdminView({ onError }: { onError: (message: string | null) => void }) {
   const [query, setQuery] = useState("");
   const [verificationStatus, setVerificationStatus] = useState("");
@@ -1101,8 +1157,15 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [draftImageUrl, setDraftImageUrl] = useState("");
   const [draftImageStatus, setDraftImageStatus] = useState("");
   const [draftImageSource, setDraftImageSource] = useState("");
+  const [draftCategories, setDraftCategories] = useState<string[]>([]);
   const [reviewNote, setReviewNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
+  const [creatingRecipe, setCreatingRecipe] = useState(false);
+  const [createForm, setCreateForm] = useState<AdminRecipeCreateForm>(emptyRecipeCreateForm);
+  const [activeIngredientSearchIndex, setActiveIngredientSearchIndex] = useState<number | null>(null);
+  const [ingredientSearchResults, setIngredientSearchResults] = useState<FoodProduct[]>([]);
+  const [ingredientSearchState, setIngredientSearchState] = useState<LoadState>("idle");
   const path = buildRecipeAdminPath({
     query,
     verificationStatus,
@@ -1144,6 +1207,138 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setImageSource("");
   }
 
+
+  function updateCreateForm<K extends keyof AdminRecipeCreateForm>(key: K, value: AdminRecipeCreateForm[K]) {
+    setCreateForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateCreateIngredient(index: number, patch: Partial<AdminRecipeIngredientForm>) {
+    setCreateForm((current) => ({
+      ...current,
+      ingredients: current.ingredients.map((ingredient, itemIndex) => itemIndex === index ? { ...ingredient, ...patch } : ingredient)
+    }));
+  }
+
+  function addCreateIngredient() {
+    setCreateForm((current) => ({
+      ...current,
+      ingredients: [...current.ingredients, { foodItemId: "", productSearchQuery: "", productLabel: "", portionSize: "100", portionUnit: "GRAM" }]
+    }));
+  }
+
+  function removeCreateIngredient(index: number) {
+    setCreateForm((current) => ({
+      ...current,
+      ingredients: current.ingredients.length <= 1
+        ? current.ingredients
+        : current.ingredients.filter((_, itemIndex) => itemIndex !== index)
+    }));
+    if (activeIngredientSearchIndex === index) {
+      setActiveIngredientSearchIndex(null);
+      setIngredientSearchResults([]);
+    }
+  }
+
+  async function searchCreateIngredientProducts(index: number) {
+    const ingredient = createForm.ingredients[index];
+    const searchText = ingredient?.productSearchQuery.trim();
+    if (!searchText || searchText.length < 2) {
+      onError("Search with at least 2 characters.");
+      return;
+    }
+    const params = new URLSearchParams({ q: searchText, page: "0", size: "8" });
+    if (createForm.marketRegion) params.set("region", createForm.marketRegion);
+    setActiveIngredientSearchIndex(index);
+    setIngredientSearchState("loading");
+    onError(null);
+    try {
+      const result = await request<PageResponse<FoodProduct>>(`/api/v1/products/search?${params.toString()}`);
+      setIngredientSearchResults(result.content ?? []);
+      setIngredientSearchState("ready");
+    } catch (err) {
+      setIngredientSearchResults([]);
+      setIngredientSearchState("error");
+      onError(formatRequestError(err));
+    }
+  }
+
+  function selectCreateIngredientProduct(index: number, product: FoodProduct) {
+    updateCreateIngredient(index, {
+      foodItemId: product.id ? String(product.id) : "",
+      productSearchQuery: productName(product),
+      productLabel: productIngredientLabel(product)
+    });
+    setActiveIngredientSearchIndex(null);
+    setIngredientSearchResults([]);
+    setIngredientSearchState("idle");
+  }
+
+  async function createAdminRecipe(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const ingredients = createForm.ingredients.map((ingredient) => ({
+      foodItemId: numericOrNull(ingredient.foodItemId),
+      portionSize: numericOrNull(ingredient.portionSize),
+      portionUnit: ingredient.portionUnit || "GRAM"
+    }));
+    if (!createForm.name.trim()) {
+      onError("Recipe name is required.");
+      return;
+    }
+    if (ingredients.some((ingredient) => !ingredient.foodItemId || !ingredient.portionSize)) {
+      onError("Each recipe ingredient needs a food item id and amount.");
+      return;
+    }
+    const servingCount = numericOrNull(createForm.servingCount);
+    if (servingCount !== null && !Number.isInteger(servingCount)) {
+      onError("Serving count must be a whole number.");
+      return;
+    }
+    const createPayload: Record<string, unknown> = {
+      ownerEmail: createForm.ownerEmail.trim() || null,
+      recipe: {
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || null,
+        mealType: createForm.mealType || null,
+        marketRegion: createForm.marketRegion || null,
+        language: createForm.language.trim() || null,
+        imageUrl: createForm.imageUrl.trim() || null,
+        totalYieldGrams: numericOrNull(createForm.totalYieldGrams),
+        defaultServingGrams: numericOrNull(createForm.defaultServingGrams),
+        servingCount,
+        categories: createForm.categories,
+        ingredients
+      },
+      reviewNote: createForm.reviewNote.trim() || "Created from admin panel."
+    };
+    if (createForm.visibility && createForm.visibility !== "PRIVATE") {
+      createPayload.visibility = createForm.visibility;
+    }
+    if (createForm.verificationStatus && createForm.verificationStatus !== "RAW_IMPORTED") {
+      createPayload.verificationStatus = createForm.verificationStatus;
+    }
+    if (createForm.imageStatus) {
+      createPayload.imageStatus = createForm.imageStatus;
+    }
+    if (createForm.imageSource && createForm.imageUrl.trim()) {
+      createPayload.imageSource = createForm.imageSource;
+    }
+    setCreatingRecipe(true);
+    onError(null);
+    try {
+      const created = await request<AdminRecipe>("/api/v1/admin/recipes", {
+        method: "POST",
+        body: createPayload
+      });
+      setCreateForm(emptyRecipeCreateForm);
+      setShowCreateRecipe(false);
+      setSelectedRecipe(created);
+      await reload();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setCreatingRecipe(false);
+    }
+  }
   function openRecipe(recipe: AdminRecipe) {
     setSelectedRecipe(recipe);
     setDraftStatus(recipe.verificationStatus ?? "");
@@ -1152,6 +1347,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setDraftImageUrl(recipe.imageUrl ?? "");
     setDraftImageStatus(recipe.imageStatus ?? "");
     setDraftImageSource(recipe.imageSource ?? "");
+    setDraftCategories(recipe.categories ?? []);
     setReviewNote("");
   }
 
@@ -1160,6 +1356,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setDraftImageUrl("");
     setDraftImageStatus("");
     setDraftImageSource("");
+    setDraftCategories([]);
     setReviewNote("");
   }
 
@@ -1180,6 +1377,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
           imageUrl: draftImageUrl || null,
           imageStatus: draftImageStatus || null,
           imageSource: draftImageSource || null,
+          categories: draftCategories,
           reviewNote: reviewNote || "Updated from admin panel."
         }
       });
@@ -1196,6 +1394,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   return (
     <div className="stack">
       <SectionToolbar title="Recipe operations" state={state} onReload={reload}>
+        <button className="ghost-button" onClick={() => setShowCreateRecipe((value) => !value)} type="button">{showCreateRecipe ? "Close create" : "Create recipe"}</button>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
 
@@ -1207,6 +1406,170 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         <MetricCard label="Archived / filters" value={`${formatValue(archivedCount)} / ${formatValue(activeFilterCount)}`} hint="Current page state" />
       </div>
 
+
+      {showCreateRecipe && (
+        <Panel title="Create recipe">
+          <form className="admin-recipe-create-form" onSubmit={createAdminRecipe}>
+            <div className="review-filter-grid">
+              <label>
+                Owner email
+                <input value={createForm.ownerEmail} onChange={(event) => updateCreateForm("ownerEmail", event.target.value)} placeholder="Blank uses current admin" />
+              </label>
+              <label>
+                Recipe name
+                <input value={createForm.name} onChange={(event) => updateCreateForm("name", event.target.value)} placeholder="Homemade chicken bowl" required />
+              </label>
+              <label>
+                Meal type
+                <select value={createForm.mealType} onChange={(event) => updateCreateForm("mealType", event.target.value)}>
+                  {MEAL_TYPES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                </select>
+              </label>
+              <label>
+                Region
+                <select value={createForm.marketRegion} onChange={(event) => updateCreateForm("marketRegion", event.target.value)}>
+                  <option value="">None</option>
+                  {MARKET_REGIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                Language
+                <input value={createForm.language} onChange={(event) => updateCreateForm("language", event.target.value)} placeholder="en" />
+              </label>
+              <label>
+                Image URL
+                <input value={createForm.imageUrl} onChange={(event) => updateCreateForm("imageUrl", event.target.value)} placeholder="https://..." />
+              </label>
+              <label>
+                Total yield grams
+                <input value={createForm.totalYieldGrams} onChange={(event) => updateCreateForm("totalYieldGrams", event.target.value)} inputMode="decimal" placeholder="1200" />
+              </label>
+              <label>
+                Default serving grams
+                <input value={createForm.defaultServingGrams} onChange={(event) => updateCreateForm("defaultServingGrams", event.target.value)} inputMode="decimal" placeholder="300" />
+              </label>
+              <label>
+                Serving count
+                <input value={createForm.servingCount} onChange={(event) => updateCreateForm("servingCount", event.target.value)} inputMode="numeric" placeholder="4" />
+              </label>
+              <label>
+                Visibility
+                <select value={createForm.visibility} onChange={(event) => updateCreateForm("visibility", event.target.value)}>
+                  {RECIPE_VISIBILITIES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                </select>
+              </label>
+              <label>
+                Verification
+                <select value={createForm.verificationStatus} onChange={(event) => updateCreateForm("verificationStatus", event.target.value)}>
+                  {VERIFICATION_STATUSES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                </select>
+              </label>
+              <label>
+                Image status
+                <select value={createForm.imageStatus} onChange={(event) => updateCreateForm("imageStatus", event.target.value)}>
+                  <option value="">Auto / keep generated</option>
+                  {IMAGE_STATUSES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                </select>
+              </label>
+              <label>
+                Image source
+                <select value={createForm.imageSource} onChange={(event) => updateCreateForm("imageSource", event.target.value)}>
+                  <option value="">Auto</option>
+                  {IMAGE_SOURCES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                </select>
+              </label>
+            </div>
+            <label className="full-width-field">
+              Description
+              <textarea value={createForm.description} onChange={(event) => updateCreateForm("description", event.target.value)} placeholder="Preparation note or short description" />
+            </label>
+            <div className="category-editor admin-recipe-category-editor">
+              {RECIPE_CATEGORIES.map((category) => (
+                <label key={category} className="inline-check category-check">
+                  <input
+                    type="checkbox"
+                    checked={createForm.categories.includes(category)}
+                    onChange={(event) => updateCreateForm("categories", event.target.checked
+                      ? Array.from(new Set([...createForm.categories, category]))
+                      : createForm.categories.filter((item) => item !== category))}
+                  />
+                  {humanizeFeature(category)}
+                </label>
+              ))}
+            </div>
+            <div className="admin-recipe-ingredients">
+              <div className="admin-recipe-ingredients-header">
+                <strong>Ingredients</strong>
+                <button className="ghost-button" type="button" onClick={addCreateIngredient}>Add ingredient</button>
+              </div>
+              {createForm.ingredients.map((ingredient, index) => (
+                <div className="admin-recipe-ingredient-card" key={`ingredient-${index}`}>
+                  <div className="admin-recipe-ingredient-row">
+                    <label className="ingredient-product-search">
+                      Product search
+                      <div className="inline-input-action">
+                        <input
+                          value={ingredient.productSearchQuery}
+                          onChange={(event) => updateCreateIngredient(index, {
+                            productSearchQuery: event.target.value,
+                            foodItemId: "",
+                            productLabel: ""
+                          })}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void searchCreateIngredientProducts(index);
+                            }
+                          }}
+                          placeholder="Search name, brand, barcode"
+                        />
+                        <button className="ghost-button" type="button" onClick={() => searchCreateIngredientProducts(index)} disabled={ingredientSearchState === "loading" && activeIngredientSearchIndex === index}>
+                          {ingredientSearchState === "loading" && activeIngredientSearchIndex === index ? "Searching..." : "Search"}
+                        </button>
+                      </div>
+                    </label>
+                    <label>
+                      Product ID
+                      <input value={ingredient.foodItemId} onChange={(event) => updateCreateIngredient(index, { foodItemId: event.target.value, productLabel: "Manual product id" })} inputMode="numeric" placeholder="Auto after select" />
+                    </label>
+                    <label>
+                      Amount
+                      <input value={ingredient.portionSize} onChange={(event) => updateCreateIngredient(index, { portionSize: event.target.value })} inputMode="decimal" placeholder="100" />
+                    </label>
+                    <label>
+                      Unit
+                      <select value={ingredient.portionUnit} onChange={(event) => updateCreateIngredient(index, { portionUnit: event.target.value })}>
+                        {PORTION_UNITS.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                      </select>
+                    </label>
+                    <button className="ghost-button danger-text" type="button" onClick={() => removeCreateIngredient(index)} disabled={createForm.ingredients.length <= 1}>Remove</button>
+                  </div>
+                  {ingredient.productLabel && <div className="selected-product-note">Selected: {ingredient.productLabel}</div>}
+                  {activeIngredientSearchIndex === index && (
+                    <div className="ingredient-search-results">
+                      {ingredientSearchState === "ready" && !ingredientSearchResults.length && <span className="muted-text">No product found for this search.</span>}
+                      {ingredientSearchResults.map((product) => (
+                        <button className="ingredient-search-result" type="button" key={product.id ?? product.barcode ?? productName(product)} onClick={() => selectCreateIngredientProduct(index, product)}>
+                          <strong>{productName(product)}</strong>
+                          <span>{productIngredientLabel(product)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <label className="full-width-field">
+              Admin note
+              <textarea value={createForm.reviewNote} onChange={(event) => updateCreateForm("reviewNote", event.target.value)} placeholder="Internal note for audit trail" />
+            </label>
+            <div className="modal-actions inline-actions">
+              <button className="ghost-button" type="button" onClick={() => setCreateForm(emptyRecipeCreateForm)}>Reset</button>
+              <button className="primary-button" type="submit" disabled={creatingRecipe}>{creatingRecipe ? "Creating..." : "Create recipe"}</button>
+            </div>
+          </form>
+        </Panel>
+      )}
       <Panel title="Recipe filters">
         <div className="review-filter-grid">
           <label>
@@ -1309,7 +1672,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
 
       {selectedRecipe && (
         <div className="modal-backdrop" role="presentation" onClick={closeRecipe}>
-          <section className="product-modal" role="dialog" aria-modal="true" aria-label="Recipe admin detail" onClick={(event) => event.stopPropagation()}>
+          <section className="product-modal recipe-modal" role="dialog" aria-modal="true" aria-label="Recipe admin detail" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
               <div>
                 <p className="eyebrow">Recipe review</p>
@@ -1379,10 +1742,20 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                   <DetailItem label="Sugar" value={`${formatValue(selectedRecipe.sugar)} g`} />
                 </div>
                 <Panel title="Public categories">
-                  <div className="tag-cloud">
-                    {(selectedRecipe.categories ?? []).length
-                      ? selectedRecipe.categories?.map((category) => <Badge key={category} value={category} tone="neutral" />)
-                      : <span className="muted-text">No category assigned. Public approval will be blocked until at least one category is present.</span>}
+                  <div className="tag-cloud category-editor">
+                    {RECIPE_CATEGORIES.map((category) => (
+                      <label key={category} className="inline-check category-check">
+                        <input
+                          type="checkbox"
+                          checked={draftCategories.includes(category)}
+                          onChange={(event) => setDraftCategories((current) => event.target.checked
+                            ? Array.from(new Set([...current, category]))
+                            : current.filter((item) => item !== category))}
+                        />
+                        {humanizeFeature(category)}
+                      </label>
+                    ))}
+                    {!draftCategories.length && <span className="muted-text">At least one category is required before public approval.</span>}
                   </div>
                 </Panel>
                 <Panel title="Ingredients">
@@ -1426,6 +1799,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                   setDraftArchived("false");
                   setDraftImageStatus("APPROVED");
                   setDraftImageSource(draftImageSource || "ADMIN_UPLOAD");
+                  setDraftCategories((current) => current.length ? current : ["HIGH_PROTEIN"]);
                   setReviewNote(reviewNote || "Approved for public recipe discovery.");
                 }}
                 type="button"
@@ -2318,8 +2692,8 @@ function DatePickerButton({
           <div className="admin-calendar-head">
             <strong>{monthLabel}</strong>
             <div>
-              <button onClick={() => setViewDate(addMonths(viewDate, -1))} type="button">Ã¢â‚¬Â¹</button>
-              <button onClick={() => setViewDate(addMonths(viewDate, 1))} type="button">Ã¢â‚¬Âº</button>
+              <button onClick={() => setViewDate(addMonths(viewDate, -1))} type="button">&lt;</button>
+              <button onClick={() => setViewDate(addMonths(viewDate, 1))} type="button">&gt;</button>
             </div>
           </div>
           <div className="admin-calendar-weekdays">
@@ -3732,7 +4106,7 @@ function ProductAliasManager({ productId, onError }: { productId?: number; onErr
       <div className="alias-form">
         <label>
           Alias
-          <input value={aliasText} onChange={(event) => setAliasText(event.target.value)} placeholder="süt, yarım yağlı süt, skimmed milk" />
+          <input value={aliasText} onChange={(event) => setAliasText(event.target.value)} placeholder="sut, yarim yagli sut, skimmed milk" />
         </label>
         <label>
           Language
@@ -4141,10 +4515,7 @@ function formatRevenueCatMetric(metric: { value?: string; unit?: string }): stri
   if (!metric.unit) {
     return value;
   }
-  if (metric.unit === "EUR") {
-    return `Ã¢â€šÂ¬${value}`;
-  }
-  if (metric.unit === "USD" || metric.unit === "GBP") {
+  if (metric.unit === "EUR" || metric.unit === "USD" || metric.unit === "GBP") {
     return `${metric.unit} ${value}`;
   }
   return `${value} ${metric.unit}`;
@@ -4152,10 +4523,7 @@ function formatRevenueCatMetric(metric: { value?: string; unit?: string }): stri
 
 function formatRevenueCatChartTick(value: number, currency?: string): string {
   const rounded = value >= 10 ? Math.round(value) : Number(value.toFixed(1));
-  if (currency === "EUR") {
-    return `Ã¢â€šÂ¬${formatValue(rounded)}`;
-  }
-  if (currency === "USD" || currency === "GBP") {
+  if (currency === "EUR" || currency === "USD" || currency === "GBP") {
     return `${currency} ${formatValue(rounded)}`;
   }
   return formatValue(rounded);
@@ -4671,6 +5039,17 @@ function parseOptionalNumber(value: string): number | null {
 
 function productName(item: FoodProduct): string {
   return item.productName ?? item.name ?? "Unnamed product";
+}
+
+function productIngredientLabel(item: FoodProduct): string {
+  const parts = [
+    item.id ? `#${item.id}` : null,
+    item.brand || null,
+    item.barcode || null,
+    item.marketRegion || null,
+    typeof item.calories === "number" ? `${formatValue(item.calories)} kcal` : null
+  ].filter(Boolean);
+  return parts.length ? parts.join(" | ") : "Product selected";
 }
 
 function readNumber(data: SystemHealth | null, key: string): number | undefined {
