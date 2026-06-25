@@ -7,6 +7,8 @@ import com.grun.calorietracker.enums.FoodPortionUnit;
 public final class FoodPortionCalculator {
 
     private static final double FALLBACK_SERVING_SIZE_GRAMS = 100.0;
+    private static final double TABLESPOON_GRAMS = 15.0;
+    private static final double TEASPOON_GRAMS = 5.0;
 
     private FoodPortionCalculator() {
     }
@@ -32,8 +34,14 @@ public final class FoodPortionCalculator {
             return portionSize * servingOptionWeightInGrams(servingOption);
         }
         FoodPortionUnit resolvedUnit = resolveUnit(portionUnit);
-        if (resolvedUnit == FoodPortionUnit.SERVING || resolvedUnit == FoodPortionUnit.PIECE) {
+        if (resolvedUnit == FoodPortionUnit.SERVING || resolvedUnit == FoodPortionUnit.PIECE || resolvedUnit == FoodPortionUnit.SLICE) {
             return portionSize * servingSizeGrams(foodItem);
+        }
+        if (resolvedUnit == FoodPortionUnit.TABLESPOON) {
+            return portionSize * TABLESPOON_GRAMS;
+        }
+        if (resolvedUnit == FoodPortionUnit.TEASPOON) {
+            return portionSize * TEASPOON_GRAMS;
         }
         return portionSize;
     }

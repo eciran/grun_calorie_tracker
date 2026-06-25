@@ -69,6 +69,12 @@ openfoodfacts:
 grun:
   errors:
     include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
+  recipe-media:
+    image:
+      max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
+      allowed-content-types: ${GRUN_RECIPE_IMAGE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+      storage-directory: ${GRUN_RECIPE_IMAGE_STORAGE_DIRECTORY:storage/recipe-images}
+      public-base-url: ${GRUN_RECIPE_IMAGE_PUBLIC_BASE_URL:https://api.grun.app}
   profile-media:
     avatar:
       max-upload-bytes: ${GRUN_PROFILE_AVATAR_MAX_UPLOAD_BYTES:2097152}

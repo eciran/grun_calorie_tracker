@@ -19,6 +19,6 @@ public class RecipeIngredientRequestDto {
     @Schema(description = "Ingredient amount in the selected unit.", example = "150.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double portionSize;
 
-    @Schema(description = "Ingredient unit. Defaults to GRAM when omitted.", example = "GRAM")
+    @Schema(description = "Ingredient unit. Defaults to GRAM when omitted. TABLESPOON normalizes to 15g/ml, TEASPOON normalizes to 5g/ml, and SLICE uses product servingSizeGrams like PIECE.", example = "TABLESPOON", allowableValues = {"GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"})
     private FoodPortionUnit portionUnit;
 }

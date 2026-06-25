@@ -75,6 +75,14 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ExerciseItemDto getItem(Long id) {
+        ExerciseItemEntity existing = exerciseItemRepository.findById(id)
+                .filter(item -> Boolean.TRUE.equals(item.getActive()))
+                .orElseThrow(() -> new ResourceNotFoundException("Exercise item not found with id: " + id));
+        return exerciseItemMapper.toDto(existing);
+    }
+    @Override
     public ExerciseItemDto addItem(ExerciseItemDto dto) {
         ensureMetCodeIsAvailable(dto.getMetCode(), null);
         ExerciseItemEntity entity = exerciseItemMapper.toEntity(dto);

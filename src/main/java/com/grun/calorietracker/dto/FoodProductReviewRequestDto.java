@@ -98,7 +98,7 @@ public class FoodProductReviewRequestDto {
     @Schema(description = "Sugar alcohol amount in grams per 100g/ml or configured product base.", example = "0.0")
     private Double sugarAlcohol;
 
-    @Schema(description = "Serving size in grams used for SERVING and PIECE food log conversion.", example = "30.0")
+    @Schema(description = "Serving size in grams used for SERVING, PIECE, and SLICE food log conversion.", example = "30.0")
     private Double servingSizeGrams;
 
     @Schema(description = "Display unit for the serving size.", example = "g")

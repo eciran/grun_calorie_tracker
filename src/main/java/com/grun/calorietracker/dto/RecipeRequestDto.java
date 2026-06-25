@@ -57,4 +57,9 @@ public class RecipeRequestDto {
     @NotEmpty
     @Schema(description = "Recipe ingredients.", requiredMode = Schema.RequiredMode.REQUIRED)
     private List<RecipeIngredientRequestDto> ingredients;
+
+    @Valid
+    @Size(max = 30)
+    @Schema(description = "Ordered cooking/preparation steps displayed by the mobile recipe detail screen.")
+    private List<RecipeStepRequestDto> cookingSteps;
 }

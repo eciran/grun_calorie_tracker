@@ -69,6 +69,7 @@ public class SecurityConfig {
                     auth
                             .requestMatchers(HttpMethod.GET, "/api/v1/ai/meal-drafts/photo-references/*").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/v1/users/avatars/*").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/v1/recipes/images/*").permitAll()
                             .anyRequest().authenticated();
                 })
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(authenticationEntryPoint))

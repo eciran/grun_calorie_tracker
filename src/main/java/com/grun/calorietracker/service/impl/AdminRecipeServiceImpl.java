@@ -1,10 +1,14 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
+import com.grun.calorietracker.dto.RecipeDto;
+import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeIngredientDto;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
@@ -18,6 +22,7 @@ import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminRecipeService;
+import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -31,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +48,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
 
     private final RecipeRepository recipeRepository;
     private final RecipeUserInteractionRepository recipeUserInteractionRepository;
+    private final RecipeService recipeService;
     private final AdminAuditService adminAuditService;
 
     @Override
@@ -78,6 +85,74 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         return toDto(findRecipe(id));
     }
 
+
+    @Override
+    @Transactional
+    public AdminRecipeDto createRecipe(AdminRecipeCreateRequestDto request, String adminEmail) {
+        if (request == null || request.getRecipe() == null) {
+            throw new IllegalArgumentException("Admin recipe create request must not be empty.");
+        }
+        String ownerEmail = trimToNull(request.getOwnerEmail());
+        if (ownerEmail == null) {
+            ownerEmail = trimToNull(adminEmail);
+        }
+        if (ownerEmail == null) {
+            throw new IllegalArgumentException("Recipe owner email is required.");
+        }
+
+        RecipeDto created = recipeService.createRecipe(ownerEmail, request.getRecipe());
+        RecipeEntity recipe = findRecipe(created.getId());
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_CREATE,
+                AdminAuditTargetType.RECIPE,
+                String.valueOf(recipe.getId()),
+                null,
+                auditState(recipe),
+                trimToNull(request.getReviewNote())
+        );
+
+        if (hasInitialReviewState(request)) {
+            AdminRecipeReviewRequestDto review = new AdminRecipeReviewRequestDto();
+            RecipeVisibility requestedVisibility = request.getVisibility();
+            VerificationStatus requestedStatus = request.getVerificationStatus();
+            ImageStatus requestedImageStatus = request.getImageStatus();
+            ImageSource requestedImageSource = request.getImageSource();
+            if (requestedVisibility == RecipeVisibility.PUBLIC_ADMIN) {
+                requestedStatus = requestedStatus == null ? VerificationStatus.VERIFIED : requestedStatus;
+                requestedImageStatus = requestedImageStatus == null ? ImageStatus.APPROVED : requestedImageStatus;
+                requestedImageSource = requestedImageSource == null ? ImageSource.ADMIN_UPLOAD : requestedImageSource;
+            }
+            review.setVisibility(requestedVisibility);
+            review.setVerificationStatus(requestedStatus);
+            review.setArchived(Boolean.TRUE.equals(request.getArchived()));
+            review.setImageStatus(requestedImageStatus);
+            review.setImageSource(requestedImageSource);
+            review.setImageUrl(request.getRecipe().getImageUrl());
+            review.setCategories(request.getRecipe().getCategories());
+            review.setReviewNote(trimToNull(request.getReviewNote()) == null ? "Created from admin panel." : request.getReviewNote().trim());
+            return updateRecipeReview(recipe.getId(), review, adminEmail);
+        }
+        return toDto(recipe);
+    }
+    @Override
+    @Transactional
+    public void archiveRecipe(Long id, String adminEmail) {
+        RecipeEntity recipe = findRecipe(id);
+        Map<String, Object> before = auditState(recipe);
+        recipe.setArchived(true);
+        recipeRepository.save(recipe);
+        Map<String, Object> after = auditState(recipe);
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_REVIEW_UPDATE,
+                AdminAuditTargetType.RECIPE,
+                String.valueOf(recipe.getId()),
+                before,
+                after,
+                "Recipe archived from admin panel. Existing diary logs keep their immutable nutrition snapshots."
+        );
+    }
     @Override
     @Transactional
     public AdminRecipeDto updateRecipeReview(Long id, AdminRecipeReviewRequestDto request, String adminEmail) {
@@ -98,6 +173,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         }
         if (request.getArchived() != null && !Objects.equals(recipe.getArchived(), request.getArchived())) {
             recipe.setArchived(request.getArchived());
+            changed = true;
+        }
+        if (request.getCategories() != null && !Objects.equals(recipe.getCategories(), request.getCategories())) {
+            recipe.setCategories(new LinkedHashSet<>(request.getCategories()));
             changed = true;
         }
         String imageUrl = trimToNull(request.getImageUrl());
@@ -144,6 +223,14 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         return toDto(recipe);
     }
 
+
+    private boolean hasInitialReviewState(AdminRecipeCreateRequestDto request) {
+        return request.getVerificationStatus() != null
+                || request.getVisibility() != null
+                || request.getArchived() != null
+                || request.getImageStatus() != null
+                || request.getImageSource() != null;
+    }
     private Specification<RecipeEntity> buildSpecification(String query,
                                                            VerificationStatus verificationStatus,
                                                            RecipeVisibility visibility,
@@ -154,7 +241,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                                                            ImageStatus imageStatus,
                                                            ImageSource imageSource) {
         return (root, criteriaQuery, criteriaBuilder) -> {
-            if (criteriaQuery != null && !Long.class.equals(criteriaQuery.getResultType())) {
+            if (criteriaQuery != null && RecipeEntity.class.equals(criteriaQuery.getResultType())) {
                 root.fetch("ownerUser", JoinType.LEFT);
                 criteriaQuery.distinct(true);
             }
@@ -233,7 +320,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setFavoriteCount(recipeUserInteractionRepository.countByRecipeAndFavoriteTrue(recipe));
         dto.setRatingCount(recipeUserInteractionRepository.countByRecipeAndRatingIsNotNull(recipe));
         dto.setAverageRating(round(recipeUserInteractionRepository.averageRating(recipe)));
-        dto.setCategories(recipe.getCategories());
+        dto.setCategories(copyCategories(recipe));
         dto.setArchived(Boolean.TRUE.equals(recipe.getArchived()));
         dto.setIngredientCount(recipe.getIngredients() == null ? 0 : recipe.getIngredients().size());
         dto.setCreatedAt(recipe.getCreatedAt());
@@ -241,9 +328,22 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setIngredients(recipe.getIngredients() == null
                 ? List.of()
                 : recipe.getIngredients().stream().map(this::toIngredientDto).toList());
+        dto.setCookingSteps(recipe.getCookingSteps() == null
+                ? List.of()
+                : recipe.getCookingSteps().stream().map(this::toStepDto).toList());
         return dto;
     }
 
+    private LinkedHashSet<com.grun.calorietracker.enums.RecipeCategory> copyCategories(RecipeEntity recipe) {
+        return recipe.getCategories() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(recipe.getCategories());
+    }
+
+    private RecipeStepDto toStepDto(RecipeCookingStepEntity step) {
+        RecipeStepDto dto = new RecipeStepDto();
+        dto.setStepNumber(step.getStepOrder() == null ? null : step.getStepOrder() + 1);
+        dto.setInstruction(step.getInstruction());
+        return dto;
+    }
     private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
         dto.setFoodItemId(ingredient.getFoodItem().getId());
@@ -259,6 +359,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         values.put("id", recipe.getId());
         values.put("visibility", recipe.getVisibility());
         values.put("verificationStatus", recipe.getVerificationStatus());
+        values.put("categories", copyCategories(recipe));
         values.put("archived", recipe.getArchived());
         values.put("imageUrl", recipe.getImageUrl());
         values.put("imageSource", recipe.getImageSource());
@@ -298,3 +399,4 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 }
+

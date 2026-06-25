@@ -15,6 +15,7 @@ public interface ExerciseItemService {
                                     Boolean active,
                                     int page,
                                     int size);
+    ExerciseItemDto getItem(Long id);
     ExerciseItemDto addItem(ExerciseItemDto dto);
     ExerciseItemDto updateItem(Long id, ExerciseItemDto dto);
     void deleteItem(Long id);
