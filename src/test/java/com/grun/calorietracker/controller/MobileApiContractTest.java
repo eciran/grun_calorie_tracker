@@ -55,6 +55,7 @@ class MobileApiContractTest {
                 "/api/v1/food-logs/stats",
                 "/api/v1/water-logs",
                 "/api/v1/water-logs/daily-summary",
+                "/api/v1/water-logs/goal",
                 "/api/v1/water-logs/reminder-settings",
                 "/api/v1/steps/goal",
                 "/api/v1/steps/daily-summary",

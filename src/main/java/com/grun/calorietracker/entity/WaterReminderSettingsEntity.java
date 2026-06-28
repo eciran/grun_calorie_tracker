@@ -41,6 +41,8 @@ public class WaterReminderSettingsEntity {
 
     private LocalDateTime lastReminderAt;
 
+    private Integer dailyTargetMl;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

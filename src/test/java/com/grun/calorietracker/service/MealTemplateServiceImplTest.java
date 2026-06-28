@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.MealTemplateEntity;
 import com.grun.calorietracker.entity.MealTemplateItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -126,6 +127,7 @@ class MealTemplateServiceImplTest {
 
         assertEquals(LocalDateTime.of(2026, 5, 22, 8, 15), result.get(0).getLogDate());
         assertEquals("BREAKFAST", result.get(0).getMealType());
+        assertEquals(FoodLogSource.TEMPLATE, result.get(0).getSource());
     }
 
     @Test

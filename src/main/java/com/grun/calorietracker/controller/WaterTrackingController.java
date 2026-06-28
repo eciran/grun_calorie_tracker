@@ -2,8 +2,11 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.WaterDailySummaryDto;
+import com.grun.calorietracker.dto.WaterGoalDto;
+import com.grun.calorietracker.dto.WaterGoalRequestDto;
 import com.grun.calorietracker.dto.WaterLogDto;
 import com.grun.calorietracker.dto.WaterLogRequestDto;
+import com.grun.calorietracker.dto.WaterRangeSummaryDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsRequestDto;
 import com.grun.calorietracker.service.WaterTrackingService;
@@ -57,6 +60,7 @@ public class WaterTrackingController {
         return ResponseEntity.ok(waterTrackingService.addWaterLog(userDetails.getUsername(), request));
     }
 
+
     @GetMapping("/daily-summary")
     @Operation(
             summary = "Get daily water summary",
@@ -72,6 +76,73 @@ public class WaterTrackingController {
             @RequestParam String date,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(waterTrackingService.getDailySummary(userDetails.getUsername(), LocalDate.parse(date)));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(
+            summary = "Update a water log",
+            description = "Updates a water intake entry owned by the authenticated user. Amount is stored in milliliters."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Water log updated."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Water log was not found for the current user.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<WaterLogDto> updateWaterLog(
+            @Parameter(description = "Water log id.", example = "1") @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid WaterLogRequestDto request) {
+        return ResponseEntity.ok(waterTrackingService.updateWaterLog(userDetails.getUsername(), id, request));
+    }
+
+    @GetMapping("/range-summary")
+    @Operation(
+            summary = "Get water range summary",
+            description = "Returns hydration totals and daily chart points for a selected date range. Defaults to the last 7 user-local days when dates are omitted."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Water range summary returned."),
+            @ApiResponse(responseCode = "400", description = "Date range is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<WaterRangeSummaryDto> getRangeSummary(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "Range start date in ISO format.", example = "2026-06-01")
+            @RequestParam(required = false) LocalDate startDate,
+            @Parameter(description = "Range end date in ISO format.", example = "2026-06-07")
+            @RequestParam(required = false) LocalDate endDate) {
+        return ResponseEntity.ok(waterTrackingService.getRangeSummary(userDetails.getUsername(), startDate, endDate));
+    }
+
+    @GetMapping("/goal")
+    @Operation(
+            summary = "Get daily water goal",
+            description = "Returns the authenticated user's daily hydration target in milliliters."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Water goal returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<WaterGoalDto> getGoal(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(waterTrackingService.getGoal(userDetails.getUsername()));
+    }
+
+    @PutMapping("/goal")
+    @Operation(
+            summary = "Update daily water goal",
+            description = "Updates the authenticated user's daily hydration target in milliliters."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Water goal updated."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<WaterGoalDto> updateGoal(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid WaterGoalRequestDto request) {
+        return ResponseEntity.ok(waterTrackingService.updateGoal(userDetails.getUsername(), request));
     }
 
     @DeleteMapping("/{id}")

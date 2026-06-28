@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.config.WaterTrackingProperties;
 import com.grun.calorietracker.dto.WaterDailySummaryDto;
+import com.grun.calorietracker.dto.WaterGoalRequestDto;
 import com.grun.calorietracker.dto.WaterLogDto;
 import com.grun.calorietracker.dto.WaterLogRequestDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsRequestDto;
@@ -137,15 +138,138 @@ class WaterTrackingServiceImplTest {
     }
 
     @Test
-    void addWaterLog_whenLoggedAtDateDiffersFromLogDate_rejectsRequest() {
+    void getDailySummary_usesUserWaterGoal() {
+        LocalDate date = LocalDate.of(2026, 6, 5);
+        WaterReminderSettingsEntity settings = reminderSettings();
+        settings.setDailyTargetMl(3000);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.findByUserAndLogDateOrderByLoggedAtAsc(user, date)).thenReturn(List.of());
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(user, date)).thenReturn(1200L);
+        when(waterReminderSettingsRepository.findByUser(user)).thenReturn(Optional.of(settings));
+
+        WaterDailySummaryDto result = service.getDailySummary("user@grun.app", date);
+
+        assertEquals(3000, result.getTargetMl());
+        assertEquals(1800, result.getRemainingMl());
+        assertEquals(40.0, result.getProgressPercent());
+    }
+
+    @Test
+    void getRangeSummary_returnsDailyTrendsAndAggregates() {
+        LocalDate startDate = LocalDate.of(2026, 6, 5);
+        LocalDate endDate = LocalDate.of(2026, 6, 7);
+        WaterReminderSettingsEntity settings = reminderSettings();
+        settings.setDailyTargetMl(2000);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterReminderSettingsRepository.findByUser(user)).thenReturn(Optional.of(settings));
+        when(waterLogRepository.aggregateDailyWaterByUser(user, startDate, endDate)).thenReturn(List.of(
+                new Object[]{LocalDate.of(2026, 6, 5), 2L, 1500L},
+                new Object[]{LocalDate.of(2026, 6, 7), 1L, 2500L}
+        ));
+
+        var result = service.getRangeSummary("user@grun.app", startDate, endDate);
+
+        assertEquals(3, result.getDayCount());
+        assertEquals(4000, result.getTotalMl());
+        assertEquals(1333.33, result.getAverageMl());
+        assertEquals(2500, result.getBestMl());
+        assertEquals(1, result.getTargetHitDays());
+        assertEquals(0, result.getDays().get(1).getTotalMl());
+    }
+
+    @Test
+    void getRangeSummary_whenRangeTooLarge_rejectsRequest() {
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+
+        assertThrows(IllegalArgumentException.class, () -> service.getRangeSummary(
+                "user@grun.app",
+                LocalDate.of(2025, 1, 1),
+                LocalDate.of(2026, 6, 5)
+        ));
+    }
+    @Test
+    void updateGoal_savesDailyTarget() {
+        WaterGoalRequestDto request = new WaterGoalRequestDto();
+        request.setTargetMl(3200);
+        WaterReminderSettingsEntity settings = reminderSettings();
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterReminderSettingsRepository.findByUser(user)).thenReturn(Optional.of(settings));
+        when(waterReminderSettingsRepository.save(any(WaterReminderSettingsEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.updateGoal("user@grun.app", request);
+
+        assertEquals(3200, result.getTargetMl());
+        verify(waterReminderSettingsRepository).save(any(WaterReminderSettingsEntity.class));
+    }
+
+    @Test
+    void addWaterLog_whenLoggedAtDateDiffersFromLogDate_usesLogDateWithLoggedAtTime() {
         WaterLogRequestDto request = new WaterLogRequestDto();
         request.setLogDate(LocalDate.of(2026, 6, 5));
         request.setAmountMl(250);
         request.setLoggedAt(LocalDateTime.of(2026, 6, 6, 0, 5));
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.save(any(WaterLogEntity.class))).thenAnswer(invocation -> {
+            WaterLogEntity entity = invocation.getArgument(0);
+            entity.setId(12L);
+            return entity;
+        });
 
-        assertThrows(IllegalArgumentException.class, () -> service.addWaterLog("user@grun.app", request));
+        WaterLogDto result = service.addWaterLog("user@grun.app", request);
+
+        assertEquals(LocalDateTime.of(2026, 6, 5, 0, 5), result.getLoggedAt());
     }
 
+    @Test
+    void addWaterLog_whenLogDateIsInFuture_rejectsRequest() {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(new UserTimeZoneSupport().today(user).plusDays(1));
+        request.setAmountMl(250);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+
+        assertThrows(IllegalArgumentException.class, () -> service.addWaterLog("user@grun.app", request));
+        verify(waterLogRepository, never()).save(any(WaterLogEntity.class));
+    }
+
+
+    @Test
+    void updateWaterLog_whenOwnedLogExists_updatesIt() {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(LocalDate.of(2026, 6, 6));
+        request.setAmountMl(400);
+        request.setSource("manual_edit");
+        request.setLoggedAt(LocalDateTime.of(2026, 6, 7, 11, 30));
+        WaterLogEntity entity = waterLog(9L, 250);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.findByIdAndUser(9L, user)).thenReturn(Optional.of(entity));
+        when(waterLogRepository.save(any(WaterLogEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WaterLogDto result = service.updateWaterLog("user@grun.app", 9L, request);
+
+        assertEquals(9L, result.getId());
+        assertEquals(400, result.getAmountMl());
+        assertEquals("MANUAL_EDIT", result.getSource());
+        assertEquals(LocalDate.of(2026, 6, 6), result.getLogDate());
+        assertEquals(LocalDateTime.of(2026, 6, 6, 11, 30), result.getLoggedAt());
+        verify(waterLogRepository).save(entity);
+    }
+
+    @Test
+    void updateWaterLog_whenMissing_throwsNotFound() {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(LocalDate.of(2026, 6, 5));
+        request.setAmountMl(400);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.findByIdAndUser(9L, user)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.updateWaterLog("user@grun.app", 9L, request));
+    }
     @Test
     void deleteWaterLog_whenOwnedLogExists_deletesIt() {
         WaterLogEntity entity = waterLog(9L, 300);
