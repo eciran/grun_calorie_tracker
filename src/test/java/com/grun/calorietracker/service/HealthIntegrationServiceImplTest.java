@@ -1,15 +1,21 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.dto.HealthConnectionRequestDto;
 import com.grun.calorietracker.dto.HealthMetricBatchSyncRequestDto;
 import com.grun.calorietracker.dto.HealthMetricSyncRequestDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncRequestDto;
 import com.grun.calorietracker.entity.DeviceDataEntity;
+import com.grun.calorietracker.entity.ExerciseItemEntity;
+import com.grun.calorietracker.entity.ExerciseProviderActivityMappingEntity;
 import com.grun.calorietracker.entity.HealthConnectionEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.enums.HealthConnectionStatus;
 import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.DeviceDataRepository;
+import com.grun.calorietracker.repository.ExerciseProviderActivityMappingRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.HealthIntegrationServiceImpl;
@@ -31,6 +37,8 @@ class HealthIntegrationServiceImplTest {
     private UserRepository userRepository;
     private HealthConnectionRepository healthConnectionRepository;
     private DeviceDataRepository deviceDataRepository;
+    private ExerciseProviderActivityMappingRepository exerciseProviderActivityMappingRepository;
+    private ExerciseLogsService exerciseLogsService;
     private SubscriptionService subscriptionService;
     private HealthIntegrationServiceImpl service;
     private UserEntity user;
@@ -40,11 +48,15 @@ class HealthIntegrationServiceImplTest {
         userRepository = mock(UserRepository.class);
         healthConnectionRepository = mock(HealthConnectionRepository.class);
         deviceDataRepository = mock(DeviceDataRepository.class);
+        exerciseProviderActivityMappingRepository = mock(ExerciseProviderActivityMappingRepository.class);
+        exerciseLogsService = mock(ExerciseLogsService.class);
         subscriptionService = mock(SubscriptionService.class);
         service = new HealthIntegrationServiceImpl(
                 userRepository,
                 healthConnectionRepository,
                 deviceDataRepository,
+                exerciseProviderActivityMappingRepository,
+                exerciseLogsService,
                 subscriptionService,
                 new UserTimeZoneSupport()
         );
@@ -279,6 +291,69 @@ class HealthIntegrationServiceImplTest {
         verify(deviceDataRepository, never()).save(any());
     }
 
+    @Test
+    void syncWorkout_mapsProviderActivityAndCreatesExternalExerciseLog() {
+        HealthConnectionEntity connection = new HealthConnectionEntity();
+        connection.setUser(user);
+        connection.setProvider(HealthProvider.APPLE_HEALTH);
+        connection.setStatus(HealthConnectionStatus.CONNECTED);
+
+        ExerciseItemEntity running = new ExerciseItemEntity();
+        running.setId(3L);
+        running.setName("Running");
+        running.setDefaultMeasurementType(ExerciseLogMeasurementType.DISTANCE);
+        running.setCaloriesPerMinute(10.0);
+        running.setActive(true);
+
+        ExerciseProviderActivityMappingEntity mapping = new ExerciseProviderActivityMappingEntity();
+        mapping.setProvider(HealthProvider.APPLE_HEALTH);
+        mapping.setProviderActivityType("HKWorkoutActivityTypeRunning");
+        mapping.setNormalizedProviderActivityType("RUNNING");
+        mapping.setExerciseItem(running);
+        mapping.setActive(true);
+
+        HealthWorkoutSyncRequestDto request = new HealthWorkoutSyncRequestDto();
+        request.setExternalId("apple-workout-1");
+        request.setProviderActivityType("HKWorkoutActivityTypeRunning");
+        request.setDurationMinutes(42);
+        request.setDistanceKm(8.2);
+        request.setCaloriesBurned(500.0);
+        request.setStartedAt(LocalDateTime.of(2026, 7, 2, 18, 30));
+
+        ExerciseLogsDto savedLog = new ExerciseLogsDto();
+        savedLog.setId(90L);
+        savedLog.setExerciseItemId(3L);
+        savedLog.setExerciseItemName("Running");
+        savedLog.setSource("APPLE_HEALTH");
+        savedLog.setExternalId("apple-workout-1");
+
+        when(healthConnectionRepository.findByUserAndProvider(user, HealthProvider.APPLE_HEALTH))
+                .thenReturn(Optional.of(connection));
+        when(exerciseProviderActivityMappingRepository.findByProviderAndNormalizedProviderActivityTypeAndActiveTrue(
+                HealthProvider.APPLE_HEALTH,
+                "RUNNING"
+        )).thenReturn(Optional.of(mapping));
+        when(exerciseLogsService.addExerciseLogFromExternal(any(ExerciseLogsDto.class), eq("user@example.com")))
+                .thenReturn(savedLog);
+
+        var result = service.syncWorkout("user@example.com", HealthProvider.APPLE_HEALTH, request);
+
+        assertEquals(HealthProvider.APPLE_HEALTH, result.getProvider());
+        assertEquals(3L, result.getExerciseItemId());
+        assertEquals("Running", result.getExerciseItemName());
+        assertEquals(90L, result.getExerciseLog().getId());
+        verify(exerciseLogsService).addExerciseLogFromExternal(argThat(dto ->
+                dto.getExerciseItemId().equals(3L)
+                        && dto.getMeasurementType() == ExerciseLogMeasurementType.DISTANCE
+                        && dto.getDurationMinutes().equals(42)
+                        && dto.getDistanceKm().equals(8.2)
+                        && dto.getCaloriesBurned().equals(500.0)
+                        && dto.getSource().equals("APPLE_HEALTH")
+                        && dto.getExternalId().equals("apple-workout-1")
+        ), eq("user@example.com"));
+        assertEquals(LocalDateTime.of(2026, 7, 2, 18, 30), connection.getLastSyncAt());
+        verify(healthConnectionRepository, atLeastOnce()).save(connection);
+    }
     @Test
     void getRangeSummary_returnsDailyAndRangeTotals() {
         HealthConnectionEntity connection = new HealthConnectionEntity();

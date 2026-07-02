@@ -45,6 +45,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     public ExerciseLogsDto addExerciseLog(ExerciseLogsDto dto, String email) {
         UserEntity user = getUserByEmail(email);
         ExerciseItemEntity exerciseItem = getExerciseItemById(dto.getExerciseItemId());
+        validateMeasurementAgainstExercise(exerciseItem, dto);
 
         ExerciseLogsEntity entity = buildExerciseLogEntity(dto, user, exerciseItem);
         entity.setSource(normalizeSource(dto.getSource(), "MANUAL"));
@@ -57,6 +58,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         UserEntity user = getUserByEmail(email);
         ExerciseLogsEntity entity = getLogsItemById(id, user);
         ExerciseItemEntity exerciseItem = getExerciseItemById(dto.getExerciseItemId());
+        validateMeasurementAgainstExercise(exerciseItem, dto);
         entity.setExerciseItem(exerciseItem);
         applyExerciseMetrics(entity, dto);
         entity.setCaloriesBurned(dto.getCaloriesBurned());
@@ -69,13 +71,14 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     @Transactional(readOnly = true)
     public List<ExerciseLogsDto> getExerciseLogsByDateAndUser(String email, LocalDateTime startDate, LocalDateTime endDate, String range) {
         UserEntity user = getUserByEmail(email);
+        String normalizedRange = normalizeReportRange(range);
 
-        List<Object[]> rows = exerciseLogsRepository.findByUserAndLogDateBetween(user.getId(), startDate, endDate, range);
+        List<Object[]> rows = exerciseLogsRepository.findByUserAndLogDateBetween(user.getId(), startDate, endDate, normalizedRange);
         return rows.stream().map(r -> {
             ExerciseLogsDto dto = new ExerciseLogsDto();
             dto.setLogDate(((Timestamp) r[0]).toLocalDateTime());
-            dto.setDurationMinutes(((Number) r[1]).intValue());
-            dto.setCaloriesBurned(((Number) r[2]).doubleValue());
+            dto.setDurationMinutes(toIntOrZero(r[1]));
+            dto.setCaloriesBurned(toDoubleOrZero(r[2]));
             return dto;
         }).collect(Collectors.toList());
     }
@@ -120,6 +123,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
                     );
                 });
 
+        validateMeasurementAgainstExercise(exerciseItem, dto);
         ExerciseLogsEntity entity = buildExerciseLogEntity(dto, user, exerciseItem);
         entity.setSource(source);
         entity.setExternalId(externalId);
@@ -296,6 +300,22 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
             return ExerciseLogMeasurementType.DISTANCE;
         }
         return ExerciseLogMeasurementType.DURATION;
+    }
+
+    private Integer toIntOrZero(Object value) {
+        return value instanceof Number number ? number.intValue() : 0;
+    }
+
+    private Double toDoubleOrZero(Object value) {
+        return value instanceof Number number ? number.doubleValue() : 0.0;
+    }
+
+    private String normalizeReportRange(String range) {
+        String normalized = range == null || range.trim().isEmpty() ? "day" : range.trim().toLowerCase();
+        if ("day".equals(normalized) || "week".equals(normalized) || "month".equals(normalized)) {
+            return normalized;
+        }
+        throw new IllegalArgumentException("Exercise report range must be one of: day, week, month.");
     }
 
     private boolean positive(Integer value) {

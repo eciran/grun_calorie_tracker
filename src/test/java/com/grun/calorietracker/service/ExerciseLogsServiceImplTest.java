@@ -19,6 +19,7 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +57,7 @@ class ExerciseLogsServiceImplTest {
         exerciseItem = new ExerciseItemEntity();
         exerciseItem.setId(3L);
         exerciseItem.setName("Running");
+        exerciseItem.setAllowedMeasurementTypes("DURATION,DISTANCE,MIXED,REPS,SETS_REPS,WEIGHT_REPS");
     }
 
     @Test
@@ -203,7 +205,41 @@ class ExerciseLogsServiceImplTest {
 
         assertThrows(IllegalArgumentException.class, () -> exerciseLogsService.addExerciseLog(request, "test@test.com"));
     }
+    @Test
+    void addExerciseLog_whenMeasurementTypeNotAllowed_rejects() {
+        exerciseItem.setAllowedMeasurementTypes("DURATION,DISTANCE,MIXED");
+        ExerciseLogsDto request = new ExerciseLogsDto();
+        request.setExerciseItemId(3L);
+        request.setMeasurementType(ExerciseLogMeasurementType.SETS_REPS);
+        request.setSetCount(5);
+        request.setReps(5);
+        request.setCaloriesBurned(40.0);
+        request.setLogDate(LocalDateTime.of(2026, 6, 12, 8, 0));
 
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(exerciseItemRepository.findById(3L)).thenReturn(Optional.of(exerciseItem));
+
+        assertThrows(IllegalArgumentException.class, () -> exerciseLogsService.addExerciseLog(request, "test@test.com"));
+    }
+
+
+    @Test
+    void getExerciseLogsByDateAndUser_whenAggregateValuesAreNull_returnsZeroTotals() {
+        LocalDateTime bucket = LocalDateTime.of(2026, 7, 2, 0, 0);
+        LocalDateTime start = LocalDateTime.of(2026, 7, 2, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 7, 2, 23, 59);
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(exerciseLogsRepository.findByUserAndLogDateBetween(1L, start, end, "day"))
+                .thenReturn(List.<Object[]>of(new Object[]{Timestamp.valueOf(bucket), null, null}));
+
+        List<ExerciseLogsDto> result = exerciseLogsService.getExerciseLogsByDateAndUser("test@test.com", start, end, "day");
+
+        assertEquals(1, result.size());
+        assertEquals(bucket, result.get(0).getLogDate());
+        assertEquals(0, result.get(0).getDurationMinutes());
+        assertEquals(0.0, result.get(0).getCaloriesBurned());
+    }
     @Test
     void getExerciseLogsHistory_returnsOwnedDiaryEntries() {
         ExerciseLogsEntity entity = new ExerciseLogsEntity();

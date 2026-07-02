@@ -130,6 +130,28 @@ class AuthControllerTest {
     }
 
     @Test
+    void register_whenPasswordContainsHyphenSpecialCharacter_acceptsPassword() throws Exception {
+        AuthRequest request = new AuthRequest();
+        request.setEmail("hyphen@example.com");
+        request.setPassword("Pixel123--!");
+
+        UserEntity savedUser = new UserEntity();
+        savedUser.setId(2L);
+        savedUser.setEmail("hyphen@example.com");
+        savedUser.setRole(UserRole.STANDARD);
+        savedUser.setEmailVerified(false);
+
+        when(userRepository.findByEmail("hyphen@example.com")).thenReturn(java.util.Optional.empty());
+        when(userRepository.save(any(UserEntity.class))).thenReturn(savedUser);
+        when(refreshTokenService.createRefreshToken(any(UserEntity.class))).thenReturn("register-refresh-token");
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.refreshToken").value("register-refresh-token"));
+    }
+    @Test
     void register_whenEmailAlreadyExists_returnsStandardErrorResponse() throws Exception {
         AuthRequest request = new AuthRequest();
         request.setEmail("testuser@example.com");

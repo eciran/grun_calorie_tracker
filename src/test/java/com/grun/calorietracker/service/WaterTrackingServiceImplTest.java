@@ -81,6 +81,7 @@ class WaterTrackingServiceImplTest {
         request.setLoggedAt(LocalDateTime.of(2026, 6, 5, 10, 15));
 
         when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(user, request.getLogDate())).thenReturn(0L);
         when(waterLogRepository.save(any(WaterLogEntity.class))).thenAnswer(invocation -> {
             WaterLogEntity entity = invocation.getArgument(0);
             entity.setId(10L);
@@ -105,6 +106,7 @@ class WaterTrackingServiceImplTest {
         request.setAmountMl(250);
 
         when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(user, request.getLogDate())).thenReturn(0L);
         when(waterLogRepository.save(any(WaterLogEntity.class))).thenAnswer(invocation -> {
             WaterLogEntity entity = invocation.getArgument(0);
             entity.setId(11L);
@@ -117,6 +119,18 @@ class WaterTrackingServiceImplTest {
         assertEquals(LocalDate.of(2026, 6, 5), result.getLoggedAt().toLocalDate());
     }
 
+    @Test
+    void addWaterLog_whenDailyLimitWouldBeExceeded_rejectsRequest() {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(LocalDate.of(2026, 6, 5));
+        request.setAmountMl(1000);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(user, request.getLogDate())).thenReturn(5501L);
+
+        assertThrows(IllegalArgumentException.class, () -> service.addWaterLog("user@grun.app", request));
+        verify(waterLogRepository, never()).save(any(WaterLogEntity.class));
+    }
     @Test
     void getDailySummary_calculatesTargetProgressAndRemainingAmount() {
         WaterLogEntity first = waterLog(1L, 250);
@@ -247,6 +261,7 @@ class WaterTrackingServiceImplTest {
 
         when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
         when(waterLogRepository.findByIdAndUser(9L, user)).thenReturn(Optional.of(entity));
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(user, request.getLogDate())).thenReturn(0L);
         when(waterLogRepository.save(any(WaterLogEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WaterLogDto result = service.updateWaterLog("user@grun.app", 9L, request);
@@ -269,6 +284,20 @@ class WaterTrackingServiceImplTest {
         when(waterLogRepository.findByIdAndUser(9L, user)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.updateWaterLog("user@grun.app", 9L, request));
+    }
+    @Test
+    void updateWaterLog_whenDailyLimitWouldBeExceeded_rejectsRequest() {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(LocalDate.of(2026, 6, 5));
+        request.setAmountMl(1500);
+        WaterLogEntity entity = waterLog(9L, 500);
+
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(waterLogRepository.findByIdAndUser(9L, user)).thenReturn(Optional.of(entity));
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(user, request.getLogDate())).thenReturn(5501L);
+
+        assertThrows(IllegalArgumentException.class, () -> service.updateWaterLog("user@grun.app", 9L, request));
+        verify(waterLogRepository, never()).save(any(WaterLogEntity.class));
     }
     @Test
     void deleteWaterLog_whenOwnedLogExists_deletesIt() {

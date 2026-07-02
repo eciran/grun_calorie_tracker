@@ -9,17 +9,24 @@ import com.grun.calorietracker.dto.HealthMetricBatchSyncResponseDto;
 import com.grun.calorietracker.dto.HealthMetricSyncRequestDto;
 import com.grun.calorietracker.dto.HealthMetricSyncResponseDto;
 import com.grun.calorietracker.dto.HealthRangeSummaryDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncRequestDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncResponseDto;
+import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.HealthConnectionEntity;
+import com.grun.calorietracker.entity.ExerciseItemEntity;
+import com.grun.calorietracker.entity.ExerciseProviderActivityMappingEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.HealthConnectionStatus;
 import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.DeviceDataRepository;
+import com.grun.calorietracker.repository.ExerciseProviderActivityMappingRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.HealthIntegrationService;
+import com.grun.calorietracker.service.ExerciseLogsService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +48,8 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     private final UserRepository userRepository;
     private final HealthConnectionRepository healthConnectionRepository;
     private final DeviceDataRepository deviceDataRepository;
+    private final ExerciseProviderActivityMappingRepository exerciseProviderActivityMappingRepository;
+    private final ExerciseLogsService exerciseLogsService;
     private final SubscriptionService subscriptionService;
     private final UserTimeZoneSupport userTimeZoneSupport;
 
@@ -235,6 +244,52 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
 
     @Override
     @Transactional
+    public HealthWorkoutSyncResponseDto syncWorkout(String email, HealthProvider provider, HealthWorkoutSyncRequestDto request) {
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
+        if (request == null) {
+            throw new IllegalArgumentException("Health workout payload is required.");
+        }
+        UserEntity user = getUser(email);
+        HealthConnectionEntity connection = ensureConnected(user, provider);
+
+        String normalizedActivityType = normalizeProviderActivityType(request.getProviderActivityType());
+        ExerciseProviderActivityMappingEntity mapping = exerciseProviderActivityMappingRepository
+                .findByProviderAndNormalizedProviderActivityTypeAndActiveTrue(provider, normalizedActivityType)
+                .orElseThrow(() -> new IllegalArgumentException("Provider activity type is not mapped: " + request.getProviderActivityType()));
+        ExerciseItemEntity exerciseItem = mapping.getExerciseItem();
+        if (exerciseItem == null || !Boolean.TRUE.equals(exerciseItem.getActive())) {
+            throw new IllegalArgumentException("Mapped exercise item is inactive or missing.");
+        }
+
+        ExerciseLogsDto dto = new ExerciseLogsDto();
+        dto.setExerciseItemId(exerciseItem.getId());
+        dto.setMeasurementType(request.getMeasurementType() != null ? request.getMeasurementType() : exerciseItem.getDefaultMeasurementType());
+        dto.setDurationMinutes(request.getDurationMinutes());
+        dto.setDistanceKm(request.getDistanceKm());
+        dto.setReps(request.getReps());
+        dto.setSetCount(request.getSetCount());
+        dto.setWeightKg(request.getWeightKg());
+        dto.setCaloriesBurned(resolveWorkoutCalories(request, exerciseItem));
+        dto.setLogDate(request.getStartedAt());
+        dto.setSource(provider.name());
+        dto.setExternalId(trimToNull(request.getExternalId()));
+        dto.setExtraData(request.getExtraData());
+
+        ExerciseLogsDto saved = exerciseLogsService.addExerciseLogFromExternal(dto, email);
+        connection.setLastSyncAt(max(connection.getLastSyncAt(), request.getStartedAt()));
+        healthConnectionRepository.save(connection);
+
+        return new HealthWorkoutSyncResponseDto(
+                provider,
+                request.getProviderActivityType(),
+                saved.getExerciseItemId(),
+                saved.getExerciseItemName(),
+                saved
+        );
+    }
+
+    @Override
+    @Transactional
     public HealthDataDeleteResponseDto deleteProviderData(String email, HealthProvider provider) {
         UserEntity user = getUser(email);
         long deletedCount = deviceDataRepository.deleteByUserAndProvider(user, provider);
@@ -303,6 +358,32 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         return value == null ? null : value.toString();
     }
 
+    private String normalizeProviderActivityType(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            throw new IllegalArgumentException("Provider activity type is required.");
+        }
+        String withoutApplePrefix = trimmed.replaceFirst("(?i)^HKWorkoutActivityType", "");
+        String normalized = withoutApplePrefix
+                .replaceAll("([a-z])([A-Z])", "$1_$2")
+                .toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (normalized.isBlank()) {
+            throw new IllegalArgumentException("Provider activity type is required.");
+        }
+        return normalized;
+    }
+
+    private Double resolveWorkoutCalories(HealthWorkoutSyncRequestDto request, ExerciseItemEntity exerciseItem) {
+        if (request.getCaloriesBurned() != null && request.getCaloriesBurned() > 0) {
+            return request.getCaloriesBurned();
+        }
+        if (request.getDurationMinutes() != null && request.getDurationMinutes() > 0 && exerciseItem.getCaloriesPerMinute() != null) {
+            return round(request.getDurationMinutes() * exerciseItem.getCaloriesPerMinute());
+        }
+        throw new IllegalArgumentException("Workout caloriesBurned must be positive or derivable from duration and mapped exercise intensity.");
+    }
     private String trimToNull(String value) {
         return value == null || value.trim().isEmpty() ? null : value.trim();
     }

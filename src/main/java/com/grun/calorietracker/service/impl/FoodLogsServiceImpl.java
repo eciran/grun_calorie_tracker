@@ -228,14 +228,24 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     public FoodLogsDto quickAddCalories(String email, QuickCalorieLogRequestDto request) {
         UserEntity user = getUser(email);
         FoodItemEntity quickCalories = getOrCreateQuickCaloriesFood(user);
-        FoodLogsDto dto = new FoodLogsDto();
-        dto.setFoodItemId(quickCalories.getId());
-        dto.setPortionSize(request.getCalories());
-        dto.setPortionUnit(FoodPortionUnit.GRAM);
-        dto.setMealType(request.getMealType());
-        dto.setLogDate(request.getLogDate());
-        dto.setSource(FoodLogSource.QUICK_ADD);
-        return addFoodLog(dto, email);
+
+        FoodLogsEntity entity = new FoodLogsEntity();
+        entity.setUser(user);
+        entity.setFoodItem(quickCalories);
+        entity.setPortionSize(request.getCalories());
+        entity.setPortionUnit(FoodPortionUnit.GRAM);
+        entity.setNormalizedPortionGrams(request.getCalories());
+        entity.setSnapshotCalories(round(request.getCalories()));
+        entity.setSnapshotProtein(0.0);
+        entity.setSnapshotCarbs(0.0);
+        entity.setSnapshotFat(0.0);
+        entity.setMealType(normalizeMealType(request.getMealType()));
+        entity.setLogDate(request.getLogDate());
+        entity.setSource(FoodLogSource.QUICK_ADD);
+
+        FoodLogsEntity saved = foodLogsRepository.save(entity);
+        markFoodItemUsed(quickCalories);
+        return toDto(saved);
     }
 
     @Override
@@ -676,6 +686,15 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private FoodItemEntity getOrCreateQuickCaloriesFood(UserEntity user) {
         String sourceKey = "quick-calorie:user:" + user.getId();
         return foodItemRepository.findBySourceKey(sourceKey)
+                .map(item -> {
+                    item.setCalories(100.0);
+                    item.setProtein(0.0);
+                    item.setCarbs(0.0);
+                    item.setFat(0.0);
+                    item.setServingSizeGrams(100.0);
+                    item.setServingUnit("kcal");
+                    return item;
+                })
                 .orElseGet(() -> {
                     FoodItemEntity item = new FoodItemEntity();
                     item.setName("Quick calories");

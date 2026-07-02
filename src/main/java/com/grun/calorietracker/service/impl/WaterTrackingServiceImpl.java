@@ -43,6 +43,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     private static final String WATER_REMINDER_MESSAGE = "Time to drink water.";
     private static final int MIN_REMINDER_INTERVAL_MINUTES = 30;
     private static final int MAX_RANGE_DAYS = 366;
+    private static final int MAX_DAILY_TOTAL_ML = 6000;
 
     private final WaterLogRepository waterLogRepository;
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
@@ -57,6 +58,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     public WaterLogDto addWaterLog(String email, WaterLogRequestDto request) {
         UserEntity user = getUser(email);
         validateLogDate(request, user);
+        validateDailyTotalLimit(user, request, null);
         WaterLogEntity entity = new WaterLogEntity();
         entity.setUser(user);
         entity.setLogDate(request.getLogDate());
@@ -73,6 +75,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         validateLogDate(request, user);
         WaterLogEntity entity = waterLogRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Water log not found"));
+        validateDailyTotalLimit(user, request, entity);
         entity.setLogDate(request.getLogDate());
         entity.setAmountMl(request.getAmountMl());
         entity.setSource(normalizeSource(request.getSource()));
@@ -227,6 +230,16 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         }
     }
 
+    private void validateDailyTotalLimit(UserEntity user, WaterLogRequestDto request, WaterLogEntity existingLog) {
+        long currentTotal = waterLogRepository.sumAmountMlByUserAndLogDate(user, request.getLogDate());
+        if (existingLog != null && request.getLogDate().equals(existingLog.getLogDate())) {
+            currentTotal -= existingLog.getAmountMl() == null ? 0 : existingLog.getAmountMl();
+        }
+        long requestedTotal = currentTotal + request.getAmountMl();
+        if (requestedTotal > MAX_DAILY_TOTAL_ML) {
+            throw new IllegalArgumentException("Daily water intake cannot exceed " + MAX_DAILY_TOTAL_ML + " ml.");
+        }
+    }
     private void validateReminderSettingsRequest(WaterReminderSettingsRequestDto request) {
         if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new IllegalArgumentException("Water reminder startTime must be before endTime.");

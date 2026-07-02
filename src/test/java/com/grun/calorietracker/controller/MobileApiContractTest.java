@@ -61,6 +61,7 @@ class MobileApiContractTest {
                 "/api/v1/steps/daily-summary",
                 "/api/v1/steps/range-summary",
                 "/api/v1/steps/manual-logs",
+                "/api/v1/steps/manual-logs/{id}",
                 "/api/v1/fasting/plan",
                 "/api/v1/fasting/sessions/start",
                 "/api/v1/fasting/sessions/{id}/finish",

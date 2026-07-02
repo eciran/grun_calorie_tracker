@@ -11,7 +11,9 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.StepGoalEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.HealthProvider;
+import com.grun.calorietracker.exception.DuplicateManualStepLogException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
@@ -24,10 +26,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -36,6 +42,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
 
     private static final int DEFAULT_TARGET_STEPS = 10000;
     private static final int MAX_RANGE_DAYS = 366;
+    private static final int MAX_DAILY_TOTAL_STEPS = 120000;
     private static final String STEP_REMINDER_TYPE = "step_reminder";
     private static final String STEP_REMINDER_MESSAGE = "You are below your step target. A short walk can help you close the gap.";
 
@@ -90,17 +97,12 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         UserEntity user = getUser(email);
         LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
-        if (resolvedStart.isAfter(resolvedEnd)) {
-            throw new IllegalArgumentException("Step range startDate must be before or equal to endDate.");
-        }
-        long dayCount = resolvedStart.datesUntil(resolvedEnd.plusDays(1)).count();
-        if (dayCount > MAX_RANGE_DAYS) {
-            throw new IllegalArgumentException("Step range cannot exceed " + MAX_RANGE_DAYS + " days.");
-        }
+        validateRange(resolvedStart, resolvedEnd);
 
         int targetSteps = getTargetSteps(user);
+        Map<LocalDate, DailyStepAggregate> aggregates = aggregateStepsByDate(user, resolvedStart, resolvedEnd);
         List<StepDailySummaryDto> days = resolvedStart.datesUntil(resolvedEnd.plusDays(1))
-                .map(date -> buildDailySummary(user, date, targetSteps, false))
+                .map(date -> toDailySummaryFromAggregate(date, targetSteps, aggregates.get(date)))
                 .toList();
 
         StepRangeSummaryDto dto = new StepRangeSummaryDto();
@@ -115,6 +117,24 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         dto.setTargetHitDays((int) days.stream().filter(day -> Boolean.TRUE.equals(day.getTargetReached())).count());
         return dto;
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<StepManualLogResponseDto> getManualLogs(String email, LocalDate startDate, LocalDate endDate) {
+        UserEntity user = getUser(email);
+        LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
+        LocalDate resolvedStart = startDate == null ? resolvedEnd : startDate;
+        validateRange(resolvedStart, resolvedEnd);
+        return deviceDataRepository.findByUserAndProviderAndRecordedAtBetweenOrderByRecordedAtAsc(
+                        user,
+                        HealthProvider.MANUAL,
+                        resolvedStart.atStartOfDay(),
+                        resolvedEnd.plusDays(1).atStartOfDay()
+                )
+                .stream()
+                .filter(metric -> metric.getSteps() != null)
+                .map(this::toManualLogResponse)
+                .toList();
+    }
 
     @Override
     @Transactional
@@ -123,16 +143,36 @@ public class StepTrackingServiceImpl implements StepTrackingService {
             throw new IllegalArgumentException("Manual step log request is required.");
         }
         UserEntity user = getUser(email);
+        validateManualLog(user, request, null);
+
         DeviceDataEntity entity = new DeviceDataEntity();
-        entity.setUser(user);
-        entity.setProvider(HealthProvider.MANUAL);
-        entity.setSource("MANUAL");
-        entity.setSteps(request.getSteps());
-        entity.setDistanceMeters(request.getDistanceMeters());
-        entity.setCaloriesBurned(request.getCaloriesBurned());
-        entity.setRecordedAt(request.getRecordedAt());
+        applyManualLog(entity, user, request);
         DeviceDataEntity saved = deviceDataRepository.save(entity);
-        return new StepManualLogResponseDto(saved.getId(), saved.getSteps());
+        return toManualLogResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public StepManualLogResponseDto updateManualLog(String email, Long id, StepManualLogRequestDto request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Manual step log request is required.");
+        }
+        UserEntity user = getUser(email);
+        DeviceDataEntity entity = deviceDataRepository.findByIdAndUserAndProvider(id, user, HealthProvider.MANUAL)
+                .orElseThrow(() -> new ResourceNotFoundException("Manual step log not found."));
+        validateManualLog(user, request, entity);
+        applyManualLog(entity, user, request);
+        DeviceDataEntity saved = deviceDataRepository.save(entity);
+        return toManualLogResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public void deleteManualLog(String email, Long id) {
+        UserEntity user = getUser(email);
+        DeviceDataEntity entity = deviceDataRepository.findByIdAndUserAndProvider(id, user, HealthProvider.MANUAL)
+                .orElseThrow(() -> new ResourceNotFoundException("Manual step log not found."));
+        deviceDataRepository.delete(entity);
     }
 
     @Override
@@ -158,6 +198,105 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         });
         stepGoalRepository.saveAll(dueGoals);
         return dueGoals.size();
+    }
+
+    private StepManualLogResponseDto toManualLogResponse(DeviceDataEntity entity) {
+        return new StepManualLogResponseDto(
+                entity.getId(),
+                entity.getSteps(),
+                entity.getDistanceMeters(),
+                entity.getCaloriesBurned(),
+                entity.getRecordedAt()
+        );
+    }
+    private void applyManualLog(DeviceDataEntity entity, UserEntity user, StepManualLogRequestDto request) {
+        entity.setUser(user);
+        entity.setProvider(HealthProvider.MANUAL);
+        entity.setSource("MANUAL");
+        entity.setExternalId(null);
+        entity.setSteps(request.getSteps());
+        entity.setDistanceMeters(request.getDistanceMeters());
+        entity.setCaloriesBurned(request.getCaloriesBurned());
+        entity.setRecordedAt(request.getRecordedAt());
+        entity.setHeartRate(null);
+        entity.setSleepHours(null);
+    }
+
+    private void validateManualLog(UserEntity user, StepManualLogRequestDto request, DeviceDataEntity existingLog) {
+        if (request.getRecordedAt() == null) {
+            throw new IllegalArgumentException("Manual step recordedAt is required.");
+        }
+        LocalDate today = userTimeZoneSupport.today(user);
+        if (request.getRecordedAt().toLocalDate().isAfter(today)) {
+            throw new IllegalArgumentException("Manual step log date cannot be in the future.");
+        }
+        validateDuplicateManualLog(user, request, existingLog);
+        validateDailyTotalLimit(user, request, existingLog);
+    }
+
+    private void validateDuplicateManualLog(UserEntity user, StepManualLogRequestDto request, DeviceDataEntity existingLog) {
+        deviceDataRepository.findByUserAndProviderAndExternalIdIsNullAndRecordedAt(user, HealthProvider.MANUAL, request.getRecordedAt())
+                .filter(found -> existingLog == null || !Objects.equals(found.getId(), existingLog.getId()))
+                .ifPresent(found -> {
+                    throw new DuplicateManualStepLogException("Manual step log already exists for this recordedAt.");
+                });
+    }
+
+    private void validateDailyTotalLimit(UserEntity user, StepManualLogRequestDto request, DeviceDataEntity existingLog) {
+        LocalDate logDate = request.getRecordedAt().toLocalDate();
+        LocalDateTime start = logDate.atStartOfDay();
+        LocalDateTime end = logDate.plusDays(1).atStartOfDay();
+        long currentTotal = deviceDataRepository.sumStepsByUserAndRecordedAtRange(user, start, end);
+        if (existingLog != null
+                && existingLog.getRecordedAt() != null
+                && existingLog.getRecordedAt().toLocalDate().equals(logDate)) {
+            currentTotal -= existingLog.getSteps() == null ? 0 : existingLog.getSteps();
+        }
+        long requestedTotal = currentTotal + request.getSteps();
+        if (requestedTotal > MAX_DAILY_TOTAL_STEPS) {
+            throw new IllegalArgumentException("Daily step total cannot exceed " + MAX_DAILY_TOTAL_STEPS + " steps.");
+        }
+    }
+
+    private void validateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Step range startDate must be before or equal to endDate.");
+        }
+        long dayCount = startDate.datesUntil(endDate.plusDays(1)).count();
+        if (dayCount > MAX_RANGE_DAYS) {
+            throw new IllegalArgumentException("Step range cannot exceed " + MAX_RANGE_DAYS + " days.");
+        }
+    }
+
+    private Map<LocalDate, DailyStepAggregate> aggregateStepsByDate(UserEntity user, LocalDate startDate, LocalDate endDate) {
+        Map<LocalDate, DailyStepAggregate> byDate = new HashMap<>();
+        deviceDataRepository.aggregateDailyStepsByUser(user.getId(), startDate, endDate)
+                .forEach(row -> byDate.put(toLocalDate(row[0]), new DailyStepAggregate(
+                        toInt(row[1]),
+                        toDouble(row[2]),
+                        toDouble(row[3]),
+                        toLocalDateTime(row[4]),
+                        toInt(row[5])
+                )));
+        return byDate;
+    }
+
+    private StepDailySummaryDto toDailySummaryFromAggregate(LocalDate date, int targetSteps, DailyStepAggregate aggregate) {
+        int totalSteps = aggregate == null ? 0 : aggregate.totalSteps();
+        StepDailySummaryDto dto = new StepDailySummaryDto();
+        dto.setDate(date);
+        dto.setTotalSteps(totalSteps);
+        dto.setTargetSteps(targetSteps);
+        dto.setRemainingSteps(Math.max(targetSteps - totalSteps, 0));
+        dto.setProgressPercent(percent(totalSteps, targetSteps));
+        dto.setTargetReached(totalSteps >= targetSteps);
+        dto.setTotalDistanceMeters(round(aggregate == null ? 0.0 : aggregate.totalDistanceMeters()));
+        dto.setTotalCaloriesBurned(round(aggregate == null ? 0.0 : aggregate.totalCaloriesBurned()));
+        dto.setHasStepData(aggregate != null && aggregate.recordCount() > 0);
+        dto.setLatestStepAt(aggregate == null ? null : aggregate.latestStepAt());
+        dto.setProviders(List.of());
+        dto.setCurrentStreakDays(null);
+        return dto;
     }
 
     private StepDailySummaryDto buildDailySummary(UserEntity user, LocalDate date, int targetSteps, boolean includeStreak) {
@@ -248,6 +387,43 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         return Math.round(value * 100.0) / 100.0;
     }
 
+    private int toInt(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        return ((Number) value).intValue();
+    }
+
+    private double toDouble(Object value) {
+        if (value == null) {
+            return 0.0;
+        }
+        return ((Number) value).doubleValue();
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof Date date) {
+            return date.toLocalDate();
+        }
+        return LocalDate.parse(value.toString());
+    }
+
+    private LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime localDateTime) {
+            return localDateTime;
+        }
+        if (value instanceof Timestamp timestamp) {
+            return timestamp.toLocalDateTime();
+        }
+        return LocalDateTime.parse(value.toString().replace(' ', 'T'));
+    }
+
     private boolean isReminderDue(StepGoalEntity goal) {
         UserEntity user = goal.getUser();
         if (user == null
@@ -265,5 +441,14 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         StepDailySummaryDto summary = buildDailySummary(user, userNow.toLocalDate(), getTargetSteps(user), false);
         int threshold = goal.getReminderThresholdPercent() == null ? 70 : goal.getReminderThresholdPercent();
         return summary.getProgressPercent() < threshold;
+    }
+
+    private record DailyStepAggregate(
+            int totalSteps,
+            double totalDistanceMeters,
+            double totalCaloriesBurned,
+            LocalDateTime latestStepAt,
+            int recordCount
+    ) {
     }
 }

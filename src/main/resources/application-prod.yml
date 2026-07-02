@@ -14,7 +14,7 @@ spring:
       time-to-live: ${SPRING_CACHE_REDIS_TIME_TO_LIVE:10m}
       cache-null-values: false
       use-key-prefix: true
-      key-prefix: grun:prod:
+      key-prefix: "grun:prod:"
   jpa:
     open-in-view: false
     show-sql: false
@@ -118,7 +118,7 @@ grun:
     enabled: true
     trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
-      enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
+      enabled: true
   revenuecat:
     strict-product-mapping: true
     api:
