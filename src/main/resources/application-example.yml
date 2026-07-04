@@ -107,6 +107,10 @@ grun:
       endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
       api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}
       timeout: ${GRUN_AI_HTTP_JSON_TIMEOUT:30s}
+    openai:
+      api-key: ${GRUN_AI_OPENAI_API_KEY:}
+      base-url: ${GRUN_AI_OPENAI_BASE_URL:https://api.openai.com/v1/responses}
+      timeout: ${GRUN_AI_OPENAI_TIMEOUT:30s}
     recipe-image-moderation:
       enabled: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENABLED:false}
       endpoint: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENDPOINT:}

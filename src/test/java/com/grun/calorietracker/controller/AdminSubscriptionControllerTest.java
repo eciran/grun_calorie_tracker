@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AdminAiQuotaGrantRequestDto;
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
@@ -22,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -75,6 +77,32 @@ class AdminSubscriptionControllerTest {
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(88));
 
         verify(subscriptionService).updateUserSubscription(eq(1L), any(AdminSubscriptionUpdateRequestDto.class));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getUserFeatureAccess_whenAdmin_returnsResolvedAccess() throws Exception {
+        SubscriptionFeatureAccessDto response = new SubscriptionFeatureAccessDto();
+        response.setPlanType(SubscriptionPlan.FREE);
+        response.setActiveEntitlement(true);
+        response.setAiMealDrafts(true);
+        response.setAiRecipeGeneration(true);
+        response.setAiWorkoutPlanner(false);
+        response.setAiInsights(true);
+        response.setAiMonthlyQuota(3);
+        response.setAiRemainingThisPeriod(2);
+
+        when(subscriptionService.getUserFeatureAccessForAdmin(1L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/subscriptions/users/1/features"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planType").value("FREE"))
+                .andExpect(jsonPath("$.activeEntitlement").value(true))
+                .andExpect(jsonPath("$.aiMealDrafts").value(true))
+                .andExpect(jsonPath("$.aiWorkoutPlanner").value(false))
+                .andExpect(jsonPath("$.aiRemainingThisPeriod").value(2));
+
+        verify(subscriptionService).getUserFeatureAccessForAdmin(1L);
     }
 
     @Test
@@ -144,6 +172,13 @@ class AdminSubscriptionControllerTest {
         mockMvc.perform(patch("/api/v1/admin/subscriptions/users/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getUserFeatureAccess_whenNotAdmin_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/subscriptions/users/1/features"))
                 .andExpect(status().isForbidden());
     }
 

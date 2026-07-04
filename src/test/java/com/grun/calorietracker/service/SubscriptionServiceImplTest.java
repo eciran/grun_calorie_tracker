@@ -81,10 +81,10 @@ class SubscriptionServiceImplTest {
         assertEquals(SubscriptionPlan.FREE, result.getPlanType());
         assertEquals(SubscriptionStatus.ACTIVE, result.getStatus());
         assertEquals(BillingPeriod.NONE, result.getBillingPeriod());
-        assertEquals(3, result.getAiMonthlyQuota());
-        assertEquals(3, result.getAiRemainingThisPeriod());
+        assertEquals(0, result.getAiMonthlyQuota());
+        assertEquals(0, result.getAiRemainingThisPeriod());
         assertEquals(true, result.getActiveEntitlement());
-        assertEquals(true, result.getAiAccessAllowed());
+        assertEquals(false, result.getAiAccessAllowed());
     }
 
     @Test
@@ -164,6 +164,22 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void getUserFeatureAccessForAdmin_whenSubscriptionExists_returnsResolvedAccess() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(SubscriptionPlan.FREE, SubscriptionFeature.AI_RECIPE_GENERATION))
+                .thenReturn(Optional.of(planFeature(SubscriptionPlan.FREE, SubscriptionFeature.AI_RECIPE_GENERATION, true)));
+
+        var result = service.getUserFeatureAccessForAdmin(1L);
+
+        assertEquals(SubscriptionPlan.FREE, result.getPlanType());
+        assertEquals(false, result.getAiRecipeGeneration());
+        assertEquals(0, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
     void hasFeatureAccess_whenFeatureAllowed_returnsTrue() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 10);
 
@@ -175,7 +191,7 @@ class SubscriptionServiceImplTest {
 
     @Test
     void hasFeatureAccess_whenHealthIntegrationOnFreePlan_returnsFalse() {
-        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 3, 0);
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
@@ -221,7 +237,7 @@ class SubscriptionServiceImplTest {
 
     @Test
     void assertFeatureAccess_whenFeatureDenied_throwsIllegalArgumentException() {
-        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 3, 1);
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
@@ -385,7 +401,7 @@ class SubscriptionServiceImplTest {
 
     @Test
     void consumeAiQuota_whenQuotaUnavailable_throwsIllegalArgumentException() {
-        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 3, 3);
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
 
         when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
@@ -434,6 +450,14 @@ class SubscriptionServiceImplTest {
         entity.setAiAddonQuota(0);
         entity.setAiUsedThisPeriod(used);
         entity.setAutoRenew(true);
+        return entity;
+    }
+    private SubscriptionPlanFeatureEntity planFeature(SubscriptionPlan plan, SubscriptionFeature feature, boolean enabled) {
+        SubscriptionPlanFeatureEntity entity = new SubscriptionPlanFeatureEntity();
+        entity.setPlanType(plan);
+        entity.setFeature(feature);
+        entity.setEnabled(enabled);
+        entity.setEffectiveFrom(java.time.LocalDate.now());
         return entity;
     }
 }

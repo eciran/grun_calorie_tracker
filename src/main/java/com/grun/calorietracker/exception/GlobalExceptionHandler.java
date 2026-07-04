@@ -153,6 +153,22 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, "error.method-not-allowed", "Method not allowed", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAiProviderException(AiProviderException ex, HttpServletRequest request) {
+        log.warn(
+                "AI provider exception correlationId={} path={} message={}",
+                correlationId(request),
+                request.getRequestURI(),
+                ex.getMessage()
+        );
+        return buildResponse(
+                HttpStatus.BAD_GATEWAY,
+                "error.ai-provider",
+                "AI provider error",
+                "AI analysis could not be completed. Please try again with a different input.",
+                request
+        );
+    }
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponseDto> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);

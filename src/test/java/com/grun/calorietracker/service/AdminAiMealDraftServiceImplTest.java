@@ -35,7 +35,7 @@ class AdminAiMealDraftServiceImplTest {
         AiRequestHistoryEntity history = history(3, 1, AiRequestStatus.REJECTED);
         when(historyRepository.findRefundableRejectedDrafts(any())).thenReturn(new PageImpl<>(List.of(history)));
 
-        var result = service.listRequests(AiRequestStatus.REJECTED, true, PageRequest.of(0, 25));
+        var result = service.listRequests(null, AiRequestStatus.REJECTED, true, PageRequest.of(0, 25));
 
         assertEquals(1, result.getTotalElements());
         assertEquals(10L, result.getContent().get(0).getRequestId());

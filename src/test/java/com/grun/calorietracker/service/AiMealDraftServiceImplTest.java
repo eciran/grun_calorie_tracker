@@ -122,7 +122,7 @@ class AiMealDraftServiceImplTest {
         assertEquals(12L, result.getItems().get(0).getMatchedFoodItemId());
         assertEquals(false, result.getItems().get(0).getReviewRequired());
         assertEquals("VERIFIED_CATALOG_MATCH", result.getItems().get(0).getMatchReason());
-        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
+        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(subscriptionService).consumeAiQuota("user@example.com");
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
@@ -172,7 +172,7 @@ class AiMealDraftServiceImplTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.createVoiceFoodDraft("user@example.com", request()));
 
-        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
+        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(subscriptionService).consumeAiQuota("user@example.com");
         verify(subscriptionService).refundConsumedAiQuota(1L, 1);
 
@@ -192,7 +192,7 @@ class AiMealDraftServiceImplTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.createVoiceFoodDraft("user@example.com", request()));
 
-        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
+        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(providerClient, org.mockito.Mockito.never()).createVoiceFoodDraft(any());
         verify(historyRepository, org.mockito.Mockito.never()).save(any());
     }

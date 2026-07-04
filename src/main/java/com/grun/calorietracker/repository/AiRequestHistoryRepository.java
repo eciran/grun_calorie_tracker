@@ -4,6 +4,7 @@ import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiRequestStatus;
+import com.grun.calorietracker.enums.AiRequestType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,9 +17,14 @@ import java.util.Optional;
 public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHistoryEntity, Long> {
     List<AiRequestHistoryEntity> findByUserOrderByCreatedAtDesc(UserEntity user, Pageable pageable);
     List<AiRequestHistoryEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
+    List<AiRequestHistoryEntity> findByUserAndRequestTypeOrderByCreatedAtDesc(UserEntity user, AiRequestType requestType, Pageable pageable);
+    List<AiRequestHistoryEntity> findByUserAndStatusOrderByCreatedAtDesc(UserEntity user, AiRequestStatus status, Pageable pageable);
+    List<AiRequestHistoryEntity> findByUserAndRequestTypeAndStatusOrderByCreatedAtDesc(UserEntity user, AiRequestType requestType, AiRequestStatus status, Pageable pageable);
     Optional<AiRequestHistoryEntity> findByIdAndUser(Long id, UserEntity user);
     Page<AiRequestHistoryEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
     Page<AiRequestHistoryEntity> findByStatusOrderByCreatedAtDesc(AiRequestStatus status, Pageable pageable);
+    Page<AiRequestHistoryEntity> findByRequestTypeOrderByCreatedAtDesc(AiRequestType requestType, Pageable pageable);
+    Page<AiRequestHistoryEntity> findByRequestTypeAndStatusOrderByCreatedAtDesc(AiRequestType requestType, AiRequestStatus status, Pageable pageable);
     @Query("""
             select history from AiRequestHistoryEntity history
             where history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED
@@ -33,3 +39,4 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     long countByRejectionReasonAndRejectedAtAfter(AiDraftRejectReason rejectionReason, LocalDateTime rejectedAt);
     void deleteByUser(UserEntity user);
 }
+

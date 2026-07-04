@@ -123,7 +123,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
                                                DraftSupplier supplier) {
         providerConfigurationValidator.validateConfiguredForDraft();
         UserEntity user = getUser(email);
-        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_WORKOUT_PLANNER);
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_MEAL_DRAFTS);
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);

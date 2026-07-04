@@ -1,11 +1,15 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.config.AiProperties;
+import com.grun.calorietracker.dto.AiInsightRequestDto;
+import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
+import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
@@ -44,12 +48,12 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
 
     @Override
     public AiMealDraftResponseDto createVoiceFoodDraft(AiVoiceFoodDraftRequestDto request) {
-        return callProvider(new ProviderRequest(AiRequestType.VOICE_FOOD_LOG, properties.getModel(), request));
+        return callProvider(new ProviderRequest(AiRequestType.VOICE_FOOD_LOG, properties.getModel(), request), AiMealDraftResponseDto.class);
     }
 
     @Override
     public AiMealDraftResponseDto createPhotoMealDraft(AiPhotoMealDraftRequestDto request) {
-        return callProvider(new ProviderRequest(AiRequestType.PHOTO_MEAL_LOG, properties.getModel(), request));
+        return callProvider(new ProviderRequest(AiRequestType.PHOTO_MEAL_LOG, properties.getModel(), request), AiMealDraftResponseDto.class);
     }
 
     @Override
@@ -57,8 +61,19 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
         return callProvider(new ProviderRequest(AiRequestType.AI_RECIPE_GENERATION, properties.getModel(), request), AiRecipeDraftResponseDto.class);
     }
 
-    private AiMealDraftResponseDto callProvider(ProviderRequest payload) {
-        return callProvider(payload, AiMealDraftResponseDto.class);
+    @Override
+    public AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_WORKOUT_PLAN, properties.getModel(), request), AiWorkoutPlanDraftResponseDto.class);
+    }
+
+    @Override
+    public AiInsightResponseDto createDailyInsight(AiInsightRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_DAILY_INSIGHT, properties.getModel(), request), AiInsightResponseDto.class);
+    }
+
+    @Override
+    public AiInsightResponseDto createWeeklyInsight(AiInsightRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_WEEKLY_INSIGHT, properties.getModel(), request), AiInsightResponseDto.class);
     }
 
     private <T> T callProvider(ProviderRequest payload, Class<T> responseType) {

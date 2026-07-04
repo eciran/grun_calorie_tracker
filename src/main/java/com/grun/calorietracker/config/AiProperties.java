@@ -16,6 +16,7 @@ public class AiProperties {
     private Safety safety = new Safety();
     private Photo photo = new Photo();
     private HttpJson httpJson = new HttpJson();
+    private OpenAi openai = new OpenAi();
     private RecipeImageModeration recipeImageModeration = new RecipeImageModeration();
 
     @Data
@@ -41,6 +42,13 @@ public class AiProperties {
     public static class HttpJson {
         private String endpoint = "";
         private String apiKey = "";
+        private Duration timeout = Duration.ofSeconds(30);
+    }
+
+    @Data
+    public static class OpenAi {
+        private String apiKey = "";
+        private String baseUrl = "https://api.openai.com/v1/responses";
         private Duration timeout = Duration.ofSeconds(30);
     }
 

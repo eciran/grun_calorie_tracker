@@ -10,8 +10,10 @@ import lombok.Data;
 public class SubscriptionFeatureAccessDto {
     private SubscriptionPlan planType;
     private Boolean activeEntitlement;
+    private Boolean aiMealDrafts;
     private Boolean aiWorkoutPlanner;
     private Boolean aiRecipeGeneration;
+    private Boolean aiInsights;
     private Boolean healthIntegration;
     private Boolean advancedAnalytics;
     private Boolean adFree;

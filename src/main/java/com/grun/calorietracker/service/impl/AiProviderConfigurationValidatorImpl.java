@@ -23,6 +23,9 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
         if (properties.getProvider() == AiProvider.HTTP_JSON) {
             validateHttpJson();
         }
+        if (properties.getProvider() == AiProvider.OPENAI) {
+            validateOpenAi();
+        }
     }
 
     private void validateHttpJson() {
@@ -41,6 +44,21 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
         }
     }
 
+    private void validateOpenAi() {
+        AiProperties.OpenAi openai = properties.getOpenai();
+        if (openai == null || isBlank(openai.getBaseUrl())) {
+            throw new IllegalArgumentException("OpenAI provider base URL is not configured.");
+        }
+        if (openai.getBaseUrl().startsWith("http://")) {
+            throw new IllegalArgumentException("OpenAI provider base URL must use HTTPS.");
+        }
+        if (isBlank(openai.getApiKey())) {
+            throw new IllegalArgumentException("OpenAI provider API key is not configured.");
+        }
+        if (openai.getTimeout() == null || openai.getTimeout().isZero() || openai.getTimeout().isNegative()) {
+            throw new IllegalArgumentException("OpenAI provider timeout must be positive.");
+        }
+    }
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
