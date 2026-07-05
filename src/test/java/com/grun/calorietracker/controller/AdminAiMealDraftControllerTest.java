@@ -26,6 +26,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -61,7 +62,7 @@ class AdminAiMealDraftControllerTest {
         item.setQuotaRefundedAmount(1);
         item.setRefundableAmount(1);
 
-        when(adminAiMealDraftService.listRequests(eq(AiRequestStatus.REJECTED), eq(true), any(Pageable.class)))
+        when(adminAiMealDraftService.listRequests(isNull(), eq(AiRequestStatus.REJECTED), eq(true), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(item)));
 
         mockMvc.perform(get("/api/v1/admin/ai/meal-drafts")

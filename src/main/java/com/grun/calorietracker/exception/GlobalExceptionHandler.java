@@ -17,6 +17,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -129,6 +130,12 @@ public class GlobalExceptionHandler {
                                                                                                 HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, "error.duplicate.recipe-publication-request", "Duplicate recipe publication request", ex.getMessage(), request);
     }
+
+    @ExceptionHandler(DuplicateManualStepLogException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDuplicateManualStepLogException(DuplicateManualStepLogException ex,
+                                                                                    HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "error.duplicate.manual-step-log", "Duplicate manual step log", ex.getMessage(), request);
+    }
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponseDto> handleResourceNotFoundException(ResourceNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "error.resource.not-found", "Resource not found", ex.getMessage(), request);
@@ -139,6 +146,29 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, "error.resource.not-found", "Resource not found", ex.getMessage(), request);
     }
 
+    
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException ex,
+                                                                                 HttpServletRequest request) {
+        return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, "error.method-not-allowed", "Method not allowed", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAiProviderException(AiProviderException ex, HttpServletRequest request) {
+        log.warn(
+                "AI provider exception correlationId={} path={} message={}",
+                correlationId(request),
+                request.getRequestURI(),
+                ex.getMessage()
+        );
+        return buildResponse(
+                HttpStatus.BAD_GATEWAY,
+                "error.ai-provider",
+                "AI provider error",
+                "AI analysis could not be completed. Please try again with a different input.",
+                request
+        );
+    }
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponseDto> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);

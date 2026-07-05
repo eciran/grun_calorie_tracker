@@ -26,6 +26,6 @@ public class WaterLogRequestDto {
     @Schema(description = "Optional source label, such as MANUAL, QUICK_ADD, or HEALTH_IMPORT.", example = "MANUAL")
     private String source;
 
-    @Schema(description = "Optional exact time when the water was consumed. If omitted, server time is used.", example = "2026-06-05T10:15:00")
+    @Schema(description = "Optional exact time when the water was consumed. The time component is applied to logDate; if omitted, current user-local time is used.", example = "2026-06-05T10:15:00")
     private LocalDateTime loggedAt;
 }

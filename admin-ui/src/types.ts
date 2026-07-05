@@ -37,6 +37,9 @@ export type UserProfile = {
   preferredLanguage?: string;
   goalRecalculationRecommended?: boolean;
   goalRecalculationReason?: string;
+  accountEnabled?: boolean;
+  accountLocked?: boolean;
+  statusReason?: string;
 };
 
 export type AdminAchievementDefinition = {
@@ -108,6 +111,37 @@ export type FoodProduct = {
   nutriScore?: string;
   custom?: boolean;
 };
+export type ProductQualitySuggestion = {
+  id?: number;
+  foodItemId?: number;
+  productName?: string;
+  brand?: string;
+  suggestionType?: string;
+  source?: string;
+  status?: string;
+  confidenceScore?: number;
+  currentValue?: string;
+  suggestedValue?: string;
+  reason?: string;
+  createdAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+};
+
+export type ProductQualitySuggestionPage = {
+  content?: ProductQualitySuggestion[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+};
+
+export type ProductQualitySuggestionScanResult = {
+  scannedProducts?: number;
+  createdSuggestions?: number;
+  skippedExistingSuggestions?: number;
+};
+
 export type FoodSearchAlias = {
   id?: number;
   foodItemId?: number;
@@ -174,6 +208,48 @@ export type FeatureMatrixItem = {
   monthlyLimit?: number;
   effectiveFrom?: string;
   updatedAt?: string;
+};
+
+
+export type SubscriptionFeatureAccess = {
+  planType?: string;
+  plan?: string;
+  activeEntitlement?: boolean;
+  aiMealDrafts?: boolean;
+  aiWorkoutPlanner?: boolean;
+  aiRecipeGeneration?: boolean;
+  aiInsights?: boolean;
+  healthIntegration?: boolean;
+  advancedAnalytics?: boolean;
+  adFree?: boolean;
+  customFoodLibrary?: boolean;
+  aiMonthlyQuota?: number;
+  aiAddonQuota?: number;
+  aiRemainingThisPeriod?: number;
+};
+
+export type SubscriptionDto = {
+  planType?: string;
+  plan?: string;
+  status?: string;
+  billingPeriod?: string;
+  startDate?: string;
+  endDate?: string;
+  quotaResetDate?: string;
+  aiAddonQuotaExpiresAt?: string;
+  aiMonthlyQuota?: number;
+  aiAddonQuota?: number;
+  aiTotalQuotaThisPeriod?: number;
+  aiUsedThisPeriod?: number;
+  aiBaseRemainingThisPeriod?: number;
+  aiAddonRemainingThisPeriod?: number;
+  aiRemainingThisPeriod?: number;
+  activeEntitlement?: boolean;
+  aiAccessAllowed?: boolean;
+  upgradeRecommended?: boolean;
+  autoRenew?: boolean;
+  provider?: string;
+  providerProductId?: string;
 };
 
 export type RevenueCatConfigStatus = {
@@ -265,13 +341,65 @@ export type Notification = {
 export type AiMealDraft = {
   id?: number;
   requestId?: number;
+  userId?: number;
+  userEmail?: string;
+  requestType?: string;
+  provider?: string;
+  model?: string;
+  status?: string;
+  quotaConsumed?: boolean | number;
+  quotaConsumedAmount?: number;
+  quotaRefunded?: number;
+  quotaRefundedAmount?: number;
+  refundableAmount?: number;
+  latencyMs?: number;
+  totalTokens?: number;
+  estimatedCost?: number;
+  costCurrency?: string;
+  createdAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  rejectionFeedback?: string;
+};
+
+export type RetentionPolicy = {
+  id?: number;
+  policyKey?: string;
+  retentionDays?: number;
+  legalBasis?: string;
+  description?: string;
+  active?: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
+export type SubscriptionProviderEvent = {
+  id?: number;
+  provider?: string;
+  providerEventId?: string;
+  providerAppUserId?: string;
+  eventType?: string;
+  productId?: string;
+  entitlementIds?: string;
+  transactionId?: string;
+  originalTransactionId?: string;
+  userId?: number;
   userEmail?: string;
   status?: string;
-  requestType?: string;
-  quotaConsumed?: number;
-  quotaRefunded?: number;
-  createdAt?: string;
-  rejectionReason?: string;
+  processingError?: string;
+  receivedAt?: string;
+  processedAt?: string;
+  rawPayload?: string;
+};
+
+export type SubscriptionProviderEventPage = {
+  content?: SubscriptionProviderEvent[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
 };
 
 export type AdminMailEvent = {

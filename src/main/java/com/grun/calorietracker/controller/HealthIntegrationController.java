@@ -9,6 +9,8 @@ import com.grun.calorietracker.dto.HealthMetricBatchSyncResponseDto;
 import com.grun.calorietracker.dto.HealthMetricSyncRequestDto;
 import com.grun.calorietracker.dto.HealthMetricSyncResponseDto;
 import com.grun.calorietracker.dto.HealthRangeSummaryDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncRequestDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncResponseDto;
 import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.service.HealthIntegrationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -151,6 +153,23 @@ public class HealthIntegrationController {
         return ResponseEntity.ok(healthIntegrationService.syncMetrics(userDetails.getUsername(), provider, request));
     }
 
+    @PostMapping("/{provider}/workouts")
+    @Operation(
+            summary = "Sync a provider workout as an exercise log",
+            description = "Maps a provider-specific workout activity type to the internal exercise catalog and stores it as an idempotent external exercise log."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Workout imported as exercise log."),
+            @ApiResponse(responseCode = "400", description = "Payload is invalid, provider is not connected, or activity type is not mapped."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "409", description = "Workout externalId was already imported.")
+    })
+    public ResponseEntity<HealthWorkoutSyncResponseDto> syncWorkout(
+            @Parameter(description = "Provider that produced the workout.", example = "APPLE_HEALTH") @PathVariable HealthProvider provider,
+            @RequestBody @Valid HealthWorkoutSyncRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(healthIntegrationService.syncWorkout(userDetails.getUsername(), provider, request));
+    }
     @DeleteMapping("/{provider}/data")
     @Operation(
             summary = "Delete synced health data for one provider",
@@ -180,3 +199,4 @@ public class HealthIntegrationController {
         return ResponseEntity.ok(healthIntegrationService.deleteAllHealthData(userDetails.getUsername()));
     }
 }
+

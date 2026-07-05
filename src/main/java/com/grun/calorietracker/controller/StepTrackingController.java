@@ -19,7 +19,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/steps")
@@ -67,11 +70,40 @@ public class StepTrackingController {
         return ResponseEntity.ok(stepTrackingService.getRangeSummary(userDetails.getUsername(), startDate, endDate));
     }
 
+    @GetMapping("/manual-logs")
+    @Operation(summary = "List manual step logs", description = "Returns owned manual step metrics for a selected date range. Defaults to the user-local current day.")
+    public ResponseEntity<List<StepManualLogResponseDto>> getManualLogs(@AuthenticationPrincipal UserDetails userDetails,
+                                                                        @RequestParam(required = false) LocalDate startDate,
+                                                                        @RequestParam(required = false) LocalDate endDate) {
+        return ResponseEntity.ok(stepTrackingService.getManualLogs(userDetails.getUsername(), startDate, endDate));
+    }
     @PostMapping("/manual-logs")
     @Operation(summary = "Add manual step log", description = "Adds a manual step metric when a connected provider is unavailable or needs correction.")
     @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    @ApiResponse(responseCode = "409", description = "A manual step log already exists for the same local datetime.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     public ResponseEntity<StepManualLogResponseDto> addManualLog(@AuthenticationPrincipal UserDetails userDetails,
                                                                  @RequestBody @Valid StepManualLogRequestDto request) {
         return ResponseEntity.ok(stepTrackingService.addManualLog(userDetails.getUsername(), request));
+    }
+
+    @PutMapping("/manual-logs/{id}")
+    @Operation(summary = "Update manual step log", description = "Updates an owned manual step metric. Synced provider metrics cannot be changed through this endpoint.")
+    @ApiResponse(responseCode = "400", description = "Request validation failed.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    @ApiResponse(responseCode = "404", description = "Manual step log not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    @ApiResponse(responseCode = "409", description = "A manual step log already exists for the same local datetime.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    public ResponseEntity<StepManualLogResponseDto> updateManualLog(@AuthenticationPrincipal UserDetails userDetails,
+                                                                    @PathVariable Long id,
+                                                                    @RequestBody @Valid StepManualLogRequestDto request) {
+        return ResponseEntity.ok(stepTrackingService.updateManualLog(userDetails.getUsername(), id, request));
+    }
+
+    @DeleteMapping("/manual-logs/{id}")
+    @Operation(summary = "Delete manual step log", description = "Deletes an owned manual step metric. Synced provider metrics cannot be deleted through this endpoint.")
+    @ApiResponse(responseCode = "204", description = "Manual step log deleted.")
+    @ApiResponse(responseCode = "404", description = "Manual step log not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    public ResponseEntity<Void> deleteManualLog(@AuthenticationPrincipal UserDetails userDetails,
+                                                @PathVariable Long id) {
+        stepTrackingService.deleteManualLog(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
     }
 }

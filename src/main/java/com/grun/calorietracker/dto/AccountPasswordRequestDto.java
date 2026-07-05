@@ -16,7 +16,7 @@ public class AccountPasswordRequestDto {
     @NotBlank(message = "{validation.password.required}")
     @Size(min = 8, message = "{validation.password.size}")
     @Pattern(
-            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
+            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d\\s])\\S{8,}$",
             message = "{validation.password.pattern}"
     )
     @Schema(description = "New password with at least 8 characters, uppercase, lowercase, number, and special character.", example = "NewStrongPass1!")

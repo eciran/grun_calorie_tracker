@@ -37,6 +37,22 @@ class GlobalExceptionHandlerTest {
         assertEquals("debug detail", response.getBody().getMessage());
     }
 
+
+    @Test
+    void handleAiProviderException_hidesProviderDetails() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), true);
+        MockHttpServletRequest request = request();
+
+        var response = handler.handleAiProviderException(
+                new AiProviderException("OpenAI provider request failed: HTTP 400 - invalid_request_error/invalid_value: Failed to download file."),
+                request
+        );
+
+        assertEquals(502, response.getStatusCode().value());
+        assertEquals("AI provider error", response.getBody().getError());
+        assertEquals("AI analysis could not be completed. Please try again with a different input.", response.getBody().getMessage());
+        assertEquals("request-1", response.getBody().getCorrelationId());
+    }
     @Test
     void handleMaxUploadSizeExceeded_returnsPayloadTooLarge() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
@@ -81,6 +97,7 @@ class GlobalExceptionHandlerTest {
         messageSource.addMessage("error.upload.too-large", Locale.ENGLISH, "Upload too large");
         messageSource.addMessage("error.data-integrity", Locale.ENGLISH, "Invalid request");
         messageSource.addMessage("error.concurrent-update", Locale.ENGLISH, "Concurrent update");
+        messageSource.addMessage("error.ai-provider", Locale.ENGLISH, "AI provider error");
         return messageSource;
     }
 

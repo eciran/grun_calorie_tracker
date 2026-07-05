@@ -43,13 +43,22 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
     );
 
     @Query(value = """
-    SELECT date_trunc(:range, e.log_date) as bucket,
-           SUM(e.duration_minutes) as total_duration,
-           SUM(e.calories_burned) as total_calories
-    FROM exercise_logs e
-    WHERE e.user_id = :userId
-      AND e.log_date BETWEEN :startDate AND :endDate
-    GROUP BY date_trunc(:range, e.log_date)
+    SELECT bucket,
+           COALESCE(SUM(duration_minutes), 0) as total_duration,
+           COALESCE(SUM(calories_burned), 0) as total_calories
+    FROM (
+        SELECT CASE
+                   WHEN :range = 'week' THEN date_trunc('week', e.log_date)
+                   WHEN :range = 'month' THEN date_trunc('month', e.log_date)
+                   ELSE date_trunc('day', e.log_date)
+               END AS bucket,
+               e.duration_minutes,
+               e.calories_burned
+        FROM exercise_logs e
+        WHERE e.user_id = :userId
+          AND e.log_date BETWEEN :startDate AND :endDate
+    ) grouped_exercise_logs
+    GROUP BY bucket
     ORDER BY bucket ASC
     """, nativeQuery = true)
     List<Object[]> findByUserAndLogDateBetween(
@@ -76,3 +85,4 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
 
     long deleteByUser(UserEntity user);
 }
+

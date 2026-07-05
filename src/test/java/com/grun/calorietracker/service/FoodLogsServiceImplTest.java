@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
@@ -135,6 +136,49 @@ class FoodLogsServiceImplTest {
         verify(foodItemRepository).save(foodItem);
     }
 
+    @Test
+    void quickAddCalories_writesCalorieOnlySnapshotsEvenWhenExistingQuickFoodHasMacros() {
+        FoodItemEntity quickItem = new FoodItemEntity();
+        quickItem.setId(9L);
+        quickItem.setName("Quick calories");
+        quickItem.setSourceKey("quick-calorie:user:1");
+        quickItem.setCalories(100.0);
+        quickItem.setProtein(42.0);
+        quickItem.setCarbs(30.0);
+        quickItem.setFat(10.0);
+        quickItem.setVerificationStatus(VerificationStatus.VERIFIED);
+        quickItem.setUsageCount(0L);
+        quickItem.setCreatedByUser(user);
+
+        QuickCalorieLogRequestDto request = new QuickCalorieLogRequestDto();
+        request.setCalories(250.0);
+        request.setMealType("LUNCH");
+        request.setLogDate(LocalDateTime.of(2026, 7, 2, 12, 0));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findBySourceKey("quick-calorie:user:1")).thenReturn(Optional.of(quickItem));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(90L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.quickAddCalories("test@test.com", request);
+
+        assertEquals(250.0, result.getSnapshotCalories());
+        assertEquals(0.0, result.getSnapshotProtein());
+        assertEquals(0.0, result.getSnapshotCarbs());
+        assertEquals(0.0, result.getSnapshotFat());
+        assertEquals(0.0, quickItem.getProtein());
+        assertEquals(0.0, quickItem.getCarbs());
+        assertEquals(0.0, quickItem.getFat());
+        verify(foodLogsRepository).save(argThat(entity ->
+                entity.getSnapshotCalories().equals(250.0)
+                        && entity.getSnapshotProtein().equals(0.0)
+                        && entity.getSnapshotCarbs().equals(0.0)
+                        && entity.getSnapshotFat().equals(0.0)
+        ));
+    }
     @Test
     void testAddFoodLog_whenServingUnitProvided_normalizesUsingFoodServingSize() {
         foodItem.setServingSizeGrams(50.0);

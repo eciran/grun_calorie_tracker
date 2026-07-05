@@ -9,6 +9,8 @@ import com.grun.calorietracker.dto.HealthMetricBatchSyncResponseDto;
 import com.grun.calorietracker.dto.HealthMetricSyncRequestDto;
 import com.grun.calorietracker.dto.HealthMetricSyncResponseDto;
 import com.grun.calorietracker.dto.HealthRangeSummaryDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncRequestDto;
+import com.grun.calorietracker.dto.HealthWorkoutSyncResponseDto;
 import com.grun.calorietracker.enums.HealthProvider;
 
 import java.time.LocalDate;
@@ -22,6 +24,7 @@ public interface HealthIntegrationService {
     HealthConnectionDto disconnect(String email, HealthProvider provider);
     HealthMetricSyncResponseDto syncMetric(String email, HealthProvider provider, HealthMetricSyncRequestDto request);
     HealthMetricBatchSyncResponseDto syncMetrics(String email, HealthProvider provider, HealthMetricBatchSyncRequestDto request);
+    HealthWorkoutSyncResponseDto syncWorkout(String email, HealthProvider provider, HealthWorkoutSyncRequestDto request);
     HealthDataDeleteResponseDto deleteProviderData(String email, HealthProvider provider);
     HealthDataDeleteResponseDto deleteAllHealthData(String email);
 }

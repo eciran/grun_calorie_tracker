@@ -2,8 +2,12 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.WaterDailySummaryDto;
+import com.grun.calorietracker.dto.WaterDailyTrendDto;
+import com.grun.calorietracker.dto.WaterGoalDto;
+import com.grun.calorietracker.dto.WaterGoalRequestDto;
 import com.grun.calorietracker.dto.WaterLogDto;
 import com.grun.calorietracker.dto.WaterLogRequestDto;
+import com.grun.calorietracker.dto.WaterRangeSummaryDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsRequestDto;
 import com.grun.calorietracker.service.WaterTrackingService;
@@ -70,6 +74,32 @@ class WaterTrackingControllerTest {
                 .andExpect(jsonPath("$.amountMl").value(250));
     }
 
+
+    @Test
+    @WithMockUser(username = "user@grun.app")
+    void updateWaterLog_returnsUpdatedLog() throws Exception {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(LocalDate.of(2026, 6, 5));
+        request.setAmountMl(400);
+        request.setSource("MANUAL");
+        request.setLoggedAt(LocalDateTime.of(2026, 6, 5, 11, 30));
+
+        WaterLogDto response = new WaterLogDto();
+        response.setId(1L);
+        response.setLogDate(request.getLogDate());
+        response.setAmountMl(400);
+        response.setSource("MANUAL");
+        response.setLoggedAt(request.getLoggedAt());
+
+        when(waterTrackingService.updateWaterLog(any(), any(), any(WaterLogRequestDto.class))).thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/water-logs/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.amountMl").value(400));
+    }
     @Test
     @WithMockUser(username = "user@grun.app")
     void addWaterLog_whenAmountMissing_returnsBadRequest() throws Exception {
@@ -104,6 +134,67 @@ class WaterTrackingControllerTest {
                 .andExpect(jsonPath("$.totalMl").value(1000))
                 .andExpect(jsonPath("$.targetMl").value(2500))
                 .andExpect(jsonPath("$.remainingMl").value(1500));
+    }
+
+    @Test
+    @WithMockUser(username = "user@grun.app")
+    void getRangeSummary_returnsHydrationTrend() throws Exception {
+        WaterDailyTrendDto day = new WaterDailyTrendDto();
+        day.setDate(LocalDate.of(2026, 6, 5));
+        day.setTotalMl(1500);
+        day.setTargetMl(2500);
+        day.setRemainingMl(1000);
+        day.setProgressPercent(60.0);
+        day.setTargetReached(false);
+
+        WaterRangeSummaryDto response = new WaterRangeSummaryDto();
+        response.setStartDate(LocalDate.of(2026, 6, 5));
+        response.setEndDate(LocalDate.of(2026, 6, 5));
+        response.setTargetMl(2500);
+        response.setTotalMl(1500);
+        response.setAverageMl(1500.0);
+        response.setBestMl(1500);
+        response.setTargetHitDays(0);
+        response.setDayCount(1);
+        response.setDays(List.of(day));
+
+        when(waterTrackingService.getRangeSummary("user@grun.app", LocalDate.of(2026, 6, 5), LocalDate.of(2026, 6, 5)))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/water-logs/range-summary")
+                        .param("startDate", "2026-06-05")
+                        .param("endDate", "2026-06-05"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalMl").value(1500))
+                .andExpect(jsonPath("$.days[0].progressPercent").value(60.0));
+    }
+    @Test
+    @WithMockUser(username = "user@grun.app")
+    void getWaterGoal_returnsGoal() throws Exception {
+        WaterGoalDto response = new WaterGoalDto();
+        response.setTargetMl(2800);
+        when(waterTrackingService.getGoal("user@grun.app")).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/water-logs/goal"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.targetMl").value(2800));
+    }
+
+    @Test
+    @WithMockUser(username = "user@grun.app")
+    void updateWaterGoal_returnsUpdatedGoal() throws Exception {
+        WaterGoalRequestDto request = new WaterGoalRequestDto();
+        request.setTargetMl(3000);
+        WaterGoalDto response = new WaterGoalDto();
+        response.setTargetMl(3000);
+
+        when(waterTrackingService.updateGoal(any(), any(WaterGoalRequestDto.class))).thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/water-logs/goal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.targetMl").value(3000));
     }
 
     @Test

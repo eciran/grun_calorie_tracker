@@ -1,0 +1,109 @@
+package com.grun.calorietracker.service.impl;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.AiRequestHistoryDetailDto;
+import com.grun.calorietracker.entity.AiRequestHistoryEntity;
+import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AiRequestStatus;
+import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.AiRequestHistoryService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
+
+    private static final String GENERIC_AI_FAILURE_MESSAGE =
+            "AI analysis could not be completed. Please try again with a different input.";
+
+    private final AiRequestHistoryRepository aiRequestHistoryRepository;
+    private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+
+    @Override
+    public List<AiRequestHistoryDetailDto> listHistory(String email, AiRequestType requestType, AiRequestStatus status, int limit) {
+        UserEntity user = getUser(email);
+        PageRequest pageable = PageRequest.of(0, Math.min(Math.max(limit, 1), 100));
+        List<AiRequestHistoryEntity> history = findHistory(user, requestType, status, pageable);
+        return history.stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    public AiRequestHistoryDetailDto getHistoryItem(String email, Long requestId) {
+        UserEntity user = getUser(email);
+        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
+                .orElseThrow(() -> new IllegalArgumentException("AI request history item was not found."));
+        return toDto(history);
+    }
+
+    private List<AiRequestHistoryEntity> findHistory(
+            UserEntity user,
+            AiRequestType requestType,
+            AiRequestStatus status,
+            PageRequest pageable
+    ) {
+        if (requestType != null && status != null) {
+            return aiRequestHistoryRepository.findByUserAndRequestTypeAndStatusOrderByCreatedAtDesc(user, requestType, status, pageable);
+        }
+        if (requestType != null) {
+            return aiRequestHistoryRepository.findByUserAndRequestTypeOrderByCreatedAtDesc(user, requestType, pageable);
+        }
+        if (status != null) {
+            return aiRequestHistoryRepository.findByUserAndStatusOrderByCreatedAtDesc(user, status, pageable);
+        }
+        return aiRequestHistoryRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+    }
+
+    private AiRequestHistoryDetailDto toDto(AiRequestHistoryEntity entity) {
+        AiRequestHistoryDetailDto dto = new AiRequestHistoryDetailDto();
+        dto.setId(entity.getId());
+        dto.setRequestType(entity.getRequestType());
+        dto.setProvider(entity.getProvider());
+        dto.setModel(entity.getModel());
+        dto.setStatus(entity.getStatus());
+        dto.setQuotaConsumed(entity.getQuotaConsumed());
+        dto.setQuotaConsumedAmount(entity.getQuotaConsumedAmount());
+        dto.setQuotaRefundedAmount(entity.getQuotaRefundedAmount());
+        dto.setLatencyMs(entity.getLatencyMs());
+        dto.setTotalTokens(entity.getTotalTokens());
+        dto.setEstimatedCost(entity.getEstimatedCost());
+        dto.setCostCurrency(entity.getCostCurrency());
+        dto.setRejectionReason(entity.getRejectionReason());
+        dto.setHasRejectionFeedback(entity.getRejectionFeedback() != null && !entity.getRejectionFeedback().isBlank());
+        dto.setUserMessage(entity.getStatus() == AiRequestStatus.FAILED ? GENERIC_AI_FAILURE_MESSAGE : null);
+        dto.setInputPayload(readJson(entity.getInputPayload()));
+        dto.setOutputPayload(readJson(entity.getOutputPayload()));
+        dto.setConfirmationPayload(readJson(entity.getConfirmationPayload()));
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setConfirmedAt(entity.getConfirmedAt());
+        dto.setRejectedAt(entity.getRejectedAt());
+        return dto;
+    }
+
+    private JsonNode readJson(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(payload);
+        } catch (JsonProcessingException ex) {
+            return null;
+        }
+    }
+
+    private UserEntity getUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+    }
+}

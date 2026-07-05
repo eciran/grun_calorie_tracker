@@ -68,7 +68,7 @@ public class AdminAiMealDraftController {
             @RequestParam(defaultValue = "25") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        return ResponseEntity.ok(adminAiMealDraftService.listRequests(status, refundableOnly, PageRequest.of(safePage, safeSize)));
+        return ResponseEntity.ok(adminAiMealDraftService.listRequests(null, status, refundableOnly, PageRequest.of(safePage, safeSize)));
     }
 
     @PostMapping("/{requestId}/quota-refund")

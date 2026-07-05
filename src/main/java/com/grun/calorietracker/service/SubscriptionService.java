@@ -14,6 +14,7 @@ import java.util.List;
 public interface SubscriptionService {
     SubscriptionDto getCurrentSubscription(String email);
     SubscriptionDto getUserSubscriptionForAdmin(Long userId);
+    SubscriptionFeatureAccessDto getUserFeatureAccessForAdmin(Long userId);
     SubscriptionDto updateUserSubscription(Long userId, AdminSubscriptionUpdateRequestDto request);
     SubscriptionFeatureAccessDto getFeatureAccess(String email);
     SubscriptionDto consumeAiQuota(String email);

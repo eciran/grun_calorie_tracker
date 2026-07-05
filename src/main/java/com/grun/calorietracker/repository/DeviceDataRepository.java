@@ -17,6 +17,8 @@ public interface DeviceDataRepository extends JpaRepository<DeviceDataEntity, Lo
     List<DeviceDataEntity> findByUserOrderByRecordedAtAsc(UserEntity user);
     Optional<DeviceDataEntity> findByUserAndProviderAndExternalId(UserEntity user, HealthProvider provider, String externalId);
 
+    Optional<DeviceDataEntity> findByIdAndUserAndProvider(Long id, UserEntity user, HealthProvider provider);
+
     Optional<DeviceDataEntity> findByUserAndProviderAndExternalIdIsNullAndRecordedAt(
             UserEntity user,
             HealthProvider provider,
@@ -38,6 +40,20 @@ public interface DeviceDataRepository extends JpaRepository<DeviceDataEntity, Lo
             HealthProvider provider,
             LocalDateTime start,
             LocalDateTime end
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(d.steps), 0)
+            FROM DeviceDataEntity d
+            WHERE d.user = :user
+              AND d.recordedAt >= :start
+              AND d.recordedAt < :end
+              AND d.steps IS NOT NULL
+            """)
+    long sumStepsByUserAndRecordedAtRange(
+            @Param("user") UserEntity user,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
     );
 
     @Query("""
@@ -63,6 +79,26 @@ public interface DeviceDataRepository extends JpaRepository<DeviceDataEntity, Lo
               AND d.steps IS NOT NULL
             """)
     long sumStepsAfter(@Param("recordedAt") LocalDateTime recordedAt);
+
+    @Query(value = """
+            SELECT CAST(recorded_at AS DATE) AS metric_date,
+                   COALESCE(SUM(steps), 0) AS total_steps,
+                   COALESCE(SUM(distance_meters), 0) AS total_distance_meters,
+                   COALESCE(SUM(calories_burned), 0) AS total_calories_burned,
+                   MAX(recorded_at) AS latest_step_at,
+                   COUNT(*) AS record_count
+            FROM device_data
+            WHERE user_id = :userId
+              AND CAST(recorded_at AS DATE) BETWEEN :startDate AND :endDate
+              AND steps IS NOT NULL
+            GROUP BY CAST(recorded_at AS DATE)
+            ORDER BY CAST(recorded_at AS DATE)
+            """, nativeQuery = true)
+    List<Object[]> aggregateDailyStepsByUser(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 
     @Query(value = """
             SELECT CAST(recorded_at AS DATE) AS metric_date,

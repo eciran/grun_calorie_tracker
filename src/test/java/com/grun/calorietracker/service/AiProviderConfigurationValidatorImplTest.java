@@ -59,6 +59,21 @@ class AiProviderConfigurationValidatorImplTest {
         assertDoesNotThrow(() -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
     }
 
+    @Test
+    void validateConfiguredForDraft_whenOpenAiMissingSecret_throws() {
+        AiProperties properties = openAiProperties();
+        properties.getOpenai().setApiKey("");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+    }
+
+    @Test
+    void validateConfiguredForDraft_whenOpenAiConfigured_accepts() {
+        AiProperties properties = openAiProperties();
+
+        assertDoesNotThrow(() -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+    }
     private AiProperties httpJsonProperties() {
         AiProperties properties = new AiProperties();
         properties.setEnabled(true);
@@ -67,6 +82,16 @@ class AiProviderConfigurationValidatorImplTest {
         properties.getHttpJson().setEndpoint("https://ai-provider.example.test/meal-drafts");
         properties.getHttpJson().setApiKey("secret-test-key");
         properties.getHttpJson().setTimeout(Duration.ofSeconds(20));
+        return properties;
+    }
+    private AiProperties openAiProperties() {
+        AiProperties properties = new AiProperties();
+        properties.setEnabled(true);
+        properties.setProvider(AiProvider.OPENAI);
+        properties.setModel("gpt-5.4-mini");
+        properties.getOpenai().setBaseUrl("https://api.openai.com/v1/responses");
+        properties.getOpenai().setApiKey("sk-test");
+        properties.getOpenai().setTimeout(Duration.ofSeconds(20));
         return properties;
     }
 }

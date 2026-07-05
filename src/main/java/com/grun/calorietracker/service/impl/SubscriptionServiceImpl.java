@@ -69,6 +69,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
+    public SubscriptionFeatureAccessDto getUserFeatureAccessForAdmin(Long userId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return subscriptionRepository.findByUser(user)
+                .map(entity -> toFeatureAccess(toDto(entity), entity))
+                .orElseGet(() -> toFeatureAccess(freeSubscription(), null));
+    }
+
+    @Override
     public SubscriptionFeatureAccessDto getFeatureAccess(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
@@ -81,8 +90,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     public boolean hasFeatureAccess(String email, SubscriptionFeature feature) {
         SubscriptionFeatureAccessDto access = getFeatureAccess(email);
         return switch (feature) {
+            case AI_MEAL_DRAFTS -> Boolean.TRUE.equals(access.getAiMealDrafts());
             case AI_WORKOUT_PLANNER -> Boolean.TRUE.equals(access.getAiWorkoutPlanner());
             case AI_RECIPE_GENERATION -> Boolean.TRUE.equals(access.getAiRecipeGeneration());
+            case AI_INSIGHTS -> Boolean.TRUE.equals(access.getAiInsights());
             case HEALTH_INTEGRATION -> Boolean.TRUE.equals(access.getHealthIntegration());
             case ADVANCED_ANALYTICS -> Boolean.TRUE.equals(access.getAdvancedAnalytics());
             case AD_FREE -> Boolean.TRUE.equals(access.getAdFree());
@@ -316,8 +327,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiAddonRemainingThisPeriod(0);
         dto.setAiRemainingThisPeriod(dto.getAiMonthlyQuota());
         dto.setActiveEntitlement(true);
-        dto.setAiAccessAllowed(true);
-        dto.setUpgradeRecommended(false);
+        dto.setAiAccessAllowed(false);
+        dto.setUpgradeRecommended(true);
         dto.setAutoRenew(false);
         dto.setProvider(null);
         dto.setProviderProductId(null);
@@ -355,9 +366,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionFeatureAccessDto dto = new SubscriptionFeatureAccessDto();
         dto.setPlanType(subscription.getPlanType());
         dto.setActiveEntitlement(active);
+        dto.setAiMealDrafts(featureAllowed(subscription, entity, SubscriptionFeature.AI_MEAL_DRAFTS)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiWorkoutPlanner(featureAllowed(subscription, entity, SubscriptionFeature.AI_WORKOUT_PLANNER)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiRecipeGeneration(featureAllowed(subscription, entity, SubscriptionFeature.AI_RECIPE_GENERATION)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiInsights(featureAllowed(subscription, entity, SubscriptionFeature.AI_INSIGHTS)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setHealthIntegration(featureAllowed(subscription, entity, SubscriptionFeature.HEALTH_INTEGRATION));
         dto.setAdvancedAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_ANALYTICS));
@@ -389,7 +404,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
         return switch (feature) {
-            case AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION, CUSTOM_FOOD_LIBRARY -> true;
+            case AI_MEAL_DRAFTS, AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION, AI_INSIGHTS, CUSTOM_FOOD_LIBRARY -> true;
             case HEALTH_INTEGRATION, ADVANCED_ANALYTICS -> planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
             case AD_FREE -> planType == SubscriptionPlan.PRO;
         };
@@ -632,7 +647,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (plan == SubscriptionPlan.PLUS) {
             return 15;
         }
-        return 3;
+        return 0;
     }
 
     private int safeInt(Integer value) {

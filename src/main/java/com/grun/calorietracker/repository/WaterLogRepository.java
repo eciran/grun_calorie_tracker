@@ -56,6 +56,20 @@ public interface WaterLogRepository extends JpaRepository<WaterLogEntity, Long> 
             """)
     Long sumAmountMlByUserAndLogDate(@Param("user") UserEntity user, @Param("logDate") LocalDate logDate);
 
+
+    @Query("""
+            SELECT w.logDate, COUNT(w), COALESCE(SUM(w.amountMl), 0)
+            FROM WaterLogEntity w
+            WHERE w.user = :user
+              AND w.logDate BETWEEN :startDate AND :endDate
+            GROUP BY w.logDate
+            ORDER BY w.logDate
+            """)
+    List<Object[]> aggregateDailyWaterByUser(
+            @Param("user") UserEntity user,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
     @Query(value = """
             SELECT COALESCE(MAX(daily_total), 0)
             FROM (

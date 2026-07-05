@@ -4,7 +4,6 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodServingOptionDto;
-import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.service.FoodItemService;
@@ -167,13 +166,12 @@ class FoodItemControllerTest {
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
     void getProductByBarcode_whenProductFound_returnsProduct() throws Exception {
-        FoodItemEntity foodItem = new FoodItemEntity();
-        foodItem.setId(1L);
-        foodItem.setBarcode("3017620422003");
-        foodItem.setNormalizedBarcode("3017620422003");
-        foodItem.setName("Nutella");
+        FoodProductDto product = new FoodProductDto();
+        product.setId(1L);
+        product.setBarcode("3017620422003");
+        product.setProductName("Nutella");
 
-        when(foodItemService.getOrSaveFoodItemByBarcode("3017620422003")).thenReturn(foodItem);
+        when(foodItemService.getFoodProductByBarcode("3017620422003")).thenReturn(product);
 
         mockMvc.perform(get("/api/v1/products/barcode/3017620422003"))
                 .andExpect(status().isOk())

@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.AdminAiQuotaGrantRequestDto;
 import com.grun.calorietracker.dto.AdminSubscriptionPlanFeatureUpdateRequestDto;
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
 import com.grun.calorietracker.dto.SubscriptionPlanFeatureDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
@@ -84,6 +85,26 @@ public class AdminSubscriptionController {
                 correlationId(httpRequest)
         );
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/users/{userId}/features")
+    @Operation(
+            summary = "Get a user's resolved feature access",
+            description = "Returns the same resolved feature access used by the mobile API for a selected user, including entitlement snapshot and AI quota effects."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Resolved feature access returned.",
+                    content = @Content(schema = @Schema(implementation = SubscriptionFeatureAccessDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "User could not be found.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<SubscriptionFeatureAccessDto> getUserFeatureAccess(
+            @Parameter(description = "User id.", example = "1") @PathVariable Long userId) {
+        return ResponseEntity.ok(subscriptionService.getUserFeatureAccessForAdmin(userId));
     }
 
     @PostMapping("/users/{userId}/ai-quota/reset")

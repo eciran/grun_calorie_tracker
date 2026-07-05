@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.*;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
@@ -145,6 +146,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         log.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
         applyNutritionSnapshot(log, item.getFoodItem());
         log.setMealType(mealType);
+        log.setSource(FoodLogSource.TEMPLATE);
         log.setLogDate(request.getTargetDate().atTime(item.getLogTime() == null ? LocalTime.NOON : item.getLogTime()));
         return log;
     }
@@ -231,6 +233,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         dto.setSnapshotVitaminE(log.getSnapshotVitaminE());
         dto.setSnapshotVitaminB12(log.getSnapshotVitaminB12());
         dto.setMealType(log.getMealType());
+        dto.setSource(log.getSource());
         dto.setLogDate(log.getLogDate());
         return dto;
     }

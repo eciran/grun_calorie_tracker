@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.AdminAiQuotaRefundResponseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.enums.AiRequestStatus;
+import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.service.AdminAiMealDraftService;
 import com.grun.calorietracker.service.SubscriptionService;
@@ -26,10 +27,14 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AdminAiRequestReviewDto> listRequests(AiRequestStatus status, boolean refundableOnly, Pageable pageable) {
+    public Page<AdminAiRequestReviewDto> listRequests(AiRequestType requestType, AiRequestStatus status, boolean refundableOnly, Pageable pageable) {
         Page<AiRequestHistoryEntity> requests;
         if (refundableOnly) {
             requests = aiRequestHistoryRepository.findRefundableRejectedDrafts(pageable);
+        } else if (requestType != null && status != null) {
+            requests = aiRequestHistoryRepository.findByRequestTypeAndStatusOrderByCreatedAtDesc(requestType, status, pageable);
+        } else if (requestType != null) {
+            requests = aiRequestHistoryRepository.findByRequestTypeOrderByCreatedAtDesc(requestType, pageable);
         } else if (status != null) {
             requests = aiRequestHistoryRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
         } else {
@@ -37,7 +42,6 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         }
         return requests.map(this::toReviewDto);
     }
-
     @Override
     @Transactional
     public AdminAiQuotaRefundResponseDto refundQuota(String adminEmail, Long requestId, AdminAiQuotaRefundRequestDto request) {
