@@ -2,12 +2,19 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeDto;
+import com.grun.calorietracker.dto.AdminRecipeImportBatchRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportCandidateDto;
+import com.grun.calorietracker.dto.AdminRecipeImportCandidatePageDto;
+import com.grun.calorietracker.dto.AdminRecipeImportIngredientUpdateRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportResultDto;
+import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.RecipeAllergen;
+import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.AdminRecipeService;
@@ -99,6 +106,82 @@ public class AdminRecipeController {
     }
 
 
+    @PostMapping("/imports")
+    @Operation(
+            summary = "Import recipe candidates from JSON",
+            description = "Stores recipe JSON rows as admin import candidates. They are not published or added to the public recipe library until admin review."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe import candidates stored."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<AdminRecipeImportResultDto> importRecipeCandidates(
+            @RequestBody @Valid AdminRecipeImportBatchRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminRecipeService.importRecipeCandidates(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @GetMapping("/imports")
+    @Operation(
+            summary = "List recipe import candidates",
+            description = "Returns pending/approved/rejected recipe import candidates before they are moved into the recipe review queue."
+    )
+    public ResponseEntity<AdminRecipeImportCandidatePageDto> listImportCandidates(
+            @RequestParam(required = false) RecipeImportCandidateStatus status,
+            @RequestParam(required = false) String batchId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(adminRecipeService.listImportCandidates(status, batchId, page, size));
+    }
+
+
+    @PatchMapping("/imports/{id}/ingredients/{ingredientIndex}")
+    @Operation(summary = "Map recipe import ingredient", description = "Assigns a local foodItemId to one unresolved import candidate ingredient.")
+    public ResponseEntity<AdminRecipeImportCandidateDto> updateImportCandidateIngredient(
+            @PathVariable Long id,
+            @PathVariable int ingredientIndex,
+            @RequestBody @Valid AdminRecipeImportIngredientUpdateRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminRecipeService.updateImportCandidateIngredient(
+                id,
+                ingredientIndex,
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+    @PostMapping("/imports/{id}/approve")
+    @Operation(
+            summary = "Approve recipe import candidate",
+            description = "Moves a pending import candidate into the normal recipe review queue. Public publication still requires final recipe approval."
+    )
+    public ResponseEntity<AdminRecipeDto> approveImportCandidate(
+            @PathVariable Long id,
+            @RequestBody(required = false) @Valid AdminRecipeImportReviewRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminRecipeService.approveImportCandidate(
+                id,
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @PostMapping("/imports/{id}/reject")
+    @Operation(summary = "Reject recipe import candidate", description = "Rejects a pending import candidate without creating a recipe.")
+    public ResponseEntity<AdminRecipeImportCandidateDto> rejectImportCandidate(
+            @PathVariable Long id,
+            @RequestBody(required = false) @Valid AdminRecipeImportReviewRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminRecipeService.rejectImportCandidate(
+                id,
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @PostMapping
     @Operation(
             summary = "Create recipe from admin panel",
