@@ -8,6 +8,7 @@ public enum FoodLogSource {
     TEMPLATE,
     AI_PHOTO,
     AI_VOICE,
+    AI_ESTIMATE,
     QUICK_ADD,
     RECIPE
 }

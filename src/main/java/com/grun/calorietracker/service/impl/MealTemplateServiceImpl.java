@@ -208,8 +208,16 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     private FoodLogsDto toFoodLogDto(FoodLogsEntity log) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(log.getId());
-        dto.setFoodItemId(log.getFoodItem().getId());
-        dto.setFoodName(log.getFoodItem().getName());
+        if (log.getFoodItem() != null) {
+            dto.setFoodItemId(log.getFoodItem().getId());
+            dto.setFoodName(log.getFoodItem().getName());
+        } else {
+            dto.setFoodName(log.getDisplayName());
+        }
+        dto.setDisplayName(log.getDisplayName());
+        dto.setEstimated(Boolean.TRUE.equals(log.getEstimated()));
+        dto.setAiRequestId(log.getAiRequestId());
+        dto.setAiConfidence(log.getAiConfidence());
         dto.setPortionSize(log.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(log.getPortionUnit()));
         dto.setNormalizedPortionGrams(log.getNormalizedPortionGrams());

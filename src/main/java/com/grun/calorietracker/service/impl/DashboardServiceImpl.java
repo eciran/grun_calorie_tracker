@@ -204,8 +204,16 @@ public class DashboardServiceImpl implements DashboardService {
     private FoodLogsDto toFoodLogDto(FoodLogsEntity entity) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(entity.getId());
-        dto.setFoodItemId(entity.getFoodItem().getId());
-        dto.setFoodName(entity.getFoodItem().getName());
+        if (entity.getFoodItem() != null) {
+            dto.setFoodItemId(entity.getFoodItem().getId());
+            dto.setFoodName(entity.getFoodItem().getName());
+        } else {
+            dto.setFoodName(entity.getDisplayName());
+        }
+        dto.setDisplayName(entity.getDisplayName());
+        dto.setEstimated(Boolean.TRUE.equals(entity.getEstimated()));
+        dto.setAiRequestId(entity.getAiRequestId());
+        dto.setAiConfidence(entity.getAiConfidence());
         dto.setPortionSize(entity.getPortionSize());
         dto.setPortionUnit(entity.getPortionUnit());
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());

@@ -14,6 +14,7 @@ import java.util.List;
 // Service interface for managing food logs
 public interface FoodLogsService {
         FoodLogsDto addFoodLog(FoodLogsDto dto, String user);
+        FoodLogsDto addAiEstimateFoodLog(FoodLogsDto dto, String user);
         List<FoodLogsDto> copyMeal(String email, FoodLogCopyMealRequestDto request);
         FoodLogsDto updateFoodLog(Long id, FoodLogsDto dto, String email);
         List<FoodLogsDto> getFoodLogs(String email, String date, int page, int size);

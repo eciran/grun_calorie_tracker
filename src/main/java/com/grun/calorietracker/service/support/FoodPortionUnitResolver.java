@@ -9,19 +9,32 @@ import java.util.Locale;
 
 public final class FoodPortionUnitResolver {
 
-    private static final List<FoodPortionUnit> LIQUID_UNITS = List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
-    private static final List<FoodPortionUnit> COUNTABLE_UNITS = List.of(FoodPortionUnit.PIECE, FoodPortionUnit.SLICE, FoodPortionUnit.GRAM, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
-    private static final List<FoodPortionUnit> DEFAULT_SOLID_UNITS = List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SLICE, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> LIQUID_UNITS = List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> SPOONABLE_UNITS = List.of(FoodPortionUnit.GRAM, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> COUNTABLE_UNITS = List.of(FoodPortionUnit.PIECE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> SLICEABLE_UNITS = List.of(FoodPortionUnit.SLICE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING);
+    private static final List<FoodPortionUnit> DEFAULT_SOLID_UNITS = List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SERVING);
 
     private static final List<String> LIQUID_KEYWORDS = List.of(
             "water", "milk", "juice", "drink", "beverage", "smoothie", "shake", "soda", "cola",
-            "tea", "coffee", "soup", "broth", "sauce", "oil", "vinegar", "ayran", "kefir",
-            "sut", "sut", "su", "meyve suyu", "corba", "corba", "icecek", "icecek"
+            "tea", "coffee", "soup", "broth", "ayran", "kefir", "sut", "su", "meyve suyu",
+            "corba", "icecek"
+    );
+
+    private static final List<String> SPOONABLE_KEYWORDS = List.of(
+            "oil", "olive oil", "vinegar", "sauce", "honey", "jam", "peanut butter", "spread",
+            "tahini", "molasses", "syrup", "paste", "yogurt", "yoghurt", "yogurt",
+            "zeytinyagi", "zeytin yagi", "bal", "recel", "pekmez", "tahin", "salca", "sos"
     );
 
     private static final List<String> COUNTABLE_KEYWORDS = List.of(
-            "egg", "eggs", "banana", "apple", "orange", "bar", "biscuit", "cookie", "slice",
+            "egg", "eggs", "banana", "apple", "orange", "bar", "biscuit", "cookie",
             "adet", "yumurta", "muz", "elma", "portakal"
+    );
+
+    private static final List<String> SLICEABLE_KEYWORDS = List.of(
+            "bread", "toast", "cheese", "ham", "salami", "cake", "pizza", "slice",
+            "ekmek", "peynir", "dilim", "pasta", "borek"
     );
 
     private FoodPortionUnitResolver() {
@@ -31,8 +44,14 @@ public final class FoodPortionUnitResolver {
         if (isLiquid(product)) {
             return LIQUID_UNITS;
         }
+        if (isSpoonable(product)) {
+            return SPOONABLE_UNITS;
+        }
         if (isCountable(product)) {
             return COUNTABLE_UNITS;
+        }
+        if (isSliceable(product)) {
+            return SLICEABLE_UNITS;
         }
         return DEFAULT_SOLID_UNITS;
     }
@@ -61,6 +80,20 @@ public final class FoodPortionUnitResolver {
         }
         String text = searchableText(product);
         return containsAny(text, COUNTABLE_KEYWORDS);
+    }
+
+    private static boolean isSpoonable(FoodItemEntity product) {
+        String text = searchableText(product);
+        return containsAny(text, SPOONABLE_KEYWORDS);
+    }
+
+    private static boolean isSliceable(FoodItemEntity product) {
+        String servingUnit = normalize(product == null ? null : product.getServingUnit());
+        if (servingUnit.equals("slice") || servingUnit.equals("slices") || servingUnit.equals("dilim")) {
+            return true;
+        }
+        String text = searchableText(product);
+        return containsAny(text, SLICEABLE_KEYWORDS);
     }
 
     private static String searchableText(FoodItemEntity product) {

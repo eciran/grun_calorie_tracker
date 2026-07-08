@@ -31,6 +31,7 @@ import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiWorkoutPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,6 +67,8 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         providerConfigurationValidator.validateConfiguredForDraft();
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_WORKOUT_PLANNER);
         UserEntity user = getUser(email);
+        request.setUserContext(toUserContext(user));
+        request.setExerciseCatalogContext(toExerciseCatalogContext(request));
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
@@ -203,12 +206,35 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         for (AiWorkoutPlanDayDto day : response.getDays()) {
             validateDay(day);
         }
+        normalizeQuality(response);
         if (response.getWarnings() == null) {
             response.setWarnings(List.of());
         }
         return response;
     }
 
+    private void normalizeQuality(AiWorkoutPlanDraftResponseDto response) {
+        response.setSchemaVersion("ai_response_v2");
+        if (response.getReviewReasons() == null) {
+            response.setReviewReasons(List.of());
+        }
+        if (response.getConfidence() == null) {
+            response.setConfidence(hasReviewRequiredExercise(response) ? 0.7 : 0.85);
+        }
+        if (response.getQualityScore() == null) {
+            response.setQualityScore((int) Math.round(response.getConfidence() * 100));
+        }
+        if (response.getEstimatedUncertainty() == null || response.getEstimatedUncertainty().isBlank()) {
+            response.setEstimatedUncertainty(response.getConfidence() < 0.75 ? "MEDIUM" : "LOW");
+        }
+    }
+
+    private boolean hasReviewRequiredExercise(AiWorkoutPlanDraftResponseDto response) {
+        return response.getDays() != null && response.getDays().stream()
+                .filter(day -> day.getExercises() != null)
+                .flatMap(day -> day.getExercises().stream())
+                .anyMatch(exercise -> Boolean.TRUE.equals(exercise.getReviewRequired()) || exercise.getExerciseItemId() == null);
+    }
     private void validateDay(AiWorkoutPlanDayDto day) {
         if (day == null || day.getDayLabel() == null || day.getDayLabel().isBlank()) {
             throw new IllegalArgumentException("AI workout provider returned a day without a label.");
@@ -284,6 +310,40 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
+    private Map<String, Object> toUserContext(UserEntity user) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("age", user.getAge());
+        context.put("gender", user.getGender());
+        context.put("heightCm", user.getHeight());
+        context.put("weightKg", user.getWeight());
+        context.put("bodyFatPercentage", user.getBodyFatPercentage());
+        context.put("preferredLanguage", user.getPreferredLanguage());
+        return context;
+    }
+
+    private List<Map<String, Object>> toExerciseCatalogContext(AiWorkoutPlanDraftRequestDto request) {
+        List<Long> excluded = request.getExcludedExerciseItemIds() == null ? List.of() : request.getExcludedExerciseItemIds();
+        return exerciseItemRepository.findAll(PageRequest.of(0, 80)).getContent().stream()
+                .filter(item -> Boolean.TRUE.equals(item.getActive()))
+                .filter(item -> Boolean.TRUE.equals(item.getAiEligible()))
+                .filter(item -> item.getId() == null || !excluded.contains(item.getId()))
+                .limit(30)
+                .map(this::toExerciseCatalogItem)
+                .toList();
+    }
+
+    private Map<String, Object> toExerciseCatalogItem(ExerciseItemEntity item) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("id", item.getId());
+        context.put("name", item.getName());
+        context.put("primaryMuscleGroup", item.getPrimaryMuscleGroup());
+        context.put("equipment", item.getEquipment());
+        context.put("difficulty", item.getDifficulty());
+        context.put("defaultMeasurementType", item.getDefaultMeasurementType());
+        context.put("allowedMeasurementTypes", item.getAllowedMeasurementTypes());
+        context.put("safetyNotes", item.getSafetyNotes());
+        return context;
+    }
     private Map<String, Object> toPrivacySafeInputPayload(AiWorkoutPlanDraftRequestDto request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("requestType", AiRequestType.AI_WORKOUT_PLAN);

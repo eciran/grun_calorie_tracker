@@ -28,6 +28,14 @@ public class FoodLogsEntity {
     @JoinColumn(name = "food_id")
     private FoodItemEntity foodItem;
 
+    private String displayName;
+
+    private Boolean estimated = false;
+
+    private Long aiRequestId;
+
+    private Double aiConfidence;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "serving_option_id")
     private FoodItemServingOptionEntity servingOption;

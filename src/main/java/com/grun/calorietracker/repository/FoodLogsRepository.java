@@ -73,9 +73,9 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
     @Query(value = """
             SELECT CAST(f.log_date AS DATE) AS log_date, f.meal_type
             FROM food_logs f
-            JOIN food_items fi ON fi.id = f.food_id
+            LEFT JOIN food_items fi ON fi.id = f.food_id
             WHERE f.user_id = :userId
-              AND (fi.verification_status IS NULL OR fi.verification_status <> :rejectedStatus)
+              AND (f.food_id IS NULL OR fi.verification_status IS NULL OR fi.verification_status <> :rejectedStatus)
             GROUP BY CAST(f.log_date AS DATE), f.meal_type
             ORDER BY MAX(f.log_date) DESC, f.meal_type
             """, nativeQuery = true)
@@ -134,7 +134,7 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
            SUM(f.snapshot_vitamin_e) as vitaminE,
            SUM(f.snapshot_vitamin_b12) as vitaminB12
     FROM food_logs f
-    JOIN food_items fi ON f.food_id = fi.id
+    LEFT JOIN food_items fi ON f.food_id = fi.id
     WHERE f.user_id = :userId
       AND f.log_date BETWEEN :start AND :end
     GROUP BY CAST(f.log_date AS DATE)
@@ -167,7 +167,7 @@ SELECT
     SUM(f.snapshot_vitamin_e),
     SUM(f.snapshot_vitamin_b12)
 FROM food_logs f
-JOIN food_items fi ON f.food_id = fi.id
+LEFT JOIN food_items fi ON f.food_id = fi.id
 WHERE f.user_id = :userId
   AND f.log_date >= :start
   AND f.log_date < :end
@@ -203,4 +203,5 @@ WHERE f.user_id = :userId
 
     long deleteByUser(UserEntity user);
 }
+
 

@@ -99,7 +99,7 @@ public class AiInsightServiceImpl implements AiInsightService {
             AiInsightResponseDto response = requestType == AiRequestType.AI_DAILY_INSIGHT
                     ? activeProvider().createDailyInsight(request)
                     : activeProvider().createWeeklyInsight(request);
-            response = normalize(response, requestType);
+            response = normalize(response, requestType, request);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
@@ -122,7 +122,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
     }
 
-    private AiInsightResponseDto normalize(AiInsightResponseDto response, AiRequestType requestType) {
+    private AiInsightResponseDto normalize(AiInsightResponseDto response, AiRequestType requestType, AiInsightRequestDto request) {
         if (response == null) {
             throw new IllegalArgumentException("AI insight provider returned an empty response.");
         }
@@ -145,9 +145,288 @@ public class AiInsightServiceImpl implements AiInsightService {
         if (response.getRecommendedActions() == null) {
             response.setRecommendedActions(List.of());
         }
+        normalizeQuality(response, requestType);
+        enrichStructuredInsight(response, requestType, request);
         return response;
     }
 
+    private void normalizeQuality(AiInsightResponseDto response, AiRequestType requestType) {
+        response.setSchemaVersion("ai_response_v3");
+        if (response.getReviewReasons() == null) {
+            response.setReviewReasons(List.of());
+        }
+        if (response.getConfidence() == null) {
+            response.setConfidence(0.8);
+        }
+        if (response.getQualityScore() == null) {
+            response.setQualityScore((int) Math.round(response.getConfidence() * 100));
+        }
+        if (response.getPriority() == null || response.getPriority().isBlank()) {
+            response.setPriority("MEDIUM");
+        }
+        if (response.getCategory() == null || response.getCategory().isBlank()) {
+            response.setCategory("GENERAL");
+        }
+        if (response.getActionType() == null || response.getActionType().isBlank()) {
+            response.setActionType("NONE");
+        }
+        if (response.getCtaLabel() == null || response.getCtaLabel().isBlank()) {
+            response.setCtaLabel(requestType == AiRequestType.AI_DAILY_INSIGHT ? "Review today" : "Review week");
+        }
+        if (response.getCtaTarget() == null || response.getCtaTarget().isBlank()) {
+            response.setCtaTarget(requestType == AiRequestType.AI_DAILY_INSIGHT ? "daily-summary" : "weekly-summary");
+        }
+    }
+    private void enrichStructuredInsight(AiInsightResponseDto response, AiRequestType requestType, AiInsightRequestDto request) {
+        Map<String, Object> context = contextMap(request.getContext());
+        if (response.getDataCoverage() == null) {
+            response.setDataCoverage(new AiInsightResponseDto.DataCoverage());
+        }
+        AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
+        if (coverage.getSignalsUsed() == null) {
+            coverage.setSignalsUsed(new java.util.ArrayList<>());
+        }
+        if (coverage.getMissingSignals() == null) {
+            coverage.setMissingSignals(new java.util.ArrayList<>());
+        }
+        if (response.getKeyFindings() == null) {
+            response.setKeyFindings(new java.util.ArrayList<>());
+        }
+        if (response.getPersonalizedActions() == null) {
+            response.setPersonalizedActions(new java.util.ArrayList<>());
+        }
+
+        if (requestType == AiRequestType.AI_DAILY_INSIGHT) {
+            enrichDailyInsight(response, context);
+        } else {
+            enrichWeeklyInsight(response, context);
+        }
+        if (coverage.getConfidenceLabel() == null || coverage.getConfidenceLabel().isBlank()) {
+            coverage.setConfidenceLabel(resolveConfidenceLabel(response.getConfidence(), coverage.getMissingSignals().size()));
+        }
+        if (response.getDataQualityNote() == null || response.getDataQualityNote().isBlank()) {
+            response.setDataQualityNote(buildDataQualityNote(coverage));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> contextMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return java.util.Collections.emptyMap();
+    }
+    private void enrichDailyInsight(AiInsightResponseDto response, Map<String, Object> context) {
+        AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
+        coverage.setDaysAnalyzed(defaultInt(coverage.getDaysAnalyzed(), 1));
+        coverage.setExerciseLogged(defaultBoolean(coverage.getExerciseLogged(), bool(context.get("hasExerciseLogs"))));
+        coverage.setExerciseMinutes(defaultInt(coverage.getExerciseMinutes(), intValue(context.get("totalExerciseMinutes"))));
+        coverage.setMealsLogged(defaultInt(coverage.getMealsLogged(), Boolean.TRUE.equals(bool(context.get("hasFoodLogs"))) ? 1 : 0));
+        coverage.setDiaryDays(defaultInt(coverage.getDiaryDays(), Boolean.TRUE.equals(bool(context.get("hasFoodLogs"))) ? 1 : 0));
+        addSignal(coverage, "calories");
+        addSignal(coverage, "protein");
+        if (Boolean.TRUE.equals(coverage.getExerciseLogged())) {
+            addSignal(coverage, "exercise");
+        } else {
+            addMissingSignal(coverage, "exercise");
+        }
+        addMissingSignal(coverage, "water");
+        addMissingSignal(coverage, "sleep");
+
+        Double consumedCalories = doubleValue(context.get("consumedCalories"));
+        Double targetCalories = doubleValue(context.get("targetCalories"));
+        Double proteinProgress = doubleValue(context.get("proteinProgressPercent"));
+        Integer qualityScore = intValue(context.get("nutritionQualityScore"));
+        Integer streakDays = intValue(context.get("currentLogStreakDays"));
+
+        if (response.getKeyFindings().isEmpty()) {
+            addFinding(response, "trend", "Calorie control", calorieMessage(consumedCalories, targetCalories), calorieEvidence(consumedCalories, targetCalories), "Shows how close today was to the user's target.", "LOW");
+            addFinding(response, "pattern", "Protein balance", proteinMessage(proteinProgress), proteinProgress == null ? "Protein progress is missing." : "Protein progress: " + proteinProgress.intValue() + "%.", "Helps decide whether tomorrow should push protein or balance portions.", proteinProgress != null && proteinProgress > 125 ? "MEDIUM" : "LOW");
+            if (qualityScore != null) {
+                addFinding(response, "quality", "Nutrition quality", "Nutrition quality scored " + qualityScore + "/100.", "Quality score: " + qualityScore + "/100.", "Points the next improvement beyond calories.", qualityScore < 65 ? "MEDIUM" : "LOW");
+            }
+            if (streakDays != null && streakDays > 0) {
+                addFinding(response, "consistency", "Logging consistency", "The current logging streak is " + streakDays + " day(s).", "Current streak: " + streakDays + " day(s).", "Consistency improves future coaching accuracy.", "LOW");
+            }
+        }
+        if (response.getPersonalizedActions().isEmpty()) {
+            addAction(response, 1, nextFoodAction(proteinProgress, qualityScore), "This targets the biggest visible opportunity from today's nutrition data.", "Better balance tomorrow without overcorrecting.", "LOW", "nutritionQualityScore");
+            addAction(response, 2, "Keep tomorrow's calorie intake close to target rather than aggressively cutting.", "Today is already close enough that a large correction would add noise.", "More stable weekly progress.", "LOW", "consumedCalories");
+        }
+        if (response.getTomorrowFocus() == null || response.getTomorrowFocus().isBlank()) {
+            response.setTomorrowFocus(nextFoodAction(proteinProgress, qualityScore));
+        }
+        if (response.getWatchOut() == null || response.getWatchOut().isBlank()) {
+            response.setWatchOut(proteinProgress != null && proteinProgress > 125
+                    ? "Protein is already high; tomorrow should focus on balance and portions, not simply adding more protein."
+                    : "Do not judge the day from one metric only; use calories, protein, quality score and activity together.");
+        }
+    }
+
+    private void enrichWeeklyInsight(AiInsightResponseDto response, Map<String, Object> context) {
+        AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
+        Integer days = intValue(context.get("days"));
+        Integer diaryDays = intValue(context.get("diaryDays"));
+        Double exerciseMinutes = doubleValue(context.get("totalExerciseMinutes"));
+        coverage.setDaysAnalyzed(defaultInt(coverage.getDaysAnalyzed(), days == null ? 7 : days));
+        coverage.setDiaryDays(defaultInt(coverage.getDiaryDays(), diaryDays));
+        coverage.setExerciseLogged(defaultBoolean(coverage.getExerciseLogged(), exerciseMinutes != null && exerciseMinutes > 0));
+        coverage.setExerciseMinutes(defaultInt(coverage.getExerciseMinutes(), exerciseMinutes == null ? null : exerciseMinutes.intValue()));
+        addSignal(coverage, "calorie trend");
+        addSignal(coverage, "logging consistency");
+        if (Boolean.TRUE.equals(coverage.getExerciseLogged())) {
+            addSignal(coverage, "exercise trend");
+        } else {
+            addMissingSignal(coverage, "exercise trend");
+        }
+        addMissingSignal(coverage, "sleep");
+        addMissingSignal(coverage, "water");
+
+        if (response.getKeyFindings().isEmpty()) {
+            addFinding(response, "pattern", "Logging coverage", "Logged diary data on " + formatInt(diaryDays) + " of " + formatInt(days) + " day(s).", "Diary days: " + formatInt(diaryDays) + "/" + formatInt(days) + ".", "More logged days make weekly coaching more reliable.", coverage.getDiaryDays() != null && coverage.getDaysAnalyzed() != null && coverage.getDiaryDays() < coverage.getDaysAnalyzed() ? "MEDIUM" : "LOW");
+            addFinding(response, "trend", "Exercise volume", "Exercise volume for the period was " + formatDouble(exerciseMinutes) + " minute(s).", "Total exercise minutes: " + formatDouble(exerciseMinutes) + ".", "Shows whether training support is present alongside nutrition.", exerciseMinutes != null && exerciseMinutes > 0 ? "LOW" : "MEDIUM");
+        }
+        if (response.getPersonalizedActions().isEmpty()) {
+            addAction(response, 1, "Choose one repeatable nutrition habit for the next 7 days instead of changing everything at once.", "Weekly trends improve faster when the target is narrow and measurable.", "Better adherence and clearer signal next week.", "LOW", "diaryDays");
+            addAction(response, 2, "Keep logging consistent on the days that usually get missed.", "Missing days reduce confidence and make AI coaching less personal.", "Higher quality weekly analysis.", "LOW", "loggingConsistency");
+        }
+        if (response.getTomorrowFocus() == null || response.getTomorrowFocus().isBlank()) {
+            response.setTomorrowFocus("Start the next period with one simple, trackable habit rather than a full reset.");
+        }
+        if (response.getWatchOut() == null || response.getWatchOut().isBlank()) {
+            response.setWatchOut("Do not overreact to one high or low day; weekly patterns matter more than isolated entries.");
+        }
+    }
+
+    private void addFinding(AiInsightResponseDto response, String type, String label, String message, String evidence, String impact, String severity) {
+        AiInsightResponseDto.KeyFinding finding = new AiInsightResponseDto.KeyFinding();
+        finding.setType(type);
+        finding.setLabel(label);
+        finding.setMessage(message);
+        finding.setEvidence(evidence);
+        finding.setImpact(impact);
+        finding.setSeverity(severity);
+        response.getKeyFindings().add(finding);
+    }
+
+    private void addAction(AiInsightResponseDto response, int priority, String action, String reason, String expectedImpact, String effort, String linkedMetric) {
+        AiInsightResponseDto.PersonalizedAction item = new AiInsightResponseDto.PersonalizedAction();
+        item.setPriority(priority);
+        item.setAction(action);
+        item.setReason(reason);
+        item.setExpectedImpact(expectedImpact);
+        item.setEffort(effort);
+        item.setLinkedMetric(linkedMetric);
+        response.getPersonalizedActions().add(item);
+    }
+
+    private String calorieMessage(Double consumed, Double target) {
+        if (consumed == null || target == null || target <= 0) {
+            return "Calorie target comparison is limited because target or consumed calories are missing.";
+        }
+        double difference = consumed - target;
+        double percent = Math.abs(difference) / target * 100.0;
+        if (percent <= 5.0) {
+            return "Calories were very close to target, which suggests controlled intake today.";
+        }
+        return difference > 0 ? "Calories were above target, so tomorrow should avoid overcorrecting and focus on portions." : "Calories were below target, so tomorrow should avoid unnecessary restriction.";
+    }
+
+    private String calorieEvidence(Double consumed, Double target) {
+        if (consumed == null || target == null) {
+            return "Calorie evidence unavailable.";
+        }
+        return "Consumed " + round(consumed) + " kcal vs target " + round(target) + " kcal.";
+    }
+
+    private String proteinMessage(Double proteinProgress) {
+        if (proteinProgress == null) {
+            return "Protein progress is not available for this insight.";
+        }
+        if (proteinProgress >= 120) {
+            return "Protein was strong, so the next improvement is likely meal balance rather than more protein.";
+        }
+        if (proteinProgress < 80) {
+            return "Protein appears below target, so tomorrow should include a clear protein anchor meal.";
+        }
+        return "Protein was in a useful range for today.";
+    }
+
+    private String nextFoodAction(Double proteinProgress, Integer qualityScore) {
+        if (qualityScore != null && qualityScore < 70) {
+            return "Add one fiber-rich food tomorrow, such as vegetables, legumes, oats, or fruit.";
+        }
+        if (proteinProgress != null && proteinProgress < 90) {
+            return "Anchor one meal tomorrow around 25-30g protein instead of spreading protein randomly.";
+        }
+        if (proteinProgress != null && proteinProgress > 125) {
+            return "Keep protein moderate tomorrow and focus on fiber, hydration, and portion balance.";
+        }
+        return "Repeat the pattern that worked today, then improve one small quality detail tomorrow.";
+    }
+
+    private String buildDataQualityNote(AiInsightResponseDto.DataCoverage coverage) {
+        if (coverage.getMissingSignals() == null || coverage.getMissingSignals().isEmpty()) {
+            return "This insight used the available logged data for the selected period.";
+        }
+        return "This insight used logged app data, but is limited by missing signals: " + String.join(", ", coverage.getMissingSignals()) + ".";
+    }
+
+    private String resolveConfidenceLabel(Double confidence, int missingSignalCount) {
+        if (confidence != null && confidence >= 0.85 && missingSignalCount <= 1) {
+            return "HIGH";
+        }
+        if (confidence != null && confidence < 0.6 || missingSignalCount >= 3) {
+            return "LOW";
+        }
+        return "MEDIUM";
+    }
+
+    private void addSignal(AiInsightResponseDto.DataCoverage coverage, String value) {
+        if (!coverage.getSignalsUsed().contains(value)) {
+            coverage.getSignalsUsed().add(value);
+        }
+    }
+
+    private void addMissingSignal(AiInsightResponseDto.DataCoverage coverage, String value) {
+        if (!coverage.getMissingSignals().contains(value)) {
+            coverage.getMissingSignals().add(value);
+        }
+    }
+
+    private Integer defaultInt(Integer current, Integer fallback) {
+        return current == null ? fallback : current;
+    }
+
+    private Boolean defaultBoolean(Boolean current, Boolean fallback) {
+        return current == null ? fallback : current;
+    }
+
+    private Boolean bool(Object value) {
+        return value instanceof Boolean booleanValue ? booleanValue : null;
+    }
+
+    private Integer intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return null;
+    }
+
+    private Double doubleValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        return null;
+    }
+
+    private String formatInt(Integer value) {
+        return value == null ? "unknown" : value.toString();
+    }
+
+    private String formatDouble(Double value) {
+        return value == null ? "unknown" : String.valueOf(round(value));
+    }
     private Map<String, Object> toDailyContext(DailySummaryDto summary) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("date", summary.getSummaryDate());
@@ -268,5 +547,3 @@ public class AiInsightServiceImpl implements AiInsightService {
         return Math.round(value * 100.0) / 100.0;
     }
 }
-
-

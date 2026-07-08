@@ -201,6 +201,51 @@ export type AdminRecipe = {
   ingredients?: RecipeIngredient[];
 };
 
+
+export type AdminRecipeImportIngredient = {
+  index?: number;
+  foodItemId?: number;
+  ingredientName?: string;
+  imageUrl?: string;
+  portionSize?: number;
+  portionUnit?: string;
+  estimatedGrams?: number;
+};
+export type AdminRecipeImportCandidate = {
+  id?: number;
+  batchId?: string;
+  sourceKey?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  sourceRevisionUrl?: string;
+  license?: string;
+  recommendedImportStatus?: string;
+  status?: string;
+  recipeName?: string;
+  mealType?: string;
+  marketRegion?: string;
+  language?: string;
+  imageUrl?: string;
+  ingredientCount?: number;
+  unresolvedIngredientCount?: number;
+  validationIssues?: string;
+  createdRecipeId?: number;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  ingredients?: AdminRecipeImportIngredient[];
+};
+
+export type AdminRecipeImportResult = {
+  batchId?: string;
+  totalCandidates?: number;
+  createdCandidates?: number;
+  skippedDuplicates?: number;
+  failedCandidates?: number;
+  candidates?: AdminRecipeImportCandidate[];
+};
 export type FeatureMatrixItem = {
   planType?: string;
   feature?: string;
