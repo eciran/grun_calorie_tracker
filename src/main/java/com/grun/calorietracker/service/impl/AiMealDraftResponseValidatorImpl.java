@@ -37,6 +37,7 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
             response.setSuggestedMealType(response.getSuggestedMealType().trim().toUpperCase());
         }
         validateItems(response.getItems());
+        normalizeQuality(response);
         return response;
     }
 
@@ -66,8 +67,56 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
         if (item.getUnit() != null) {
             item.setUnit(item.getUnit().trim());
         }
+        if (item.getPortionEstimateMethod() == null || item.getPortionEstimateMethod().isBlank()) {
+            item.setPortionEstimateMethod("UNKNOWN");
+        }
+        if (item.getNeedsUserPortionConfirmation() == null) {
+            item.setNeedsUserPortionConfirmation(item.getQuantity() == null || item.getUnit() == null || item.getUnit().isBlank() || requiresReview(item));
+        }
+        if (item.getAlternativeMatchNames() == null) {
+            item.setAlternativeMatchNames(List.of());
+        }
     }
 
+
+    private void normalizeQuality(AiMealDraftResponseDto response) {
+        response.setSchemaVersion("ai_response_v2");
+        if (response.getReviewReasons() == null) {
+            response.setReviewReasons(List.of());
+        }
+        if (response.getConfidence() == null) {
+            response.setConfidence(minConfidence(response.getItems()));
+        }
+        if (response.getQualityScore() == null && response.getConfidence() != null) {
+            response.setQualityScore((int) Math.round(response.getConfidence() * 100));
+        }
+        if (response.getEstimatedUncertainty() == null || response.getEstimatedUncertainty().isBlank()) {
+            response.setEstimatedUncertainty(resolveUncertainty(response.getConfidence()));
+        }
+    }
+
+    private Double minConfidence(List<AiMealDraftItemDto> items) {
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        return items.stream()
+                .map(AiMealDraftItemDto::getConfidence)
+                .filter(value -> value != null)
+                .min(Double::compareTo)
+                .orElse(null);
+    }
+
+    private String resolveUncertainty(Double confidence) {
+        if (confidence == null || confidence < 0.55) {
+            return "HIGH";
+        }
+        if (confidence < 0.8) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }    private boolean requiresReview(AiMealDraftItemDto item) {
+        return Boolean.TRUE.equals(item.getReviewRequired()) || item.getConfidence() == null || item.getConfidence() < 0.75;
+    }
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }

@@ -139,12 +139,49 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
         validateSuggestedRecipe(response);
         matchSuggestedIngredients(response, user);
+        normalizeQuality(response);
         if (response.getWarnings() == null) {
             response.setWarnings(List.of());
         }
         return response;
     }
 
+    private void normalizeQuality(AiRecipeDraftResponseDto response) {
+        response.setSchemaVersion("ai_response_v2");
+        if (response.getReviewReasons() == null) {
+            response.setReviewReasons(List.of());
+        }
+        if (response.getConfidence() == null) {
+            response.setConfidence(minIngredientConfidence(response));
+        }
+        if (response.getQualityScore() == null && response.getConfidence() != null) {
+            response.setQualityScore((int) Math.round(response.getConfidence() * 100));
+        }
+        if (response.getEstimatedUncertainty() == null || response.getEstimatedUncertainty().isBlank()) {
+            response.setEstimatedUncertainty(resolveUncertainty(response.getConfidence()));
+        }
+    }
+
+    private Double minIngredientConfidence(AiRecipeDraftResponseDto response) {
+        if (response.getSuggestedIngredients() == null || response.getSuggestedIngredients().isEmpty()) {
+            return null;
+        }
+        return response.getSuggestedIngredients().stream()
+                .map(AiRecipeIngredientSuggestionDto::getConfidence)
+                .filter(value -> value != null)
+                .min(Double::compareTo)
+                .orElse(null);
+    }
+
+    private String resolveUncertainty(Double confidence) {
+        if (confidence == null || confidence < 0.55) {
+            return "HIGH";
+        }
+        if (confidence < 0.8) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }
     private void validateSuggestedRecipe(AiRecipeDraftResponseDto response) {
         var recipe = response.getSuggestedRecipe();
         if (recipe.getName() == null || recipe.getName().isBlank()) {

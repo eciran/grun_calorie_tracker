@@ -102,10 +102,54 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         response.setStatus(AiRequestStatus.DRAFT_CREATED);
         response.setTitle(title);
         response.setSummary(summary);
-        response.setHighlights(List.of("Protein, calories, exercise, water and step data can be interpreted here."));
+        response.setHighlights(List.of("Calories, protein, exercise and consistency were reviewed together.", "Data coverage is included so the user can see what was analyzed."));
         response.setRecommendedActions(List.of("Keep changes small and review the data again after several days."));
         response.setWarnings(List.of("AI insights are guidance only and should not replace medical advice."));
+        response.setTomorrowFocus("Improve one measurable habit tomorrow instead of changing everything at once.");
+        response.setWatchOut("Avoid overreacting to one metric; use the full pattern before changing the plan.");
+        response.setDataQualityNote("LOG provider sample uses app-scoped context and marks missing signals explicitly.");
+        AiInsightResponseDto.DataCoverage coverage = new AiInsightResponseDto.DataCoverage();
+        coverage.setDaysAnalyzed(type == AiRequestType.AI_WEEKLY_INSIGHT ? 7 : 1);
+        coverage.setMealsLogged(type == AiRequestType.AI_WEEKLY_INSIGHT ? null : 1);
+        coverage.setExerciseLogged(true);
+        coverage.setExerciseMinutes(20);
+        coverage.setDiaryDays(type == AiRequestType.AI_WEEKLY_INSIGHT ? 5 : 1);
+        coverage.setSignalsUsed(List.of("calories", "protein", "exercise", "logging consistency"));
+        coverage.setMissingSignals(List.of("water", "sleep"));
+        coverage.setConfidenceLabel("MEDIUM");
+        response.setDataCoverage(coverage);
+        response.setKeyFindings(List.of(
+                finding("trend", "Calorie control", "Calories were reviewed against the user's target instead of repeated as a raw number.", "Target and consumed calories from app summary.", "Shows whether tomorrow needs adjustment or stability.", "LOW"),
+                finding("pattern", "Next improvement", "The next recommendation should focus on the weakest visible signal, not generic motivation.", "Nutrition and activity context from the app.", "Makes coaching feel personalized.", "LOW")
+        ));
+        response.setPersonalizedActions(List.of(
+                action(1, "Choose one small nutrition improvement for tomorrow.", "Small actions are easier to follow and easier to measure.", "Clearer progress signal tomorrow.", "LOW", "nutritionQualityScore"),
+                action(2, "Keep logging complete enough for the next insight.", "Missing logs reduce coaching confidence.", "More personal weekly analysis.", "LOW", "loggingConsistency")
+        ));
         return response;
+    }
+
+
+    private AiInsightResponseDto.KeyFinding finding(String type, String label, String message, String evidence, String impact, String severity) {
+        AiInsightResponseDto.KeyFinding finding = new AiInsightResponseDto.KeyFinding();
+        finding.setType(type);
+        finding.setLabel(label);
+        finding.setMessage(message);
+        finding.setEvidence(evidence);
+        finding.setImpact(impact);
+        finding.setSeverity(severity);
+        return finding;
+    }
+
+    private AiInsightResponseDto.PersonalizedAction action(int priority, String action, String reason, String expectedImpact, String effort, String linkedMetric) {
+        AiInsightResponseDto.PersonalizedAction item = new AiInsightResponseDto.PersonalizedAction();
+        item.setPriority(priority);
+        item.setAction(action);
+        item.setReason(reason);
+        item.setExpectedImpact(expectedImpact);
+        item.setEffort(effort);
+        item.setLinkedMetric(linkedMetric);
+        return item;
     }
 
     private AiWorkoutPlanDayDto sampleWorkoutDay(String label, String focus) {

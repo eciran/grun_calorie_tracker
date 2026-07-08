@@ -19,6 +19,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -284,6 +285,59 @@ class AiMealDraftServiceImplTest {
     }
 
     @Test
+    void confirmDraft_whenItemHasNoCatalogMatch_writesAiEstimateFoodLog() {
+        AiRequestHistoryEntity history = new AiRequestHistoryEntity();
+        history.setId(10L);
+        history.setUser(user);
+        history.setRequestType(AiRequestType.PHOTO_MEAL_LOG);
+        history.setProvider(AiProvider.LOG);
+        history.setModel("log-draft-v1");
+        history.setStatus(AiRequestStatus.DRAFT_CREATED);
+        history.setQuotaConsumed(true);
+        history.setCreatedAt(LocalDateTime.now());
+
+        AiMealDraftConfirmItemRequestDto item = new AiMealDraftConfirmItemRequestDto();
+        item.setEstimatedFoodName("Ham and cheese sandwich");
+        item.setEstimatedCalories(350.0);
+        item.setEstimatedProtein(20.0);
+        item.setEstimatedCarbs(30.0);
+        item.setEstimatedFat(16.0);
+        item.setConfidence(0.72);
+        item.setPortionSize(1.0);
+        item.setPortionUnit(FoodPortionUnit.SERVING);
+        item.setMealType("LUNCH");
+        item.setLogDate(LocalDateTime.of(2026, 7, 3, 13, 0));
+        AiMealDraftConfirmRequestDto request = new AiMealDraftConfirmRequestDto();
+        request.setItems(List.of(item));
+
+        FoodLogsDto created = new FoodLogsDto();
+        created.setId(100L);
+        created.setDisplayName("Ham and cheese sandwich");
+        created.setEstimated(true);
+        created.setSnapshotCalories(350.0);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(historyRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(history));
+        when(foodLogsService.addAiEstimateFoodLog(any(FoodLogsDto.class), org.mockito.Mockito.eq("user@example.com"))).thenReturn(created);
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AiMealDraftConfirmResponseDto result = service.confirmDraft("user@example.com", 10L, request);
+
+        assertEquals(AiRequestStatus.CONFIRMED, result.getStatus());
+        assertEquals(1, result.getCreatedLogs().size());
+        ArgumentCaptor<FoodLogsDto> logCaptor = ArgumentCaptor.forClass(FoodLogsDto.class);
+        verify(foodLogsService).addAiEstimateFoodLog(logCaptor.capture(), org.mockito.Mockito.eq("user@example.com"));
+        assertEquals("Ham and cheese sandwich", logCaptor.getValue().getDisplayName());
+        assertEquals(350.0, logCaptor.getValue().getSnapshotCalories());
+        assertEquals(20.0, logCaptor.getValue().getSnapshotProtein());
+        assertEquals(30.0, logCaptor.getValue().getSnapshotCarbs());
+        assertEquals(16.0, logCaptor.getValue().getSnapshotFat());
+        assertEquals(10L, logCaptor.getValue().getAiRequestId());
+        assertEquals(0.72, logCaptor.getValue().getAiConfidence());
+        assertEquals(FoodLogSource.AI_PHOTO, logCaptor.getValue().getSource());
+        verify(foodLogsService, org.mockito.Mockito.never()).addFoodLog(any(), org.mockito.Mockito.anyString());
+    }
+    @Test
     void rejectDraft_withFeedback_closesDraftAndStoresReason() {
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setId(10L);
@@ -360,3 +414,4 @@ class AiMealDraftServiceImplTest {
         return request;
     }
 }
+

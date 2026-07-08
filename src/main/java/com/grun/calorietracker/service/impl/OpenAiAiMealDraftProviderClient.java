@@ -43,6 +43,8 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
             Do not give medical diagnosis, treatment advice, eating disorder advice, or unsafe exercise instructions.
             If confidence is low, set reviewRequired=true and add concise warnings.
             Use app-scoped estimates only; the user must confirm drafts before anything is logged.
+            Prefer precise, user-actionable outputs over generic advice. For insights, explain what data was analyzed, what signals are missing, why each finding matters, and what the user should do next. Include reviewReasons when confidence is low or data is uncertain.
+            qualityScore must be an integer from 0 to 100. confidence must be a number from 0 to 1. estimatedUncertainty must be LOW, MEDIUM, or HIGH.
             Numeric fields must be numbers only, never ranges or strings with units. Use null when unknown.
             Workout measurementType must be exactly one of DURATION, REPS, SETS_REPS, WEIGHT_REPS, DISTANCE, or MIXED.
             Food portionUnit must be exactly one of GRAM, MILLILITER, TABLESPOON, TEASPOON, SLICE, SERVING, or PIECE.
@@ -123,7 +125,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         payload.put("text", Map.of("format", Map.of(
                 "type", "json_schema",
                 "name", schemaName,
-                "strict", false,
+                "strict", true,
                 "schema", schema
         )));
 
@@ -297,8 +299,13 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> mealDraftSchema() {
         return objectSchema(props(
+                "schemaVersion", enumSchema("ai_response_v2"),
                 "suggestedMealType", stringSchema(),
                 "summary", stringSchema(),
+                "confidence", numberSchema(),
+                "qualityScore", integerSchema(),
+                "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH"),
+                "reviewReasons", arraySchema(stringSchema()),
                 "items", arraySchema(objectSchema(props(
                         "name", stringSchema(),
                         "quantity", numberSchema(),
@@ -310,15 +317,24 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                         "reviewRequired", booleanSchema(),
                         "matchReason", stringSchema(),
                         "safetyWarning", stringSchema(),
-                        "confidence", numberSchema()
+                        "confidence", numberSchema(),
+                        "portionEstimateMethod", enumSchema("USER_DECLARED", "VISUAL_ESTIMATE", "TEXT_INFERRED", "UNKNOWN"),
+                        "visibleInPhoto", booleanSchema(),
+                        "needsUserPortionConfirmation", booleanSchema(),
+                        "alternativeMatchNames", arraySchema(stringSchema())
                 )))
         ));
     }
 
     private Map<String, Object> recipeDraftSchema() {
         return objectSchema(props(
+                "schemaVersion", enumSchema("ai_response_v2"),
                 "summary", stringSchema(),
                 "reviewRequired", booleanSchema(),
+                "confidence", numberSchema(),
+                "qualityScore", integerSchema(),
+                "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH"),
+                "reviewReasons", arraySchema(stringSchema()),
                 "suggestedRecipe", objectSchema(props(
                         "name", stringSchema(),
                         "description", stringSchema(),
@@ -342,9 +358,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> workoutPlanSchema() {
         return objectSchema(props(
+                "schemaVersion", enumSchema("ai_response_v2"),
                 "name", stringSchema(),
                 "summary", stringSchema(),
                 "reviewRequired", booleanSchema(),
+                "confidence", numberSchema(),
+                "qualityScore", integerSchema(),
+                "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH"),
+                "reviewReasons", arraySchema(stringSchema()),
                 "days", arraySchema(objectSchema(props(
                         "dayLabel", stringSchema(),
                         "focus", stringSchema(),
@@ -357,8 +378,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                                 "distanceKm", numberSchema(),
                                 "weightKg", numberSchema(),
                                 "rest", stringSchema(),
+                                "restSeconds", integerSchema(),
+                                "intensity", enumSchema("LOW", "MODERATE", "HIGH"),
                                 "rationale", stringSchema(),
-                                "safetyNote", stringSchema()
+                                "progressionNote", stringSchema(),
+                                "targetMuscleGroup", stringSchema(),
+                                "equipmentUsed", stringSchema(),
+                                "safetyNote", stringSchema(),
+                                "reviewRequired", booleanSchema()
                         )))
                 ))),
                 "warnings", arraySchema(stringSchema())
@@ -367,11 +394,50 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> insightSchema() {
         return objectSchema(props(
+                "schemaVersion", enumSchema("ai_response_v3"),
                 "title", stringSchema(),
                 "summary", stringSchema(),
                 "highlights", arraySchema(stringSchema()),
                 "warnings", arraySchema(stringSchema()),
-                "recommendedActions", arraySchema(stringSchema())
+                "recommendedActions", arraySchema(stringSchema()),
+                "confidence", numberSchema(),
+                "qualityScore", integerSchema(),
+                "priority", enumSchema("LOW", "MEDIUM", "HIGH"),
+                "category", enumSchema("CALORIES", "PROTEIN", "CARBS", "FAT", "HYDRATION", "EXERCISE", "CONSISTENCY", "RECOVERY", "GENERAL"),
+                "actionType", enumSchema("LOG_FOOD", "ADD_PROTEIN", "DRINK_WATER", "PLAN_WORKOUT", "REVIEW_GOAL", "KEEP_STREAK", "REST", "NONE"),
+                "linkedMetric", stringSchema(),
+                "ctaLabel", stringSchema(),
+                "ctaTarget", stringSchema(),
+                "reviewReasons", arraySchema(stringSchema()),
+                "dataCoverage", objectSchema(props(
+                        "daysAnalyzed", integerSchema(),
+                        "mealsLogged", integerSchema(),
+                        "exerciseLogged", booleanSchema(),
+                        "exerciseMinutes", integerSchema(),
+                        "diaryDays", integerSchema(),
+                        "signalsUsed", arraySchema(stringSchema()),
+                        "missingSignals", arraySchema(stringSchema()),
+                        "confidenceLabel", enumSchema("LOW", "MEDIUM", "HIGH")
+                )),
+                "keyFindings", arraySchema(objectSchema(props(
+                        "type", enumSchema("trend", "pattern", "risk", "quality", "consistency", "opportunity"),
+                        "label", stringSchema(),
+                        "message", stringSchema(),
+                        "evidence", stringSchema(),
+                        "impact", stringSchema(),
+                        "severity", enumSchema("LOW", "MEDIUM", "HIGH")
+                ))),
+                "personalizedActions", arraySchema(objectSchema(props(
+                        "priority", integerSchema(),
+                        "action", stringSchema(),
+                        "reason", stringSchema(),
+                        "expectedImpact", stringSchema(),
+                        "effort", enumSchema("LOW", "MEDIUM", "HIGH"),
+                        "linkedMetric", stringSchema()
+                ))),
+                "tomorrowFocus", stringSchema(),
+                "watchOut", stringSchema(),
+                "dataQualityNote", stringSchema()
         ));
     }
     private Map<String, Object> props(Object... values) {
@@ -382,7 +448,12 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return map;
     }
     private Map<String, Object> objectSchema(Map<String, Object> properties) {
-        return Map.of("type", "object", "properties", properties, "additionalProperties", true);
+        return Map.of(
+                "type", "object",
+                "properties", properties,
+                "required", new ArrayList<>(properties.keySet()),
+                "additionalProperties", false
+        );
     }
 
     private Map<String, Object> arraySchema(Map<String, Object> items) {

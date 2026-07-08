@@ -18,14 +18,25 @@ public class FoodLogsDto {
     @Schema(description = "Food log id.", example = "1")
     private Long id;
 
-    @NotNull(message = "{validation.food-log.food-item-id.required}")
     @Positive(message = "{validation.food-log.food-item-id.positive}")
     @JsonAlias("foodId")
-    @Schema(description = "Linked food product id. Mobile may send either foodItemId or foodId; responses use foodItemId.", example = "12", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Linked food product id. Mobile may send either foodItemId or foodId; responses use foodItemId.", example = "12", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Long foodItemId;
 
     @Schema(description = "Food display name captured for the log.", example = "Greek yogurt")
     private String foodName;
+
+    @Schema(description = "Display name used when the log is an AI estimate without a matched product.", example = "Ham and cheese sandwich")
+    private String displayName;
+
+    @Schema(description = "Whether this diary entry is based on estimated nutrition instead of a verified catalog product.", example = "true")
+    private Boolean estimated;
+
+    @Schema(description = "AI request id that produced the estimate.", example = "42")
+    private Long aiRequestId;
+
+    @Schema(description = "AI confidence for this estimate from 0 to 1.", example = "0.72")
+    private Double aiConfidence;
 
     @NotNull(message = "{validation.food-log.portion-size.required}")
     @Positive(message = "{validation.food-log.portion-size.positive}")
@@ -113,3 +124,4 @@ public class FoodLogsDto {
     @Schema(description = "Date and time when the food was logged.", example = "2026-05-11T08:30:00", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime logDate;
 }
+

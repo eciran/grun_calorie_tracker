@@ -31,6 +31,8 @@ import {
   ProductQualitySuggestionPage,
   ProductQualitySuggestionScanResult,
   AdminRecipe,
+  AdminRecipeImportCandidate,
+  AdminRecipeImportResult,
   Notification,
   RevenueCatChart,
   RevenueCatConfigStatus,
@@ -315,6 +317,7 @@ const FOOD_SEARCH_ALIAS_TYPES = ["ADMIN_MANUAL", "TRANSLATION", "SYNONYM", "ASCI
 const MEAL_TYPES = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
 const PORTION_UNITS = ["GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"];
 const RECIPE_VISIBILITIES = ["PRIVATE", "PUBLIC_ADMIN", "COMMUNITY_PENDING"];
+const RECIPE_IMPORT_STATUSES = ["PENDING", "APPROVED", "REJECTED", "FAILED"];
 const ACHIEVEMENT_CATEGORIES = ["ONBOARDING", "FOOD", "EXERCISE", "FASTING", "PROGRESS", "WATER"];
 const ACHIEVEMENT_TIERS = ["BRONZE", "SILVER", "GOLD"];
 const RECIPE_CATEGORIES = [
@@ -1276,6 +1279,22 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [showCreateRecipe, setShowCreateRecipe] = useState(false);
   const [creatingRecipe, setCreatingRecipe] = useState(false);
   const [createForm, setCreateForm] = useState<AdminRecipeCreateForm>(emptyRecipeCreateForm);
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<AdminRecipeImportResult | null>(null);
+  const [importStatus, setImportStatus] = useState("PENDING");
+  const [importBatchId, setImportBatchId] = useState("");
+  const [importPage, setImportPage] = useState(0);
+  const [importPageSize, setImportPageSize] = useState(10);
+  const [reviewingImportId, setReviewingImportId] = useState<number | null>(null);
+  const [selectedImportCandidate, setSelectedImportCandidate] = useState<AdminRecipeImportCandidate | null>(null);
+  const [importIngredientSearchIndex, setImportIngredientSearchIndex] = useState<number | null>(null);
+  const [importIngredientSearchResults, setImportIngredientSearchResults] = useState<FoodProduct[]>([]);
+  const [importIngredientSearchState, setImportIngredientSearchState] = useState<LoadState>("idle");
+  const [recipeFiltersOpen, setRecipeFiltersOpen] = useState(false);
+  const [recipeImportStateOpen, setRecipeImportStateOpen] = useState(false);
+  const [recipeImportSourceOpen, setRecipeImportSourceOpen] = useState(false);
   const [activeIngredientSearchIndex, setActiveIngredientSearchIndex] = useState<number | null>(null);
   const [ingredientSearchResults, setIngredientSearchResults] = useState<FoodProduct[]>([]);
   const [ingredientSearchState, setIngredientSearchState] = useState<LoadState>("idle");
@@ -1293,6 +1312,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     size: pageSize
   });
   const { data, state, reload } = useEndpoint<PageResponse<AdminRecipe>>(path, onError);
+  const importPath = buildRecipeImportPath({
+    status: importStatus,
+    batchId: importBatchId,
+    page: importPage,
+    size: importPageSize
+  });
+  const { data: importData, state: importState, reload: reloadImports } = useEndpoint<PageResponse<AdminRecipeImportCandidate>>(importPath, onError);
+  const importRows = importData?.content ?? [];
   const rows = data?.content ?? [];
   const activeFilterCount = [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource].filter(Boolean).length;
   const pendingCount = rows.filter((recipe) => recipe.verificationStatus === "RAW_IMPORTED" || recipe.verificationStatus === "NEEDS_REVIEW").length;
@@ -1307,6 +1334,10 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   useEffect(() => {
     setPage(0);
   }, [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, pageSize]);
+
+  useEffect(() => {
+    setImportPage(0);
+  }, [importStatus, importBatchId, importPageSize]);
 
   function resetFilters() {
     setQuery("");
@@ -1386,6 +1417,126 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setIngredientSearchState("idle");
   }
 
+  async function searchImportIngredientProducts(index: number, ingredientName?: string) {
+    const searchText = (ingredientName ?? "").trim();
+    if (!searchText || searchText.length < 2) {
+      onError("Ingredient search needs at least 2 characters.");
+      return;
+    }
+    const params = new URLSearchParams({ q: searchText, page: "0", size: "8" });
+    if (selectedImportCandidate?.marketRegion) params.set("region", selectedImportCandidate.marketRegion);
+    setImportIngredientSearchIndex(index);
+    setImportIngredientSearchState("loading");
+    setImportIngredientSearchResults([]);
+    onError(null);
+    try {
+      const result = await request<PageResponse<FoodProduct>>(`/api/v1/products/search?${params.toString()}`);
+      setImportIngredientSearchResults(result.content ?? []);
+      setImportIngredientSearchState("ready");
+    } catch (err) {
+      setImportIngredientSearchResults([]);
+      setImportIngredientSearchState("error");
+      onError(formatRequestError(err));
+    }
+  }
+
+  async function mapImportIngredient(index: number, product: FoodProduct) {
+    if (!selectedImportCandidate?.id || !product.id) return;
+    setReviewingImportId(selectedImportCandidate.id);
+    onError(null);
+    try {
+      const updated = await request<AdminRecipeImportCandidate>(`/api/v1/admin/recipes/imports/${selectedImportCandidate.id}/ingredients/${index}`, {
+        method: "PATCH",
+        body: { foodItemId: product.id }
+      });
+      setSelectedImportCandidate(updated);
+      setImportIngredientSearchIndex(null);
+      setImportIngredientSearchResults([]);
+      setImportIngredientSearchState("idle");
+      await reloadImports();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setReviewingImportId(null);
+    }
+  }
+
+
+  function readRecipeImportFile(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImportText(String(reader.result ?? ""));
+    reader.onerror = () => onError("Recipe import file could not be read.");
+    reader.readAsText(file);
+  }
+
+  async function importRecipeJson() {
+    if (!importText.trim()) {
+      onError("Paste or choose a recipe import JSON file first.");
+      return;
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(importText);
+    } catch {
+      onError("Recipe import JSON is not valid JSON.");
+      return;
+    }
+    setImporting(true);
+    onError(null);
+    try {
+      const result = await request<AdminRecipeImportResult>("/api/v1/admin/recipes/imports", {
+        method: "POST",
+        body: payload,
+        timeoutMs: 60000
+      });
+      setImportResult(result);
+      setImportBatchId(result.batchId ?? importBatchId);
+      setImportStatus("PENDING");
+      await reloadImports();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function approveRecipeImport(candidate: AdminRecipeImportCandidate) {
+    if (!candidate.id) return;
+    setReviewingImportId(candidate.id);
+    onError(null);
+    try {
+      const created = await request<AdminRecipe>(`/api/v1/admin/recipes/imports/${candidate.id}/approve`, {
+        method: "POST",
+        body: { reviewNote: "Approved from admin recipe JSON import queue." },
+        timeoutMs: 60000
+      });
+      setSelectedRecipe(created);
+      await reloadImports();
+      await reload();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setReviewingImportId(null);
+    }
+  }
+
+  async function rejectRecipeImport(candidate: AdminRecipeImportCandidate) {
+    if (!candidate.id) return;
+    setReviewingImportId(candidate.id);
+    onError(null);
+    try {
+      await request<AdminRecipeImportCandidate>(`/api/v1/admin/recipes/imports/${candidate.id}/reject`, {
+        method: "POST",
+        body: { reviewNote: "Rejected from admin recipe JSON import queue." }
+      });
+      await reloadImports();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setReviewingImportId(null);
+    }
+  }
   async function createAdminRecipe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const ingredients = createForm.ingredients.map((ingredient) => ({
@@ -1507,6 +1658,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   return (
     <div className="stack">
       <SectionToolbar title="Recipe operations" state={state} onReload={reload}>
+        <button className="ghost-button" onClick={() => setShowImportPanel((value) => !value)} type="button">{showImportPanel ? "Close import" : "Import JSON"}</button>
         <button className="ghost-button" onClick={() => setShowCreateRecipe((value) => !value)} type="button">{showCreateRecipe ? "Close create" : "Create recipe"}</button>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
@@ -1520,6 +1672,235 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       </div>
 
 
+
+      {showImportPanel && (
+        <Panel title="Import recipe JSON">
+          <div className="review-transfer-panel">
+            <div>
+              <strong>Upload open-source recipe candidates</strong>
+              <span>Rows are stored as import candidates first. They are not public and are not added to the recipe catalog until admin review.</span>
+            </div>
+            <div className="review-transfer-actions">
+              <label className="file-picker">
+                JSON file
+                <input accept="application/json,.json" type="file" onChange={(event) => readRecipeImportFile(event.target.files?.[0] ?? null)} />
+              </label>
+              <button className="primary-button" type="button" disabled={importing || !importText.trim()} onClick={importRecipeJson}>{importing ? "Importing..." : "Import candidates"}</button>
+              <button className="ghost-button" type="button" onClick={() => { setImportText(""); setImportResult(null); }}>Clear</button>
+            </div>
+            <label className="full-width-field">
+              JSON preview / paste
+              <textarea className="recipe-import-json" value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="Paste recipes-open-source JSON here or choose a file." />
+            </label>
+            {importResult && (
+              <div className="correction-result-grid">
+                <MetricCard label="Batch" value={importResult.batchId ?? "-"} hint="Stored import batch" />
+                <MetricCard label="Created" value={formatValue(importResult.createdCandidates)} hint="New pending candidates" />
+                <MetricCard label="Skipped" value={formatValue(importResult.skippedDuplicates)} hint="Duplicate source keys" />
+                <MetricCard label="Failed" value={formatValue(importResult.failedCandidates)} hint="Invalid rows" />
+                <MetricCard label="Total" value={formatValue(importResult.totalCandidates)} hint="Rows in JSON" />
+              </div>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      <Panel title="Recipe import candidates">
+        <div className="review-filter-grid recipe-import-filter-grid">
+          <label>
+            Status
+            <select value={importStatus} onChange={(event) => setImportStatus(event.target.value)}>
+              <option value="">All</option>
+              {RECIPE_IMPORT_STATUSES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+            </select>
+          </label>
+          <label>
+            Batch ID
+            <input value={importBatchId} onChange={(event) => setImportBatchId(event.target.value)} placeholder="open-source-recipe-catalog-seed-001" />
+          </label>
+          <label>
+            Page size
+            <select value={importPageSize} onChange={(event) => setImportPageSize(Number(event.target.value))}>
+              {[5, 10, 25, 50].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+        </div>
+        <DataTable
+          columns={["Candidate", "Source", "State", "Issues", "Actions"]}
+          rows={importRows.map((candidate) => {
+            const unresolved = candidate.unresolvedIngredientCount ?? 0;
+            const busy = reviewingImportId === candidate.id;
+            const pending = candidate.status === "PENDING";
+            return [
+              <div className="entity-cell">
+                <strong>{candidate.recipeName ?? "-"}</strong>
+                <small>{candidate.mealType ?? "No meal"} | {candidate.marketRegion ?? "No region"} | {formatValue(candidate.ingredientCount)} ingredients</small>
+              </div>,
+              <div className="table-stack">
+                <span>{candidate.sourceKey ?? "-"}</span>
+                <small>{candidate.license ?? "No license"}</small>
+              </div>,
+              <div className="badge-stack">
+                <Badge value={candidate.status} tone={candidate.status === "APPROVED" ? "good" : candidate.status === "REJECTED" ? "danger" : "warn"} />
+                {candidate.createdRecipeId && <Badge value={`Recipe #${candidate.createdRecipeId}`} tone="good" />}
+              </div>,
+              <button className="link-button recipe-issue-button" type="button" onClick={(event) => { event.stopPropagation(); setSelectedImportCandidate(candidate); }}>
+                <strong>{unresolved ? `${formatValue(unresolved)} unresolved` : "Ready"}</strong>
+                <span>{candidate.validationIssues ? "View details" : "No issues"}</span>
+              </button>,
+              <div className="toolbar-actions recipe-import-actions">
+                <button className="ghost-button" type="button" disabled={!pending || busy || unresolved > 0} onClick={(event) => { event.stopPropagation(); approveRecipeImport(candidate); }}>{busy ? "Working..." : "Move to review"}</button>
+                <button className="ghost-button danger-text" type="button" disabled={!pending || busy} onClick={(event) => { event.stopPropagation(); rejectRecipeImport(candidate); }}>Reject</button>
+              </div>
+            ];
+          })}
+          empty={importState === "loading" ? "Loading import candidates..." : "No recipe import candidates."}
+          rowData={importRows}
+          onRowClick={setSelectedImportCandidate}
+        />
+        <PaginationControls
+          page={importData?.page ?? importPage}
+          pageSize={importData?.size ?? importPageSize}
+          totalElements={importData?.totalElements ?? importRows.length}
+          totalPages={importData?.totalPages ?? 1}
+          first={Boolean(importData?.first)}
+          last={Boolean(importData?.last)}
+          onPageChange={setImportPage}
+          onPageSizeChange={setImportPageSize}
+        />
+      </Panel>
+
+      {selectedImportCandidate && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setSelectedImportCandidate(null)}>
+          <section className="modal-card recipe-import-detail-modal" role="dialog" aria-modal="true" aria-label="Recipe import candidate detail" onClick={(event) => event.stopPropagation()}>
+            <header className="modal-header">
+              <div>
+                <p className="eyebrow">Import candidate</p>
+                <h2>{selectedImportCandidate.recipeName ?? "-"}</h2>
+                <span>{selectedImportCandidate.batchId ?? "No batch"}</span>
+              </div>
+              <button className="icon-button" onClick={() => setSelectedImportCandidate(null)} type="button" aria-label="Close">x</button>
+            </header>
+            <div className="recipe-import-modal-body">
+              {selectedImportCandidate.imageUrl && (
+                <div className="recipe-import-image-preview">
+                  <img src={selectedImportCandidate.imageUrl} alt="Recipe import preview" />
+                  <div>
+                    <strong>Recipe image from JSON</strong>
+                    <span>{selectedImportCandidate.imageUrl}</span>
+                  </div>
+                </div>
+              )}
+              <CollapsiblePanel title="Candidate state" open={recipeImportStateOpen} onToggle={() => setRecipeImportStateOpen((value) => !value)}>
+                <div className="readonly-grid compact-readonly-grid">
+                  <DetailItem label="Status" value={selectedImportCandidate.status} />
+                  <DetailItem label="Source key" value={selectedImportCandidate.sourceKey} />
+                  <DetailItem label="Meal type" value={selectedImportCandidate.mealType} />
+                  <DetailItem label="Region" value={selectedImportCandidate.marketRegion} />
+                  <DetailItem label="Language" value={selectedImportCandidate.language} />
+                  <DetailItem label="License" value={selectedImportCandidate.license} />
+                  <DetailItem label="Ingredients" value={formatValue(selectedImportCandidate.ingredientCount)} />
+                  <DetailItem label="Unresolved" value={formatValue(selectedImportCandidate.unresolvedIngredientCount)} />
+                </div>
+              </CollapsiblePanel>
+              <Panel title="Resolve ingredient issues">
+                <div className="recipe-import-resolution-summary">
+                  <strong>{formatValue(selectedImportCandidate.unresolvedIngredientCount)} unresolved ingredient(s)</strong>
+                  <span>Map each unresolved ingredient to a local food product before moving this candidate to review.</span>
+                </div>
+                <div className="recipe-import-ingredient-list">
+                  {(selectedImportCandidate.ingredients ?? []).map((ingredient, fallbackIndex) => {
+                    const ingredientIndex = ingredient.index ?? fallbackIndex;
+                    const isActiveSearch = importIngredientSearchIndex === ingredientIndex;
+                    const isMapped = Boolean(ingredient.foodItemId);
+                    return (
+                      <article className="recipe-import-ingredient-card" key={`${ingredientIndex}-${ingredient.ingredientName ?? "ingredient"}`}>
+                        <div className="recipe-import-ingredient-main">
+                          {ingredient.imageUrl && <img className="recipe-import-ingredient-thumb" src={ingredient.imageUrl} alt="" />}
+                          <div>
+                            <strong>{ingredient.ingredientName ?? `Ingredient ${ingredientIndex + 1}`}</strong>
+                            <small>
+                              {[ingredient.portionSize ? formatValue(ingredient.portionSize) : null, ingredient.portionUnit, ingredient.estimatedGrams ? `${formatValue(ingredient.estimatedGrams)}g estimated` : null]
+                                .filter(Boolean)
+                                .join(" | ") || "No amount metadata"}
+                            </small>
+                          </div>
+                          <div className="recipe-import-ingredient-actions">
+                            <Badge value={isMapped ? `Mapped #${ingredient.foodItemId}` : "Unresolved"} tone={isMapped ? "good" : "danger"} />
+                            <button
+                              className="ghost-button compact-button"
+                              type="button"
+                              disabled={selectedImportCandidate.status !== "PENDING" || reviewingImportId === selectedImportCandidate.id}
+                              onClick={() => searchImportIngredientProducts(ingredientIndex, ingredient.ingredientName)}
+                            >
+                              {isMapped ? "Change" : "Find"}
+                            </button>
+                          </div>
+                        </div>
+                        {isActiveSearch && (
+                          <div className="ingredient-search-results recipe-import-product-results">
+                            {importIngredientSearchState === "loading" && <span>Searching products...</span>}
+                            {importIngredientSearchState === "ready" && importIngredientSearchResults.length === 0 && <span>No product found. Create or import the product first, then map again.</span>}
+                            {importIngredientSearchResults.map((product) => {
+                              const productImage = product.displayImageUrl ?? product.imageUrl ?? product.externalImageUrl;
+                              return (
+                                <button className="ingredient-search-result with-image" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
+                                  {productImage ? <img src={productImage} alt="" /> : <span className="ingredient-search-placeholder">No image</span>}
+                                  <span>
+                                    <strong>{productName(product)}</strong>
+                                    <small>{productIngredientLabel(product)}</small>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                  {(selectedImportCandidate.ingredients ?? []).length === 0 && <div className="empty-state compact-empty">No ingredient details returned for this candidate.</div>}
+                </div>
+              </Panel>
+              <Panel title="Validation issues">
+                <div className={selectedImportCandidate.validationIssues ? "correction-error-list" : "empty-state compact-empty"}>
+                  {selectedImportCandidate.validationIssues
+                    ? selectedImportCandidate.validationIssues.split(";").map((issue) => <span key={issue.trim()}>{issue.trim()}</span>)
+                    : <span>No validation issue recorded.</span>}
+                </div>
+              </Panel>
+              <CollapsiblePanel title="Source metadata" open={recipeImportSourceOpen} onToggle={() => setRecipeImportSourceOpen((value) => !value)}>
+                <div className="readonly-grid compact-readonly-grid">
+                  <DetailItem label="Source title" value={selectedImportCandidate.sourceTitle} />
+                  <DetailItem label="Recommended status" value={selectedImportCandidate.recommendedImportStatus} />
+                  <DetailItem label="Source URL" value={selectedImportCandidate.sourceUrl} />
+                  <DetailItem label="Revision URL" value={selectedImportCandidate.sourceRevisionUrl} />
+                  <DetailItem label="Created recipe" value={selectedImportCandidate.createdRecipeId ? `#${selectedImportCandidate.createdRecipeId}` : "-"} />
+                  <DetailItem label="Reviewed by" value={selectedImportCandidate.reviewedBy} />
+                </div>
+              </CollapsiblePanel>
+            </div>
+            <footer className="modal-actions">
+              <button className="ghost-button" onClick={() => setSelectedImportCandidate(null)} type="button">Close</button>
+              <button
+                className="ghost-button danger-text"
+                disabled={selectedImportCandidate.status !== "PENDING" || reviewingImportId === selectedImportCandidate.id}
+                onClick={() => rejectRecipeImport(selectedImportCandidate)}
+                type="button"
+              >
+                Reject
+              </button>
+              <button
+                className="primary-button"
+                disabled={selectedImportCandidate.status !== "PENDING" || (selectedImportCandidate.unresolvedIngredientCount ?? 0) > 0 || reviewingImportId === selectedImportCandidate.id}
+                onClick={() => approveRecipeImport(selectedImportCandidate)}
+                type="button"
+              >
+                Move to review
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
       {showCreateRecipe && (
         <Panel title="Create recipe">
           <form className="admin-recipe-create-form" onSubmit={createAdminRecipe}>
@@ -1683,7 +2064,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
           </form>
         </Panel>
       )}
-      <Panel title="Recipe filters">
+      <CollapsiblePanel title="Recipe filters" open={recipeFiltersOpen} onToggle={() => setRecipeFiltersOpen((value) => !value)}>
         <div className="review-filter-grid">
           <label>
             Search
@@ -1744,7 +2125,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
             </select>
           </label>
         </div>
-      </Panel>
+      </CollapsiblePanel>
 
       <DataTable
         columns={["Recipe", "Owner", "State", "Engagement", "Nutrition"]}
@@ -4603,6 +4984,18 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+
+function CollapsiblePanel({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <article className="panel collapsible-panel">
+      <button className="collapsible-panel-header" type="button" onClick={onToggle} aria-expanded={open}>
+        <h3>{title}</h3>
+        <span>{open ? "Hide" : "Show"}</span>
+      </button>
+      {open && <div className="collapsible-panel-body">{children}</div>}
+    </article>
+  );
+}
 function DataTable<T = unknown>({
   columns,
   rows,
@@ -5916,6 +6309,19 @@ function downloadBlob(blob: Blob, filename: string) {
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+function buildRecipeImportPath(filters: {
+  status: string;
+  batchId: string;
+  page: number;
+  size: number;
+}): string {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.batchId.trim()) params.set("batchId", filters.batchId.trim());
+  params.set("page", String(filters.page));
+  params.set("size", String(filters.size));
+  return `/api/v1/admin/recipes/imports?${params.toString()}`;
 }
 function buildRecipeAdminPath(filters: {
   query: string;

@@ -1,13 +1,26 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AdminRecipeDto;
+import com.grun.calorietracker.dto.AdminRecipeImportBatchRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportCandidateDto;
+import com.grun.calorietracker.dto.AdminRecipeImportCandidatePageDto;
+import com.grun.calorietracker.dto.AdminRecipeImportCandidateRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportIngredientUpdateRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportResultDto;
+import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.dto.RecipeDto;
+import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
+import com.grun.calorietracker.dto.RecipeRequestDto;
+import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeIngredientDto;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeImportCandidateEntity;
 import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
@@ -16,9 +29,12 @@ import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.RecipeAllergen;
+import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
+import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.AdminAuditService;
@@ -38,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -50,9 +67,12 @@ import java.util.Set;
 public class AdminRecipeServiceImpl implements AdminRecipeService {
 
     private final RecipeRepository recipeRepository;
+    private final RecipeImportCandidateRepository recipeImportCandidateRepository;
     private final RecipeUserInteractionRepository recipeUserInteractionRepository;
+    private final FoodItemRepository foodItemRepository;
     private final RecipeService recipeService;
     private final AdminAuditService adminAuditService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -232,12 +252,373 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
     }
 
 
+    @Override
+    @Transactional
+    public AdminRecipeImportResultDto importRecipeCandidates(AdminRecipeImportBatchRequestDto request, String adminEmail) {
+        if (request == null || request.getRecipes() == null || request.getRecipes().isEmpty()) {
+            throw new IllegalArgumentException("Recipe import JSON must contain at least one recipe candidate.");
+        }
+        String batchId = trimToNull(request.getBatchId());
+        if (batchId == null) {
+            batchId = "recipe-import-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        }
+        List<AdminRecipeImportCandidateDto> candidates = new ArrayList<>();
+        int skipped = 0;
+        int failed = 0;
+        for (AdminRecipeImportCandidateRequestDto item : request.getRecipes()) {
+            try {
+                if (item == null || trimToNull(item.getSourceKey()) == null || item.getRecipe() == null || trimToNull(item.getRecipe().getName()) == null) {
+                    failed++;
+                    continue;
+                }
+                if (recipeImportCandidateRepository.existsByBatchIdAndSourceKey(batchId, item.getSourceKey().trim())) {
+                    skipped++;
+                    continue;
+                }
+                RecipeImportCandidateEntity candidate = new RecipeImportCandidateEntity();
+                candidate.setBatchId(batchId);
+                candidate.setSourceKey(item.getSourceKey().trim());
+                candidate.setSourceTitle(trimToNull(item.getSourceTitle()));
+                candidate.setSourceUrl(trimToNull(item.getSourceUrl()));
+                candidate.setSourceRevisionUrl(trimToNull(item.getSourceRevisionUrl()));
+                candidate.setLicense(trimToNull(item.getLicense() == null && request.getSourcePolicy() != null ? request.getSourcePolicy().getLicense() : item.getLicense()));
+                candidate.setRecommendedImportStatus(trimToNull(item.getRecommendedImportStatus()));
+                candidate.setStatus(RecipeImportCandidateStatus.PENDING);
+                candidate.setRecipeName(item.getRecipe().getName().trim());
+                candidate.setMealType(normalizeMealType(item.getRecipe().getMealType()));
+                candidate.setMarketRegion(item.getRecipe().getMarketRegion());
+                candidate.setLanguage(trimToNull(item.getRecipe().getLanguage()));
+                List<AdminRecipeImportCandidateRequestDto.IngredientPayload> ingredients = item.getRecipe().getIngredients() == null ? List.of() : item.getRecipe().getIngredients();
+                candidate.setIngredientCount(ingredients.size());
+                candidate.setUnresolvedIngredientCount((int) ingredients.stream().filter(ingredient -> ingredient.getFoodItemId() == null).count());
+                candidate.setValidationIssues(buildImportValidationIssues(item));
+                candidate.setRawPayload(writeRawPayload(item));
+                candidates.add(toImportDto(recipeImportCandidateRepository.save(candidate)));
+            } catch (RuntimeException ex) {
+                failed++;
+            }
+        }
+        AdminRecipeImportResultDto dto = new AdminRecipeImportResultDto();
+        dto.setBatchId(batchId);
+        dto.setTotalCandidates(request.getRecipes().size());
+        dto.setCreatedCandidates(candidates.size());
+        dto.setSkippedDuplicates(skipped);
+        dto.setFailedCandidates(failed);
+        dto.setCandidates(candidates);
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_CREATE,
+                AdminAuditTargetType.RECIPE,
+                "import-batch:" + batchId,
+                null,
+                Map.of("createdCandidates", candidates.size(), "skippedDuplicates", skipped, "failedCandidates", failed),
+                "Recipe JSON import candidates created. Candidates are not public until admin review."
+        );
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminRecipeImportCandidatePageDto listImportCandidates(RecipeImportCandidateStatus status, String batchId, int page, int size) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "createdAt"));
+        String normalizedBatchId = trimToNull(batchId);
+        Page<RecipeImportCandidateEntity> candidates;
+        if (status != null && normalizedBatchId != null) {
+            candidates = recipeImportCandidateRepository.findByStatusAndBatchIdContainingIgnoreCase(status, normalizedBatchId, pageable);
+        } else if (status != null) {
+            candidates = recipeImportCandidateRepository.findByStatus(status, pageable);
+        } else if (normalizedBatchId != null) {
+            candidates = recipeImportCandidateRepository.findByBatchIdContainingIgnoreCase(normalizedBatchId, pageable);
+        } else {
+            candidates = recipeImportCandidateRepository.findAll(pageable);
+        }
+        AdminRecipeImportCandidatePageDto dto = new AdminRecipeImportCandidatePageDto();
+        dto.setContent(candidates.getContent().stream().map(this::toImportDto).toList());
+        dto.setPage(candidates.getNumber());
+        dto.setSize(candidates.getSize());
+        dto.setTotalElements(candidates.getTotalElements());
+        dto.setTotalPages(candidates.getTotalPages());
+        dto.setFirst(candidates.isFirst());
+        dto.setLast(candidates.isLast());
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public AdminRecipeDto approveImportCandidate(Long id, AdminRecipeImportReviewRequestDto request, String adminEmail) {
+        RecipeImportCandidateEntity candidate = findImportCandidate(id);
+        if (candidate.getStatus() != RecipeImportCandidateStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending recipe import candidates can be approved.");
+        }
+        if (candidate.getUnresolvedIngredientCount() != null && candidate.getUnresolvedIngredientCount() > 0) {
+            throw new IllegalArgumentException("Recipe import candidate has unresolved ingredients. Add foodItemId values before approval.");
+        }
+        AdminRecipeImportCandidateRequestDto source = readRawPayload(candidate.getRawPayload());
+        AdminRecipeCreateRequestDto createRequest = toCreateRequest(source, request);
+        AdminRecipeDto created = createRecipe(createRequest, adminEmail);
+        candidate.setStatus(RecipeImportCandidateStatus.APPROVED);
+        candidate.setCreatedRecipeId(created.getId());
+        candidate.setReviewedBy(adminEmail);
+        candidate.setReviewedAt(java.time.LocalDateTime.now());
+        candidate.setReviewNote(reviewNote(request, "Approved import candidate and moved to recipe review queue."));
+        recipeImportCandidateRepository.save(candidate);
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_REVIEW_UPDATE,
+                AdminAuditTargetType.RECIPE,
+                "import-candidate:" + candidate.getId(),
+                null,
+                Map.of("createdRecipeId", created.getId(), "status", candidate.getStatus()),
+                candidate.getReviewNote()
+        );
+        return created;
+    }
+
+    @Override
+    @Transactional
+    public AdminRecipeImportCandidateDto rejectImportCandidate(Long id, AdminRecipeImportReviewRequestDto request, String adminEmail) {
+        RecipeImportCandidateEntity candidate = findImportCandidate(id);
+        if (candidate.getStatus() != RecipeImportCandidateStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending recipe import candidates can be rejected.");
+        }
+        candidate.setStatus(RecipeImportCandidateStatus.REJECTED);
+        candidate.setReviewedBy(adminEmail);
+        candidate.setReviewedAt(java.time.LocalDateTime.now());
+        candidate.setReviewNote(reviewNote(request, "Rejected import candidate."));
+        recipeImportCandidateRepository.save(candidate);
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_REVIEW_UPDATE,
+                AdminAuditTargetType.RECIPE,
+                "import-candidate:" + candidate.getId(),
+                null,
+                Map.of("status", candidate.getStatus(), "sourceKey", candidate.getSourceKey()),
+                candidate.getReviewNote()
+        );
+        return toImportDto(candidate);
+    }
     private boolean hasInitialReviewState(AdminRecipeCreateRequestDto request) {
         return request.getVerificationStatus() != null
                 || request.getVisibility() != null
                 || request.getArchived() != null
                 || request.getImageStatus() != null
                 || request.getImageSource() != null;
+    }
+    @Override
+    @Transactional
+    public AdminRecipeImportCandidateDto updateImportCandidateIngredient(Long id, int ingredientIndex, AdminRecipeImportIngredientUpdateRequestDto request, String adminEmail) {
+        if (request == null || request.getFoodItemId() == null) {
+            throw new IllegalArgumentException("foodItemId is required.");
+        }
+        if (!foodItemRepository.existsById(request.getFoodItemId())) {
+            throw new ResourceNotFoundException("Food item not found");
+        }
+        RecipeImportCandidateEntity candidate = findImportCandidate(id);
+        if (candidate.getStatus() != RecipeImportCandidateStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending recipe import candidates can be edited.");
+        }
+        AdminRecipeImportCandidateRequestDto source = readRawPayload(candidate.getRawPayload());
+        List<AdminRecipeImportCandidateRequestDto.IngredientPayload> ingredients = source.getRecipe() == null ? List.of() : source.getRecipe().getIngredients();
+        if (ingredientIndex < 0 || ingredientIndex >= ingredients.size()) {
+            throw new IllegalArgumentException("Ingredient index is invalid.");
+        }
+        AdminRecipeImportCandidateRequestDto.IngredientPayload ingredient = ingredients.get(ingredientIndex);
+        Long previousFoodItemId = ingredient.getFoodItemId();
+        ingredient.setFoodItemId(request.getFoodItemId());
+        candidate.setRawPayload(writeRawPayload(source));
+        candidate.setIngredientCount(ingredients.size());
+        candidate.setUnresolvedIngredientCount((int) ingredients.stream().filter(item -> item.getFoodItemId() == null).count());
+        candidate.setValidationIssues(buildImportValidationIssues(source));
+        RecipeImportCandidateEntity saved = recipeImportCandidateRepository.save(candidate);
+        Map<String, Object> before = new LinkedHashMap<>();
+        before.put("ingredientIndex", ingredientIndex);
+        before.put("foodItemId", previousFoodItemId);
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("ingredientIndex", ingredientIndex);
+        after.put("foodItemId", request.getFoodItemId());
+        after.put("unresolvedIngredientCount", saved.getUnresolvedIngredientCount());
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_REVIEW_UPDATE,
+                AdminAuditTargetType.RECIPE,
+                "import-candidate:" + candidate.getId(),
+                before,
+                after,
+                "Recipe import ingredient mapped from admin UI."
+        );
+        return toImportDto(saved);
+    }
+    private RecipeImportCandidateEntity findImportCandidate(Long id) {
+        return recipeImportCandidateRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Recipe import candidate not found"));
+    }
+
+    private AdminRecipeImportCandidateDto toImportDto(RecipeImportCandidateEntity candidate) {
+        AdminRecipeImportCandidateDto dto = new AdminRecipeImportCandidateDto();
+        dto.setId(candidate.getId());
+        dto.setBatchId(candidate.getBatchId());
+        dto.setSourceKey(candidate.getSourceKey());
+        dto.setSourceTitle(candidate.getSourceTitle());
+        dto.setSourceUrl(candidate.getSourceUrl());
+        dto.setSourceRevisionUrl(candidate.getSourceRevisionUrl());
+        dto.setLicense(candidate.getLicense());
+        dto.setRecommendedImportStatus(candidate.getRecommendedImportStatus());
+        dto.setStatus(candidate.getStatus());
+        dto.setRecipeName(candidate.getRecipeName());
+        dto.setMealType(candidate.getMealType());
+        dto.setMarketRegion(candidate.getMarketRegion());
+        dto.setLanguage(candidate.getLanguage());
+        try {
+            AdminRecipeImportCandidateRequestDto source = readRawPayload(candidate.getRawPayload());
+            if (source.getRecipe() != null) {
+                dto.setImageUrl(source.getRecipe().getImageUrl());
+            }
+        } catch (RuntimeException ignored) {
+            // Raw import payload is best-effort metadata for admin UI display.
+        }
+        dto.setIngredientCount(candidate.getIngredientCount());
+        dto.setUnresolvedIngredientCount(candidate.getUnresolvedIngredientCount());
+        dto.setValidationIssues(candidate.getValidationIssues());
+        dto.setCreatedRecipeId(candidate.getCreatedRecipeId());
+        dto.setReviewedBy(candidate.getReviewedBy());
+        dto.setReviewedAt(candidate.getReviewedAt());
+        dto.setReviewNote(candidate.getReviewNote());
+        dto.setCreatedAt(candidate.getCreatedAt());
+        dto.setUpdatedAt(candidate.getUpdatedAt());
+        dto.setIngredients(toImportIngredients(candidate));
+        return dto;
+    }
+
+    private List<AdminRecipeImportCandidateDto.IngredientDto> toImportIngredients(RecipeImportCandidateEntity candidate) {
+        try {
+            AdminRecipeImportCandidateRequestDto source = readRawPayload(candidate.getRawPayload());
+            if (source.getRecipe() == null || source.getRecipe().getIngredients() == null) {
+                return List.of();
+            }
+            List<AdminRecipeImportCandidateDto.IngredientDto> result = new ArrayList<>();
+            for (int index = 0; index < source.getRecipe().getIngredients().size(); index++) {
+                AdminRecipeImportCandidateRequestDto.IngredientPayload sourceIngredient = source.getRecipe().getIngredients().get(index);
+                AdminRecipeImportCandidateDto.IngredientDto dto = new AdminRecipeImportCandidateDto.IngredientDto();
+                dto.setIndex(index);
+                dto.setFoodItemId(sourceIngredient.getFoodItemId());
+                dto.setIngredientName(sourceIngredient.getIngredientName());
+                dto.setImageUrl(sourceIngredient.getImageUrl());
+                dto.setPortionSize(sourceIngredient.getPortionSize());
+                dto.setPortionUnit(sourceIngredient.getPortionUnit());
+                dto.setEstimatedGrams(sourceIngredient.getEstimatedGrams());
+                result.add(dto);
+            }
+            return result;
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+    private String writeRawPayload(AdminRecipeImportCandidateRequestDto candidate) {
+        try {
+            return objectMapper.writeValueAsString(candidate);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Recipe import candidate could not be serialized.");
+        }
+    }
+
+    private AdminRecipeImportCandidateRequestDto readRawPayload(String rawPayload) {
+        try {
+            return objectMapper.readValue(rawPayload, AdminRecipeImportCandidateRequestDto.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Recipe import candidate raw payload could not be read.");
+        }
+    }
+
+    private AdminRecipeCreateRequestDto toCreateRequest(AdminRecipeImportCandidateRequestDto source, AdminRecipeImportReviewRequestDto reviewRequest) {
+        AdminRecipeImportCandidateRequestDto.RecipePayload sourceRecipe = source.getRecipe();
+        RecipeRequestDto recipe = new RecipeRequestDto();
+        recipe.setName(sourceRecipe.getName());
+        recipe.setDescription(sourceRecipe.getDescription());
+        recipe.setMealType(normalizeMealType(sourceRecipe.getMealType()));
+        recipe.setMarketRegion(sourceRecipe.getMarketRegion());
+        recipe.setLanguage(sourceRecipe.getLanguage());
+        recipe.setImageUrl(sourceRecipe.getImageUrl());
+        recipe.setTotalYieldGrams(sourceRecipe.getTotalYieldGrams());
+        recipe.setDefaultServingGrams(sourceRecipe.getDefaultServingGrams());
+        recipe.setServingCount(sourceRecipe.getServingCount());
+        recipe.setCategories(sourceRecipe.getCategories() == null ? Collections.emptySet() : sourceRecipe.getCategories());
+        recipe.setAllergens(sourceRecipe.getAllergens() == null ? Collections.emptySet() : sourceRecipe.getAllergens());
+        recipe.setIngredients(toRecipeIngredients(sourceRecipe.getIngredients()));
+        recipe.setCookingSteps(toRecipeSteps(sourceRecipe.getCookingSteps()));
+
+        AdminRecipeCreateRequestDto request = new AdminRecipeCreateRequestDto();
+        request.setRecipe(recipe);
+        request.setVisibility(RecipeVisibility.COMMUNITY_PENDING);
+        request.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        request.setImageStatus(recipe.getImageUrl() == null || recipe.getImageUrl().isBlank() ? null : ImageStatus.NEEDS_REVIEW);
+        request.setImageSource(recipe.getImageUrl() == null || recipe.getImageUrl().isBlank() ? null : ImageSource.ADMIN_UPLOAD);
+        request.setReviewNote(reviewNote(reviewRequest, "Approved open-source recipe import candidate. Final public approval still required."));
+        return request;
+    }
+
+    private List<RecipeIngredientRequestDto> toRecipeIngredients(List<AdminRecipeImportCandidateRequestDto.IngredientPayload> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) {
+            throw new IllegalArgumentException("Imported recipe must contain ingredients before approval.");
+        }
+        List<RecipeIngredientRequestDto> mapped = new ArrayList<>();
+        for (AdminRecipeImportCandidateRequestDto.IngredientPayload ingredient : ingredients) {
+            if (ingredient.getFoodItemId() == null) {
+                throw new IllegalArgumentException("Imported recipe ingredient is missing foodItemId: " + ingredient.getIngredientName());
+            }
+            RecipeIngredientRequestDto dto = new RecipeIngredientRequestDto();
+            dto.setFoodItemId(ingredient.getFoodItemId());
+            dto.setPortionSize(ingredient.getPortionSize() == null ? ingredient.getEstimatedGrams() : ingredient.getPortionSize());
+            dto.setPortionUnit(ingredient.getPortionUnit() == null ? com.grun.calorietracker.enums.FoodPortionUnit.GRAM : ingredient.getPortionUnit());
+            mapped.add(dto);
+        }
+        return mapped;
+    }
+
+    private List<RecipeStepRequestDto> toRecipeSteps(List<AdminRecipeImportCandidateRequestDto.CookingStepPayload> steps) {
+        if (steps == null || steps.isEmpty()) {
+            return List.of();
+        }
+        return steps.stream()
+                .filter(step -> step != null && step.getInstruction() != null && !step.getInstruction().isBlank())
+                .map(step -> {
+                    RecipeStepRequestDto dto = new RecipeStepRequestDto();
+                    dto.setInstruction(step.getInstruction().trim());
+                    return dto;
+                })
+                .toList();
+    }
+
+    private String buildImportValidationIssues(AdminRecipeImportCandidateRequestDto candidate) {
+        List<String> issues = new ArrayList<>();
+        if (candidate.getRecipe() == null) {
+            issues.add("recipe payload missing");
+            return String.join("; ", issues);
+        }
+        List<AdminRecipeImportCandidateRequestDto.IngredientPayload> ingredients = candidate.getRecipe().getIngredients();
+        if (ingredients == null || ingredients.isEmpty()) {
+            issues.add("ingredients missing");
+        } else {
+            long unresolved = ingredients.stream().filter(ingredient -> ingredient.getFoodItemId() == null).count();
+            if (unresolved > 0) {
+                issues.add(unresolved + " unresolved ingredient foodItemId value(s)");
+            }
+        }
+        if (candidate.getRecipe().getCategories() == null || candidate.getRecipe().getCategories().isEmpty()) {
+            issues.add("categories missing");
+        }
+        if (candidate.getRecipe().getTotalYieldGrams() == null || candidate.getRecipe().getTotalYieldGrams() <= 0) {
+            issues.add("totalYieldGrams missing or invalid");
+        }
+        if (candidate.getRecipe().getDefaultServingGrams() == null || candidate.getRecipe().getDefaultServingGrams() <= 0) {
+            issues.add("defaultServingGrams missing or invalid");
+        }
+        return issues.isEmpty() ? null : String.join("; ", issues);
+    }
+
+    private String reviewNote(AdminRecipeImportReviewRequestDto request, String fallback) {
+        return request != null && request.getReviewNote() != null && !request.getReviewNote().isBlank()
+                ? request.getReviewNote().trim()
+                : fallback;
     }
     private Specification<RecipeEntity> buildSpecification(String query,
                                                            VerificationStatus verificationStatus,
@@ -414,8 +795,11 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         return value == null ? 0.0 : Math.round(value * 100.0) / 100.0;
     }
 
+    private String normalizeMealType(String mealType) {
+        return mealType == null || mealType.isBlank() ? null : mealType.trim().toUpperCase(Locale.ROOT);
+    }
+
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 }
-

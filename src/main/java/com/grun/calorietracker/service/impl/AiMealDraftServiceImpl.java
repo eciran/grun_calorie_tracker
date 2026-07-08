@@ -18,6 +18,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -77,8 +78,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         UserEntity user = getUser(email);
         AiRequestHistoryEntity history = getOwnedDraft(requestId, user);
         List<FoodLogsDto> createdLogs = request.getItems().stream()
-                .map(this::toFoodLogDto)
-                .map(dto -> foodLogsService.addFoodLog(dto, email))
+                .map(item -> createFoodLogFromConfirmedItem(item, history, email))
                 .toList();
         history.setStatus(AiRequestStatus.CONFIRMED);
         history.setConfirmationPayload(writeJson(createdLogs));
@@ -230,6 +230,60 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         return history;
     }
 
+    private FoodLogsDto createFoodLogFromConfirmedItem(AiMealDraftConfirmItemRequestDto item,
+                                                       AiRequestHistoryEntity history,
+                                                       String email) {
+        if (item.getFoodItemId() != null) {
+            return foodLogsService.addFoodLog(toFoodLogDto(item), email);
+        }
+        validateAiEstimateConfirmation(item);
+        return foodLogsService.addAiEstimateFoodLog(toAiEstimateFoodLogDto(item, history), email);
+    }
+
+    private FoodLogsDto toAiEstimateFoodLogDto(AiMealDraftConfirmItemRequestDto item, AiRequestHistoryEntity history) {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setDisplayName(item.getEstimatedFoodName());
+        dto.setPortionSize(item.getPortionSize());
+        dto.setPortionUnit(item.getPortionUnit());
+        dto.setNormalizedPortionGrams(item.getPortionSize());
+        dto.setSnapshotCalories(item.getEstimatedCalories());
+        dto.setSnapshotProtein(item.getEstimatedProtein());
+        dto.setSnapshotCarbs(item.getEstimatedCarbs());
+        dto.setSnapshotFat(item.getEstimatedFat());
+        dto.setMealType(item.getMealType());
+        dto.setLogDate(item.getLogDate());
+        dto.setSource(resolveAiEstimateSource(history.getRequestType()));
+        dto.setAiRequestId(history.getId());
+        dto.setAiConfidence(item.getConfidence());
+        return dto;
+    }
+
+    private void validateAiEstimateConfirmation(AiMealDraftConfirmItemRequestDto item) {
+        if (item.getEstimatedFoodName() == null || item.getEstimatedFoodName().isBlank()) {
+            throw new IllegalArgumentException("Estimated food name is required when no catalog food item is selected.");
+        }
+        if (item.getEstimatedCalories() == null || item.getEstimatedCalories() < 0) {
+            throw new IllegalArgumentException("Estimated calories must be provided for unmatched AI items.");
+        }
+        if (item.getEstimatedProtein() == null || item.getEstimatedProtein() < 0
+                || item.getEstimatedCarbs() == null || item.getEstimatedCarbs() < 0
+                || item.getEstimatedFat() == null || item.getEstimatedFat() < 0) {
+            throw new IllegalArgumentException("Estimated macros must be provided for unmatched AI items.");
+        }
+        if (item.getConfidence() != null && (item.getConfidence() < 0 || item.getConfidence() > 1)) {
+            throw new IllegalArgumentException("AI confidence must be between 0 and 1.");
+        }
+    }
+
+    private FoodLogSource resolveAiEstimateSource(AiRequestType requestType) {
+        if (requestType == AiRequestType.PHOTO_MEAL_LOG) {
+            return FoodLogSource.AI_PHOTO;
+        }
+        if (requestType == AiRequestType.VOICE_FOOD_LOG) {
+            return FoodLogSource.AI_VOICE;
+        }
+        return FoodLogSource.AI_ESTIMATE;
+    }
     private FoodLogsDto toFoodLogDto(AiMealDraftConfirmItemRequestDto item) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setFoodItemId(item.getFoodItemId());
@@ -398,3 +452,4 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         AiMealDraftResponseDto get();
     }
 }
+

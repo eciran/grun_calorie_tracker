@@ -42,4 +42,23 @@ public class AiWorkoutPlanExerciseDto {
 
     @Schema(description = "Safety note for this movement.")
     private String safetyNote;
+
+    @Positive
+    @Schema(description = "Rest period after this exercise in seconds.", example = "60")
+    private Integer restSeconds;
+
+    @Schema(description = "Exercise intensity cue.", example = "MODERATE")
+    private String intensity;
+
+    @Schema(description = "Simple progression guidance for the user.")
+    private String progressionNote;
+
+    @Schema(description = "Primary target muscle group for display/filtering.", example = "CHEST")
+    private String targetMuscleGroup;
+
+    @Schema(description = "Equipment expected for this exercise.", example = "DUMBBELLS")
+    private String equipmentUsed;
+
+    @Schema(description = "Whether this exercise needs user/admin review because it was not confidently matched to the catalog.", example = "true")
+    private Boolean reviewRequired;
 }

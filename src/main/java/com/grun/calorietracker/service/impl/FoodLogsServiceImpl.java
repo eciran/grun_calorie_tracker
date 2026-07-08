@@ -84,6 +84,45 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     @Override
     @Transactional
+    public FoodLogsDto addAiEstimateFoodLog(FoodLogsDto dto, String email) {
+        validateAiEstimateFoodLogRequest(dto);
+        UserEntity user = getUser(email);
+        FoodLogsEntity entity = new FoodLogsEntity();
+        entity.setUser(user);
+        entity.setFoodItem(null);
+        entity.setDisplayName(normalizeDisplayName(dto.getDisplayName(), dto.getFoodName()));
+        entity.setEstimated(true);
+        entity.setAiRequestId(dto.getAiRequestId());
+        entity.setAiConfidence(dto.getAiConfidence());
+        entity.setPortionSize(dto.getPortionSize());
+        entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
+        entity.setNormalizedPortionGrams(dto.getNormalizedPortionGrams() != null ? dto.getNormalizedPortionGrams() : dto.getPortionSize());
+        entity.setSnapshotCalories(round(dto.getSnapshotCalories()));
+        entity.setSnapshotProtein(roundOrZero(dto.getSnapshotProtein()));
+        entity.setSnapshotCarbs(roundOrZero(dto.getSnapshotCarbs()));
+        entity.setSnapshotFat(roundOrZero(dto.getSnapshotFat()));
+        entity.setSnapshotFiber(dto.getSnapshotFiber());
+        entity.setSnapshotSugar(dto.getSnapshotSugar());
+        entity.setSnapshotSaturatedFat(dto.getSnapshotSaturatedFat());
+        entity.setSnapshotSodium(dto.getSnapshotSodium());
+        entity.setSnapshotPotassium(dto.getSnapshotPotassium());
+        entity.setSnapshotCholesterol(dto.getSnapshotCholesterol());
+        entity.setSnapshotCalcium(dto.getSnapshotCalcium());
+        entity.setSnapshotIron(dto.getSnapshotIron());
+        entity.setSnapshotMagnesium(dto.getSnapshotMagnesium());
+        entity.setSnapshotZinc(dto.getSnapshotZinc());
+        entity.setSnapshotVitaminA(dto.getSnapshotVitaminA());
+        entity.setSnapshotVitaminC(dto.getSnapshotVitaminC());
+        entity.setSnapshotVitaminD(dto.getSnapshotVitaminD());
+        entity.setSnapshotVitaminE(dto.getSnapshotVitaminE());
+        entity.setSnapshotVitaminB12(dto.getSnapshotVitaminB12());
+        entity.setMealType(normalizeMealType(dto.getMealType()));
+        entity.setLogDate(dto.getLogDate());
+        entity.setSource(resolveSource(dto.getSource(), FoodLogSource.AI_ESTIMATE));
+        return toDto(foodLogsRepository.save(entity));
+    }
+    @Override
+    @Transactional
     public List<FoodLogsDto> copyMeal(String email, FoodLogCopyMealRequestDto request) {
         UserEntity user = getUser(email);
         String mealType = normalizeMealType(request.getMealType());
@@ -97,7 +136,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return sourceLogs.stream()
                 .map(source -> copyLogToDate(source, request.getTargetDate(), user))
                 .map(foodLogsRepository::save)
-                .peek(saved -> markFoodItemUsed(saved.getFoodItem()))
+                .peek(saved -> { if (saved.getFoodItem() != null) { markFoodItemUsed(saved.getFoodItem()); } })
                 .map(this::toDto)
                 .toList();
     }
@@ -385,6 +424,9 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                     if (capturedValue != null) {
                         return capturedValue;
                     }
+                    if (log.getFoodItem() == null) {
+                        return 0.0;
+                    }
                     Double value = nutrient.apply(log.getFoodItem());
                     Double grams = log.getNormalizedPortionGrams() != null ? log.getNormalizedPortionGrams() : log.getPortionSize();
                     return (value == null ? 0.0 : value) * (grams == null ? 0.0 : grams) / 100.0;
@@ -495,6 +537,44 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         foodItemRepository.save(foodItem);
     }
 
+    private void validateAiEstimateFoodLogRequest(FoodLogsDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Food log request must not be empty.");
+        }
+        if (normalizeDisplayName(dto.getDisplayName(), dto.getFoodName()).isBlank()) {
+            throw new IllegalArgumentException("Display name is required for AI estimate food logs.");
+        }
+        if (dto.getPortionSize() == null || dto.getPortionSize() <= 0) {
+            throw new IllegalArgumentException("Portion size must be a positive value.");
+        }
+        if (dto.getSnapshotCalories() == null || dto.getSnapshotCalories() < 0) {
+            throw new IllegalArgumentException("Snapshot calories must be provided for AI estimate food logs.");
+        }
+        if ((dto.getSnapshotProtein() != null && dto.getSnapshotProtein() < 0)
+                || (dto.getSnapshotCarbs() != null && dto.getSnapshotCarbs() < 0)
+                || (dto.getSnapshotFat() != null && dto.getSnapshotFat() < 0)) {
+            throw new IllegalArgumentException("Snapshot macros must not be negative for AI estimate food logs.");
+        }
+        if (dto.getAiConfidence() != null && (dto.getAiConfidence() < 0 || dto.getAiConfidence() > 1)) {
+            throw new IllegalArgumentException("AI confidence must be between 0 and 1.");
+        }
+        if (dto.getLogDate() == null) {
+            throw new IllegalArgumentException("Log date is required.");
+        }
+        String mealType = normalizeMealType(dto.getMealType());
+        if (!List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").contains(mealType)) {
+            throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
+        }
+    }
+
+    private String normalizeDisplayName(String displayName, String fallbackName) {
+        String value = displayName != null && !displayName.isBlank() ? displayName : fallbackName;
+        return value == null ? "" : value.trim();
+    }
+
+    private Double roundOrZero(Double value) {
+        return value == null ? 0.0 : round(value);
+    }
     private void validateFoodLogRequest(FoodLogsDto dto) {
         if (dto == null) {
             throw new IllegalArgumentException("Food log request must not be empty.");
@@ -519,10 +599,16 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     private FoodLogsEntity copyLogToDate(FoodLogsEntity source, LocalDate targetDate, UserEntity user) {
-        ensureFoodItemAvailableToUser(source.getFoodItem(), user);
+        if (source.getFoodItem() != null) {
+            ensureFoodItemAvailableToUser(source.getFoodItem(), user);
+        }
         FoodLogsEntity copy = new FoodLogsEntity();
         copy.setUser(user);
         copy.setFoodItem(source.getFoodItem());
+        copy.setDisplayName(source.getDisplayName());
+        copy.setEstimated(source.getEstimated());
+        copy.setAiRequestId(source.getAiRequestId());
+        copy.setAiConfidence(source.getAiConfidence());
         copy.setServingOption(source.getServingOption());
         copy.setPortionSize(source.getPortionSize());
         copy.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
@@ -588,8 +674,16 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private FoodLogsDto toDto(FoodLogsEntity entity) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(entity.getId());
-        dto.setFoodItemId(entity.getFoodItem().getId());
-        dto.setFoodName(entity.getFoodItem().getName());
+        if (entity.getFoodItem() != null) {
+            dto.setFoodItemId(entity.getFoodItem().getId());
+            dto.setFoodName(entity.getFoodItem().getName());
+        } else {
+            dto.setFoodName(entity.getDisplayName());
+        }
+        dto.setDisplayName(entity.getDisplayName());
+        dto.setEstimated(Boolean.TRUE.equals(entity.getEstimated()));
+        dto.setAiRequestId(entity.getAiRequestId());
+        dto.setAiConfidence(entity.getAiConfidence());
         if (entity.getServingOption() != null) {
             dto.setServingOptionId(entity.getServingOption().getId());
             dto.setServingOptionLabel(entity.getServingOption().getLabel());
@@ -716,3 +810,4 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 });
     }
 }
+

@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.FoodServingOptionSource;
 import com.grun.calorietracker.enums.FoodServingOptionUnit;
@@ -136,6 +137,51 @@ class FoodLogsServiceImplTest {
         verify(foodItemRepository).save(foodItem);
     }
 
+    @Test
+    void addAiEstimateFoodLog_writesSnapshotWithoutCatalogFoodItem() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setDisplayName("Ham and cheese sandwich");
+        dto.setPortionSize(1.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setSnapshotCalories(350.0);
+        dto.setSnapshotProtein(20.0);
+        dto.setSnapshotCarbs(30.0);
+        dto.setSnapshotFat(16.0);
+        dto.setMealType("lunch");
+        dto.setLogDate(LocalDateTime.of(2026, 7, 3, 13, 0));
+        dto.setAiRequestId(77L);
+        dto.setAiConfidence(0.72);
+        dto.setSource(FoodLogSource.AI_PHOTO);
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(101L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addAiEstimateFoodLog(dto, "test@test.com");
+
+        assertEquals(101L, result.getId());
+        assertEquals("Ham and cheese sandwich", result.getFoodName());
+        assertEquals("Ham and cheese sandwich", result.getDisplayName());
+        assertEquals(true, result.getEstimated());
+        assertNull(result.getFoodItemId());
+        assertEquals(350.0, result.getSnapshotCalories());
+        assertEquals(20.0, result.getSnapshotProtein());
+        assertEquals(30.0, result.getSnapshotCarbs());
+        assertEquals(16.0, result.getSnapshotFat());
+        assertEquals(77L, result.getAiRequestId());
+        assertEquals(0.72, result.getAiConfidence());
+        assertEquals(FoodLogSource.AI_PHOTO, result.getSource());
+        verify(foodLogsRepository).save(argThat(entity ->
+                entity.getFoodItem() == null
+                        && "Ham and cheese sandwich".equals(entity.getDisplayName())
+                        && Boolean.TRUE.equals(entity.getEstimated())
+                        && entity.getSnapshotCalories().equals(350.0)
+        ));
+        verifyNoInteractions(foodItemRepository);
+    }
     @Test
     void quickAddCalories_writesCalorieOnlySnapshotsEvenWhenExistingQuickFoodHasMacros() {
         FoodItemEntity quickItem = new FoodItemEntity();
@@ -688,3 +734,4 @@ class FoodLogsServiceImplTest {
                 () -> foodLogsService.getDailyStats("missing@test.com", start, end));
     }
 }
+

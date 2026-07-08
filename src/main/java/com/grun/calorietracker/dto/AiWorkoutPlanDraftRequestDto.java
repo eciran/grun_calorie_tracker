@@ -48,4 +48,10 @@ public class AiWorkoutPlanDraftRequestDto {
     @Size(max = 12)
     @Schema(description = "Preferred output language.", example = "en")
     private String language;
+
+    @Schema(description = "Backend-built user profile context for provider calls. Clients should not set this field.", accessMode = Schema.AccessMode.READ_ONLY)
+    private Object userContext;
+
+    @Schema(description = "Backend-built AI-eligible exercise catalog context for provider calls. Clients should not set this field.", accessMode = Schema.AccessMode.READ_ONLY)
+    private Object exerciseCatalogContext;
 }

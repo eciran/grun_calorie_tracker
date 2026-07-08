@@ -408,8 +408,8 @@ class FoodProductImportServiceImplTest {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = csv("""
-                fdc_id,description,catalog_type,calories,protein,fat,carbohydrates_100g,fiber_100g,market_region
-                1102647,Oats raw,GENERIC_INGREDIENT,389,16.9,6.9,66.3,10.6,GLOBAL
+                fdc_id,description,calories,protein,fat,carbohydrates_100g,fiber_100g,market_region
+                1102647,Oats raw,389,16.9,6.9,66.3,10.6,GLOBAL
                 """);
 
         FoodProductImportResultDto result = foodProductImportService.importCsv(

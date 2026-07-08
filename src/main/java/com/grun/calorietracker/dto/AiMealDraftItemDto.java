@@ -3,6 +3,9 @@ package com.grun.calorietracker.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @Schema(description = "AI suggested food item draft. It is not written to the diary until the user confirms it.")
 public class AiMealDraftItemDto {
@@ -41,4 +44,16 @@ public class AiMealDraftItemDto {
 
     @Schema(description = "AI confidence between 0 and 1.", example = "0.62")
     private Double confidence;
+
+    @Schema(description = "How the portion was estimated.", example = "VISUAL_ESTIMATE")
+    private String portionEstimateMethod;
+
+    @Schema(description = "Whether the item was visibly detected in the photo input.", example = "true")
+    private Boolean visibleInPhoto;
+
+    @Schema(description = "Whether the user should confirm grams/ml/serving before logging.", example = "true")
+    private Boolean needsUserPortionConfirmation;
+
+    @Schema(description = "Alternative catalog/product names that may match this item.")
+    private List<String> alternativeMatchNames = new ArrayList<>();
 }

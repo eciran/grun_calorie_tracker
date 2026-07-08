@@ -381,6 +381,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 return FoodCatalogType.BRANDED_PRODUCT;
             }
         }
+        String fdcId = firstText(row, "fdc_id", "fdcid", "fdc");
+        if (fdcId != null && normalizedBarcode == null) {
+            return FoodCatalogType.GENERIC_INGREDIENT;
+        }
         return FoodCatalogType.BRANDED_PRODUCT;
     }
 

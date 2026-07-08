@@ -14,6 +14,7 @@ import java.util.List;
 @Schema(description = "AI meal logging draft response. The draft must be reviewed and confirmed by the user before diary writes.")
 public class AiMealDraftResponseDto {
     private Long requestId;
+    private String schemaVersion = "ai_response_v2";
     private AiRequestType requestType;
     private AiProvider provider;
     private String model;
@@ -22,6 +23,10 @@ public class AiMealDraftResponseDto {
     private LocalDateTime suggestedLogDate;
     private String summary;
     private AiSafetyResultDto safety;
+    private Double confidence;
+    private Integer qualityScore;
+    private String estimatedUncertainty;
+    private List<String> reviewReasons = new ArrayList<>();
     private List<AiMealDraftItemDto> items = new ArrayList<>();
     private Integer aiRemainingThisPeriod;
 }
