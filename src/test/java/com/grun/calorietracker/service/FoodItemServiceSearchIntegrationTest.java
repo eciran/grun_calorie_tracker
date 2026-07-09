@@ -4,15 +4,18 @@ import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
+import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +39,9 @@ class FoodItemServiceSearchIntegrationTest {
 
     @Autowired
     private FoodItemSearchAliasRepository foodItemSearchAliasRepository;
+
+    @Autowired
+    private FoodProductQualityIssueRepository foodProductQualityIssueRepository;
 
     private FoodItemServiceImpl foodItemService;
 
@@ -67,6 +73,34 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals(VerificationStatus.VERIFIED, result.getContent().get(0).getVerificationStatus());
     }
 
+    @Test
+    void searchFoodItems_excludesProductsWithBlockingQualityIssuesFromUserSearch() {
+        FoodItemEntity cleanProduct = product("Visible Chicken Meal", "121001", VerificationStatus.RAW_IMPORTED);
+        cleanProduct.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodItemEntity suspiciousProduct = product("Broken Chicken Meal", "121002", VerificationStatus.RAW_IMPORTED);
+        suspiciousProduct.setMarketRegion(MarketRegion.UK_IE);
+        suspiciousProduct.setCalories(65600.0);
+
+        foodItemRepository.saveAll(List.of(cleanProduct, suspiciousProduct));
+
+        FoodProductQualityIssueEntity issue = new FoodProductQualityIssueEntity();
+        issue.setFoodItem(suspiciousProduct);
+        issue.setIssueType(FoodProductQualityIssue.SUSPICIOUS_CALORIES);
+        issue.setIdentifier("121002");
+        issue.setReason("Calories are not valid for a 100g nutrition basis.");
+        issue.setResolved(false);
+        foodProductQualityIssueRepository.save(issue);
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("chicken meal");
+        criteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals("Visible Chicken Meal", result.getContent().get(0).getProductName());
+    }
     @Test
     void searchFoodItems_whenMarketRegionProvided_filtersProductsByRegion() {
         FoodItemEntity ukIeProduct = product("Regional Milk", "333333", VerificationStatus.VERIFIED);
@@ -146,6 +180,34 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals("Organic Porridge Oats Bar", result.getContent().get(1).getProductName());
     }
 
+    @Test
+    void searchFoodItems_defaultRanking_prioritizesGlobalGenericIngredientBeforeRegionalBrandedProductForSameFoodName() {
+        FoodItemEntity regionalBranded = product("Chicken Breast", "333001", VerificationStatus.RAW_IMPORTED);
+        regionalBranded.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        regionalBranded.setMarketRegion(MarketRegion.UK_IE);
+        regionalBranded.setQualityScore(100);
+
+        FoodItemEntity globalGeneric = product("Chicken Breast", null, VerificationStatus.RAW_IMPORTED);
+        globalGeneric.setSourceKey("USDA_FOODDATA:fdc:999001");
+        globalGeneric.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        globalGeneric.setMarketRegion(MarketRegion.GLOBAL);
+        globalGeneric.setPreparationState(FoodPreparationState.RAW);
+        globalGeneric.setQualityScore(80);
+
+        foodItemRepository.saveAll(List.of(regionalBranded, globalGeneric));
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("chicken breast");
+        criteria.setMarketRegion(MarketRegion.UK_IE);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(2, result.getContent().size());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, result.getContent().get(0).getCatalogType());
+        assertEquals(MarketRegion.GLOBAL, result.getContent().get(0).getMarketRegion());
+        assertEquals(FoodCatalogType.BRANDED_PRODUCT, result.getContent().get(1).getCatalogType());
+        assertEquals(MarketRegion.UK_IE, result.getContent().get(1).getMarketRegion());
+    }
     @Test
     void searchFoodItems_defaultRanking_prioritizesWholeWordFoodMatchBeforeSubstringMatch() {
         FoodItemEntity milkChocolate = product("Milk Chocolate", "111001", VerificationStatus.RAW_IMPORTED);

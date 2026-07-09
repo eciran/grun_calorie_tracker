@@ -7,9 +7,11 @@ import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
 import java.util.Set;
 
 @Data
@@ -29,6 +31,7 @@ public class AdminRecipeReviewRequestDto {
 
     @Schema(description = "Admin-reviewed allergens displayed on public recipe detail.", example = "[\"MILK\", \"TREE_NUTS\"]")
     private Set<RecipeAllergen> allergens;
+
     @Size(max = 1024)
     @Schema(description = "Reviewed display image URL for the recipe.")
     private String imageUrl;
@@ -38,6 +41,11 @@ public class AdminRecipeReviewRequestDto {
 
     @Schema(description = "Image moderation decision.", example = "APPROVED")
     private ImageStatus imageStatus;
+
+    @Valid
+    @Size(max = 30)
+    @Schema(description = "Ordered cooking/preparation steps displayed on recipe detail.")
+    private List<RecipeStepRequestDto> cookingSteps;
 
     @Size(max = 1000)
     @Schema(description = "Internal admin note explaining the decision.", example = "Recipe looks valid and nutrition calculation is plausible.")

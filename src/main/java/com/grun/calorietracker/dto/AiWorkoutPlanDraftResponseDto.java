@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -11,7 +12,7 @@ import java.util.List;
 
 @Data
 @Schema(description = "AI-generated workout plan draft. It is not active until the user confirms it.")
-public class AiWorkoutPlanDraftResponseDto {
+public class AiWorkoutPlanDraftResponseDto implements AiUsageMetadataCarrier {
     private Long requestId;
     private String schemaVersion = "ai_response_v2";
     private AiRequestType requestType;
@@ -28,4 +29,14 @@ public class AiWorkoutPlanDraftResponseDto {
     private Integer aiRemainingThisPeriod;
     private List<AiWorkoutPlanDayDto> days = new ArrayList<>();
     private List<String> warnings = new ArrayList<>();
+    @JsonIgnore
+    private Integer promptTokens;
+    @JsonIgnore
+    private Integer completionTokens;
+    @JsonIgnore
+    private Integer totalTokens;
+    @JsonIgnore
+    private Double estimatedCost;
+    @JsonIgnore
+    private String costCurrency;
 }

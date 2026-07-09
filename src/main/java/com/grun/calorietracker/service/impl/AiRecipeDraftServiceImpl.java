@@ -8,8 +8,11 @@ import com.grun.calorietracker.dto.AiRecipeIngredientSuggestionDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
+import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -81,6 +84,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         try {
             AiRecipeDraftResponseDto response = normalize(activeProvider().createRecipeDraft(request), user);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            copyUsageMetadata(response, history);
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
@@ -138,6 +142,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
             throw new IllegalArgumentException("AI recipe provider returned no suggested recipe.");
         }
         validateSuggestedRecipe(response);
+        validateEstimatedNutrition(response);
         matchSuggestedIngredients(response, user);
         normalizeQuality(response);
         if (response.getWarnings() == null) {
@@ -182,6 +187,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
         return "LOW";
     }
+
     private void validateSuggestedRecipe(AiRecipeDraftResponseDto response) {
         var recipe = response.getSuggestedRecipe();
         if (recipe.getName() == null || recipe.getName().isBlank()) {
@@ -207,6 +213,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         if (recipe.getDefaultServingGrams() != null && recipe.getDefaultServingGrams() <= 0) {
             throw new IllegalArgumentException("AI recipe provider returned an invalid default serving amount.");
         }
+        validateCookingSteps(recipe.getCookingSteps());
         if (recipe.getIngredients() != null && recipe.getIngredients().size() > MAX_RECIPE_INGREDIENTS) {
             throw new IllegalArgumentException("AI recipe provider returned too many recipe ingredients.");
         }
@@ -226,6 +233,43 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
                     throw new IllegalArgumentException("AI recipe provider returned an invalid ingredient portion.");
                 }
             }
+        }
+    }
+
+    private void validateCookingSteps(List<RecipeStepRequestDto> steps) {
+        if (steps == null || steps.isEmpty()) {
+            throw new IllegalArgumentException("AI recipe provider returned no cooking steps.");
+        }
+        if (steps.size() > 30) {
+            throw new IllegalArgumentException("AI recipe provider returned too many cooking steps.");
+        }
+        for (RecipeStepRequestDto step : steps) {
+            if (step == null || step.getInstruction() == null || step.getInstruction().isBlank()) {
+                throw new IllegalArgumentException("AI recipe provider returned a blank cooking step.");
+            }
+            if (step.getInstruction().length() > 1000) {
+                throw new IllegalArgumentException("AI recipe provider returned a cooking step that is too long.");
+            }
+        }
+    }
+
+    private void validateEstimatedNutrition(AiRecipeDraftResponseDto response) {
+        validateNutrition(response.getEstimatedNutritionTotal(), "total");
+        validateNutrition(response.getEstimatedNutritionPerServing(), "per serving");
+        if (response.getNutritionEstimateNote() == null || response.getNutritionEstimateNote().isBlank()) {
+            throw new IllegalArgumentException("AI recipe provider returned no nutrition estimate note.");
+        }
+    }
+
+    private void validateNutrition(RecipeNutritionDto nutrition, String label) {
+        if (nutrition == null) {
+            throw new IllegalArgumentException("AI recipe provider returned no " + label + " nutrition estimate.");
+        }
+        if (nutrition.getCalories() == null || nutrition.getCalories() < 0
+                || nutrition.getProtein() == null || nutrition.getProtein() < 0
+                || nutrition.getCarbs() == null || nutrition.getCarbs() < 0
+                || nutrition.getFat() == null || nutrition.getFat() < 0) {
+            throw new IllegalArgumentException("AI recipe provider returned invalid " + label + " macro nutrition.");
         }
     }
 
@@ -325,6 +369,21 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
     }
 
+    private void copyUsageMetadata(AiUsageMetadataCarrier response, AiRequestHistoryEntity history) {
+        if (response == null || history == null) {
+            return;
+        }
+        history.setPromptTokens(response.getPromptTokens());
+        history.setCompletionTokens(response.getCompletionTokens());
+        Integer totalTokens = response.getTotalTokens();
+        if (totalTokens == null && (response.getPromptTokens() != null || response.getCompletionTokens() != null)) {
+            totalTokens = (response.getPromptTokens() == null ? 0 : response.getPromptTokens())
+                    + (response.getCompletionTokens() == null ? 0 : response.getCompletionTokens());
+        }
+        history.setTotalTokens(totalTokens);
+        history.setEstimatedCost(response.getEstimatedCost());
+        history.setCostCurrency(response.getCostCurrency());
+    }
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
@@ -338,3 +397,6 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
     }
 }
+
+
+

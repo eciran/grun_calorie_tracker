@@ -9,6 +9,8 @@ import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
+import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
@@ -236,6 +238,9 @@ class AiRecipeDraftServiceImplTest {
         AiRecipeDraftResponseDto response = new AiRecipeDraftResponseDto();
         response.setSuggestedRecipe(finalRecipe());
         response.setSummary("Draft recipe.");
+        response.setEstimatedNutritionTotal(nutrition());
+        response.setEstimatedNutritionPerServing(nutrition());
+        response.setNutritionEstimateNote("Estimated from typical ingredient values.");
         return response;
     }
 
@@ -252,9 +257,20 @@ class AiRecipeDraftServiceImplTest {
         recipe.setTotalYieldGrams(150.0);
         recipe.setDefaultServingGrams(150.0);
         recipe.setIngredients(List.of(ingredient));
+        recipe.setCookingSteps(List.of(step("Cook the chicken until done."), step("Plate and serve.")));
         return recipe;
     }
 
+
+    private RecipeNutritionDto nutrition() {
+        return new RecipeNutritionDto(320.0, 35.0, 20.0, 9.0, 4.0, 3.0, 2.0, 450.0, 700.0, 80.0, 90.0, 2.5, 60.0, 2.0, 400.0, 20.0, 1.0, 2.0, 1.5);
+    }
+
+    private RecipeStepRequestDto step(String instruction) {
+        RecipeStepRequestDto step = new RecipeStepRequestDto();
+        step.setInstruction(instruction);
+        return step;
+    }
     private FoodItemEntity verifiedFoodItem() {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setId(12L);
@@ -264,3 +280,4 @@ class AiRecipeDraftServiceImplTest {
         return foodItem;
     }
 }
+

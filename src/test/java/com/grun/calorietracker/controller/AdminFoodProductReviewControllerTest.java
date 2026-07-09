@@ -31,6 +31,7 @@ import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.ProductQualitySuggestionSource;
+import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -274,7 +275,7 @@ class AdminFoodProductReviewControllerTest {
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void scanProductQualitySuggestions_whenAdmin_returnsScanResult() throws Exception {
         ProductQualitySuggestionScanResultDto response = new ProductQualitySuggestionScanResultDto(50, 12, 3);
-        when(productQualitySuggestionService.scanSuggestions(MarketRegion.UK_IE, 50)).thenReturn(response);
+        when(productQualitySuggestionService.scanSuggestions(MarketRegion.UK_IE, 50, false, ProductQualityScanTriggerType.MANUAL, "admin@test.com")).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/admin/products/quality-suggestions/scan")
                         .param("region", "UK_IE")
@@ -284,7 +285,7 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.createdSuggestions").value(12))
                 .andExpect(jsonPath("$.skippedExistingSuggestions").value(3));
 
-        verify(productQualitySuggestionService).scanSuggestions(MarketRegion.UK_IE, 50);
+        verify(productQualitySuggestionService).scanSuggestions(MarketRegion.UK_IE, 50, false, ProductQualityScanTriggerType.MANUAL, "admin@test.com");
     }
 
     @Test
@@ -688,4 +689,5 @@ class AdminFoodProductReviewControllerTest {
                         .value("#/components/schemas/FoodProductReviewAuditPageDto"));
     }
 }
+
 

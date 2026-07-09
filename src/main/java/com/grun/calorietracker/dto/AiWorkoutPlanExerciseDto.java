@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @Schema(description = "AI workout plan exercise item. It should reference a verified exercise catalog item when possible.")
 public class AiWorkoutPlanExerciseDto {
@@ -40,6 +43,21 @@ public class AiWorkoutPlanExerciseDto {
     @Schema(description = "Why this exercise was included.")
     private String rationale;
 
+    @Schema(description = "Step-by-step execution instructions for the movement.", example = "Start in a high plank, brace your core, lower your chest under control, then press back up without flaring elbows.")
+    private String executionInstructions;
+
+    @Schema(description = "Short form cues the user should focus on while performing the exercise.", example = "[\"Brace core\", \"Keep elbows around 45 degrees\", \"Move under control\"]")
+    private List<String> formCues = new ArrayList<>();
+
+    @Schema(description = "Common mistakes to avoid for this exercise.", example = "[\"Dropping hips\", \"Flaring elbows too wide\"]")
+    private List<String> commonMistakes = new ArrayList<>();
+
+    @Schema(description = "Tempo or pacing cue for reps or timed work.", example = "2 sec down, 1 sec pause, controlled up")
+    private String tempo;
+
+    @Schema(description = "Simpler or harder alternatives if the selected movement is not suitable.", example = "[\"Incline Push-Up\", \"Knee Push-Up\"]")
+    private List<String> alternatives = new ArrayList<>();
+
     @Schema(description = "Safety note for this movement.")
     private String safetyNote;
 
@@ -62,3 +80,4 @@ public class AiWorkoutPlanExerciseDto {
     @Schema(description = "Whether this exercise needs user/admin review because it was not confidently matched to the catalog.", example = "true")
     private Boolean reviewRequired;
 }
+

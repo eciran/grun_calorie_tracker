@@ -19,6 +19,7 @@ import {
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
   AdminTrackingTrendPoint,
+  AdminProductQualityAiValidationResult,
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AiMealDraft,
@@ -27,6 +28,9 @@ import {
   FeatureMatrixItem,
   FoodProduct,
   FoodSearchAlias,
+  ProductQualityScanRun,
+  ProductQualityScanRunDetail,
+  ProductQualityScanRunPage,
   ProductQualitySuggestion,
   ProductQualitySuggestionPage,
   ProductQualitySuggestionScanResult,
@@ -847,7 +851,8 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
   const [reviewNote, setReviewNote] = useState("");
   const [rejectConfirmationOpen, setRejectConfirmationOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [correctionFile, setCorrectionFile] = useState<File | null>(null);
+    const [savedNotice, setSavedNotice] = useState<string | null>(null);
+const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [correctionResult, setCorrectionResult] = useState<NutritionCorrectionImportResult | null>(null);
   const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
   const [transferState, setTransferState] = useState<LoadState>("idle");
@@ -953,6 +958,8 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
       void updated;
       await reload();
       closeProductModal();
+      setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -986,6 +993,8 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
       void updated;
       await reload();
       closeProductModal();
+      setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -1046,6 +1055,7 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
       <SectionToolbar title={modeTitle} state={state} onReload={reload}>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
+      {savedNotice && <div className="success-banner compact-success">{savedNotice}</div>}
 
       <div className="review-workspace-summary">
         <MetricCard label="Returned products" value={formatValue(totalElements)} hint="Matching current filters" />
@@ -1225,6 +1235,7 @@ type AdminRecipeCreateForm = {
   imageSource: string;
   reviewNote: string;
   categories: string[];
+  cookingSteps: string[];
   ingredients: AdminRecipeIngredientForm[];
 };
 
@@ -1245,6 +1256,7 @@ const emptyRecipeCreateForm: AdminRecipeCreateForm = {
   imageSource: "",
   reviewNote: "",
   categories: [],
+  cookingSteps: [""],
   ingredients: [{ foodItemId: "", productSearchQuery: "", productLabel: "", portionSize: "100", portionUnit: "GRAM" }]
 };
 
@@ -1274,8 +1286,10 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [draftImageStatus, setDraftImageStatus] = useState("");
   const [draftImageSource, setDraftImageSource] = useState("");
   const [draftCategories, setDraftCategories] = useState<string[]>([]);
+  const [draftCookingSteps, setDraftCookingSteps] = useState<string[]>([]);
   const [reviewNote, setReviewNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [showCreateRecipe, setShowCreateRecipe] = useState(false);
   const [creatingRecipe, setCreatingRecipe] = useState(false);
   const [createForm, setCreateForm] = useState<AdminRecipeCreateForm>(emptyRecipeCreateForm);
@@ -1383,6 +1397,36 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     }
   }
 
+
+  function updateCreateCookingStep(index: number, value: string) {
+    setCreateForm((current) => ({
+      ...current,
+      cookingSteps: current.cookingSteps.map((step, itemIndex) => itemIndex === index ? value : step)
+    }));
+  }
+
+  function addCreateCookingStep() {
+    setCreateForm((current) => ({ ...current, cookingSteps: [...current.cookingSteps, ""] }));
+  }
+
+  function removeCreateCookingStep(index: number) {
+    setCreateForm((current) => ({
+      ...current,
+      cookingSteps: current.cookingSteps.length <= 1 ? current.cookingSteps : current.cookingSteps.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  }
+
+  function updateDraftCookingStep(index: number, value: string) {
+    setDraftCookingSteps((current) => current.map((step, itemIndex) => itemIndex === index ? value : step));
+  }
+
+  function addDraftCookingStep() {
+    setDraftCookingSteps((current) => [...current, ""]);
+  }
+
+  function removeDraftCookingStep(index: number) {
+    setDraftCookingSteps((current) => current.length <= 1 ? current : current.filter((_, itemIndex) => itemIndex !== index));
+  }
   async function searchCreateIngredientProducts(index: number) {
     const ingredient = createForm.ingredients[index];
     const searchText = ingredient?.productSearchQuery.trim();
@@ -1512,6 +1556,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         timeoutMs: 60000
       });
       setSelectedRecipe(created);
+      setSelectedImportCandidate(null);
       await reloadImports();
       await reload();
     } catch (err) {
@@ -1570,6 +1615,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         defaultServingGrams: numericOrNull(createForm.defaultServingGrams),
         servingCount,
         categories: createForm.categories,
+        cookingSteps: createForm.cookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction),
         ingredients
       },
       reviewNote: createForm.reviewNote.trim() || "Created from admin panel."
@@ -1612,6 +1658,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setDraftImageStatus(recipe.imageStatus ?? "");
     setDraftImageSource(recipe.imageSource ?? "");
     setDraftCategories(recipe.categories ?? []);
+    setDraftCookingSteps((recipe.cookingSteps ?? []).map((step) => step.instruction ?? "").filter(Boolean));
     setReviewNote("");
   }
 
@@ -1621,6 +1668,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setDraftImageStatus("");
     setDraftImageSource("");
     setDraftCategories([]);
+    setDraftCookingSteps([]);
     setReviewNote("");
   }
 
@@ -1642,12 +1690,15 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
           imageStatus: draftImageStatus || null,
           imageSource: draftImageSource || null,
           categories: draftCategories,
+          cookingSteps: draftCookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction),
           reviewNote: reviewNote || "Updated from admin panel."
         }
       });
-      setSelectedRecipe(updated);
+      void updated;
       await reload();
       closeRecipe();
+      setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -1662,6 +1713,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         <button className="ghost-button" onClick={() => setShowCreateRecipe((value) => !value)} type="button">{showCreateRecipe ? "Close create" : "Create recipe"}</button>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
+      {savedNotice && <div className="success-banner compact-success">{savedNotice}</div>}
 
       <div className="review-workspace-summary">
         <MetricCard label="Returned recipes" value={formatValue(data?.totalElements ?? rows.length)} hint="Matching current filters" />
@@ -1841,18 +1893,12 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                           <div className="ingredient-search-results recipe-import-product-results">
                             {importIngredientSearchState === "loading" && <span>Searching products...</span>}
                             {importIngredientSearchState === "ready" && importIngredientSearchResults.length === 0 && <span>No product found. Create or import the product first, then map again.</span>}
-                            {importIngredientSearchResults.map((product) => {
-                              const productImage = product.displayImageUrl ?? product.imageUrl ?? product.externalImageUrl;
-                              return (
-                                <button className="ingredient-search-result with-image" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
-                                  {productImage ? <img src={productImage} alt="" /> : <span className="ingredient-search-placeholder">No image</span>}
-                                  <span>
-                                    <strong>{productName(product)}</strong>
-                                    <small>{productIngredientLabel(product)}</small>
-                                  </span>
-                                </button>
-                              );
-                            })}
+                            {importIngredientSearchResults.map((product) => (
+                              <button className="ingredient-search-result" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
+                                <strong>{productName(product)}</strong>
+                                <span>{productIngredientLabel(product)}</span>
+                              </button>
+                            ))}
                           </div>
                         )}
                       </article>
@@ -1861,7 +1907,17 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                   {(selectedImportCandidate.ingredients ?? []).length === 0 && <div className="empty-state compact-empty">No ingredient details returned for this candidate.</div>}
                 </div>
               </Panel>
-              <Panel title="Validation issues">
+              <Panel title="Source cooking steps">
+                <div className="recipe-step-list readonly-step-list">
+                  {(selectedImportCandidate.cookingSteps ?? []).map((step, index) => (
+                    <div className="recipe-step-row readonly-step-row" key={`import-step-${step.stepNumber ?? index}`}>
+                      <span>{step.stepNumber ?? index + 1}</span>
+                      <p>{step.instruction ?? "-"}</p>
+                    </div>
+                  ))}
+                  {(selectedImportCandidate.cookingSteps ?? []).length === 0 && <div className="empty-state compact-empty">No cooking steps returned in this import candidate.</div>}
+                </div>
+              </Panel>              <Panel title="Validation issues">
                 <div className={selectedImportCandidate.validationIssues ? "correction-error-list" : "empty-state compact-empty"}>
                   {selectedImportCandidate.validationIssues
                     ? selectedImportCandidate.validationIssues.split(";").map((issue) => <span key={issue.trim()}>{issue.trim()}</span>)
@@ -2053,7 +2109,19 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                 </div>
               ))}
             </div>
-            <label className="full-width-field">
+            <div className="admin-recipe-steps">
+              <div className="admin-recipe-ingredients-header">
+                <strong>Cooking steps</strong>
+                <button className="ghost-button" type="button" onClick={addCreateCookingStep}>Add step</button>
+              </div>
+              {createForm.cookingSteps.map((step, index) => (
+                <div className="recipe-step-editor-row" key={`create-step-${index}`}>
+                  <span>{index + 1}</span>
+                  <textarea value={step} onChange={(event) => updateCreateCookingStep(index, event.target.value)} placeholder="Describe this preparation step" />
+                  <button className="ghost-button danger-text" type="button" onClick={() => removeCreateCookingStep(index)} disabled={createForm.cookingSteps.length <= 1}>Remove</button>
+                </div>
+              ))}
+            </div>            <label className="full-width-field">
               Admin note
               <textarea value={createForm.reviewNote} onChange={(event) => updateCreateForm("reviewNote", event.target.value)} placeholder="Internal note for audit trail" />
             </label>
@@ -2262,6 +2330,19 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                     ])}
                     empty="No ingredients returned."
                   />
+                </Panel>
+                <Panel title="Review cooking steps">
+                  <div className="recipe-step-list">
+                    {draftCookingSteps.map((step, index) => (
+                      <div className="recipe-step-editor-row" key={`review-step-${index}`}>
+                        <span>{index + 1}</span>
+                        <textarea value={step} onChange={(event) => updateDraftCookingStep(index, event.target.value)} placeholder="Describe this preparation step" />
+                        <button className="ghost-button danger-text" type="button" onClick={() => removeDraftCookingStep(index)} disabled={draftCookingSteps.length <= 1}>Remove</button>
+                      </div>
+                    ))}
+                    {!draftCookingSteps.length && <div className="empty-state compact-empty">No cooking steps saved for this recipe.</div>}
+                  </div>
+                  <button className="ghost-button" type="button" onClick={addDraftCookingStep}>Add step</button>
                 </Panel>
                 <EditableDetail label="Review note">
                   <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Optional internal moderation note" />
@@ -4309,13 +4390,20 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
   const [suggestionPage, setSuggestionPage] = useState(0);
   const [suggestionPageSize, setSuggestionPageSize] = useState(25);
   const [scanRegion, setScanRegion] = useState("");
-  const [scanLimit, setScanLimit] = useState("500");
+  const [scanLimit, setScanLimit] = useState("250");
+  const [forceRescan, setForceRescan] = useState(false);
   const [qualityActionState, setQualityActionState] = useState<LoadState>("idle");
   const [scanResult, setScanResult] = useState<ProductQualitySuggestionScanResult | null>(null);
+  const [selectedScanRunDetail, setSelectedScanRunDetail] = useState<ProductQualityScanRunDetail | null>(null);
+  const [aiValidationResult, setAiValidationResult] = useState<AdminProductQualityAiValidationResult | null>(null);
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<number[]>([]);
   const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, page: suggestionPage, size: suggestionPageSize });
   const { data: suggestions, state: suggestionState, reload: reloadSuggestions } = useEndpoint<ProductQualitySuggestionPage>(suggestionPath, onError);
+  const { data: scanRuns, state: scanRunState, reload: reloadScanRuns } = useEndpoint<ProductQualityScanRunPage>("/api/v1/admin/products/quality-suggestions/scan-runs?page=0&size=5", onError);
   const rows = products?.content ?? [];
   const suggestionRows = suggestions?.content ?? [];
+  const scanRunRows = scanRuns?.content ?? [];
+  const selectedOpenSuggestionIds = selectedSuggestionIds.filter((id) => suggestionRows.some((item) => item.id === id && item.status === "OPEN"));
   const byRegion = countBy(rows, (item) => item.marketRegion ?? "Unknown");
   const byImageStatus = countBy(rows, (item) => item.imageStatus ?? "Unknown");
   const byCatalogType = countBy(rows, (item) => item.catalogType ?? "Unknown");
@@ -4331,6 +4419,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     void reloadSummary();
     void reloadProducts();
     void reloadSuggestions();
+    void reloadScanRuns();
   }
 
   async function scanQualitySuggestions() {
@@ -4338,12 +4427,16 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     try {
       const params = new URLSearchParams();
       if (scanRegion) params.set("region", scanRegion);
-      params.set("limit", String(parsePositiveInt(scanLimit)));
+      params.set("limit", String(Math.min(parsePositiveInt(scanLimit), 500)));
+      params.set("forceRescan", String(forceRescan));
       const result = await request<ProductQualitySuggestionScanResult>(`/api/v1/admin/products/quality-suggestions/scan?${params.toString()}`, { method: "POST" });
       setScanResult(result);
+      setAiValidationResult(null);
+      setSelectedSuggestionIds([]);
       setSuggestionStatus("OPEN");
       setSuggestionPage(0);
       await reloadSuggestions();
+      await reloadScanRuns();
       setQualityActionState("ready");
     } catch (error) {
       setQualityActionState("error");
@@ -4351,12 +4444,61 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     }
   }
 
+
+  async function openScanRunDetail(item: ProductQualityScanRun) {
+    if (!item.id) return;
+    setQualityActionState("loading");
+    try {
+      const detail = await request<ProductQualityScanRunDetail>(`/api/v1/admin/products/quality-suggestions/scan-runs/${item.id}`);
+      setSelectedScanRunDetail(detail);
+      setQualityActionState("ready");
+    } catch (error) {
+      setQualityActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
   async function reviewQualitySuggestion(item: ProductQualitySuggestion, action: "accept" | "reject") {
     if (!item.id) return;
     setQualityActionState("loading");
     try {
       await request<ProductQualitySuggestion>(`/api/v1/admin/products/quality-suggestions/${item.id}/${action}`, { method: "PATCH" });
       await reloadSuggestions();
+      await reloadScanRuns();
+      setSelectedSuggestionIds((current) => current.filter((id) => id !== item.id));
+      setQualityActionState("ready");
+    } catch (error) {
+      setQualityActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  function toggleSuggestionSelection(item: ProductQualitySuggestion, checked: boolean) {
+    if (!item.id || item.status !== "OPEN") return;
+    setSelectedSuggestionIds((current) => {
+      if (checked) return Array.from(new Set([...current, item.id as number]));
+      return current.filter((id) => id !== item.id);
+    });
+  }
+
+  async function validateSelectedSuggestionsWithAi() {
+    if (selectedOpenSuggestionIds.length === 0) return;
+    setQualityActionState("loading");
+    try {
+      const result = await request<AdminProductQualityAiValidationResult>("/api/v1/admin/products/quality-suggestions/ai-validate-selected", {
+        method: "POST",
+        body: JSON.stringify({
+          suggestionIds: selectedOpenSuggestionIds,
+          limit: Math.min(selectedOpenSuggestionIds.length, 25),
+          forceRescan
+        })
+      });
+      setAiValidationResult(result);
+      setScanResult(null);
+      setSelectedSuggestionIds([]);
+      setSuggestionStatus("OPEN");
+      setSuggestionPage(0);
+      await reloadSuggestions();
+      await reloadScanRuns();
       setQualityActionState("ready");
     } catch (error) {
       setQualityActionState("error");
@@ -4366,7 +4508,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, qualityActionState])} onReload={reloadAll} />
+      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, scanRunState, qualityActionState])} onReload={reloadAll} />
       {mode === "overview" && <div className="food-ops-hero">
         <div>
           <p className="eyebrow">Local catalog first</p>
@@ -4416,8 +4558,8 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           <span>User locale to market-group mapping</span>
         </div>
       </Panel>}
-      {mode === "quality" && <Panel title="Quality suggestion scan">
-        <div className="review-filter-grid">
+      {mode === "quality" && <Panel title="Quality validation scan">
+        <div className="review-filter-grid quality-scan-grid">
           <label>
             Region
             <select value={scanRegion} onChange={(event) => setScanRegion(event.target.value)}>
@@ -4428,29 +4570,102 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           <label>
             Scan limit
             <input value={scanLimit} onChange={(event) => setScanLimit(event.target.value.replace(/[^0-9]/g, ""))} />
+            <small>Manual scans are capped at 500 products. Previously validated products are skipped unless forced.</small>
           </label>
-          <button className="primary-button" type="button" disabled={qualityActionState === "loading"} onClick={scanQualitySuggestions}>Run scan</button>
+          <label className="quality-force-toggle">
+            <input type="checkbox" checked={forceRescan} onChange={(event) => setForceRescan(event.target.checked)} />
+            <span>Force rescan validated products</span>
+          </label>
+          <div className="quality-scan-actions"><button className="primary-button" type="button" disabled={qualityActionState === "loading"} onClick={scanQualitySuggestions}>Run scan</button></div>
         </div>
         {scanResult && <div className="metric-grid compact-grid">
-          <MetricCard label="Scanned" value={formatValue(scanResult.scannedProducts)} hint="Products evaluated" />
-          <MetricCard label="Created" value={formatValue(scanResult.createdSuggestions)} hint="New suggestions" />
-          <MetricCard label="Skipped" value={formatValue(scanResult.skippedExistingSuggestions)} hint="Already had suggestions" />
+          <MetricCard label="Run" value={formatValue(scanResult.scanRunId)} hint="Scan history id" />
+          <MetricCard label="Scanned" value={formatValue(scanResult.scannedProducts)} hint={`Effective limit ${formatValue(scanResult.effectiveLimit)}`} />
+          <MetricCard label="Created" value={formatValue(scanResult.createdSuggestions)} hint="New review suggestions" />
+          <MetricCard label="Existing" value={formatValue(scanResult.skippedExistingSuggestions)} hint="Duplicate open suggestions skipped" />
+          <MetricCard label="Validated" value={formatValue(scanResult.validatedProducts)} hint="No current rule issues found" />
         </div>}
       </Panel>}
-      {mode === "quality" && <Panel title="Quality suggestion queue">
+      {mode === "quality" && <Panel title="Recent quality scan runs" className="quality-table-panel compact-empty-panel">
+        <DataTable
+          columns={["Run", "Source", "Trigger", "Region", "Limit", "Scanned", "Created", "Validated", "Status", "Actions"]}
+          rows={scanRunRows.map((item) => [
+            <div className="entity-cell"><strong>#{item.id ?? "-"}</strong><small>{formatDate(item.startedAt)}</small></div>,
+            <Badge value={item.source ?? "-"} tone={item.source === "AI_ASSISTED" ? "warn" : "neutral"} />,
+            <div className="badge-stack"><Badge value={item.triggerType ?? "-"} /><Badge value={item.forceRescan ? "FORCED" : "SKIP_VALIDATED"} tone={item.forceRescan ? "warn" : "good"} /></div>,
+            item.marketRegion ?? "All",
+            `${formatValue(item.effectiveLimit)} / requested ${formatValue(item.requestedLimit)}`,
+            formatValue(item.scannedProducts),
+            formatValue(item.createdSuggestions),
+            formatValue(item.validatedProducts),
+            <Badge value={item.status ?? "-"} tone={item.status === "COMPLETED" ? "good" : item.status === "FAILED" ? "danger" : "warn"} />,
+            <button className="ghost-button" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void openScanRunDetail(item); }}>View</button>
+          ])}
+          empty="No quality scan runs yet."
+        />
+      </Panel>}
+      {selectedScanRunDetail && <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <div className="modal-card scan-run-detail-modal">
+          <div className="modal-header">
+            <div>
+              <span>QUALITY SCAN DETAIL</span>
+              <h2>Run #{selectedScanRunDetail.run?.id ?? "-"}</h2>
+            </div>
+            <button className="ghost-button" type="button" onClick={() => setSelectedScanRunDetail(null)}>Close</button>
+          </div>
+          <div className="modal-body">
+            <div className="metric-grid compact-grid">
+              <MetricCard label="Scanned" value={formatValue(selectedScanRunDetail.run?.scannedProducts)} hint="Products inspected" />
+              <MetricCard label="Created" value={formatValue(selectedScanRunDetail.run?.createdSuggestions)} hint="Suggestions opened" />
+              <MetricCard label="Validated" value={formatValue(selectedScanRunDetail.run?.validatedProducts)} hint="No rule issue found" />
+              <MetricCard label="Existing" value={formatValue(selectedScanRunDetail.run?.skippedExistingSuggestions)} hint="Duplicate suggestions skipped" />
+            </div>
+            <DataTable
+              columns={["Product", "Status", "Type", "Field", "Suggested", "Confidence", "Note"]}
+              rows={(selectedScanRunDetail.items ?? []).map((item) => [
+                <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
+                <Badge value={item.status ?? "-"} tone={item.status === "VALIDATED" ? "good" : item.status === "SUGGESTION_CREATED" ? "warn" : "neutral"} />,
+                item.suggestionType ?? "-",
+                item.fieldName ?? "-",
+                item.suggestedValue ?? "-",
+                formatValue(item.confidenceScore),
+                item.note ?? item.reason ?? "-"
+              ])}
+              empty="No product-level detail was stored for this run. Older scan runs only contain aggregate counts."
+            />
+          </div>
+        </div>
+      </div>}
+      {mode === "quality" && <Panel title="Quality suggestion queue" className="quality-table-panel compact-empty-panel">
+        <div className="quality-suggestion-toolbar">
+          <div>
+            <strong>{formatValue(selectedOpenSuggestionIds.length)} selected</strong>
+            <small>AI validation is capped at 25 selected open suggestions.</small>
+          </div>
+          <button className="primary-button" type="button" disabled={qualityActionState === "loading" || selectedOpenSuggestionIds.length === 0} onClick={validateSelectedSuggestionsWithAi}>Validate selected with AI</button>
+        </div>
+        {aiValidationResult && <div className="metric-grid compact-grid">
+          <MetricCard label="AI run" value={formatValue(aiValidationResult.scanRunId)} hint="AI-assisted scan history id" />
+          <MetricCard label="Requested" value={formatValue(aiValidationResult.requestedProducts)} hint={`Effective limit ${formatValue(aiValidationResult.effectiveLimit)}`} />
+          <MetricCard label="New suggestions" value={formatValue(aiValidationResult.createdSuggestions)} hint="Created for admin review" />
+          <MetricCard label="Already open" value={formatValue(aiValidationResult.skippedExistingSuggestions)} hint="Duplicates skipped" />
+          <MetricCard label="Validated" value={formatValue(aiValidationResult.validatedProducts)} hint="No AI issues found" />
+        </div>}
         <div className="audit-filter-grid">
           <label>
             Status
-            <select value={suggestionStatus} onChange={(event) => { setSuggestionStatus(event.target.value); setSuggestionPage(0); }}>
+            <select value={suggestionStatus} onChange={(event) => { setSuggestionStatus(event.target.value); setSuggestionPage(0); setSelectedSuggestionIds([]); }}>
               {PRODUCT_QUALITY_SUGGESTION_STATUSES.map((item) => <option key={item} value={item}>{shortFeature(item)}</option>)}
             </select>
           </label>
         </div>
         <DataTable
-          columns={["Product", "Type", "Confidence", "Current", "Suggested", "Reason", "Actions"]}
+          columns={["", "Product", "Type", "Field", "Confidence", "Current", "Suggested", "Reason", "Actions"]}
           rows={suggestionRows.map((item) => [
+            <input aria-label="Select suggestion for AI validation" type="checkbox" disabled={item.status !== "OPEN"} checked={item.id ? selectedOpenSuggestionIds.includes(item.id) : false} onChange={(event) => toggleSuggestionSelection(item, event.target.checked)} onClick={(event) => event.stopPropagation()} />,
             <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
             <div className="badge-stack"><Badge value={item.suggestionType} /><Badge value={item.source} tone="neutral" /></div>,
+            item.fieldName ?? "-",
             formatValue(item.confidenceScore),
             item.currentValue ?? "-",
             item.suggestedValue ?? "-",
@@ -4975,9 +5190,9 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <article className="panel">
+    <article className={`panel ${className ?? ""}`.trim()}>
       <h3>{title}</h3>
       {children}
     </article>
@@ -6603,3 +6818,18 @@ function formatDurationMs(value?: number): string {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

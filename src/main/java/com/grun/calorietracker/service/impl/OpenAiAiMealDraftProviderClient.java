@@ -9,8 +9,11 @@ import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
+import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
@@ -92,12 +95,12 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     @Override
     public AiRecipeDraftResponseDto createRecipeDraft(AiRecipeDraftRequestDto request) {
-        return callOpenAi(AiRequestType.AI_RECIPE_GENERATION, "grun_recipe_draft", recipeDraftSchema(), List.of(textContent("Recipe generation request: " + writeJson(request))), AiRecipeDraftResponseDto.class);
+        return callOpenAi(AiRequestType.AI_RECIPE_GENERATION, "grun_recipe_draft", recipeDraftSchema(), List.of(textContent("Create a detailed, user-ready recipe draft. Include cooking steps, prep/cook timing guidance, macro and micronutrient estimates for total recipe and per serving, and clear nutrition uncertainty notes. Recipe generation request: " + writeJson(request))), AiRecipeDraftResponseDto.class);
     }
 
     @Override
     public AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request) {
-        return callOpenAi(AiRequestType.AI_WORKOUT_PLAN, "grun_workout_plan_draft", workoutPlanSchema(), List.of(textContent("Workout plan request: " + writeJson(request))), AiWorkoutPlanDraftResponseDto.class);
+        return callOpenAi(AiRequestType.AI_WORKOUT_PLAN, "grun_workout_plan_draft", workoutPlanSchema(), List.of(textContent("Create a detailed, safe, user-ready workout plan draft. Include exact sets, reps or duration, rest, warm-up, cool-down, execution instructions, form cues, common mistakes, tempo, progression, alternatives, rationale, and safety notes for every exercise. For DURATION exercises, durationMinutes is required. For SETS_REPS or WEIGHT_REPS exercises, setCount and reps are required. For REPS exercises, reps is required. For DISTANCE exercises, distanceKm is required. Use provided exercise catalog ids when confident; set exerciseItemId to 0 when there is no confident catalog match. Workout plan request: " + writeJson(request))), AiWorkoutPlanDraftResponseDto.class);
     }
 
     @Override
@@ -122,6 +125,9 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 message("system", List.of(textContent(SYSTEM_PROMPT + "\nRequest type: " + requestType))),
                 message("user", userContent)
         ));
+        if (properties.getOpenai().getMaxOutputTokens() > 0) {
+            payload.put("max_output_tokens", properties.getOpenai().getMaxOutputTokens());
+        }
         payload.put("text", Map.of("format", Map.of(
                 "type", "json_schema",
                 "name", schemaName,
@@ -137,10 +143,13 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                     new HttpEntity<>(payload, headers),
                     String.class
             );
-            outputText = normalizeJsonOutput(extractOutputText(objectMapper.readTree(responseBody)));
-            return objectMapper.copy()
+            JsonNode root = objectMapper.readTree(responseBody);
+            outputText = normalizeJsonOutput(extractOutputText(root));
+            T result = objectMapper.copy()
                     .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
                     .readValue(outputText, responseType);
+            attachUsageMetadata(result, root.path("usage"));
+            return result;
         } catch (RestClientResponseException ex) {
             String providerError = extractProviderError(ex.getResponseBodyAsString());
             log.warn("openai_provider_request_failed status={} error={}", ex.getStatusCode().value(), providerError);
@@ -160,6 +169,34 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         }
     }
 
+    private void attachUsageMetadata(Object result, JsonNode usage) {
+        if (!(result instanceof AiUsageMetadataCarrier carrier) || usage == null || usage.isMissingNode() || usage.isNull()) {
+            return;
+        }
+        Integer inputTokens = integerOrNull(usage.path("input_tokens"));
+        Integer outputTokens = integerOrNull(usage.path("output_tokens"));
+        Integer totalTokens = integerOrNull(usage.path("total_tokens"));
+        carrier.setPromptTokens(inputTokens);
+        carrier.setCompletionTokens(outputTokens);
+        carrier.setTotalTokens(totalTokens);
+        carrier.setEstimatedCost(estimateCost(inputTokens, outputTokens));
+        carrier.setCostCurrency(properties.getOpenai().getCostCurrency());
+    }
+
+    private Integer integerOrNull(JsonNode node) {
+        return node != null && node.isNumber() ? node.asInt() : null;
+    }
+
+    private Double estimateCost(Integer inputTokens, Integer outputTokens) {
+        double inputCost = properties.getOpenai().getInputTokenCostPer1m();
+        double outputCost = properties.getOpenai().getOutputTokenCostPer1m();
+        if ((inputTokens == null && outputTokens == null) || (inputCost <= 0 && outputCost <= 0)) {
+            return null;
+        }
+        double total = (inputTokens == null ? 0 : inputTokens) * inputCost
+                + (outputTokens == null ? 0 : outputTokens) * outputCost;
+        return total / 1_000_000d;
+    }
     private String normalizeJsonOutput(String outputText) {
         if (outputText == null || outputText.isBlank()) {
             throw new AiProviderException("OpenAI provider returned no JSON output text.");
@@ -246,6 +283,12 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
     private String extractOutputText(JsonNode response) {
         if (response == null || response.isNull()) {
             throw new IllegalArgumentException("OpenAI provider returned an empty response.");
+        }
+        String status = textOrBlank(response.path("status"));
+        if ("incomplete".equalsIgnoreCase(status)) {
+            String reason = textOrBlank(response.path("incomplete_details").path("reason"));
+            throw new AiProviderException("OpenAI provider returned an incomplete response"
+                    + (reason.isBlank() ? "." : ": " + sanitizeError(reason)));
         }
         JsonNode outputText = response.get("output_text");
         if (outputText != null && outputText.isTextual() && !outputText.asText().isBlank()) {
@@ -342,8 +385,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                         "language", stringSchema(),
                         "totalYieldGrams", numberSchema(),
                         "defaultServingGrams", numberSchema(),
-                        "servingCount", integerSchema()
+                        "servingCount", integerSchema(),
+                        "cookingSteps", arraySchema(objectSchema(props(
+                                "instruction", stringSchema()
+                        )))
                 )),
+                "estimatedNutritionTotal", nutritionSchema(),
+                "estimatedNutritionPerServing", nutritionSchema(),
+                "nutritionEstimateNote", stringSchema(),
                 "suggestedIngredients", arraySchema(objectSchema(props(
                         "name", stringSchema(),
                         "portionSize", numberSchema(),
@@ -353,6 +402,30 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                         "confidence", numberSchema()
                 ))),
                 "warnings", arraySchema(stringSchema())
+        ));
+    }
+
+    private Map<String, Object> nutritionSchema() {
+        return objectSchema(props(
+                "calories", numberSchema(),
+                "protein", numberSchema(),
+                "carbs", numberSchema(),
+                "fat", numberSchema(),
+                "fiber", numberSchema(),
+                "sugar", numberSchema(),
+                "saturatedFat", numberSchema(),
+                "sodium", numberSchema(),
+                "potassium", numberSchema(),
+                "cholesterol", numberSchema(),
+                "calcium", numberSchema(),
+                "iron", numberSchema(),
+                "magnesium", numberSchema(),
+                "zinc", numberSchema(),
+                "vitaminA", numberSchema(),
+                "vitaminC", numberSchema(),
+                "vitaminD", numberSchema(),
+                "vitaminE", numberSchema(),
+                "vitaminB12", numberSchema()
         ));
     }
 
@@ -369,7 +442,11 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "days", arraySchema(objectSchema(props(
                         "dayLabel", stringSchema(),
                         "focus", stringSchema(),
+                        "estimatedDurationMinutes", integerSchema(),
+                        "warmup", stringSchema(),
+                        "cooldown", stringSchema(),
                         "exercises", arraySchema(objectSchema(props(
+                                "exerciseItemId", integerSchema(),
                                 "name", stringSchema(),
                                 "measurementType", enumSchema("DURATION", "REPS", "SETS_REPS", "WEIGHT_REPS", "DISTANCE", "MIXED"),
                                 "setCount", integerSchema(),
@@ -381,6 +458,11 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                                 "restSeconds", integerSchema(),
                                 "intensity", enumSchema("LOW", "MODERATE", "HIGH"),
                                 "rationale", stringSchema(),
+                                "executionInstructions", stringSchema(),
+                                "formCues", arraySchema(stringSchema()),
+                                "commonMistakes", arraySchema(stringSchema()),
+                                "tempo", stringSchema(),
+                                "alternatives", arraySchema(stringSchema()),
                                 "progressionNote", stringSchema(),
                                 "targetMuscleGroup", stringSchema(),
                                 "equipmentUsed", stringSchema(),
@@ -392,6 +474,40 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         ));
     }
 
+
+    @Override
+    public AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request) {
+        return callOpenAi(AiRequestType.AI_RECIPE_GENERATION, "grun_product_quality_validation", productQualityValidationSchema(), List.of(textContent("Validate this food product data for admin review. Identify missing or suspicious macro/micro nutrition, serving-size, source, region, image/label, or macro-calorie consistency issues. Do not invent exact nutrition values unless strongly inferable from the supplied data; prefer null suggestedValue with review-required reason when source evidence is insufficient. Product data: " + writeJson(request))), AiProductQualityValidationResponseDto.class);
+    }
+
+
+    private Map<String, Object> productQualityValidationSchema() {
+        return objectSchema(props(
+                "summary", stringSchema(),
+                "confidence", numberSchema(),
+                "qualityScore", integerSchema(),
+                "reviewRequired", booleanSchema(),
+                "issues", arraySchema(objectSchema(props(
+                        "suggestionType", enumSchema(
+                                "MISSING_MACRO_DATA",
+                                "MISSING_MICRO_DATA",
+                                "SUSPICIOUS_CALORIE_VALUE",
+                                "MACRO_CALORIE_MISMATCH",
+                                "SUSPICIOUS_SODIUM_VALUE",
+                                "MISSING_SERVING_SIZE",
+                                "SOURCE_CONFLICT",
+                                "IMAGE_REVIEW_REQUIRED",
+                                "REGION_MISMATCH",
+                                "LABEL_REVIEW_REQUIRED"
+                        ),
+                        "fieldName", stringSchema(),
+                        "currentValue", stringSchema(),
+                        "suggestedValue", stringSchema(),
+                        "reason", stringSchema(),
+                        "confidenceScore", integerSchema()
+                )))
+        ));
+    }
     private Map<String, Object> insightSchema() {
         return objectSchema(props(
                 "schemaVersion", enumSchema("ai_response_v3"),
@@ -487,3 +603,6 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return Map.of("type", List.of("boolean", "null"));
     }
 }
+
+
+

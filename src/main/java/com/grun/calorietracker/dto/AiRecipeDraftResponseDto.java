@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -11,7 +12,7 @@ import java.util.List;
 
 @Data
 @Schema(description = "AI-generated recipe draft. It is not persisted as a recipe until the user confirms the final recipe request.")
-public class AiRecipeDraftResponseDto {
+public class AiRecipeDraftResponseDto implements AiUsageMetadataCarrier {
     private Long requestId;
     private String schemaVersion = "ai_response_v2";
     private AiRequestType requestType;
@@ -27,5 +28,22 @@ public class AiRecipeDraftResponseDto {
     private Integer aiRemainingThisPeriod;
     private RecipeRequestDto suggestedRecipe;
     private List<AiRecipeIngredientSuggestionDto> suggestedIngredients = new ArrayList<>();
+    @Schema(description = "AI-estimated nutrition for the full draft recipe. This is preview data; persisted recipe nutrition is recalculated by backend from confirmed ingredients.")
+    private RecipeNutritionDto estimatedNutritionTotal;
+    @Schema(description = "AI-estimated nutrition for one default serving. This is preview data; persisted recipe nutrition is recalculated by backend from confirmed ingredients.")
+    private RecipeNutritionDto estimatedNutritionPerServing;
+    @Schema(description = "Human-readable note explaining nutrition assumptions or uncertainty.")
+    private String nutritionEstimateNote;
     private List<String> warnings = new ArrayList<>();
+    @JsonIgnore
+    private Integer promptTokens;
+    @JsonIgnore
+    private Integer completionTokens;
+    @JsonIgnore
+    private Integer totalTokens;
+    @JsonIgnore
+    private Double estimatedCost;
+    @JsonIgnore
+    private String costCurrency;
 }
+

@@ -49,7 +49,11 @@ public class AiProperties {
     public static class OpenAi {
         private String apiKey = "";
         private String baseUrl = "https://api.openai.com/v1/responses";
-        private Duration timeout = Duration.ofSeconds(30);
+        private Duration timeout = Duration.ofSeconds(60);
+        private int maxOutputTokens = 12000;
+        private double inputTokenCostPer1m = 0;
+        private double outputTokenCostPer1m = 0;
+        private String costCurrency = "USD";
     }
 
     @Data
@@ -62,3 +66,4 @@ public class AiProperties {
         private double approveThreshold = 0.95;
     }
 }
+

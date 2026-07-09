@@ -13,6 +13,7 @@ import com.grun.calorietracker.dto.AiRequestHistoryDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
@@ -146,6 +147,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             response.setSafety(safetyService.reviewProviderResponse(response, requestType));
             matchFoodCatalog(response, user);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            copyUsageMetadata(response, history);
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
             history.setQuotaConsumed(true);
@@ -312,6 +314,21 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         return dto;
     }
 
+    private void copyUsageMetadata(AiUsageMetadataCarrier response, AiRequestHistoryEntity history) {
+        if (response == null || history == null) {
+            return;
+        }
+        history.setPromptTokens(response.getPromptTokens());
+        history.setCompletionTokens(response.getCompletionTokens());
+        Integer totalTokens = response.getTotalTokens();
+        if (totalTokens == null && (response.getPromptTokens() != null || response.getCompletionTokens() != null)) {
+            totalTokens = (response.getPromptTokens() == null ? 0 : response.getPromptTokens())
+                    + (response.getCompletionTokens() == null ? 0 : response.getCompletionTokens());
+        }
+        history.setTotalTokens(totalTokens);
+        history.setEstimatedCost(response.getEstimatedCost());
+        history.setCostCurrency(response.getCostCurrency());
+    }
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }

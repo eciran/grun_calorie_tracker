@@ -1,5 +1,7 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminProductQualityAiValidationRequestDto;
+import com.grun.calorietracker.dto.AdminProductQualityAiValidationResultDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
@@ -13,6 +15,8 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
+import com.grun.calorietracker.dto.ProductQualityScanRunPageDto;
+import com.grun.calorietracker.dto.ProductQualityScanRunDetailDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionScanResultDto;
@@ -23,6 +27,7 @@ import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
@@ -116,9 +121,18 @@ public class AdminFoodProductReviewController {
     public ResponseEntity<ProductQualitySuggestionScanResultDto> scanProductQualitySuggestions(
             @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
-            @Parameter(description = "Maximum number of products to scan. Maximum 1000.", example = "500")
-            @RequestParam(defaultValue = "500") @Min(1) @Max(1000) int limit) {
-        return ResponseEntity.ok(productQualitySuggestionService.scanSuggestions(region, limit));
+            @Parameter(description = "Maximum number of products to scan. Manual scan is capped at 500.", example = "250")
+            @RequestParam(defaultValue = "250") @Min(1) @Max(500) int limit,
+            @Parameter(description = "When true, scans products even if they were previously quality-validated.", example = "false")
+            @RequestParam(defaultValue = "false") boolean forceRescan,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.scanSuggestions(
+                region,
+                limit,
+                forceRescan,
+                ProductQualityScanTriggerType.MANUAL,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
     }
 
     @GetMapping("/quality-suggestions")
@@ -141,6 +155,60 @@ public class AdminFoodProductReviewController {
         return ResponseEntity.ok(productQualitySuggestionService.getSuggestions(status, page, size));
     }
 
+    @GetMapping("/quality-suggestions/scan-runs")
+    @Operation(
+            summary = "List product quality scan runs",
+            description = "Returns manual and scheduled product quality scan history so admins can monitor limits, created suggestions, and validated product counts."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality scan runs returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<ProductQualityScanRunPageDto> getProductQualityScanRuns(
+            @Parameter(description = "Zero-based page number.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size. Maximum 100.", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(productQualitySuggestionService.getScanRuns(page, size));
+    }
+
+    @GetMapping("/quality-suggestions/scan-runs/{scanRunId}")
+    @Operation(
+            summary = "Get product quality scan run detail",
+            description = "Returns product-level validation and suggestion results captured for a quality scan run. Older runs may have no item details if they were created before item tracking was introduced."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality scan run detail returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Scan run was not found.")
+    })
+    public ResponseEntity<ProductQualityScanRunDetailDto> getProductQualityScanRunDetail(
+            @Parameter(description = "Scan run id.", example = "6")
+            @PathVariable Long scanRunId) {
+        return ResponseEntity.ok(productQualitySuggestionService.getScanRunDetail(scanRunId));
+    }
+
+    @PostMapping("/quality-suggestions/ai-validate-selected")
+    @Operation(
+            summary = "Validate selected products with AI",
+            description = "Runs AI-assisted data quality validation for selected products or products referenced by selected suggestions. The result creates admin-reviewable AI_ASSISTED suggestions only; product data is not changed directly. Maximum 25 products per request."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "AI-assisted validation completed."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<AdminProductQualityAiValidationResultDto> validateSelectedProductsWithAi(
+            @RequestBody @Valid AdminProductQualityAiValidationRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.validateSelectedWithAi(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @PatchMapping("/quality-suggestions/{suggestionId}/accept")
     @Operation(
             summary = "Accept product quality suggestion",
@@ -540,3 +608,5 @@ public class AdminFoodProductReviewController {
         return ResponseEntity.ok(foodProductReviewService.getProductReviewAudits(id, page, size));
     }
 }
+
+

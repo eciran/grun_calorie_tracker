@@ -5,9 +5,11 @@ import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
+import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -136,6 +138,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                     criteriaBuilder.isNull(root.get("isCustom")),
                     criteriaBuilder.isFalse(root.get("isCustom"))
             ));
+            predicates.add(criteriaBuilder.not(criteriaBuilder.exists(blockingQualityIssueSubquery(root, query, criteriaBuilder))));
 
             String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {
@@ -208,17 +211,43 @@ public class FoodItemServiceImpl implements FoodItemService {
             }
 
             if (applyDefaultOrdering && query != null) {
-                query.orderBy(buildDefaultSearchOrders(root, criteriaBuilder, searchQuery));
+                query.orderBy(buildDefaultSearchOrders(root, criteriaBuilder, searchQuery, criteria.getMarketRegion()));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
 
+    private jakarta.persistence.criteria.Subquery<Long> blockingQualityIssueSubquery(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        var subquery = query.subquery(Long.class);
+        var issueRoot = subquery.from(FoodProductQualityIssueEntity.class);
+        subquery.select(issueRoot.get("id"));
+        subquery.where(
+                criteriaBuilder.equal(issueRoot.get("foodItem"), root),
+                criteriaBuilder.isFalse(issueRoot.get("resolved")),
+                issueRoot.get("issueType").in(blockingUserSearchQualityIssues())
+        );
+        return subquery;
+    }
+
+    private List<FoodProductQualityIssue> blockingUserSearchQualityIssues() {
+        return List.of(
+                FoodProductQualityIssue.MISSING_CALORIES,
+                FoodProductQualityIssue.MISSING_MACROS,
+                FoodProductQualityIssue.SUSPICIOUS_CALORIES,
+                FoodProductQualityIssue.SUSPICIOUS_MACROS
+        );
+    }
+
     private List<jakarta.persistence.criteria.Order> buildDefaultSearchOrders(
             Root<FoodItemEntity> root,
             jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
-            String searchQuery
+            String searchQuery,
+            MarketRegion requestedRegion
     ) {
         List<jakarta.persistence.criteria.Order> orders = new ArrayList<>();
 
@@ -257,6 +286,15 @@ public class FoodItemServiceImpl implements FoodItemService {
                 .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT), 2)
                 .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.USER_CUSTOM), 3)
                 .otherwise(4)));
+
+        if (requestedRegion != null) {
+            List<MarketRegion> regions = resolveSearchRegions(requestedRegion);
+            var regionRank = criteriaBuilder.selectCase();
+            for (int index = 0; index < regions.size(); index++) {
+                regionRank.when(criteriaBuilder.equal(root.get("marketRegion"), regions.get(index)), index);
+            }
+            orders.add(criteriaBuilder.asc(regionRank.otherwise(regions.size())));
+        }
 
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("qualityScore"), 0)));
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("usageCount"), 0L)));
@@ -408,7 +446,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private Page<FoodItemEntity> searchLocalProductsByRegionPriority(FoodSearchCriteriaDto criteria, Pageable pageable) {
-        if (criteria.getMarketRegion() == null || hasExplicitSort(criteria)) {
+        if (criteria.getMarketRegion() == null || hasExplicitSort(criteria) || hasSearchQuery(criteria)) {
             return org.springframework.data.domain.Page.empty(pageable);
         }
 
@@ -437,6 +475,10 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private boolean hasExplicitSort(FoodSearchCriteriaDto criteria) {
         return FoodProductNormalizationRules.normalizeText(criteria.getSortBy()) != null;
+    }
+
+    private boolean hasSearchQuery(FoodSearchCriteriaDto criteria) {
+        return FoodProductNormalizationRules.normalizeText(criteria.getQuery()) != null;
     }
 
     private FoodSearchCriteriaDto copyCriteriaWithRegion(FoodSearchCriteriaDto criteria, MarketRegion region) {
@@ -499,3 +541,4 @@ public class FoodItemServiceImpl implements FoodItemService {
         return dto;
     }
 }
+

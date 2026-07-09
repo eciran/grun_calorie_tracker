@@ -3,6 +3,7 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.entity.ProductQualityScanRunEntity;
 import com.grun.calorietracker.entity.ProductQualitySuggestionEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
@@ -16,6 +17,8 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
+import com.grun.calorietracker.repository.ProductQualityScanRunRepository;
+import com.grun.calorietracker.repository.ProductQualityScanRunItemRepository;
 import com.grun.calorietracker.repository.ProductQualitySuggestionRepository;
 import com.grun.calorietracker.service.impl.ProductQualitySuggestionServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -53,6 +56,12 @@ class ProductQualitySuggestionServiceImplTest {
     @Mock
     private ProductQualitySuggestionRepository productQualitySuggestionRepository;
 
+    @Mock
+    private ProductQualityScanRunRepository productQualityScanRunRepository;
+
+    @Mock
+    private ProductQualityScanRunItemRepository productQualityScanRunItemRepository;
+
     @InjectMocks
     private ProductQualitySuggestionServiceImpl service;
 
@@ -63,12 +72,19 @@ class ProductQualitySuggestionServiceImplTest {
 
         when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(plainMilk, milkChocolate)));
-        when(productQualitySuggestionRepository.existsByFoodItemIdAndSuggestionTypeAndSuggestedValueAndStatus(
-                any(), any(), any(), eq(ProductQualitySuggestionStatus.OPEN)
+        when(productQualitySuggestionRepository.existsOpenDedupe(
+                any(), any(), any(), any(), eq(ProductQualitySuggestionStatus.OPEN)
         )).thenReturn(false);
+        when(productQualityScanRunRepository.save(any(ProductQualityScanRunEntity.class)))
+                .thenAnswer(invocation -> {
+                    ProductQualityScanRunEntity run = invocation.getArgument(0);
+                    if (run.getId() == null) {
+                        run.setId(100L);
+                    }
+                    return run;
+                });
 
         var result = service.scanSuggestions(MarketRegion.UK_IE, 50);
-
         assertEquals(2, result.getScannedProducts());
         assertEquals(2, result.getCreatedSuggestions());
         assertEquals("milk", plainMilk.getName());
@@ -86,7 +102,7 @@ class ProductQualitySuggestionServiceImplTest {
         assertTrue(saved.stream().anyMatch(suggestion ->
                 suggestion.getFoodItem().getId().equals(1L)
                         && suggestion.getSuggestionType() == ProductQualitySuggestionType.SEARCH_ALIAS
-                        && "s\u00fct".equals(suggestion.getSuggestedValue())
+                        && "sut".equals(suggestion.getSuggestedValue())
         ));
         assertTrue(saved.stream().noneMatch(suggestion -> suggestion.getFoodItem().getId().equals(2L)));
     }
@@ -183,3 +199,8 @@ class ProductQualitySuggestionServiceImplTest {
         return product;
     }
 }
+
+
+
+
+

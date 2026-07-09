@@ -4,6 +4,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $OutputPath,
 
+    [string] $QueryFile,
+
     [string[]] $Queries = @(
         "chicken breast raw",
         "chicken breast cooked",
@@ -55,6 +57,7 @@ function Get-NutrientValue {
     param(
         $Food,
         [string[]] $Numbers,
+        [string[]] $NutrientIds = @(),
         [string[]] $Names,
         [int] $DecimalPlaces = 1
     )
@@ -66,7 +69,9 @@ function Get-NutrientValue {
     foreach ($nutrient in $Food.foodNutrients) {
         $number = [string] $nutrient.nutrientNumber
         $name = ([string] $nutrient.nutrientName).ToLowerInvariant()
+        $nutrientId = [string] $nutrient.nutrientId
         $matchesNumber = $Numbers -contains $number
+        $matchesNutrientId = $NutrientIds -contains $nutrientId
         $matchesName = $false
         foreach ($expectedName in $Names) {
             if ($name -eq $expectedName.ToLowerInvariant() -or $name.Contains($expectedName.ToLowerInvariant())) {
@@ -75,7 +80,7 @@ function Get-NutrientValue {
             }
         }
 
-        if ($matchesNumber -or $matchesName) {
+        if ($matchesNumber -or $matchesNutrientId -or $matchesName) {
             $value = 0.0
             if ([double]::TryParse(
                     ([string] $nutrient.value).Replace(',', '.'),
@@ -122,10 +127,122 @@ function Get-CleanDescription {
     return $clean
 }
 
+
+function Get-NormalizedText {
+    param([string] $Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $null
+    }
+
+    return ($Text.ToLowerInvariant() -replace "[^a-z0-9\s]", " " -replace "\s+", " ").Trim()
+}
+
+function Test-DescriptionMatchesQuery {
+    param(
+        [string] $Query,
+        [string] $Description
+    )
+
+    $normalizedQuery = Get-NormalizedText -Text $Query
+    $normalizedDescription = Get-NormalizedText -Text $Description
+    if ($null -eq $normalizedQuery -or $null -eq $normalizedDescription) {
+        return $false
+    }
+
+    $queryExclusionTerms = @{
+        "banana raw" = @("pepper", "peppers", "hungarian wax")
+        "apple raw" = @("juice", "sauce", "pie filling", "babyfood")
+        "egg whole raw" = @("substitute", "powder", "dried", "yolk only", "white only")
+        "chicken breast raw" = @("lunchmeat", "deli", "breaded", "nugget", "patty", "sausage")
+        "chicken breast cooked" = @("lunchmeat", "deli", "breaded", "nugget", "patty", "sausage")
+    }
+
+    if ($queryExclusionTerms.ContainsKey($normalizedQuery)) {
+        foreach ($term in $queryExclusionTerms[$normalizedQuery]) {
+            if ($normalizedDescription.Contains($term)) {
+                return $false
+            }
+        }
+    }
+
+    $queryRequiredPrefixes = @{
+        "banana raw" = @("banana", "bananas")
+        "apple raw" = @("apple", "apples")
+    }
+
+    if ($queryRequiredPrefixes.ContainsKey($normalizedQuery)) {
+        $matchesPrefix = $false
+        foreach ($prefix in $queryRequiredPrefixes[$normalizedQuery]) {
+            if ($normalizedDescription.StartsWith($prefix + " ") -or $normalizedDescription -eq $prefix) {
+                $matchesPrefix = $true
+                break
+            }
+        }
+        if (-not $matchesPrefix) {
+            return $false
+        }
+    }
+
+    $ignoredQueryTerms = @(
+        "raw", "cooked", "boiled", "grilled", "fried", "baked", "roasted", "steamed",
+        "whole", "white", "fresh", "plain"
+    )
+    $terms = $normalizedQuery.Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries) |
+        Where-Object { $ignoredQueryTerms -notcontains $_ }
+
+    foreach ($term in $terms) {
+        if (-not $normalizedDescription.Contains($term)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-CoreNutritionComplete {
+    param(
+        [string] $Calories,
+        [string] $Protein,
+        [string] $Fat,
+        [string] $Carbs
+    )
+
+    $values = @($Calories, $Protein, $Fat, $Carbs)
+    foreach ($value in $values) {
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            return $false
+        }
+    }
+
+    $caloriesValue = [double]::Parse($Calories, [System.Globalization.CultureInfo]::InvariantCulture)
+    $proteinValue = [double]::Parse($Protein, [System.Globalization.CultureInfo]::InvariantCulture)
+    $fatValue = [double]::Parse($Fat, [System.Globalization.CultureInfo]::InvariantCulture)
+    $carbsValue = [double]::Parse($Carbs, [System.Globalization.CultureInfo]::InvariantCulture)
+
+    if ($caloriesValue -lt 0 -or $caloriesValue -gt 1000) { return $false }
+    if ($proteinValue -lt 0 -or $fatValue -lt 0 -or $carbsValue -lt 0) { return $false }
+    if (($proteinValue + $fatValue + $carbsValue) -gt 120) { return $false }
+
+    return $true
+}
+if (-not [string]::IsNullOrWhiteSpace($QueryFile)) {
+    if (-not (Test-Path -LiteralPath $QueryFile)) {
+        throw "USDA query file was not found: $QueryFile"
+    }
+
+    $Queries = Get-Content -LiteralPath $QueryFile |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and -not $_.StartsWith("#") } |
+        Select-Object -Unique
+}
 $resolvedOutput = Resolve-OutputFile -Path $OutputPath
 $seenFdcIds = [System.Collections.Generic.HashSet[string]]::new()
 $rows = [System.Collections.Generic.List[object]]::new()
 $encodedDataTypes = [System.Uri]::EscapeDataString(($DataTypes -join ","))
+$rowsFilteredByDescription = 0
+$rowsFilteredByNutrition = 0
+$rowsSeen = 0
 
 foreach ($query in $Queries) {
     $encodedQuery = [System.Uri]::EscapeDataString($query)
@@ -137,6 +254,7 @@ foreach ($query in $Queries) {
     }
 
     foreach ($food in $result.foods) {
+        $rowsSeen++
         $fdcId = [string] $food.fdcId
         if ([string]::IsNullOrWhiteSpace($fdcId) -or -not $seenFdcIds.Add($fdcId)) {
             continue
@@ -147,16 +265,30 @@ foreach ($query in $Queries) {
             continue
         }
 
+        if (-not (Test-DescriptionMatchesQuery -Query $query -Description $description)) {
+            $rowsFilteredByDescription++
+            continue
+        }
+
+        $calories = Get-NutrientValue -Food $food -Numbers @("208") -NutrientIds @("1008") -Names @() -DecimalPlaces 0
+        $protein = Get-NutrientValue -Food $food -Numbers @("203") -NutrientIds @("1003") -Names @("Protein")
+        $fat = Get-NutrientValue -Food $food -Numbers @("204") -NutrientIds @("1004") -Names @("Total lipid", "Total fat")
+        $carbs = Get-NutrientValue -Food $food -Numbers @("205") -NutrientIds @("1005") -Names @("Carbohydrate")
+
+        if (-not (Test-CoreNutritionComplete -Calories $calories -Protein $protein -Fat $fat -Carbs $carbs)) {
+            $rowsFilteredByNutrition++
+            continue
+        }
         $rows.Add([pscustomobject]@{
             catalog_type = "GENERIC_INGREDIENT"
             data_source = "USDA_FOODDATA"
             fdc_id = $fdcId
             source_key = "USDA_FOODDATA:fdc:$fdcId"
             name = $description
-            calories = Get-NutrientValue -Food $food -Numbers @("208", "1008") -Names @("Energy") -DecimalPlaces 0
-            protein = Get-NutrientValue -Food $food -Numbers @("203", "1003") -Names @("Protein")
-            fat = Get-NutrientValue -Food $food -Numbers @("204", "1004") -Names @("Total lipid", "Total fat")
-            carbs = Get-NutrientValue -Food $food -Numbers @("205", "1005") -Names @("Carbohydrate")
+            calories = $calories
+            protein = $protein
+            fat = $fat
+            carbs = $carbs
             fiber = Get-NutrientValue -Food $food -Numbers @("291", "1079") -Names @("Fiber")
             sugar = Get-NutrientValue -Food $food -Numbers @("269", "2000") -Names @("Sugars")
             sodium = Get-NutrientValue -Food $food -Numbers @("307", "1093") -Names @("Sodium")
@@ -186,7 +318,7 @@ foreach ($query in $Queries) {
 }
 
 if ($rows.Count -eq 0) {
-    throw "No USDA FoodData rows were exported. Check API key, queries, and data types."
+    throw "No USDA FoodData rows were exported. rowsSeen=$rowsSeen rowsFilteredByDescription=$rowsFilteredByDescription. Check API key, queries, and data types."
 }
 
 $csvLines = $rows | ConvertTo-Csv -NoTypeInformation
@@ -196,6 +328,9 @@ $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 [pscustomobject]@{
     outputPath = $resolvedOutput
     rowsWritten = $rows.Count
+    rowsFilteredByDescription = $rowsFilteredByDescription
+    rowsFilteredByNutrition = $rowsFilteredByNutrition
+    rowsSeen = $rowsSeen
     queries = $Queries
     marketRegion = $MarketRegion
     dataTypes = $DataTypes

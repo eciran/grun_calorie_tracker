@@ -3,6 +3,8 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualitySuggestionSource;
 import com.grun.calorietracker.enums.VerificationStatus;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Page;
@@ -13,6 +15,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -65,6 +68,20 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
                                                        @Param("user") UserEntity user,
                                                        Pageable pageable);
 
+    @Query("""
+            SELECT f
+            FROM FoodItemEntity f
+            WHERE f.qualityValidatedAt >= :startedAt
+              AND f.qualityValidatedAt <= :completedAt
+              AND (:source IS NULL OR f.qualityValidationSource = :source)
+              AND (:marketRegion IS NULL OR f.marketRegion = :marketRegion)
+            ORDER BY f.id ASC
+            """)
+    List<FoodItemEntity> findQualityValidatedDuringScan(@Param("startedAt") LocalDateTime startedAt,
+                                                         @Param("completedAt") LocalDateTime completedAt,
+                                                         @Param("source") ProductQualitySuggestionSource source,
+                                                         @Param("marketRegion") MarketRegion marketRegion,
+                                                         Pageable pageable);
     @Query(
             value = """
                     SELECT normalized_barcode

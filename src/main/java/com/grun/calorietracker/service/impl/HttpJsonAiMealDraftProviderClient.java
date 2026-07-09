@@ -5,6 +5,8 @@ import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
@@ -76,6 +78,11 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
         return callProvider(new ProviderRequest(AiRequestType.AI_WEEKLY_INSIGHT, properties.getModel(), request), AiInsightResponseDto.class);
     }
 
+    @Override
+    public AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_RECIPE_GENERATION, properties.getModel(), request), AiProductQualityValidationResponseDto.class);
+    }
+
     private <T> T callProvider(ProviderRequest payload, Class<T> responseType) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -101,3 +108,4 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
     private record ProviderRequest(AiRequestType requestType, String model, Object input) {
     }
 }
+

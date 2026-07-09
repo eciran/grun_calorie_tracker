@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualitySuggestionSource;
 import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -68,6 +69,14 @@ public class FoodItemEntity {
     private LocalDateTime lastExternalSyncAt;
     private LocalDateTime lastReviewedAt;
     private String reviewedBy;
+    private LocalDateTime qualityValidatedAt;
+    private String qualityValidatedBy;
+
+    @Enumerated(EnumType.STRING)
+    private ProductQualitySuggestionSource qualityValidationSource;
+
+    @Column(length = 1000)
+    private String qualityValidationNotes;
 
     private Double calories;
     private Double protein;
@@ -115,3 +124,4 @@ public class FoodItemEntity {
     @OneToMany(mappedBy = "foodItem", fetch = FetchType.LAZY)
     private Set<FoodItemSearchAliasEntity> searchAliases = new HashSet<>();
 }
+

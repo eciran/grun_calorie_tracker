@@ -34,6 +34,7 @@ public class AdminRecipeImportCandidateDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<IngredientDto> ingredients;
+    private List<CookingStepDto> cookingSteps;
 
     @Data
     public static class IngredientDto {
@@ -44,5 +45,11 @@ public class AdminRecipeImportCandidateDto {
         private Double portionSize;
         private FoodPortionUnit portionUnit;
         private Double estimatedGrams;
+    }
+
+    @Data
+    public static class CookingStepDto {
+        private Integer stepNumber;
+        private String instruction;
     }
 }

@@ -120,6 +120,7 @@ export type ProductQualitySuggestion = {
   source?: string;
   status?: string;
   confidenceScore?: number;
+  fieldName?: string;
   currentValue?: string;
   suggestedValue?: string;
   reason?: string;
@@ -136,10 +137,72 @@ export type ProductQualitySuggestionPage = {
   totalPages?: number;
 };
 
+export type AdminProductQualityAiValidationResult = {
+  scanRunId?: number;
+  requestedProducts?: number;
+  validatedProducts?: number;
+  createdSuggestions?: number;
+  skippedExistingSuggestions?: number;
+  skippedPreviouslyValidatedProducts?: number;
+  effectiveLimit?: number;
+};
+
 export type ProductQualitySuggestionScanResult = {
+  scanRunId?: number;
   scannedProducts?: number;
   createdSuggestions?: number;
   skippedExistingSuggestions?: number;
+  skippedPreviouslyValidatedProducts?: number;
+  validatedProducts?: number;
+  effectiveLimit?: number;
+  forceRescan?: boolean;
+};
+
+export type ProductQualityScanRun = {
+  id?: number;
+  source?: string;
+  triggerType?: string;
+  status?: string;
+  marketRegion?: string;
+  requestedLimit?: number;
+  effectiveLimit?: number;
+  forceRescan?: boolean;
+  scannedProducts?: number;
+  createdSuggestions?: number;
+  skippedExistingSuggestions?: number;
+  skippedPreviouslyValidatedProducts?: number;
+  validatedProducts?: number;
+  triggeredBy?: string;
+  startedAt?: string;
+  completedAt?: string;
+  errorMessage?: string;
+};
+
+
+export type ProductQualityScanRunItem = {
+  id?: number;
+  foodItemId?: number;
+  productName?: string;
+  brand?: string;
+  status?: string;
+  suggestionType?: string;
+  fieldName?: string;
+  suggestedValue?: string;
+  reason?: string;
+  confidenceScore?: number;
+  note?: string;
+};
+
+export type ProductQualityScanRunDetail = {
+  run?: ProductQualityScanRun;
+  items?: ProductQualityScanRunItem[];
+};
+export type ProductQualityScanRunPage = {
+  content?: ProductQualityScanRun[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
 };
 
 export type FoodSearchAlias = {
@@ -152,6 +215,11 @@ export type FoodSearchAlias = {
   source?: string;
   active?: boolean;
   createdAt?: string;
+};
+
+export type RecipeStep = {
+  stepNumber?: number;
+  instruction?: string;
 };
 
 export type RecipeIngredient = {
@@ -199,8 +267,14 @@ export type AdminRecipe = {
   createdAt?: string;
   updatedAt?: string;
   ingredients?: RecipeIngredient[];
+  cookingSteps?: RecipeStep[];
 };
 
+
+export type AdminRecipeImportCookingStep = {
+  stepNumber?: number;
+  instruction?: string;
+};
 
 export type AdminRecipeImportIngredient = {
   index?: number;
@@ -236,6 +310,7 @@ export type AdminRecipeImportCandidate = {
   createdAt?: string;
   updatedAt?: string;
   ingredients?: AdminRecipeImportIngredient[];
+  cookingSteps?: AdminRecipeImportCookingStep[];
 };
 
 export type AdminRecipeImportResult = {
@@ -531,3 +606,7 @@ export type AdminBrevoSenderList = {
   statusMessage?: string;
   senders?: AdminBrevoSender[];
 };
+
+
+
+

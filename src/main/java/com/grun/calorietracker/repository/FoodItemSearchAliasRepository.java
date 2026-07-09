@@ -12,4 +12,5 @@ public interface FoodItemSearchAliasRepository extends JpaRepository<FoodItemSea
     List<FoodItemSearchAliasEntity> findByFoodItemIdOrderByActiveDescLanguageAscAliasAsc(Long foodItemId);
     Optional<FoodItemSearchAliasEntity> findByIdAndFoodItemId(Long id, Long foodItemId);
     Optional<FoodItemSearchAliasEntity> findByFoodItemIdAndNormalizedAliasAndLanguage(Long foodItemId, String normalizedAlias, PreferredLanguage language);
+    boolean existsByFoodItemIdAndNormalizedAliasAndActiveTrue(Long foodItemId, String normalizedAlias);
 }

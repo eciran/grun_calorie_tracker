@@ -4455,3 +4455,325 @@ label {
     justify-content: space-between;
   }
 }
+
+.success-banner {
+  padding: 12px 14px;
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  background: var(--success-soft);
+  color: var(--on-primary-container);
+  font-weight: 600;
+}
+
+.compact-success {
+  width: fit-content;
+  min-width: 120px;
+}
+
+@media (max-width: 760px) {
+  .modal-actions {
+    justify-content: stretch;
+    padding: 16px;
+  }
+
+  .modal-actions > button {
+    flex: 1 1 160px;
+  }
+}
+.admin-recipe-steps,
+.recipe-step-list {
+  display: grid;
+  gap: 10px;
+}
+
+.recipe-step-editor-row,
+.recipe-step-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.recipe-step-editor-row > span,
+.recipe-step-row > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--on-primary-container);
+  font-weight: 700;
+}
+
+.recipe-step-editor-row textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.recipe-step-row p {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.readonly-step-list {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.readonly-step-row {
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+@media (max-width: 760px) {
+  .recipe-step-editor-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .recipe-step-editor-row button {
+    grid-column: 1 / -1;
+  }
+}
+/* recipe-modal-footer-spacing-fix */
+.recipe-modal .modal-body {
+  padding-bottom: 34px;
+}
+
+.recipe-modal > .modal-actions {
+  margin: 0 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 -8px 24px rgba(47, 49, 49, 0.06);
+}
+
+.product-modal > .modal-actions {
+  margin-left: 24px;
+  margin-right: 24px;
+  margin-bottom: 24px;
+}
+/* Product quality validation layout */
+.quality-scan-grid {
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) minmax(240px, auto) minmax(150px, auto);
+  align-items: end;
+  column-gap: 18px;
+  row-gap: 12px;
+}
+
+.quality-scan-grid label {
+  min-width: 0;
+}
+
+.quality-scan-grid label small {
+  display: block;
+  max-width: 520px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.quality-force-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+  color: var(--muted-strong);
+  font-size: 0.86rem;
+  line-height: 1.2;
+}
+
+.quality-force-toggle input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.quality-force-toggle span {
+  overflow-wrap: anywhere;
+}
+
+.quality-scan-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  min-height: 46px;
+}
+
+.quality-scan-actions .primary-button {
+  width: 100%;
+  min-width: 140px;
+  min-height: 44px;
+}
+
+.quality-status-filter {
+  max-width: 520px;
+  margin-bottom: 14px;
+}
+
+.quality-compact-table .empty-state {
+  min-height: 118px;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  box-shadow: none;
+}
+
+@media (max-width: 1200px) {
+  .quality-scan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quality-scan-actions {
+    justify-content: stretch;
+  }
+}
+
+@media (max-width: 760px) {
+  .quality-scan-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-force-toggle,
+  .quality-scan-actions {
+    min-height: auto;
+  }
+}
+
+.quality-table-panel.compact-empty-panel > .empty-state {
+  min-height: 116px;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  box-shadow: none;
+}
+
+.quality-table-panel .audit-filter-grid {
+  max-width: 520px;
+  margin-bottom: 14px;
+}
+
+/* Product quality scan alignment fix */
+.quality-scan-grid {
+  align-items: start;
+}
+
+.quality-scan-grid > label:not(.quality-force-toggle) {
+  display: grid;
+  grid-template-rows: 20px 44px auto;
+  gap: 6px;
+}
+
+.quality-scan-grid select,
+.quality-scan-grid input:not([type="checkbox"]) {
+  height: 44px;
+}
+
+.quality-force-toggle,
+.quality-scan-actions {
+  align-self: start;
+  margin-top: 26px;
+}
+
+.quality-force-toggle {
+  height: 44px;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.quality-scan-actions {
+  height: 44px;
+}
+
+.quality-scan-actions .primary-button {
+  height: 44px;
+}
+
+@media (max-width: 1200px) {
+  .quality-force-toggle,
+  .quality-scan-actions {
+    margin-top: 0;
+  }
+}
+
+.quality-suggestion-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+}
+
+.quality-suggestion-toolbar > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.quality-suggestion-toolbar small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.quality-suggestion-toolbar .primary-button {
+  flex: 0 0 auto;
+  min-height: 40px;
+}
+
+@media (max-width: 760px) {
+  .quality-suggestion-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quality-suggestion-toolbar .primary-button {
+    width: 100%;
+  }
+}
+
+.scan-run-detail-modal {
+  width: min(1120px, 100%);
+}
+
+.scan-run-detail-modal .table-wrap {
+  max-height: 52vh;
+  overflow: auto;
+}
+
+.scan-run-detail-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.scan-run-detail-modal .metric-grid {
+  width: 100%;
+}
+
+.scan-run-detail-modal .table-wrap {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.scan-run-detail-modal .empty-state {
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}

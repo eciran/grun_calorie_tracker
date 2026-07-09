@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanExerciseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
@@ -40,6 +41,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -84,6 +86,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         try {
             AiWorkoutPlanDraftResponseDto response = normalize(activeProvider().createWorkoutPlanDraft(request));
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            copyUsageMetadata(response, history);
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
@@ -239,11 +242,36 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         if (day == null || day.getDayLabel() == null || day.getDayLabel().isBlank()) {
             throw new IllegalArgumentException("AI workout provider returned a day without a label.");
         }
+        if (day.getEstimatedDurationMinutes() == null || day.getEstimatedDurationMinutes() <= 0) {
+            throw new IllegalArgumentException("AI workout provider returned a day without an estimated duration.");
+        }
+        if (isBlank(day.getWarmup()) || isBlank(day.getCooldown())) {
+            throw new IllegalArgumentException("AI workout provider returned a day without warm-up or cool-down guidance.");
+        }
         if (day.getExercises() == null || day.getExercises().isEmpty() || day.getExercises().size() > MAX_EXERCISES_PER_DAY) {
             throw new IllegalArgumentException("AI workout provider returned an invalid number of exercises.");
         }
         for (AiWorkoutPlanExerciseDto exercise : day.getExercises()) {
+            normalizeExercise(exercise, day);
             validateExercise(exercise);
+        }
+    }
+
+    private void normalizeExercise(AiWorkoutPlanExerciseDto exercise, AiWorkoutPlanDayDto day) {
+        if (exercise == null) {
+            return;
+        }
+        if (exercise.getExerciseItemId() != null && exercise.getExerciseItemId() <= 0) {
+            exercise.setExerciseItemId(null);
+        }
+        if (exercise.getMeasurementType() == ExerciseLogMeasurementType.DURATION
+                && (exercise.getDurationMinutes() == null || exercise.getDurationMinutes() <= 0)) {
+            int fallbackDuration = Math.max(1, day.getEstimatedDurationMinutes() / Math.max(1, day.getExercises().size()));
+            exercise.setDurationMinutes(fallbackDuration);
+            exercise.setReviewRequired(true);
+            if (isBlank(exercise.getSafetyNote())) {
+                exercise.setSafetyNote("Duration was estimated by GRun because the AI provider omitted it; review before following this plan.");
+            }
         }
     }
 
@@ -251,18 +279,67 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         if (exercise == null || exercise.getName() == null || exercise.getName().isBlank()) {
             throw new IllegalArgumentException("AI workout provider returned an exercise without a name.");
         }
+        if (exercise.getMeasurementType() == null) {
+            throw new IllegalArgumentException("AI workout provider returned an exercise without a measurement type.");
+        }
+        validateExercisePrescription(exercise);
+        if (isBlank(exercise.getExecutionInstructions()) || isBlank(exercise.getSafetyNote()) || isBlank(exercise.getRationale())) {
+            throw new IllegalArgumentException("AI workout provider returned an exercise without detailed instructions, rationale, or safety notes.");
+        }
+        if (exercise.getFormCues() == null || exercise.getFormCues().stream().filter(Objects::nonNull).map(String::trim).filter(value -> !value.isBlank()).count() < 2) {
+            throw new IllegalArgumentException("AI workout provider returned an exercise without enough form cues.");
+        }
+        if (exercise.getCommonMistakes() == null || exercise.getCommonMistakes().stream().filter(Objects::nonNull).map(String::trim).filter(value -> !value.isBlank()).findAny().isEmpty()) {
+            throw new IllegalArgumentException("AI workout provider returned an exercise without common mistakes.");
+        }
         if (exercise.getExerciseItemId() != null) {
             ExerciseItemEntity item = exerciseItemRepository.findById(exercise.getExerciseItemId())
                     .orElseThrow(() -> new IllegalArgumentException("AI workout provider referenced an unknown exercise item."));
             if (!Boolean.TRUE.equals(item.getActive()) || !Boolean.TRUE.equals(item.getAiEligible())) {
                 throw new IllegalArgumentException("AI workout provider referenced an inactive or non-AI exercise item.");
             }
-            if (exercise.getMeasurementType() != null && !allowedMeasurement(item, exercise.getMeasurementType())) {
+            if (!allowedMeasurement(item, exercise.getMeasurementType())) {
                 throw new IllegalArgumentException("AI workout provider used a measurement type not allowed for the exercise item.");
             }
         }
     }
 
+    private void validateExercisePrescription(AiWorkoutPlanExerciseDto exercise) {
+        switch (exercise.getMeasurementType()) {
+            case SETS_REPS, WEIGHT_REPS -> {
+                if (exercise.getSetCount() == null || exercise.getSetCount() <= 0 || exercise.getReps() == null || exercise.getReps() <= 0) {
+                    throw new IllegalArgumentException("AI workout provider returned a strength exercise without sets and reps.");
+                }
+            }
+            case REPS -> {
+                if (exercise.getReps() == null || exercise.getReps() <= 0) {
+                    throw new IllegalArgumentException("AI workout provider returned a reps-based exercise without reps.");
+                }
+            }
+            case DURATION -> {
+                if (exercise.getDurationMinutes() == null || exercise.getDurationMinutes() <= 0) {
+                    throw new IllegalArgumentException("AI workout provider returned a duration exercise without duration.");
+                }
+            }
+            case DISTANCE -> {
+                if (exercise.getDistanceKm() == null || exercise.getDistanceKm() <= 0) {
+                    throw new IllegalArgumentException("AI workout provider returned a distance exercise without distance.");
+                }
+            }
+            case MIXED -> {
+                if ((exercise.getSetCount() == null || exercise.getSetCount() <= 0)
+                        && (exercise.getReps() == null || exercise.getReps() <= 0)
+                        && (exercise.getDurationMinutes() == null || exercise.getDurationMinutes() <= 0)
+                        && (exercise.getDistanceKm() == null || exercise.getDistanceKm() <= 0)) {
+                    throw new IllegalArgumentException("AI workout provider returned a mixed exercise without a measurable prescription.");
+                }
+            }
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
     private boolean allowedMeasurement(ExerciseItemEntity item, ExerciseLogMeasurementType measurementType) {
         if (item.getAllowedMeasurementTypes() == null || item.getAllowedMeasurementTypes().isBlank()) {
             return true;
@@ -367,6 +444,21 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         }
     }
 
+    private void copyUsageMetadata(AiUsageMetadataCarrier response, AiRequestHistoryEntity history) {
+        if (response == null || history == null) {
+            return;
+        }
+        history.setPromptTokens(response.getPromptTokens());
+        history.setCompletionTokens(response.getCompletionTokens());
+        Integer totalTokens = response.getTotalTokens();
+        if (totalTokens == null && (response.getPromptTokens() != null || response.getCompletionTokens() != null)) {
+            totalTokens = (response.getPromptTokens() == null ? 0 : response.getPromptTokens())
+                    + (response.getCompletionTokens() == null ? 0 : response.getCompletionTokens());
+        }
+        history.setTotalTokens(totalTokens);
+        history.setEstimatedCost(response.getEstimatedCost());
+        history.setCostCurrency(response.getCostCurrency());
+    }
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
@@ -380,3 +472,4 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         }
     }
 }
+
