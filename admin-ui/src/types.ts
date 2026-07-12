@@ -16,6 +16,11 @@ export type DashboardSummary = {
   aiQuotaExhaustedSubscriptions?: number;
   failedSubscriptionProviderEvents?: number;
   subscriptionProviderEventsLast24Hours?: number;
+  aiRequestsLast7Days?: number;
+  aiConfirmedLast7Days?: number;
+  aiRejectedLast7Days?: number;
+  aiFailedLast7Days?: number;
+  aiRejectionReasonsLast7Days?: Record<string, number>;
 };
 
 export type SystemHealth = Record<string, unknown>;
@@ -137,6 +142,21 @@ export type ProductQualitySuggestionPage = {
   totalPages?: number;
 };
 
+
+export type ProductQualityAiSettings = {
+  enabled?: boolean;
+  maxProductsPerRun?: number;
+  dailyProductLimit?: number;
+  monthlyProductLimit?: number;
+  forceRescanAllowed?: boolean;
+  usedToday?: number;
+  usedThisMonth?: number;
+  remainingToday?: number;
+  remainingThisMonth?: number;
+  adminNote?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
 export type AdminProductQualityAiValidationResult = {
   scanRunId?: number;
   requestedProducts?: number;
@@ -454,6 +474,11 @@ export type Notification = {
   id?: number;
   message?: string;
   type?: string;
+  severity?: string;
+  source?: string;
+  targetType?: string;
+  targetId?: string;
+  targetRoute?: string;
   read?: boolean;
   createdAt?: string;
 };
@@ -606,6 +631,7 @@ export type AdminBrevoSenderList = {
   statusMessage?: string;
   senders?: AdminBrevoSender[];
 };
+
 
 
 

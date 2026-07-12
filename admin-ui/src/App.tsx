@@ -34,6 +34,7 @@ import {
   ProductQualitySuggestion,
   ProductQualitySuggestionPage,
   ProductQualitySuggestionScanResult,
+  ProductQualityAiSettings,
   AdminRecipe,
   AdminRecipeImportCandidate,
   AdminRecipeImportResult,
@@ -100,6 +101,18 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 type RevenueCatRange = "7d" | "28d" | "90d" | "custom";
 type ThemeMode = "light" | "dark";
 type SectionMeta = { key: SectionKey; label: string; hint: string; icon: string; logo?: string };
+
+type AdminTargetContext = {
+  section: SectionKey;
+  source: "notification" | "dashboard";
+  notificationId?: number;
+  severity?: string;
+  type?: string;
+  message?: string;
+  targetType?: string;
+  targetId?: string;
+  targetRoute?: string;
+};
 type NavigationItem = SectionMeta & { children?: SectionMeta[] };
 
 const THEME_KEY = "grun.admin.theme";
@@ -213,63 +226,23 @@ function navSection(key: SectionKey): SectionMeta {
 const navigation: NavigationItem[] = [
   navSection("dashboard"),
   {
-    ...navSection("integrations"),
+    ...navSection("users"),
     children: [
-      { key: "integrations", label: "Overview", hint: "Provider board", icon: "O" },
-      navSection("integrationProviders")
-    ]
-  },
-  {
-    ...navSection("revenueCat"),
-    children: [
-      navSection("revenueCatProduction"),
-      navSection("revenueCatSandbox")
-    ]
-  },
-  {
-    ...navSection("mail"),
-    children: [
-      { key: "mail", label: "Overview", hint: "Delivery summary", icon: "O" },
-      navSection("brevoSenders"),
-      navSection("mailEvents")
+      { key: "users", label: "Users & access", hint: "Accounts and admin access", icon: "U" }
     ]
   },
   {
     ...navSection("foodOps"),
     children: [
-      { key: "foodOps", label: "Overview", hint: "Catalog summary", icon: "O" },
-      navSection("foodImports"),
-      navSection("foodRegions"),
-      navSection("foodQuality")
-    ]
-  },
-  {
-    ...navSection("products"),
-    children: [
-      { key: "products", label: "Review Queue", hint: "Pending products", icon: "Q" },
-      navSection("productImages"),
-      navSection("productNutrition"),
-      navSection("productRejected"),
-      navSection("recipes"),
-      navSection("achievements")
-    ]
-  },
-  {
-    ...navSection("users"),
-    children: [
-      { key: "users", label: "App Users", hint: "Customer accounts", icon: "U" },
-      navSection("admins"),
-      navSection("userVerification")
+      { key: "foodOps", label: "Catalog ops", hint: "Import and region health", icon: "F" },
+      navSection("products"),
+      navSection("recipes")
     ]
   },
   {
     ...navSection("subscriptions"),
     children: [
-      { key: "subscriptions", label: "Overview", hint: "Plan summary", icon: "O" },
-      navSection("subscriptionFeatures"),
-      navSection("subscriptionMapping"),
-      navSection("subscriptionEntitlements"),
-      navSection("subscriptionAiQuotas"),
+      { key: "subscriptions", label: "Plans & entitlements", hint: "Plan rules and user access", icon: "S" },
       navSection("subscriptionEvents")
     ]
   },
@@ -277,39 +250,44 @@ const navigation: NavigationItem[] = [
   {
     ...navSection("notifications"),
     children: [
-      { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
+      { key: "notifications", label: "Admin inbox", hint: "Operational alerts", icon: "N" },
+      navSection("mail"),
       navSection("pushDelivery")
     ]
   },
   {
-    ...navSection("tracking"),
+    ...navSection("integrations"),
     children: [
-      { key: "tracking", label: "Overview", hint: "Module summary", icon: "O" },
-      navSection("trackingWater"),
-      navSection("trackingFasting"),
-      navSection("trackingSteps")
+      { key: "integrations", label: "Provider board", hint: "External service status", icon: "I" },
+      { key: "revenueCatProduction", label: "RevenueCat", hint: "Subscription provider monitoring", icon: "R", logo: "./revenuecat.svg" }
     ]
   },
+  navSection("tracking"),
   {
     ...navSection("system"),
     children: [
-      { key: "system", label: "Overview", hint: "Health summary", icon: "O" },
-      navSection("systemRuntime"),
-      navSection("systemDatabase"),
-      navSection("systemProviders"),
-      navSection("systemProduction")
+      { key: "system", label: "System health", hint: "Runtime and readiness", icon: "H" },
+      navSection("audits")
     ]
   },
-  {
-    ...navSection("audits"),
-    children: [
-      { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
-      navSection("retentionPolicies")
-    ]
-  },
+  navSection("achievements"),
   navSection("settings")
 ];
 
+const sectionTabGroups: SectionMeta[][] = [
+  [navSection("users"), navSection("admins"), navSection("userVerification")],
+  [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
+  [navSection("products"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
+  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
+  [navSection("notifications"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
+  [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
+  [navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
+  [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
+];
+
+function tabsForSection(active: SectionKey): SectionMeta[] | undefined {
+  return sectionTabGroups.find((group) => group.some((item) => item.key === active));
+}
 const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
 const VERIFICATION_STATUSES = ["RAW_IMPORTED", "NEEDS_REVIEW", "VERIFIED", "REJECTED"];
 const IMAGE_STATUSES = ["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
@@ -473,7 +451,20 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
-  const [openNavGroups, setOpenNavGroups] = useState<Partial<Record<SectionKey, boolean>>>({});
+  const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
+  const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
+
+  function navigateToSection(section: SectionKey) {
+    setError(null);
+    setTargetContext(null);
+    setActive(section);
+  }
+
+  function navigateToTarget(section: SectionKey, context?: Omit<AdminTargetContext, "section">) {
+    setError(null);
+    setTargetContext(context ? { ...context, section } : null);
+    setActive(section);
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -520,9 +511,9 @@ export default function App() {
                 onClick={() => {
                   setError(null);
                   if (section.children) {
-                    setOpenNavGroups((current) => ({ ...current, [section.key]: !current[section.key] }));
+                    setOpenNavGroup((current) => current === section.key ? null : section.key);
                   } else {
-                    setActive(section.key);
+                    navigateToSection(section.key);
                   }
                 }}
                 type="button"
@@ -533,9 +524,9 @@ export default function App() {
                   <strong>{section.label}</strong>
                   <small>{section.hint}</small>
                 </span>
-                {section.children && <span className="nav-chevron">{openNavGroups[section.key] ? "-" : "+"}</span>}
+                {section.children && <span className="nav-chevron">{openNavGroup === section.key ? "-" : "+"}</span>}
               </button>
-              {section.children && openNavGroups[section.key] && (
+              {section.children && openNavGroup === section.key && (
                 <div className="nav-sublist">
                   {section.children.map((child) => (
                     <button
@@ -543,7 +534,7 @@ export default function App() {
                       key={`${child.key}-${child.label}`}
                       onClick={() => {
                         setError(null);
-                        setActive(child.key);
+                        navigateToSection(child.key);
                       }}
                       type="button"
                       title={child.hint}
@@ -585,13 +576,14 @@ export default function App() {
         </header>
 
         {error && <div className="error-banner">{error}</div>}
+        <SectionTabs active={active} onSelect={navigateToSection} />
         <section className="content-surface">
-          {active === "dashboard" && <DashboardView onError={setError} />}
+          {active === "dashboard" && <DashboardView onError={setError} onNavigate={navigateToSection} />}
           {active === "integrations" && <IntegrationsView mode="overview" onError={setError} />}
           {active === "integrationProviders" && <IntegrationsView mode="providers" onError={setError} />}
           {active === "revenueCatProduction" && <RevenueCatMonitoringView environment="production" onError={setError} />}
           {active === "revenueCatSandbox" && <RevenueCatMonitoringView environment="sandbox" onError={setError} />}
-          {active === "mail" && <MailOpsView onError={setError} />}
+          {active === "mail" && <MailOpsView onError={setError} targetContext={targetContext?.section === "mail" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "brevoSenders" && <BrevoSendersView onError={setError} />}
           {active === "mailEvents" && <MailEventsView onError={setError} />}
           {active === "foodOps" && <FoodOpsView mode="overview" onError={setError} />}
@@ -612,12 +604,12 @@ export default function App() {
           {active === "subscriptionMapping" && <SubscriptionsView mode="mapping" onError={setError} />}
           {active === "subscriptionEntitlements" && <SubscriptionsView mode="entitlements" onError={setError} />}
           {active === "subscriptionAiQuotas" && <SubscriptionsView mode="aiQuotas" onError={setError} />}
-          {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} />}
-          {active === "ai" && <AiReviewView onError={setError} />}
+          {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
+          {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "settings" && <GlobalSettingsView />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
-          {active === "notifications" && <NotificationsView onError={setError} />}
+          {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
@@ -634,6 +626,27 @@ export default function App() {
   );
 }
 
+function SectionTabs({ active, onSelect }: { active: SectionKey; onSelect: (section: SectionKey) => void }) {
+  const tabs = tabsForSection(active);
+  if (!tabs || tabs.length <= 1) return null;
+
+  return (
+    <div className="section-tabs" aria-label="Section navigation">
+      {tabs.map((tab) => (
+        <button
+          className={tab.key === active ? "active" : ""}
+          key={tab.key}
+          onClick={() => onSelect(tab.key)}
+          title={tab.hint}
+          type="button"
+        >
+          <strong>{tab.label}</strong>
+          <span>{tab.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 function isNavItemActive(section: NavigationItem, active: SectionKey): boolean {
   return section.key === active || Boolean(section.children?.some((child) => child.key === active));
 }
@@ -758,16 +771,45 @@ function ThemeToggle({ theme, toggleTheme }: { theme: ThemeMode; toggleTheme: ()
   );
 }
 
-function DashboardView({ onError }: { onError: (message: string | null) => void }) {
+type OperationCardItem = {
+  title: string;
+  value: string | number | undefined;
+  detail: string;
+  tone: "good" | "warn" | "danger";
+  target: SectionKey;
+};
+
+function OperationCard({ item, onNavigate }: { item: OperationCardItem; onNavigate: (section: SectionKey) => void }) {
+  return (
+    <button className={`operation-card ${item.tone}`} onClick={() => onNavigate(item.target)} type="button">
+      <span>{item.title}</span>
+      <strong>{formatValue(item.value)}</strong>
+      <small>{item.detail}</small>
+    </button>
+  );
+}
+function DashboardView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
   const { data, state, reload } = useEndpoint<DashboardSummary>("/api/v1/admin/dashboard/summary", onError);
+  const { data: unreadNotifications, state: unreadNotificationState, reload: reloadUnreadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&page=0&size=5", onError);
+  const { data: criticalNotifications, state: criticalNotificationState, reload: reloadCriticalNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&severity=CRITICAL&page=0&size=5", onError);
   const activeSubscriptions = (data?.activePlusSubscriptions ?? 0) + (data?.activeProSubscriptions ?? 0);
   const catalogReadyPercent = percent(data?.verifiedProducts, data?.totalProducts);
   const paidUserPercent = percent(activeSubscriptions, data?.totalUsers);
   const failedEvents = data?.failedSubscriptionProviderEvents ?? 0;
   const reviewQueue = data?.reviewQueueProducts ?? 0;
   const exhaustedAiQuota = data?.aiQuotaExhaustedSubscriptions ?? 0;
-  const healthLevel = failedEvents > 0 || reviewQueue > 100 ? "Needs attention" : "Stable";
-  const healthTone = failedEvents > 0 || reviewQueue > 100 ? "warn" : "good";
+  const aiRequests7d = data?.aiRequestsLast7Days ?? 0;
+  const aiConfirmed7d = data?.aiConfirmedLast7Days ?? 0;
+  const aiRejected7d = data?.aiRejectedLast7Days ?? 0;
+  const aiFailed7d = data?.aiFailedLast7Days ?? 0;
+  const aiAcceptancePercent = percent(aiConfirmed7d, aiRequests7d);
+  const aiRejectionPercent = percent(aiRejected7d, aiRequests7d);
+  const aiRejectionReasons = Object.entries(data?.aiRejectionReasonsLast7Days ?? {}).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
+  const unreadAlertTotal = unreadNotifications?.totalElements ?? unreadNotifications?.content?.length ?? 0;
+  const criticalAlertTotal = criticalNotifications?.totalElements ?? criticalNotifications?.content?.length ?? 0;
+  const criticalAlertRows = criticalNotifications?.content ?? [];
+  const healthLevel = failedEvents > 0 || criticalAlertTotal > 0 || reviewQueue > 100 ? "Needs attention" : "Stable";
+  const healthTone = failedEvents > 0 || criticalAlertTotal > 0 || reviewQueue > 100 ? "warn" : "good";
 
   const headlineCards = [
     ["Platform state", healthLevel, failedEvents > 0 ? `${failedEvents} failed provider event(s)` : "No failed provider events"],
@@ -775,15 +817,77 @@ function DashboardView({ onError }: { onError: (message: string | null) => void 
     ["Catalog readiness", `${catalogReadyPercent}%`, `${formatValue(data?.verifiedProducts)} verified of ${formatValue(data?.totalProducts)}`],
     ["Review queue", reviewQueue, `${formatValue(data?.needsReviewProducts)} data review / ${formatValue(data?.rawImportedProducts)} raw imports`]
   ];
+  const operationCards: OperationCardItem[] = [
+    {
+      title: "Admin alerts",
+      value: criticalAlertTotal,
+      detail: criticalAlertTotal > 0 ? `${formatValue(criticalAlertTotal)} unread critical alert(s). Open inbox before routine checks.` : `${formatValue(unreadAlertTotal)} unread alert(s), no critical item visible.`,
+      tone: criticalAlertTotal > 0 ? "danger" : unreadAlertTotal > 0 ? "warn" : "good",
+      target: "notifications"
+    },
+    {
+      title: "Provider events",
+      value: failedEvents,
+      detail: failedEvents > 0 ? "Failed payment/provider events need retry or config review." : "No failed payment/provider events.",
+      tone: failedEvents > 0 ? "danger" : "good",
+      target: "subscriptionEvents"
+    },
+    {
+      title: "Catalog review",
+      value: reviewQueue,
+      detail: reviewQueue > 0 ? "Products are waiting for data, image, or nutrition approval." : "No product review pressure reported.",
+      tone: reviewQueue > 100 ? "warn" : "good",
+      target: "products"
+    },
+    {
+      title: "AI quality",
+      value: aiRejected7d + aiFailed7d,
+      detail: `${formatValue(aiRejected7d)} rejected and ${formatValue(aiFailed7d)} failed AI request(s) in the last 7 days.`,
+      tone: aiRejected7d + aiFailed7d > 0 ? "warn" : "good",
+      target: "ai"
+    },
+    {
+      title: "AI quota pressure",
+      value: exhaustedAiQuota,
+      detail: exhaustedAiQuota > 0 ? "Users have exhausted AI quota and may need plan/add-on review." : "No exhausted AI quota pressure.",
+      tone: exhaustedAiQuota > 0 ? "warn" : "good",
+      target: "subscriptionAiQuotas"
+    },
+    {
+      title: "Catalog quality scan",
+      value: data?.needsReviewProducts ?? 0,
+      detail: "Run quality rules or AI-assisted validation against selected catalog suggestions.",
+      tone: (data?.needsReviewProducts ?? 0) > 0 ? "warn" : "good",
+      target: "foodQuality"
+    }
+  ];
 
   return (
     <div className="stack">
-      <SectionToolbar title="Admin command summary" state={state} onReload={reload} />
+      <SectionToolbar title="Admin command summary" state={combineStates([state, unreadNotificationState, criticalNotificationState])} onReload={() => { void reload(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }} />
       <div className="metric-grid">
         {headlineCards.map(([label, value, hint]) => (
           <MetricCard key={String(label)} label={String(label)} value={formatValue(value)} hint={String(hint)} />
         ))}
       </div>
+      <Panel title="Operations queue">
+        <div className="operation-card-grid">
+          {operationCards.map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
+        </div>
+      </Panel>
+      <Panel title="Critical admin alerts">
+        <div className="dashboard-alert-panel">
+          <div>
+            <strong>{formatValue(criticalAlertTotal)}</strong>
+            <span>unread critical alert(s)</span>
+            <small>{formatValue(unreadAlertTotal)} total unread admin alert(s)</small>
+          </div>
+          <div>
+            <MiniNotificationList notifications={criticalAlertRows} />
+          </div>
+          <button className="ghost-button" type="button" onClick={() => onNavigate("notifications")}>Open Admin Inbox</button>
+        </div>
+      </Panel>
       <div className="split-grid">
         <Panel title="Immediate attention">
           <PriorityList
@@ -807,17 +911,31 @@ function DashboardView({ onError }: { onError: (message: string | null) => void 
         </Panel>
       </div>
       <div className="split-grid">
+        <Panel title="AI result quality">
+          <div className="dashboard-ai-grid">
+            <MetricCard label="AI requests 7d" value={formatValue(aiRequests7d)} hint="All tracked AI request types" />
+            <MetricCard label="Accepted" value={`${aiAcceptancePercent}%`} hint={`${formatValue(aiConfirmed7d)} confirmed by users`} />
+            <MetricCard label="Rejected" value={`${aiRejectionPercent}%`} hint={`${formatValue(aiRejected7d)} rejected by users`} />
+            <MetricCard label="Failed" value={formatValue(aiFailed7d)} hint="Provider or processing failures" />
+          </div>
+          <div className="ai-reason-list">
+            {aiRejectionReasons.length === 0 && <span className="empty-inline">No rejection reasons in the last 7 days.</span>}
+            {aiRejectionReasons.map(([reason, value]) => <ProgressRow key={reason} label={shortFeature(reason)} value={value} total={aiRejected7d || value} tone="warn" />)}
+          </div>
+        </Panel>
         <Panel title="Catalog health">
           <ProgressRow label="Verified catalog" value={data?.verifiedProducts} total={data?.totalProducts} />
           <ProgressRow label="Needs review" value={data?.needsReviewProducts} total={data?.totalProducts} tone="warn" />
           <ProgressRow label="Rejected" value={data?.rejectedProducts} total={data?.totalProducts} tone="danger" />
         </Panel>
+      </div>
+      <div className="split-grid">
         <Panel title="Operational routing">
           <div className="roadmap-strip">
             <span><Badge value={healthLevel} tone={healthTone} /> Payment events first if failed count is above zero</span>
+            <span>AI Ops shows request-level detail, prompt lifecycle, rejection feedback, and refundable quota cases</span>
             <span>Product Review handles catalog queue and image/nutrition quality</span>
             <span>Provider Events gives webhook detail and retry</span>
-            <span>Retention Policies keeps legal data rules auditable</span>
           </div>
         </Panel>
       </div>
@@ -2623,12 +2741,21 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
   const { data, state, reload } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [statusActionState, setStatusActionState] = useState<LoadState>("idle");
+  const [userPage, setUserPage] = useState(0);
+  const [userPageSize, setUserPageSize] = useState(25);
   const users = data ?? [];
   const adminUsers = users.filter((user) => user.role === "ADMIN");
   const standardUsers = users.filter((user) => user.role !== "ADMIN");
   const unverifiedUsers = users.filter((user) => !user.emailVerified);
   const visibleUsers = mode === "admins" ? adminUsers : mode === "verification" ? unverifiedUsers : standardUsers;
+  const userTotalPages = Math.max(1, Math.ceil(visibleUsers.length / userPageSize));
+  const safeUserPage = Math.min(userPage, userTotalPages - 1);
+  const pagedUsers = visibleUsers.slice(safeUserPage * userPageSize, safeUserPage * userPageSize + userPageSize);
   const title = mode === "admins" ? "Admin accounts" : mode === "verification" ? "Email verification queue" : "App users";
+
+  useEffect(() => {
+    setUserPage(0);
+  }, [mode, userPageSize, visibleUsers.length]);
 
   async function updateSelectedUserStatus(payload: { accountEnabled: boolean; accountLocked: boolean; reason: string }) {
     if (!selectedUser?.id) return;
@@ -2656,17 +2783,37 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
       </div>
       <DataTable
         columns={["User", "Role", "Status", "Region", "Language", "Email", "Profile"]}
-        rows={visibleUsers.map((user) => [
+        rows={pagedUsers.map((user) => [
           <UserCell user={user} />,
           <Badge value={user.role ?? "-"} />,
+          <div className="badge-stack">
+            <Badge
+              value={user.accountLocked ? "Locked" : user.accountEnabled === false ? "Disabled" : "Enabled"}
+              tone={user.accountLocked || user.accountEnabled === false ? "danger" : "good"}
+            />
+            <Badge value={user.emailVerified ? "Verified" : "Unverified"} tone={user.emailVerified ? "good" : "warn"} />
+          </div>,
           formatValue(user.marketRegion),
           formatValue(user.preferredLanguage),
-          <Badge value={user.emailVerified ? "Verified" : "Unverified"} tone={user.emailVerified ? "good" : "warn"} />,
+          formatValue(user.email),
           `${formatValue(user.age)} yrs | ${formatValue(user.height)} cm / ${formatValue(user.weight)} kg`
         ])}
-        rowData={visibleUsers}
+        rowData={pagedUsers}
         onRowClick={setSelectedUser}
         empty={mode === "admins" ? "No admin users found." : mode === "verification" ? "No unverified users found." : "No standard users found."}
+      />
+      <PaginationControls
+        page={safeUserPage}
+        pageSize={userPageSize}
+        totalElements={visibleUsers.length}
+        totalPages={userTotalPages}
+        first={safeUserPage <= 0}
+        last={safeUserPage >= userTotalPages - 1}
+        onPageChange={setUserPage}
+        onPageSizeChange={(size) => {
+          setUserPageSize(size);
+          setUserPage(0);
+        }}
       />
       {selectedUser && <UserDetailsModal user={selectedUser} statusState={statusActionState} onClose={() => setSelectedUser(null)} onStatusUpdate={updateSelectedUserStatus} />}
     </div>
@@ -2720,6 +2867,8 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
   const selectedUserId = accessPreviewUserId ? Number(accessPreviewUserId) : null;
   const quotaAudits = (subscriptionAudits?.content ?? []).filter((audit) => ["SUBSCRIPTION_UPDATE", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT"].includes(audit.actionType ?? ""));
+
+
   const title = {
     overview: "Subscription control center",
     features: "Plan feature matrix",
@@ -3230,7 +3379,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   );
 }
 
-function AiReviewView({ onError }: { onError: (message: string | null) => void }) {
+function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const [requestType, setRequestType] = useState("");
   const [status, setStatus] = useState("");
   const [refundableOnly, setRefundableOnly] = useState(false);
@@ -3241,6 +3390,14 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
   const { data, state, reload } = useEndpoint<PageResponse<AiMealDraft>>(path, onError);
   const rows = data?.content ?? [];
+  const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
+
+  useEffect(() => {
+    if (targetContext?.targetType !== "AI_REQUEST" || !targetContext.targetId) return;
+    setStatus("");
+    setRefundableOnly(false);
+    setPage(0);
+  }, [targetContext?.targetType, targetContext?.targetId]);
 
   function resetFilters() {
     setRequestType("");
@@ -3268,6 +3425,7 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
       </SectionToolbar>
+      {targetContext && <TargetContextBanner context={targetContext} onClear={onClearTarget} />}
       <Panel title="Request filters">
         <div className="review-filter-grid">
           <label>
@@ -3296,7 +3454,7 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
       <DataTable
         columns={["Request", "User", "Type", "Status", "Quota", "Provider", "Latency", "Cost", "Created"]}
         rows={rows.map((item) => [
-          item.requestId ?? item.id ?? "-",
+          <TargetAwareValue value={item.requestId ?? item.id ?? "-"} focused={isTargetMatch(focusedRequestId, item.requestId ?? item.id)} />,
           item.userEmail ?? item.userId ?? "-",
           humanizeAiRequestType(item.requestType),
           <Badge value={item.status} tone={aiStatusTone(item.status)} />,
@@ -3322,7 +3480,7 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
   );
 }
 
-function SubscriptionEventsView({ onError }: { onError: (message: string | null) => void }) {
+function SubscriptionEventsView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const [status, setStatus] = useState("");
   const [eventType, setEventType] = useState("");
   const [productId, setProductId] = useState("");
@@ -3335,6 +3493,16 @@ function SubscriptionEventsView({ onError }: { onError: (message: string | null)
   const path = buildSubscriptionEventsPath({ status, eventType, productId, userId, page, size: pageSize });
   const { data, state, reload } = useEndpoint<SubscriptionProviderEventPage>(path, onError);
   const rows = data?.content ?? [];
+  const focusedEventId = targetContext?.targetType === "SUBSCRIPTION_PROVIDER_EVENT" ? targetContext.targetId : undefined;
+
+  useEffect(() => {
+    if (targetContext?.targetType !== "SUBSCRIPTION_PROVIDER_EVENT" || !targetContext.targetId) return;
+    setStatus("");
+    setEventType("");
+    setProductId("");
+    setUserId("");
+    setPage(0);
+  }, [targetContext?.targetType, targetContext?.targetId]);
 
   function resetFilters() {
     setStatus("");
@@ -3377,6 +3545,7 @@ function SubscriptionEventsView({ onError }: { onError: (message: string | null)
       <SectionToolbar title="Subscription provider events" state={combineStates([state, detailState, retryState])} onReload={reload}>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
+      {targetContext && <TargetContextBanner context={targetContext} onClear={onClearTarget} />}
       <Panel title="Event filters">
         <div className="review-filter-grid">
           <label>
@@ -3403,7 +3572,7 @@ function SubscriptionEventsView({ onError }: { onError: (message: string | null)
       <DataTable
         columns={["ID", "Provider", "Event", "Product", "User", "Status", "Received", "Processed"]}
         rows={rows.map((item) => [
-          item.id ?? "-",
+          <TargetAwareValue value={item.id ?? "-"} focused={isTargetMatch(focusedEventId, item.id)} />,
           item.provider ?? "-",
           item.eventType ?? item.providerEventId ?? "-",
           item.productId ?? "-",
@@ -3640,7 +3809,7 @@ function IntegrationsView({ mode, onError }: { mode: IntegrationMode; onError: (
   );
 }
 
-function MailOpsView({ onError }: { onError: (message: string | null) => void }) {
+function MailOpsView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const { data: health, state: healthState, reload: reloadHealth } = useEndpoint<SystemHealth>("/api/v1/admin/system/health", onError);
   const { data: notifications, state: notificationState, reload: reloadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?page=0&size=25&type=system", onError);
   const { data: mailMonitoring, state: mailState, reload: reloadMail } = useEndpoint<AdminMailMonitoring>("/api/v1/admin/mail/monitoring?days=7&limit=10", onError);
@@ -4397,9 +4566,13 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
   const [selectedScanRunDetail, setSelectedScanRunDetail] = useState<ProductQualityScanRunDetail | null>(null);
   const [aiValidationResult, setAiValidationResult] = useState<AdminProductQualityAiValidationResult | null>(null);
   const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<number[]>([]);
+  const [selectedQualitySuggestion, setSelectedQualitySuggestion] = useState<ProductQualitySuggestion | null>(null);
   const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, page: suggestionPage, size: suggestionPageSize });
   const { data: suggestions, state: suggestionState, reload: reloadSuggestions } = useEndpoint<ProductQualitySuggestionPage>(suggestionPath, onError);
   const { data: scanRuns, state: scanRunState, reload: reloadScanRuns } = useEndpoint<ProductQualityScanRunPage>("/api/v1/admin/products/quality-suggestions/scan-runs?page=0&size=5", onError);
+  const { data: aiSettings, state: aiSettingsState, reload: reloadAiSettings } = useEndpoint<ProductQualityAiSettings>("/api/v1/admin/products/quality-suggestions/ai-settings", onError);
+  const [aiSettingsForm, setAiSettingsForm] = useState({ enabled: true, maxProductsPerRun: "25", dailyProductLimit: "250", monthlyProductLimit: "2000", forceRescanAllowed: true, adminNote: "" });
+  const [aiSettingsSaveState, setAiSettingsSaveState] = useState<LoadState>("idle");
   const rows = products?.content ?? [];
   const suggestionRows = suggestions?.content ?? [];
   const scanRunRows = scanRuns?.content ?? [];
@@ -4408,6 +4581,19 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
   const byImageStatus = countBy(rows, (item) => item.imageStatus ?? "Unknown");
   const byCatalogType = countBy(rows, (item) => item.catalogType ?? "Unknown");
   const localReadyPercent = percent(summary?.verifiedProducts, summary?.totalProducts);
+  useEffect(() => {
+    if (!aiSettings) return;
+    setAiSettingsForm({
+      enabled: aiSettings.enabled !== false,
+      maxProductsPerRun: String(aiSettings.maxProductsPerRun ?? 25),
+      dailyProductLimit: String(aiSettings.dailyProductLimit ?? 250),
+      monthlyProductLimit: String(aiSettings.monthlyProductLimit ?? 2000),
+      forceRescanAllowed: aiSettings.forceRescanAllowed !== false,
+      adminNote: aiSettings.adminNote ?? ""
+    });
+  }, [aiSettings]);
+
+
   const title = {
     overview: "Food catalog operations",
     imports: "Food import jobs",
@@ -4420,8 +4606,31 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     void reloadProducts();
     void reloadSuggestions();
     void reloadScanRuns();
+    void reloadAiSettings();
   }
 
+
+  async function saveAiQualitySettings() {
+    setAiSettingsSaveState("loading");
+    try {
+      await request<ProductQualityAiSettings>("/api/v1/admin/products/quality-suggestions/ai-settings", {
+        method: "PATCH",
+        body: {
+          enabled: aiSettingsForm.enabled,
+          maxProductsPerRun: Math.min(parsePositiveInt(aiSettingsForm.maxProductsPerRun), 25),
+          dailyProductLimit: parsePositiveInt(aiSettingsForm.dailyProductLimit),
+          monthlyProductLimit: parsePositiveInt(aiSettingsForm.monthlyProductLimit),
+          forceRescanAllowed: aiSettingsForm.forceRescanAllowed,
+          adminNote: aiSettingsForm.adminNote.trim()
+        }
+      });
+      await reloadAiSettings();
+      setAiSettingsSaveState("ready");
+    } catch (error) {
+      setAiSettingsSaveState("error");
+      onError(formatRequestError(error));
+    }
+  }
   async function scanQualitySuggestions() {
     setQualityActionState("loading");
     try {
@@ -4465,6 +4674,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
       await reloadSuggestions();
       await reloadScanRuns();
       setSelectedSuggestionIds((current) => current.filter((id) => id !== item.id));
+      setSelectedQualitySuggestion((current) => current?.id === item.id ? null : current);
       setQualityActionState("ready");
     } catch (error) {
       setQualityActionState("error");
@@ -4486,11 +4696,11 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     try {
       const result = await request<AdminProductQualityAiValidationResult>("/api/v1/admin/products/quality-suggestions/ai-validate-selected", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           suggestionIds: selectedOpenSuggestionIds,
           limit: Math.min(selectedOpenSuggestionIds.length, 25),
           forceRescan
-        })
+        }
       });
       setAiValidationResult(result);
       setScanResult(null);
@@ -4508,7 +4718,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, scanRunState, qualityActionState])} onReload={reloadAll} />
+      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, scanRunState, aiSettingsState, qualityActionState, aiSettingsSaveState])} onReload={reloadAll} />
       {mode === "overview" && <div className="food-ops-hero">
         <div>
           <p className="eyebrow">Local catalog first</p>
@@ -4558,7 +4768,49 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           <span>User locale to market-group mapping</span>
         </div>
       </Panel>}
-      {mode === "quality" && <Panel title="Quality validation scan">
+      {mode === "quality" && <Panel title="AI quality validation guardrails">
+        <div className="ai-quality-settings-grid">
+          <div className="ai-quality-quota-card">
+            <span>Today</span>
+            <strong>{formatValue(aiSettings?.remainingToday)} left</strong>
+            <small>{formatValue(aiSettings?.usedToday)} used / {formatValue(aiSettings?.dailyProductLimit)} daily cap</small>
+          </div>
+          <div className="ai-quality-quota-card">
+            <span>This month</span>
+            <strong>{formatValue(aiSettings?.remainingThisMonth)} left</strong>
+            <small>{formatValue(aiSettings?.usedThisMonth)} used / {formatValue(aiSettings?.monthlyProductLimit)} monthly cap</small>
+          </div>
+          <label className="inline-check ai-quality-toggle">
+            <input checked={aiSettingsForm.enabled} onChange={(event) => setAiSettingsForm((current) => ({ ...current, enabled: event.target.checked }))} type="checkbox" />
+            AI validation enabled
+          </label>
+          <label className="inline-check ai-quality-toggle">
+            <input checked={aiSettingsForm.forceRescanAllowed} onChange={(event) => setAiSettingsForm((current) => ({ ...current, forceRescanAllowed: event.target.checked }))} type="checkbox" />
+            Force rescan allowed
+          </label>
+          <label>
+            Max products per run
+            <input value={aiSettingsForm.maxProductsPerRun} onChange={(event) => setAiSettingsForm((current) => ({ ...current, maxProductsPerRun: event.target.value.replace(/[^0-9]/g, "") }))} />
+            <small>Hard capped at 25 for cost and safety.</small>
+          </label>
+          <label>
+            Daily product cap
+            <input value={aiSettingsForm.dailyProductLimit} onChange={(event) => setAiSettingsForm((current) => ({ ...current, dailyProductLimit: event.target.value.replace(/[^0-9]/g, "") }))} />
+          </label>
+          <label>
+            Monthly product cap
+            <input value={aiSettingsForm.monthlyProductLimit} onChange={(event) => setAiSettingsForm((current) => ({ ...current, monthlyProductLimit: event.target.value.replace(/[^0-9]/g, "") }))} />
+          </label>
+          <label className="ai-quality-note-field">
+            Admin note
+            <textarea value={aiSettingsForm.adminNote} onChange={(event) => setAiSettingsForm((current) => ({ ...current, adminNote: event.target.value }))} maxLength={1000} placeholder="Internal note for why limits were changed." />
+          </label>
+          <div className="ai-quality-settings-actions">
+            <span>Last update: {formatDate(aiSettings?.updatedAt)} by {aiSettings?.updatedBy ?? "-"}</span>
+            <button className="primary-button" type="button" disabled={aiSettingsSaveState === "loading"} onClick={saveAiQualitySettings}>Save AI settings</button>
+          </div>
+        </div>
+      </Panel>}      {mode === "quality" && <Panel title="Quality validation scan">
         <div className="review-filter-grid quality-scan-grid">
           <label>
             Region
@@ -4604,38 +4856,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           empty="No quality scan runs yet."
         />
       </Panel>}
-      {selectedScanRunDetail && <div className="modal-backdrop" role="dialog" aria-modal="true">
-        <div className="modal-card scan-run-detail-modal">
-          <div className="modal-header">
-            <div>
-              <span>QUALITY SCAN DETAIL</span>
-              <h2>Run #{selectedScanRunDetail.run?.id ?? "-"}</h2>
-            </div>
-            <button className="ghost-button" type="button" onClick={() => setSelectedScanRunDetail(null)}>Close</button>
-          </div>
-          <div className="modal-body">
-            <div className="metric-grid compact-grid">
-              <MetricCard label="Scanned" value={formatValue(selectedScanRunDetail.run?.scannedProducts)} hint="Products inspected" />
-              <MetricCard label="Created" value={formatValue(selectedScanRunDetail.run?.createdSuggestions)} hint="Suggestions opened" />
-              <MetricCard label="Validated" value={formatValue(selectedScanRunDetail.run?.validatedProducts)} hint="No rule issue found" />
-              <MetricCard label="Existing" value={formatValue(selectedScanRunDetail.run?.skippedExistingSuggestions)} hint="Duplicate suggestions skipped" />
-            </div>
-            <DataTable
-              columns={["Product", "Status", "Type", "Field", "Suggested", "Confidence", "Note"]}
-              rows={(selectedScanRunDetail.items ?? []).map((item) => [
-                <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
-                <Badge value={item.status ?? "-"} tone={item.status === "VALIDATED" ? "good" : item.status === "SUGGESTION_CREATED" ? "warn" : "neutral"} />,
-                item.suggestionType ?? "-",
-                item.fieldName ?? "-",
-                item.suggestedValue ?? "-",
-                formatValue(item.confidenceScore),
-                item.note ?? item.reason ?? "-"
-              ])}
-              empty="No product-level detail was stored for this run. Older scan runs only contain aggregate counts."
-            />
-          </div>
-        </div>
-      </div>}
+      {selectedScanRunDetail && <QualityScanRunDetailModal detail={selectedScanRunDetail} onClose={() => setSelectedScanRunDetail(null)} />}
       {mode === "quality" && <Panel title="Quality suggestion queue" className="quality-table-panel compact-empty-panel">
         <div className="quality-suggestion-toolbar">
           <div>
@@ -4660,7 +4881,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           </label>
         </div>
         <DataTable
-          columns={["", "Product", "Type", "Field", "Confidence", "Current", "Suggested", "Reason", "Actions"]}
+          columns={["", "Product", "Type", "Field", "Confidence", "Current", "Suggested", "Decision", "Actions"]}
           rows={suggestionRows.map((item) => [
             <input aria-label="Select suggestion for AI validation" type="checkbox" disabled={item.status !== "OPEN"} checked={item.id ? selectedOpenSuggestionIds.includes(item.id) : false} onChange={(event) => toggleSuggestionSelection(item, event.target.checked)} onClick={(event) => event.stopPropagation()} />,
             <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
@@ -4669,8 +4890,9 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
             formatValue(item.confidenceScore),
             item.currentValue ?? "-",
             item.suggestedValue ?? "-",
-            item.reason ?? "-",
+            <QualitySuggestionDecision item={item} />,
             <div className="table-stack">
+              <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); setSelectedQualitySuggestion(item); }}>View details</button>
               <Badge value={item.status} tone={item.status === "OPEN" ? "warn" : item.status === "ACCEPTED" ? "good" : "neutral"} />
               {item.status === "OPEN" && <button className="ghost-button" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "accept"); }}>Accept</button>}
               {item.status === "OPEN" && <button className="ghost-button danger-text" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "reject"); }}>Reject</button>}
@@ -4689,10 +4911,411 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           onPageSizeChange={(size) => { setSuggestionPageSize(size); setSuggestionPage(0); }}
         />
       </Panel>}
+      {selectedQualitySuggestion && <QualitySuggestionDetailModal
+        item={selectedQualitySuggestion}
+        busy={qualityActionState === "loading"}
+        onClose={() => setSelectedQualitySuggestion(null)}
+        onAccept={(item) => reviewQualitySuggestion(item, "accept")}
+        onReject={(item) => reviewQualitySuggestion(item, "reject")}
+      />}
     </div>
   );
 }
 
+function QualityScanRunDetailModal({ detail, onClose }: { detail: ProductQualityScanRunDetail; onClose: () => void }) {
+  const run = detail.run;
+  const items = detail.items ?? [];
+  const createdItems = items.filter((item) => item.status === "SUGGESTION_CREATED").length;
+  const validatedItems = items.filter((item) => item.status === "VALIDATED").length;
+  const issueItems = items.filter((item) => item.status && item.status !== "VALIDATED").length;
+  const completion = run?.startedAt && run?.completedAt ? `${formatDate(run.startedAt)} -> ${formatDate(run.completedAt)}` : formatDate(run?.startedAt);
+  const sourceTone = run?.source === "AI_ASSISTED" ? "warn" : "neutral";
+  const quotaHint = run?.source === "AI_ASSISTED"
+    ? `${formatValue(run.scannedProducts)} AI product validation credit(s) consumed by this run.`
+    : "Rule-based scan. No AI validation quota was consumed.";
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal-card scan-run-detail-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>QUALITY SCAN DETAIL</span>
+            <h2>Run #{run?.id ?? "-"}</h2>
+            <p>{completion}</p>
+          </div>
+          <button className="ghost-button" type="button" onClick={onClose}>Close</button>
+        </div>
+        <div className="modal-body">
+          <div className="quality-run-meta-grid">
+            <article>
+              <span>Source</span>
+              <strong><Badge value={run?.source ?? "-"} tone={sourceTone} /></strong>
+              <small>{quotaHint}</small>
+            </article>
+            <article>
+              <span>Trigger</span>
+              <strong>{shortFeature(run?.triggerType)}</strong>
+              <small>{run?.triggeredBy ? `Triggered by ${run.triggeredBy}` : "No admin actor recorded"}</small>
+            </article>
+            <article>
+              <span>Region and rescan</span>
+              <strong>{run?.marketRegion ?? "All regions"}</strong>
+              <small>{run?.forceRescan ? "Forced rescan included validated products" : "Validated products were skipped"}</small>
+            </article>
+          </div>
+          <div className="metric-grid compact-grid">
+            <MetricCard label="Requested" value={formatValue(run?.requestedLimit)} hint={`Effective limit ${formatValue(run?.effectiveLimit)}`} />
+            <MetricCard label="Scanned" value={formatValue(run?.scannedProducts)} hint="Products inspected" />
+            <MetricCard label="Created" value={formatValue(run?.createdSuggestions)} hint={`${formatValue(createdItems)} stored item row(s)`} />
+            <MetricCard label="Validated" value={formatValue(run?.validatedProducts)} hint={`${formatValue(validatedItems)} item row(s) without issue`} />
+            <MetricCard label="Existing" value={formatValue(run?.skippedExistingSuggestions)} hint="Duplicate open suggestions skipped" />
+            <MetricCard label="Skipped" value={formatValue(run?.skippedPreviouslyValidatedProducts)} hint="Previously validated products skipped" />
+          </div>
+          {run?.errorMessage && <div className="quality-run-error"><strong>Run error</strong><span>{run.errorMessage}</span></div>}
+          <div className="quality-run-status-strip">
+            <span>{formatValue(items.length)} item detail row(s)</span>
+            <span>{formatValue(issueItems)} row(s) requiring admin attention</span>
+            <span>Status: {shortFeature(run?.status)}</span>
+          </div>
+          <DataTable
+            columns={["Product", "Result", "Field", "Suggested value", "Confidence", "Admin note"]}
+            rows={items.map((item) => [
+              <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
+              <div className="badge-stack"><Badge value={item.status ?? "-"} tone={item.status === "VALIDATED" ? "good" : item.status === "SUGGESTION_CREATED" ? "warn" : "neutral"} />{item.suggestionType && <Badge value={item.suggestionType} tone="neutral" />}</div>,
+              qualityFieldLabel(item.fieldName),
+              item.suggestedValue ?? "-",
+              formatValue(item.confidenceScore),
+              <div className="quality-run-note"><strong>{item.note ?? "-"}</strong><small>{item.reason ?? ""}</small></div>
+            ])}
+            empty="No product-level detail was stored for this run. Older scan runs only contain aggregate counts."
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+function QualitySuggestionDecision({ item }: { item: ProductQualitySuggestion }) {
+  const decision = qualitySuggestionDecision(item);
+  return (
+    <div className="quality-decision-cell">
+      <Badge value={decision.label} tone={decision.tone} />
+      <small>{decision.detail}</small>
+    </div>
+  );
+}
+
+function QualitySuggestionDetailModal({
+  busy,
+  item,
+  onAccept,
+  onClose,
+  onReject
+}: {
+  busy: boolean;
+  item: ProductQualitySuggestion;
+  onAccept: (item: ProductQualitySuggestion) => void;
+  onClose: () => void;
+  onReject: (item: ProductQualitySuggestion) => void;
+}) {
+  const decision = qualitySuggestionDecision(item);
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <section className="modal-card quality-suggestion-modal" aria-label="Quality suggestion detail" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>QUALITY ASSISTANT SUGGESTION</span>
+            <h2>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</h2>
+            <p>{item.brand ?? "Unknown brand"}</p>
+          </div>
+          <button className="ghost-button" type="button" onClick={onClose}>Close</button>
+        </div>
+        <div className="modal-body quality-suggestion-body">
+          <div className="quality-suggestion-summary">
+            <div>
+              <span>Source</span>
+              <strong>{shortFeature(item.source)}</strong>
+            </div>
+            <div>
+              <span>Type</span>
+              <strong>{shortFeature(item.suggestionType)}</strong>
+            </div>
+            <div>
+              <span>Confidence</span>
+              <strong>{formatValue(item.confidenceScore)}%</strong>
+            </div>
+            <div>
+              <span>Status</span>
+              <strong>{shortFeature(item.status)}</strong>
+            </div>
+          </div>
+          <div className={`quality-decision-banner ${decision.tone}`}>
+            <Badge value={decision.label} tone={decision.tone} />
+            <div>
+              <strong>{decision.title}</strong>
+              <p>{decision.detail}</p>
+            </div>
+          </div>
+          <div className="quality-diff-grid">
+            <article>
+              <span>Field</span>
+              <strong>{qualityFieldLabel(item.fieldName)}</strong>
+              <small>{item.fieldName ?? "No field supplied"}</small>
+            </article>
+            <article>
+              <span>Current value</span>
+              <strong>{item.currentValue ?? "-"}</strong>
+              <small>Stored catalog value before admin decision</small>
+            </article>
+            <article>
+              <span>Suggested value</span>
+              <strong>{item.suggestedValue ?? "-"}</strong>
+              <small>Value proposed by rule or AI assistant</small>
+            </article>
+          </div>
+          <QualityImpactSummary item={item} />
+          <div className="quality-preview-grid">
+            <article>
+              <header>
+                <span>Before accept</span>
+                <Badge value="Current product" tone="neutral" />
+              </header>
+              <QualityPreviewRows item={item} mode="before" />
+            </article>
+            <article>
+              <header>
+                <span>After accept</span>
+                <Badge value={isQualitySuggestionApplyable(item) || item.suggestionType === "NAME_CLEANUP" || item.suggestionType === "SEARCH_ALIAS" ? "Preview" : "Review only"} tone={isQualitySuggestionApplyable(item) || item.suggestionType === "NAME_CLEANUP" || item.suggestionType === "SEARCH_ALIAS" ? "good" : "warn"} />
+              </header>
+              <QualityPreviewRows item={item} mode="after" />
+            </article>
+          </div>
+          <Panel title="Reason and audit context">
+            <div className="quality-reason-box">
+              <p>{item.reason ?? "No reason returned for this suggestion."}</p>
+              <div>
+                <DetailItem label="Created" value={formatDate(item.createdAt)} />
+                <DetailItem label="Reviewed" value={formatDate(item.reviewedAt)} />
+                <DetailItem label="Reviewed by" value={item.reviewedBy ?? "-"} />
+              </div>
+            </div>
+          </Panel>
+        </div>
+        <div className="modal-actions padded-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>Cancel</button>
+          {item.status === "OPEN" && <button className="ghost-button danger-text" type="button" disabled={busy} onClick={() => onReject(item)}>Reject</button>}
+          {item.status === "OPEN" && <button className="primary-button" type="button" disabled={busy} onClick={() => onAccept(item)}>Accept suggestion</button>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function QualityImpactSummary({ item }: { item: ProductQualitySuggestion }) {
+  const impact = qualityFieldImpact(item);
+  return (
+    <div className="quality-impact-grid">
+      <article>
+        <span>Field group</span>
+        <strong>{impact.group}</strong>
+        <small>{impact.description}</small>
+      </article>
+      <article>
+        <span>Catalog write</span>
+        <strong>{impact.writePath}</strong>
+        <small>{impact.resetValidation ? "Quality validation will be reset after accept." : "Existing product validation marker is not changed."}</small>
+      </article>
+      <article>
+        <span>Audit trail</span>
+        <strong>{impact.audit}</strong>
+        <small>{impact.adminAction}</small>
+      </article>
+    </div>
+  );
+}
+function QualityPreviewRows({ item, mode }: { item: ProductQualitySuggestion; mode: "before" | "after" }) {
+  const canPreviewApply = isQualitySuggestionApplyable(item) || item.suggestionType === "NAME_CLEANUP";
+  const isAfter = mode === "after";
+  const fieldValue = isAfter && canPreviewApply
+    ? item.suggestedValue ?? "-"
+    : item.currentValue ?? "-";
+  const rows: Array<[string, ReactNode]> = [
+    ["Product", item.productName ?? `Product #${item.foodItemId ?? "-"}`],
+    ["Brand", item.brand ?? "-"],
+    ["Field", qualityFieldLabel(item.fieldName)],
+    ["Value", fieldValue]
+  ];
+
+  if (item.suggestionType === "SEARCH_ALIAS") {
+    rows.splice(2, 2,
+      ["Alias action", isAfter ? "Alias will be created or reactivated" : "No alias change yet"],
+      ["Alias", isAfter ? item.suggestedValue ?? "-" : item.currentValue ?? "-"]
+    );
+  }
+
+  if (isAfter && !canPreviewApply && item.suggestionType !== "SEARCH_ALIAS") {
+    rows.push(["Catalog write", "No automatic product field update"]);
+  }
+
+  return (
+    <div className="quality-preview-rows">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+function qualitySuggestionDecision(item: ProductQualitySuggestion): { label: string; title: string; detail: string; tone: "default" | "good" | "warn" | "danger" | "neutral" } {
+  if (item.status && item.status !== "OPEN") {
+    return {
+      label: shortFeature(item.status),
+      title: "Already reviewed",
+      detail: item.reviewedBy ? `Reviewed by ${item.reviewedBy}` : "This suggestion is closed.",
+      tone: item.status === "ACCEPTED" ? "good" : "neutral"
+    };
+  }
+  if (isQualitySuggestionApplyable(item)) {
+    return {
+      label: "Field apply",
+      title: "Accept can update this catalog field",
+      detail: "The backend applies this whitelisted field, writes audit history, and resets quality validation for a future re-check.",
+      tone: "good"
+    };
+  }
+  if (item.suggestionType === "SEARCH_ALIAS" || item.suggestionType === "NAME_CLEANUP") {
+    return {
+      label: "Auto apply",
+      title: "Accept has a dedicated backend action",
+      detail: "This suggestion type has a specific safe apply path and audit entry.",
+      tone: "good"
+    };
+  }
+  return {
+    label: "Review only",
+    title: "Accept closes the issue without changing product fields",
+    detail: "Use this for warning-style AI findings that require manual product review before editing data.",
+    tone: "warn"
+  };
+}
+
+type QualityFieldImpact = {
+  group: string;
+  description: string;
+  writePath: string;
+  audit: string;
+  adminAction: string;
+  resetValidation: boolean;
+};
+
+function qualityFieldImpact(item: ProductQualitySuggestion): QualityFieldImpact {
+  if (item.suggestionType === "SEARCH_ALIAS") {
+    return {
+      group: "Search alias",
+      description: "Improves barcode/name search without changing nutrition values.",
+      writePath: "Alias create/reactivate",
+      audit: "SEARCH_ALIAS_CHANGE",
+      adminAction: "Accept creates or reactivates a safe search alias.",
+      resetValidation: false
+    };
+  }
+  if (item.suggestionType === "NAME_CLEANUP") {
+    return {
+      group: "Identity",
+      description: "Improves the visible product name stored in the catalog.",
+      writePath: "Product name update",
+      audit: "REVIEW_UPDATE",
+      adminAction: "Accept updates name and records product audit history.",
+      resetValidation: true
+    };
+  }
+  const field = normalizeQualityField(item.fieldName);
+  if (!field || !item.suggestedValue || !QUALITY_APPLY_FIELDS.has(field)) {
+    return {
+      group: "Review only",
+      description: "This finding is useful for admin review but is not auto-written to product fields.",
+      writePath: "No automatic write",
+      audit: "Suggestion decision only",
+      adminAction: "Accept closes the suggestion; manual product edit may still be needed.",
+      resetValidation: false
+    };
+  }
+  if (NUTRITION_QUALITY_FIELDS.has(field)) {
+    return {
+      group: "Nutrition and micronutrients",
+      description: "Calories, macros, serving size, or micronutrient catalog values.",
+      writePath: "Food item nutrition field update",
+      audit: "REVIEW_UPDATE",
+      adminAction: "Accept writes the suggested numeric/text value to the product.",
+      resetValidation: true
+    };
+  }
+  if (IMAGE_QUALITY_FIELDS.has(field)) {
+    return {
+      group: "Image quality",
+      description: "Image URL/source/status fields used by product presentation.",
+      writePath: "Food item image field update",
+      audit: "IMAGE_CHANGE",
+      adminAction: "Accept updates image metadata and keeps a product audit entry.",
+      resetValidation: true
+    };
+  }
+  if (STATUS_REGION_QUALITY_FIELDS.has(field)) {
+    return {
+      group: "Status, region, and preparation",
+      description: "Verification, market-region, preparation-state, or label quality metadata.",
+      writePath: "Food item metadata update",
+      audit: field === "verificationstatus" ? "STATUS_CHANGE" : "REVIEW_UPDATE",
+      adminAction: "Accept updates catalog metadata for downstream filtering and trust controls.",
+      resetValidation: true
+    };
+  }
+  return {
+    group: "Catalog field",
+    description: "Supported product field change.",
+    writePath: "Food item field update",
+    audit: "REVIEW_UPDATE",
+    adminAction: "Accept applies the suggested value through backend whitelist validation.",
+    resetValidation: true
+  };
+}
+function isQualitySuggestionApplyable(item: ProductQualitySuggestion): boolean {
+  const field = normalizeQualityField(item.fieldName);
+  if (!field || !item.suggestedValue) return false;
+  return QUALITY_APPLY_FIELDS.has(field);
+}
+
+const NUTRITION_QUALITY_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitamina", "vitaminc", "vitamind", "vitamine",
+  "vitaminb12", "saturatedfat", "transfat", "sugaralcohol", "servingsizegrams", "servingunit",
+  "nutriscore", "allergens"
+]);
+
+const IMAGE_QUALITY_FIELDS = new Set([
+  "imagesource", "imagestatus", "imageurl", "externalimageurl", "displayimageurl"
+]);
+
+const STATUS_REGION_QUALITY_FIELDS = new Set([
+  "verificationstatus", "marketregion", "preparationstate"
+]);
+const QUALITY_APPLY_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitamina", "vitaminc", "vitamind", "vitamine",
+  "vitaminb12", "saturatedfat", "transfat", "sugaralcohol", "servingsizegrams", "servingunit",
+  "imagesource", "imagestatus", "imageurl", "externalimageurl", "displayimageurl", "verificationstatus",
+  "marketregion", "preparationstate", "nutriscore", "allergens"
+]);
+
+function normalizeQualityField(value?: string): string {
+  return String(value ?? "").replace(/[_-]/g, "").toLowerCase();
+}
+
+function qualityFieldLabel(value?: string): string {
+  if (!value) return "No field";
+  return shortFeature(value.replace(/([a-z])([A-Z])/g, "$1 $2"));
+}
 function AuditsView({ onError }: { onError: (message: string | null) => void }) {
   const [actionType, setActionType] = useState("");
   const [targetType, setTargetType] = useState("");
@@ -4765,25 +5388,175 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
   );
 }
 
-function NotificationsView({ onError }: { onError: (message: string | null) => void }) {
-  const { data, state, reload } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?page=0&size=25", onError);
+function NotificationsView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey, context?: Omit<AdminTargetContext, "section">) => void }) {
+  const [typeFilter, setTypeFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [actionState, setActionState] = useState<LoadState>("idle");
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const path = buildNotificationPath({ type: typeFilter, severity: severityFilter, unreadOnly, page, size: pageSize });
+  const { data, state, reload } = useEndpoint<PageResponse<Notification>>(path, onError);
+  const rows = data?.content ?? [];
+  const unread = rows.filter((item) => !item.read).length;
+  const critical = rows.filter((item) => item.severity === "CRITICAL").length;
+  const byType = countBy(rows, (item) => item.type ?? "Unknown");
+  const bySeverity = countBy(rows, (item) => item.severity ?? "INFO");
+  const bySource = countBy(rows, (item) => item.source ?? "UNKNOWN");
+  const byReadState = countBy(rows, (item) => item.read ? "READ" : "UNREAD");
+  const alertRules = notificationRuleCards();
+
+  function resetFilters() {
+    setTypeFilter("");
+    setSeverityFilter("");
+    setUnreadOnly(false);
+    setPage(0);
+    setActionNotice(null);
+  }
+
+  function applyQuickFilter(next: { type?: string; severity?: string; unreadOnly?: boolean }) {
+    setTypeFilter(next.type ?? "");
+    setSeverityFilter(next.severity ?? "");
+    setUnreadOnly(Boolean(next.unreadOnly));
+    setPage(0);
+    setActionNotice(null);
+  }
+
+  async function markAllRead() {
+    setActionState("loading");
+    try {
+      await request<unknown>("/api/v1/notifications/read-all", { method: "PATCH" });
+      await reload();
+      setActionNotice("Notification action completed.");
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function markRead(item: Notification) {
+    if (!item.id) return;
+    setActionState("loading");
+    try {
+      await request<Notification>(`/api/v1/notifications/${item.id}/read`, { method: "PATCH" });
+      setActionNotice("Notification action completed.");
+      await reload();
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  function goToTarget(item: Notification) {
+    const target = notificationTargetSection(item);
+    if (target) onNavigate(target, notificationTargetContext(item));
+  }
+
   return (
     <div className="stack">
-      <SectionToolbar title="Admin notifications" state={state} onReload={reload} />
+      <SectionToolbar title="Admin notifications" state={combineStates([state, actionState])} onReload={reload}>
+        <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
+        <button className="primary-button" type="button" disabled={actionState === "loading"} onClick={markAllRead}>Mark all read</button>
+      </SectionToolbar>
+      {actionNotice && <div className="form-notice">{actionNotice}</div>}
+      <div className="notification-command-strip">
+        <button type="button" className={severityFilter === "CRITICAL" && unreadOnly ? "active" : ""} onClick={() => applyQuickFilter({ severity: "CRITICAL", unreadOnly: true })}>Unread critical</button>
+        <button type="button" className={typeFilter === "subscription_provider_alert" ? "active" : ""} onClick={() => applyQuickFilter({ type: "subscription_provider_alert", unreadOnly: true })}>Provider failures</button>
+        <button type="button" className={typeFilter === "ai_rejection_alert" ? "active" : ""} onClick={() => applyQuickFilter({ type: "ai_rejection_alert", unreadOnly: true })}>AI rejections</button>
+        <button type="button" className={typeFilter === "system_alert" ? "active" : ""} onClick={() => applyQuickFilter({ type: "system_alert", unreadOnly: true })}>System/mail alerts</button>
+      </div>
+      <div className="metric-grid compact-grid">
+        <MetricCard label="Unread on page" value={formatValue(unread)} hint="Unread operational alerts in this result page" />
+        <MetricCard label="Critical on page" value={formatValue(critical)} hint="Critical severity alerts visible here" />
+        <MetricCard label="Returned" value={formatValue(data?.totalElements ?? rows.length)} hint="Notifications matching the current filters" />
+        <MetricCard label="Alert types" value={formatValue(Object.keys(byType).length)} hint="Distinct notification types visible here" />
+      </div>
+      <Panel title="Notification distribution">
+        <div className="notification-insight-grid">
+          <NotificationDistribution title="By severity" items={bySeverity} labelFormatter={shortFeature} />
+          <NotificationDistribution title="By source" items={bySource} labelFormatter={notificationSourceLabel} />
+          <NotificationDistribution title="Read state" items={byReadState} labelFormatter={shortFeature} />
+        </div>
+      </Panel>
+      <Panel title="Notification filters">
+        <div className="review-filter-grid">
+          <label>
+            Type
+            <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }}>
+              <option value="">All types</option>
+              <option value="ai_rejection_alert">AI rejection alert</option>
+              <option value="system_alert">System alert</option>
+              <option value="subscription_provider_alert">Subscription provider alert</option>
+              <option value="subscription">Subscription</option>
+            </select>
+          </label>
+          <label>
+            Severity
+            <select value={severityFilter} onChange={(event) => { setSeverityFilter(event.target.value); setPage(0); }}>
+              <option value="">All severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="WARNING">Warning</option>
+              <option value="INFO">Info</option>
+            </select>
+          </label>
+          <label className="inline-check">
+            <input checked={unreadOnly} onChange={(event) => { setUnreadOnly(event.target.checked); setPage(0); }} type="checkbox" />
+            Unread only
+          </label>
+        </div>
+      </Panel>
+      <Panel title="Alert routing rulebook">
+        <div className="notification-rule-grid">
+          {alertRules.map((rule) => (
+            <article className={`notification-rule-card ${rule.tone}`} key={rule.type}>
+              <header>
+                <div>
+                  <span>{rule.source}</span>
+                  <strong>{rule.label}</strong>
+                </div>
+                <Badge value={rule.severity} tone={rule.tone} />
+              </header>
+              <p>{rule.description}</p>
+              <div>
+                <small>Route</small>
+                <button className="ghost-button" type="button" onClick={() => onNavigate(rule.route)}>{sectionByKey[rule.route]?.label ?? rule.route}</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Panel>
       <DataTable
-        columns={["Type", "Message", "Read", "Created"]}
-        rows={(data?.content ?? []).map((item) => [
-          <Badge value={item.type} />,
-          item.message ?? "-",
+        columns={["Severity", "Type", "Message", "Target", "Read", "Created", "Actions"]}
+        rows={rows.map((item) => [
+          <Badge value={item.severity ?? "INFO"} tone={notificationSeverityTone(item.severity)} />,
+          <div className="badge-stack"><Badge value={notificationTypeLabel(item.type)} /><Badge value={notificationSourceLabel(item.source)} tone="neutral" /></div>,
+          <span className="notification-message-cell">{item.message ?? "-"}</span>,
+          notificationTargetLabel(item),
           <Badge value={item.read ? "Read" : "Unread"} tone={item.read ? "neutral" : "warn"} />,
-          formatDate(item.createdAt)
+          formatDate(item.createdAt),
+          <div className="table-stack notification-actions">
+            {notificationTargetSection(item) && <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); goToTarget(item); }}>Open target</button>}
+            {!item.read && <button className="ghost-button" type="button" disabled={actionState === "loading"} onClick={(event) => { event.stopPropagation(); void markRead(item); }}>Mark read</button>}
+          </div>
         ])}
         empty="No notifications returned."
+      />
+      <PaginationControls
+        page={data?.page ?? page}
+        pageSize={data?.size ?? pageSize}
+        totalElements={data?.totalElements ?? rows.length}
+        totalPages={data?.totalPages ?? 1}
+        first={Boolean(data?.first)}
+        last={Boolean(data?.last)}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
     </div>
   );
 }
-
 function PushDeliveryView({ onError }: { onError: (message: string | null) => void }) {
   const { data, state, reload } = useEndpoint<AdminPushMonitoring>("/api/v1/admin/system/push-monitoring", onError);
   const providerEntries = Object.entries(data?.activeTokensByProvider ?? {}).sort(([left], [right]) => left.localeCompare(right));
@@ -4851,7 +5624,11 @@ type TrackingMode = "overview" | "water" | "fasting" | "steps";
 
 function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError: (message: string | null) => void }) {
   const [days, setDays] = useState(30);
+  const [trackingPage, setTrackingPage] = useState(0);
+  const [trackingPageSize, setTrackingPageSize] = useState(25);
   const { data, state, reload } = useEndpoint<AdminTrackingSummary>(`/api/v1/admin/tracking/summary?days=${days}`, onError);
+
+
 
   const title = {
     overview: "Tracking monitoring",
@@ -4870,6 +5647,14 @@ function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError
     ? [data?.water, data?.fasting, data?.steps].filter(Boolean) as AdminTrackingModuleSummary[]
     : [selectedModule].filter(Boolean) as AdminTrackingModuleSummary[];
   const trends = data?.trends ?? [];
+  const trendRows = trackingTrendRows(mode, trends);
+  const trackingTotalPages = Math.max(1, Math.ceil(trendRows.length / trackingPageSize));
+  const safeTrackingPage = Math.min(trackingPage, trackingTotalPages - 1);
+  const pagedTrendRows = trendRows.slice(safeTrackingPage * trackingPageSize, safeTrackingPage * trackingPageSize + trackingPageSize);
+
+  useEffect(() => {
+    setTrackingPage(0);
+  }, [mode, days, trackingPageSize, trendRows.length]);
 
   return (
     <div className="stack">
@@ -4959,8 +5744,21 @@ function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError
 
       <DataTable
         columns={trackingTrendColumns(mode)}
-        rows={trackingTrendRows(mode, trends)}
+        rows={pagedTrendRows}
         empty="No tracking trend returned."
+      />
+      <PaginationControls
+        page={safeTrackingPage}
+        pageSize={trackingPageSize}
+        totalElements={trendRows.length}
+        totalPages={trackingTotalPages}
+        first={safeTrackingPage <= 0}
+        last={safeTrackingPage >= trackingTotalPages - 1}
+        onPageChange={setTrackingPage}
+        onPageSizeChange={(size) => {
+          setTrackingPageSize(size);
+          setTrackingPage(0);
+        }}
       />
     </div>
   );
@@ -4982,6 +5780,8 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
     if (mode === "providers") return ["Subscriptions", "AI Provider", "AI Meal Drafts"].includes(category.title);
     return ["Alerts", "Application Runtime", "Database"].includes(category.title);
   });
+
+
 
   const title = {
     overview: "System health",
@@ -5076,6 +5876,36 @@ function IntegrationCard({ card }: { card: IntegrationCardModel }) {
   );
 }
 
+function NotificationDistribution({
+  items,
+  labelFormatter,
+  title
+}: {
+  items: Record<string, number>;
+  labelFormatter?: (value?: string) => string;
+  title: string;
+}) {
+  const entries = Object.entries(items).sort((left, right) => right[1] - left[1]);
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  return (
+    <article className="notification-distribution-card">
+      <header>
+        <strong>{title}</strong>
+        <span>{formatValue(total)}</span>
+      </header>
+      <div>
+        {entries.map(([label, value]) => (
+          <div key={label}>
+            <span>{labelFormatter ? labelFormatter(label) : label}</span>
+            <div className="progress-track"><i style={{ width: `${percent(value, total)}%` }} /></div>
+            <strong>{formatValue(value)}</strong>
+          </div>
+        ))}
+        {!entries.length && <small>No data on this page.</small>}
+      </div>
+    </article>
+  );
+}
 function MiniNotificationList({ notifications }: { notifications: Notification[] }) {
   if (!notifications.length) {
     return <EmptyState message="No recent notification returned." />;
@@ -5083,10 +5913,17 @@ function MiniNotificationList({ notifications }: { notifications: Notification[]
   return (
     <div className="mini-notification-list">
       {notifications.map((item) => (
-        <div key={item.id ?? `${item.type}-${item.createdAt}-${item.message}`}>
-          <Badge value={item.type} />
+        <div className={item.read ? "mini-notification-row" : "mini-notification-row unread"} key={item.id ?? `${item.type}-${item.createdAt}-${item.message}`}>
+          <div className="mini-notification-topline">
+            <Badge value={item.severity ?? "INFO"} tone={notificationSeverityTone(item.severity)} />
+            <Badge value={item.type} />
+            {!item.read && <Badge value="Unread" tone="warn" />}
+          </div>
           <p>{item.message ?? "-"}</p>
-          <small>{formatDate(item.createdAt)}</small>
+          <div className="mini-notification-meta">
+            <small>{notificationTargetLabel(item)}</small>
+            <small>{formatDate(item.createdAt)}</small>
+          </div>
         </div>
       ))}
     </div>
@@ -5586,6 +6423,32 @@ function ProductAliasManager({ productId, onError }: { productId?: number; onErr
         )) : <span className="muted-text">No aliases yet. Add Turkish or English search terms without duplicating this product.</span>}
       </div>
     </div>
+  );
+}
+function TargetContextBanner({ context, onClear }: { context: AdminTargetContext; onClear?: () => void }) {
+  return (
+    <div className={`target-context-banner ${notificationSeverityTone(context.severity)}`}>
+      <div>
+        <span>Opened from {context.source === "notification" ? "admin notification" : "dashboard"}</span>
+        <strong>{notificationTargetLabel(context)}</strong>
+        <small>{context.message ?? "Target context is active for this workspace."}</small>
+      </div>
+      <div className="target-context-meta">
+        {context.type && <Badge value={context.type} tone="neutral" />}
+        {context.severity && <Badge value={context.severity} tone={notificationSeverityTone(context.severity)} />}
+        {context.targetId && <span>Target #{context.targetId}</span>}
+        {onClear && <button className="ghost-button" onClick={onClear} type="button">Clear focus</button>}
+      </div>
+    </div>
+  );
+}
+
+function TargetAwareValue({ value, focused }: { value: ReactNode; focused: boolean }) {
+  return (
+    <span className={focused ? "target-aware-value focused" : "target-aware-value"}>
+      {focused && <i>Target</i>}
+      <strong>{value}</strong>
+    </span>
   );
 }
 function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
@@ -6608,6 +7471,133 @@ function buildSubscriptionEventsPath(filters: {
   return `/api/v1/admin/subscription-events?${params.toString()}`;
 }
 
+function notificationRuleCards(): Array<{ type: string; label: string; source: string; severity: "CRITICAL" | "WARNING" | "INFO"; tone: "danger" | "warn" | "neutral"; route: SectionKey; description: string }> {
+  return [
+    {
+      type: "subscription_provider_alert",
+      label: "Subscription provider failure",
+      source: "RevenueCat",
+      severity: "CRITICAL",
+      tone: "danger",
+      route: "subscriptionEvents",
+      description: "Payment/provider events failed or could not be mapped. Admin should inspect raw payload and retry when safe."
+    },
+    {
+      type: "system_alert",
+      label: "Mail/provider system alert",
+      source: "Mail provider",
+      severity: "CRITICAL",
+      tone: "danger",
+      route: "mail",
+      description: "Transactional mail delivery failed or provider configuration needs attention. Admin should verify Brevo health and event logs."
+    },
+    {
+      type: "ai_rejection_alert",
+      label: "AI result rejected by user",
+      source: "AI Ops",
+      severity: "WARNING",
+      tone: "warn",
+      route: "ai",
+      description: "A user rejected an AI result with feedback. Admin should review request quality, prompt behavior, and refundable quota state."
+    }
+  ];
+}
+
+function notificationTypeLabel(value?: string): string {
+  switch (value) {
+    case "subscription_provider_alert":
+      return "Provider failure";
+    case "system_alert":
+      return "System alert";
+    case "ai_rejection_alert":
+      return "AI rejection";
+    case "subscription":
+      return "Subscription";
+    default:
+      return shortFeature(value);
+  }
+}
+
+function notificationSourceLabel(value?: string): string {
+  switch (value) {
+    case "REVENUECAT":
+      return "RevenueCat";
+    case "MAIL_PROVIDER":
+      return "Mail provider";
+    case "AI_OPS":
+      return "AI Ops";
+    default:
+      return shortFeature(value);
+  }
+}
+function buildNotificationPath(filters: { type: string; severity: string; unreadOnly: boolean; page: number; size: number }): string {
+  const params = new URLSearchParams();
+  if (filters.type) params.set("type", filters.type);
+  if (filters.severity) params.set("severity", filters.severity);
+  if (filters.unreadOnly) params.set("unreadOnly", "true");
+  params.set("page", String(filters.page));
+  params.set("size", String(filters.size));
+  return `/api/v1/notifications?${params.toString()}`;
+}
+
+function notificationSeverityTone(value?: string): "default" | "good" | "warn" | "danger" | "neutral" {
+  switch (value) {
+    case "CRITICAL":
+      return "danger";
+    case "WARNING":
+      return "warn";
+    case "INFO":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+function notificationTargetSection(item: Notification): SectionKey | null {
+  const candidate = item.targetRoute || fallbackNotificationTargetRoute(item.type, item.targetType);
+  return isSectionKey(candidate) ? candidate : null;
+}
+
+function notificationTargetLabel(item: Notification): string {
+  const target = item.targetType || fallbackNotificationTargetLabel(item.type);
+  if (!target) return "-";
+  return item.targetId ? `${shortFeature(target)} #${item.targetId}` : shortFeature(target);
+}
+
+function notificationTargetContext(item: Notification): Omit<AdminTargetContext, "section"> {
+  return {
+    source: "notification",
+    notificationId: item.id,
+    severity: item.severity,
+    type: item.type,
+    message: item.message,
+    targetType: item.targetType,
+    targetId: item.targetId,
+    targetRoute: item.targetRoute
+  };
+}
+
+function isTargetMatch(targetId: string | undefined, value: unknown): boolean {
+  return Boolean(targetId && value !== null && value !== undefined && String(value) === String(targetId));
+}
+
+function fallbackNotificationTargetRoute(type?: string, targetType?: string): string | undefined {
+  if (targetType === "AI_REQUEST" || type === "ai_rejection_alert") return "ai";
+  if (targetType === "MAIL_MONITORING" || type === "system_alert") return "mail";
+  if (targetType === "SUBSCRIPTION_PROVIDER_EVENT" || type === "subscription_provider_alert") return "subscriptionEvents";
+  return undefined;
+}
+
+function fallbackNotificationTargetLabel(type?: string): string | undefined {
+  if (type === "ai_rejection_alert") return "AI_REQUEST";
+  if (type === "system_alert") return "SYSTEM_ALERT";
+  if (type === "subscription_provider_alert") return "SUBSCRIPTION_PROVIDER_EVENT";
+  return undefined;
+}
+
+function isSectionKey(value?: string): value is SectionKey {
+  return Boolean(value && sectionByKey[value as SectionKey]);
+}
 function humanizeAiRequestType(value?: string): string {
   switch (value) {
     case "VOICE_FOOD_LOG":
@@ -6818,18 +7808,3 @@ function formatDurationMs(value?: number): string {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
