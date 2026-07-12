@@ -28,6 +28,7 @@ import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -569,7 +570,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     private String normalizeDisplayName(String displayName, String fallbackName) {
         String value = displayName != null && !displayName.isBlank() ? displayName : fallbackName;
-        return value == null ? "" : value.trim();
+        String normalized = FoodProductNormalizationRules.normalizeProductDisplayName(value);
+        return normalized == null ? "" : normalized;
     }
 
     private Double roundOrZero(Double value) {

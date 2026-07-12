@@ -15,16 +15,17 @@ import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
+import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.SubscriptionFeature;
-import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
-import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiMealDraftResponseValidator;
@@ -32,6 +33,7 @@ import com.grun.calorietracker.service.AiMealDraftSafetyService;
 import com.grun.calorietracker.service.AiMealDraftService;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.FoodLogsService;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -49,17 +51,20 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class AiMealDraftServiceImpl implements AiMealDraftService {
 
+
     private final AiProperties properties;
     private final List<AiMealDraftProviderClient> providerClients;
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final UserRepository userRepository;
-    private final FoodItemRepository foodItemRepository;
     private final SubscriptionService subscriptionService;
     private final FoodLogsService foodLogsService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
     private final AiMealDraftResponseValidator responseValidator;
+    private static final String AI_REJECTION_ALERT_TYPE = "ai_rejection_alert";
+
     private final AiMealDraftSafetyService safetyService;
+    private final NotificationRepository notificationRepository;
 
     @Override
     public AiMealDraftResponseDto createVoiceFoodDraft(String email, AiVoiceFoodDraftRequestDto request) {
@@ -105,7 +110,9 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             history.setRejectionFeedback(normalizeFeedback(request.getFeedback()));
         }
         history.setRejectedAt(LocalDateTime.now());
-        return toHistoryDto(aiRequestHistoryRepository.save(history));
+        AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
+        notifyAdminsAboutRejectedDraft(saved);
+        return toHistoryDto(saved);
     }
 
     @Override
@@ -125,6 +132,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         providerConfigurationValidator.validateConfiguredForDraft();
         UserEntity user = getUser(email);
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_MEAL_DRAFTS);
+        enrichRequestContext(request, user);
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
@@ -145,7 +153,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
                     properties.getModel()
             );
             response.setSafety(safetyService.reviewProviderResponse(response, requestType));
-            matchFoodCatalog(response, user);
+            normalizeItemsAsAiSnapshot(response);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             copyUsageMetadata(response, history);
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
@@ -168,6 +176,43 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         }
     }
 
+    private void normalizeItemsAsAiSnapshot(AiMealDraftResponseDto response) {
+        if (response.getItems() == null) {
+            return;
+        }
+        for (var item : response.getItems()) {
+            item.setMatchedFoodItemId(null);
+            item.setReviewRequired(true);
+            if (item.getMatchReason() == null || item.getMatchReason().isBlank()
+                    || item.getMatchReason().contains("CATALOG")
+                    || item.getMatchReason().contains("MATCH")) {
+                item.setMatchReason("AI_SNAPSHOT");
+            }
+        }
+    }
+    private void enrichRequestContext(Object request, UserEntity user) {
+        Map<String, Object> context = toUserContext(user);
+        if (request instanceof AiVoiceFoodDraftRequestDto voiceRequest) {
+            voiceRequest.setUserContext(context);
+        } else if (request instanceof AiPhotoMealDraftRequestDto photoRequest) {
+            photoRequest.setUserContext(context);
+        }
+    }
+
+    private Map<String, Object> toUserContext(UserEntity user) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("age", user.getAge());
+        context.put("gender", user.getGender());
+        context.put("heightCm", user.getHeight());
+        context.put("weightKg", user.getWeight());
+        context.put("bodyFatPercentage", user.getBodyFatPercentage());
+        context.put("bmi", user.getBmi());
+        context.put("marketRegion", user.getMarketRegion());
+        context.put("preferredLanguage", user.getPreferredLanguage());
+        context.put("timeZone", user.getTimeZone());
+        context.put("unitPreference", user.getUnitPreference());
+        return context;
+    }
     private AiMealDraftProviderClient activeProvider() {
         Map<AiProvider, AiMealDraftProviderClient> clients = new EnumMap<>(AiProvider.class);
         for (AiMealDraftProviderClient client : providerClients) {
@@ -178,44 +223,6 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             throw new IllegalArgumentException("AI provider is not configured: " + properties.getProvider());
         }
         return client;
-    }
-
-    private void matchFoodCatalog(AiMealDraftResponseDto response, UserEntity user) {
-        if (response.getItems() == null) {
-            return;
-        }
-        for (var item : response.getItems()) {
-            if (item.getMatchedFoodItemId() != null) {
-                item.setReviewRequired(requiresReview(item.getConfidence()));
-                item.setMatchReason(Boolean.TRUE.equals(item.getReviewRequired()) ? "LOW_CONFIDENCE" : "PROVIDER_MATCHED");
-                continue;
-            }
-            if (item.getName() == null || item.getName().isBlank()) {
-                item.setReviewRequired(true);
-                item.setMatchReason("MISSING_NAME");
-                continue;
-            }
-            List<com.grun.calorietracker.entity.FoodItemEntity> candidates =
-                    foodItemRepository.findVisibleAiMatchCandidates(item.getName().trim(), user, PageRequest.of(0, 1));
-            if (candidates.isEmpty()) {
-                item.setReviewRequired(true);
-                item.setMatchReason("NO_CATALOG_MATCH");
-                continue;
-            }
-            var candidate = candidates.get(0);
-            item.setMatchedFoodItemId(candidate.getId());
-            if (candidate.getVerificationStatus() == VerificationStatus.VERIFIED && !requiresReview(item.getConfidence())) {
-                item.setReviewRequired(false);
-                item.setMatchReason("VERIFIED_CATALOG_MATCH");
-            } else {
-                item.setReviewRequired(true);
-                item.setMatchReason("CATALOG_MATCH_REQUIRES_REVIEW");
-            }
-        }
-    }
-
-    private boolean requiresReview(Double confidence) {
-        return confidence == null || confidence < 0.75;
     }
 
     private UserEntity getUser(String email) {
@@ -244,7 +251,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
 
     private FoodLogsDto toAiEstimateFoodLogDto(AiMealDraftConfirmItemRequestDto item, AiRequestHistoryEntity history) {
         FoodLogsDto dto = new FoodLogsDto();
-        dto.setDisplayName(item.getEstimatedFoodName());
+        dto.setDisplayName(normalizeFoodDisplayName(item.getEstimatedFoodName()));
         dto.setPortionSize(item.getPortionSize());
         dto.setPortionUnit(item.getPortionUnit());
         dto.setNormalizedPortionGrams(item.getPortionSize());
@@ -275,6 +282,10 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         if (item.getConfidence() != null && (item.getConfidence() < 0 || item.getConfidence() > 1)) {
             throw new IllegalArgumentException("AI confidence must be between 0 and 1.");
         }
+    }
+
+    private String normalizeFoodDisplayName(String value) {
+        return FoodProductNormalizationRules.normalizeProductDisplayName(value);
     }
 
     private FoodLogSource resolveAiEstimateSource(AiRequestType requestType) {
@@ -464,9 +475,41 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         return feedback.trim();
     }
 
+    private void notifyAdminsAboutRejectedDraft(AiRequestHistoryEntity history) {
+        List<UserEntity> admins = userRepository.findByRole(UserRole.ADMIN);
+        if (admins.isEmpty()) {
+            return;
+        }
+        String reason = history.getRejectionReason() == null ? "UNSPECIFIED" : history.getRejectionReason().name();
+        String feedback = history.getRejectionFeedback() == null || history.getRejectionFeedback().isBlank()
+                ? "no feedback"
+                : history.getRejectionFeedback();
+        String userEmail = history.getUser() == null ? "unknown-user" : history.getUser().getEmail();
+        String message = "AI draft rejected by user. requestId=" + history.getId()
+                + ", user=" + userEmail
+                + ", type=" + history.getRequestType()
+                + ", reason=" + reason
+                + ", feedback=" + feedback;
+        LocalDateTime now = LocalDateTime.now();
+        List<NotificationEntity> notifications = admins.stream().map(admin -> {
+            NotificationEntity notification = new NotificationEntity();
+            notification.setUser(admin);
+            notification.setType(AI_REJECTION_ALERT_TYPE);
+            notification.setSeverity("WARNING");
+            notification.setSource("AI_OPS");
+            notification.setTargetType("AI_REQUEST");
+            notification.setTargetId(String.valueOf(history.getId()));
+            notification.setTargetRoute("ai");
+            notification.setMessage(message);
+            notification.setIsRead(false);
+            notification.setCreatedAt(now);
+            return notification;
+        }).toList();
+        notificationRepository.saveAll(notifications);
+    }
+
     @FunctionalInterface
     private interface DraftSupplier {
         AiMealDraftResponseDto get();
     }
 }
-

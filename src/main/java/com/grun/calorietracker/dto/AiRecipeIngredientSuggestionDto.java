@@ -27,4 +27,10 @@ public class AiRecipeIngredientSuggestionDto {
 
     @Schema(description = "Provider confidence from 0 to 1 when available.", example = "0.82")
     private Double confidence;
+
+    @Schema(description = "How this ingredient should be prepared or interpreted before cooking.")
+    private String preparationNote;
+
+    @Schema(description = "Nutrition-specific note explaining estimation assumptions for this ingredient.")
+    private String nutritionNote;
 }

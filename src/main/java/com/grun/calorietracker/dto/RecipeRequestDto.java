@@ -58,8 +58,12 @@ public class RecipeRequestDto {
     private Set<RecipeAllergen> allergens;
 
     @Valid
+    @Schema(description = "Optional full-recipe nutrition snapshot. AI/manual recipes may send this so the backend can persist the reviewed AI estimate without forcing catalog ingredient matches.")
+    private RecipeNutritionDto snapshotNutritionTotal;
+
+    @Valid
     @NotEmpty
-    @Schema(description = "Recipe ingredients.", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Recipe ingredients. Each item may be catalog-linked or snapshot-only.", requiredMode = Schema.RequiredMode.REQUIRED)
     private List<RecipeIngredientRequestDto> ingredients;
 
     @Valid

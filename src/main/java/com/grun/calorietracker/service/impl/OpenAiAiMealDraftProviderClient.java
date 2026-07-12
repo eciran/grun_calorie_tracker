@@ -46,7 +46,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
             Do not give medical diagnosis, treatment advice, eating disorder advice, or unsafe exercise instructions.
             If confidence is low, set reviewRequired=true and add concise warnings.
             Use app-scoped estimates only; the user must confirm drafts before anything is logged.
-            Prefer precise, user-actionable outputs over generic advice. For insights, explain what data was analyzed, what signals are missing, why each finding matters, and what the user should do next. Include reviewReasons when confidence is low or data is uncertain.
+            Prefer precise, user-actionable outputs over generic advice. Every user-visible sentence must feel professional, specific, and worth paying for in a Pro plan. Avoid filler, generic motivation, vague wellness language, and unsupported certainty. For insights, explain what data was analyzed, what signals are missing, why each finding matters, and what the user should do next. Include reviewReasons when confidence is low or data is uncertain.
             qualityScore must be an integer from 0 to 100. confidence must be a number from 0 to 1. estimatedUncertainty must be LOW, MEDIUM, or HIGH.
             Numeric fields must be numbers only, never ranges or strings with units. Use null when unknown.
             Workout measurementType must be exactly one of DURATION, REPS, SETS_REPS, WEIGHT_REPS, DISTANCE, or MIXED.
@@ -78,13 +78,13 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     @Override
     public AiMealDraftResponseDto createVoiceFoodDraft(AiVoiceFoodDraftRequestDto request) {
-        return callOpenAi(AiRequestType.VOICE_FOOD_LOG, "grun_meal_draft", mealDraftSchema(), List.of(textContent("Voice transcript meal logging request: " + writeJson(request))), AiMealDraftResponseDto.class);
+        return callOpenAi(AiRequestType.VOICE_FOOD_LOG, "grun_meal_draft", mealDraftSchema(), List.of(textContent("Create a premium editable meal snapshot from this voice transcript. Include a polished userMessage, professionalSummary, assumptions, nextBestActions, and item-level reasoning/portion notes. Voice transcript meal logging request: " + writeJson(request))), AiMealDraftResponseDto.class);
     }
 
     @Override
     public AiMealDraftResponseDto createPhotoMealDraft(AiPhotoMealDraftRequestDto request) {
         List<Map<String, Object>> content = new ArrayList<>();
-        content.add(textContent("Photo meal logging request metadata: " + writeJson(request)));
+        content.add(textContent("Create a premium editable meal snapshot from this photo request. Include a polished userMessage, professionalSummary, assumptions, nextBestActions, and item-level reasoning/portion notes. Photo meal logging request metadata: " + writeJson(request)));
         if (isOpenAiImageReference(request.getImageReference())) {
             content.add(imageContent(request.getImageReference()));
         } else {
@@ -95,12 +95,12 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     @Override
     public AiRecipeDraftResponseDto createRecipeDraft(AiRecipeDraftRequestDto request) {
-        return callOpenAi(AiRequestType.AI_RECIPE_GENERATION, "grun_recipe_draft", recipeDraftSchema(), List.of(textContent("Create a detailed, user-ready recipe draft. Include cooking steps, prep/cook timing guidance, macro and micronutrient estimates for total recipe and per serving, and clear nutrition uncertainty notes. Recipe generation request: " + writeJson(request))), AiRecipeDraftResponseDto.class);
+        return callOpenAi(AiRequestType.AI_RECIPE_GENERATION, "grun_recipe_draft", recipeDraftSchema(), List.of(textContent("Create a premium, user-ready recipe draft. Include a polished userMessage, professionalSummary, assumptions, nextBestActions, cooking tips, substitutions, cooking steps, prep/cook timing guidance, macro and micronutrient estimates for total recipe and per serving, and clear nutrition uncertainty notes. Recipe generation request: " + writeJson(request))), AiRecipeDraftResponseDto.class);
     }
 
     @Override
     public AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request) {
-        return callOpenAi(AiRequestType.AI_WORKOUT_PLAN, "grun_workout_plan_draft", workoutPlanSchema(), List.of(textContent("Create a detailed, safe, user-ready workout plan draft. Include exact sets, reps or duration, rest, warm-up, cool-down, execution instructions, form cues, common mistakes, tempo, progression, alternatives, rationale, and safety notes for every exercise. For DURATION exercises, durationMinutes is required. For SETS_REPS or WEIGHT_REPS exercises, setCount and reps are required. For REPS exercises, reps is required. For DISTANCE exercises, distanceKm is required. Use provided exercise catalog ids when confident; set exerciseItemId to 0 when there is no confident catalog match. Workout plan request: " + writeJson(request))), AiWorkoutPlanDraftResponseDto.class);
+        return callOpenAi(AiRequestType.AI_WORKOUT_PLAN, "grun_workout_plan_draft", workoutPlanSchema(), List.of(textContent("Create a premium, safe, user-ready workout plan draft. Include a polished userMessage, professionalSummary, assumptions, nextBestActions, training principles, exact sets, reps or duration, rest, warm-up, cool-down, execution instructions, form cues, common mistakes, tempo, progression, coaching notes, alternatives, rationale, and safety notes for every exercise. For DURATION exercises, durationMinutes is required. For SETS_REPS or WEIGHT_REPS exercises, setCount and reps are required. For REPS exercises, reps is required. For DISTANCE exercises, distanceKm is required. Use provided exercise catalog ids when confident; set exerciseItemId to 0 when there is no confident catalog match. Workout plan request: " + writeJson(request))), AiWorkoutPlanDraftResponseDto.class);
     }
 
     @Override
@@ -342,9 +342,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> mealDraftSchema() {
         return objectSchema(props(
-                "schemaVersion", enumSchema("ai_response_v2"),
+                "schemaVersion", enumSchema("ai_response_v3"),
                 "suggestedMealType", stringSchema(),
                 "summary", stringSchema(),
+                "resultType", enumSchema("AI_SNAPSHOT"),
+                "userMessage", stringSchema(),
+                "professionalSummary", stringSchema(),
+                "assumptions", arraySchema(stringSchema()),
+                "nextBestActions", arraySchema(stringSchema()),
                 "confidence", numberSchema(),
                 "qualityScore", integerSchema(),
                 "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH"),
@@ -362,17 +367,23 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                         "safetyWarning", stringSchema(),
                         "confidence", numberSchema(),
                         "portionEstimateMethod", enumSchema("USER_DECLARED", "VISUAL_ESTIMATE", "TEXT_INFERRED", "UNKNOWN"),
+                        "reasoning", stringSchema(),
+                        "portionNote", stringSchema(),
                         "visibleInPhoto", booleanSchema(),
                         "needsUserPortionConfirmation", booleanSchema(),
                         "alternativeMatchNames", arraySchema(stringSchema())
                 )))
         ));
     }
-
     private Map<String, Object> recipeDraftSchema() {
         return objectSchema(props(
-                "schemaVersion", enumSchema("ai_response_v2"),
+                "schemaVersion", enumSchema("ai_response_v3"),
                 "summary", stringSchema(),
+                "resultType", enumSchema("AI_SNAPSHOT"),
+                "userMessage", stringSchema(),
+                "professionalSummary", stringSchema(),
+                "assumptions", arraySchema(stringSchema()),
+                "nextBestActions", arraySchema(stringSchema()),
                 "reviewRequired", booleanSchema(),
                 "confidence", numberSchema(),
                 "qualityScore", integerSchema(),
@@ -399,12 +410,15 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                         "portionUnit", enumSchema("GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"),
                         "reviewRequired", booleanSchema(),
                         "matchReason", stringSchema(),
-                        "confidence", numberSchema()
+                        "confidence", numberSchema(),
+                        "preparationNote", stringSchema(),
+                        "nutritionNote", stringSchema()
                 ))),
+                "cookingTips", arraySchema(stringSchema()),
+                "substitutions", arraySchema(stringSchema()),
                 "warnings", arraySchema(stringSchema())
         ));
     }
-
     private Map<String, Object> nutritionSchema() {
         return objectSchema(props(
                 "calories", numberSchema(),
@@ -431,9 +445,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> workoutPlanSchema() {
         return objectSchema(props(
-                "schemaVersion", enumSchema("ai_response_v2"),
+                "schemaVersion", enumSchema("ai_response_v3"),
                 "name", stringSchema(),
                 "summary", stringSchema(),
+                "resultType", enumSchema("AI_WORKOUT_PLAN_DRAFT"),
+                "userMessage", stringSchema(),
+                "professionalSummary", stringSchema(),
+                "assumptions", arraySchema(stringSchema()),
+                "nextBestActions", arraySchema(stringSchema()),
                 "reviewRequired", booleanSchema(),
                 "confidence", numberSchema(),
                 "qualityScore", integerSchema(),
@@ -464,16 +483,17 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                                 "tempo", stringSchema(),
                                 "alternatives", arraySchema(stringSchema()),
                                 "progressionNote", stringSchema(),
+                                "coachingNote", stringSchema(),
                                 "targetMuscleGroup", stringSchema(),
                                 "equipmentUsed", stringSchema(),
                                 "safetyNote", stringSchema(),
                                 "reviewRequired", booleanSchema()
                         )))
                 ))),
+                "trainingPrinciples", arraySchema(stringSchema()),
                 "warnings", arraySchema(stringSchema())
         ));
     }
-
 
     @Override
     public AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request) {

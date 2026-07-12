@@ -6,6 +6,8 @@ import com.grun.calorietracker.dto.AdminProductQualityAiValidationResultDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.ProductQualityScanRunDto;
+import com.grun.calorietracker.dto.ProductQualityAiSettingsDto;
+import com.grun.calorietracker.dto.ProductQualityAiSettingsUpdateRequestDto;
 import com.grun.calorietracker.repository.ProductQualityScanRunItemRepository;
 import com.grun.calorietracker.enums.ProductQualityScanItemStatus;
 import com.grun.calorietracker.entity.ProductQualityScanRunItemEntity;
@@ -19,8 +21,13 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.entity.ProductQualityScanRunEntity;
+import com.grun.calorietracker.entity.ProductQualityAiSettingsEntity;
 import com.grun.calorietracker.entity.ProductQualitySuggestionEntity;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
+import com.grun.calorietracker.enums.AdminAuditActionType;
+import com.grun.calorietracker.enums.AdminAuditTargetType;
+import com.grun.calorietracker.enums.ImageSource;
+import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -35,8 +42,10 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.ProductQualityScanRunRepository;
+import com.grun.calorietracker.repository.ProductQualityAiSettingsRepository;
 import com.grun.calorietracker.repository.ProductQualitySuggestionRepository;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
+import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import jakarta.persistence.criteria.Predicate;
@@ -50,11 +59,13 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -71,8 +82,10 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
     private final FoodItemSearchAliasRepository foodItemSearchAliasRepository;
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
     private final ProductQualitySuggestionRepository productQualitySuggestionRepository;
+    private final ProductQualityAiSettingsRepository productQualityAiSettingsRepository;
     private final ProductQualityScanRunRepository productQualityScanRunRepository;
     private final ProductQualityScanRunItemRepository productQualityScanRunItemRepository;
+    private final AdminAuditService adminAuditService;
     private final AiProperties properties;
     private final List<AiMealDraftProviderClient> aiMealDraftProviderClients;
 
@@ -233,17 +246,23 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
     ) {
         String actor = normalizeActor(triggeredBy);
         boolean forceRescan = Boolean.TRUE.equals(request == null ? null : request.getForceRescan());
-        List<Long> productIds = resolveSelectedProductIds(request);
+        ProductQualityAiSettingsEntity settings = loadAiSettings();
+        if (!settings.isEnabled()) {
+            throw new IllegalArgumentException("AI product quality validation is disabled by admin settings.");
+        }
+        if (forceRescan && !settings.isForceRescanAllowed()) {
+            throw new IllegalArgumentException("Force rescan is disabled by admin AI quality settings.");
+        }
+        List<Long> productIds = resolveSelectedProductIds(request, settings.getMaxProductsPerRun());
         int requestedProducts = productIds.size();
-        int effectiveLimit = Math.max(
-                1,
-                Math.min(
-                        request == null || request.getLimit() == null
-                                ? MAX_AI_SELECTED_VALIDATION_LIMIT
-                                : request.getLimit(),
-                        MAX_AI_SELECTED_VALIDATION_LIMIT
-                )
-        );
+        int quotaRemaining = Math.min(dailyRemaining(settings), monthlyRemaining(settings));
+        if (quotaRemaining <= 0) {
+            throw new IllegalArgumentException("AI product quality validation quota is exhausted for the current period.");
+        }
+        int requestedLimit = request == null || request.getLimit() == null
+                ? settings.getMaxProductsPerRun()
+                : request.getLimit();
+        int effectiveLimit = Math.max(1, Math.min(Math.min(requestedLimit, settings.getMaxProductsPerRun()), quotaRemaining));
 
         List<FoodItemEntity> products = foodItemRepository.findAllById(productIds).stream()
                 .filter(product -> product.getVerificationStatus() != VerificationStatus.REJECTED)
@@ -350,6 +369,52 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         );
     }
     @Override
+    @Transactional(readOnly = true)
+    public ProductQualityAiSettingsDto getAiSettings() {
+        return toAiSettingsDto(loadAiSettings());
+    }
+
+    @Override
+    @Transactional
+    public ProductQualityAiSettingsDto updateAiSettings(ProductQualityAiSettingsUpdateRequestDto request, String updatedBy) {
+        ProductQualityAiSettingsEntity settings = loadAiSettings();
+        Map<String, Object> before = toAiSettingsAuditMap(settings);
+        if (request != null) {
+            if (request.getEnabled() != null) {
+                settings.setEnabled(request.getEnabled());
+            }
+            if (request.getMaxProductsPerRun() != null) {
+                settings.setMaxProductsPerRun(Math.max(1, Math.min(request.getMaxProductsPerRun(), MAX_AI_SELECTED_VALIDATION_LIMIT)));
+            }
+            if (request.getDailyProductLimit() != null) {
+                settings.setDailyProductLimit(Math.max(1, request.getDailyProductLimit()));
+            }
+            if (request.getMonthlyProductLimit() != null) {
+                settings.setMonthlyProductLimit(Math.max(1, request.getMonthlyProductLimit()));
+            }
+            if (request.getForceRescanAllowed() != null) {
+                settings.setForceRescanAllowed(request.getForceRescanAllowed());
+            }
+            settings.setAdminNote(trimToMax(request.getAdminNote(), 1000));
+        }
+        if (settings.getMonthlyProductLimit() < settings.getDailyProductLimit()) {
+            throw new IllegalArgumentException("Monthly AI product quality limit must be greater than or equal to the daily limit.");
+        }
+        String actor = normalizeActor(updatedBy);
+        settings.setUpdatedBy(actor);
+        ProductQualityAiSettingsEntity saved = productQualityAiSettingsRepository.save(settings);
+        adminAuditService.record(
+                actor,
+                AdminAuditActionType.PRODUCT_QUALITY_AI_SETTINGS_UPDATE,
+                AdminAuditTargetType.PRODUCT_QUALITY_AI_SETTINGS,
+                String.valueOf(ProductQualityAiSettingsEntity.SINGLETON_ID),
+                before,
+                toAiSettingsAuditMap(saved),
+                null
+        );
+        return toAiSettingsDto(saved);
+    }
+    @Override
     @Transactional
     @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public ProductQualitySuggestionDto acceptSuggestion(Long suggestionId, String reviewedBy) {
@@ -359,8 +424,8 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
             applyNameCleanupSuggestion(suggestion, reviewedBy);
         } else if (suggestionType == ProductQualitySuggestionType.SEARCH_ALIAS) {
             applySearchAliasSuggestion(suggestion, reviewedBy);
-        } else {
-            throw new IllegalArgumentException("Unsupported product quality suggestion type: " + suggestionType);
+        } else if (isSupportedFieldSuggestion(suggestion)) {
+            applyFieldSuggestion(suggestion, reviewedBy);
         }
         closeSuggestion(suggestion, ProductQualitySuggestionStatus.ACCEPTED, reviewedBy);
         return toDto(productQualitySuggestionRepository.save(suggestion));
@@ -374,6 +439,56 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         return toDto(productQualitySuggestionRepository.save(suggestion));
     }
 
+    private ProductQualityAiSettingsEntity loadAiSettings() {
+        return productQualityAiSettingsRepository.findById(ProductQualityAiSettingsEntity.SINGLETON_ID)
+                .orElseGet(ProductQualityAiSettingsEntity::new);
+    }
+
+    private Map<String, Object> toAiSettingsAuditMap(ProductQualityAiSettingsEntity settings) {
+        return Map.of(
+                "enabled", settings.isEnabled(),
+                "maxProductsPerRun", settings.getMaxProductsPerRun(),
+                "dailyProductLimit", settings.getDailyProductLimit(),
+                "monthlyProductLimit", settings.getMonthlyProductLimit(),
+                "forceRescanAllowed", settings.isForceRescanAllowed(),
+                "adminNote", settings.getAdminNote() == null ? "" : settings.getAdminNote()
+        );
+    }
+    private ProductQualityAiSettingsDto toAiSettingsDto(ProductQualityAiSettingsEntity settings) {
+        int usedToday = aiScannedSince(LocalDate.now().atStartOfDay());
+        int usedThisMonth = aiScannedSince(LocalDate.now().withDayOfMonth(1).atStartOfDay());
+        return new ProductQualityAiSettingsDto(
+                settings.isEnabled(),
+                settings.getMaxProductsPerRun(),
+                settings.getDailyProductLimit(),
+                settings.getMonthlyProductLimit(),
+                settings.isForceRescanAllowed(),
+                usedToday,
+                usedThisMonth,
+                Math.max(0, settings.getDailyProductLimit() - usedToday),
+                Math.max(0, settings.getMonthlyProductLimit() - usedThisMonth),
+                settings.getAdminNote(),
+                settings.getUpdatedAt(),
+                settings.getUpdatedBy()
+        );
+    }
+
+    private int dailyRemaining(ProductQualityAiSettingsEntity settings) {
+        return Math.max(0, settings.getDailyProductLimit() - aiScannedSince(LocalDate.now().atStartOfDay()));
+    }
+
+    private int monthlyRemaining(ProductQualityAiSettingsEntity settings) {
+        return Math.max(0, settings.getMonthlyProductLimit() - aiScannedSince(LocalDate.now().withDayOfMonth(1).atStartOfDay()));
+    }
+
+    private int aiScannedSince(LocalDateTime from) {
+        long used = productQualityScanRunRepository.sumScannedProductsSince(
+                ProductQualitySuggestionSource.AI_ASSISTED,
+                ProductQualityScanStatus.COMPLETED,
+                from
+        );
+        return used > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) used;
+    }
     private AiMealDraftProviderClient activeProvider() {
         return aiMealDraftProviderClients.stream()
                 .filter(client -> client.provider() == properties.getProvider())
@@ -393,7 +508,7 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
     }
 
 
-    private List<Long> resolveSelectedProductIds(AdminProductQualityAiValidationRequestDto request) {
+    private List<Long> resolveSelectedProductIds(AdminProductQualityAiValidationRequestDto request, int maxProductsPerRun) {
         Set<Long> ids = new LinkedHashSet<>();
         if (request != null && request.getProductIds() != null) {
             request.getProductIds().stream().filter(id -> id != null && id > 0).forEach(ids::add);
@@ -409,7 +524,8 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                         .ifPresent(ids::add);
             }
         }
-        return ids.stream().limit(MAX_AI_SELECTED_VALIDATION_LIMIT).toList();
+        int max = Math.max(1, Math.min(maxProductsPerRun, MAX_AI_SELECTED_VALIDATION_LIMIT));
+        return ids.stream().limit(max).toList();
     }
 
     private AiProductQualityValidationRequestDto toAiValidationRequest(FoodItemEntity product) {
@@ -553,6 +669,171 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 savedAlias.getAlias() + "|" + savedAlias.getActive(),
                 "product quality suggestion accepted: " + suggestion.getId()
         );
+    }
+    private boolean isSupportedFieldSuggestion(ProductQualitySuggestionEntity suggestion) {
+        return trimToNull(suggestion.getFieldName()) != null
+                && trimToNull(suggestion.getSuggestedValue()) != null
+                && isSupportedFieldName(suggestion.getFieldName());
+    }
+
+    private boolean isSupportedFieldName(String fieldName) {
+        return switch (normalizeFieldName(fieldName)) {
+            case "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium",
+                    "cholesterol", "calcium", "iron", "magnesium", "zinc", "vitamina", "vitaminc",
+                    "vitamind", "vitamine", "vitaminb12", "saturatedfat", "transfat", "sugaralcohol",
+                    "servingsizegrams", "servingunit", "imagesource", "imagestatus", "imageurl",
+                    "externalimageurl", "displayimageurl", "verificationstatus", "marketregion",
+                    "preparationstate", "nutriscore", "allergens" -> true;
+            default -> false;
+        };
+    }
+
+    private void applyFieldSuggestion(ProductQualitySuggestionEntity suggestion, String reviewedBy) {
+        FoodItemEntity product = suggestion.getFoodItem();
+        String fieldName = normalizeFieldName(suggestion.getFieldName());
+        String suggestedValue = trimToNull(suggestion.getSuggestedValue());
+        if (suggestedValue == null) {
+            throw new IllegalArgumentException("Product quality suggestion has no suggested value.");
+        }
+
+        String oldValue = readFieldValue(product, fieldName);
+        writeFieldValue(product, fieldName, suggestedValue);
+        String newValue = readFieldValue(product, fieldName);
+        if (String.valueOf(oldValue).equals(String.valueOf(newValue))) {
+            return;
+        }
+
+        product.setLastReviewedAt(LocalDateTime.now());
+        product.setReviewedBy(normalizeActor(reviewedBy));
+        product.setQualityValidatedAt(null);
+        product.setQualityValidatedBy(null);
+        product.setQualityValidationSource(null);
+        product.setQualityValidationNotes("Quality validation reset after accepted field-level suggestion.");
+        foodItemRepository.save(product);
+
+        saveAudit(
+                product,
+                reviewedBy,
+                auditActionForField(fieldName),
+                suggestion.getFieldName(),
+                oldValue,
+                newValue,
+                "product quality suggestion accepted: " + suggestion.getId()
+        );
+    }
+
+    private String readFieldValue(FoodItemEntity product, String fieldName) {
+        Object value = switch (fieldName) {
+            case "calories" -> product.getCalories();
+            case "protein" -> product.getProtein();
+            case "fat" -> product.getFat();
+            case "carbs" -> product.getCarbs();
+            case "fiber" -> product.getFiber();
+            case "sugar" -> product.getSugar();
+            case "sodium" -> product.getSodium();
+            case "potassium" -> product.getPotassium();
+            case "cholesterol" -> product.getCholesterol();
+            case "calcium" -> product.getCalcium();
+            case "iron" -> product.getIron();
+            case "magnesium" -> product.getMagnesium();
+            case "zinc" -> product.getZinc();
+            case "vitamina" -> product.getVitaminA();
+            case "vitaminc" -> product.getVitaminC();
+            case "vitamind" -> product.getVitaminD();
+            case "vitamine" -> product.getVitaminE();
+            case "vitaminb12" -> product.getVitaminB12();
+            case "saturatedfat" -> product.getSaturatedFat();
+            case "transfat" -> product.getTransFat();
+            case "sugaralcohol" -> product.getSugarAlcohol();
+            case "servingsizegrams" -> product.getServingSizeGrams();
+            case "servingunit" -> product.getServingUnit();
+            case "imagesource" -> product.getImageSource();
+            case "imagestatus" -> product.getImageStatus();
+            case "imageurl" -> product.getImageUrl();
+            case "externalimageurl" -> product.getExternalImageUrl();
+            case "displayimageurl" -> product.getDisplayImageUrl();
+            case "verificationstatus" -> product.getVerificationStatus();
+            case "marketregion" -> product.getMarketRegion();
+            case "preparationstate" -> product.getPreparationState();
+            case "nutriscore" -> product.getNutriScore();
+            case "allergens" -> product.getAllergens();
+            default -> null;
+        };
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private void writeFieldValue(FoodItemEntity product, String fieldName, String suggestedValue) {
+        switch (fieldName) {
+            case "calories" -> product.setCalories(parseNonNegativeDouble(suggestedValue, "calories"));
+            case "protein" -> product.setProtein(parseNonNegativeDouble(suggestedValue, "protein"));
+            case "fat" -> product.setFat(parseNonNegativeDouble(suggestedValue, "fat"));
+            case "carbs" -> product.setCarbs(parseNonNegativeDouble(suggestedValue, "carbs"));
+            case "fiber" -> product.setFiber(parseNonNegativeDouble(suggestedValue, "fiber"));
+            case "sugar" -> product.setSugar(parseNonNegativeDouble(suggestedValue, "sugar"));
+            case "sodium" -> product.setSodium(parseNonNegativeDouble(suggestedValue, "sodium"));
+            case "potassium" -> product.setPotassium(parseNonNegativeDouble(suggestedValue, "potassium"));
+            case "cholesterol" -> product.setCholesterol(parseNonNegativeDouble(suggestedValue, "cholesterol"));
+            case "calcium" -> product.setCalcium(parseNonNegativeDouble(suggestedValue, "calcium"));
+            case "iron" -> product.setIron(parseNonNegativeDouble(suggestedValue, "iron"));
+            case "magnesium" -> product.setMagnesium(parseNonNegativeDouble(suggestedValue, "magnesium"));
+            case "zinc" -> product.setZinc(parseNonNegativeDouble(suggestedValue, "zinc"));
+            case "vitamina" -> product.setVitaminA(parseNonNegativeDouble(suggestedValue, "vitaminA"));
+            case "vitaminc" -> product.setVitaminC(parseNonNegativeDouble(suggestedValue, "vitaminC"));
+            case "vitamind" -> product.setVitaminD(parseNonNegativeDouble(suggestedValue, "vitaminD"));
+            case "vitamine" -> product.setVitaminE(parseNonNegativeDouble(suggestedValue, "vitaminE"));
+            case "vitaminb12" -> product.setVitaminB12(parseNonNegativeDouble(suggestedValue, "vitaminB12"));
+            case "saturatedfat" -> product.setSaturatedFat(parseNonNegativeDouble(suggestedValue, "saturatedFat"));
+            case "transfat" -> product.setTransFat(parseNonNegativeDouble(suggestedValue, "transFat"));
+            case "sugaralcohol" -> product.setSugarAlcohol(parseNonNegativeDouble(suggestedValue, "sugarAlcohol"));
+            case "servingsizegrams" -> product.setServingSizeGrams(parseNonNegativeDouble(suggestedValue, "servingSizeGrams"));
+            case "servingunit" -> product.setServingUnit(suggestedValue);
+            case "imagesource" -> product.setImageSource(parseEnum(ImageSource.class, suggestedValue, "imageSource"));
+            case "imagestatus" -> product.setImageStatus(parseEnum(ImageStatus.class, suggestedValue, "imageStatus"));
+            case "imageurl" -> product.setImageUrl(suggestedValue);
+            case "externalimageurl" -> product.setExternalImageUrl(suggestedValue);
+            case "displayimageurl" -> product.setDisplayImageUrl(suggestedValue);
+            case "verificationstatus" -> product.setVerificationStatus(parseEnum(VerificationStatus.class, suggestedValue, "verificationStatus"));
+            case "marketregion" -> product.setMarketRegion(parseEnum(MarketRegion.class, suggestedValue, "marketRegion"));
+            case "preparationstate" -> product.setPreparationState(parseEnum(com.grun.calorietracker.enums.FoodPreparationState.class, suggestedValue, "preparationState"));
+            case "nutriscore" -> product.setNutriScore(suggestedValue);
+            case "allergens" -> product.setAllergens(suggestedValue);
+            default -> throw new IllegalArgumentException("Unsupported product quality suggestion field: " + fieldName);
+        }
+    }
+
+    private double parseNonNegativeDouble(String value, String fieldName) {
+        try {
+            double parsed = Double.parseDouble(value.trim());
+            if (parsed < 0) {
+                throw new IllegalArgumentException(fieldName + " must not be negative.");
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(fieldName + " must be a numeric value.");
+        }
+    }
+
+    private <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value, String fieldName) {
+        try {
+            return Enum.valueOf(enumClass, value.trim().toUpperCase(Locale.ROOT));
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException(fieldName + " has unsupported value: " + value);
+        }
+    }
+
+    private FoodProductReviewAuditAction auditActionForField(String fieldName) {
+        if (fieldName.contains("image")) {
+            return FoodProductReviewAuditAction.IMAGE_CHANGE;
+        }
+        if ("verificationstatus".equals(fieldName)) {
+            return FoodProductReviewAuditAction.STATUS_CHANGE;
+        }
+        return FoodProductReviewAuditAction.REVIEW_UPDATE;
+    }
+
+    private String normalizeFieldName(String fieldName) {
+        String value = trimToNull(fieldName);
+        return value == null ? "" : value.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
     }
 
     private void closeSuggestion(ProductQualitySuggestionEntity suggestion, ProductQualitySuggestionStatus status, String reviewedBy) {
@@ -887,6 +1168,7 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         return value == null || value.trim().isEmpty();
     }
 }
+
 
 
 

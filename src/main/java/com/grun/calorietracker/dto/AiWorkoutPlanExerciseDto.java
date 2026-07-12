@@ -71,6 +71,9 @@ public class AiWorkoutPlanExerciseDto {
     @Schema(description = "Simple progression guidance for the user.")
     private String progressionNote;
 
+    @Schema(description = "Premium coaching note explaining what the user should feel, monitor, or adjust during this exercise.")
+    private String coachingNote;
+
     @Schema(description = "Primary target muscle group for display/filtering.", example = "CHEST")
     private String targetMuscleGroup;
 
@@ -80,4 +83,3 @@ public class AiWorkoutPlanExerciseDto {
     @Schema(description = "Whether this exercise needs user/admin review because it was not confidently matched to the catalog.", example = "true")
     private Boolean reviewRequired;
 }
-

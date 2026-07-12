@@ -24,4 +24,7 @@ public class AiPhotoMealDraftRequestDto {
 
     @Schema(description = "Diary timestamp to use for the draft.", example = "2026-06-01T13:30:00")
     private LocalDateTime logDate;
+
+    @Schema(description = "Backend-built user profile context for provider calls. Clients should not set this field.", accessMode = Schema.AccessMode.READ_ONLY)
+    private Object userContext;
 }

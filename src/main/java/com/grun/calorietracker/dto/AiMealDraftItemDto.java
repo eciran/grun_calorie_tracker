@@ -48,6 +48,12 @@ public class AiMealDraftItemDto {
     @Schema(description = "How the portion was estimated.", example = "VISUAL_ESTIMATE")
     private String portionEstimateMethod;
 
+    @Schema(description = "User-facing explanation of why this item was identified and how the estimate was produced.")
+    private String reasoning;
+
+    @Schema(description = "Short portion note shown to the user, especially when grams/ml/serving were estimated.")
+    private String portionNote;
+
     @Schema(description = "Whether the item was visibly detected in the photo input.", example = "true")
     private Boolean visibleInPhoto;
 

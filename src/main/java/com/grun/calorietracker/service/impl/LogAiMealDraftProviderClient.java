@@ -73,7 +73,7 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         response.setEstimatedNutritionTotal(sampleNutritionTotal());
         response.setEstimatedNutritionPerServing(sampleNutritionPerServing());
         response.setNutritionEstimateNote("Estimated preview nutrition generated from typical ingredient values. Confirmed recipe nutrition is recalculated from matched ingredients.");
-        response.setWarnings(List.of("Ingredients must be reviewed and mapped to real foodItemId values before confirmation."));
+        response.setWarnings(List.of("Ingredients must be reviewed before confirmation. They may remain snapshot ingredients when no reliable catalog match exists."));
         return response;
     }
 

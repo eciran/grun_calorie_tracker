@@ -37,6 +37,8 @@ class AiMealDraftResponseValidatorImplTest {
         assertEquals(AiRequestStatus.DRAFT_CREATED, result.getStatus());
         assertEquals("LUNCH", result.getSuggestedMealType());
         assertNotNull(result.getSuggestedLogDate());
+        assertEquals("Tomatoes", result.getItems().get(0).getName());
+        assertEquals(List.of("Cherry Tomatoes", "Tomatoes"), result.getItems().get(0).getAlternativeMatchNames());
     }
 
     @Test
@@ -61,7 +63,8 @@ class AiMealDraftResponseValidatorImplTest {
 
     private AiMealDraftItemDto item() {
         AiMealDraftItemDto item = new AiMealDraftItemDto();
-        item.setName(" Chicken rice ");
+        item.setName(" tomatoes ");
+        item.setAlternativeMatchNames(List.of(" cherry tomatoes ", "tomatoes"));
         item.setQuantity(100.0);
         item.setUnit(" g ");
         item.setConfidence(0.5);

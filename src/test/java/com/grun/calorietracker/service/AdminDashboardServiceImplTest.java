@@ -1,11 +1,14 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminDashboardSummaryDto;
+import com.grun.calorietracker.enums.AiDraftRejectReason;
+import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
@@ -19,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,9 +41,12 @@ class AdminDashboardServiceImplTest {
     @Mock
     private SubscriptionProviderEventRepository subscriptionProviderEventRepository;
 
+    @Mock
+    private AiRequestHistoryRepository aiRequestHistoryRepository;
+
     @Test
     void getSummary_returnsUserAndFoodCatalogMetrics() {
-        AdminDashboardServiceImpl service = new AdminDashboardServiceImpl(userRepository, foodItemRepository, subscriptionRepository, subscriptionProviderEventRepository);
+        AdminDashboardServiceImpl service = new AdminDashboardServiceImpl(userRepository, foodItemRepository, subscriptionRepository, subscriptionProviderEventRepository, aiRequestHistoryRepository);
 
         when(userRepository.count()).thenReturn(10L);
         when(userRepository.countByRole(UserRole.STANDARD)).thenReturn(7L);
@@ -60,6 +67,12 @@ class AdminDashboardServiceImplTest {
         when(subscriptionRepository.countActiveSubscriptionsWithExhaustedAiQuota()).thenReturn(6L);
         when(subscriptionProviderEventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)).thenReturn(8L);
         when(subscriptionProviderEventRepository.countByReceivedAtAfter(org.mockito.ArgumentMatchers.any())).thenReturn(12L);
+        when(aiRequestHistoryRepository.countByCreatedAtAfter(org.mockito.ArgumentMatchers.any())).thenReturn(50L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(eq(AiRequestStatus.CONFIRMED), org.mockito.ArgumentMatchers.any())).thenReturn(30L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(eq(AiRequestStatus.REJECTED), org.mockito.ArgumentMatchers.any())).thenReturn(12L);
+        when(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(eq(AiRequestStatus.FAILED), org.mockito.ArgumentMatchers.any())).thenReturn(3L);
+        when(aiRequestHistoryRepository.countRejectedDraftsByReasonAfter(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(new Object[]{AiDraftRejectReason.WRONG_PORTION, 7L}, new Object[]{AiDraftRejectReason.LOW_CONFIDENCE, 5L}));
 
         AdminDashboardSummaryDto summary = service.getSummary();
 
@@ -80,9 +93,16 @@ class AdminDashboardServiceImplTest {
         assertThat(summary.getAiQuotaExhaustedSubscriptions()).isEqualTo(6L);
         assertThat(summary.getFailedSubscriptionProviderEvents()).isEqualTo(8L);
         assertThat(summary.getSubscriptionProviderEventsLast24Hours()).isEqualTo(12L);
+        assertThat(summary.getAiRequestsLast7Days()).isEqualTo(50L);
+        assertThat(summary.getAiConfirmedLast7Days()).isEqualTo(30L);
+        assertThat(summary.getAiRejectedLast7Days()).isEqualTo(12L);
+        assertThat(summary.getAiFailedLast7Days()).isEqualTo(3L);
+        assertThat(summary.getAiRejectionReasonsLast7Days()).containsEntry("WRONG_PORTION", 7L).containsEntry("LOW_CONFIDENCE", 5L);
 
         verify(foodItemRepository).countReviewQueueProducts(
                 List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW)
         );
     }
 }
+
+

@@ -217,9 +217,27 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     }
 
     private void normalizeQuality(AiWorkoutPlanDraftResponseDto response) {
-        response.setSchemaVersion("ai_response_v2");
+        response.setSchemaVersion("ai_response_v3");
         if (response.getReviewReasons() == null) {
             response.setReviewReasons(List.of());
+        }
+        if (response.getAssumptions() == null) {
+            response.setAssumptions(List.of());
+        }
+        if (response.getNextBestActions() == null) {
+            response.setNextBestActions(List.of());
+        }
+        if (response.getTrainingPrinciples() == null) {
+            response.setTrainingPrinciples(List.of());
+        }
+        if (response.getResultType() == null || response.getResultType().isBlank()) {
+            response.setResultType("AI_WORKOUT_PLAN_DRAFT");
+        }
+        if (response.getUserMessage() == null || response.getUserMessage().isBlank()) {
+            response.setUserMessage("AI prepared a structured workout draft. Review the plan and adjust any movement that does not feel suitable.");
+        }
+        if (response.getProfessionalSummary() == null || response.getProfessionalSummary().isBlank()) {
+            response.setProfessionalSummary(response.getSummary());
         }
         if (response.getConfidence() == null) {
             response.setConfidence(hasReviewRequiredExercise(response) ? 0.7 : 0.85);
@@ -291,6 +309,9 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         }
         if (exercise.getCommonMistakes() == null || exercise.getCommonMistakes().stream().filter(Objects::nonNull).map(String::trim).filter(value -> !value.isBlank()).findAny().isEmpty()) {
             throw new IllegalArgumentException("AI workout provider returned an exercise without common mistakes.");
+        }
+        if (isBlank(exercise.getCoachingNote())) {
+            exercise.setCoachingNote("Move with control, keep the target effort sustainable, and adjust the exercise if form breaks down.");
         }
         if (exercise.getExerciseItemId() != null) {
             ExerciseItemEntity item = exerciseItemRepository.findById(exercise.getExerciseItemId())

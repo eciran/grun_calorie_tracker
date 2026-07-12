@@ -50,6 +50,8 @@ public class NotificationController {
             @RequestParam(required = false) Boolean unreadOnly,
             @Parameter(description = "Optional notification type filter.", example = "subscription")
             @RequestParam(required = false) String type,
+            @Parameter(description = "Optional notification severity filter.", example = "CRITICAL")
+            @RequestParam(required = false) String severity,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size, capped at 100.", example = "25")
@@ -58,6 +60,7 @@ public class NotificationController {
                 userDetails.getUsername(),
                 unreadOnly,
                 type,
+                severity,
                 page,
                 size
         ));

@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -61,4 +63,20 @@ public class AdminDashboardSummaryDto {
 
     @Schema(description = "Number of subscription provider events received in the last 24 hours.", example = "45")
     private long subscriptionProviderEventsLast24Hours;
+
+    @Schema(description = "Number of AI requests created in the last 7 days.", example = "180")
+    private long aiRequestsLast7Days;
+
+    @Schema(description = "Number of AI requests confirmed by users in the last 7 days.", example = "120")
+    private long aiConfirmedLast7Days;
+
+    @Schema(description = "Number of AI requests rejected by users in the last 7 days.", example = "34")
+    private long aiRejectedLast7Days;
+
+    @Schema(description = "Number of failed AI requests in the last 7 days.", example = "4")
+    private long aiFailedLast7Days;
+
+    @Schema(description = "AI rejection reason counts for the last 7 days.")
+    private Map<String, Long> aiRejectionReasonsLast7Days;
 }
+

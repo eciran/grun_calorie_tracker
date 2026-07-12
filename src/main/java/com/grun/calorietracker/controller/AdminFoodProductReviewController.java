@@ -16,6 +16,8 @@ import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.dto.ProductQualityScanRunPageDto;
+import com.grun.calorietracker.dto.ProductQualityAiSettingsDto;
+import com.grun.calorietracker.dto.ProductQualityAiSettingsUpdateRequestDto;
 import com.grun.calorietracker.dto.ProductQualityScanRunDetailDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
@@ -108,6 +110,28 @@ public class AdminFoodProductReviewController {
     }
 
 
+    @GetMapping("/quality-suggestions/ai-settings")
+    @Operation(
+            summary = "Get AI product quality settings",
+            description = "Returns admin-managed guardrails for AI-assisted product quality validation, including current daily and monthly usage."
+    )
+    public ResponseEntity<ProductQualityAiSettingsDto> getProductQualityAiSettings() {
+        return ResponseEntity.ok(productQualitySuggestionService.getAiSettings());
+    }
+
+    @PatchMapping("/quality-suggestions/ai-settings")
+    @Operation(
+            summary = "Update AI product quality settings",
+            description = "Updates admin-managed AI validation limits. Secrets and provider credentials remain backend configuration, not admin UI data."
+    )
+    public ResponseEntity<ProductQualityAiSettingsDto> updateProductQualityAiSettings(
+            @RequestBody @Valid ProductQualityAiSettingsUpdateRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.updateAiSettings(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @PostMapping("/quality-suggestions/scan")
     @Operation(
             summary = "Scan products for quality suggestions",
@@ -193,7 +217,7 @@ public class AdminFoodProductReviewController {
     @PostMapping("/quality-suggestions/ai-validate-selected")
     @Operation(
             summary = "Validate selected products with AI",
-            description = "Runs AI-assisted data quality validation for selected products or products referenced by selected suggestions. The result creates admin-reviewable AI_ASSISTED suggestions only; product data is not changed directly. Maximum 25 products per request."
+            description = "Runs AI-assisted data quality validation for selected products or products referenced by selected suggestions. The result creates admin-reviewable AI_ASSISTED suggestions only; product data is not changed directly. Admin AI settings enforce enabled state, per-run limit, daily quota, and monthly quota."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "AI-assisted validation completed."),

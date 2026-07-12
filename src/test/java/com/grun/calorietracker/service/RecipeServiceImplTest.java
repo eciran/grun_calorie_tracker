@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.dto.RecipeInteractionDto;
 import com.grun.calorietracker.dto.RecipeInteractionRequestDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeReportDto;
 import com.grun.calorietracker.dto.RecipeReportRequestDto;
@@ -88,6 +89,59 @@ class RecipeServiceImplTest {
         assertEquals(1, result.getIngredients().size());
     }
 
+
+    @Test
+    void createRecipe_withSnapshotIngredient_usesProvidedNutritionSnapshot() {
+        UserEntity user = user();
+        RecipeIngredientRequestDto ingredient = new RecipeIngredientRequestDto();
+        ingredient.setSnapshotFoodName("lean steak");
+        ingredient.setPortionSize(180.0);
+        ingredient.setPortionUnit(FoodPortionUnit.GRAM);
+        ingredient.setSnapshotCalories(190.0);
+        ingredient.setSnapshotProtein(29.0);
+        ingredient.setSnapshotCarbs(0.0);
+        ingredient.setSnapshotFat(8.0);
+
+        RecipeRequestDto request = recipeRequest(180.0, 180.0, 1);
+        request.setIngredients(List.of(ingredient));
+        request.setSnapshotNutritionTotal(new RecipeNutritionDto(342.0, 52.2, 0.0, 14.4, null, null, null, 120.0, null, null, null, null, null, null, null, null, null, null, null));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> {
+            RecipeEntity recipe = invocation.getArgument(0);
+            recipe.setId(10L);
+            return recipe;
+        });
+
+        RecipeDto result = service.createRecipe("user@test.com", request);
+
+        assertEquals(342.0, result.getTotalNutrition().getCalories());
+        assertEquals(52.2, result.getTotalNutrition().getProtein());
+        assertEquals(true, result.getIngredients().get(0).getSnapshotIngredient());
+        assertEquals("Lean Steak", result.getIngredients().get(0).getFoodName());
+        assertEquals(190.0, result.getIngredients().get(0).getSnapshotCalories());
+    }
+
+    @Test
+    void createRecipe_withSnapshotIngredientWithoutMacroAndNoRecipeSnapshot_rejectsRequest() {
+        RecipeIngredientRequestDto ingredient = new RecipeIngredientRequestDto();
+        ingredient.setSnapshotFoodName("lean steak");
+        ingredient.setPortionSize(180.0);
+        ingredient.setPortionUnit(FoodPortionUnit.GRAM);
+
+        RecipeRequestDto request = recipeRequest(180.0, 180.0, 1);
+        request.setIngredients(List.of(ingredient));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user()));
+
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe("user@test.com", request));
+    }
+
+    @Test
+    void createRecipe_withNegativeRecipeNutritionSnapshot_rejectsRequest() {
+        RecipeRequestDto request = recipeRequest(180.0, 180.0, 1);
+        request.setSnapshotNutritionTotal(new RecipeNutritionDto(342.0, 52.2, 0.0, 14.4, -1.0, null, null, null, null, null, null, null, null, null, null, null, null, null, null));
+
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe("user@test.com", request));
+    }
     @Test
     void createRecipe_derivesAndMergesRecipeAllergens() {
         UserEntity user = user();

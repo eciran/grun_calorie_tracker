@@ -7,6 +7,7 @@ import com.grun.calorietracker.config.RevenueCatProperties;
 import com.grun.calorietracker.dto.RevenueCatWebhookEventDto;
 import com.grun.calorietracker.dto.RevenueCatWebhookResponseDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
+import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -15,7 +16,9 @@ import com.grun.calorietracker.enums.RevenueCatEventType;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
+import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -51,6 +54,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final SubscriptionProviderEventRepository eventRepository;
+    private final NotificationRepository notificationRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
 
@@ -98,7 +102,8 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 audit.setStatus(SubscriptionProviderEventStatus.FAILED);
                 audit.setProcessingError("RevenueCat app_user_id does not match a known user.");
                 audit.setProcessedAt(LocalDateTime.now());
-                eventRepository.save(audit);
+                SubscriptionProviderEventEntity savedAudit = eventRepository.save(audit);
+                notifyAdminsAboutFailedProviderEvent(savedAudit);
                 return new RevenueCatWebhookResponseDto(true, false, providerEventId, "FAILED", audit.getProcessingError());
             }
             audit.setUser(user.get());
@@ -119,11 +124,39 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             audit.setStatus(SubscriptionProviderEventStatus.FAILED);
             audit.setProcessingError(limit(ex.getMessage()));
             audit.setProcessedAt(LocalDateTime.now());
-            eventRepository.save(audit);
+            SubscriptionProviderEventEntity savedAudit = eventRepository.save(audit);
+            notifyAdminsAboutFailedProviderEvent(savedAudit);
             return new RevenueCatWebhookResponseDto(true, false, providerEventId, "FAILED", audit.getProcessingError());
         }
     }
 
+    private void notifyAdminsAboutFailedProviderEvent(SubscriptionProviderEventEntity event) {
+        List<UserEntity> admins = userRepository.findByRole(UserRole.ADMIN);
+        if (admins == null || admins.isEmpty()) {
+            return;
+        }
+        String eventId = event.getId() == null ? event.getProviderEventId() : String.valueOf(event.getId());
+        String message = "RevenueCat provider event failed. eventId=" + eventId
+                + ", providerEventId=" + event.getProviderEventId()
+                + ", type=" + event.getEventType()
+                + ", reason=" + event.getProcessingError();
+        LocalDateTime now = LocalDateTime.now();
+        List<NotificationEntity> notifications = admins.stream().map(admin -> {
+            NotificationEntity notification = new NotificationEntity();
+            notification.setUser(admin);
+            notification.setType("subscription_provider_alert");
+            notification.setSeverity("CRITICAL");
+            notification.setSource("REVENUECAT");
+            notification.setTargetType("SUBSCRIPTION_PROVIDER_EVENT");
+            notification.setTargetId(eventId);
+            notification.setTargetRoute("subscriptionEvents");
+            notification.setMessage(message);
+            notification.setIsRead(false);
+            notification.setCreatedAt(now);
+            return notification;
+        }).toList();
+        notificationRepository.saveAll(notifications);
+    }
     private void validateAuthorization(String authorizationHeader) {
         String expected = properties.getWebhookAuthorization();
         if (expected == null || expected.isBlank()) {

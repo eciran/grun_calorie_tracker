@@ -41,6 +41,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeImageModerationService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.RecipeAllergenResolver;
 import lombok.RequiredArgsConstructor;
 import jakarta.persistence.criteria.Join;
@@ -272,6 +273,7 @@ public class RecipeServiceImpl implements RecipeService {
             ingredient.setPortionSize(sourceIngredient.getPortionSize());
             ingredient.setPortionUnit(sourceIngredient.getPortionUnit());
             ingredient.setNormalizedPortionGrams(sourceIngredient.getNormalizedPortionGrams());
+            copyIngredientSnapshotFields(sourceIngredient, ingredient);
             ingredient.setItemOrder(index);
             copy.getIngredients().add(ingredient);
         }
@@ -371,8 +373,9 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setServingCount(request.getServingCount());
         recipe.setCategories(normalizeCategories(request.getCategories()));
 
+        boolean hasRecipeNutritionSnapshot = request.getSnapshotNutritionTotal() != null;
         for (int index = 0; index < request.getIngredients().size(); index++) {
-            recipe.getIngredients().add(toIngredient(recipe, request.getIngredients().get(index), user, index));
+            recipe.getIngredients().add(toIngredient(recipe, request.getIngredients().get(index), user, index, hasRecipeNutritionSnapshot));
         }
         applyCookingSteps(recipe, request.getCookingSteps());
         applyAllergens(recipe, request.getAllergens());
@@ -396,6 +399,7 @@ public class RecipeServiceImpl implements RecipeService {
             throw new IllegalArgumentException("Recipe can contain at most " + MAX_CATEGORIES + " categories.");
         }
         validateCookingSteps(request.getCookingSteps());
+        validateRecipeNutritionSnapshot(request.getSnapshotNutritionTotal());
         String mealType = normalizeMealType(request.getMealType());
         if (mealType != null && !ALLOWED_MEAL_TYPES.contains(mealType)) {
             throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
@@ -416,24 +420,77 @@ public class RecipeServiceImpl implements RecipeService {
         }
     }
 
+
+    private void validateRecipeNutritionSnapshot(RecipeNutritionDto nutrition) {
+        if (nutrition == null) {
+            return;
+        }
+        requireNonNegative(nutrition.getCalories(), "recipe snapshot calories", true);
+        requireNonNegative(nutrition.getProtein(), "recipe snapshot protein", true);
+        requireNonNegative(nutrition.getCarbs(), "recipe snapshot carbs", true);
+        requireNonNegative(nutrition.getFat(), "recipe snapshot fat", true);
+        requireNonNegative(nutrition.getFiber(), "recipe snapshot fiber", false);
+        requireNonNegative(nutrition.getSugar(), "recipe snapshot sugar", false);
+        requireNonNegative(nutrition.getSaturatedFat(), "recipe snapshot saturated fat", false);
+        requireNonNegative(nutrition.getSodium(), "recipe snapshot sodium", false);
+        requireNonNegative(nutrition.getPotassium(), "recipe snapshot potassium", false);
+        requireNonNegative(nutrition.getCholesterol(), "recipe snapshot cholesterol", false);
+        requireNonNegative(nutrition.getCalcium(), "recipe snapshot calcium", false);
+        requireNonNegative(nutrition.getIron(), "recipe snapshot iron", false);
+        requireNonNegative(nutrition.getMagnesium(), "recipe snapshot magnesium", false);
+        requireNonNegative(nutrition.getZinc(), "recipe snapshot zinc", false);
+        requireNonNegative(nutrition.getVitaminA(), "recipe snapshot vitamin A", false);
+        requireNonNegative(nutrition.getVitaminC(), "recipe snapshot vitamin C", false);
+        requireNonNegative(nutrition.getVitaminD(), "recipe snapshot vitamin D", false);
+        requireNonNegative(nutrition.getVitaminE(), "recipe snapshot vitamin E", false);
+        requireNonNegative(nutrition.getVitaminB12(), "recipe snapshot vitamin B12", false);
+    }
+
+    private void requireNonNegative(Double value, String field, boolean required) {
+        if (value == null) {
+            if (required) {
+                throw new IllegalArgumentException("Recipe " + field + " is required.");
+            }
+            return;
+        }
+        if (value < 0) {
+            throw new IllegalArgumentException("Recipe " + field + " must not be negative.");
+        }
+    }
     private RecipeIngredientEntity toIngredient(RecipeEntity recipe,
                                                 RecipeIngredientRequestDto request,
                                                 UserEntity user,
-                                                int itemOrder) {
-        FoodItemEntity foodItem = foodItemRepository.findById(request.getFoodItemId())
-                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
-        ensureFoodAvailable(foodItem, user);
+                                                int itemOrder,
+                                                boolean hasRecipeNutritionSnapshot) {
+        if (request.getPortionSize() == null || request.getPortionSize() <= 0) {
+            throw new IllegalArgumentException("Recipe ingredient portion size must be greater than zero.");
+        }
         FoodPortionUnit unit = FoodPortionCalculator.resolveUnit(request.getPortionUnit());
         RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
         ingredient.setRecipe(recipe);
-        ingredient.setFoodItem(foodItem);
         ingredient.setPortionSize(request.getPortionSize());
         ingredient.setPortionUnit(unit);
-        ingredient.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(request.getPortionSize(), unit, foodItem));
         ingredient.setItemOrder(itemOrder);
+        if (request.getFoodItemId() != null) {
+            FoodItemEntity foodItem = foodItemRepository.findById(request.getFoodItemId())
+                    .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+            ensureFoodAvailable(foodItem, user);
+            ingredient.setFoodItem(foodItem);
+            ingredient.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(request.getPortionSize(), unit, foodItem));
+            return ingredient;
+        }
+        String snapshotName = FoodProductNormalizationRules.normalizeProductDisplayName(request.getSnapshotFoodName());
+        if (snapshotName == null || snapshotName.isBlank()) {
+            throw new IllegalArgumentException("Recipe ingredient requires foodItemId or snapshotFoodName.");
+        }
+        ingredient.setSnapshotFoodName(snapshotName);
+        ingredient.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(request.getPortionSize(), unit, null));
+        applyIngredientSnapshotNutrition(ingredient, request);
+        if (!hasRecipeNutritionSnapshot && !hasRequiredIngredientMacroSnapshot(request)) {
+            throw new IllegalArgumentException("Snapshot recipe ingredient requires calories, protein, carbs, and fat when no full recipe nutrition snapshot is provided.");
+        }
         return ingredient;
     }
-
     private void recalculateNutrition(RecipeEntity recipe, RecipeRequestDto request) {
         double ingredientYield = recipe.getIngredients().stream()
                 .map(RecipeIngredientEntity::getNormalizedPortionGrams)
@@ -445,6 +502,10 @@ public class RecipeServiceImpl implements RecipeService {
                 : ingredientYield;
         recipe.setTotalYieldGrams(totalYield);
         recipe.setDefaultServingGrams(resolveDefaultServingGrams(request, totalYield));
+        if (hasRequiredMacroSnapshot(request.getSnapshotNutritionTotal())) {
+            applyRecipeNutritionSnapshot(recipe, request.getSnapshotNutritionTotal());
+            return;
+        }
         recipe.setSnapshotCalories(total("calories", recipe));
         recipe.setSnapshotProtein(total("protein", recipe));
         recipe.setSnapshotCarbs(total("carbs", recipe));
@@ -465,7 +526,6 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setSnapshotVitaminE(totalNullable("vitaminE", recipe));
         recipe.setSnapshotVitaminB12(totalNullable("vitaminB12", recipe));
     }
-
     private Double resolveDefaultServingGrams(RecipeRequestDto request, double totalYield) {
         if (request.getDefaultServingGrams() != null && request.getDefaultServingGrams() > 0) {
             return request.getDefaultServingGrams();
@@ -476,29 +536,126 @@ public class RecipeServiceImpl implements RecipeService {
         return totalYield > 0 ? totalYield : null;
     }
 
+    private void applyIngredientSnapshotNutrition(RecipeIngredientEntity ingredient, RecipeIngredientRequestDto request) {
+        ingredient.setSnapshotCalories(nonNegativeOrNull(request.getSnapshotCalories(), "snapshot calories"));
+        ingredient.setSnapshotProtein(nonNegativeOrNull(request.getSnapshotProtein(), "snapshot protein"));
+        ingredient.setSnapshotCarbs(nonNegativeOrNull(request.getSnapshotCarbs(), "snapshot carbs"));
+        ingredient.setSnapshotFat(nonNegativeOrNull(request.getSnapshotFat(), "snapshot fat"));
+        ingredient.setSnapshotFiber(nonNegativeOrNull(request.getSnapshotFiber(), "snapshot fiber"));
+        ingredient.setSnapshotSugar(nonNegativeOrNull(request.getSnapshotSugar(), "snapshot sugar"));
+        ingredient.setSnapshotSaturatedFat(nonNegativeOrNull(request.getSnapshotSaturatedFat(), "snapshot saturated fat"));
+        ingredient.setSnapshotSodium(nonNegativeOrNull(request.getSnapshotSodium(), "snapshot sodium"));
+        ingredient.setSnapshotPotassium(nonNegativeOrNull(request.getSnapshotPotassium(), "snapshot potassium"));
+        ingredient.setSnapshotCholesterol(nonNegativeOrNull(request.getSnapshotCholesterol(), "snapshot cholesterol"));
+        ingredient.setSnapshotCalcium(nonNegativeOrNull(request.getSnapshotCalcium(), "snapshot calcium"));
+        ingredient.setSnapshotIron(nonNegativeOrNull(request.getSnapshotIron(), "snapshot iron"));
+        ingredient.setSnapshotMagnesium(nonNegativeOrNull(request.getSnapshotMagnesium(), "snapshot magnesium"));
+        ingredient.setSnapshotZinc(nonNegativeOrNull(request.getSnapshotZinc(), "snapshot zinc"));
+        ingredient.setSnapshotVitaminA(nonNegativeOrNull(request.getSnapshotVitaminA(), "snapshot vitamin A"));
+        ingredient.setSnapshotVitaminC(nonNegativeOrNull(request.getSnapshotVitaminC(), "snapshot vitamin C"));
+        ingredient.setSnapshotVitaminD(nonNegativeOrNull(request.getSnapshotVitaminD(), "snapshot vitamin D"));
+        ingredient.setSnapshotVitaminE(nonNegativeOrNull(request.getSnapshotVitaminE(), "snapshot vitamin E"));
+        ingredient.setSnapshotVitaminB12(nonNegativeOrNull(request.getSnapshotVitaminB12(), "snapshot vitamin B12"));
+    }
+
+
+    private boolean hasRequiredIngredientMacroSnapshot(RecipeIngredientRequestDto request) {
+        return request.getSnapshotCalories() != null && request.getSnapshotCalories() >= 0
+                && request.getSnapshotProtein() != null && request.getSnapshotProtein() >= 0
+                && request.getSnapshotCarbs() != null && request.getSnapshotCarbs() >= 0
+                && request.getSnapshotFat() != null && request.getSnapshotFat() >= 0;
+    }
+    private Double nonNegativeOrNull(Double value, String field) {
+        if (value == null) {
+            return null;
+        }
+        if (value < 0) {
+            throw new IllegalArgumentException("Recipe ingredient " + field + " must not be negative.");
+        }
+        return value;
+    }
+
+    private boolean hasRequiredMacroSnapshot(RecipeNutritionDto nutrition) {
+        return nutrition != null
+                && nutrition.getCalories() != null && nutrition.getCalories() >= 0
+                && nutrition.getProtein() != null && nutrition.getProtein() >= 0
+                && nutrition.getCarbs() != null && nutrition.getCarbs() >= 0
+                && nutrition.getFat() != null && nutrition.getFat() >= 0;
+    }
+
+    private void applyRecipeNutritionSnapshot(RecipeEntity recipe, RecipeNutritionDto nutrition) {
+        recipe.setSnapshotCalories(round(nutrition.getCalories()));
+        recipe.setSnapshotProtein(round(nutrition.getProtein()));
+        recipe.setSnapshotCarbs(round(nutrition.getCarbs()));
+        recipe.setSnapshotFat(round(nutrition.getFat()));
+        recipe.setSnapshotFiber(roundNullable(nutrition.getFiber()));
+        recipe.setSnapshotSugar(roundNullable(nutrition.getSugar()));
+        recipe.setSnapshotSaturatedFat(roundNullable(nutrition.getSaturatedFat()));
+        recipe.setSnapshotSodium(roundNullable(nutrition.getSodium()));
+        recipe.setSnapshotPotassium(roundNullable(nutrition.getPotassium()));
+        recipe.setSnapshotCholesterol(roundNullable(nutrition.getCholesterol()));
+        recipe.setSnapshotCalcium(roundNullable(nutrition.getCalcium()));
+        recipe.setSnapshotIron(roundNullable(nutrition.getIron()));
+        recipe.setSnapshotMagnesium(roundNullable(nutrition.getMagnesium()));
+        recipe.setSnapshotZinc(roundNullable(nutrition.getZinc()));
+        recipe.setSnapshotVitaminA(roundNullable(nutrition.getVitaminA()));
+        recipe.setSnapshotVitaminC(roundNullable(nutrition.getVitaminC()));
+        recipe.setSnapshotVitaminD(roundNullable(nutrition.getVitaminD()));
+        recipe.setSnapshotVitaminE(roundNullable(nutrition.getVitaminE()));
+        recipe.setSnapshotVitaminB12(roundNullable(nutrition.getVitaminB12()));
+    }
+
     private Double total(String nutrient, RecipeEntity recipe) {
         return recipe.getIngredients().stream()
-                .mapToDouble(ingredient -> nutrientValue(nutrient, ingredient.getFoodItem()) * factor(ingredient))
+                .mapToDouble(ingredient -> nutrientValue(nutrient, ingredient) * factor(ingredient))
                 .sum();
     }
 
     private Double totalNullable(String nutrient, RecipeEntity recipe) {
         boolean hasValue = recipe.getIngredients().stream()
-                .anyMatch(ingredient -> nullableNutrientValue(nutrient, ingredient.getFoodItem()) != null);
+                .anyMatch(ingredient -> nullableNutrientValue(nutrient, ingredient) != null);
         if (!hasValue) {
             return null;
         }
         return round(recipe.getIngredients().stream()
                 .mapToDouble(ingredient -> {
-                    Double value = nullableNutrientValue(nutrient, ingredient.getFoodItem());
+                    Double value = nullableNutrientValue(nutrient, ingredient);
                     return (value == null ? 0.0 : value) * factor(ingredient);
                 })
                 .sum());
     }
 
-    private double nutrientValue(String nutrient, FoodItemEntity foodItem) {
-        Double value = nullableNutrientValue(nutrient, foodItem);
+    private double nutrientValue(String nutrient, RecipeIngredientEntity ingredient) {
+        Double value = nullableNutrientValue(nutrient, ingredient);
         return value == null ? 0.0 : value;
+    }
+
+    private Double nullableNutrientValue(String nutrient, RecipeIngredientEntity ingredient) {
+        if (ingredient.getFoodItem() != null) {
+            return nullableNutrientValue(nutrient, ingredient.getFoodItem());
+        }
+        return switch (nutrient) {
+            case "calories" -> ingredient.getSnapshotCalories();
+            case "protein" -> ingredient.getSnapshotProtein();
+            case "carbs" -> ingredient.getSnapshotCarbs();
+            case "fat" -> ingredient.getSnapshotFat();
+            case "fiber" -> ingredient.getSnapshotFiber();
+            case "sugar" -> ingredient.getSnapshotSugar();
+            case "saturatedFat" -> ingredient.getSnapshotSaturatedFat();
+            case "sodium" -> ingredient.getSnapshotSodium();
+            case "potassium" -> ingredient.getSnapshotPotassium();
+            case "cholesterol" -> ingredient.getSnapshotCholesterol();
+            case "calcium" -> ingredient.getSnapshotCalcium();
+            case "iron" -> ingredient.getSnapshotIron();
+            case "magnesium" -> ingredient.getSnapshotMagnesium();
+            case "zinc" -> ingredient.getSnapshotZinc();
+            case "vitaminA" -> ingredient.getSnapshotVitaminA();
+            case "vitaminC" -> ingredient.getSnapshotVitaminC();
+            case "vitaminD" -> ingredient.getSnapshotVitaminD();
+            case "vitaminE" -> ingredient.getSnapshotVitaminE();
+            case "vitaminB12" -> ingredient.getSnapshotVitaminB12();
+            default -> null;
+        };
     }
 
     private Double nullableNutrientValue(String nutrient, FoodItemEntity foodItem) {
@@ -684,16 +841,63 @@ public class RecipeServiceImpl implements RecipeService {
         dto.setInstruction(step.getInstruction());
         return dto;
     }
+    private void copyIngredientSnapshotFields(RecipeIngredientEntity source, RecipeIngredientEntity target) {
+        target.setSnapshotFoodName(source.getSnapshotFoodName());
+        target.setSnapshotCalories(source.getSnapshotCalories());
+        target.setSnapshotProtein(source.getSnapshotProtein());
+        target.setSnapshotCarbs(source.getSnapshotCarbs());
+        target.setSnapshotFat(source.getSnapshotFat());
+        target.setSnapshotFiber(source.getSnapshotFiber());
+        target.setSnapshotSugar(source.getSnapshotSugar());
+        target.setSnapshotSaturatedFat(source.getSnapshotSaturatedFat());
+        target.setSnapshotSodium(source.getSnapshotSodium());
+        target.setSnapshotPotassium(source.getSnapshotPotassium());
+        target.setSnapshotCholesterol(source.getSnapshotCholesterol());
+        target.setSnapshotCalcium(source.getSnapshotCalcium());
+        target.setSnapshotIron(source.getSnapshotIron());
+        target.setSnapshotMagnesium(source.getSnapshotMagnesium());
+        target.setSnapshotZinc(source.getSnapshotZinc());
+        target.setSnapshotVitaminA(source.getSnapshotVitaminA());
+        target.setSnapshotVitaminC(source.getSnapshotVitaminC());
+        target.setSnapshotVitaminD(source.getSnapshotVitaminD());
+        target.setSnapshotVitaminE(source.getSnapshotVitaminE());
+        target.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
+    }
+
     private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
-        dto.setFoodItemId(ingredient.getFoodItem().getId());
-        dto.setFoodName(ingredient.getFoodItem().getName());
+        if (ingredient.getFoodItem() != null) {
+            dto.setFoodItemId(ingredient.getFoodItem().getId());
+            dto.setFoodName(ingredient.getFoodItem().getName());
+            dto.setSnapshotIngredient(false);
+        } else {
+            dto.setFoodName(ingredient.getSnapshotFoodName());
+            dto.setSnapshotIngredient(true);
+        }
         dto.setPortionSize(ingredient.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(ingredient.getPortionUnit()));
         dto.setNormalizedPortionGrams(ingredient.getNormalizedPortionGrams());
+        dto.setSnapshotCalories(ingredient.getSnapshotCalories());
+        dto.setSnapshotProtein(ingredient.getSnapshotProtein());
+        dto.setSnapshotCarbs(ingredient.getSnapshotCarbs());
+        dto.setSnapshotFat(ingredient.getSnapshotFat());
+        dto.setSnapshotFiber(ingredient.getSnapshotFiber());
+        dto.setSnapshotSugar(ingredient.getSnapshotSugar());
+        dto.setSnapshotSaturatedFat(ingredient.getSnapshotSaturatedFat());
+        dto.setSnapshotSodium(ingredient.getSnapshotSodium());
+        dto.setSnapshotPotassium(ingredient.getSnapshotPotassium());
+        dto.setSnapshotCholesterol(ingredient.getSnapshotCholesterol());
+        dto.setSnapshotCalcium(ingredient.getSnapshotCalcium());
+        dto.setSnapshotIron(ingredient.getSnapshotIron());
+        dto.setSnapshotMagnesium(ingredient.getSnapshotMagnesium());
+        dto.setSnapshotZinc(ingredient.getSnapshotZinc());
+        dto.setSnapshotVitaminA(ingredient.getSnapshotVitaminA());
+        dto.setSnapshotVitaminC(ingredient.getSnapshotVitaminC());
+        dto.setSnapshotVitaminD(ingredient.getSnapshotVitaminD());
+        dto.setSnapshotVitaminE(ingredient.getSnapshotVitaminE());
+        dto.setSnapshotVitaminB12(ingredient.getSnapshotVitaminB12());
         return dto;
     }
-
     private RecipeNutritionDto nutrition(Double calories,
                                          Double protein,
                                          Double carbs,

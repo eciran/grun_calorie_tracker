@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,25 +29,20 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public NotificationPageDto listNotifications(String email, Boolean unreadOnly, String type, int page, int size) {
+    public NotificationPageDto listNotifications(String email, Boolean unreadOnly, String type, String severity, int page, int size) {
         UserEntity user = getUser(email);
         PageRequest pageable = PageRequest.of(
                 Math.max(0, page),
                 Math.min(Math.max(1, size), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
-        String normalizedType = trimToNull(type);
-        boolean onlyUnread = Boolean.TRUE.equals(unreadOnly);
-        Page<NotificationEntity> notifications;
-        if (normalizedType != null && onlyUnread) {
-            notifications = notificationRepository.findByUserAndTypeAndIsRead(user, normalizedType, false, pageable);
-        } else if (normalizedType != null) {
-            notifications = notificationRepository.findByUserAndType(user, normalizedType, pageable);
-        } else if (onlyUnread) {
-            notifications = notificationRepository.findByUserAndIsRead(user, false, pageable);
-        } else {
-            notifications = notificationRepository.findByUser(user, pageable);
-        }
+        Specification<NotificationEntity> specification = notificationSpecification(
+                user,
+                Boolean.TRUE.equals(unreadOnly),
+                trimToNull(type),
+                trimToNull(severity)
+        );
+        Page<NotificationEntity> notifications = notificationRepository.findAll(specification, pageable);
         NotificationPageDto dto = new NotificationPageDto();
         dto.setContent(notifications.getContent().stream().map(this::toDto).toList());
         dto.setPage(notifications.getNumber());
@@ -88,11 +84,31 @@ public class NotificationServiceImpl implements NotificationService {
         dto.setId(entity.getId());
         dto.setMessage(entity.getMessage());
         dto.setType(entity.getType());
+        dto.setSeverity(entity.getSeverity());
+        dto.setSource(entity.getSource());
+        dto.setTargetType(entity.getTargetType());
+        dto.setTargetId(entity.getTargetId());
+        dto.setTargetRoute(entity.getTargetRoute());
         dto.setRead(Boolean.TRUE.equals(entity.getIsRead()));
         dto.setCreatedAt(entity.getCreatedAt());
         return dto;
     }
 
+    private Specification<NotificationEntity> notificationSpecification(UserEntity user, boolean unreadOnly, String type, String severity) {
+        return (root, query, criteriaBuilder) -> {
+            var predicate = criteriaBuilder.equal(root.get("user"), user);
+            if (unreadOnly) {
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.get("isRead"), false));
+            }
+            if (type != null) {
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.get("type"), type));
+            }
+            if (severity != null) {
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.get("severity"), severity));
+            }
+            return predicate;
+        };
+    }
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;

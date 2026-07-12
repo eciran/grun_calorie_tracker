@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +38,16 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     long countByCreatedAtAfter(LocalDateTime createdAt);
     long countByStatusAndCreatedAtAfter(AiRequestStatus status, LocalDateTime createdAt);
     long countByRejectionReasonAndRejectedAtAfter(AiDraftRejectReason rejectionReason, LocalDateTime rejectedAt);
+    @Query("""
+            select history.rejectionReason, count(history)
+            from AiRequestHistoryEntity history
+            where history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED
+              and history.rejectedAt >= :rejectedAfter
+              and history.rejectionReason is not null
+            group by history.rejectionReason
+            """)
+    List<Object[]> countRejectedDraftsByReasonAfter(@Param("rejectedAfter") LocalDateTime rejectedAfter);
     void deleteByUser(UserEntity user);
 }
+
 

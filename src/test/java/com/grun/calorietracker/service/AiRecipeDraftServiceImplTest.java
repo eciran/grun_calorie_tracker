@@ -13,16 +13,13 @@ import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
-import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.SubscriptionFeature;
-import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
-import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AiProviderConfigurationValidatorImpl;
 import com.grun.calorietracker.service.impl.AiRecipeDraftServiceImpl;
@@ -48,7 +45,6 @@ class AiRecipeDraftServiceImplTest {
     private AiMealDraftProviderClient providerClient;
     private AiRequestHistoryRepository historyRepository;
     private UserRepository userRepository;
-    private FoodItemRepository foodItemRepository;
     private SubscriptionService subscriptionService;
     private RecipeService recipeService;
     private AiRecipeDraftServiceImpl service;
@@ -63,7 +59,6 @@ class AiRecipeDraftServiceImplTest {
         providerClient = mock(AiMealDraftProviderClient.class);
         historyRepository = mock(AiRequestHistoryRepository.class);
         userRepository = mock(UserRepository.class);
-        foodItemRepository = mock(FoodItemRepository.class);
         subscriptionService = mock(SubscriptionService.class);
         recipeService = mock(RecipeService.class);
         service = new AiRecipeDraftServiceImpl(
@@ -71,7 +66,6 @@ class AiRecipeDraftServiceImplTest {
                 List.of(providerClient),
                 historyRepository,
                 userRepository,
-                foodItemRepository,
                 subscriptionService,
                 recipeService,
                 new ObjectMapper().findAndRegisterModules(),
@@ -171,11 +165,6 @@ class AiRecipeDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse);
-        when(foodItemRepository.findVisibleAiMatchCandidates(
-                org.mockito.Mockito.eq("Chicken breast"),
-                org.mockito.Mockito.eq(user),
-                any()
-        )).thenReturn(List.of(verifiedFoodItem()));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
         when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(quota);
@@ -187,9 +176,9 @@ class AiRecipeDraftServiceImplTest {
 
         AiRecipeDraftResponseDto result = service.createRecipeDraft("user@example.com", request());
 
-        assertEquals(12L, result.getSuggestedIngredients().get(0).getMatchedFoodItemId());
-        assertEquals(false, result.getSuggestedIngredients().get(0).getReviewRequired());
-        assertEquals("VERIFIED_CATALOG_MATCH", result.getSuggestedIngredients().get(0).getMatchReason());
+        assertEquals(null, result.getSuggestedIngredients().get(0).getMatchedFoodItemId());
+        assertEquals(true, result.getSuggestedIngredients().get(0).getReviewRequired());
+        assertEquals("AI_SNAPSHOT", result.getSuggestedIngredients().get(0).getMatchReason());
     }
 
     @Test
@@ -270,14 +259,6 @@ class AiRecipeDraftServiceImplTest {
         RecipeStepRequestDto step = new RecipeStepRequestDto();
         step.setInstruction(instruction);
         return step;
-    }
-    private FoodItemEntity verifiedFoodItem() {
-        FoodItemEntity foodItem = new FoodItemEntity();
-        foodItem.setId(12L);
-        foodItem.setName("Chicken breast");
-        foodItem.setVerificationStatus(VerificationStatus.VERIFIED);
-        foodItem.setQualityScore(90);
-        return foodItem;
     }
 }
 

@@ -13,7 +13,6 @@ import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
-import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
@@ -21,10 +20,8 @@ import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.SubscriptionFeature;
-import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
-import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
@@ -32,7 +29,6 @@ import com.grun.calorietracker.service.AiRecipeDraftService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,7 +50,6 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
     private final List<AiMealDraftProviderClient> providerClients;
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final UserRepository userRepository;
-    private final FoodItemRepository foodItemRepository;
     private final SubscriptionService subscriptionService;
     private final RecipeService recipeService;
     private final ObjectMapper objectMapper;
@@ -69,6 +64,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         providerConfigurationValidator.validateConfiguredForDraft();
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_RECIPE_GENERATION);
         UserEntity user = getUser(email);
+        request.setUserContext(toUserContext(user));
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
@@ -143,7 +139,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
         validateSuggestedRecipe(response);
         validateEstimatedNutrition(response);
-        matchSuggestedIngredients(response, user);
+        normalizeSuggestedIngredientsAsSnapshot(response);
         normalizeQuality(response);
         if (response.getWarnings() == null) {
             response.setWarnings(List.of());
@@ -152,9 +148,30 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
     }
 
     private void normalizeQuality(AiRecipeDraftResponseDto response) {
-        response.setSchemaVersion("ai_response_v2");
+        response.setSchemaVersion("ai_response_v3");
         if (response.getReviewReasons() == null) {
             response.setReviewReasons(List.of());
+        }
+        if (response.getAssumptions() == null) {
+            response.setAssumptions(List.of());
+        }
+        if (response.getNextBestActions() == null) {
+            response.setNextBestActions(List.of());
+        }
+        if (response.getCookingTips() == null) {
+            response.setCookingTips(List.of());
+        }
+        if (response.getSubstitutions() == null) {
+            response.setSubstitutions(List.of());
+        }
+        if (response.getResultType() == null || response.getResultType().isBlank()) {
+            response.setResultType("AI_SNAPSHOT");
+        }
+        if (response.getUserMessage() == null || response.getUserMessage().isBlank()) {
+            response.setUserMessage("AI prepared an editable recipe draft with estimated nutrition. Review ingredients and portions before saving.");
+        }
+        if (response.getProfessionalSummary() == null || response.getProfessionalSummary().isBlank()) {
+            response.setProfessionalSummary(response.getSummary());
         }
         if (response.getConfidence() == null) {
             response.setConfidence(minIngredientConfidence(response));
@@ -226,7 +243,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
         if (recipe.getIngredients() != null) {
             for (RecipeIngredientRequestDto ingredient : recipe.getIngredients()) {
-                if (ingredient.getFoodItemId() == null || ingredient.getFoodItemId() <= 0) {
+                if (ingredient.getFoodItemId() != null && ingredient.getFoodItemId() <= 0) {
                     throw new IllegalArgumentException("AI recipe provider returned an invalid food item id.");
                 }
                 if (ingredient.getPortionSize() == null || ingredient.getPortionSize() <= 0) {
@@ -273,44 +290,18 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
     }
 
-    private void matchSuggestedIngredients(AiRecipeDraftResponseDto response, UserEntity user) {
+    private void normalizeSuggestedIngredientsAsSnapshot(AiRecipeDraftResponseDto response) {
         if (response.getSuggestedIngredients() == null) {
             response.setSuggestedIngredients(List.of());
             return;
         }
         for (AiRecipeIngredientSuggestionDto ingredient : response.getSuggestedIngredients()) {
             normalizeIngredientSuggestion(ingredient);
-            if ("INVALID_PORTION".equals(ingredient.getMatchReason())) {
-                continue;
-            }
-            if (ingredient.getMatchedFoodItemId() != null) {
-                ingredient.setReviewRequired(requiresReview(ingredient.getConfidence()));
-                ingredient.setMatchReason(Boolean.TRUE.equals(ingredient.getReviewRequired()) ? "LOW_CONFIDENCE_PROVIDER_MATCH" : "PROVIDER_MATCHED");
-                continue;
-            }
-            if (ingredient.getName() == null || ingredient.getName().isBlank()) {
-                ingredient.setReviewRequired(true);
-                ingredient.setMatchReason("MISSING_NAME");
-                continue;
-            }
-            List<FoodItemEntity> candidates = foodItemRepository.findVisibleAiMatchCandidates(
-                    ingredient.getName().trim(),
-                    user,
-                    PageRequest.of(0, 1)
-            );
-            if (candidates.isEmpty()) {
-                ingredient.setReviewRequired(true);
-                ingredient.setMatchReason("NO_CATALOG_MATCH");
-                continue;
-            }
-            FoodItemEntity candidate = candidates.get(0);
-            ingredient.setMatchedFoodItemId(candidate.getId());
-            if (candidate.getVerificationStatus() == VerificationStatus.VERIFIED && !requiresReview(ingredient.getConfidence())) {
-                ingredient.setReviewRequired(false);
-                ingredient.setMatchReason("VERIFIED_CATALOG_MATCH");
-            } else {
-                ingredient.setReviewRequired(true);
-                ingredient.setMatchReason("CATALOG_MATCH_REQUIRES_REVIEW");
+            ingredient.setMatchedFoodItemId(null);
+            ingredient.setReviewRequired(true);
+            if (!"INVALID_PORTION".equals(ingredient.getMatchReason())
+                    && !"MISSING_NAME".equals(ingredient.getMatchReason())) {
+                ingredient.setMatchReason("AI_SNAPSHOT");
             }
         }
     }
@@ -346,6 +337,20 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
+    private Map<String, Object> toUserContext(UserEntity user) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("age", user.getAge());
+        context.put("gender", user.getGender());
+        context.put("heightCm", user.getHeight());
+        context.put("weightKg", user.getWeight());
+        context.put("bodyFatPercentage", user.getBodyFatPercentage());
+        context.put("bmi", user.getBmi());
+        context.put("marketRegion", user.getMarketRegion());
+        context.put("preferredLanguage", user.getPreferredLanguage());
+        context.put("timeZone", user.getTimeZone());
+        context.put("unitPreference", user.getUnitPreference());
+        return context;
+    }
     private Map<String, Object> toPrivacySafeInputPayload(AiRecipeDraftRequestDto request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("requestType", AiRequestType.AI_RECIPE_GENERATION);

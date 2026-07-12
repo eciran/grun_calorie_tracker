@@ -46,4 +46,7 @@ public class AiRecipeDraftRequestDto {
     @Size(max = 20)
     @Schema(description = "Ingredients the user already has available.")
     private List<@Size(max = 80) String> availableIngredients;
+
+    @Schema(description = "Backend-built user profile context for provider calls. Clients should not set this field.", accessMode = Schema.AccessMode.READ_ONLY)
+    private Object userContext;
 }

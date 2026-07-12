@@ -56,7 +56,7 @@ public class AiRecipeDraftController {
     @PostMapping("/{requestId}/confirm")
     @Operation(
             summary = "Confirm an AI recipe draft",
-            description = "Persists a user-reviewed AI recipe draft as a private recipe. The final recipe payload must include real foodItemId ingredient mappings."
+            description = "Persists a user-reviewed AI recipe draft as a private recipe. Ingredients may be catalog-linked or saved as reviewed AI/manual nutrition snapshots."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Recipe created from reviewed AI draft.",
