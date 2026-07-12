@@ -22,7 +22,10 @@ public class FoodItemMapper {
         entity.setBarcode(dto.getBarcode());
         entity.setNormalizedBarcode(dto.getNormalizedBarcode());
         entity.setSourceKey(dto.getSourceKey());
-        entity.setName(FoodProductNormalizationRules.normalizeProductDisplayName(dto.getProductName()));
+        String productName = FoodProductNormalizationRules.normalizeProductDisplayName(dto.getProductName());
+        entity.setName(productName);
+        entity.setDisplayName(FoodProductNormalizationRules.normalizeProductDisplayName(dto.getDisplayName() != null ? dto.getDisplayName() : productName));
+        entity.setShortDisplayName(FoodProductNormalizationRules.normalizeProductDisplayName(dto.getShortDisplayName() != null ? dto.getShortDisplayName() : entity.getDisplayName()));
         entity.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(dto.getBrand()));
         entity.setImageUrl(dto.getImageUrl());
         entity.setExternalImageUrl(dto.getExternalImageUrl());
@@ -82,7 +85,11 @@ public class FoodItemMapper {
         dto.setBarcode(entity.getBarcode());
         dto.setNormalizedBarcode(entity.getNormalizedBarcode());
         dto.setSourceKey(entity.getSourceKey());
-        dto.setProductName(entity.getName());
+        dto.setSourceName(entity.getName());
+        dto.setCanonicalName(entity.getName());
+        dto.setDisplayName(resolveDisplayName(entity));
+        dto.setShortDisplayName(resolveShortDisplayName(entity));
+        dto.setProductName(dto.getShortDisplayName() != null ? dto.getShortDisplayName() : dto.getDisplayName());
         dto.setBrand(entity.getBrand());
         dto.setImageUrl(entity.getImageUrl());
         dto.setExternalImageUrl(entity.getExternalImageUrl());
@@ -153,6 +160,16 @@ public class FoodItemMapper {
         return entities.stream()
                 .map(FoodItemMapper::mapEntityToDto)
                 .collect(Collectors.toList());
+    }
+
+    private static String resolveDisplayName(FoodItemEntity entity) {
+        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(entity.getDisplayName());
+        return displayName != null ? displayName : entity.getName();
+    }
+
+    private static String resolveShortDisplayName(FoodItemEntity entity) {
+        String shortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(entity.getShortDisplayName());
+        return shortDisplayName != null ? shortDisplayName : resolveDisplayName(entity);
     }
 
     private static java.time.LocalDateTime parseLocalDateTime(String value) {

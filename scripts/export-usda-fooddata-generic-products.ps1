@@ -25,6 +25,9 @@ param(
     [ValidateRange(1, 25)]
     [int] $PageSize = 5,
 
+    [ValidateRange(1, 10)]
+    [int] $MaxRowsPerQuery = 2,
+
     [ValidateRange(0, 10000)]
     [int] $RequestDelayMs = 250,
 
@@ -154,13 +157,18 @@ function Test-DescriptionMatchesQuery {
         "banana raw" = @("pepper", "peppers", "hungarian wax")
         "apple raw" = @("juice", "sauce", "pie filling", "babyfood")
         "egg whole raw" = @("substitute", "powder", "dried", "yolk only", "white only")
-        "chicken breast raw" = @("lunchmeat", "deli", "breaded", "nugget", "patty", "sausage")
-        "chicken breast cooked" = @("lunchmeat", "deli", "breaded", "nugget", "patty", "sausage")
+        "chicken breast raw" = @("lunchmeat", "deli", "breaded", "nugget", "patty", "sausage", "soup", "broth", "bouillon", "skin", "wing", "thigh", "drumstick")
+        "chicken breast cooked" = @("lunchmeat", "deli", "breaded", "nugget", "patty", "sausage", "soup", "broth", "bouillon", "skin", "wing", "thigh", "drumstick")
+        "rice white raw" = @("flour", "pasta", "noodle", "noodles", "mix", "pilaf", "pudding", "cake", "snack", "cereal", "babyfood", "restaurant")
+        "rice white cooked" = @("flour", "pasta", "noodle", "noodles", "mix", "pilaf", "pudding", "cake", "snack", "cereal", "babyfood", "restaurant")
+        "rice brown raw" = @("flour", "pasta", "noodle", "noodles", "mix", "pilaf", "pudding", "cake", "snack", "cereal", "babyfood", "restaurant")
+        "rice brown cooked" = @("flour", "pasta", "noodle", "noodles", "mix", "pilaf", "pudding", "cake", "snack", "cereal", "babyfood", "restaurant")
     }
 
     if ($queryExclusionTerms.ContainsKey($normalizedQuery)) {
         foreach ($term in $queryExclusionTerms[$normalizedQuery]) {
-            if ($normalizedDescription.Contains($term)) {
+            $pattern = "(^| )$([regex]::Escape($term))( |$)"
+            if ($normalizedDescription -match $pattern) {
                 return $false
             }
         }
@@ -198,6 +206,61 @@ function Test-DescriptionMatchesQuery {
     }
 
     return $true
+}
+
+function Get-DescriptionRelevanceScore {
+    param(
+        [string] $Query,
+        [string] $Description,
+        [string] $DataType
+    )
+
+    $normalizedQuery = Get-NormalizedText -Text $Query
+    $normalizedDescription = Get-NormalizedText -Text $Description
+    if ($null -eq $normalizedQuery -or $null -eq $normalizedDescription) {
+        return -1000
+    }
+
+    $score = 0
+    if ($normalizedDescription -eq $normalizedQuery) { $score += 100 }
+    if ($normalizedDescription.StartsWith($normalizedQuery + " ")) { $score += 60 }
+
+    $preferredTerms = @{
+        "chicken breast raw" = @("chicken", "breast", "raw")
+        "chicken breast cooked" = @("chicken", "breast", "cooked")
+        "rice white raw" = @("rice", "white")
+        "rice white cooked" = @("rice", "white", "cooked")
+        "rice brown raw" = @("rice", "brown")
+        "rice brown cooked" = @("rice", "brown", "cooked")
+    }
+
+    if ($preferredTerms.ContainsKey($normalizedQuery)) {
+        foreach ($term in $preferredTerms[$normalizedQuery]) {
+            if ($normalizedDescription -match "(^| )$([regex]::Escape($term))( |$)") {
+                $score += 20
+            }
+        }
+    }
+
+    $penaltyTerms = @(
+        "babyfood", "baby food", "restaurant", "flour", "pasta", "noodle", "noodles",
+        "mix", "soup", "broth", "bouillon", "cake", "chips", "snack", "bar",
+        "cereal", "pudding", "skin", "wing", "thigh", "drumstick", "sausage"
+    )
+    foreach ($term in $penaltyTerms) {
+        if ($normalizedDescription.Contains($term)) {
+            $score -= 35
+        }
+    }
+
+    if ($DataType -eq "Foundation") {
+        $score += 10
+    } elseif ($DataType -eq "SR Legacy") {
+        $score += 5
+    }
+
+    $score -= [Math]::Min(30, [Math]::Floor($normalizedDescription.Length / 20))
+    return $score
 }
 
 function Test-CoreNutritionComplete {
@@ -253,6 +316,8 @@ foreach ($query in $Queries) {
         continue
     }
 
+
+    $queryRows = [System.Collections.Generic.List[object]]::new()
     foreach ($food in $result.foods) {
         $rowsSeen++
         $fdcId = [string] $food.fdcId
@@ -279,7 +344,7 @@ foreach ($query in $Queries) {
             $rowsFilteredByNutrition++
             continue
         }
-        $rows.Add([pscustomobject]@{
+        $row = [pscustomobject]@{
             catalog_type = "GENERIC_INGREDIENT"
             data_source = "USDA_FOODDATA"
             fdc_id = $fdcId
@@ -309,8 +374,17 @@ foreach ($query in $Queries) {
             preparation_state = Get-PreparationState -Text ($query + " " + $description)
             alias_en = $query
             source_note = "USDA FoodData Central; dataType=$($food.dataType); query=$query"
-        }) | Out-Null
+            relevance_score = Get-DescriptionRelevanceScore -Query $query -Description $description -DataType ([string] $food.dataType)
+        }
+        $queryRows.Add($row) | Out-Null
     }
+
+    $queryRows |
+        Sort-Object -Property @{ Expression = "relevance_score"; Descending = $true }, @{ Expression = "name"; Ascending = $true } |
+        Select-Object -First $MaxRowsPerQuery |
+        ForEach-Object {
+            $rows.Add($_) | Out-Null
+        }
 
     if ($RequestDelayMs -gt 0) {
         Start-Sleep -Milliseconds $RequestDelayMs
@@ -321,7 +395,7 @@ if ($rows.Count -eq 0) {
     throw "No USDA FoodData rows were exported. rowsSeen=$rowsSeen rowsFilteredByDescription=$rowsFilteredByDescription. Check API key, queries, and data types."
 }
 
-$csvLines = $rows | ConvertTo-Csv -NoTypeInformation
+$csvLines = $rows | Select-Object * -ExcludeProperty relevance_score | ConvertTo-Csv -NoTypeInformation
 $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 [System.IO.File]::WriteAllLines($resolvedOutput, $csvLines, $utf8WithoutBom)
 
@@ -335,4 +409,5 @@ $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
     marketRegion = $MarketRegion
     dataTypes = $DataTypes
     pageSize = $PageSize
+    maxRowsPerQuery = $MaxRowsPerQuery
 } | ConvertTo-Json -Depth 5

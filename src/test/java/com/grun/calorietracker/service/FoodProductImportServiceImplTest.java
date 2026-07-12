@@ -622,6 +622,23 @@ class FoodProductImportServiceImplTest {
         );
     }
 
+    @Test
+    void importCsv_reportsGenericIngredientProductionReadinessWarnings() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,name,calories,protein,fat,carbs,market_region,serving_size_grams,serving_unit
+                GENERIC_INGREDIENT,Chicken Breast Raw,120,23,2,0,GLOBAL,100,g
+                GENERIC_INGREDIENT,"Rice, Cooked",130,2.7,0.3,28,GLOBAL,100,g
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getSavedRows());
+        assertEquals(2, result.getQualityWarningCounts().get("GENERIC_MISSING_PREPARATION_STATE"));
+        assertEquals(1, result.getQualityWarningCounts().get("SUSPICIOUS_DISPLAY_NAME"));
+    }
     private MockMultipartFile csv(String content) {
         return new MockMultipartFile(
                 "file",

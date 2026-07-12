@@ -281,6 +281,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setNormalizedBarcode(normalizedBarcode);
         product.setSourceKey(sourceKey);
         product.setName(name);
+        ProductDisplayNames displayNames = resolveProductDisplayNames(name, catalogType, preparationState, row, sourceFormat);
+        product.setDisplayName(displayNames.displayName());
+        product.setShortDisplayName(displayNames.shortDisplayName());
         String brand = firstText(row, "brand", "brands", "manufacturer", "producer");
         if (brand != null) {
             product.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(brand));
@@ -330,6 +333,148 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         updateQualityMetadata(product, importMode);
         return new RowResult(product, inserted, null);
     }
+
+    private ProductDisplayNames resolveProductDisplayNames(
+            String sourceName,
+            FoodCatalogType catalogType,
+            FoodPreparationState preparationState,
+            CsvRow row,
+            FoodProductImportFormat sourceFormat
+    ) {
+        String explicitDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, "display_name", "displayname"));
+        String explicitShortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, "short_display_name", "shortdisplayname"));
+        if (explicitDisplayName != null || explicitShortDisplayName != null) {
+            String displayName = explicitDisplayName != null ? explicitDisplayName : sourceName;
+            String shortDisplayName = explicitShortDisplayName != null ? explicitShortDisplayName : displayName;
+            return new ProductDisplayNames(displayName, shortDisplayName);
+        }
+
+        boolean usdaGeneric = sourceFormat == FoodProductImportFormat.USDA_FOODDATA
+                || firstText(row, "fdc_id", "fdcid", "fdc") != null;
+        if (usdaGeneric && catalogType == FoodCatalogType.GENERIC_INGREDIENT) {
+            return buildUsdaGenericDisplayNames(sourceName, preparationState);
+        }
+
+        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(sourceName);
+        return new ProductDisplayNames(displayName, displayName);
+    }
+
+    private ProductDisplayNames buildUsdaGenericDisplayNames(String sourceName, FoodPreparationState preparationState) {
+        List<String> parts = List.of(sourceName.split(","));
+        String base = parts.isEmpty() ? sourceName : parts.get(0).trim();
+        StringBuilder descriptors = new StringBuilder();
+        for (int index = 1; index < parts.size(); index++) {
+            String descriptor = parts.get(index).trim().toLowerCase(Locale.ROOT);
+            if (descriptor.isBlank() || isUsdaDescriptorNoise(descriptor) || isPreparationDescriptor(descriptor)) {
+                continue;
+            }
+            if (!descriptors.isEmpty()) {
+                descriptors.append(' ');
+            }
+            descriptors.append(descriptor);
+        }
+
+        base = singularizeSimpleFoodName(base);
+        String displayName = buildUsdaDisplayPhrase(base, descriptors.toString());
+        displayName = FoodProductNormalizationRules.normalizeProductDisplayName(displayName.toLowerCase(Locale.ROOT));
+        String shortDisplayName = displayName;
+        String preparationPrefix = preparationDisplayPrefix(preparationState);
+        if (preparationPrefix != null && displayName != null && shouldPrefixPreparation(displayName) && !displayName.toLowerCase(Locale.ROOT).startsWith(preparationPrefix.toLowerCase(Locale.ROOT) + " ")) {
+            shortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(preparationPrefix + " " + displayName);
+        }
+        return new ProductDisplayNames(displayName, shortDisplayName);
+    }
+
+    private String buildUsdaDisplayPhrase(String base, String descriptors) {
+        String normalizedBase = base == null ? "" : base.trim();
+        String normalizedDescriptors = descriptors == null ? "" : descriptors.trim();
+        if (normalizedDescriptors.isBlank()) {
+            return normalizedBase;
+        }
+        if (normalizedBase.equalsIgnoreCase("fish")) {
+            return normalizedDescriptors;
+        }
+        if (normalizedBase.equalsIgnoreCase("flour")) {
+            return normalizedDescriptors + " flour";
+        }
+        return normalizedDescriptors + " " + normalizedBase;
+    }
+    private boolean isUsdaDescriptorNoise(String descriptor) {
+        return descriptor.contains("broiler or fryers")
+                || descriptor.contains("separable lean")
+                || descriptor.contains("trimmed to")
+                || descriptor.contains("choice")
+                || descriptor.contains("select")
+                || descriptor.contains("includes")
+                || descriptor.contains("drained solids")
+                || descriptor.contains("meat only")
+                || descriptor.contains("boneless")
+                || descriptor.contains("skinless")
+                || descriptor.contains("unprepared")
+                || descriptor.contains("slightly ripe")
+                || descriptor.contains("overripe")
+                || descriptor.contains("dry heat")
+                || descriptor.contains("moist heat")
+                || descriptor.contains("cooked as purchased")
+                || descriptor.contains("unheated");
+    }
+
+    private boolean isPreparationDescriptor(String descriptor) {
+        return descriptor.equals("raw")
+                || descriptor.equals("cooked")
+                || descriptor.equals("boiled")
+                || descriptor.equals("grilled")
+                || descriptor.equals("baked")
+                || descriptor.equals("fried")
+                || descriptor.equals("roasted")
+                || descriptor.equals("steamed")
+                || descriptor.equals("prepared");
+    }
+
+    private String singularizeSimpleFoodName(String value) {
+        String normalized = value == null ? null : value.trim();
+        if (normalized == null || normalized.length() < 4) {
+            return normalized;
+        }
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.endsWith("ies") || lower.endsWith("ss") || lower.endsWith("us")) {
+            return normalized;
+        }
+        if (lower.endsWith("s")) {
+            return normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private boolean shouldPrefixPreparation(String displayName) {
+        String normalized = displayName == null ? "" : displayName.toLowerCase(Locale.ROOT);
+        return !normalized.contains(" flour")
+                && !normalized.endsWith("flour")
+                && !normalized.contains(" oil")
+                && !normalized.endsWith("oil")
+                && !normalized.contains(" sauce")
+                && !normalized.endsWith("sauce");
+    }
+
+
+    private String preparationDisplayPrefix(FoodPreparationState preparationState) {
+        if (preparationState == null) {
+            return null;
+        }
+        return switch (preparationState) {
+            case RAW -> "Raw";
+            case COOKED -> "Cooked";
+            case BOILED -> "Boiled";
+            case GRILLED -> "Grilled";
+            case FRIED -> "Fried";
+            case BAKED -> "Baked";
+            case ROASTED -> "Roasted";
+            case STEAMED -> "Steamed";
+            case PREPARED -> "Prepared";
+            case UNSPECIFIED -> null;
+        };
+    }
+
 
     private FoodProductImportMode normalizeImportMode(FoodProductImportMode importMode) {
         return importMode == null ? FoodProductImportMode.CURATED_ADMIN : importMode;
@@ -524,6 +669,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (product.getServingSizeGrams() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_SERVING_SIZE", "Product has no serving size value.");
         }
+        if (product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT
+                && (product.getPreparationState() == null || product.getPreparationState() == FoodPreparationState.UNSPECIFIED)) {
+            addWarning(warningCounts, warnings, row, identifier, "GENERIC_MISSING_PREPARATION_STATE", "Generic ingredient has no preparation state. Raw/cooked/prepared differences must be explicit.");
+        }
+        if (hasSuspiciousUserFacingName(product)) {
+            addWarning(warningCounts, warnings, row, identifier, "SUSPICIOUS_DISPLAY_NAME", "Product display name looks too long, source-like, or unsuitable for mobile search results.");
+        }
         String rawBarcode = firstText(row, "barcode", "code", "gtin", "ean", "upc");
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(rawBarcode);
         if (normalizedBarcode != null && !normalizedBarcode.matches("\\d{6,18}")) {
@@ -531,6 +683,26 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
     }
 
+    private boolean hasSuspiciousUserFacingName(FoodItemEntity product) {
+        String displayName = FoodProductNormalizationRules.normalizeText(product.getDisplayName());
+        String shortDisplayName = FoodProductNormalizationRules.normalizeText(product.getShortDisplayName());
+        String userFacingName = shortDisplayName != null ? shortDisplayName : displayName;
+        if (userFacingName == null) {
+            return true;
+        }
+        String normalized = userFacingName.toLowerCase(Locale.ROOT);
+        if (userFacingName.length() > 80) {
+            return true;
+        }
+        if (normalized.equals("unknown") || normalized.equals("product") || normalized.equals("food")) {
+            return true;
+        }
+        if (product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT
+                && (userFacingName.contains(",") || userFacingName.contains(";"))) {
+            return true;
+        }
+        return false;
+    }
     private void syncSearchAliases(
             List<FoodItemEntity> savedProducts,
             List<ProductImportContext> productImportContexts
@@ -1012,6 +1184,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
     }
 
+    private record ProductDisplayNames(String displayName, String shortDisplayName) {}
+
     private record RowResult(FoodItemEntity product, boolean inserted, FoodProductImportErrorDto error) {
         private static RowResult error(FoodProductImportErrorDto error) {
             return new RowResult(null, false, error);
@@ -1024,3 +1198,5 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private record ProductImportContext(FoodItemEntity product, RegionResolution regionResolution, CsvRow row) {
     }
 }
+
+

@@ -8,6 +8,7 @@ import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ProductQualityLabel;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -36,6 +37,21 @@ public class FoodProductDto {
 
     @Schema(description = "Product display name.", example = "Nutella")
     private String productName;
+
+    @Schema(description = "Canonical/source-backed product name used for traceability and non-localized identity.", example = "Raw Banana")
+    private String canonicalName;
+
+    @Schema(description = "Language used for localized productName/displayName when applicable.", example = "TR")
+    private PreferredLanguage language;
+
+    @Schema(description = "Raw source product name kept for traceability.", example = "Rice, white, cooked")
+    private String sourceName;
+
+    @Schema(description = "Clean product name for detail screens.", example = "White Rice")
+    private String displayName;
+
+    @Schema(description = "Compact product name for search/list screens.", example = "Cooked White Rice")
+    private String shortDisplayName;
 
     @Schema(description = "Product brand.", example = "Ferrero")
     private String brand;
@@ -183,6 +199,9 @@ public class FoodProductDto {
 
     @Schema(description = "Default product-specific serving option id when available.", example = "5")
     private Long defaultServingOptionId;
+
+    @Schema(description = "Product-specific serving options that mobile can show on the add-food screen.")
+    private List<FoodServingOptionDto> servingOptions;
 
     @Schema(description = "Portion units mobile should show for this product. This prevents volume choices for solid foods such as chicken.", example = "[\"GRAM\", \"SERVING\"]")
     private List<FoodPortionUnit> allowedPortionUnits;

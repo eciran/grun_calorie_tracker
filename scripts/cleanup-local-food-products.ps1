@@ -55,7 +55,7 @@ or exists (
         'MISSING_CALORIES',
         'MISSING_MACROS',
         'SUSPICIOUS_CALORIES',
-        'SUSPICIOUS_MACROS',
+        'SUSPICIOUS_MACROS'
       )
 )
 "@

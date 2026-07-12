@@ -21,6 +21,7 @@ public final class FoodProductCacheKeys {
                 part(safeCriteria.getMarketRegion()),
                 part(safeCriteria.getCatalogType()),
                 part(safeCriteria.getPreparationState()),
+                part(safeCriteria.getPreferredLanguage()),
                 part(FoodProductNormalizationRules.normalizeText(safeCriteria.getBrand())),
                 part(safeCriteria.getMinCalories()),
                 part(safeCriteria.getMaxCalories()),

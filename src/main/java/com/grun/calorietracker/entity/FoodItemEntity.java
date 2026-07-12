@@ -29,6 +29,8 @@ public class FoodItemEntity {
     private Long id;
 
     private String name;
+    private String displayName;
+    private String shortDisplayName;
 
     private String barcode;
     private String normalizedBarcode;
