@@ -266,6 +266,64 @@ class FoodProductImportServiceImplTest {
         assertEquals("GLOBAL:GENERIC_INGREDIENT:COOKED:rice", savedProducts.get(1).getSourceKey());
         assertEquals(FoodPreparationState.COOKED, savedProducts.get(1).getPreparationState());
     }
+
+    @Test
+    void importCsv_curatedGenericStaplesSeedIsProductionReady() throws Exception {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemSearchAliasRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        byte[] bytes = Files.readAllBytes(Path.of("src", "test", "resources", "food-generic-staples-curated-seed.csv"));
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "food-generic-staples-curated-seed.csv",
+                "text/csv",
+                bytes
+        );
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(14, result.getTotalRows());
+        assertEquals(14, result.getSavedRows());
+        assertEquals(0, result.getSkippedRows());
+        assertEquals(0, result.getQualityWarningCounts().getOrDefault("GENERIC_MISSING_PREPARATION_STATE", 0));
+        assertEquals(0, result.getQualityWarningCounts().getOrDefault("SUSPICIOUS_DISPLAY_NAME", 0));
+        assertEquals(14, result.getCatalogTypeCounts().get("GENERIC_INGREDIENT"));
+        assertEquals(14, result.getDataSourceCounts().get("LOCAL_CURATED"));
+
+        ArgumentCaptor<List<FoodItemEntity>> productCaptor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(productCaptor.capture());
+        List<FoodItemEntity> savedProducts = productCaptor.getValue();
+
+        FoodItemEntity cookedRice = savedProducts.stream()
+                .filter(product -> "GLOBAL:GENERIC_INGREDIENT:COOKED:white_rice".equals(product.getSourceKey()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(FoodPreparationState.COOKED, cookedRice.getPreparationState());
+        assertEquals("Cooked White Rice", cookedRice.getDisplayName());
+        assertEquals("White Rice", cookedRice.getShortDisplayName());
+        assertEquals(130.0, cookedRice.getCalories());
+
+        FoodItemEntity cookedChicken = savedProducts.stream()
+                .filter(product -> "GLOBAL:GENERIC_INGREDIENT:COOKED:chicken_breast".equals(product.getSourceKey()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(FoodPreparationState.COOKED, cookedChicken.getPreparationState());
+        assertEquals("Cooked Chicken Breast", cookedChicken.getDisplayName());
+        assertEquals("Chicken Breast", cookedChicken.getShortDisplayName());
+
+        ArgumentCaptor<List<FoodItemSearchAliasEntity>> aliasCaptor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemSearchAliasRepository).saveAll(aliasCaptor.capture());
+        List<FoodItemSearchAliasEntity> aliases = aliasCaptor.getValue();
+
+        boolean hasPirincAlias = aliases.stream().anyMatch(alias -> alias.getLanguage() == PreferredLanguage.TR
+                && "pirinc".equals(alias.getNormalizedAlias()));
+        boolean hasChickenAlias = aliases.stream().anyMatch(alias -> alias.getLanguage() == PreferredLanguage.EN
+                && "chicken breast".equals(alias.getNormalizedAlias()));
+        assertEquals(true, hasPirincAlias);
+        assertEquals(true, hasChickenAlias);
+    }
+
     @Test
     void importCsv_whenRawExternal_keepsProductsInReviewState() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
