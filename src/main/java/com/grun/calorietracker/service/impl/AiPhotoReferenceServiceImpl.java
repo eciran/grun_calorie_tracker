@@ -108,8 +108,43 @@ public class AiPhotoReferenceServiceImpl implements AiPhotoReferenceService {
         if (contentType == null || !allowedTypes.contains(contentType.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("AI meal photo content type is not allowed.");
         }
+        validateContentSignature(file, contentType.toLowerCase(Locale.ROOT));
     }
 
+    private void validateContentSignature(MultipartFile file, String contentType) {
+        byte[] header;
+        try (var input = file.getInputStream()) {
+            header = input.readNBytes(12);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("AI meal photo could not be inspected.");
+        }
+        boolean valid = switch (contentType) {
+            case "image/jpeg" -> matches(header, 0xFF, 0xD8, 0xFF);
+            case "image/png" -> matches(header, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+            case "image/webp" -> matches(header, 0x52, 0x49, 0x46, 0x46)
+                    && header.length >= 12
+                    && header[8] == 0x57
+                    && header[9] == 0x45
+                    && header[10] == 0x42
+                    && header[11] == 0x50;
+            default -> false;
+        };
+        if (!valid) {
+            throw new IllegalArgumentException("AI meal photo content does not match its declared type.");
+        }
+    }
+
+    private boolean matches(byte[] value, int... expected) {
+        if (value == null || value.length < expected.length) {
+            return false;
+        }
+        for (int i = 0; i < expected.length; i++) {
+            if ((value[i] & 0xFF) != expected[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
     private Path storageRoot() {
         return Path.of(properties.getPhoto().getStorageDirectory()).toAbsolutePath().normalize();
     }

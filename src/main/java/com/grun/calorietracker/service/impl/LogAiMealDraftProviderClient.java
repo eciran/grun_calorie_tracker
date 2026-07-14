@@ -120,6 +120,7 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
             issues.add(issue(ProductQualitySuggestionType.MACRO_CALORIE_MISMATCH, "calories", String.valueOf(request.getCalories()), String.valueOf(Math.round(macroCalories)), "Calories differ materially from protein/fat/carbs energy estimate; review label/source data.", 86));
         }
         AiProductQualityValidationResponseDto response = new AiProductQualityValidationResponseDto();
+        response.setSchemaVersion("product_quality_response_v2");
         response.setSummary(issues.isEmpty() ? "No obvious LOG-provider quality issue found." : "LOG provider found product quality issues for admin review.");
         response.setConfidence(issues.isEmpty() ? 0.35 : 0.55);
         response.setQualityScore(issues.isEmpty() ? 75 : Math.max(30, 75 - issues.size() * 10));

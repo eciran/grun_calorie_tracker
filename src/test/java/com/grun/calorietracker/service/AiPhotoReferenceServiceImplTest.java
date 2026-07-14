@@ -25,7 +25,7 @@ class AiPhotoReferenceServiceImplTest {
                 "file",
                 "meal.jpg",
                 "image/jpeg",
-                new byte[]{1, 2, 3}
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
         );
 
         var result = service.createReference("user@example.com", file);
@@ -42,18 +42,30 @@ class AiPhotoReferenceServiceImplTest {
                 "file",
                 "meal.gif",
                 "image/gif",
-                new byte[]{1, 2, 3}
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
         );
 
         assertThrows(IllegalArgumentException.class, () -> service.createReference("user@example.com", file));
     }
 
     @Test
+    void createReference_whenDeclaredTypeDoesNotMatchFileSignature_rejects() {
+        AiPhotoReferenceServiceImpl service = new AiPhotoReferenceServiceImpl(properties());
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "forged.png",
+                "image/png",
+                new byte[]{0x01, 0x02, 0x03, 0x04}
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> service.createReference("user@example.com", file));
+    }
+    @Test
     void loadReference_whenExpired_rejects() throws InterruptedException {
         AiProperties properties = properties();
         properties.getPhoto().setReferenceTtl(Duration.ofMillis(1));
         AiPhotoReferenceServiceImpl service = new AiPhotoReferenceServiceImpl(properties);
-        MockMultipartFile file = new MockMultipartFile("file", "meal.jpg", "image/jpeg", new byte[]{1});
+        MockMultipartFile file = new MockMultipartFile("file", "meal.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00});
 
         var result = service.createReference("user@example.com", file);
 
@@ -67,7 +79,7 @@ class AiPhotoReferenceServiceImplTest {
         AiProperties properties = properties();
         properties.getPhoto().setReferenceTtl(Duration.ofMillis(1));
         AiPhotoReferenceServiceImpl service = new AiPhotoReferenceServiceImpl(properties);
-        MockMultipartFile file = new MockMultipartFile("file", "meal.jpg", "image/jpeg", new byte[]{1});
+        MockMultipartFile file = new MockMultipartFile("file", "meal.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00});
 
         service.createReference("user@example.com", file);
         Thread.sleep(10);

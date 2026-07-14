@@ -35,6 +35,9 @@ public class FoodProductDto {
     @Schema(description = "Stable internal or external source key used for non-barcode catalog records.", example = "TR:LOCAL_DISH:mercimek_corbasi")
     private String sourceKey;
 
+    @Schema(description = "Normalized food identity used to detect equivalent generic foods across data sources.", example = "GLOBAL:GENERIC_INGREDIENT:RAW:banana")
+    private String canonicalFoodKey;
+
     @Schema(description = "Product display name.", example = "Nutella")
     private String productName;
 

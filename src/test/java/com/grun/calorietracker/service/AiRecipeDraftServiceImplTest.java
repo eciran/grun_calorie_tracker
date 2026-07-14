@@ -150,6 +150,13 @@ class AiRecipeDraftServiceImplTest {
         verify(historyRepository).save(captor.capture());
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
+        com.fasterxml.jackson.databind.JsonNode safePayload = org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> new ObjectMapper().readTree(captor.getValue().getOutputPayload())
+        );
+        assertEquals("ai_error_v1", safePayload.get("schemaVersion").asText());
+        assertEquals("AI_ANALYSIS_FAILED", safePayload.get("errorCode").asText());
+        assertEquals("AI analysis could not be completed. Please try again with a different input.",
+                safePayload.get("userMessage").asText());
     }
 
     @Test

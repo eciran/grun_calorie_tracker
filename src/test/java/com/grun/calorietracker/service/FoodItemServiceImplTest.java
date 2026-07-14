@@ -54,6 +54,9 @@ class FoodItemServiceImplTest {
     private OpenFoodFactsService openFoodFactsService;
 
     @Mock
+    private FoodProductEvidenceService foodProductEvidenceService;
+
+    @Mock
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     @InjectMocks

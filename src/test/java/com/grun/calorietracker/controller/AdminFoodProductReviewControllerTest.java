@@ -1,6 +1,11 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupDto;
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
@@ -55,6 +60,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -579,6 +585,102 @@ class AdminFoodProductReviewControllerTest {
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getCanonicalDuplicateProductGroups_whenAdmin_returnsCandidates() throws Exception {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodProductDto firstProduct = new FoodProductDto();
+        firstProduct.setId(1L);
+        firstProduct.setProductName("Raw Banana");
+        firstProduct.setCanonicalFoodKey(canonicalKey);
+
+        FoodCanonicalDuplicateGroupDto group = new FoodCanonicalDuplicateGroupDto(
+                canonicalKey,
+                2,
+                List.of(firstProduct, new FoodProductDto()),
+                true,
+                1L,
+                "admin@test.com",
+                "2026-07-13T22:00:00"
+        );
+        FoodCanonicalDuplicateGroupPageDto page = new FoodCanonicalDuplicateGroupPageDto(
+                List.of(group),
+                0,
+                25,
+                1L,
+                1,
+                true,
+                true
+        );
+        when(foodProductReviewService.getCanonicalDuplicateProductGroups(0, 25, null)).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/admin/products/duplicates/canonical"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].canonicalFoodKey").value(canonicalKey))
+                .andExpect(jsonPath("$.content[0].productCount").value(2))
+                .andExpect(jsonPath("$.content[0].products[0].productName").value("Raw Banana"))
+                .andExpect(jsonPath("$.content[0].resolved").value(true))
+                .andExpect(jsonPath("$.content[0].resolutionState").value("RESOLVED"))
+                .andExpect(jsonPath("$.content[0].recommendedPrimaryProductId").value(1L))
+                .andExpect(jsonPath("$.content[0].primaryProductId").value(1L))
+                .andExpect(jsonPath("$.content[0].resolvedBy").value("admin@test.com"));
+    }
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void resolveCanonicalPrimary_whenAdmin_returnsResolution() throws Exception {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodCanonicalResolutionRequestDto request = new FoodCanonicalResolutionRequestDto();
+        request.setCanonicalFoodKey(canonicalKey);
+        request.setPrimaryProductId(2L);
+        when(foodProductReviewService.resolveCanonicalPrimary(
+                any(FoodCanonicalResolutionRequestDto.class),
+                eq("admin@test.com")
+        )).thenReturn(new FoodCanonicalResolutionDto(
+                canonicalKey, 2L, "admin@test.com", "2026-07-13T21:00:00"
+        ));
+
+        mockMvc.perform(post("/api/v1/admin/products/duplicates/canonical/resolve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canonicalFoodKey").value(canonicalKey))
+                .andExpect(jsonPath("$.primaryProductId").value(2L))
+                .andExpect(jsonPath("$.resolvedBy").value("admin@test.com"));
+
+        verify(foodProductReviewService).resolveCanonicalPrimary(
+                any(FoodCanonicalResolutionRequestDto.class),
+                eq("admin@test.com")
+        );
+    }
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getCanonicalDuplicateProductGroups_withResolvedFilter_passesFilterToService() throws Exception {
+        FoodCanonicalDuplicateGroupPageDto emptyPage = new FoodCanonicalDuplicateGroupPageDto(
+                List.of(), 0, 25, 0L, 0, true, true
+        );
+        when(foodProductReviewService.getCanonicalDuplicateProductGroups(0, 25, false))
+                .thenReturn(emptyPage);
+
+        mockMvc.perform(get("/api/v1/admin/products/duplicates/canonical")
+                        .queryParam("resolved", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(foodProductReviewService).getCanonicalDuplicateProductGroups(0, 25, false);
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void clearCanonicalResolution_whenAdmin_returnsNoContent() throws Exception {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+
+        mockMvc.perform(delete("/api/v1/admin/products/duplicates/canonical/resolution")
+                        .queryParam("canonicalFoodKey", canonicalKey))
+                .andExpect(status().isNoContent());
+
+        verify(foodProductReviewService).clearCanonicalResolution(canonicalKey, "admin@test.com");
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void mergeDuplicateProducts_whenAdmin_returnsMergeResult() throws Exception {
         FoodProductMergeRequestDto request = new FoodProductMergeRequestDto(1L, List.of(2L));
 
@@ -675,6 +777,33 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.content[0].fieldName").value("verificationStatus"))
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getProductQualityWorkbench_whenAdmin_returnsAggregateContext() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(1L);
+        product.setProductName("Milk");
+        AdminProductQualityWorkbenchDto response = new AdminProductQualityWorkbenchDto();
+        response.setProduct(product);
+        response.setLocalizations(List.of());
+        response.setAliases(List.of());
+        response.setServingOptions(List.of());
+        response.setQualityIssues(List.of());
+        response.setSuggestions(List.of());
+        response.setAudit(List.of());
+
+        when(productQualitySuggestionService.getProductWorkbench(1L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/products/1/quality-workbench"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.product.id").value(1L))
+                .andExpect(jsonPath("$.product.productName").value("Milk"))
+                .andExpect(jsonPath("$.suggestions").isArray())
+                .andExpect(jsonPath("$.audit").isArray());
+
+        verify(productQualitySuggestionService).getProductWorkbench(1L);
     }
 
     @Test

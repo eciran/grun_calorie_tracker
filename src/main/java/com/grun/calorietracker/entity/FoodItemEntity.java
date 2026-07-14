@@ -35,6 +35,7 @@ public class FoodItemEntity {
     private String barcode;
     private String normalizedBarcode;
     private String sourceKey;
+    private String canonicalFoodKey;
     private String brand;
     private String imageUrl;
     private String externalImageUrl;

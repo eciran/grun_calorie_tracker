@@ -37,6 +37,9 @@ public class AiRequestHistoryEntity {
     @Column(nullable = false)
     private String model;
 
+    @Column(nullable = false)
+    private String promptVersion;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AiRequestStatus status;

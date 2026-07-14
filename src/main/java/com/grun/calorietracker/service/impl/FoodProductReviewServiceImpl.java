@@ -1,5 +1,10 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.dto.FoodCanonicalCandidateAssessmentDto;
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupDto;
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
@@ -14,10 +19,12 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
+import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.enums.FoodCanonicalResolutionState;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
@@ -29,6 +36,7 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
+import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
@@ -59,6 +67,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -77,6 +86,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
     private final FoodProductQualityIssueRepository foodProductQualityIssueRepository;
     private final FoodItemSearchAliasRepository foodItemSearchAliasRepository;
+    private final FoodCanonicalResolutionRepository foodCanonicalResolutionRepository;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     public FoodProductReviewServiceImpl(
@@ -86,6 +96,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductReviewAuditRepository foodProductReviewAuditRepository,
             FoodProductQualityIssueRepository foodProductQualityIssueRepository,
             FoodItemSearchAliasRepository foodItemSearchAliasRepository,
+            FoodCanonicalResolutionRepository foodCanonicalResolutionRepository,
             FoodProductQualityIssueTracker foodProductQualityIssueTracker
     ) {
         this.foodItemRepository = foodItemRepository;
@@ -94,6 +105,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
         this.foodProductQualityIssueRepository = foodProductQualityIssueRepository;
         this.foodItemSearchAliasRepository = foodItemSearchAliasRepository;
+        this.foodCanonicalResolutionRepository = foodCanonicalResolutionRepository;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
     }
     @Override
@@ -529,6 +541,132 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public FoodCanonicalDuplicateGroupPageDto getCanonicalDuplicateProductGroups(int page, int size, Boolean resolved) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size));
+        Page<String> duplicateKeys;
+        if (resolved == null) {
+            duplicateKeys = foodItemRepository.findDuplicateCanonicalFoodKeys(pageable);
+        } else if (resolved) {
+            duplicateKeys = foodItemRepository.findResolvedDuplicateCanonicalFoodKeys(pageable);
+        } else {
+            duplicateKeys = foodItemRepository.findUnresolvedDuplicateCanonicalFoodKeys(pageable);
+        }
+        Map<String, FoodCanonicalResolutionEntity> resolutionsByKey = duplicateKeys.isEmpty()
+                ? Map.of()
+                : foodCanonicalResolutionRepository.findByCanonicalFoodKeyIn(duplicateKeys.getContent())
+                        .stream()
+                        .collect(Collectors.toMap(
+                                FoodCanonicalResolutionEntity::getCanonicalFoodKey,
+                                resolution -> resolution
+                        ));
+        List<FoodCanonicalDuplicateGroupDto> groups = buildCanonicalDuplicateGroups(
+                duplicateKeys.getContent(),
+                resolutionsByKey
+        );
+
+        return new FoodCanonicalDuplicateGroupPageDto(
+                groups,
+                duplicateKeys.getNumber(),
+                duplicateKeys.getSize(),
+                duplicateKeys.getTotalElements(),
+                duplicateKeys.getTotalPages(),
+                duplicateKeys.isFirst(),
+                duplicateKeys.isLast()
+        );
+    }
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    public FoodCanonicalResolutionDto resolveCanonicalPrimary(
+            FoodCanonicalResolutionRequestDto request,
+            String reviewedBy
+    ) {
+        if (request == null) {
+            throw new IllegalArgumentException("Canonical resolution request must not be empty.");
+        }
+        String canonicalFoodKey = FoodProductNormalizationRules.normalizeText(request.getCanonicalFoodKey());
+        if (canonicalFoodKey == null || request.getPrimaryProductId() == null) {
+            throw new IllegalArgumentException("Canonical food key and primary product id are required.");
+        }
+
+        List<FoodItemEntity> candidates = foodItemRepository.findByCanonicalFoodKeyIn(
+                List.of(canonicalFoodKey),
+                Sort.by(Sort.Order.asc("id"))
+        ).stream()
+                .filter(product -> product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT)
+                .filter(product -> canonicalFoodKey.equals(product.getCanonicalFoodKey()))
+                .toList();
+        if (candidates.size() < 2) {
+            throw new IllegalArgumentException("Canonical resolution requires at least two generic candidates.");
+        }
+
+        FoodItemEntity primaryProduct = candidates.stream()
+                .filter(product -> request.getPrimaryProductId().equals(product.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Primary product must belong to the requested canonical generic group."
+                ));
+        validateCanonicalPrimaryEligibility(primaryProduct);
+
+        FoodCanonicalResolutionEntity resolution = foodCanonicalResolutionRepository.findById(canonicalFoodKey)
+                .orElseGet(FoodCanonicalResolutionEntity::new);
+        String oldPrimaryProductId = resolution.getPrimaryFoodItem() == null
+                ? null
+                : String.valueOf(resolution.getPrimaryFoodItem().getId());
+        String actor = trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim();
+        LocalDateTime resolvedAt = LocalDateTime.now();
+        resolution.setCanonicalFoodKey(canonicalFoodKey);
+        resolution.setPrimaryFoodItem(primaryProduct);
+        resolution.setResolvedBy(actor);
+        resolution.setResolvedAt(resolvedAt);
+        foodCanonicalResolutionRepository.save(resolution);
+
+        FoodProductReviewAuditEntity audit = new FoodProductReviewAuditEntity();
+        audit.setFoodItem(primaryProduct);
+        audit.setReviewedBy(actor);
+        audit.setActionType(FoodProductReviewAuditAction.CANONICAL_PRIMARY_CHANGE);
+        audit.setFieldName("canonicalPrimaryProductId");
+        audit.setOldValue(oldPrimaryProductId);
+        audit.setNewValue(String.valueOf(primaryProduct.getId()));
+        audit.setNote("canonicalFoodKey=" + canonicalFoodKey + "; sourceRecordsPreserved=true");
+        foodProductReviewAuditRepository.save(audit);
+
+        return new FoodCanonicalResolutionDto(
+                canonicalFoodKey,
+                primaryProduct.getId(),
+                actor,
+                resolvedAt.toString()
+        );
+    }
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    public void clearCanonicalResolution(String canonicalFoodKey, String reviewedBy) {
+        String normalizedKey = FoodProductNormalizationRules.normalizeText(canonicalFoodKey);
+        if (normalizedKey == null) {
+            throw new IllegalArgumentException("Canonical food key is required.");
+        }
+        FoodCanonicalResolutionEntity resolution = foodCanonicalResolutionRepository.findById(normalizedKey)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Canonical resolution not found for key: " + normalizedKey
+                ));
+        FoodItemEntity previousPrimary = resolution.getPrimaryFoodItem();
+        String actor = trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim();
+
+        FoodProductReviewAuditEntity audit = new FoodProductReviewAuditEntity();
+        audit.setFoodItem(previousPrimary);
+        audit.setReviewedBy(actor);
+        audit.setActionType(FoodProductReviewAuditAction.CANONICAL_PRIMARY_CHANGE);
+        audit.setFieldName("canonicalPrimaryProductId");
+        audit.setOldValue(String.valueOf(previousPrimary.getId()));
+        audit.setNewValue(null);
+        audit.setNote("canonicalFoodKey=" + normalizedKey + "; resolutionCleared=true; sourceRecordsPreserved=true");
+        foodProductReviewAuditRepository.save(audit);
+        foodCanonicalResolutionRepository.delete(resolution);
+    }
+
+    @Override
     @Transactional
     @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy) {
@@ -939,6 +1077,29 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         return audit;
     }
 
+    private void validateCanonicalPrimaryEligibility(FoodItemEntity primaryProduct) {
+        if (primaryProduct.getVerificationStatus() == VerificationStatus.REJECTED) {
+            throw new IllegalArgumentException("Rejected product cannot be selected as canonical primary.");
+        }
+        List<FoodProductQualityIssue> activeBlockingIssues = foodProductQualityIssueRepository
+                .findByFoodItemIdAndResolvedFalse(primaryProduct.getId())
+                .stream()
+                .map(FoodProductQualityIssueEntity::getIssueType)
+                .filter(FoodProductQualityRules.blockingUserSearchQualityIssues()::contains)
+                .distinct()
+                .toList();
+        if (!activeBlockingIssues.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Product with blocking quality issues cannot be selected as canonical primary: "
+                            + activeBlockingIssues
+            );
+        }
+        if (FoodProductQualityRules.hasCriticalIssue(primaryProduct)) {
+            throw new IllegalArgumentException(
+                    "Product nutrition must pass critical quality validation before canonical selection."
+            );
+        }
+    }
     private List<Long> distinctDuplicateProductIds(FoodProductMergeRequestDto request) {
         return request.getDuplicateProductIds().stream()
                 .filter(id -> id != null && !id.equals(request.getTargetProductId()))
@@ -1347,6 +1508,151 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 .toList();
     }
 
+    private List<FoodCanonicalDuplicateGroupDto> buildCanonicalDuplicateGroups(
+            List<String> canonicalKeys,
+            Map<String, FoodCanonicalResolutionEntity> resolutionsByKey
+    ) {
+        if (canonicalKeys.isEmpty()) {
+            return List.of();
+        }
+
+        Sort productSort = Sort.by(
+                Sort.Order.asc("canonicalFoodKey"),
+                Sort.Order.desc("qualityScore"),
+                Sort.Order.desc("usageCount"),
+                Sort.Order.asc("id")
+        );
+        List<FoodItemEntity> products = foodItemRepository.findByCanonicalFoodKeyIn(canonicalKeys, productSort);
+        Map<String, List<FoodItemEntity>> productsByKey = products.stream()
+                .filter(product -> product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT)
+                .collect(Collectors.groupingBy(
+                        FoodItemEntity::getCanonicalFoodKey,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+        List<Long> productIds = products.stream().map(FoodItemEntity::getId).filter(Objects::nonNull).toList();
+        List<FoodProductQualityIssueEntity> activeIssues = productIds.isEmpty()
+                ? List.of()
+                : foodProductQualityIssueRepository.findByFoodItemIdInAndResolvedFalse(productIds);
+        if (activeIssues == null) {
+            activeIssues = List.of();
+        }
+        Map<Long, List<FoodProductQualityIssue>> activeIssuesByProductId = activeIssues.stream()
+                .filter(issue -> issue.getFoodItem() != null && issue.getFoodItem().getId() != null)
+                .collect(Collectors.groupingBy(
+                        issue -> issue.getFoodItem().getId(),
+                        Collectors.mapping(FoodProductQualityIssueEntity::getIssueType, Collectors.toList())
+                ));
+
+        return canonicalKeys.stream()
+                .map(key -> toCanonicalDuplicateGroup(
+                        key,
+                        productsByKey.get(key),
+                        resolutionsByKey.get(key),
+                        activeIssuesByProductId
+                ))
+                .filter(group -> group.getProductCount() > 1)
+                .toList();
+    }
+
+    private FoodCanonicalDuplicateGroupDto toCanonicalDuplicateGroup(
+            String canonicalFoodKey,
+            List<FoodItemEntity> products,
+            FoodCanonicalResolutionEntity resolution,
+            Map<Long, List<FoodProductQualityIssue>> activeIssuesByProductId
+    ) {
+        List<FoodItemEntity> safeProducts = products == null ? List.of() : products;
+        List<FoodProductDto> productDtos = FoodItemMapper.mapEntityListToDtoList(safeProducts);
+        Map<Long, FoodProductDto> productDtosById = productDtos.stream()
+                .filter(product -> product.getId() != null)
+                .collect(Collectors.toMap(FoodProductDto::getId, product -> product));
+        Map<Long, List<String>> eligibilityIssuesById = safeProducts.stream()
+                .filter(product -> product.getId() != null)
+                .collect(Collectors.toMap(
+                        FoodItemEntity::getId,
+                        product -> canonicalEligibilityIssues(
+                                product,
+                                activeIssuesByProductId.getOrDefault(product.getId(), List.of())
+                        )
+                ));
+        Long recommendedPrimaryProductId = safeProducts.stream()
+                .filter(product -> product.getId() != null)
+                .filter(product -> eligibilityIssuesById.getOrDefault(product.getId(), List.of()).isEmpty())
+                .map(FoodItemEntity::getId)
+                .findFirst()
+                .orElse(null);
+        List<FoodCanonicalCandidateAssessmentDto> assessments = safeProducts.stream()
+                .filter(product -> product.getId() != null)
+                .map(product -> {
+                    List<String> issues = eligibilityIssuesById.getOrDefault(product.getId(), List.of());
+                    return new FoodCanonicalCandidateAssessmentDto(
+                            productDtosById.get(product.getId()),
+                            issues.isEmpty(),
+                            issues,
+                            product.getId().equals(recommendedPrimaryProductId)
+                    );
+                })
+                .toList();
+
+        Long primaryProductId = resolution == null || resolution.getPrimaryFoodItem() == null
+                ? null
+                : resolution.getPrimaryFoodItem().getId();
+        FoodCanonicalResolutionState state;
+        String stateReason;
+        if (resolution == null) {
+            state = FoodCanonicalResolutionState.UNRESOLVED;
+            stateReason = "No canonical primary has been selected.";
+        } else if (primaryProductId == null || !productDtosById.containsKey(primaryProductId)) {
+            state = FoodCanonicalResolutionState.STALE;
+            stateReason = "The selected primary no longer belongs to this canonical duplicate group.";
+        } else {
+            List<String> primaryIssues = eligibilityIssuesById.getOrDefault(primaryProductId, List.of());
+            if (primaryIssues.isEmpty()) {
+                state = FoodCanonicalResolutionState.RESOLVED;
+                stateReason = null;
+            } else {
+                state = FoodCanonicalResolutionState.NEEDS_REVIEW;
+                stateReason = String.join("; ", primaryIssues);
+            }
+        }
+
+        return new FoodCanonicalDuplicateGroupDto(
+                canonicalFoodKey,
+                productDtos.size(),
+                productDtos,
+                assessments,
+                state == FoodCanonicalResolutionState.RESOLVED,
+                state,
+                stateReason,
+                primaryProductId,
+                recommendedPrimaryProductId,
+                resolution == null ? null : resolution.getResolvedBy(),
+                resolution == null || resolution.getResolvedAt() == null
+                        ? null
+                        : resolution.getResolvedAt().toString()
+        );
+    }
+
+    private List<String> canonicalEligibilityIssues(
+            FoodItemEntity product,
+            List<FoodProductQualityIssue> activeIssues
+    ) {
+        List<String> issues = new ArrayList<>();
+        if (product.getVerificationStatus() == VerificationStatus.REJECTED) {
+            issues.add("Product is rejected.");
+        }
+        List<FoodProductQualityIssue> blockingIssues = activeIssues.stream()
+                .filter(FoodProductQualityRules.blockingUserSearchQualityIssues()::contains)
+                .distinct()
+                .toList();
+        if (!blockingIssues.isEmpty()) {
+            issues.add("Blocking quality issues: " + blockingIssues);
+        }
+        if (FoodProductQualityRules.hasCriticalIssue(product)) {
+            issues.add("Critical nutrition validation failed.");
+        }
+        return List.copyOf(issues);
+    }
     private FoodProductDuplicateGroupDto toDuplicateGroup(String normalizedBarcode, List<FoodItemEntity> products) {
         List<FoodProductDto> productDtos = FoodItemMapper.mapEntityListToDtoList(
                 products == null ? List.of() : products

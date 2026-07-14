@@ -2,7 +2,11 @@ package com.grun.calorietracker.enums;
 
 public enum ProductQualitySuggestionType {
     NAME_CLEANUP,
+    DISPLAY_NAME,
+    LOCALIZATION,
     SEARCH_ALIAS,
+    SERVING_OPTION,
+    CANONICAL_DUPLICATE_REVIEW,
     MISSING_MACRO_DATA,
     MISSING_MICRO_DATA,
     SUSPICIOUS_CALORIE_VALUE,

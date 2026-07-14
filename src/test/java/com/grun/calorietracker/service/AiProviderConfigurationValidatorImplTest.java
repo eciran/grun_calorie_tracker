@@ -74,6 +74,26 @@ class AiProviderConfigurationValidatorImplTest {
 
         assertDoesNotThrow(() -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
     }
+    @Test
+    void validateConfiguredForDraft_whenPromptVersionMissing_throws() {
+        AiProperties properties = new AiProperties();
+        properties.setEnabled(true);
+        properties.setProvider(AiProvider.LOG);
+        properties.setModel("log-draft-v1");
+        properties.setPromptVersion(" ");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+    }
+
+    @Test
+    void validateConfiguredForDraft_whenOpenAiRepairAttemptsExceedOne_throws() {
+        AiProperties properties = openAiProperties();
+        properties.getOpenai().setMaxRepairAttempts(2);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+    }
     private AiProperties httpJsonProperties() {
         AiProperties properties = new AiProperties();
         properties.setEnabled(true);

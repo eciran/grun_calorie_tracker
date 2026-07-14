@@ -12,6 +12,7 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiRequestHistoryService;
+import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
-
-    private static final String GENERIC_AI_FAILURE_MESSAGE =
-            "AI analysis could not be completed. Please try again with a different input.";
 
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final UserRepository userRepository;
@@ -71,6 +69,7 @@ public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
         dto.setRequestType(entity.getRequestType());
         dto.setProvider(entity.getProvider());
         dto.setModel(entity.getModel());
+        dto.setPromptVersion(entity.getPromptVersion());
         dto.setStatus(entity.getStatus());
         dto.setQuotaConsumed(entity.getQuotaConsumed());
         dto.setQuotaConsumedAmount(entity.getQuotaConsumedAmount());
@@ -81,14 +80,30 @@ public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
         dto.setCostCurrency(entity.getCostCurrency());
         dto.setRejectionReason(entity.getRejectionReason());
         dto.setHasRejectionFeedback(entity.getRejectionFeedback() != null && !entity.getRejectionFeedback().isBlank());
-        dto.setUserMessage(entity.getStatus() == AiRequestStatus.FAILED ? GENERIC_AI_FAILURE_MESSAGE : null);
+        dto.setUserMessage(entity.getStatus() == AiRequestStatus.FAILED
+                ? AiSafeResponseBuilder.GENERIC_AI_FAILURE_MESSAGE
+                : null);
         dto.setInputPayload(readJson(entity.getInputPayload()));
-        dto.setOutputPayload(readJson(entity.getOutputPayload()));
+        JsonNode outputPayload = readJson(entity.getOutputPayload());
+        dto.setOutputPayload(outputPayload);
+        JsonNode safeOutputPayload = resolveSafeOutputPayload(entity, outputPayload);
+        dto.setSafeOutputPayload(safeOutputPayload);
+        dto.setHasSafeOutputPayload(safeOutputPayload != null);
         dto.setConfirmationPayload(readJson(entity.getConfirmationPayload()));
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setConfirmedAt(entity.getConfirmedAt());
         dto.setRejectedAt(entity.getRejectedAt());
         return dto;
+    }
+
+    private JsonNode resolveSafeOutputPayload(AiRequestHistoryEntity entity, JsonNode outputPayload) {
+        if (entity.getStatus() == AiRequestStatus.FAILED) {
+            if (outputPayload != null && outputPayload.hasNonNull("userMessage")) {
+                return outputPayload;
+            }
+            return objectMapper.valueToTree(AiSafeResponseBuilder.failurePayload(entity.getRequestType(), true));
+        }
+        return outputPayload;
     }
 
     private JsonNode readJson(String payload) {

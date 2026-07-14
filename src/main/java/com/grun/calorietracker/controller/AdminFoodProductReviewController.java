@@ -1,7 +1,11 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
 import com.grun.calorietracker.dto.AdminProductQualityAiValidationRequestDto;
 import com.grun.calorietracker.dto.AdminProductQualityAiValidationResultDto;
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
@@ -55,6 +59,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -233,6 +238,23 @@ public class AdminFoodProductReviewController {
                 userDetails == null ? null : userDetails.getUsername()
         ));
     }
+    @GetMapping("/{id}/quality-workbench")
+    @Operation(
+            summary = "Get product AI quality workbench",
+            description = "Returns the complete admin review context for one product: names, aliases, serving options, source evidence, quality issues, AI suggestions, canonical duplicate candidates, and audit history."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Product quality workbench returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Product was not found.")
+    })
+    public ResponseEntity<AdminProductQualityWorkbenchDto> getProductQualityWorkbench(
+            @Parameter(description = "Food product id.", example = "123")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(productQualitySuggestionService.getProductWorkbench(id));
+    }
+
     @PatchMapping("/quality-suggestions/{suggestionId}/accept")
     @Operation(
             summary = "Accept product quality suggestion",
@@ -497,6 +519,63 @@ public class AdminFoodProductReviewController {
         return ResponseEntity.ok(foodProductReviewService.getDuplicateProductGroups(page, size));
     }
 
+    @GetMapping("/duplicates/canonical")
+    @Operation(
+            summary = "List canonical generic duplicate candidates",
+            description = "Returns generic ingredient groups that share a canonical food identity across source records. This endpoint is read-only; nutrition and provenance must be reviewed before any merge."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Canonical duplicate candidates returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodCanonicalDuplicateGroupPageDto> getCanonicalDuplicateProductGroups(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,
+            @Parameter(description = "Optional resolution-state filter. Omit to return all groups.")
+            @RequestParam(required = false) Boolean resolved) {
+        return ResponseEntity.ok(foodProductReviewService.getCanonicalDuplicateProductGroups(page, size, resolved));
+    }
+    @PostMapping("/duplicates/canonical/resolve")
+    @Operation(
+            summary = "Select the primary canonical product",
+            description = "Selects the generic product shown in user search for a canonical duplicate group. Source records remain stored and the decision can be replaced without destructive merging."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Canonical primary product selected."),
+            @ApiResponse(responseCode = "400", description = "The group is invalid or the selected product is not a member."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodCanonicalResolutionDto> resolveCanonicalPrimary(
+            @RequestBody @Valid FoodCanonicalResolutionRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.resolveCanonicalPrimary(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+    @DeleteMapping("/duplicates/canonical/resolution")
+    @Operation(
+            summary = "Clear a canonical primary decision",
+            description = "Restores an unresolved canonical group so all source candidates become searchable again. Product records are not deleted or modified."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Canonical resolution cleared."),
+            @ApiResponse(responseCode = "400", description = "Canonical food key is missing."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Canonical resolution was not found.")
+    })
+    public ResponseEntity<Void> clearCanonicalResolution(
+            @RequestParam String canonicalFoodKey,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        foodProductReviewService.clearCanonicalResolution(
+                canonicalFoodKey,
+                userDetails == null ? null : userDetails.getUsername()
+        );
+        return ResponseEntity.noContent().build();
+    }
     @PostMapping("/duplicates/merge")
     @Operation(
             summary = "Merge duplicate products",

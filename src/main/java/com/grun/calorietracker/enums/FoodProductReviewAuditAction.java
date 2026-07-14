@@ -5,5 +5,6 @@ public enum FoodProductReviewAuditAction {
     STATUS_CHANGE,
     IMAGE_CHANGE,
     SEARCH_ALIAS_CHANGE,
+    CANONICAL_PRIMARY_CHANGE,
     MERGE
 }

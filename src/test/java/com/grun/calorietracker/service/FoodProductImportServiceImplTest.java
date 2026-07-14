@@ -1,19 +1,27 @@
 package com.grun.calorietracker.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.service.impl.FoodProductImportServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +39,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
@@ -42,17 +51,38 @@ class FoodProductImportServiceImplTest {
     private FoodItemRepository foodItemRepository;
 
     @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
+
+    @Mock
     private FoodItemSearchAliasRepository foodItemSearchAliasRepository;
 
     @Mock
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
+
+    @Mock
+    private FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository;
+
+    @Mock
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
+
+    @Mock
+    private com.grun.calorietracker.service.FoodProductEvidenceService foodProductEvidenceService;
 
     private FoodProductImportServiceImpl foodProductImportService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        foodProductImportService = new FoodProductImportServiceImpl(foodItemRepository, foodItemSearchAliasRepository, foodProductQualityIssueTracker);
+        foodProductImportService = new FoodProductImportServiceImpl(
+                foodItemRepository,
+                foodItemLocalizationRepository,
+                foodItemSearchAliasRepository,
+                foodItemServingOptionRepository,
+                foodItemServingOptionLocalizationRepository,
+                foodProductQualityIssueTracker,
+                foodProductEvidenceService,
+                new ObjectMapper()
+        );
     }
 
     @Test
@@ -209,6 +239,206 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_skipsLaterDuplicateInputRowAndKeepsFirstValidValues() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,protein,fat,carbs,market_region
+                1234567890123,Original Milk,48,3.4,1.7,4.8,UK_IE
+                1234567890123,Duplicate Milk,480,34,17,48,UK_IE
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getTotalRows());
+        assertEquals(1, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
+        assertEquals(1, result.getDuplicateInputRows());
+        assertEquals(1, result.getQualityWarningCounts().get("DUPLICATE_INPUT_KEY"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals(1, captor.getValue().size());
+        assertEquals("Original Milk", captor.getValue().get(0).getName());
+        assertEquals(48.0, captor.getValue().get(0).getCalories());
+    }
+
+    @Test
+    void importCsv_allowsValidRowAfterEarlierDuplicateKeyRowFailedValidation() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,protein,fat,carbs,market_region
+                1234567890123,,48,3.4,1.7,4.8,UK_IE
+                1234567890123,Valid Milk,48,3.4,1.7,4.8,UK_IE
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(2, result.getTotalRows());
+        assertEquals(1, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
+        assertEquals(0, result.getDuplicateInputRows());
+        assertEquals(1, result.getErrors().size());
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals("Valid Milk", captor.getValue().get(0).getName());
+    }
+
+    @Test
+    void importCsv_synchronizesEnglishAndTurkishLocalizedDisplayNames() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            for (int index = 0; index < products.size(); index++) {
+                products.get(index).setId((long) index + 1);
+            }
+            return products;
+        });
+        when(foodItemLocalizationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,display_name,short_display_name,display_name_en,short_display_name_en,display_name_tr,short_display_name_tr,calories,protein,fat,carbs,market_region,preparation_state
+                GENERIC_INGREDIENT,GLOBAL:GENERIC_INGREDIENT:RAW:banana,Banana raw,Raw Banana,Banana,Banana,Banana,Muz,Muz,89,1.1,0.3,22.8,GLOBAL,RAW
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemLocalizationEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemLocalizationRepository).saveAll(captor.capture());
+        assertEquals(2, captor.getValue().size());
+        assertEquals(List.of(PreferredLanguage.EN, PreferredLanguage.TR), captor.getValue().stream()
+                .map(FoodItemLocalizationEntity::getLanguage)
+                .toList());
+        assertEquals(List.of("Banana", "Muz"), captor.getValue().stream()
+                .map(FoodItemLocalizationEntity::getDisplayName)
+                .toList());
+    }
+    @Test
+    void importCsv_upsertsStructuredServingOptionsWithoutDuplicatingExistingLabel() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.get(0).setId(41L);
+            return products;
+        });
+
+        FoodItemServingOptionEntity existingMedium = new FoodItemServingOptionEntity();
+        existingMedium.setId(7L);
+        FoodItemEntity existingProduct = new FoodItemEntity();
+        existingProduct.setId(41L);
+        existingMedium.setFoodItem(existingProduct);
+        existingMedium.setLabel("1 medium banana");
+        existingMedium.setUnitType(FoodServingOptionUnit.PIECE);
+        existingMedium.setQuantity(1.0);
+        existingMedium.setGramWeight(110.0);
+        existingMedium.setIsDefault(true);
+        when(foodItemServingOptionRepository
+                .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(any()))
+                .thenReturn(List.of(existingMedium));
+        when(foodItemServingOptionRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,calories,market_region,preparation_state,serving_options_json
+                GENERIC_INGREDIENT,GLOBAL:GENERIC_INGREDIENT:RAW:banana,Banana raw,89,GLOBAL,RAW,"[{""label"":""1 medium banana"",""unitType"":""PIECE"",""quantity"":1,""gramWeight"":118,""defaultOption"":true},{""label"":""1/2 banana"",""unitType"":""PIECE"",""quantity"":0.5,""gramWeight"":59,""defaultOption"":false}]"
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getSavedRows());
+        assertEquals(0, result.getQualityWarningCounts().getOrDefault("INVALID_SERVING_OPTIONS", 0));
+        ArgumentCaptor<List<FoodItemServingOptionEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemServingOptionRepository).saveAll(captor.capture());
+        List<FoodItemServingOptionEntity> options = captor.getValue();
+        assertEquals(2, options.size());
+        assertEquals(7L, options.get(0).getId());
+        assertEquals(118.0, options.get(0).getGramWeight());
+        assertEquals(true, options.get(0).getIsDefault());
+        assertEquals("1/2 banana", options.get(1).getLabel());
+        assertEquals(59.0, options.get(1).getGramWeight());
+    }
+
+    @Test
+    void importCsv_upsertsLocalizedServingLabelsByOptionAndLanguage() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.get(0).setId(51L);
+            return products;
+        });
+        when(foodItemServingOptionRepository
+                .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(any()))
+                .thenReturn(List.of());
+        when(foodItemServingOptionRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemServingOptionEntity> options = invocation.getArgument(0);
+            options.get(0).setId(61L);
+            return options;
+        });
+FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionEntity();
+        existingOptionReference.setId(61L);
+        FoodItemServingOptionLocalizationEntity existingTurkish =
+                new FoodItemServingOptionLocalizationEntity();
+        existingTurkish.setId(71L);
+        existingTurkish.setServingOption(existingOptionReference);
+        existingTurkish.setLanguage(PreferredLanguage.TR);
+        existingTurkish.setLabel("eski etiket");
+        existingTurkish.setActive(true);
+        when(foodItemServingOptionLocalizationRepository.findByServingOptionIdIn(any()))
+                .thenReturn(List.of(existingTurkish));
+        when(foodItemServingOptionLocalizationRepository.saveAll(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,calories,market_region,preparation_state,serving_options_json
+                GENERIC_INGREDIENT,GLOBAL:GENERIC_INGREDIENT:RAW:banana-localized-serving,Banana raw,89,GLOBAL,RAW,"[{""label"":""1 medium banana"",""unitType"":""PIECE"",""quantity"":1,""gramWeight"":118,""defaultOption"":true,""labels"":{""EN"":""1 medium banana"",""TR"":""1 orta boy muz""}}]"
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getSavedRows());
+        assertEquals(0, result.getQualityWarningCounts().getOrDefault("INVALID_SERVING_OPTIONS", 0));
+        ArgumentCaptor<List<FoodItemServingOptionLocalizationEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemServingOptionLocalizationRepository).saveAll(captor.capture());
+        assertEquals(2, captor.getValue().size());
+        assertEquals(List.of(PreferredLanguage.EN, PreferredLanguage.TR), captor.getValue().stream()
+                .map(FoodItemServingOptionLocalizationEntity::getLanguage)
+                .toList());
+        assertEquals(List.of("1 medium banana", "1 orta boy muz"), captor.getValue().stream()
+                .map(FoodItemServingOptionLocalizationEntity::getLabel)
+                .toList());
+        assertEquals(List.of(61L, 61L), captor.getValue().stream()
+                .map(localization -> localization.getServingOption().getId())
+                .toList());
+        assertEquals(71L, captor.getValue().stream()
+                .filter(localization -> localization.getLanguage() == PreferredLanguage.TR)
+                .findFirst()
+                .orElseThrow()
+                .getId());
+    }
+    @Test
+    void importCsv_reportsInvalidServingOptionsAndDoesNotPersistThem() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.get(0).setId(42L);
+            return products;
+        });
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,calories,market_region,preparation_state,serving_options_json
+                GENERIC_INGREDIENT,GLOBAL:GENERIC_INGREDIENT:RAW:apple,Apple raw,52,GLOBAL,RAW,"[{""label"":""1 apple"",""unitType"":""PIECE"",""quantity"":1}]"
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getQualityWarningCounts().get("INVALID_SERVING_OPTIONS"));
+        verify(foodItemServingOptionRepository, times(0)).saveAll(any());
+    }
+    @Test
     void importCsv_acceptsExplicitNonBarcodeCatalogRows() {
         when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -270,8 +500,15 @@ class FoodProductImportServiceImplTest {
     @Test
     void importCsv_curatedGenericStaplesSeedIsProductionReady() throws Exception {
         when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
-        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            for (int index = 0; index < products.size(); index++) {
+                products.get(index).setId((long) index + 1);
+            }
+            return products;
+        });
         when(foodItemSearchAliasRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemLocalizationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         byte[] bytes = Files.readAllBytes(Path.of("src", "test", "resources", "food-generic-staples-curated-seed.csv"));
         MockMultipartFile file = new MockMultipartFile(
@@ -322,6 +559,17 @@ class FoodProductImportServiceImplTest {
                 && "chicken breast".equals(alias.getNormalizedAlias()));
         assertEquals(true, hasPirincAlias);
         assertEquals(true, hasChickenAlias);
+
+        ArgumentCaptor<List<FoodItemLocalizationEntity>> localizationCaptor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemLocalizationRepository).saveAll(localizationCaptor.capture());
+        List<FoodItemLocalizationEntity> localizations = localizationCaptor.getValue();
+        assertEquals(28, localizations.size());
+        assertEquals(true, localizations.stream().anyMatch(localization ->
+                localization.getLanguage() == PreferredLanguage.TR
+                        && "Muz".equals(localization.getDisplayName())));
+        assertEquals(true, localizations.stream().anyMatch(localization ->
+                localization.getLanguage() == PreferredLanguage.TR
+                        && "Pişmiş Beyaz Pirinç".equals(localization.getDisplayName())));
     }
 
     @Test
@@ -494,6 +742,68 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_whenDifferentUsdaRecordsShareCanonicalIdentity_reportsPotentialGenericDuplicate() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.findByCanonicalFoodKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                fdc_id,description,calories,protein,fat,carbohydrates_100g,market_region,preparation_state
+                1001,Bananas raw,89,1.1,0.3,22.8,GLOBAL,RAW
+                1002,Banana raw,97,0.7,0.3,23.0,GLOBAL,RAW
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "bulk@test.com",
+                FoodProductImportMode.RAW_EXTERNAL,
+                FoodProductImportFormat.USDA_FOODDATA
+        );
+
+        assertEquals(2, result.getSavedRows());
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> imported = captor.getValue();
+
+        assertEquals("USDA_FOODDATA:fdc:1001", imported.get(0).getSourceKey());
+        assertEquals("USDA_FOODDATA:fdc:1002", imported.get(1).getSourceKey());
+        assertEquals(
+                "GLOBAL:GENERIC_INGREDIENT:RAW:banana",
+                imported.get(0).getCanonicalFoodKey()
+        );
+        assertEquals(imported.get(0).getCanonicalFoodKey(), imported.get(1).getCanonicalFoodKey());
+        assertEquals(1, result.getQualityWarningCounts().get("POTENTIAL_GENERIC_DUPLICATE"));
+    }
+
+    @Test
+    void importCsv_whenCanonicalIdentityExistsUnderDifferentSource_reportsPotentialGenericDuplicate() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(99L);
+        existing.setSourceKey("USDA_FOODDATA:fdc:1001");
+        existing.setCanonicalFoodKey("GLOBAL:GENERIC_INGREDIENT:RAW:banana");
+
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.findByCanonicalFoodKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                fdc_id,description,calories,protein,fat,carbohydrates_100g,market_region,preparation_state
+                1002,Banana raw,97,0.7,0.3,23.0,GLOBAL,RAW
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "bulk@test.com",
+                FoodProductImportMode.RAW_EXTERNAL,
+                FoodProductImportFormat.USDA_FOODDATA
+        );
+
+        assertEquals(1, result.getSavedRows());
+        assertEquals(1, result.getQualityWarningCounts().get("POTENTIAL_GENERIC_DUPLICATE"));
+    }
+
+    @Test
     void importCsv_repositoryPilotSampleFile_isValidForRegionalPilot() throws Exception {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -610,12 +920,19 @@ class FoodProductImportServiceImplTest {
         );
 
         assertEquals(3, result.getTotalRows());
-        assertEquals(3, result.getSavedRows());
+        assertEquals(2, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
         assertEquals(1, result.getDuplicateInputRows());
-        assertEquals(3, result.getReviewRequiredRows());
+        assertEquals(2, result.getReviewRequiredRows());
         assertEquals("TSV", result.getImportFormat());
-        assertEquals(3, result.getMissingMarketRegionRows());
-        assertEquals(3, result.getMarketRegionCounts().get("GLOBAL"));
+        assertEquals(2, result.getMissingMarketRegionRows());
+        assertEquals(2, result.getMarketRegionCounts().get("GLOBAL"));
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals(List.of("First Product", "Third Product"), captor.getValue().stream()
+                .map(FoodItemEntity::getName)
+                .toList());
     }
 
     @Test
@@ -672,10 +989,8 @@ class FoodProductImportServiceImplTest {
         assertEquals("not-a-barcode", result.getWarnings().get(0).getIdentifier());
         assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(3).getCode());
         assertEquals(80, result.getImportQualityScore());
-        verify(foodProductQualityIssueTracker, times(2)).syncImportIssues(
-                any(FoodItemEntity.class),
-                eq(false),
-                eq(false),
+        verify(foodProductQualityIssueTracker).syncImportIssues(
+                anyList(),
                 eq("admin@test.com")
         );
     }

@@ -1,5 +1,6 @@
 # Production Data Readiness Plan
 
+
 Date: 2026-07-13
 Scope: Food catalog production readiness before AWS/live DB import.
 
@@ -143,6 +144,17 @@ Local dishes must include:
 Before any AWS/live import, run local pipeline and require:
 
 - `duplicateBarcodeGroups = 0`
+- POTENTIAL_GENERIC_DUPLICATE = 0 after canonical duplicate review; source records must not be auto-merged.
+- Canonical duplicate candidates are reviewed through `GET /api/v1/admin/products/duplicates/canonical`; each group exposes `resolved`, `primaryProductId`, `resolvedBy`, and `resolvedAt` for admin continuity.
+- Admin selects the user-search primary through `POST /api/v1/admin/products/duplicates/canonical/resolve`.
+- Resolution is non-destructive: all source records, nutrition values, source keys, and provenance remain stored.
+- Until a group is resolved, all candidates remain searchable; after resolution, only the selected primary is returned to users.
+- Admin can filter the duplicate queue with `resolved=true|false`; filtering and pagination totals are calculated in the database.
+- Re-selecting a primary replaces the decision and writes a `CANONICAL_PRIMARY_CHANGE` product audit record.
+- `DELETE /api/v1/admin/products/duplicates/canonical/resolution?canonicalFoodKey=...` clears a decision, restores all candidates to user search, preserves every food record, and writes an audit entry.
+- Canonical resolution is allowed only for groups containing at least two `GENERIC_INGREDIENT` records; it is not a branded-product merge mechanism.
+- A canonical primary cannot be `REJECTED`, carry an active search-blocking quality issue, or fail critical calorie/macro validation.
+- If a resolved primary later becomes rejected, gains a blocking issue, or fails critical nutrition checks, its resolution stops suppressing eligible alternatives in user search.
 - `missingCalories = 0`
 - `missingMacros = 0`
 - `GENERIC_MISSING_PREPARATION_STATE = 0`
@@ -190,3 +202,22 @@ Do not copy the current local DB as production seed. Rebuild production data in 
 2. small high-quality regional branded batch
 3. local dish curated seed
 4. larger regional OFF batches
+## PostgreSQL Import Performance Gate
+
+Run the isolated local PostgreSQL benchmark before increasing import batches beyond the pilot size:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\test-food-import-postgres-performance.ps1
+```
+
+The runner creates and removes its own `grun-product-benchmark-postgres` container. It does not use or modify the normal local catalog database.
+
+Current 500-row localized generic import budgets:
+
+- saved rows: `500`
+- skipped rows: `0`
+- prepared SQL statements: at most `3125`
+- measured import duration: less than `8 seconds`
+- bulk lookup chunk size: at most `500` identifiers per repository call
+
+The PostgreSQL benchmark is opt-in and skipped during the normal H2 test suite. It uses Hibernate `create-drop` inside the disposable database because unrelated in-progress migrations can temporarily prevent a clean Flyway bootstrap. Production migration validation remains a separate mandatory gate.

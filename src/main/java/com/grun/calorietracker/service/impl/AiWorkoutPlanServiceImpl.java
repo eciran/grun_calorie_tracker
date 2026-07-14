@@ -31,6 +31,7 @@ import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiWorkoutPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -77,6 +78,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         history.setRequestType(AiRequestType.AI_WORKOUT_PLAN);
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
+        history.setPromptVersion(properties.getPromptVersion());
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
@@ -100,6 +102,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
             boolean refunded = refundConsumedQuota(user);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(AiRequestType.AI_WORKOUT_PLAN, true)));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : 1);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -493,4 +496,3 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         }
     }
 }
-

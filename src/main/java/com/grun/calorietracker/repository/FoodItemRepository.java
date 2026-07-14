@@ -26,6 +26,7 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     Optional<FoodItemEntity> findBySourceKey(String sourceKey);
     List<FoodItemEntity> findByNormalizedBarcodeIn(List<String> normalizedBarcodes, Sort sort);
     List<FoodItemEntity> findBySourceKeyIn(List<String> sourceKeys, Sort sort);
+    List<FoodItemEntity> findByCanonicalFoodKeyIn(List<String> canonicalFoodKeys, Sort sort);
     List<FoodItemEntity> findByVerificationStatus(VerificationStatus verificationStatus);
     List<FoodItemEntity> findByVerificationStatus(VerificationStatus verificationStatus, Sort sort);
     List<FoodItemEntity> findByImageStatus(ImageStatus imageStatus);
@@ -104,4 +105,98 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
             nativeQuery = true
     )
     Page<String> findDuplicateNormalizedBarcodes(Pageable pageable);
+
+    @Query(
+            value = """
+                    SELECT canonical_food_key
+                    FROM food_items
+                    WHERE canonical_food_key IS NOT NULL
+                      AND catalog_type = 'GENERIC_INGREDIENT'
+                    GROUP BY canonical_food_key
+                    HAVING COUNT(id) > 1
+                    ORDER BY canonical_food_key
+                    """,
+            countQuery = """
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT canonical_food_key
+                        FROM food_items
+                        WHERE canonical_food_key IS NOT NULL
+                          AND catalog_type = 'GENERIC_INGREDIENT'
+                        GROUP BY canonical_food_key
+                        HAVING COUNT(id) > 1
+                    ) canonical_duplicate_groups
+                    """,
+            nativeQuery = true
+    )
+    Page<String> findDuplicateCanonicalFoodKeys(Pageable pageable);
+    @Query(
+            value = """
+                    SELECT fi.canonical_food_key
+                    FROM food_items fi
+                    WHERE fi.canonical_food_key IS NOT NULL
+                      AND fi.catalog_type = 'GENERIC_INGREDIENT'
+                      AND EXISTS (
+                          SELECT 1
+                          FROM food_canonical_resolutions resolution
+                          WHERE resolution.canonical_food_key = fi.canonical_food_key
+                      )
+                    GROUP BY fi.canonical_food_key
+                    HAVING COUNT(fi.id) > 1
+                    ORDER BY fi.canonical_food_key
+                    """,
+            countQuery = """
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT fi.canonical_food_key
+                        FROM food_items fi
+                        WHERE fi.canonical_food_key IS NOT NULL
+                          AND fi.catalog_type = 'GENERIC_INGREDIENT'
+                          AND EXISTS (
+                              SELECT 1
+                              FROM food_canonical_resolutions resolution
+                              WHERE resolution.canonical_food_key = fi.canonical_food_key
+                          )
+                        GROUP BY fi.canonical_food_key
+                        HAVING COUNT(fi.id) > 1
+                    ) canonical_duplicate_groups
+                    """,
+            nativeQuery = true
+    )
+    Page<String> findResolvedDuplicateCanonicalFoodKeys(Pageable pageable);
+
+    @Query(
+            value = """
+                    SELECT fi.canonical_food_key
+                    FROM food_items fi
+                    WHERE fi.canonical_food_key IS NOT NULL
+                      AND fi.catalog_type = 'GENERIC_INGREDIENT'
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM food_canonical_resolutions resolution
+                          WHERE resolution.canonical_food_key = fi.canonical_food_key
+                      )
+                    GROUP BY fi.canonical_food_key
+                    HAVING COUNT(fi.id) > 1
+                    ORDER BY fi.canonical_food_key
+                    """,
+            countQuery = """
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT fi.canonical_food_key
+                        FROM food_items fi
+                        WHERE fi.canonical_food_key IS NOT NULL
+                          AND fi.catalog_type = 'GENERIC_INGREDIENT'
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM food_canonical_resolutions resolution
+                              WHERE resolution.canonical_food_key = fi.canonical_food_key
+                          )
+                        GROUP BY fi.canonical_food_key
+                        HAVING COUNT(fi.id) > 1
+                    ) canonical_duplicate_groups
+                    """,
+            nativeQuery = true
+    )
+    Page<String> findUnresolvedDuplicateCanonicalFoodKeys(Pageable pageable);
 }

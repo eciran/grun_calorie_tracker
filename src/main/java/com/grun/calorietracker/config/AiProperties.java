@@ -12,6 +12,7 @@ public class AiProperties {
     private boolean enabled = false;
     private AiProvider provider = AiProvider.DISABLED;
     private String model = "not-configured";
+    private String promptVersion = "ai-prompt-v1";
     private int maxHistoryLimit = 30;
     private Safety safety = new Safety();
     private Photo photo = new Photo();
@@ -29,7 +30,7 @@ public class AiProperties {
     @Data
     public static class Photo {
         private int maxImageReferenceLength = 2048;
-        private String allowedReferencePrefixes = "s3://,https://";
+        private String allowedReferencePrefixes = "s3://grun-meals/";
         private long maxUploadBytes = 5 * 1024 * 1024;
         private String allowedContentTypes = "image/jpeg,image/png,image/webp";
         private Duration referenceTtl = Duration.ofMinutes(30);
@@ -51,6 +52,8 @@ public class AiProperties {
         private String baseUrl = "https://api.openai.com/v1/responses";
         private Duration timeout = Duration.ofSeconds(60);
         private int maxOutputTokens = 12000;
+        private boolean repairEnabled = true;
+        private int maxRepairAttempts = 1;
         private double inputTokenCostPer1m = 0;
         private double outputTokenCostPer1m = 0;
         private String costCurrency = "USD";

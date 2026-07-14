@@ -4,6 +4,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,4 +13,10 @@ public interface FoodItemServingOptionRepository extends JpaRepository<FoodItemS
     List<FoodItemServingOptionEntity> findByFoodItemOrderByIsDefaultDescLabelAsc(FoodItemEntity foodItem);
 
     Optional<FoodItemServingOptionEntity> findByIdAndFoodItem(Long id, FoodItemEntity foodItem);
+
+    List<FoodItemServingOptionEntity> findByFoodItemId(Long foodItemId);
+
+    List<FoodItemServingOptionEntity> findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(
+            Collection<Long> foodItemIds
+    );
 }

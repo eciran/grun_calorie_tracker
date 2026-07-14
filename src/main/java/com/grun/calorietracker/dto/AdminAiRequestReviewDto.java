@@ -16,6 +16,7 @@ public class AdminAiRequestReviewDto {
     private AiRequestType requestType;
     private AiProvider provider;
     private String model;
+    private String promptVersion;
     private AiRequestStatus status;
     private Boolean quotaConsumed;
     private Integer quotaConsumedAmount;

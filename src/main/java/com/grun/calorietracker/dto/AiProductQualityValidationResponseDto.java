@@ -11,6 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiProductQualityValidationResponseDto {
+    private String schemaVersion;
     private String summary;
     private Double confidence;
     private Integer qualityScore;

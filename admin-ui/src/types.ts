@@ -70,20 +70,27 @@ export type FoodProduct = {
   barcode?: string;
   normalizedBarcode?: string;
   sourceKey?: string;
+  canonicalFoodKey?: string;
   name?: string;
   productName?: string;
+  canonicalName?: string;
+  displayName?: string;
+  shortDisplayName?: string;
   brand?: string;
   imageUrl?: string;
   externalImageUrl?: string;
   displayImageUrl?: string;
   dataSource?: string;
   marketRegion?: string;
+  preparationState?: string;
   verificationStatus?: string;
   imageSource?: string;
   imageStatus?: string;
   catalogType?: string;
   usageCount?: number;
   qualityScore?: number;
+  confidenceScore?: number;
+  autoApprovedForCatalog?: boolean;
   reviewPriority?: number;
   lastExternalSyncAt?: string;
   lastReviewedAt?: string;
@@ -115,6 +122,36 @@ export type FoodProduct = {
   allergens?: string;
   nutriScore?: string;
   custom?: boolean;
+};
+export type FoodCanonicalCandidateAssessment = {
+  product?: FoodProduct;
+  primaryEligible?: boolean;
+  eligibilityIssues?: string[];
+  recommended?: boolean;
+};
+
+export type FoodCanonicalDuplicateGroup = {
+  canonicalFoodKey?: string;
+  productCount?: number;
+  products?: FoodProduct[];
+  candidateAssessments?: FoodCanonicalCandidateAssessment[];
+  resolved?: boolean;
+  resolutionState?: "UNRESOLVED" | "RESOLVED" | "STALE" | "NEEDS_REVIEW";
+  resolutionStatusReason?: string;
+  primaryProductId?: number;
+  recommendedPrimaryProductId?: number;
+  resolvedBy?: string;
+  resolvedAt?: string;
+};
+
+export type FoodCanonicalDuplicateGroupPage = {
+  content?: FoodCanonicalDuplicateGroup[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
 };
 export type ProductQualitySuggestion = {
   id?: number;
@@ -237,6 +274,59 @@ export type FoodSearchAlias = {
   createdAt?: string;
 };
 
+
+export type FoodProductEvidence = {
+  evidenceId?: number;
+  productId?: number;
+  provider?: string;
+  externalId?: string;
+  fieldName?: string;
+  numericValue?: number;
+  basis?: string;
+  confidenceScore?: number;
+  observedAt?: string;
+  stale?: boolean;
+  sourceVersion?: string;
+  reviewerIdentity?: string;
+};
+
+export type FoodProductEvidenceComparison = {
+  fieldName?: string;
+  basis?: string;
+  state?: string;
+  preferredEvidenceId?: number;
+  maximumDifference?: number;
+  reason?: string;
+  evidenceIds?: number[];
+};
+
+export type AdminProductQualityWorkbench = {
+  product?: FoodProduct;
+  localizations?: Array<{ id?: number; language?: string; displayName?: string; shortDisplayName?: string; source?: string; active?: boolean }>;
+  aliases?: FoodSearchAlias[];
+  servingOptions?: Array<{
+    id?: number; label?: string; unitType?: string; quantity?: number; gramWeight?: number; mlVolume?: number;
+    defaultOption?: boolean; source?: string; qualityStatus?: string;
+    localizations?: Array<{ id?: number; language?: string; label?: string; source?: string; active?: boolean }>;
+  }>;
+  evidence?: { evidence?: FoodProductEvidence[]; comparisons?: FoodProductEvidenceComparison[] };
+  qualityIssues?: Array<{
+    id?: number; foodItemId?: number; issueType?: string; identifier?: string; reason?: string; resolved?: boolean;
+    firstDetectedAt?: string; lastDetectedAt?: string; resolvedAt?: string; resolvedBy?: string;
+  }>;
+  suggestions?: ProductQualitySuggestion[];
+  canonicalDuplicate?: {
+    canonicalFoodKey?: string; resolvedPrimaryProductId?: number;
+    candidates?: Array<{
+      productId?: number; displayName?: string; brand?: string; dataSource?: string; marketRegion?: string;
+      preparationState?: string; verificationStatus?: string; qualityScore?: number; confidenceScore?: number; usageCount?: number;
+    }>;
+  };
+  audit?: Array<{
+    id?: number; foodItemId?: number; reviewedBy?: string; actionType?: string; fieldName?: string;
+    oldValue?: string; newValue?: string; note?: string; createdAt?: string;
+  }>;
+};
 export type RecipeStep = {
   stepNumber?: number;
   instruction?: string;
@@ -491,6 +581,7 @@ export type AiMealDraft = {
   requestType?: string;
   provider?: string;
   model?: string;
+  promptVersion?: string;
   status?: string;
   quotaConsumed?: boolean | number;
   quotaConsumedAmount?: number;
@@ -505,8 +596,66 @@ export type AiMealDraft = {
   rejectedAt?: string;
   rejectionReason?: string;
   rejectionFeedback?: string;
+  quotaRefundReason?: string;
+  quotaRefundedBy?: string;
+  quotaRefundedAt?: string;
 };
 
+export type AiMonitoringSummary = {
+  generatedAt?: string;
+  windowStart?: string;
+  windowHours?: number;
+  totalRequests?: number;
+  draftCreated?: number;
+  confirmed?: number;
+  rejected?: number;
+  failed?: number;
+  failureRate?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  quotaConsumedAmount?: number;
+  quotaRefundedAmount?: number;
+  estimatedCostByCurrency?: Record<string, number>;
+  providerModels?: AiProviderModelMetric[];
+  requestStatuses?: AiRequestStatusMetric[];
+};
+
+export type AiProviderModelMetric = {
+  provider?: string;
+  model?: string;
+  promptVersion?: string;
+  costCurrency?: string;
+  requestCount?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  estimatedCost?: number;
+  quotaConsumedAmount?: number;
+  quotaRefundedAmount?: number;
+};
+
+export type AiRequestStatusMetric = {
+  requestType?: string;
+  status?: string;
+  requestCount?: number;
+  totalTokens?: number;
+  quotaConsumedAmount?: number;
+  quotaRefundedAmount?: number;
+};
+
+export type AiQuotaRefundResponse = {
+  requestId?: number;
+  userId?: number;
+  status?: string;
+  quotaConsumedAmount?: number;
+  quotaRefundedAmount?: number;
+  refundedNow?: number;
+  quotaRefundReason?: string;
+  quotaRefundedBy?: string;
+  quotaRefundedAt?: string;
+  subscription?: SubscriptionDto;
+};
 export type RetentionPolicy = {
   id?: number;
   policyKey?: string;

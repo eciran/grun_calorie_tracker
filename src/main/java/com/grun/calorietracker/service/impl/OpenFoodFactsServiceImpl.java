@@ -150,28 +150,59 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
         }
 
         JsonNode nutriments = productNode.path("nutriments");
-        dto.setCalories(NutritionValueNormalizer.calories(number(nutriments, "energy-kcal_100g", "energy-kcal_serving")));
-        dto.setProtein(NutritionValueNormalizer.macro(number(nutriments, "proteins_100g", "proteins_serving")));
-        dto.setFat(NutritionValueNormalizer.macro(number(nutriments, "fat_100g", "fat_serving")));
-        dto.setCarbs(NutritionValueNormalizer.macro(number(nutriments, "carbohydrates_100g", "carbohydrates_serving")));
-        dto.setFiber(NutritionValueNormalizer.macro(number(nutriments, "fiber_100g", "fiber_serving")));
-        dto.setSugar(NutritionValueNormalizer.macro(number(nutriments, "sugars_100g", "sugars_serving")));
-        dto.setSodium(NutritionValueNormalizer.micronutrient(number(nutriments, "sodium_100g", "sodium_serving")));
-        dto.setPotassium(NutritionValueNormalizer.micronutrient(number(nutriments, "potassium_100g", "potassium_serving")));
-        dto.setCholesterol(NutritionValueNormalizer.micronutrient(number(nutriments, "cholesterol_100g", "cholesterol_serving")));
-        dto.setCalcium(NutritionValueNormalizer.micronutrient(number(nutriments, "calcium_100g", "calcium_serving")));
-        dto.setIron(NutritionValueNormalizer.micronutrient(number(nutriments, "iron_100g", "iron_serving")));
-        dto.setMagnesium(NutritionValueNormalizer.micronutrient(number(nutriments, "magnesium_100g", "magnesium_serving")));
-        dto.setZinc(NutritionValueNormalizer.micronutrient(number(nutriments, "zinc_100g", "zinc_serving")));
-        dto.setVitaminA(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-a_100g", "vitamin-a_serving", "vitamin_a_100g", "vitamin_a_serving")));
-        dto.setVitaminC(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-c_100g", "vitamin-c_serving", "vitamin_c_100g", "vitamin_c_serving")));
-        dto.setVitaminD(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-d_100g", "vitamin-d_serving", "vitamin_d_100g", "vitamin_d_serving")));
-        dto.setVitaminE(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-e_100g", "vitamin-e_serving", "vitamin_e_100g", "vitamin_e_serving")));
-        dto.setVitaminB12(NutritionValueNormalizer.micronutrient(number(nutriments, "vitamin-b12_100g", "vitamin-b12_serving", "vitamin_b12_100g", "vitamin_b12_serving")));
-        dto.setSaturatedFat(NutritionValueNormalizer.macro(number(nutriments, "saturated-fat_100g", "saturated-fat_serving", "saturated_fat_100g", "saturated_fat_serving")));
-        dto.setTransFat(NutritionValueNormalizer.macro(number(nutriments, "trans-fat_100g", "trans-fat_serving", "trans_fat_100g", "trans_fat_serving")));
-        dto.setSugarAlcohol(NutritionValueNormalizer.macro(number(nutriments, "sugar-alcohol_100g", "sugar-alcohol_serving", "sugar_alcohol_100g", "sugar_alcohol_serving")));
+        dto.setCalories(NutritionValueNormalizer.calories(per100g(productNode, nutriments, "energy-kcal_100g", "energy-kcal_serving")));
+        dto.setProtein(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "proteins_100g", "proteins_serving")));
+        dto.setFat(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "fat_100g", "fat_serving")));
+        dto.setCarbs(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "carbohydrates_100g", "carbohydrates_serving")));
+        dto.setFiber(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "fiber_100g", "fiber_serving")));
+        dto.setSugar(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "sugars_100g", "sugars_serving")));
+        dto.setSodium(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "sodium_100g", "sodium_serving")));
+        dto.setPotassium(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "potassium_100g", "potassium_serving")));
+        dto.setCholesterol(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "cholesterol_100g", "cholesterol_serving")));
+        dto.setCalcium(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "calcium_100g", "calcium_serving")));
+        dto.setIron(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "iron_100g", "iron_serving")));
+        dto.setMagnesium(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "magnesium_100g", "magnesium_serving")));
+        dto.setZinc(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "zinc_100g", "zinc_serving")));
+        dto.setVitaminA(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "vitamin-a_100g", "vitamin-a_serving", "vitamin_a_100g", "vitamin_a_serving")));
+        dto.setVitaminC(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "vitamin-c_100g", "vitamin-c_serving", "vitamin_c_100g", "vitamin_c_serving")));
+        dto.setVitaminD(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "vitamin-d_100g", "vitamin-d_serving", "vitamin_d_100g", "vitamin_d_serving")));
+        dto.setVitaminE(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "vitamin-e_100g", "vitamin-e_serving", "vitamin_e_100g", "vitamin_e_serving")));
+        dto.setVitaminB12(NutritionValueNormalizer.micronutrient(per100g(productNode, nutriments, "vitamin-b12_100g", "vitamin-b12_serving", "vitamin_b12_100g", "vitamin_b12_serving")));
+        dto.setSaturatedFat(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "saturated-fat_100g", "saturated-fat_serving", "saturated_fat_100g", "saturated_fat_serving")));
+        dto.setTransFat(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "trans-fat_100g", "trans-fat_serving", "trans_fat_100g", "trans_fat_serving")));
+        dto.setSugarAlcohol(NutritionValueNormalizer.macro(per100g(productNode, nutriments, "sugar-alcohol_100g", "sugar-alcohol_serving", "sugar_alcohol_100g", "sugar_alcohol_serving")));
         return dto;
+    }
+
+    private Double per100g(JsonNode productNode, JsonNode nutriments, String per100gField, String servingField, String... alternateFields) {
+        Double directValue = number(nutriments, per100gField);
+        if (directValue != null) {
+            return directValue;
+        }
+        for (int index = 0; index + 1 < alternateFields.length; index += 2) {
+            directValue = number(nutriments, alternateFields[index]);
+            if (directValue != null) {
+                return directValue;
+            }
+        }
+        String servingUnit = normalizeLower(text(productNode, "serving_quantity_unit"));
+        if (!("g".equals(servingUnit) || "gram".equals(servingUnit) || "grams".equals(servingUnit))) {
+            return null;
+        }
+        Double servingQuantity = number(productNode, "serving_quantity");
+        Double servingValue = number(nutriments, servingField);
+        if (servingValue == null) {
+            for (int index = 1; index < alternateFields.length; index += 2) {
+                servingValue = number(nutriments, alternateFields[index]);
+                if (servingValue != null) {
+                    break;
+                }
+            }
+        }
+        if (servingQuantity == null || servingQuantity <= 0.0 || servingValue == null) {
+            return null;
+        }
+        return servingValue * 100.0 / servingQuantity;
     }
 
     private String toOpenFoodFactsCountryTag(MarketRegion marketRegion) {

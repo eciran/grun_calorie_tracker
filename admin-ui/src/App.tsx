@@ -18,15 +18,20 @@ import {
   AdminPushMonitoring,
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
+  AdminProductQualityWorkbench,
   AdminTrackingTrendPoint,
   AdminProductQualityAiValidationResult,
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AiMealDraft,
+  AiMonitoringSummary,
+  AiQuotaRefundResponse,
   AuditEntry,
   DashboardSummary,
   FeatureMatrixItem,
   FoodProduct,
+  FoodCanonicalDuplicateGroup,
+  FoodCanonicalDuplicateGroupPage,
   FoodSearchAlias,
   ProductQualityScanRun,
   ProductQualityScanRunDetail,
@@ -67,6 +72,7 @@ type SectionKey =
   | "foodRegions"
   | "foodQuality"
   | "products"
+  | "productDuplicates"
   | "productImages"
   | "productNutrition"
   | "productRejected"
@@ -138,7 +144,7 @@ const AI_REQUEST_TYPES = [
   "AI_DAILY_INSIGHT",
   "AI_WEEKLY_INSIGHT"
 ];
-const AI_REQUEST_STATUSES = ["PENDING", "CONFIRMED", "REJECTED", "FAILED"];
+const AI_REQUEST_STATUSES = ["DRAFT_CREATED", "CONFIRMED", "REJECTED", "FAILED"];
 const SUBSCRIPTION_EVENT_STATUSES = ["RECEIVED", "PROCESSED", "FAILED", "IGNORED"];
 const PRODUCT_QUALITY_SUGGESTION_STATUSES = ["OPEN", "ACCEPTED", "REJECTED"];
 const CONTROLLED_AI_FEATURES = [
@@ -183,6 +189,7 @@ const sections: SectionMeta[] = [
   { key: "foodRegions", label: "Regions", hint: "Market groups", icon: "R" },
   { key: "foodQuality", label: "Quality Rules", hint: "Catalog checks", icon: "Q" },
   { key: "products", label: "Product Review", hint: "Catalog quality", icon: "P" },
+  { key: "productDuplicates", label: "Canonical Duplicates", hint: "Generic identity decisions", icon: "D" },
   { key: "productImages", label: "Image Review", hint: "Product media", icon: "I" },
   { key: "productNutrition", label: "Nutrition Review", hint: "Macro quality", icon: "N" },
   { key: "productRejected", label: "Rejected Products", hint: "Review archive", icon: "R" },
@@ -277,7 +284,7 @@ const navigation: NavigationItem[] = [
 const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
   [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
-  [navSection("products"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
+  [navSection("products"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
   [navSection("notifications"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
@@ -591,6 +598,7 @@ export default function App() {
           {active === "foodRegions" && <FoodOpsView mode="regions" onError={setError} />}
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
+          {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
           {active === "productImages" && <ProductReviewView mode="images" onError={setError} />}
           {active === "productNutrition" && <ProductReviewView mode="nutrition" onError={setError} />}
           {active === "productRejected" && <ProductReviewView mode="rejected" onError={setError} />}
@@ -943,6 +951,179 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
   );
 }
 
+type CanonicalDecision = {
+  group: FoodCanonicalDuplicateGroup;
+  product: FoodProduct;
+};
+
+function CanonicalDuplicateWorkspace({ onError }: { onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [filter, setFilter] = useState<"ALL" | "UNRESOLVED" | "DECIDED">("ALL");
+  const [pendingDecision, setPendingDecision] = useState<CanonicalDecision | null>(null);
+  const [pendingClear, setPendingClear] = useState<FoodCanonicalDuplicateGroup | null>(null);
+  const [saving, setSaving] = useState(false);
+  const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
+  if (filter === "UNRESOLVED") params.set("resolved", "false");
+  if (filter === "DECIDED") params.set("resolved", "true");
+  const { data, state, reload } = useEndpoint<FoodCanonicalDuplicateGroupPage>(
+    `/api/v1/admin/products/duplicates/canonical?${params.toString()}`,
+    onError
+  );
+  const groups = data?.content ?? [];
+
+  useEffect(() => setPage(0), [filter, pageSize]);
+
+  async function resolvePrimary(decision: CanonicalDecision) {
+    if (!decision.group.canonicalFoodKey || !decision.product.id) return;
+    setSaving(true);
+    onError(null);
+    try {
+      await request("/api/v1/admin/products/duplicates/canonical/resolve", {
+        method: "POST",
+        body: {
+          canonicalFoodKey: decision.group.canonicalFoodKey,
+          primaryProductId: decision.product.id
+        }
+      });
+      setPendingDecision(null);
+      await reload();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearResolution(group: FoodCanonicalDuplicateGroup) {
+    if (!group.canonicalFoodKey) return;
+    setSaving(true);
+    onError(null);
+    try {
+      await request(`/api/v1/admin/products/duplicates/canonical/resolution?canonicalFoodKey=${encodeURIComponent(group.canonicalFoodKey)}`, {
+        method: "DELETE"
+      });
+      setPendingClear(null);
+      await reload();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div className="stack">
+    <SectionToolbar title="Canonical duplicate workspace" state={state} onReload={reload} />
+    <div className="review-workspace-summary">
+      <MetricCard label="Groups" value={formatValue(data?.totalElements ?? groups.length)} hint="Matching the current decision filter" />
+      <MetricCard label="Needs attention" value={formatValue(groups.filter((group) => group.resolutionState !== "RESOLVED").length)} hint="Visible page: unresolved, stale, or unsafe" />
+      <MetricCard label="Resolved" value={formatValue(groups.filter((group) => group.resolutionState === "RESOLVED").length)} hint="Visible page with a safe primary" />
+      <MetricCard label="Candidates" value={formatValue(groups.reduce((sum, group) => sum + (group.productCount ?? 0), 0))} hint="Source records remain preserved" />
+    </div>
+
+    <Panel title="Decision filter">
+      <div className="canonical-filter-row">
+        <label>
+          Resolution
+          <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
+            <option value="ALL">All groups</option>
+            <option value="UNRESOLVED">No stored decision</option>
+            <option value="DECIDED">Stored decision</option>
+          </select>
+        </label>
+        <p>Recommendations are deterministic. An admin must confirm every primary decision.</p>
+      </div>
+    </Panel>
+
+    {groups.length === 0 && <Panel title="Canonical groups"><p className="empty-state">No duplicate groups match this filter.</p></Panel>}
+    {groups.map((group) => {
+      const assessments = group.candidateAssessments?.length
+        ? group.candidateAssessments
+        : (group.products ?? []).map((product) => ({ product, primaryEligible: true, eligibilityIssues: [], recommended: product.id === group.recommendedPrimaryProductId }));
+      return <section className="canonical-group" key={group.canonicalFoodKey}>
+        <header className="canonical-group-header">
+          <div>
+            <span className="eyebrow">{group.canonicalFoodKey}</span>
+            <h2>{formatValue(group.productCount)} source candidates</h2>
+            {group.resolutionStatusReason && <p>{group.resolutionStatusReason}</p>}
+          </div>
+          <div className="canonical-group-status">
+            <Badge value={group.resolutionState} tone={group.resolutionState === "RESOLVED" ? "good" : group.resolutionState === "UNRESOLVED" ? "neutral" : "warn"} />
+            {group.primaryProductId && <small>Primary #{group.primaryProductId}</small>}
+            {group.primaryProductId && <button className="ghost-button" type="button" onClick={() => setPendingClear(group)}>Clear decision</button>}
+          </div>
+        </header>
+        <div className="canonical-candidate-grid">
+          {assessments.map((assessment) => {
+            const product = assessment.product;
+            if (!product) return null;
+            const selected = product.id === group.primaryProductId;
+            return <article className={`canonical-candidate${selected ? " selected" : ""}`} key={product.id ?? product.sourceKey}>
+              <div className="canonical-candidate-title">
+                <div>
+                  <h3>{productName(product)}</h3>
+                  <span>{product.dataSource ?? "Unknown source"} · {product.sourceKey ?? `Product #${product.id}`}</span>
+                </div>
+                <div className="badge-stack">
+                  {selected && <Badge value="CURRENT PRIMARY" tone="good" />}
+                  {assessment.recommended && <Badge value="RECOMMENDED" tone="neutral" />}
+                </div>
+              </div>
+              <dl className="canonical-facts">
+                <div><dt>Preparation</dt><dd>{product.preparationState ?? "UNSPECIFIED"}</dd></div>
+                <div><dt>Market</dt><dd>{product.marketRegion ?? "GLOBAL"}</dd></div>
+                <div><dt>Quality</dt><dd>{formatValue(product.qualityScore)} / 100</dd></div>
+                <div><dt>Usage</dt><dd>{formatValue(product.usageCount)}</dd></div>
+                <div><dt>Calories</dt><dd>{formatValue(product.calories)} kcal</dd></div>
+                <div><dt>Macros</dt><dd>P {formatValue(product.protein)} · C {formatValue(product.carbs)} · F {formatValue(product.fat)}</dd></div>
+              </dl>
+              <div className={`canonical-eligibility ${assessment.primaryEligible ? "good" : "blocked"}`}>
+                <strong>{assessment.primaryEligible ? "Eligible for primary" : "Selection blocked"}</strong>
+                {(assessment.eligibilityIssues ?? []).map((issue) => <span key={issue}>{issue}</span>)}
+              </div>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={saving || !assessment.primaryEligible || selected}
+                onClick={() => setPendingDecision({ group, product })}
+              >
+                {selected ? "Selected primary" : "Select as primary"}
+              </button>
+            </article>;
+          })}
+        </div>
+      </section>;
+    })}
+
+    <PaginationControls
+      page={data?.page ?? page}
+      pageSize={data?.size ?? pageSize}
+      totalElements={data?.totalElements ?? groups.length}
+      totalPages={data?.totalPages ?? 1}
+      first={Boolean(data?.first)}
+      last={Boolean(data?.last)}
+      onPageChange={setPage}
+      onPageSizeChange={setPageSize}
+    />
+
+    {pendingDecision && <ConfirmDialog
+      title="Change canonical primary?"
+      message={`Select ${productName(pendingDecision.product)} as the user-visible primary for this canonical group? Source records will remain stored.`}
+      confirmLabel="Confirm primary"
+      busy={saving}
+      onCancel={() => setPendingDecision(null)}
+      onConfirm={() => resolvePrimary(pendingDecision)}
+    />}
+    {pendingClear && <ConfirmDialog
+      title="Clear canonical decision?"
+      message="All eligible source candidates will become visible again until a new primary is selected. No product record will be deleted."
+      confirmLabel="Clear decision"
+      busy={saving}
+      onCancel={() => setPendingClear(null)}
+      onConfirm={() => clearResolution(pendingClear)}
+    />}
+  </div>;
+}
 type ProductReviewMode = "queue" | "images" | "nutrition" | "rejected";
 
 type NutritionCorrectionImportResult = {
@@ -3385,10 +3566,16 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [refundableOnly, setRefundableOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  const [summaryWindowHours, setSummaryWindowHours] = useState(24);
   const [smokeState, setSmokeState] = useState<LoadState>("idle");
+  const [refundState, setRefundState] = useState<LoadState>("idle");
   const [smokeResult, setSmokeResult] = useState<string | null>(null);
+  const [refundDraft, setRefundDraft] = useState<{ item: AiMealDraft; amount: string; reason: string } | null>(null);
+  const [refundResult, setRefundResult] = useState<AiQuotaRefundResponse | null>(null);
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
+  const summaryPath = `/api/v1/admin/ai/requests/summary?windowHours=${summaryWindowHours}`;
   const { data, state, reload } = useEndpoint<PageResponse<AiMealDraft>>(path, onError);
+  const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AiMonitoringSummary>(summaryPath, onError);
   const rows = data?.content ?? [];
   const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
 
@@ -3419,15 +3606,101 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     }
   }
 
+  async function refundSelectedAiQuota(event: FormEvent) {
+    event.preventDefault();
+    if (!refundDraft) return;
+    const requestId = aiRequestId(refundDraft.item);
+    const amount = Number(refundDraft.amount);
+    const reason = refundDraft.reason.trim();
+    const refundableAmount = safeNumber(refundDraft.item.refundableAmount);
+    if (!requestId || !Number.isFinite(amount) || amount <= 0 || amount > refundableAmount || !reason) {
+      onError("Refund amount must be positive, must not exceed refundable amount, and reason is required.");
+      return;
+    }
+    setRefundState("loading");
+    try {
+      const result = await request<AiQuotaRefundResponse>(`/api/v1/admin/ai/meal-drafts/${requestId}/quota-refund`, {
+        method: "POST",
+        body: { amount, reason }
+      });
+      setRefundResult(result);
+      setRefundDraft(null);
+      setRefundState("ready");
+      await reload();
+      await reloadSummary();
+    } catch (error) {
+      setRefundState("error");
+      onError(formatRequestError(error));
+      await reload();
+      await reloadSummary();
+    }
+  }
+
   return (
     <div className="stack">
-      <SectionToolbar title="AI request operations" state={combineStates([state, smokeState])} onReload={reload}>
+      <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
       </SectionToolbar>
       {targetContext && <TargetContextBanner context={targetContext} onClear={onClearTarget} />}
+
+      <Panel title="AI monitoring summary">
+        <div className="ai-monitoring-toolbar">
+          <div>
+            <strong>{summaryWindowLabel(summaryWindowHours)}</strong>
+            <small>Generated {formatDate(summary?.generatedAt)} | Window start {formatDate(summary?.windowStart)}</small>
+          </div>
+          <div className="segmented-control" role="group" aria-label="AI monitoring window">
+            {[24, 168, 720].map((hours) => (
+              <button className={summaryWindowHours === hours ? "active" : ""} key={hours} type="button" onClick={() => setSummaryWindowHours(hours)}>{summaryWindowLabel(hours)}</button>
+            ))}
+          </div>
+        </div>
+        <div className="metric-grid compact-grid">
+          <MetricCard label="Total requests" value={formatValue(summary?.totalRequests)} hint="All controlled AI requests" />
+          <MetricCard label="Drafts created" value={formatValue(summary?.draftCreated)} hint="AI produced reviewable output" />
+          <MetricCard label="Confirmed" value={formatValue(summary?.confirmed)} hint="User accepted the result" />
+          <MetricCard label="Rejected" value={formatValue(summary?.rejected)} hint="User rejected the result" />
+          <MetricCard label="Failures" value={formatValue(summary?.failed)} hint={`${formatFailureRate(summary?.failureRate)} failure rate`} />
+          <MetricCard label="Quota consumed" value={formatValue(summary?.quotaConsumedAmount)} hint={`${formatValue(summary?.quotaRefundedAmount)} refunded`} />
+          <MetricCard label="Tokens" value={formatValue(summary?.totalTokens)} hint={`${formatValue(summary?.promptTokens)} input / ${formatValue(summary?.completionTokens)} output`} />
+          <MetricCard label="Estimated cost" value={formatCurrencyBreakdown(summary?.estimatedCostByCurrency)} hint="Costs are separated by currency" />
+        </div>
+      </Panel>
+
+      <div className="ai-monitoring-grid">
+        <Panel title="Provider, model, and prompt version">
+          <DataTable
+            columns={["Provider", "Model", "Prompt", "Requests", "Tokens", "Cost", "Quota"]}
+            rows={(summary?.providerModels ?? []).map((item) => [
+              item.provider ?? "-",
+              item.model ?? "-",
+              item.promptVersion ?? "-",
+              formatValue(item.requestCount),
+              `${formatValue(item.promptTokens)} in / ${formatValue(item.completionTokens)} out / ${formatValue(item.totalTokens)} total`,
+              formatAiCostAmount(item.estimatedCost, item.costCurrency),
+              `${formatValue(item.quotaConsumedAmount)} used / ${formatValue(item.quotaRefundedAmount)} refunded`
+            ])}
+            empty="No provider/model metrics returned for this window."
+          />
+        </Panel>
+        <Panel title="Request type and status">
+          <DataTable
+            columns={["Request type", "Status", "Count", "Tokens", "Quota"]}
+            rows={(summary?.requestStatuses ?? []).map((item) => [
+              humanizeAiRequestType(item.requestType),
+              <Badge value={item.status ?? "-"} tone={aiStatusTone(item.status)} />,
+              formatValue(item.requestCount),
+              formatValue(item.totalTokens),
+              `${formatValue(item.quotaConsumedAmount)} used / ${formatValue(item.quotaRefundedAmount)} refunded`
+            ])}
+            empty="No request status metrics returned for this window."
+          />
+        </Panel>
+      </div>
+
       <Panel title="Request filters">
-        <div className="review-filter-grid">
+        <div className="review-filter-grid ai-review-filter-grid">
           <label>
             Request type
             <select value={requestType} onChange={(event) => { setRequestType(event.target.value); setPage(0); }}>
@@ -3448,22 +3721,38 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           </label>
         </div>
       </Panel>
+      {refundResult && <Panel title="Last quota refund result">
+        <div className="ai-refund-result-grid">
+          <DetailItem label="Request" value={refundResult.requestId} />
+          <DetailItem label="Refunded now" value={refundResult.refundedNow} />
+          <DetailItem label="Total refunded" value={refundResult.quotaRefundedAmount} />
+          <DetailItem label="Refunded by" value={refundResult.quotaRefundedBy} />
+          <DetailItem label="Refunded at" value={formatDate(refundResult.quotaRefundedAt)} />
+          <DetailItem label="Subscription remaining" value={refundResult.subscription?.aiRemainingThisPeriod} />
+        </div>
+      </Panel>}
       {smokeResult && <Panel title="AI provider smoke result">
         <pre className="audit-value-block">{smokeResult}</pre>
       </Panel>}
       <DataTable
-        columns={["Request", "User", "Type", "Status", "Quota", "Provider", "Latency", "Cost", "Created"]}
-        rows={rows.map((item) => [
-          <TargetAwareValue value={item.requestId ?? item.id ?? "-"} focused={isTargetMatch(focusedRequestId, item.requestId ?? item.id)} />,
-          item.userEmail ?? item.userId ?? "-",
-          humanizeAiRequestType(item.requestType),
-          <Badge value={item.status} tone={aiStatusTone(item.status)} />,
-          `${formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} used / ${formatValue(item.quotaRefundedAmount ?? item.quotaRefunded ?? 0)} refunded / ${formatValue(item.refundableAmount ?? 0)} refundable`,
-          `${formatValue(item.provider)} ${formatValue(item.model)}`,
-          item.latencyMs ? `${formatValue(item.latencyMs)} ms` : "-",
-          formatAiCost(item),
-          formatDate(item.createdAt)
-        ])}
+        columns={["Request", "User", "Type", "Status", "Provider", "Performance", "Cost", "Quota", "Rejection", "Refund", "Actions"]}
+        rows={rows.map((item) => {
+          const refundableAmount = safeNumber(item.refundableAmount);
+          const canRefund = canRefundAiRequest(item);
+          return [
+            <TargetAwareValue value={aiRequestId(item) ?? "-"} focused={isTargetMatch(focusedRequestId, aiRequestId(item))} />,
+            <div className="entity-cell"><strong>{item.userEmail ?? "-"}</strong><small>User #{formatValue(item.userId)}</small></div>,
+            humanizeAiRequestType(item.requestType),
+            <Badge value={item.status} tone={aiStatusTone(item.status)} />,
+            <div className="entity-cell"><strong>{formatValue(item.provider)} {formatValue(item.model)}</strong><small>{item.promptVersion ?? "No prompt version"}</small></div>,
+            <div className="entity-cell"><strong>{item.latencyMs ? `${formatValue(item.latencyMs)} ms` : "-"}</strong><small>{formatValue(item.totalTokens)} tokens</small></div>,
+            formatAiCost(item),
+            `${formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} used / ${formatValue(item.quotaRefundedAmount ?? item.quotaRefunded ?? 0)} refunded / ${formatValue(refundableAmount)} refundable`,
+            <div className="ai-feedback-cell"><strong>{shortFeature(item.rejectionReason)}</strong><small>{item.rejectionFeedback ?? "-"}</small></div>,
+            <div className="ai-feedback-cell"><strong>{item.quotaRefundedBy ?? "-"}</strong><small>{item.quotaRefundedAt ? `${formatDate(item.quotaRefundedAt)} | ${item.quotaRefundReason ?? ""}` : "No refund recorded"}</small></div>,
+            <button className="ghost-button" type="button" disabled={!canRefund || refundState === "loading"} onClick={() => setRefundDraft({ item, amount: String(Math.max(1, refundableAmount)), reason: "" })}>Refund quota</button>
+          ];
+        })}
         empty="No AI requests returned."
       />
       <PaginationControls
@@ -3476,10 +3765,80 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
+      {refundDraft && <AiQuotaRefundModal
+        draft={refundDraft}
+        busy={refundState === "loading"}
+        onChange={setRefundDraft}
+        onClose={() => setRefundDraft(null)}
+        onSubmit={refundSelectedAiQuota}
+      />}
     </div>
   );
 }
 
+function AiQuotaRefundModal({
+  busy,
+  draft,
+  onChange,
+  onClose,
+  onSubmit
+}: {
+  busy: boolean;
+  draft: { item: AiMealDraft; amount: string; reason: string };
+  onChange: (draft: { item: AiMealDraft; amount: string; reason: string }) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  const item = draft.item;
+  const refundableAmount = safeNumber(item.refundableAmount);
+  const amount = Number(draft.amount);
+  const invalid = !Number.isFinite(amount) || amount <= 0 || amount > refundableAmount || !draft.reason.trim();
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <form className="modal-card compact ai-refund-modal" onSubmit={onSubmit} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>AI QUOTA REFUND</span>
+            <h2>Request #{aiRequestId(item) ?? "-"}</h2>
+            <p>{item.userEmail ?? `User #${formatValue(item.userId)}`}</p>
+          </div>
+          <button className="modal-icon-close" type="button" onClick={onClose} aria-label="Close refund modal">x</button>
+        </div>
+        <div className="modal-body ai-refund-body">
+          <div className="ai-refund-overview">
+            <div className="ai-refund-summary">
+              <DetailItem label="Status" value={shortFeature(item.status)} />
+              <DetailItem label="Consumed" value={formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} />
+              <DetailItem label="Already refunded" value={item.quotaRefundedAmount ?? item.quotaRefunded ?? 0} />
+              <DetailItem label="Refundable" value={refundableAmount} />
+            </div>
+            <label className="ai-refund-amount-field">
+              Refund amount
+              <input min="1" max={refundableAmount || undefined} type="number" value={draft.amount} onChange={(event) => onChange({ ...draft, amount: event.target.value })} required />
+              <small>Available refundable quota: {formatValue(refundableAmount)}</small>
+            </label>
+          </div>
+          <div className="ai-refund-user-rejection">
+            <span>User rejection</span>
+            <strong>{shortFeature(item.rejectionReason) || "No reason selected"}</strong>
+            <p>{item.rejectionFeedback || "No user feedback submitted."}</p>
+          </div>
+          <div className="ai-refund-form-grid">
+            <label className="ai-refund-reason-field">
+              Refund reason
+              <textarea maxLength={500} value={draft.reason} onChange={(event) => onChange({ ...draft, reason: event.target.value })} placeholder="Why this AI result deserves quota refund" required />
+            </label>
+            <aside className="ai-refund-warning">Backend enforces request-level refund limits. If this request is stale, the action returns a safe validation error and the queue refreshes.</aside>
+          </div>
+        </div>
+        <div className="modal-actions padded-actions ai-refund-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button" type="submit" disabled={busy || invalid}>Refund quota</button>
+        </div>
+      </form>
+    </div>
+  );
+}
 function SubscriptionEventsView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const [status, setStatus] = useState("");
   const [eventType, setEventType] = useState("");
@@ -6195,6 +6554,7 @@ function ProductReviewModal({
           </div>
             <div className="product-detail-stack">
             <div className="detail-grid editable">
+            <ProductQualityWorkbench product={item} onError={onError} />
               <EditableDetail label="Product name">
                 <input value={draft.productName} onChange={(event) => updateDraft("productName", event.target.value)} />
               </EditableDetail>
@@ -6236,7 +6596,6 @@ function ProductReviewModal({
               <DetailItem label="Review priority" value={formatValue(item.reviewPriority)} />
               <DetailItem label="Usage count" value={formatValue(item.usageCount)} />
             </div>
-            <ProductAliasManager productId={item.id} onError={onError} />
             <div className="nutrition-editor">
               <div className="nutrition-editor-heading">
                 <div>
@@ -6295,6 +6654,170 @@ function ProductReviewModal({
       </section>
     </div>
   );
+}
+
+type ProductWorkbenchTab = "overview" | "nutrition" | "names" | "aliases" | "serving" | "evidence" | "ai" | "audit";
+
+const HIGH_IMPACT_PRODUCT_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitaminA", "vitaminC", "vitaminD", "vitaminE", "vitaminB12",
+  "saturatedFat", "transFat", "sugarAlcohol"
+]);
+
+function ProductQualityWorkbench({ product, onError }: { product: FoodProduct; onError: (message: string | null) => void }) {
+  const [tab, setTab] = useState<ProductWorkbenchTab>("overview");
+  const [data, setData] = useState<AdminProductQualityWorkbench | null>(null);
+  const [state, setState] = useState<LoadState>("idle");
+  const [pendingHighImpact, setPendingHighImpact] = useState<ProductQualitySuggestion | null>(null);
+
+  useEffect(() => {
+    void loadWorkbench();
+  }, [product.id]);
+
+  async function loadWorkbench() {
+    if (!product.id) return;
+    setState("loading");
+    try {
+      setData(await request<AdminProductQualityWorkbench>(`/api/v1/admin/products/${product.id}/quality-workbench`));
+      setState("ready");
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function analyzeWithAi() {
+    if (!product.id) return;
+    setState("loading");
+    try {
+      await request<AdminProductQualityAiValidationResult>("/api/v1/admin/products/quality-suggestions/ai-validate-selected", {
+        method: "POST",
+        body: { productIds: [product.id], limit: 1, forceRescan: true }
+      });
+      await loadWorkbench();
+      setTab("ai");
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function reviewSuggestion(item: ProductQualitySuggestion, action: "accept" | "reject", confirmed = false) {
+    if (!item.id) return;
+    if (action === "accept" && isHighImpactProductSuggestion(item) && !confirmed) {
+      setPendingHighImpact(item);
+      return;
+    }
+    setState("loading");
+    try {
+      await request(`/api/v1/admin/products/quality-suggestions/${item.id}/${action}`, { method: "PATCH" });
+      setPendingHighImpact(null);
+      await loadWorkbench();
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const suggestions = data?.suggestions ?? [];
+  const openSuggestions = suggestions.filter((item) => item.status === "OPEN");
+  const comparisons = data?.evidence?.comparisons ?? [];
+  const evidence = data?.evidence?.evidence ?? [];
+  const nameSuggestions = openSuggestions.filter((item) => ["NAME_CLEANUP", "DISPLAY_NAME", "LOCALIZATION"].includes(item.suggestionType ?? ""));
+  const aliasSuggestions = openSuggestions.filter((item) => item.suggestionType === "SEARCH_ALIAS");
+  const servingSuggestions = openSuggestions.filter((item) => item.suggestionType === "SERVING_OPTION" || item.suggestionType === "MISSING_SERVING_SIZE");
+  const nutritionSuggestions = openSuggestions.filter(isHighImpactProductSuggestion);
+
+  return <section className="product-quality-workbench" aria-label="AI product quality workbench">
+    <div className="product-workbench-toolbar">
+      <div>
+        <span className="eyebrow">AI quality workbench</span>
+        <strong>{formatValue(openSuggestions.length)} open recommendation(s)</strong>
+      </div>
+      <div className="product-workbench-actions">
+        <button className="ghost-button" type="button" disabled={state === "loading"} onClick={loadWorkbench}>Refresh</button>
+        <button className="primary-button" type="button" disabled={state === "loading" || !product.id} onClick={analyzeWithAi}>Analyze product with AI</button>
+      </div>
+    </div>
+    <div className="product-workbench-tabs" role="tablist">
+      {(["overview", "nutrition", "names", "aliases", "serving", "evidence", "ai", "audit"] as ProductWorkbenchTab[]).map((value) =>
+        <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{humanizeFeature(value)}</button>
+      )}
+    </div>
+
+    {state === "loading" && !data && <div className="empty-state">Loading product quality context...</div>}
+    {tab === "overview" && data && <div className="workbench-pane">
+      <div className="metric-grid compact-grid">
+        <MetricCard label="Quality" value={`${formatValue(data.product?.qualityScore)} / 100`} hint={`Confidence ${formatValue(data.product?.confidenceScore)}`} />
+        <MetricCard label="Active issues" value={formatValue((data.qualityIssues ?? []).filter((item) => !item.resolved).length)} hint="Deterministic quality rules" />
+        <MetricCard label="Evidence rows" value={formatValue(evidence.length)} hint={`${formatValue(comparisons.length)} field comparisons`} />
+        <MetricCard label="AI review" value={formatValue(openSuggestions.length)} hint="Pending admin decisions" />
+      </div>
+      <DataTable columns={["Issue", "Reason", "State"]} rows={(data.qualityIssues ?? []).map((item) => [<strong>{humanizeFeature(item.issueType)}</strong>, item.reason ?? "-", <Badge value={item.resolved ? "RESOLVED" : "OPEN"} tone={item.resolved ? "good" : "warn"} />])} empty="No quality issues detected." />
+      <div className="canonical-workbench-strip">
+        <div><span>Canonical identity</span><strong>{data.canonicalDuplicate?.canonicalFoodKey ?? "Not assigned"}</strong></div>
+        <div><span>Resolved primary</span><strong>{formatValue(data.canonicalDuplicate?.resolvedPrimaryProductId)}</strong></div>
+        <div><span>Candidates</span><strong>{formatValue(data.canonicalDuplicate?.candidates?.length)}</strong></div>
+      </div>
+      {(data.canonicalDuplicate?.candidates?.length ?? 0) > 1 && <DataTable columns={["Candidate", "Source", "State", "Quality"]} rows={(data.canonicalDuplicate?.candidates ?? []).map((item) => [<div className="entity-cell"><strong>{item.displayName ?? `Product ${item.productId}`}</strong><small>{item.brand ?? "Generic"}</small></div>, `${item.dataSource ?? "-"} / ${item.marketRegion ?? "-"}`, `${item.preparationState ?? "-"} / ${item.verificationStatus ?? "-"}`, `${formatValue(item.qualityScore)} / 100`])} empty="No canonical duplicate candidates." />}
+    </div>}
+
+    {tab === "nutrition" && <WorkbenchSuggestionTable suggestions={nutritionSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />}
+    {tab === "names" && <div className="workbench-pane">
+      <DataTable columns={["Language", "Display name", "Short name", "Source", "State"]} rows={(data?.localizations ?? []).map((item) => [item.language ?? "-", item.displayName ?? "-", item.shortDisplayName ?? "-", item.source ?? "-", <Badge value={item.active ? "ACTIVE" : "INACTIVE"} tone={item.active ? "good" : "neutral"} />])} empty="No localized names." />
+      <WorkbenchSuggestionTable suggestions={nameSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />
+    </div>}
+    {tab === "aliases" && <div className="workbench-pane"><ProductAliasManager productId={product.id} onError={onError} /><WorkbenchSuggestionTable suggestions={aliasSuggestions} comparisons={comparisons} onReview={reviewSuggestion} /></div>}
+    {tab === "serving" && <div className="workbench-pane">
+      <DataTable columns={["Serving", "Conversion", "Source", "Quality", "Localizations"]} rows={(data?.servingOptions ?? []).map((item) => [<div className="entity-cell"><strong>{item.label ?? "-"}</strong><small>{item.defaultOption ? "Default" : item.unitType ?? "-"}</small></div>, item.gramWeight != null ? `${item.gramWeight} g` : item.mlVolume != null ? `${item.mlVolume} ml` : `${formatValue(item.quantity)} ${item.unitType ?? ""}`, item.source ?? "-", <Badge value={item.qualityStatus ?? "-"} />, (item.localizations ?? []).map((value) => `${value.language}: ${value.label}`).join(", ") || "-"])} empty="No serving options." />
+      <WorkbenchSuggestionTable suggestions={servingSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />
+    </div>}
+    {tab === "evidence" && <div className="workbench-pane">
+      <DataTable columns={["Field", "Provider", "Value", "Basis", "Confidence", "Freshness", "Reviewer"]} rows={evidence.map((item) => [item.fieldName ?? "-", item.provider ?? "-", formatValue(item.numericValue), item.basis ?? "-", `${formatValue(item.confidenceScore)}%`, <Badge value={item.stale ? "STALE" : "CURRENT"} tone={item.stale ? "warn" : "good"} />, item.reviewerIdentity ?? "system"])} empty="No source evidence captured." />
+      <DataTable columns={["Field", "Basis", "Comparison", "Difference", "Reason"]} rows={comparisons.map((item) => [item.fieldName ?? "-", item.basis ?? "-", <Badge value={item.state ?? "-"} tone={item.state === "MATCH" ? "good" : item.state === "CONFLICT" ? "danger" : "warn"} />, formatValue(item.maximumDifference), item.reason ?? "-"])} empty="No evidence comparisons." />
+    </div>}
+    {tab === "ai" && <WorkbenchSuggestionTable suggestions={suggestions} comparisons={comparisons} onReview={reviewSuggestion} showReviewed />}
+    {tab === "audit" && <DataTable columns={["When", "Action", "Field", "Change", "Admin", "Note"]} rows={(data?.audit ?? []).map((item) => [formatDate(item.createdAt), item.actionType ?? "-", item.fieldName ?? "-", `${item.oldValue ?? "-"} -> ${item.newValue ?? "-"}`, item.reviewedBy ?? "-", item.note ?? "-"])} empty="No product audit history." />}
+
+    {pendingHighImpact && <ConfirmDialog title="Apply nutrition change?" message={`This changes ${pendingHighImpact.fieldName ?? "a nutrition field"} from ${pendingHighImpact.currentValue ?? "empty"} to ${pendingHighImpact.suggestedValue ?? "empty"}. Confirm only after checking the provider evidence shown in this workbench.`} confirmLabel="Apply verified change" danger busy={state === "loading"} onCancel={() => setPendingHighImpact(null)} onConfirm={() => reviewSuggestion(pendingHighImpact, "accept", true)} />}
+  </section>;
+}
+
+function WorkbenchSuggestionTable({ suggestions, comparisons, onReview, showReviewed = false }: { suggestions: ProductQualitySuggestion[]; comparisons: NonNullable<AdminProductQualityWorkbench["evidence"]>["comparisons"]; onReview: (item: ProductQualitySuggestion, action: "accept" | "reject") => void; showReviewed?: boolean }) {
+  return <DataTable columns={["Recommendation", "Current", "Provider evidence", "AI proposal", "Confidence", "Reason", "Actions"]} rows={suggestions.map((item) => {
+    const comparison = (comparisons ?? []).find((value) => value.fieldName === evidenceFieldForSuggestion(item.fieldName));
+    return [<div className="entity-cell"><strong>{humanizeFeature(item.suggestionType)}</strong><small>{item.fieldName ?? "-"}</small></div>, item.currentValue ?? "-", <div className="badge-stack"><Badge value={comparison?.state ?? "NO_EVIDENCE"} tone={comparison?.state === "MATCH" ? "good" : comparison?.state === "CONFLICT" ? "danger" : "warn"} /><small>{comparison?.reason ?? "No comparable provider evidence."}</small></div>, item.suggestedValue ?? "Review only", `${formatValue(item.confidenceScore)}%`, item.reason ?? "-", item.status === "OPEN" ? <div className="inline-actions"><button className="ghost-button" type="button" disabled={!canApplyWorkbenchSuggestion(item)} onClick={() => onReview(item, "accept")}>{canApplyWorkbenchSuggestion(item) ? "Accept" : "Review only"}</button><button className="ghost-button danger-text" type="button" onClick={() => onReview(item, "reject")}>Reject</button></div> : showReviewed ? <Badge value={item.status ?? "-"} tone={item.status === "ACCEPTED" ? "good" : "neutral"} /> : "-"];
+  })} empty="No recommendations for this view." />;
+}
+
+const SAFE_NUTRITION_SUGGESTION_TYPES = new Set([
+  "MISSING_MACRO_DATA", "MISSING_MICRO_DATA", "SUSPICIOUS_CALORIE_VALUE",
+  "MACRO_CALORIE_MISMATCH", "SUSPICIOUS_SODIUM_VALUE"
+]);
+const SAFE_NUTRITION_PRODUCT_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitaminA", "vitaminC", "vitaminD", "vitaminE", "vitaminB12",
+  "saturatedFat", "transFat", "sugarAlcohol"
+]);
+const SAFE_SERVING_PRODUCT_FIELDS = new Set(["servingSizeGrams", "servingUnit"]);
+
+function canApplyWorkbenchSuggestion(item: ProductQualitySuggestion) {
+  if (!item.suggestedValue) return false;
+  const suggestionType = item.suggestionType ?? "";
+  if (["NAME_CLEANUP", "DISPLAY_NAME", "LOCALIZATION", "SEARCH_ALIAS"].includes(suggestionType)) return true;
+  if (SAFE_NUTRITION_SUGGESTION_TYPES.has(suggestionType)) {
+    return SAFE_NUTRITION_PRODUCT_FIELDS.has(item.fieldName ?? "");
+  }
+  return suggestionType === "MISSING_SERVING_SIZE"
+    && SAFE_SERVING_PRODUCT_FIELDS.has(item.fieldName ?? "");
+}
+
+function isHighImpactProductSuggestion(item: ProductQualitySuggestion) {
+  return HIGH_IMPACT_PRODUCT_FIELDS.has(item.fieldName ?? "");
+}
+
+function evidenceFieldForSuggestion(fieldName?: string) {
+  return fieldName?.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
 }
 
 function ProductAliasManager({ productId, onError }: { productId?: number; onError: (message: string | null) => void }) {
@@ -7625,6 +8148,7 @@ function aiStatusTone(value?: string): "default" | "good" | "warn" | "danger" | 
       return "warn";
     case "FAILED":
       return "danger";
+    case "DRAFT_CREATED":
     case "PENDING":
       return "neutral";
     default:
@@ -7651,6 +8175,38 @@ function safeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function summaryWindowLabel(hours: number): string {
+  if (hours === 24) return "24h";
+  if (hours === 168) return "7d";
+  if (hours === 720) return "30d";
+  return `${hours}h`;
+}
+
+function formatFailureRate(value?: number): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatCurrencyBreakdown(value?: Record<string, number>): string {
+  const entries = Object.entries(value ?? {}).filter(([, amount]) => typeof amount === "number" && Number.isFinite(amount));
+  if (!entries.length) return "-";
+  return entries.map(([currency, amount]) => formatAiCostAmount(amount, currency)).join(" / ");
+}
+
+function formatAiCostAmount(amount?: number, currency?: string): string {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) return "-";
+  return `${amount.toFixed(4)} ${currency ?? ""}`.trim();
+}
+
+function aiRequestId(item: AiMealDraft): number | undefined {
+  return item.requestId ?? item.id;
+}
+
+function canRefundAiRequest(item: AiMealDraft): boolean {
+  return item.status === "REJECTED"
+    && Boolean(item.quotaConsumed)
+    && safeNumber(item.refundableAmount) > 0;
+}
 function formatAiCost(item: AiMealDraft): string {
   if (typeof item.estimatedCost !== "number") return "-";
   return `${item.estimatedCost.toFixed(4)} ${item.costCurrency ?? ""}`.trim();

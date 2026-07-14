@@ -73,6 +73,40 @@ class FoodProductQualityIssueTrackerTest {
     }
 
     @Test
+    void syncImportIssues_batchesActiveIssueLookupAndPersistence() {
+        FoodItemEntity first = new FoodItemEntity();
+        first.setId(20L);
+        first.setName("First Product");
+        first.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        first.setMarketRegion(MarketRegion.GLOBAL);
+
+        FoodItemEntity second = new FoodItemEntity();
+        second.setId(21L);
+        second.setName("Second Product");
+        second.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        second.setMarketRegion(MarketRegion.GLOBAL);
+
+        FoodProductQualityIssueEntity resolvedByImport = new FoodProductQualityIssueEntity();
+        resolvedByImport.setFoodItem(first);
+        resolvedByImport.setIssueType(FoodProductQualityIssue.MISSING_REGION);
+        resolvedByImport.setResolved(false);
+        when(repository.findByFoodItemIdInAndResolvedFalse(eq(List.of(20L, 21L))))
+                .thenReturn(List.of(resolvedByImport));
+
+        tracker.syncImportIssues(List.of(
+                new FoodProductQualityIssueTracker.ImportIssueContext(first, false, false),
+                new FoodProductQualityIssueTracker.ImportIssueContext(second, true, false)
+        ), "admin@grun.app");
+
+        verify(repository).findByFoodItemIdInAndResolvedFalse(eq(List.of(20L, 21L)));
+        ArgumentCaptor<List<FoodProductQualityIssueEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(repository).saveAll(captor.capture());
+        assertTrue(captor.getValue().stream().anyMatch(issue -> issue.getFoodItem() == first && issue.getResolved()));
+        assertTrue(captor.getValue().stream().anyMatch(issue -> issue.getFoodItem() == second
+                && issue.getIssueType() == FoodProductQualityIssue.MISSING_REGION
+                && !issue.getResolved()));
+    }
+    @Test
     void syncReviewIssues_flagsSuspiciousNutritionValues() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(11L);

@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
+import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -33,6 +34,24 @@ public class AdminAiRequestController {
 
     private final AdminAiMealDraftService adminAiMealDraftService;
 
+    @GetMapping("/summary")
+    @Operation(
+            summary = "Get aggregate AI operational metrics",
+            description = "Returns privacy-safe request, status, token, cost, quota, provider, model, and prompt-version metrics for the selected time window."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "AI monitoring summary returned.",
+                    content = @Content(schema = @Schema(implementation = AdminAiMonitoringSummaryDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AdminAiMonitoringSummaryDto> getSummary(
+            @Parameter(description = "Monitoring window in hours. Clamped between 1 and 744.", example = "24")
+            @RequestParam(defaultValue = "24") int windowHours) {
+        return ResponseEntity.ok(adminAiMealDraftService.getMonitoringSummary(windowHours));
+    }
     @GetMapping
     @Operation(
             summary = "List AI requests for admin operations",

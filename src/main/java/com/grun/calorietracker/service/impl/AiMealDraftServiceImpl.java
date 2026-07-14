@@ -33,6 +33,7 @@ import com.grun.calorietracker.service.AiMealDraftSafetyService;
 import com.grun.calorietracker.service.AiMealDraftService;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.FoodLogsService;
+import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
@@ -139,6 +140,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         history.setRequestType(requestType);
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
+        history.setPromptVersion(properties.getPromptVersion());
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(requestType, request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
@@ -168,6 +170,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             boolean refunded = refundConsumedQuota(user);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true)));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : 1);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -313,6 +316,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         dto.setRequestType(entity.getRequestType());
         dto.setProvider(entity.getProvider());
         dto.setModel(entity.getModel());
+        dto.setPromptVersion(entity.getPromptVersion());
         dto.setStatus(entity.getStatus());
         dto.setQuotaConsumed(entity.getQuotaConsumed());
         dto.setLatencyMs(entity.getLatencyMs());

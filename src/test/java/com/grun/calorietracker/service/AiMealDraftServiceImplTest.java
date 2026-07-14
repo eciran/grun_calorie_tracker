@@ -128,6 +128,7 @@ class AiMealDraftServiceImplTest {
         verify(historyRepository).save(captor.capture());
         assertEquals(AiRequestType.VOICE_FOOD_LOG, captor.getValue().getRequestType());
         assertEquals(AiProvider.LOG, captor.getValue().getProvider());
+        assertEquals("ai-prompt-v1", captor.getValue().getPromptVersion());
         assertEquals(AiRequestStatus.DRAFT_CREATED, captor.getValue().getStatus());
         assertEquals(true, captor.getValue().getQuotaConsumed());
         assertFalse(captor.getValue().getInputPayload().contains("I ate chicken and rice"));
@@ -178,6 +179,13 @@ class AiMealDraftServiceImplTest {
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getLatencyMs());
+        com.fasterxml.jackson.databind.JsonNode safePayload = org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> new ObjectMapper().readTree(captor.getValue().getOutputPayload())
+        );
+        assertEquals("ai_error_v1", safePayload.get("schemaVersion").asText());
+        assertEquals("AI_ANALYSIS_FAILED", safePayload.get("errorCode").asText());
+        assertEquals("AI analysis could not be completed. Please try again with a different input.",
+                safePayload.get("userMessage").asText());
     }
 
     @Test

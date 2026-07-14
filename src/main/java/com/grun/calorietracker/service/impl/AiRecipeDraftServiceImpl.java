@@ -28,6 +28,7 @@ import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiRecipeDraftService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +72,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         history.setRequestType(AiRequestType.AI_RECIPE_GENERATION);
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
+        history.setPromptVersion(properties.getPromptVersion());
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
@@ -94,6 +96,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
             boolean refunded = refundConsumedQuota(user);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(AiRequestType.AI_RECIPE_GENERATION, true)));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : 1);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -402,6 +405,3 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
     }
 }
-
-
-

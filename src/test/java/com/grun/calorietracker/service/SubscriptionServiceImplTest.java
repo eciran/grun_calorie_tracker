@@ -316,7 +316,7 @@ class SubscriptionServiceImplTest {
     void refundConsumedAiQuota_decreasesUsedQuotaWithoutChangingTotalQuota() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 7);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
         when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -331,7 +331,7 @@ class SubscriptionServiceImplTest {
     void refundConsumedAiQuota_whenAmountExceedsUsedQuota_rejects() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 2);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
 
         assertThrows(IllegalArgumentException.class, () -> service.refundConsumedAiQuota(1L, 3));

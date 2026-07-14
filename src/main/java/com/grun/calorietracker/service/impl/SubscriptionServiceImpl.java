@@ -203,7 +203,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (amount <= 0) {
             throw new IllegalArgumentException("AI quota refund amount must be greater than zero.");
         }
-        UserEntity user = userRepository.findById(userId)
+        UserEntity user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
                 .orElseGet(() -> defaultEntity(user));
