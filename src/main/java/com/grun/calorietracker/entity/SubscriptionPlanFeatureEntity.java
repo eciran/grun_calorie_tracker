@@ -33,6 +33,9 @@ public class SubscriptionPlanFeatureEntity {
     @Column(nullable = false)
     private Boolean enabled;
 
+    @Column(name = "ai_credit_cost", nullable = false)
+    private Integer aiCreditCost = 1;
+
     @Column(nullable = false)
     private LocalDate effectiveFrom;
 

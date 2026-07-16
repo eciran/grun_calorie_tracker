@@ -21,16 +21,20 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 
 class SubscriptionServiceImplTest {
@@ -69,6 +73,13 @@ class SubscriptionServiceImplTest {
         lenient().when(userSubscriptionEntitlementRepository.countBySubscription(any())).thenReturn(0L);
         lenient().when(userSubscriptionEntitlementRepository.existsActiveFeature(anyLong(), any(), any())).thenReturn(false);
         lenient().when(userSubscriptionEntitlementRepository.findActiveEntitlementsForPlanFeature(any(), any(), any())).thenReturn(emptyList());
+    }
+
+    @Test
+    void consumeAiQuota_singleArgumentEntryPoint_isTransactional() throws Exception {
+        assertNotNull(SubscriptionServiceImpl.class
+                .getMethod("consumeAiQuota", String.class)
+                .getAnnotation(Transactional.class));
     }
 
     @Test
@@ -262,6 +273,28 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getUpgradeRecommended());
     }
 
+    @Test
+    void consumeAiQuota_withConfiguredAmount_incrementsUsageAtomically() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 5);
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionDto result = service.consumeAiQuota("user@example.com", 3);
+
+        assertEquals(8, result.getAiUsedThisPeriod());
+        assertEquals(7, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
+    void consumeAiQuota_whenConfiguredAmountExceedsRemaining_rejectsWithoutSave() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 14);
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        assertThrows(IllegalArgumentException.class, () -> service.consumeAiQuota("user@example.com", 2));
+        verify(subscriptionRepository, never()).save(any());
+    }
     @Test
     void consumeAiQuota_whenPeriodExpired_resetsUsageBeforeConsume() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 15);

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
 import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
@@ -40,6 +41,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
     private final SubscriptionService subscriptionService;
     private final NotificationRepository notificationRepository;
     private final PushDeliveryService pushDeliveryService;
+    private final AiProperties aiProperties;
 
     @Override
     @Transactional(readOnly = true)
@@ -161,6 +163,10 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         summary.setEstimatedCostByCurrency(costByCurrency);
         summary.setProviderModels(providerMetrics);
         summary.setRequestStatuses(requestMetrics);
+        List<AdminAiMonitoringSummaryDto.OperationalAlert> alerts = operationalAlerts(
+                totalRequests, failed, rejected, totalTokens, costByCurrency, requestMetrics);
+        summary.setAttentionRequired(!alerts.isEmpty());
+        summary.setAlerts(alerts);
         return summary;
     }
     @Override
@@ -264,6 +270,74 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         dto.setQuotaRefundedAt(entity.getQuotaRefundedAt());
         dto.setSubscription(subscription);
         return dto;
+    }
+
+    private List<AdminAiMonitoringSummaryDto.OperationalAlert> operationalAlerts(
+            long totalRequests,
+            long failed,
+            long rejected,
+            long totalTokens,
+            Map<String, Double> costByCurrency,
+            List<AdminAiMonitoringSummaryDto.RequestStatusMetric> requestMetrics) {
+        AiProperties.Monitoring config = aiProperties.getMonitoring();
+        int minRequests = Math.max(config.getMinRequestsForAlert(), 1);
+        double failureThreshold = rateThreshold(config.getFailureRateThreshold());
+        double rejectionThreshold = rateThreshold(config.getRejectionRateThreshold());
+        List<AdminAiMonitoringSummaryDto.OperationalAlert> alerts = new ArrayList<>();
+
+        if (totalRequests >= minRequests && (double) failed / totalRequests >= failureThreshold) {
+            alerts.add(alert("FAILURE_RATE_HIGH", "CRITICAL",
+                    "AI request failure rate reached the configured operational threshold.", null, null));
+        }
+        if (totalRequests >= minRequests && (double) rejected / totalRequests >= rejectionThreshold) {
+            alerts.add(alert("REJECTION_RATE_HIGH", "WARNING",
+                    "AI result rejection rate reached the configured quality threshold.", null, null));
+        }
+        if (config.getMaxTokensPerWindow() > 0
+                && totalTokens >= config.getMaxTokensPerWindow()) {
+            alerts.add(alert("TOKEN_VOLUME_HIGH", "WARNING",
+                    "AI token usage reached the configured window threshold.", null, null));
+        }
+        if (config.getMaxEstimatedCostPerCurrency() > 0) {
+            costByCurrency.forEach((currency, cost) -> {
+                if (cost != null && cost >= config.getMaxEstimatedCostPerCurrency()) {
+                    alerts.add(alert("ESTIMATED_COST_HIGH", "WARNING",
+                            "Estimated AI cost reached the configured currency threshold.",
+                            null, currency));
+                }
+            });
+        }
+
+        Map<AiRequestType, long[]> typeCounts = new LinkedHashMap<>();
+        for (AdminAiMonitoringSummaryDto.RequestStatusMetric metric : requestMetrics) {
+            if (metric.getRequestType() == null) {
+                continue;
+            }
+            long[] counts = typeCounts.computeIfAbsent(metric.getRequestType(), ignored -> new long[2]);
+            counts[0] += metric.getRequestCount();
+            if (metric.getStatus() == AiRequestStatus.FAILED) {
+                counts[1] += metric.getRequestCount();
+            }
+        }
+        typeCounts.forEach((requestType, counts) -> {
+            if (counts[0] >= minRequests && (double) counts[1] / counts[0] >= failureThreshold) {
+                alerts.add(alert("REQUEST_TYPE_FAILURE_RATE_HIGH", "CRITICAL",
+                        "An AI request type reached the configured failure-rate threshold.",
+                        requestType, null));
+            }
+        });
+        return alerts;
+    }
+
+    private double rateThreshold(double value) {
+        return Math.min(Math.max(value, 0.0), 1.0);
+    }
+
+    private AdminAiMonitoringSummaryDto.OperationalAlert alert(
+            String code, String severity, String message,
+            AiRequestType requestType, String currency) {
+        return new AdminAiMonitoringSummaryDto.OperationalAlert(
+                code, severity, message, requestType, currency);
     }
 
     private long longValue(Object value) {

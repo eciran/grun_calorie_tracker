@@ -57,6 +57,13 @@ public final class AiSafeResponseBuilder {
                     "Try again with a narrower recipe goal."
             );
         }
+        if (requestType == AiRequestType.AI_NUTRITION_PLAN) {
+            return List.of(
+                    "Review your calorie target, excluded foods, and meal count.",
+                    "Use GENERAL mode until workout-aligned plans are enabled.",
+                    "Try a shorter plan if the provider cannot produce a consistent result."
+            );
+        }
         if (requestType == AiRequestType.AI_WORKOUT_PLAN) {
             return List.of(
                     "Provide goal, fitness level, available days, and equipment.",

@@ -4,7 +4,11 @@ import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideProviderRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideResponseDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
@@ -61,6 +65,16 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
     @Override
     public AiRecipeDraftResponseDto createRecipeDraft(AiRecipeDraftRequestDto request) {
         return callProvider(new ProviderRequest(AiRequestType.AI_RECIPE_GENERATION, properties.getModel(), request), AiRecipeDraftResponseDto.class);
+    }
+
+    @Override
+    public AiPreparationGuideResponseDto createPreparationGuide(AiPreparationGuideProviderRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_MEAL_PREPARATION_GUIDE, properties.getModel(), request), AiPreparationGuideResponseDto.class);
+    }
+
+    @Override
+    public AiNutritionPlanDraftResponseDto createNutritionPlanDraft(AiNutritionPlanDraftRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_NUTRITION_PLAN, properties.getModel(), request), AiNutritionPlanDraftResponseDto.class);
     }
 
     @Override

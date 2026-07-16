@@ -1,6 +1,6 @@
 package com.grun.calorietracker.controller;
 
-import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
+import com.grun.calorietracker.dto.AdminAiRequestPageDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
@@ -20,7 +20,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -57,7 +56,7 @@ public class AdminAiMealDraftController {
             @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
-    public ResponseEntity<Page<AdminAiRequestReviewDto>> listRequests(
+    public ResponseEntity<AdminAiRequestPageDto> listRequests(
             @Parameter(description = "Optional request status filter.", example = "REJECTED")
             @RequestParam(required = false) AiRequestStatus status,
             @Parameter(description = "When true, returns only rejected requests with remaining refundable quota.", example = "true")
@@ -68,7 +67,9 @@ public class AdminAiMealDraftController {
             @RequestParam(defaultValue = "25") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        return ResponseEntity.ok(adminAiMealDraftService.listRequests(null, status, refundableOnly, PageRequest.of(safePage, safeSize)));
+        return ResponseEntity.ok(AdminAiRequestPageDto.from(
+                adminAiMealDraftService.listRequests(
+                        null, status, refundableOnly, PageRequest.of(safePage, safeSize))));
     }
 
     @PostMapping("/{requestId}/quota-refund")

@@ -24,6 +24,8 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     List<AiRequestHistoryEntity> findByUserAndStatusOrderByCreatedAtDesc(UserEntity user, AiRequestStatus status, Pageable pageable);
     List<AiRequestHistoryEntity> findByUserAndRequestTypeAndStatusOrderByCreatedAtDesc(UserEntity user, AiRequestType requestType, AiRequestStatus status, Pageable pageable);
     Optional<AiRequestHistoryEntity> findByIdAndUser(Long id, UserEntity user);
+    Optional<AiRequestHistoryEntity> findByUserAndRequestTypeAndIdempotencyKey(
+            UserEntity user, AiRequestType requestType, String idempotencyKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select history from AiRequestHistoryEntity history where history.id = :id")

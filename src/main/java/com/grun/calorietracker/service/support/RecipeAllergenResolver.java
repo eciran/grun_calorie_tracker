@@ -24,7 +24,46 @@ public final class RecipeAllergenResolver {
                 allergens.add(allergen);
             }
         }
+        String normalizedText = normalize(rawAllergens);
+        if (normalizedText != null) {
+            detectMentions(" " + normalizedText + " ", allergens);
+        }
         return allergens;
+    }
+
+    private static void detectMentions(String text, Set<RecipeAllergen> allergens) {
+        mention(text, allergens, RecipeAllergen.MILK,
+                "milk", "dairy", "lactose", "casein", "whey", "sut", "yogurt", "yoghurt", "cheese");
+        mention(text, allergens, RecipeAllergen.EGGS, "egg", "eggs", "yumurta");
+        mention(text, allergens, RecipeAllergen.FISH, "fish", "balik", "salmon", "tuna", "cod");
+        mention(text, allergens, RecipeAllergen.CRUSTACEAN_SHELLFISH,
+                "shellfish", "shrimp", "prawn", "crab", "lobster");
+        mention(text, allergens, RecipeAllergen.TREE_NUTS,
+                "tree nuts", "almond", "hazelnut", "walnut", "cashew", "pecan", "pistachio",
+                "brazil nut", "macadamia", "findik", "ceviz", "badem");
+        mention(text, allergens, RecipeAllergen.PEANUTS, "peanut", "peanuts", "yer fistigi");
+        mention(text, allergens, RecipeAllergen.WHEAT, "wheat", "bugday");
+        mention(text, allergens, RecipeAllergen.SOYBEANS, "soy", "soya", "soybean", "soybeans");
+        mention(text, allergens, RecipeAllergen.SESAME, "sesame", "susam", "tahini");
+        mention(text, allergens, RecipeAllergen.GLUTEN, "gluten");
+        mention(text, allergens, RecipeAllergen.CELERY, "celery", "kereviz");
+        mention(text, allergens, RecipeAllergen.MUSTARD, "mustard", "hardal");
+        mention(text, allergens, RecipeAllergen.LUPIN, "lupin");
+        mention(text, allergens, RecipeAllergen.MOLLUSCS,
+                "mollusc", "molluscs", "clam", "mussel", "oyster");
+        mention(text, allergens, RecipeAllergen.SULPHITES,
+                "sulphite", "sulphites", "sulfite", "sulfites",
+                "sulphur dioxide", "sulfur dioxide");
+    }
+
+    private static void mention(String text, Set<RecipeAllergen> allergens,
+                                RecipeAllergen allergen, String... terms) {
+        for (String term : terms) {
+            if (text.contains(" " + term + " ")) {
+                allergens.add(allergen);
+                return;
+            }
+        }
     }
 
     private static RecipeAllergen mapToken(String token) {

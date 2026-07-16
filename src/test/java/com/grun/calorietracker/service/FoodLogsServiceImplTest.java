@@ -381,6 +381,33 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
+    void updateFoodLog_whenFoodItemIdMissing_keepsExistingFoodItem() {
+        foodItem.setServingSizeGrams(60.0);
+        FoodLogsEntity existing = new FoodLogsEntity();
+        existing.setId(21L);
+        existing.setUser(user);
+        existing.setFoodItem(foodItem);
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setPortionSize(2.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.of(2026, 7, 16, 10, 30));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(21L, user)).thenReturn(Optional.of(existing));
+        when(foodLogsRepository.save(existing)).thenReturn(existing);
+
+        FoodLogsDto result = foodLogsService.updateFoodLog(21L, dto, "test@test.com");
+
+        assertEquals(1L, result.getFoodItemId());
+        assertEquals("Egg", result.getFoodName());
+        assertEquals(FoodPortionUnit.SERVING, result.getPortionUnit());
+        assertEquals(120.0, result.getNormalizedPortionGrams());
+        assertEquals("SNACK", result.getMealType());
+        verify(foodItemRepository, never()).findById(any());
+    }
+    @Test
     void copyMeal_clonesSourceLogsToTargetDate() {
         FoodLogsEntity source = new FoodLogsEntity();
         source.setUser(user);

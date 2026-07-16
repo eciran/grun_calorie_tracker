@@ -44,6 +44,9 @@ public class AiRequestHistoryEntity {
     @Column(nullable = false)
     private AiRequestStatus status;
 
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
     @Column(columnDefinition = "TEXT")
     private String inputPayload;
 

@@ -11,6 +11,8 @@ import com.grun.calorietracker.dto.AiWorkoutPlanExerciseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
+import com.grun.calorietracker.dto.WorkoutPlanScheduleSessionRequestDto;
+import com.grun.calorietracker.dto.WorkoutPlanScheduleUpdateRequestDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -32,17 +34,21 @@ import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiWorkoutPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -60,6 +66,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
+    private final UserTimeZoneSupport userTimeZoneSupport;
 
     @Override
     @Transactional
@@ -128,6 +135,21 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         }
 
         AiWorkoutPlanDraftResponseDto plan = normalize(request.getPlan());
+        plan.getDays().forEach(day -> {
+            day.setScheduledDate(null);
+            day.setScheduledStartTime(null);
+            day.setSessionIntensity(null);
+        });
+        LocalDateTime now = LocalDateTime.now();
+        List<WorkoutPlanEntity> previousActivePlans =
+                workoutPlanRepository.findByUserAndActiveTrueOrderByCreatedAtDesc(user);
+        previousActivePlans.forEach(previous -> {
+            previous.setActive(false);
+            previous.setStatus(WorkoutPlanStatus.ARCHIVED);
+            previous.setUpdatedAt(now);
+        });
+        workoutPlanRepository.saveAll(previousActivePlans);
+
         WorkoutPlanEntity entity = new WorkoutPlanEntity();
         entity.setUser(user);
         entity.setName(plan.getName() == null || plan.getName().isBlank() ? "AI workout plan" : plan.getName().trim());
@@ -135,7 +157,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         entity.setSourceAiRequest(history);
         entity.setPlanPayload(writeJson(plan));
         entity.setActive(true);
-        entity.setCreatedAt(LocalDateTime.now());
+        entity.setCreatedAt(now);
 
         WorkoutPlanEntity saved = workoutPlanRepository.save(entity);
         history.setStatus(AiRequestStatus.CONFIRMED);
@@ -182,6 +204,57 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
 
     @Override
     @Transactional
+    public WorkoutPlanDto updateSchedule(
+            String email, Long planId, WorkoutPlanScheduleUpdateRequestDto request) {
+        UserEntity user = getUser(email);
+        WorkoutPlanEntity entity = workoutPlanRepository.findByIdAndUser(planId, user)
+                .orElseThrow(() -> new ResourceNotFoundException("Workout plan not found"));
+        if (!Boolean.TRUE.equals(entity.getActive()) || entity.getStatus() != WorkoutPlanStatus.ACTIVE) {
+            throw new IllegalArgumentException("Only an active workout plan can be scheduled.");
+        }
+        if (request == null || request.getSessions() == null || request.getSessions().isEmpty()) {
+            throw new IllegalArgumentException("Workout schedule sessions are required.");
+        }
+
+        AiWorkoutPlanDraftResponseDto plan = readPlan(entity.getPlanPayload());
+        if (request.getSessions().size() != plan.getDays().size()) {
+            throw new IllegalArgumentException("Schedule must contain exactly one session for every workout day.");
+        }
+        LocalDate today = userTimeZoneSupport.today(user);
+        Set<Integer> indexes = new HashSet<>();
+        Set<LocalDate> dates = new HashSet<>();
+        for (WorkoutPlanScheduleSessionRequestDto session : request.getSessions()) {
+            if (session == null || session.getDayIndex() == null || session.getScheduledDate() == null
+                    || session.getIntensity() == null) {
+                throw new IllegalArgumentException("Each workout schedule session requires dayIndex, date, and intensity.");
+            }
+            if (session.getDayIndex() < 0 || session.getDayIndex() >= plan.getDays().size()) {
+                throw new IllegalArgumentException("Workout schedule dayIndex is outside the plan range.");
+            }
+            if (session.getScheduledDate().isBefore(today)) {
+                throw new IllegalArgumentException("Workout schedule dates cannot be in the past.");
+            }
+            if (!indexes.add(session.getDayIndex())) {
+                throw new IllegalArgumentException("Workout schedule contains a duplicate dayIndex.");
+            }
+            if (!dates.add(session.getScheduledDate())) {
+                throw new IllegalArgumentException("Only one workout session per date is supported.");
+            }
+            AiWorkoutPlanDayDto day = plan.getDays().get(session.getDayIndex());
+            day.setScheduledDate(session.getScheduledDate());
+            day.setScheduledStartTime(session.getScheduledStartTime());
+            day.setSessionIntensity(session.getIntensity());
+        }
+
+        entity.setPlanPayload(writeJson(plan));
+        entity.setScheduleVersion("workout_schedule_v1");
+        entity.setScheduleUpdatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        return toDto(workoutPlanRepository.save(entity));
+    }
+
+    @Override
+    @Transactional
     public void archivePlan(String email, Long planId) {
         UserEntity user = getUser(email);
         WorkoutPlanEntity entity = workoutPlanRepository.findByIdAndUser(planId, user)
@@ -191,6 +264,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         entity.setUpdatedAt(LocalDateTime.now());
         workoutPlanRepository.save(entity);
     }
+
     private AiWorkoutPlanDraftResponseDto normalize(AiWorkoutPlanDraftResponseDto response) {
         if (response == null) {
             throw new IllegalArgumentException("AI workout provider returned an empty response.");
@@ -259,6 +333,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
                 .flatMap(day -> day.getExercises().stream())
                 .anyMatch(exercise -> Boolean.TRUE.equals(exercise.getReviewRequired()) || exercise.getExerciseItemId() == null);
     }
+
     private void validateDay(AiWorkoutPlanDayDto day) {
         if (day == null || day.getDayLabel() == null || day.getDayLabel().isBlank()) {
             throw new IllegalArgumentException("AI workout provider returned a day without a label.");
@@ -364,6 +439,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
+
     private boolean allowedMeasurement(ExerciseItemEntity item, ExerciseLogMeasurementType measurementType) {
         if (item.getAllowedMeasurementTypes() == null || item.getAllowedMeasurementTypes().isBlank()) {
             return true;
@@ -379,11 +455,25 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         dto.setName(entity.getName());
         dto.setStatus(entity.getStatus());
         dto.setSourceAiRequestId(entity.getSourceAiRequest() == null ? null : entity.getSourceAiRequest().getId());
-        dto.setPlan(readPlan(entity.getPlanPayload()));
+        AiWorkoutPlanDraftResponseDto plan = readPlan(entity.getPlanPayload());
+        dto.setPlan(plan);
         dto.setActive(entity.getActive());
+        dto.setScheduleReady(scheduleReady(entity, plan));
+        dto.setScheduleVersion(entity.getScheduleVersion());
+        dto.setScheduleUpdatedAt(entity.getScheduleUpdatedAt());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
+    }
+
+    private boolean scheduleReady(WorkoutPlanEntity entity, AiWorkoutPlanDraftResponseDto plan) {
+        return "workout_schedule_v1".equals(entity.getScheduleVersion())
+                && plan.getDays() != null
+                && !plan.getDays().isEmpty()
+                && plan.getDays().stream().allMatch(day -> day.getScheduledDate() != null
+                && day.getSessionIntensity() != null
+                && day.getEstimatedDurationMinutes() != null
+                && day.getEstimatedDurationMinutes() > 0);
     }
 
     private AiWorkoutPlanDraftResponseDto readPlan(String payload) {
@@ -445,6 +535,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         context.put("safetyNotes", item.getSafetyNotes());
         return context;
     }
+
     private Map<String, Object> toPrivacySafeInputPayload(AiWorkoutPlanDraftRequestDto request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("requestType", AiRequestType.AI_WORKOUT_PLAN);
@@ -483,6 +574,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         history.setEstimatedCost(response.getEstimatedCost());
         history.setCostCurrency(response.getCostCurrency());
     }
+
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }

@@ -35,7 +35,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final Set<String> AI_DRAFT_PATHS = Set.of(
             "/api/v1/ai/meal-drafts/voice",
             "/api/v1/ai/meal-drafts/photo",
-            "/api/v1/ai/recipes/generate"
+            "/api/v1/ai/recipes/generate",
+            "/api/v1/ai/nutrition-plans/generate"
     );
     private static final String PASSWORD_RESET_REQUEST_PATH = "/api/v1/auth/password-reset/request";
     private static final String EMAIL_VERIFICATION_RESEND_PATH = "/api/v1/auth/email-verification/resend";
@@ -85,11 +86,18 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if ("POST".equalsIgnoreCase(request.getMethod()) && PROTECTED_AUTH_PATHS.contains(request.getRequestURI())) {
             return true;
         }
-        if ("POST".equalsIgnoreCase(request.getMethod()) && AI_DRAFT_PATHS.contains(request.getRequestURI())) {
+        if ("POST".equalsIgnoreCase(request.getMethod()) && isAiGenerationPath(request.getRequestURI())) {
             return true;
         }
         return "GET".equalsIgnoreCase(request.getMethod())
                 && request.getRequestURI().startsWith(PRODUCT_BARCODE_PATH_PREFIX);
+    }
+
+    private boolean isAiGenerationPath(String path) {
+        return AI_DRAFT_PATHS.contains(path)
+                || (path.startsWith("/api/v1/meal-plans/")
+                && (path.endsWith("/preparation-guide/generate")
+                || path.endsWith("/preparation-guide/regenerate")));
     }
 
     private String clientKey(HttpServletRequest request) {
@@ -121,7 +129,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if (EMAIL_VERIFICATION_RESEND_PATH.equals(path)) {
             return emailVerificationResendMaxRequestsPerMinute;
         }
-        if (AI_DRAFT_PATHS.contains(path)) {
+        if (isAiGenerationPath(path)) {
             return aiDraftMaxRequestsPerMinute;
         }
         return authMaxRequestsPerMinute;

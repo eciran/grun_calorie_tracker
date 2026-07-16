@@ -2,11 +2,15 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.MealPlanItemType;
+
+import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+
+import jakarta.validation.Valid;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -44,4 +48,20 @@ public class MealPlanItemRequestDto {
     @Positive
     @Schema(description = "Recipe serving count. Defaults to 1 for RECIPE.", example = "1")
     private Double servingCount;
+
+
+    @Schema(description = "Required display name for AI_SNAPSHOT.", example = "Grilled Chicken With Rice")
+    private String snapshotName;
+
+    private String snapshotDescription;
+    @Schema(description = "Short state only, not full cooking instructions.", example = "Grilled")
+    private String shortPreparationState;
+
+    @Valid
+    private MealPlanNutritionSnapshotDto snapshotNutrition;
+
+    private java.util.List<String> allergens;
+    private java.util.List<String> warnings;
+    private java.util.List<String> assumptions;
+    private MealPlanWorkoutRelation workoutRelation;
 }

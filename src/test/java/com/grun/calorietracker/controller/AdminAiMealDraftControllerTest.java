@@ -74,7 +74,35 @@ class AdminAiMealDraftControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].requestId").value(10))
                 .andExpect(jsonPath("$.content[0].userEmail").value("user@test.com"))
-                .andExpect(jsonPath("$.content[0].refundableAmount").value(1));
+                .andExpect(jsonPath("$.content[0].refundableAmount").value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void listAllRequests_whenAdmin_returnsStablePageContract() throws Exception {
+        AdminAiRequestReviewDto item = new AdminAiRequestReviewDto();
+        item.setRequestId(11L);
+        item.setStatus(AiRequestStatus.DRAFT_CREATED);
+        when(adminAiMealDraftService.listRequests(isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(item)));
+
+        mockMvc.perform(get("/api/v1/admin/ai/requests")
+                        .param("page", "0")
+                        .param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].requestId").value(11))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
     }
 
     @Test

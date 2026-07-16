@@ -222,7 +222,8 @@ public class AdminSubscriptionController {
                 planType,
                 feature,
                 request.getEnabled(),
-                request.getEffectiveFrom()
+                request.getEffectiveFrom(),
+                request.getAiCreditCost()
         );
         adminAuditService.record(
                 adminEmail(userDetails),

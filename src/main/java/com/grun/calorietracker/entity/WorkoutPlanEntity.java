@@ -45,6 +45,11 @@ public class WorkoutPlanEntity {
     @Column(nullable = false)
     private Boolean active = true;
 
+    @Column(length = 50)
+    private String scheduleVersion;
+
+    private LocalDateTime scheduleUpdatedAt;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 

@@ -19,6 +19,7 @@ public class AiProperties {
     private HttpJson httpJson = new HttpJson();
     private OpenAi openai = new OpenAi();
     private RecipeImageModeration recipeImageModeration = new RecipeImageModeration();
+    private Monitoring monitoring = new Monitoring();
 
     @Data
     public static class Safety {
@@ -50,13 +51,23 @@ public class AiProperties {
     public static class OpenAi {
         private String apiKey = "";
         private String baseUrl = "https://api.openai.com/v1/responses";
-        private Duration timeout = Duration.ofSeconds(60);
+        private Duration connectTimeout = Duration.ofSeconds(10);
+        private Duration timeout = Duration.ofSeconds(120);
         private int maxOutputTokens = 12000;
         private boolean repairEnabled = true;
         private int maxRepairAttempts = 1;
         private double inputTokenCostPer1m = 0;
         private double outputTokenCostPer1m = 0;
         private String costCurrency = "USD";
+    }
+
+    @Data
+    public static class Monitoring {
+        private int minRequestsForAlert = 5;
+        private double failureRateThreshold = 0.20;
+        private double rejectionRateThreshold = 0.40;
+        private long maxTokensPerWindow = 1_000_000;
+        private double maxEstimatedCostPerCurrency = 20.0;
     }
 
     @Data

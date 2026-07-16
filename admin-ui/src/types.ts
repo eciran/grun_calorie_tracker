@@ -448,6 +448,9 @@ export type SubscriptionFeatureAccess = {
   aiMealDrafts?: boolean;
   aiWorkoutPlanner?: boolean;
   aiRecipeGeneration?: boolean;
+  aiMealPreparationGuide?: boolean;
+  aiMealPreparationGuideCreditCost?: number;
+  aiNutritionPlan?: boolean;
   aiInsights?: boolean;
   healthIntegration?: boolean;
   advancedAnalytics?: boolean;

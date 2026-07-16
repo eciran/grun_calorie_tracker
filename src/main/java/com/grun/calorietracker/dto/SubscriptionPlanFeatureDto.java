@@ -14,6 +14,7 @@ public class SubscriptionPlanFeatureDto {
     private SubscriptionPlan planType;
     private SubscriptionFeature feature;
     private Boolean enabled;
+    private Integer aiCreditCost;
     private LocalDate effectiveFrom;
     private LocalDateTime updatedAt;
 }

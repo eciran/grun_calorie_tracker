@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
+import com.grun.calorietracker.dto.WorkoutPlanScheduleUpdateRequestDto;
 import com.grun.calorietracker.service.AiWorkoutPlanService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -84,6 +86,15 @@ public class AiWorkoutPlanController {
         return ResponseEntity.ok(aiWorkoutPlanService.getPlan(userDetails.getUsername(), planId));
     }
 
+    @PutMapping("/{planId}/schedule")
+    @Operation(summary = "Save workout schedule", description = "Stores user-confirmed dates, optional approximate start times, and intensity for every workout day. This trusted schedule can be used by workout-aligned nutrition plans.")
+    public ResponseEntity<WorkoutPlanDto> updateSchedule(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long planId,
+            @RequestBody @Valid WorkoutPlanScheduleUpdateRequestDto request) {
+        return ResponseEntity.ok(aiWorkoutPlanService.updateSchedule(
+                userDetails.getUsername(), planId, request));
+    }
     @DeleteMapping("/{planId}")
     @Operation(summary = "Archive workout plan", description = "Archives a user-owned workout plan. The snapshot remains stored for audit/history.")
     public ResponseEntity<Void> archivePlan(

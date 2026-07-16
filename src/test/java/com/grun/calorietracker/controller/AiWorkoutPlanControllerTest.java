@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -95,6 +96,34 @@ class AiWorkoutPlanControllerTest {
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void updateSchedule_acceptsUserConfirmedWorkoutCalendar() throws Exception {
+        WorkoutPlanDto scheduled = plan();
+        scheduled.setScheduleReady(true);
+        scheduled.setScheduleVersion("workout_schedule_v1");
+        when(aiWorkoutPlanService.updateSchedule(eq("user@example.com"), eq(99L), any()))
+                .thenReturn(scheduled);
+
+        mockMvc.perform(put("/api/v1/ai/workout-plans/99/schedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sessions": [
+                                    {
+                                      "dayIndex": 0,
+                                      "scheduledDate": "2026-07-20",
+                                      "scheduledStartTime": "18:00:00",
+                                      "intensity": "MODERATE"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduleReady").value(true))
+                .andExpect(jsonPath("$.scheduleVersion").value("workout_schedule_v1"));
+        verify(aiWorkoutPlanService).updateSchedule(eq("user@example.com"), eq(99L), any());
+    }
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void listAndArchivePlans_useUserOwnedPlanEndpoints() throws Exception {

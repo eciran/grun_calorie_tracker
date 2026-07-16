@@ -18,6 +18,8 @@ public interface SubscriptionService {
     SubscriptionDto updateUserSubscription(Long userId, AdminSubscriptionUpdateRequestDto request);
     SubscriptionFeatureAccessDto getFeatureAccess(String email);
     SubscriptionDto consumeAiQuota(String email);
+    SubscriptionDto consumeAiQuota(String email, int amount);
+    int resolveAiCreditCost(String email, SubscriptionFeature feature);
     SubscriptionDto resetUserAiQuota(Long userId);
     SubscriptionDto grantAiAddonQuota(Long userId, int amount, int validityDays);
     SubscriptionDto refundConsumedAiQuota(Long userId, int amount);
@@ -28,5 +30,6 @@ public interface SubscriptionService {
     SubscriptionPlanFeatureDto updatePlanFeature(SubscriptionPlan planType,
                                                  SubscriptionFeature feature,
                                                  boolean enabled,
-                                                 LocalDate effectiveFrom);
+                                                 LocalDate effectiveFrom,
+                                                 Integer aiCreditCost);
 }

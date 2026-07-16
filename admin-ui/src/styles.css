@@ -3930,6 +3930,152 @@ label {
   overflow-wrap: anywhere;
 }
 
+
+.user-access-preview-layout {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 16px;
+}
+
+.user-access-top-row {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.user-access-top-row > .panel {
+  min-width: 0;
+}
+.access-user-grid {
+  grid-template-columns: minmax(320px, 0.55fr);
+}
+
+.user-access-assignment-grid {
+  grid-template-columns: repeat(8, minmax(110px, 1fr));
+  align-items: end;
+  gap: 10px;
+}
+
+.user-access-assignment-grid label {
+  gap: 4px;
+  font-size: 0.72rem;
+}
+
+.user-access-assignment-grid input,
+.user-access-assignment-grid select {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+}
+
+.user-access-assignment-grid .admin-date-picker {
+  width: 100%;
+}
+
+.user-access-assignment-grid .admin-date-trigger {
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  background: var(--field);
+  text-align: left;
+}
+
+.user-access-assignment-grid .admin-date-trigger span {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.user-access-assignment-grid .admin-calendar-popover {
+  left: 0;
+  right: auto;
+}
+.user-access-assignment-grid .checkbox-field {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+
+.user-access-assignment-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 38px;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+}
+
+.user-access-assignment-actions {
+  margin-top: 10px;
+}
+
+.user-access-assignment-actions .primary-button,
+.user-access-assignment-actions .ghost-button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+.access-preview-note {
+  margin-top: 10px;
+  max-width: 880px;
+}
+
+.access-summary-strip {
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+}
+
+.access-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.access-feature-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.access-feature-card.enabled {
+  border-color: rgba(44, 168, 116, 0.35);
+  background: rgba(44, 168, 116, 0.08);
+}
+
+.access-feature-card > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.access-feature-card strong {
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.access-feature-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 1180px) {
+  .user-access-preview-layout,
+  .access-summary-strip,
+  .access-feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .ghost-button.compact {
   min-height: 32px;
   padding: 0 10px;
@@ -3995,6 +4141,28 @@ label {
   box-shadow: var(--shadow);
 }
 
+.searchable-select-menu-search {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  padding: 4px 4px 8px;
+  background: var(--surface);
+}
+
+.searchable-select-menu-search input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--field);
+  color: var(--text);
+}
+
+.searchable-select-menu-search input:focus {
+  outline: 2px solid var(--field-focus);
+  border-color: var(--primary);
+}
 .searchable-select-menu button {
   display: grid;
   gap: 3px;
@@ -5980,4 +6148,19 @@ label {
   .product-workbench-actions button {
     width: 100%;
   }
+}
+
+@media (max-width: 760px) {
+  .user-access-top-row {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.user-access-top-row > .panel {
+  min-width: 0;
+}
+.access-user-grid { grid-template-columns: 1fr; }
+  .user-access-assignment-grid { grid-template-columns: 1fr; }
 }

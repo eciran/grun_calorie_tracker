@@ -158,6 +158,31 @@ class RateLimitingFilterTest {
     }
 
     @Test
+    void aiPreparationGuideGenerationPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", 1);
+        FilterChain filterChain = mock(FilterChain.class);
+        String path = "/api/v1/meal-plans/10/items/20/preparation-guide/generate";
+        filter.doFilter(post(path), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post(path), secondResponse, filterChain);
+        assertEquals(429, secondResponse.getStatus());
+    }
+    @Test
+    void aiNutritionPlanGenerationPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", 1);
+
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/ai/nutrition-plans/generate"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/ai/nutrition-plans/generate"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
+    @Test
     void ignoresForwardedForWhenNoTrustedProxyIsConfigured() throws Exception {
         RateLimitingFilter filter = buildFilter(1);
 

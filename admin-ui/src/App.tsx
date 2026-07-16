@@ -85,6 +85,7 @@ type SectionKey =
   | "subscriptionFeatures"
   | "subscriptionMapping"
   | "subscriptionEntitlements"
+  | "subscriptionAccess"
   | "subscriptionAiQuotas"
   | "subscriptionEvents"
   | "ai"
@@ -129,6 +130,8 @@ const PAYMENT_PROVIDER_OPTIONS = ["MANUAL_ADMIN", "REVENUECAT", "APPLE_APP_STORE
 const FEATURE_ORDER = [
   "AI_MEAL_DRAFTS",
   "AI_RECIPE_GENERATION",
+  "AI_MEAL_PREPARATION_GUIDE",
+  "AI_NUTRITION_PLAN",
   "AI_WORKOUT_PLANNER",
   "AI_INSIGHTS",
   "HEALTH_INTEGRATION",
@@ -140,6 +143,8 @@ const AI_REQUEST_TYPES = [
   "VOICE_FOOD_LOG",
   "PHOTO_MEAL_LOG",
   "AI_RECIPE_GENERATION",
+  "AI_MEAL_PREPARATION_GUIDE",
+  "AI_NUTRITION_PLAN",
   "AI_WORKOUT_PLAN",
   "AI_DAILY_INSIGHT",
   "AI_WEEKLY_INSIGHT"
@@ -159,6 +164,18 @@ const CONTROLLED_AI_FEATURES = [
     label: "Recipe assistant",
     endpoint: "/api/v1/ai/recipes/generate",
     detail: "Creates a recipe draft only. The reviewed recipe is saved after confirmation."
+  },
+  {
+    feature: "AI_MEAL_PREPARATION_GUIDE",
+    label: "Meal preparation guide",
+    endpoint: "/api/v1/ai/meal-preparation-guides",
+    detail: "Generates preparation guidance from an immutable meal snapshot. Reopening an existing guide does not consume AI quota."
+  },
+  {
+    feature: "AI_NUTRITION_PLAN",
+    label: "Nutrition planner",
+    endpoint: "/api/v1/ai/nutrition-plans/generate",
+    detail: "Creates reviewable nutrition-plan drafts using backend-owned profile, target, preference, and workout context."
   },
   {
     feature: "AI_WORKOUT_PLANNER",
@@ -198,10 +215,11 @@ const sections: SectionMeta[] = [
   { key: "users", label: "Users", hint: "Accounts", icon: "U" },
   { key: "admins", label: "Admins", hint: "Admin accounts", icon: "A" },
   { key: "userVerification", label: "Verification", hint: "Email status", icon: "V" },
-  { key: "subscriptions", label: "Subscriptions", hint: "Feature matrix", icon: "S" },
+  { key: "subscriptions", label: "Subscriptions", hint: "Overview", icon: "S" },
   { key: "subscriptionFeatures", label: "Feature Matrix", hint: "Plan rules", icon: "F" },
   { key: "subscriptionMapping", label: "Product Mapping", hint: "Store ids", icon: "M" },
   { key: "subscriptionEntitlements", label: "Entitlements", hint: "Snapshot policy", icon: "E" },
+  { key: "subscriptionAccess", label: "User Access", hint: "Resolved rights", icon: "U" },
   { key: "subscriptionAiQuotas", label: "AI Quotas", hint: "Credits", icon: "Q" },
   { key: "subscriptionEvents", label: "Provider Events", hint: "Webhook audit", icon: "E" },
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
@@ -285,7 +303,7 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
   [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
   [navSection("products"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
-  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
+  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
   [navSection("notifications"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
   [navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
@@ -611,6 +629,7 @@ export default function App() {
           {active === "subscriptionFeatures" && <SubscriptionsView mode="features" onError={setError} />}
           {active === "subscriptionMapping" && <SubscriptionsView mode="mapping" onError={setError} />}
           {active === "subscriptionEntitlements" && <SubscriptionsView mode="entitlements" onError={setError} />}
+          {active === "subscriptionAccess" && <SubscriptionsView mode="access" onError={setError} />}
           {active === "subscriptionAiQuotas" && <SubscriptionsView mode="aiQuotas" onError={setError} />}
           {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
@@ -3001,7 +3020,7 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
   );
 }
 
-type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "aiQuotas";
+type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "access" | "aiQuotas";
 
 function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError: (message: string | null) => void }) {
   const { data, state, reload } = useEndpoint<FeatureMatrixItem[]>("/api/v1/admin/subscriptions/features", onError);
@@ -3014,6 +3033,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [accessPreviewUserId, setAccessPreviewUserId] = useState<string>("");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [userPickerOpen, setUserPickerOpen] = useState(false);
+  const [previewUserAutoSelected, setPreviewUserAutoSelected] = useState(false);
   const [accessPreview, setAccessPreview] = useState<SubscriptionFeatureAccess | null>(null);
   const [accessPreviewState, setAccessPreviewState] = useState<LoadState>("idle");
   const [subscriptionForm, setSubscriptionForm] = useState({
@@ -3031,11 +3051,15 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [addonForm, setAddonForm] = useState({ amount: "15", validityDays: "30", note: "Admin credit adjustment" });
   const features = data ?? [];
   const previewUsers = users ?? [];
+  const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
+  const selectedPreviewLabel = selectedPreviewUser ? userOptionLabel(selectedPreviewUser).toLowerCase() : "";
+  const previewSearchQuery = userSearchQuery.trim().toLowerCase();
+  const shouldFilterPreviewUsers = Boolean(previewSearchQuery && previewSearchQuery !== selectedPreviewLabel);
+  const userDropdownSearchValue = shouldFilterPreviewUsers ? userSearchQuery : "";
   const filteredPreviewUsers = previewUsers.filter((user) => {
     if (user.role === "ADMIN" || user.id === undefined) return false;
-    const query = userSearchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return [user.email, user.name, String(user.id)].some((value) => String(value ?? "").toLowerCase().includes(query));
+    if (!shouldFilterPreviewUsers) return true;
+    return [user.email, user.name, String(user.id)].some((value) => String(value ?? "").toLowerCase().includes(previewSearchQuery));
   });
   const plans = PLAN_ORDER;
   const grouped = plans.map((plan) => ({
@@ -3045,7 +3069,6 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   }));
   const enabledTotal = features.filter((item) => item.enabled).length;
   const warningCount = (revenueCat?.missingRequiredConfig?.length ?? 0) + (revenueCat?.warnings?.length ?? 0);
-  const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
   const selectedUserId = accessPreviewUserId ? Number(accessPreviewUserId) : null;
   const quotaAudits = (subscriptionAudits?.content ?? []).filter((audit) => ["SUBSCRIPTION_UPDATE", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT"].includes(audit.actionType ?? ""));
 
@@ -3055,6 +3078,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     features: "Plan feature matrix",
     mapping: "RevenueCat product mapping",
     entitlements: "Entitlement snapshot policy",
+    access: "User access preview",
     aiQuotas: "AI quota and add-on mapping"
   }[mode];
 
@@ -3067,6 +3091,13 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setAccessPreviewUserId(String(user.id));
     setUserSearchQuery(userOptionLabel(user));
     setUserPickerOpen(false);
+  }
+
+
+  function updateUserPickerSearch(value: string) {
+    setUserSearchQuery(value);
+    setAccessPreviewUserId("");
+    setUserPickerOpen(true);
   }
   function updateSubscriptionForm(key: keyof typeof subscriptionForm, value: string | boolean) {
     setSubscriptionForm((current) => ({ ...current, [key]: value }));
@@ -3084,13 +3115,14 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   }
 
   useEffect(() => {
-    if (!accessPreviewUserId && previewUsers.length) {
-      const firstStandardUser = previewUsers.find((user) => user.role !== "ADMIN" && user.id !== undefined) ?? previewUsers.find((user) => user.id !== undefined);
-      if (firstStandardUser?.id !== undefined) {
-        setAccessPreviewUserId(String(firstStandardUser.id));
-      }
+    if (previewUserAutoSelected || accessPreviewUserId || !previewUsers.length) return;
+    const firstStandardUser = previewUsers.find((user) => user.role !== "ADMIN" && user.id !== undefined) ?? previewUsers.find((user) => user.id !== undefined);
+    if (firstStandardUser?.id !== undefined) {
+      setAccessPreviewUserId(String(firstStandardUser.id));
+      setUserSearchQuery(userOptionLabel(firstStandardUser));
     }
-  }, [accessPreviewUserId, previewUsers]);
+    setPreviewUserAutoSelected(true);
+  }, [accessPreviewUserId, previewUserAutoSelected, previewUsers]);
 
   useEffect(() => {
     if (!accessPreviewUserId) {
@@ -3326,6 +3358,154 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
         </div>
       </Panel>}
 
+      {mode === "access" && <div className="subscription-ops-grid user-access-preview-layout">
+        <div className="user-access-top-row">
+        <Panel title="Select user">
+          <div className="admin-subscription-grid access-user-grid">
+            <label className="user-search-field full-width-field">
+              User
+              <div className="searchable-select">
+                <input
+                  aria-expanded={userPickerOpen}
+                  aria-haspopup="listbox"
+                  role="combobox"
+                  value={userSearchQuery}
+                  onChange={(event) => {
+                    updateUserPickerSearch(event.target.value);
+                  }}
+                  onFocus={() => setUserPickerOpen(true)}
+                  placeholder="Search email, name, or id"
+                />
+                <button className="searchable-select-toggle" type="button" aria-label="Toggle user list" onMouseDown={(event) => event.preventDefault()} onClick={() => setUserPickerOpen((current) => !current)} />
+                {userPickerOpen && (
+                  <div className="searchable-select-menu" role="listbox">
+                    <div className="searchable-select-menu-search">
+                      <input
+                        autoFocus
+                        type="search"
+                        value={userDropdownSearchValue}
+                        onChange={(event) => updateUserPickerSearch(event.target.value)}
+                        placeholder="Search users..."
+                      />
+                    </div>
+                    {filteredPreviewUsers.slice(0, 30).map((user) => (
+                      <button
+                        className={String(user.id) === accessPreviewUserId ? "selected" : undefined}
+                        key={user.id ?? user.email}
+                        type="button"
+                        role="option"
+                        aria-selected={String(user.id) === accessPreviewUserId}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          selectQuotaUser(user);
+                        }}
+                      >
+                        <strong>{userOptionLabel(user)}</strong>
+                        <span>{user.name ?? user.role ?? "STANDARD"}</span>
+                      </button>
+                    ))}
+                    {!filteredPreviewUsers.length && <div className="searchable-select-empty">No user found</div>}
+                  </div>
+                )}
+              </div>
+            </label>
+          </div>
+          <div className="subscription-note access-preview-note">
+            <strong>Shows the effective access returned by backend policy.</strong>
+            <span>If feature matrix and this preview differ, the active entitlement snapshot or subscription state is controlling the user.</span>
+          </div>
+        </Panel>
+
+        <Panel title="Admin assignment">
+          <div className="admin-subscription-grid user-access-assignment-grid">
+            <label>
+              Plan
+              <select value={subscriptionForm.planType} onChange={(event) => updateSubscriptionForm("planType", event.target.value)}>
+                {PLAN_ORDER.map((plan) => <option key={plan} value={plan}>{plan}</option>)}
+              </select>
+            </label>
+            <label>
+              Status
+              <select value={subscriptionForm.status} onChange={(event) => updateSubscriptionForm("status", event.target.value)}>
+                {SUBSCRIPTION_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+            <label>
+              Billing period
+              <select value={subscriptionForm.billingPeriod} onChange={(event) => updateSubscriptionForm("billingPeriod", event.target.value)}>
+                {BILLING_PERIOD_OPTIONS.map((period) => <option key={period} value={period}>{period}</option>)}
+              </select>
+            </label>
+            <label>
+              Monthly AI quota
+              <input min="0" type="number" value={subscriptionForm.aiMonthlyQuota} onChange={(event) => updateSubscriptionForm("aiMonthlyQuota", event.target.value)} />
+            </label>
+            <label>
+              Used this period
+              <input min="0" type="number" value={subscriptionForm.aiUsedThisPeriod} onChange={(event) => updateSubscriptionForm("aiUsedThisPeriod", event.target.value)} />
+            </label>
+            <label>
+              Start date
+              <DatePickerButton label="Start date" value={subscriptionForm.startDate} onChange={(value) => updateSubscriptionForm("startDate", value)} />
+            </label>
+            <label>
+              End date
+              <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
+            </label>
+            <label className="checkbox-field">
+              <input checked={subscriptionForm.autoRenew} onChange={(event) => updateSubscriptionForm("autoRenew", event.target.checked)} type="checkbox" />
+              Auto renew
+            </label>
+          </div>
+          <div className="subscription-note access-preview-note">
+            <strong>Manual admin changes create an entitlement snapshot for this user.</strong>
+            <span>Use this for local testing, support corrections, beta access, or manually granting PLUS/PRO before store integration is complete.</span>
+          </div>
+          <div className="admin-subscription-actions">
+            <button className="primary-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={applySubscriptionUpdate} type="button">Apply subscription</button>
+            <button className="ghost-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={resetSelectedAiQuota} type="button">Reset used quota</button>
+          </div>
+        </Panel>
+        </div>
+        <Panel title="Resolved user access">
+          <div className="quota-summary-strip access-summary-strip">
+            <div>
+              <span>Selected user</span>
+              <strong title={selectedPreviewUser?.email ?? ""}>{selectedPreviewUser?.email ?? "-"}</strong>
+              <small>{selectedPreviewUser?.role ?? "No user selected"}</small>
+            </div>
+            <div>
+              <span>Resolved plan</span>
+              <strong>{accessPreview?.planType ?? accessPreview?.plan ?? "-"}</strong>
+              <small>Preview state: {accessPreviewState}</small>
+            </div>
+            <div>
+              <span>Active entitlement</span>
+              <strong>{accessPreview?.activeEntitlement ? "Yes" : "No"}</strong>
+              <small>Snapshot-aware backend result</small>
+            </div>
+            <div>
+              <span>AI remaining</span>
+              <strong>{formatValue(accessPreview?.aiRemainingThisPeriod)}</strong>
+              <small>{formatValue(accessPreview?.aiMonthlyQuota)} base + {formatValue(accessPreview?.aiAddonQuota)} add-on</small>
+            </div>
+          </div>
+          <div className="access-feature-grid">
+            {(uniqueFeatures(features).length ? uniqueFeatures(features) : FEATURE_ORDER).map((feature) => {
+              const enabled = accessFeatureValue(accessPreview, feature);
+              return (
+                <div className={enabled ? "access-feature-card enabled" : "access-feature-card"} key={feature}>
+                  <div>
+                    <strong>{humanizeFeature(feature)}</strong>
+                    <small>{featureDescription(feature)}</small>
+                  </div>
+                  <Badge value={enabled ? "Allowed" : "Blocked"} tone={enabled ? "good" : "neutral"} />
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>}
       {(mode === "mapping" || mode === "aiQuotas") && <div className={mode === "aiQuotas" ? "subscription-ops-grid ai-quota-layout" : "subscription-ops-grid"}>
         {mode === "mapping" && (
         <Panel title="RevenueCat configuration">
@@ -3362,16 +3542,14 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
             <div className="admin-subscription-grid">
               <label className="user-search-field">
                 User
-                <div className="searchable-select" onBlur={() => window.setTimeout(() => setUserPickerOpen(false), 120)}>
+                <div className="searchable-select">
                   <input
                     aria-expanded={userPickerOpen}
                     aria-haspopup="listbox"
                     role="combobox"
                     value={userSearchQuery}
                     onChange={(event) => {
-                      setUserSearchQuery(event.target.value);
-                      setAccessPreviewUserId("");
-                      setUserPickerOpen(true);
+                      updateUserPickerSearch(event.target.value);
                     }}
                     onFocus={() => setUserPickerOpen(true)}
                     placeholder="Search email, name, or id"
@@ -3379,6 +3557,15 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
                   <button className="searchable-select-toggle" type="button" aria-label="Toggle user list" onMouseDown={(event) => event.preventDefault()} onClick={() => setUserPickerOpen((current) => !current)} />
                   {userPickerOpen && (
                     <div className="searchable-select-menu" role="listbox">
+                      <div className="searchable-select-menu-search">
+                        <input
+                          autoFocus
+                          type="search"
+                          value={userDropdownSearchValue}
+                          onChange={(event) => updateUserPickerSearch(event.target.value)}
+                          placeholder="Search users..."
+                        />
+                      </div>
                       {filteredPreviewUsers.slice(0, 30).map((user) => (
                         <button
                           className={String(user.id) === accessPreviewUserId ? "selected" : undefined}
@@ -3428,11 +3615,11 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
               </label>
               <label>
                 Start date
-                <input type="date" value={subscriptionForm.startDate} onChange={(event) => updateSubscriptionForm("startDate", event.target.value)} />
+                <DatePickerButton label="Start date" value={subscriptionForm.startDate} onChange={(value) => updateSubscriptionForm("startDate", value)} />
               </label>
               <label>
                 End date
-                <input type="date" value={subscriptionForm.endDate} onChange={(event) => updateSubscriptionForm("endDate", event.target.value)} />
+                <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
               </label>
               <label>
                 Provider
@@ -3651,7 +3838,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
             <small>Generated {formatDate(summary?.generatedAt)} | Window start {formatDate(summary?.windowStart)}</small>
           </div>
           <div className="segmented-control" role="group" aria-label="AI monitoring window">
-            {[24, 168, 720].map((hours) => (
+            {[24, 168, 744].map((hours) => (
               <button className={summaryWindowHours === hours ? "active" : ""} key={hours} type="button" onClick={() => setSummaryWindowHours(hours)}>{summaryWindowLabel(hours)}</button>
             ))}
           </div>
@@ -7762,6 +7949,10 @@ function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: s
       return Boolean(access.aiMealDrafts);
     case "AI_RECIPE_GENERATION":
       return Boolean(access.aiRecipeGeneration);
+    case "AI_MEAL_PREPARATION_GUIDE":
+      return Boolean(access.aiMealPreparationGuide);
+    case "AI_NUTRITION_PLAN":
+      return Boolean(access.aiNutritionPlan);
     case "AI_WORKOUT_PLANNER":
       return Boolean(access.aiWorkoutPlanner);
     case "AI_INSIGHTS":
@@ -8178,7 +8369,7 @@ function safeNumber(value: unknown): number {
 function summaryWindowLabel(hours: number): string {
   if (hours === 24) return "24h";
   if (hours === 168) return "7d";
-  if (hours === 720) return "30d";
+  if (hours === 744) return "31d";
   return `${hours}h`;
 }
 

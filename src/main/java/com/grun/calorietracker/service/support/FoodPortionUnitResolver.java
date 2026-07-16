@@ -104,11 +104,16 @@ public final class FoodPortionUnitResolver {
     }
 
     private static boolean containsAny(String text, List<String> keywords) {
-        return keywords.stream().anyMatch(text::contains);
+        String searchable = " " + text + " ";
+        return keywords.stream().anyMatch(keyword -> searchable.contains(" " + normalize(keyword) + " "));
     }
 
     private static String normalize(String value) {
-        return nullToEmpty(value).toLowerCase(Locale.ROOT).trim();
+        return nullToEmpty(value)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
     }
 
     private static String nullToEmpty(String value) {

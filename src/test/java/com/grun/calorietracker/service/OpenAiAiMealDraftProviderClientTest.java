@@ -3,20 +3,28 @@ package com.grun.calorietracker.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
+import com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideProviderRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.exception.AiProviderException;
 import com.grun.calorietracker.service.impl.OpenAiAiMealDraftProviderClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,6 +69,49 @@ class OpenAiAiMealDraftProviderClientTest {
     }
 
     @Test
+    void createNutritionPlanDraft_usesDedicatedStrictSchema() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        OpenAiAiMealDraftProviderClient client = new OpenAiAiMealDraftProviderClient(
+                properties(), restTemplate, new ObjectMapper());
+
+        AiNutritionPlanDraftRequestDto request = new AiNutritionPlanDraftRequestDto();
+        request.setDayCount(1);
+        request.setMealsPerDay(4);
+        MealPlanNutritionSnapshotDto target = new MealPlanNutritionSnapshotDto();
+        target.setCalories(2000.0);
+        target.setProtein(120.0);
+        target.setCarbs(220.0);
+        target.setFat(60.0);
+        request.setTrustedDailyTarget(target);
+
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.store").value(false))
+                .andExpect(jsonPath("$.text.format.name").value("grun_nutrition_plan_v1"))
+                .andExpect(jsonPath("$.text.format.strict").value(true))
+                .andExpect(jsonPath("$.max_output_tokens").value(3000))
+                .andExpect(jsonPath("$.text.format.schema.properties.dailyTarget").doesNotExist())
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.totalNutrition").doesNotExist())
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.dailyMicronutrients.properties.sodium").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.totalNutrition").doesNotExist())
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.nutrition.properties.vitaminA").doesNotExist())
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.nutrition.properties.fiber").exists())
+                .andExpect(jsonPath("$.input[0].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString("Request type: AI_NUTRITION_PLAN")))
+                .andExpect(jsonPath("$.input[1].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString(
+                                "fat target=60.0 preferredRange=45.0..75.0 hardRange=40.0..80.0")))
+                .andRespond(withSuccess(outputTextResponse("{}"), MediaType.APPLICATION_JSON));
+
+        AiNutritionPlanDraftResponseDto response = client.createNutritionPlanDraft(request);
+
+        assertEquals(AiProvider.OPENAI, client.provider());
+        assertTrue(response.getDays() == null || response.getDays().isEmpty());
+        server.verify();
+    }
+
+    @Test
     void createPhotoMealDraft_whenHttpsImageReference_includesInputImage() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
@@ -71,6 +122,33 @@ class OpenAiAiMealDraftProviderClientTest {
 
         server.expect(requestTo("https://api.openai.test/v1/responses"))
                 .andExpect(jsonPath("$.model").value("gpt-5.4-mini"))
+                .andRespond(withSuccess(outputTextResponse("""
+                        {"summary":"Photo draft.","items":[{"name":"Meal","quantity":1,"unit":"plate","estimatedCalories":500,"confidence":0.6}]}
+                        """), MediaType.APPLICATION_JSON));
+
+        AiMealDraftResponseDto response = client.createPhotoMealDraft(request);
+
+        assertEquals("Photo draft.", response.getSummary());
+        server.verify();
+    }
+    @Test
+    void createPhotoMealDraft_whenManagedPhotoReference_convertsToDataUrl(@TempDir Path tempDir) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        AiProperties properties = properties();
+        properties.getPhoto().setStorageDirectory(tempDir.toString());
+        properties.getPhoto().setPublicBaseUrl("https://api.grun.test");
+        String token = "1893456000000-test-photo.jpg";
+        Files.write(tempDir.resolve(token), new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01});
+        OpenAiAiMealDraftProviderClient client = new OpenAiAiMealDraftProviderClient(properties, restTemplate, new ObjectMapper());
+
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://api.grun.test/api/v1/ai/meal-drafts/photo-references/" + token);
+
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.input[1].content[1].type").value("input_image"))
+                .andExpect(jsonPath("$.input[1].content[1].image_url")
+                        .value(org.hamcrest.Matchers.startsWith("data:image/jpeg;base64,")))
                 .andRespond(withSuccess(outputTextResponse("""
                         {"summary":"Photo draft.","items":[{"name":"Meal","quantity":1,"unit":"plate","estimatedCalories":500,"confidence":0.6}]}
                         """), MediaType.APPLICATION_JSON));
@@ -201,6 +279,37 @@ class OpenAiAiMealDraftProviderClientTest {
         server.verify();
     }
 
+    @Test
+    void createPreparationGuide_usesDedicatedStrictSchemaAndParsesDetails() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        OpenAiAiMealDraftProviderClient client = new OpenAiAiMealDraftProviderClient(
+                properties(), restTemplate, new ObjectMapper());
+        AiPreparationGuideProviderRequestDto request = new AiPreparationGuideProviderRequestDto();
+        request.setItemName("Chicken Breast");
+        request.setPlannedQuantity(150.0);
+        request.setPlannedUnit(FoodPortionUnit.GRAM);
+
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.text.format.name").value("grun_preparation_guide_v1"))
+                .andExpect(jsonPath("$.text.format.strict").value(true))
+                .andExpect(jsonPath("$.input[1].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString("immutable meal-plan item snapshot")))
+                .andRespond(withSuccess(outputTextResponse("""
+                        {"preparationMinutes":5,"cookingMinutes":18,"equipment":["Pan"],
+                        "ingredients":[{"name":"Chicken Breast","quantity":150,"unit":"GRAM","optional":false,"changesPlannedNutrition":false}],
+                        "steps":[{"stepNumber":1,"instruction":"Cook thoroughly.","durationMinutes":18,"temperatureCelsius":165}],
+                        "foodSafetyNotes":["Avoid cross contamination."],"storageInstructions":["Refrigerate promptly."],
+                        "substitutions":[],"nutritionImpactWarnings":[],"assumptions":[],"reviewRequired":true,
+                        "qualityScore":88,"confidence":0.88,"estimatedUncertainty":"LOW"}
+                        """), MediaType.APPLICATION_JSON));
+
+        AiPreparationGuideResponseDto response = client.createPreparationGuide(request);
+
+        assertEquals(18, response.getCookingMinutes());
+        assertEquals(FoodPortionUnit.GRAM, response.getIngredients().get(0).getUnit());
+        server.verify();
+    }
     private AiProperties properties() {
         AiProperties properties = new AiProperties();
         properties.setEnabled(true);

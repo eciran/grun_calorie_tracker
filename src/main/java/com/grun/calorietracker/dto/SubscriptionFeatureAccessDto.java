@@ -13,6 +13,10 @@ public class SubscriptionFeatureAccessDto {
     private Boolean aiMealDrafts;
     private Boolean aiWorkoutPlanner;
     private Boolean aiRecipeGeneration;
+    private Boolean aiMealPreparationGuide;
+    private Integer aiMealPreparationGuideCreditCost;
+    private Boolean aiNutritionPlan;
+    private Integer aiNutritionPlanBaseCreditCost;
     private Boolean aiInsights;
     private Boolean healthIntegration;
     private Boolean advancedAnalytics;

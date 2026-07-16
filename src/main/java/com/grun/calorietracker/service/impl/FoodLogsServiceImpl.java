@@ -145,12 +145,11 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Override
     @Transactional
     public FoodLogsDto updateFoodLog(Long id, FoodLogsDto dto, String email) {
-        validateFoodLogRequest(dto);
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
-        FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
-                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+        validateFoodLogUpdateRequest(dto, entity);
+        FoodItemEntity foodItem = resolveFoodItemForUpdate(dto, entity);
         ensureFoodItemAvailableToUser(foodItem, user);
 
         entity.setFoodItem(foodItem);
@@ -577,6 +576,35 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private Double roundOrZero(Double value) {
         return value == null ? 0.0 : round(value);
     }
+
+    private void validateFoodLogUpdateRequest(FoodLogsDto dto, FoodLogsEntity existing) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Food log request must not be empty.");
+        }
+        if ((dto.getFoodItemId() == null || dto.getFoodItemId() <= 0) && existing.getFoodItem() == null) {
+            throw new IllegalArgumentException("Food item id must be a positive value.");
+        }
+        if (dto.getPortionSize() == null || dto.getPortionSize() <= 0) {
+            throw new IllegalArgumentException("Portion size must be a positive value.");
+        }
+        if (dto.getLogDate() == null) {
+            throw new IllegalArgumentException("Log date is required.");
+        }
+        String mealType = normalizeMealType(dto.getMealType());
+        if (!List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").contains(mealType)) {
+            throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
+        }
+    }
+
+    private FoodItemEntity resolveFoodItemForUpdate(FoodLogsDto dto, FoodLogsEntity existing) {
+        Long requestedFoodItemId = dto.getFoodItemId();
+        if (requestedFoodItemId == null || requestedFoodItemId <= 0) {
+            return existing.getFoodItem();
+        }
+        return foodItemRepository.findById(requestedFoodItemId)
+                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+    }
+
     private void validateFoodLogRequest(FoodLogsDto dto) {
         if (dto == null) {
             throw new IllegalArgumentException("Food log request must not be empty.");

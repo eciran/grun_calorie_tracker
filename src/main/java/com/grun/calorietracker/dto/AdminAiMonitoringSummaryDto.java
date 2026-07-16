@@ -32,6 +32,18 @@ public class AdminAiMonitoringSummaryDto {
     private Map<String, Double> estimatedCostByCurrency;
     private List<ProviderModelMetric> providerModels;
     private List<RequestStatusMetric> requestStatuses;
+    private boolean attentionRequired;
+    private List<OperationalAlert> alerts;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OperationalAlert {
+        private String code;
+        private String severity;
+        private String message;
+        private AiRequestType requestType;
+        private String currency;
+    }
 
     @Data
     @NoArgsConstructor

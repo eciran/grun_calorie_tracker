@@ -5,7 +5,17 @@ import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftItemDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDayDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanItemDto;
+import com.grun.calorietracker.dto.AiNutritionPlanMealDto;
+import com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideIngredientDto;
+import com.grun.calorietracker.dto.AiPreparationGuideProviderRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideResponseDto;
+import com.grun.calorietracker.dto.AiPreparationGuideStepDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeIngredientSuggestionDto;
@@ -24,12 +34,15 @@ import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
 import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -77,6 +90,111 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         return response;
     }
 
+    @Override
+    public AiPreparationGuideResponseDto createPreparationGuide(AiPreparationGuideProviderRequestDto request) {
+        AiPreparationGuideResponseDto response = new AiPreparationGuideResponseDto();
+        response.setRequestType(AiRequestType.AI_MEAL_PREPARATION_GUIDE);
+        response.setProvider(AiProvider.LOG);
+        response.setModel(properties.getModel());
+        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setPreparationMinutes(10);
+        response.setCookingMinutes(20);
+        response.setEquipment(List.of("Knife", "Pan"));
+        AiPreparationGuideIngredientDto ingredient = new AiPreparationGuideIngredientDto();
+        ingredient.setName(request.getItemName());
+        ingredient.setQuantity(request.getPlannedQuantity());
+        ingredient.setUnit(request.getPlannedUnit());
+        ingredient.setOptional(false);
+        ingredient.setChangesPlannedNutrition(false);
+        response.setIngredients(List.of(ingredient));
+        AiPreparationGuideStepDto step = new AiPreparationGuideStepDto();
+        step.setStepNumber(1);
+        step.setInstruction("Prepare and cook the planned portion until safely done.");
+        step.setDurationMinutes(20);
+        response.setSteps(List.of(step));
+        response.setFoodSafetyNotes(List.of("Cook thoroughly and follow safe handling guidance."));
+        response.setStorageInstructions(List.of("Refrigerate leftovers promptly in a sealed container."));
+        response.setAssumptions(List.of("The planned item snapshot and portion are unchanged."));
+        response.setQualityScore(70);
+        response.setConfidence(0.70);
+        response.setEstimatedUncertainty("MEDIUM");
+        return response;
+    }
+    @Override
+    public AiNutritionPlanDraftResponseDto createNutritionPlanDraft(AiNutritionPlanDraftRequestDto request) {
+        MealPlanNutritionSnapshotDto target = request.getTrustedDailyTarget() == null
+                ? nutrition(2000.0, 130.0, 220.0, 65.0)
+                : request.getTrustedDailyTarget();
+        AiNutritionPlanDraftResponseDto response = new AiNutritionPlanDraftResponseDto();
+        response.setRequestType(AiRequestType.AI_NUTRITION_PLAN);
+        response.setProvider(AiProvider.LOG);
+        response.setModel(properties.getModel());
+        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setGenerationMode(request.getGenerationMode());
+        response.setWorkoutPlanId(request.getWorkoutPlanId());
+        response.setName("Balanced nutrition plan");
+        response.setSummary("A practical nutrition draft built around the user's current target.");
+        response.setProfessionalSummary("Meals distribute energy and protein across the day while keeping portions editable.");
+        response.setStartDate(request.getStartDate());
+        response.setEndDate(request.getStartDate().plusDays(request.getDayCount() - 1L));
+        response.setDailyTarget(target);
+        response.setReviewRequired(true);
+        response.setConfidence(0.72);
+        response.setQualityScore(72);
+        response.setEstimatedUncertainty("MEDIUM");
+        response.setAssumptions(List.of("Ingredient brands and cooking fats may change the final nutrition."));
+        response.setWarnings(List.of("Review allergens and portions before confirming the plan."));
+        response.setNextBestActions(List.of("Review each portion and replace foods that do not fit your preferences."));
+        List<AiNutritionPlanDayDto> days = new ArrayList<>();
+        for (int dayIndex = 0; dayIndex < request.getDayCount(); dayIndex++) {
+            days.add(sampleNutritionDay(request.getStartDate().plusDays(dayIndex), request.getMealsPerDay(), target));
+        }
+        response.setDays(days);
+        return response;
+    }
+
+    private AiNutritionPlanDayDto sampleNutritionDay(LocalDate date, int mealsPerDay, MealPlanNutritionSnapshotDto target) {
+        AiNutritionPlanDayDto day = new AiNutritionPlanDayDto();
+        day.setDate(date);
+        List<AiNutritionPlanMealDto> meals = new ArrayList<>();
+        String[] types = {"BREAKFAST", "LUNCH", "DINNER", "SNACK", "SNACK", "SNACK"};
+        for (int index = 0; index < mealsPerDay; index++) {
+            AiNutritionPlanMealDto meal = new AiNutritionPlanMealDto();
+            meal.setMealType(types[index]);
+            meal.setSummary("Balanced meal with an editable snapshot portion.");
+            MealPlanNutritionSnapshotDto mealNutrition = scale(target, 1.0 / mealsPerDay);
+            AiNutritionPlanItemDto item = new AiNutritionPlanItemDto();
+            item.setDisplayName(index == 0 ? "Greek Yogurt With Oats" : index == 1 ? "Chicken Rice Bowl" : index == 2 ? "Salmon With Vegetables" : "Fruit And Nuts");
+            item.setDescription("Snapshot-based suggestion for user review.");
+            item.setQuantity(1.0);
+            item.setUnit(FoodPortionUnit.SERVING);
+            item.setNutrition(mealNutrition);
+            item.setShortPreparationState("Prepared");
+            item.setWorkoutRelation(MealPlanWorkoutRelation.NONE);
+            item.setAssumptions(List.of("Typical serving values were used."));
+            meal.setItems(List.of(item));
+            meal.setTotalNutrition(mealNutrition);
+            meals.add(meal);
+        }
+        day.setMeals(meals);
+        day.setTotalNutrition(target);
+        return day;
+    }
+
+    private MealPlanNutritionSnapshotDto scale(MealPlanNutritionSnapshotDto source, double factor) {
+        return nutrition(source.getCalories() * factor, source.getProtein() * factor,
+                source.getCarbs() * factor, source.getFat() * factor);
+    }
+
+    private MealPlanNutritionSnapshotDto nutrition(double calories, double protein, double carbs, double fat) {
+        MealPlanNutritionSnapshotDto nutrition = new MealPlanNutritionSnapshotDto();
+        nutrition.setCalories(calories);
+        nutrition.setProtein(protein);
+        nutrition.setCarbs(carbs);
+        nutrition.setFat(fat);
+        nutrition.setFiber(0.0);
+        return nutrition;
+    }
     @Override
     public AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request) {
         AiWorkoutPlanDraftResponseDto response = new AiWorkoutPlanDraftResponseDto();

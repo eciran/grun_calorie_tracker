@@ -106,8 +106,10 @@ public class AiInsightServiceImpl implements AiInsightService {
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             copyUsageMetadata(response, history);
 
-            history.setStatus(AiRequestStatus.DRAFT_CREATED);
+            history.setStatus(AiRequestStatus.CONFIRMED);
             history.setOutputPayload(writeJson(response));
+            history.setConfirmationPayload(writeJson(Map.of("autoConfirmed", true)));
+            history.setConfirmedAt(LocalDateTime.now());
             history.setQuotaConsumed(true);
             history.setQuotaConsumedAmount(1);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -134,7 +136,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         response.setRequestType(requestType);
         response.setProvider(properties.getProvider());
         response.setModel(properties.getModel());
-        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setStatus(AiRequestStatus.CONFIRMED);
         if (response.getTitle() == null || response.getTitle().isBlank()) {
             response.setTitle(requestType == AiRequestType.AI_DAILY_INSIGHT ? "Daily insight" : "Weekly insight");
         }

@@ -1,6 +1,6 @@
 package com.grun.calorietracker.controller;
 
-import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
+import com.grun.calorietracker.dto.AdminAiRequestPageDto;
 import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.enums.AiRequestStatus;
@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -64,7 +63,7 @@ public class AdminAiRequestController {
             @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
-    public ResponseEntity<Page<AdminAiRequestReviewDto>> listRequests(
+    public ResponseEntity<AdminAiRequestPageDto> listRequests(
             @Parameter(description = "Optional AI request type filter.", example = "AI_DAILY_INSIGHT")
             @RequestParam(required = false) AiRequestType requestType,
             @Parameter(description = "Optional request status filter.", example = "REJECTED")
@@ -77,6 +76,8 @@ public class AdminAiRequestController {
             @RequestParam(defaultValue = "25") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        return ResponseEntity.ok(adminAiMealDraftService.listRequests(requestType, status, refundableOnly, PageRequest.of(safePage, safeSize)));
+        return ResponseEntity.ok(AdminAiRequestPageDto.from(
+                adminAiMealDraftService.listRequests(
+                        requestType, status, refundableOnly, PageRequest.of(safePage, safeSize))));
     }
 }

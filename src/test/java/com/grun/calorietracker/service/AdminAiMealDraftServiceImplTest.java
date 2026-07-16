@@ -1,5 +1,8 @@
 package com.grun.calorietracker.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.config.AiProperties;
+
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
 import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
@@ -21,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentCaptor.forClass;
@@ -34,7 +38,8 @@ class AdminAiMealDraftServiceImplTest {
     private final SubscriptionService subscriptionService = mock(SubscriptionService.class);
     private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
     private final PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
-    private final AdminAiMealDraftServiceImpl service = new AdminAiMealDraftServiceImpl(historyRepository, subscriptionService, notificationRepository, pushDeliveryService);
+    private final AiProperties aiProperties = new AiProperties();
+    private final AdminAiMealDraftServiceImpl service = new AdminAiMealDraftServiceImpl(historyRepository, subscriptionService, notificationRepository, pushDeliveryService, aiProperties);
 
     @Test
     void listRequests_whenRefundableOnly_returnsReviewMetadata() {
@@ -73,7 +78,24 @@ class AdminAiMealDraftServiceImplTest {
         assertEquals(0.12d, result.getEstimatedCostByCurrency().get("USD"), 0.00001d);
         assertEquals("ai-prompt-v2", result.getProviderModels().get(0).getPromptVersion());
         assertEquals(3, result.getRequestStatuses().size());
+        assertEquals(true, result.isAttentionRequired());
+        assertEquals("FAILURE_RATE_HIGH", result.getAlerts().get(0).getCode());
     }
+    @Test
+    void getMonitoringSummary_serializedContractDoesNotExposePromptOrUserPayloads() throws Exception {
+        when(historyRepository.summarizeByProviderModelAfter(any())).thenReturn(List.of());
+        when(historyRepository.summarizeByRequestTypeStatusAfter(any())).thenReturn(List.of());
+
+        String json = new ObjectMapper().findAndRegisterModules()
+                .writeValueAsString(service.getMonitoringSummary(24));
+
+        assertFalse(json.contains("inputPayload"));
+        assertFalse(json.contains("outputPayload"));
+        assertFalse(json.contains("confirmationPayload"));
+        assertFalse(json.contains("userEmail"));
+        assertFalse(json.contains("rejectionFeedback"));
+    }
+
     @Test
     void refundQuota_whenRejectedDraftIsRefundable_updatesHistoryAndSubscription() {
         AiRequestHistoryEntity history = history(1, 0, AiRequestStatus.REJECTED);

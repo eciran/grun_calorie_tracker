@@ -93,6 +93,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             case AI_MEAL_DRAFTS -> Boolean.TRUE.equals(access.getAiMealDrafts());
             case AI_WORKOUT_PLANNER -> Boolean.TRUE.equals(access.getAiWorkoutPlanner());
             case AI_RECIPE_GENERATION -> Boolean.TRUE.equals(access.getAiRecipeGeneration());
+            case AI_MEAL_PREPARATION_GUIDE -> Boolean.TRUE.equals(access.getAiMealPreparationGuide());
+            case AI_NUTRITION_PLAN -> Boolean.TRUE.equals(access.getAiNutritionPlan());
             case AI_INSIGHTS -> Boolean.TRUE.equals(access.getAiInsights());
             case HEALTH_INTEGRATION -> Boolean.TRUE.equals(access.getHealthIntegration());
             case ADVANCED_ANALYTICS -> Boolean.TRUE.equals(access.getAdvancedAnalytics());
@@ -118,12 +120,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .toList();
     }
 
+    public SubscriptionPlanFeatureDto updatePlanFeature(SubscriptionPlan planType,
+                                                        SubscriptionFeature feature,
+                                                        boolean enabled,
+                                                        LocalDate effectiveFrom) {
+        return updatePlanFeature(planType, feature, enabled, effectiveFrom, null);
+    }
+
     @Override
     @Transactional
     public SubscriptionPlanFeatureDto updatePlanFeature(SubscriptionPlan planType,
                                                         SubscriptionFeature feature,
                                                         boolean enabled,
-                                                        LocalDate effectiveFrom) {
+                                                        LocalDate effectiveFrom,
+                                                        Integer aiCreditCost) {
         SubscriptionPlanFeatureEntity entity = subscriptionPlanFeatureRepository
                 .findByPlanTypeAndFeature(planType, feature)
                 .orElseGet(SubscriptionPlanFeatureEntity::new);
@@ -133,6 +143,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setPlanType(planType);
         entity.setFeature(feature);
         entity.setEnabled(enabled);
+        int resolvedCreditCost = aiCreditCost == null ? (entity.getAiCreditCost() == null ? 1 : entity.getAiCreditCost()) : aiCreditCost;
+        if (resolvedCreditCost < 1 || resolvedCreditCost > 50) {
+            throw new IllegalArgumentException("AI credit cost must be between 1 and 50.");
+        }
+        entity.setAiCreditCost(resolvedCreditCost);
         entity.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
         entity.setUpdatedAt(LocalDateTime.now());
         SubscriptionPlanFeatureDto dto = toPlanFeatureDto(subscriptionPlanFeatureRepository.save(entity));
@@ -145,22 +160,47 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional
     public SubscriptionDto consumeAiQuota(String email) {
+        return consumeAiQuota(email, 1);
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionDto consumeAiQuota(String email, int amount) {
+        if (amount < 1 || amount > 50) {
+            throw new IllegalArgumentException("AI quota amount must be between 1 and 50.");
+        }
         UserEntity user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         SubscriptionEntity entity = subscriptionRepository.findByUser(user)
                 .orElseGet(() -> defaultEntity(user));
         resetAiQuotaIfPeriodExpired(entity);
         SubscriptionDto current = toDto(entity);
-        if (!Boolean.TRUE.equals(current.getAiAccessAllowed())) {
-            throw new IllegalArgumentException("AI quota is not available for the current subscription.");
+        if (!Boolean.TRUE.equals(current.getAiAccessAllowed())
+                || current.getAiRemainingThisPeriod() == null
+                || current.getAiRemainingThisPeriod() < amount) {
+            throw new IllegalArgumentException("AI quota is not available for the requested operation.");
         }
         entity.setAiMonthlyQuota(current.getAiMonthlyQuota());
-        entity.setAiUsedThisPeriod(current.getAiUsedThisPeriod() + 1);
+        entity.setAiUsedThisPeriod(current.getAiUsedThisPeriod() + amount);
         entity.setUpdatedAt(LocalDateTime.now());
-        SubscriptionEntity saved = subscriptionRepository.save(entity);
-        return toDto(saved);
+        return toDto(subscriptionRepository.save(entity));
     }
 
+    @Override
+    public int resolveAiCreditCost(String email, SubscriptionFeature feature) {
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        SubscriptionPlan plan = subscriptionRepository.findByUser(user)
+                .map(SubscriptionEntity::getPlanType)
+                .orElse(SubscriptionPlan.FREE);
+        Integer cost = subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(plan, feature)
+                .map(SubscriptionPlanFeatureEntity::getAiCreditCost)
+                .orElse(1);
+        if (cost == null || cost < 1 || cost > 50) {
+            throw new IllegalStateException("Configured AI credit cost is invalid.");
+        }
+        return cost;
+    }
     @Override
     @Transactional
     public SubscriptionDto resetUserAiQuota(Long userId) {
@@ -372,6 +412,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiRecipeGeneration(featureAllowed(subscription, entity, SubscriptionFeature.AI_RECIPE_GENERATION)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiMealPreparationGuide(featureAllowed(subscription, entity, SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiMealPreparationGuideCreditCost(resolvePlanCreditCost(subscription.getPlanType(), SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE));
+        dto.setAiNutritionPlan(featureAllowed(subscription, entity, SubscriptionFeature.AI_NUTRITION_PLAN)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiNutritionPlanBaseCreditCost(resolvePlanCreditCost(
+                subscription.getPlanType(), SubscriptionFeature.AI_NUTRITION_PLAN));
         dto.setAiInsights(featureAllowed(subscription, entity, SubscriptionFeature.AI_INSIGHTS)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setHealthIntegration(featureAllowed(subscription, entity, SubscriptionFeature.HEALTH_INTEGRATION));
@@ -396,6 +443,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return isPlanFeatureEnabled(subscription.getPlanType(), feature);
     }
 
+    private int resolvePlanCreditCost(SubscriptionPlan planType, SubscriptionFeature feature) {
+        Integer cost = subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(planType, feature)
+                .map(SubscriptionPlanFeatureEntity::getAiCreditCost).orElse(1);
+        return cost == null || cost < 1 || cost > 50 ? 1 : cost;
+    }
+
     private boolean isPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
         return subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(planType, feature)
                 .map(SubscriptionPlanFeatureEntity::getEnabled)
@@ -404,7 +457,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
         return switch (feature) {
-            case AI_MEAL_DRAFTS, AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION, AI_INSIGHTS, CUSTOM_FOOD_LIBRARY -> true;
+            case AI_MEAL_DRAFTS, AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION, AI_NUTRITION_PLAN, AI_INSIGHTS, CUSTOM_FOOD_LIBRARY -> true;
+            case AI_MEAL_PREPARATION_GUIDE -> planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
             case HEALTH_INTEGRATION, ADVANCED_ANALYTICS -> planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
             case AD_FREE -> planType == SubscriptionPlan.PRO;
         };
@@ -447,6 +501,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setPlanType(entity.getPlanType());
         dto.setFeature(entity.getFeature());
         dto.setEnabled(entity.getEnabled());
+        dto.setAiCreditCost(entity.getAiCreditCost() == null ? 1 : entity.getAiCreditCost());
         dto.setEffectiveFrom(entity.getEffectiveFrom());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
