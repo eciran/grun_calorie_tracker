@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
@@ -110,6 +111,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         product.setCatalogType(FoodCatalogType.USER_CUSTOM);
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        product.setNutritionBasis(FoodNutritionBasis.ESTIMATED);
         product.setMarketRegion(user.getMarketRegion());
         product.setIsCustom(true);
         product.setCreatedByUser(user);
