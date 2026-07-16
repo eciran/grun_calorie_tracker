@@ -1,0 +1,149 @@
+# Generated from generic-food-manifest-v1.json.
+# Do not edit manually; update the manifest and regenerate.
+
+banana raw
+apple raw
+orange raw
+mandarin raw
+grapes raw
+strawberries raw
+blueberries raw
+raspberries raw
+blackberries raw
+pear raw
+peach raw
+plum raw
+pineapple raw
+mango raw
+kiwi raw
+broccoli raw
+broccoli cooked
+cauliflower raw
+cauliflower cooked
+spinach raw
+spinach cooked
+kale raw
+kale cooked
+lettuce raw
+cabbage raw
+cabbage cooked
+brussels sprouts raw
+brussels sprouts cooked
+potato raw
+potato boiled
+potato baked
+sweet potato raw
+sweet potato baked
+carrot raw
+carrot cooked
+beets raw
+beets cooked
+parsnip raw
+parsnip cooked
+onion raw
+onion cooked
+garlic raw
+tomato raw
+tomato cooked
+cucumber raw
+pepper red raw
+eggplant raw
+eggplant cooked
+zucchini raw
+zucchini cooked
+mushrooms white raw
+mushrooms white cooked
+chicken breast raw
+chicken breast cooked
+chicken breast grilled
+chicken thigh raw
+chicken thigh cooked
+turkey breast meat raw
+turkey breast cooked
+beef ground raw
+ground beef lean cooked
+beef steak raw
+beef steak grilled
+lamb leg raw
+lamb cooked
+pork loin chop raw
+pork chop cooked
+pork tenderloin raw
+pork tenderloin cooked
+salmon raw
+salmon cooked
+fish tuna fresh raw
+tuna cooked
+cod raw
+cod cooked
+haddock raw
+haddock cooked
+fish mackerel raw
+mackerel cooked
+fish sardine canned oil
+shrimp raw
+shrimp cooked
+sea bass raw
+sea bass cooked
+egg whole raw
+egg hard boiled
+egg scrambled cooked
+milk whole 3.25 milkfat
+milk skim
+yogurt plain whole
+greek yogurt plain
+cheddar cheese
+mozzarella cheese
+cottage cheese
+oats dry
+oats cooked water
+rice white raw
+rice white long grain cooked
+rice brown raw
+rice brown cooked
+pasta dry enriched
+pasta cooked enriched
+quinoa raw
+quinoa cooked
+couscous dry
+couscous cooked
+barley raw
+barley cooked
+bulgur raw
+bulgur cooked
+bread white
+bread whole wheat
+lentils raw
+lentils cooked
+chickpeas raw
+chickpeas cooked
+kidney beans raw
+beans kidney red cooked
+black beans raw
+beans black cooked
+white beans raw
+beans white cooked
+peas green raw
+peas green boiled
+soybeans mature seeds raw
+soybeans cooked
+tofu firm
+olive oil
+sunflower oil
+canola oil
+coconut oil
+butter without salt
+almonds raw
+walnuts raw
+cashew nuts raw
+hazelnuts raw
+pistachio nuts raw
+chia seeds
+seeds flaxseed
+sunflower seed kernel raw
+pumpkin seeds
+sesame seeds whole dried
+water
+coffee brewed
+tea black brewed
+orange juice raw

@@ -10,6 +10,7 @@ import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.service.impl.FoodProductImportServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,9 @@ class FoodProductImportPerformanceIntegrationTest {
     @Autowired
     private EntityManagerFactory entityManagerFactory;
 
+    @Autowired
+    private EntityManager entityManager;
+
     @Test
     void importsOneHundredLocalizedGenericProductsWithinSqlBudget() {
         FoodProductImportServiceImpl importService = new FoodProductImportServiceImpl(
@@ -76,9 +80,20 @@ class FoodProductImportPerformanceIntegrationTest {
         assertEquals(0, result.getUpdatedRows());
         assertEquals(PRODUCT_COUNT, result.getSavedRows());
         assertEquals(0, result.getSkippedRows());
+        long marketAvailabilityCount = ((Number) entityManager
+                .createNativeQuery("select count(*) from food_item_market_regions")
+                .getSingleResult()).longValue();
+        long persistedRowCount = foodItemRepository.count()
+                + foodItemLocalizationRepository.count()
+                + foodItemSearchAliasRepository.count()
+                + foodItemServingOptionRepository.count()
+                + foodItemServingOptionLocalizationRepository.count()
+                + foodProductQualityIssueRepository.count()
+                + marketAvailabilityCount;
         assertTrue(
-                statementCount <= 625,
-                "100-row localized generic import executed " + statementCount + " SQL statements."
+                statementCount <= persistedRowCount + 10,
+                "100-row localized generic import executed " + statementCount
+                        + " SQL statements for " + persistedRowCount + " persisted rows."
         );
 
         statistics.clear();

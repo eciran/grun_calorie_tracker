@@ -85,8 +85,9 @@ Each row must include:
 - clean `display_name`
 - concise `short_display_name`
 - calories/protein/fat/carbs per 100g
-- `serving_size_grams=100`
-- `serving_unit=g`
+- nutrition values normalized per `100 g` or `100 ml`
+- product-specific default serving conversion and `serving_options_json`
+- explicit `nutrition_basis` (`SOURCE_REPORTED`, `CALCULATED`, or `ESTIMATED`)
 - `market_region=GLOBAL`
 - explicit `preparation_state`
 - `alias_en`
@@ -170,6 +171,91 @@ Core search smoke terms:
 - egg -> Boiled Egg or Raw Egg
 - milk -> Milk before chocolate/desserts
 
+### Golden search quality gate
+
+The versioned fixture src/test/resources/golden-food-search-v1.json is the mandatory ranking gate. It contains 230 EN/TR cases covering preparation state, common spelling errors, Turkish and ASCII Turkish terms, serving labels, localized display names, and GLOBAL/UK_IE/EU/TR market behavior.
+
+Run the focused gate with:
+
+    .\mvnw.cmd "-Dtest=GoldenFoodSearchQualityGateTest" test
+
+The gate writes target/reports/golden-food-search-v1-report.json and fails when Top-1 is below 95%, Recall@3 is below 99%, a critical query has no result, a rejected/blocking product is visible, a resolved generic duplicate is visible, localization/serving assertions fail, or fixture p95 exceeds 300 ms. scripts/test-product-management-regression.ps1 includes this gate so ranking and import changes cannot bypass it.
+
+The fixture p95 is a deterministic local regression signal. It does not replace the PostgreSQL staging-scale p95 measurement required before production rollout.
+### Generic food manifest gate
+
+The versioned S7 contract contains 96 generic identities and 146 preparation variants across fruit, vegetables, meat, fish, dairy, grains, legumes, fats, nuts, seeds and drinks. Every variant has one frozen USDA `fdc_id`, explicit preparation state, EN/TR display and aliases, a positive product-specific serving conversion, localized serving labels and complete calorie/protein/fat/carbohydrate values.
+
+Tracked artifacts:
+
+- `src/test/resources/generic-food-manifest-v1.json`: identity, category, query, localization and serving contract.
+- `src/test/resources/generic-food-usda-candidates-v1.csv`: reviewed USDA nutrition/source input.
+- `src/test/resources/generic-food-source-selection-v1.json`: one stable source key per variant.
+- `src/test/resources/generic-food-approved-seed-v1.csv`: backend-importable approved seed.
+
+Reproducibility and rule checks:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-generic-food-manifest-queries.ps1 -Check
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-generic-food-approved-seed.ps1 -Check
+powershell -ExecutionPolicy Bypass -File .\scripts\export-usda-fooddata-generic-products.ps1 -RunRuleTests
+```
+
+`GenericFoodManifestGateTest` validates category minimums, unique identities/queries/source keys, preparation compatibility, localization, serving conversions and artifact consistency. `FoodItemServiceSearchIntegrationTest` imports all 146 rows through the real import service and verifies zero skipped rows, zero core nutrition/serving/preparation warnings, 292 product localizations, 146 serving options, 292 serving localizations and Turkish search behavior.
+
+USDA API search is candidate discovery only. Production import uses the reviewed, versioned source selection and never depends on live USDA ranking. Nutrition provenance is persisted as `nutrition_basis`; local-dish estimates must be marked `ESTIMATED` and calculated values must be marked `CALCULATED`.
+
+### UK/IE branded growth gate
+
+S8 uses the versioned sample-data/manifests/open-food-facts-uk-ie-v1.json contract and a frozen Open Food Facts source snapshot. The build verifies the source SHA-256 before export, then applies exact UK/IE country matching, barcode/source-key idempotency, required product name and brand, complete core nutrition, plausible nutrition ranges, market/catalog/source checks and explicit SOURCE_REPORTED provenance.
+
+Reproducible local commands:
+
+`powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-open-food-facts-market-batch.ps1 -Stage pilot
+powershell -ExecutionPolicy Bypass -File .\scripts\build-open-food-facts-market-batch.ps1 -Stage gate
+powershell -ExecutionPolicy Bypass -File .\scripts\test-open-food-facts-market-batch.ps1
+`
+
+Verified results:
+
+- Pilot: 5,000/5,000 rows, zero blocking duplicate/barcode/nutrition/name/brand/market/source/provenance issues.
+- Gate: 25,000/25,000 rows, zero blocking issues and 7,617 reported brand labels.
+- Review-only warnings: 6,467 gate rows lack source serving metadata and 602 names require review; source values are not fabricated.
+- Search: real Tesco, Dunnes, Sainsbury and Marks & Spencer examples validate branded intent; broad core-food queries continue to rank generic ingredients first.
+- Golden search: Top-1 1.000, Recall@3 1.000, MRR@3 1.000 and fixture p95 14 ms.
+
+Generated batch artifacts stay under ignored outputs/product-data-readiness/. They are evidence and import candidates, not automatic database mutations. Full measurements and checksums are in docs/PRODUCT_MANAGEMENT_S8_UK_IE_REPORT.md.
+
+### TR and EU branded growth gate
+
+S9 uses separate versioned TR and EU manifests against the same frozen Open Food Facts snapshot. The market batch builder accepts UK_IE, TR and EU, verifies the source checksum, applies market-specific country rules and records capacity failures separately from data-quality failures.
+
+EU passed both controlled stages: 5,000/5,000 pilot rows and 25,000/25,000 gate rows, with zero blocking barcode, source-key, nutrition, identity, market or provenance issues. Missing serving metadata remains a visible review warning; unavailable translations are not invented.
+
+The complete snapshot yielded 1,595 TR products that satisfy the strict branded-product contract. Internet-only discovery also found 3,807 nutrition-complete 868/869 candidates, but GS1 prefix is not market proof; these rows are isolated in a non-importable second-source evidence queue. At least 3,405 approvals are needed for the 5k pilot. Even if all candidates are approved, the 25k gate remains short by 19,598 products. This is a source-capacity blocker, not an importer defect.
+
+TR source remediation is intentionally deferred while S10 staging and S11 scale engineering continue with existing approved artifacts. Before S12 production approval, obtain written usage and persistence rights and evaluate sources in this order: GS1 Turkiye/TOBBsenkron GDSN recipient feed; licensed retailer/manufacturer feeds; TurKomp for generic Turkish foods; review-first user barcode/label contributions. FatSecret TR is runtime-only unless a separate contract permits durable storage. Retailer-site scraping is not an approved source. OFF data and private sources must retain separate provenance and receive an ODbL compatibility review before any combined production publication.
+
+Internet pages may supply supporting evidence but never write directly to the canonical catalog. The controlled path is: authorized source evidence -> immutable raw JSON-LD/HTML/label-OCR record with provenance and checksum -> deterministic identity, unit, nutrition, preparation, serving, locale and market validation -> licensed/USDA/OFF/current-catalog comparison -> AI suggestion and explanation -> admin approval with audit -> quality issue and search-readiness recalculation. Source precedence is official label/manufacturer evidence, licensed GS1/manufacturer feed, authorized retailer evidence, OFF, user contribution and finally AI inference. AI inference alone is not a valid nutrition source.
+
+Cross-market identity is modelled as one product with a primary market plus a set of market availabilities. Re-importing the same barcode/source identity for another market unions availability without creating another product row. The 51,600-row overlap gate found 2,041 compatible shared identities and zero source-key or core-nutrition conflicts.
+
+Full measurements, checksums, localization decisions and remaining blockers are recorded in docs/PRODUCT_MANAGEMENT_S9_TR_EU_REPORT.md.
+### S10 staging rehearsal status
+
+The staging package contains 51,746 approved input rows split into eight multipart-safe chunks: 25,000 UK_IE, 25,000 EU, 1,600 TR and 146 generic rows. A disposable PostgreSQL staging-equivalent rehearsal imported 49,705 canonical products with 2,041 compatible cross-market updates and zero skipped or failed rows.
+
+The second full import was idempotent: it created zero products, updated the expected 51,746 market inputs and did not grow product, market, evidence, alias, localization or serving tables. Flyway reached V126, the pre-import snapshot restored successfully into an independent clone, and all ten English/Turkish search smoke queries returned relevant first results.
+
+S10 remains IN_PROGRESS until the same snapshot/import/restore procedure is executed against authenticated AWS staging from a clean revision and a signed rehearsal report is produced. No AWS or production resource was changed during the local rehearsal. Local cold search at roughly 50k products averaged 2.37 seconds and peaked at 3.70 seconds; query-plan and index work is therefore a mandatory S11 gate, not an accepted production baseline.
+### S11 100k+ scale status
+
+S11 is DONE. The optimized PostgreSQL path first selects a bounded indexed candidate set, then preserves the existing quality, canonical, market, localization and relevance rules. A disposable PostgreSQL run passed 25k, 50k, 100k and 200k catalog gates with p95 values of 53 ms, 169 ms, 218 ms and 210 ms respectively, all below the 300 ms budget.
+
+The gate also passed deep pagination, a 10-request concurrent EN/TR batch in 501 ms, all seven required search indexes and an EXPLAIN ANALYZE plan using bitmap index scans. Controlled staging may use `db.t4g.small`; initial production should start at `db.t4g.medium` and scale from measured CPU, connection, memory, read-latency, burst-credit and API p95 pressure. Full evidence and trigger thresholds are in `docs/PRODUCT_MANAGEMENT_S11_SCALE_REPORT.md`.
+
+Detailed evidence is recorded in docs/PRODUCT_MANAGEMENT_S10_STAGING_REHEARSAL_REPORT.md. Generated package and result artifacts remain under ignored outputs/product-data-readiness/staging-rehearsal/.
 ## Phase 6 - AWS/live DB Procedure
 
 Live DB import is allowed only after local green run.

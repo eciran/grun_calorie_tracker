@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string] $InputPath,
 
     [string] $DownloadUrl = "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz",
@@ -25,7 +25,13 @@
 
     [switch] $RequireCalories,
 
-    [switch] $RequireMacroData
+    [switch] $RequireMacroData,
+
+    [switch] $RequireCompleteMacroData,
+
+    [switch] $RequireBrand,
+
+    [switch] $RejectImplausibleNutrition
 )
 
 $ErrorActionPreference = "Stop"
@@ -106,7 +112,14 @@ function Test-AnyTermMatch {
     }
 
     $normalizedValue = $Value.ToLowerInvariant()
+    $tokens = @($normalizedValue -split "[^a-z0-9-]+" | Where-Object { $_ })
     foreach ($term in $Terms) {
+        if ($term.Length -le 3) {
+            if ($tokens -contains $term) {
+                return $true
+            }
+            continue
+        }
         if ($normalizedValue.Contains($term)) {
             return $true
         }
@@ -171,6 +184,48 @@ function Test-Decimal {
     )
 }
 
+function Convert-ToDecimal {
+    param([string] $Value)
+
+    if (-not (Test-Decimal -Value $Value)) {
+        return $null
+    }
+
+    return [double]::Parse(
+        $Value.Replace(",", "."),
+        [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture
+    )
+}
+
+function Test-PlausibleNutrition {
+    param(
+        [string] $Calories,
+        [string] $Protein,
+        [string] $Fat,
+        [string] $Carbs
+    )
+
+    $calorieValue = Convert-ToDecimal -Value $Calories
+    $proteinValue = Convert-ToDecimal -Value $Protein
+    $fatValue = Convert-ToDecimal -Value $Fat
+    $carbValue = Convert-ToDecimal -Value $Carbs
+    if ($null -eq $calorieValue -or $null -eq $proteinValue -or $null -eq $fatValue -or $null -eq $carbValue) {
+        return $false
+    }
+
+    if ($calorieValue -lt 0 -or $calorieValue -gt 1000) {
+        return $false
+    }
+    foreach ($macro in @($proteinValue, $fatValue, $carbValue)) {
+        if ($macro -lt 0 -or $macro -gt 100) {
+            return $false
+        }
+    }
+
+    return ($proteinValue + $fatValue + $carbValue) -le 110
+}
+
 function Escape-Tsv {
     param([string] $Value)
 
@@ -217,10 +272,14 @@ $countryFilteredRows = 0
 $storeFilteredRows = 0
 $duplicateRows = 0
 $missingNutritionRows = 0
+$missingBrandRows = 0
+$implausibleNutritionRows = 0
 $malformedRows = 0
 $outputColumns = @(
     "code",
     "product_name",
+    "product_name_en",
+    "product_name_tr",
     "brands",
     "countries_tags",
     "countries_tags_en",
@@ -284,7 +343,11 @@ try {
 
         $script:HeaderIndex = $headerIndex
         $barcode = Get-Field -Names "code|barcode"
-        $name = Get-Field -Names "product_name|product_name_en|generic_name"
+        $name = if ($MarketRegion -eq "TR") {
+            Get-Field -Names "product_name_tr|product_name|product_name_en|generic_name"
+        } else {
+            Get-Field -Names "product_name_en|product_name|generic_name"
+        }
         if ([string]::IsNullOrWhiteSpace($barcode) -or $barcode -notmatch "^\d{8,14}$" -or [string]::IsNullOrWhiteSpace($name)) {
             $rowsSkipped++
             continue
@@ -317,6 +380,7 @@ try {
         $protein = Get-Field -Names "proteins_100g|protein_100g"
         $fat = Get-Field -Names "fat_100g"
         $carbs = Get-Field -Names "carbohydrates_100g|carbs_100g"
+        $brand = Get-Field -Names "brands|brand"
         if ($RequireCalories -and -not (Test-Decimal -Value $calories)) {
             $missingNutritionRows++
             continue
@@ -325,9 +389,25 @@ try {
             $missingNutritionRows++
             continue
         }
+        if ($RequireCompleteMacroData -and (-not (Test-Decimal -Value $protein) -or -not (Test-Decimal -Value $fat) -or -not (Test-Decimal -Value $carbs))) {
+            $missingNutritionRows++
+            continue
+        }
+        if ($RequireBrand -and [string]::IsNullOrWhiteSpace($brand)) {
+            $missingBrandRows++
+            continue
+        }
+        if ($RejectImplausibleNutrition -and -not (Test-PlausibleNutrition -Calories $calories -Protein $protein -Fat $fat -Carbs $carbs)) {
+            $implausibleNutritionRows++
+            continue
+        }
 
         $outputValues = foreach ($column in $outputColumns) {
-            Get-Field -Names $column
+            switch ($column) {
+                "product_name" { $name; continue }
+                "brands" { $brand; continue }
+                default { Get-Field -Names $column }
+            }
         }
         $writer.WriteLine(($outputValues | ForEach-Object { Escape-Tsv $_ }) -join "`t")
         $rowsWritten++
@@ -357,10 +437,15 @@ try {
     countryFilteredRows = $countryFilteredRows
     storeFilteredRows = $storeFilteredRows
     missingNutritionRows = $missingNutritionRows
+    missingBrandRows = $missingBrandRows
+    implausibleNutritionRows = $implausibleNutritionRows
     limit = $Limit
     maxRowsToRead = $MaxRowsToRead
     requireCalories = $RequireCalories.IsPresent
     requireMacroData = $RequireMacroData.IsPresent
+    requireCompleteMacroData = $RequireCompleteMacroData.IsPresent
+    requireBrand = $RequireBrand.IsPresent
+    rejectImplausibleNutrition = $RejectImplausibleNutrition.IsPresent
 } | ConvertTo-Json -Depth 4
 
 

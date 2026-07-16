@@ -1,0 +1,5 @@
+code	product_name	brands	energy-kcal_100g	proteins_100g	fat_100g	carbohydrates_100g	fiber_100g	sugars_100g	sodium_100g	serving_size	countries_tags	stores_tags	allergens_tags	nutriscore_grade
+5000111111111	Tesco Greek Style Yogurt	Tesco	95	8.2	4.8	4.6	0	4.6	0.04	100 g	en:united-kingdom	Tesco	en:milk	b
+5000222222222	Dunnes Wholemeal Bread	Dunnes Stores	245	10.1	3.5	39.4	6.2	3.8	0.38	100 g	en:ireland	Dunnes Stores	en:gluten	a
+5000333333333	Aldi Mature Cheddar	Aldi	410	25	34	0.1	0	0.1	0.7	30 g	en:united-kingdom	Aldi	en:milk	d
+8690444444444	Turkish Ayran	Example TR Brand	37	2	1.8	3.1	0	3.1	0.42	100 ml	en:turkey	Migros	en:milk	b

@@ -18,6 +18,7 @@ import com.grun.calorietracker.enums.FoodEvidenceBasis;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.FoodServingOptionSource;
@@ -43,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
@@ -63,6 +65,7 @@ import java.util.function.Consumer;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class FoodProductImportServiceImpl implements FoodProductImportService {
 
     private static final int MAX_ERROR_DETAILS = 50;
@@ -334,7 +337,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
         product.setCatalogType(catalogType);
         product.setPreparationState(preparationState);
-        product.setMarketRegion(regionResolution.region());
+        product.setNutritionBasis(resolveNutritionBasis(row, catalogType));
+        mergeMarketAvailability(product, row, regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
 
         setIfPresent(row, product::setImageUrl, "imageurl", "image_url", "image_front_url");
@@ -597,7 +601,23 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return FoodPreparationState.UNSPECIFIED;
         }
     }
-    private String resolveCanonicalFoodKey(
+
+    private FoodNutritionBasis resolveNutritionBasis(CsvRow row, FoodCatalogType catalogType) {
+        String value = firstText(row, "nutritionbasis", "nutrition_basis", "nutritionvaluebasis", "nutrition_value_basis");
+        if (value == null) {
+            return catalogType == FoodCatalogType.LOCAL_DISH
+                    ? FoodNutritionBasis.ESTIMATED
+                    : FoodNutritionBasis.SOURCE_REPORTED;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        try {
+            return FoodNutritionBasis.valueOf(normalized);
+        } catch (IllegalArgumentException exception) {
+            return catalogType == FoodCatalogType.LOCAL_DISH
+                    ? FoodNutritionBasis.ESTIMATED
+                    : FoodNutritionBasis.SOURCE_REPORTED;
+        }
+    }    private String resolveCanonicalFoodKey(
             FoodCatalogType catalogType,
             MarketRegion marketRegion,
             FoodPreparationState preparationState,
@@ -1403,12 +1423,51 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         return hasExternalImage ? ImageStatus.APPROVED : ImageStatus.RAW;
     }
 
+    private void mergeMarketAvailability(FoodItemEntity product, CsvRow row, MarketRegion resolvedRegion) {
+        Set<MarketRegion> marketRegions = product.getMarketRegions();
+        if (marketRegions == null) {
+            marketRegions = new HashSet<>();
+            product.setMarketRegions(marketRegions);
+        }
+        if (product.getMarketRegion() != null) {
+            marketRegions.add(product.getMarketRegion());
+        }
+        if (resolvedRegion != null) {
+            marketRegions.add(resolvedRegion);
+        }
+
+        String explicitRegions = firstText(row, "marketregions", "market_regions", "availablemarkets", "available_markets");
+        if (explicitRegions != null) {
+            for (String token : explicitRegions.split("[,;|]")) {
+                MarketRegion parsedRegion = parseMarketRegion(token);
+                if (parsedRegion != null) {
+                    marketRegions.add(parsedRegion);
+                }
+            }
+        }
+
+        if (product.getMarketRegion() == null) {
+            product.setMarketRegion(resolvedRegion == null ? MarketRegion.GLOBAL : resolvedRegion);
+        }
+    }
+
     private RegionResolution resolveMarketRegion(CsvRow row, MarketRegion fallback) {
         String value = firstText(row, "marketregion", "market_region", "region", "country");
         if (value == null) {
             return new RegionResolution(fallback == null ? MarketRegion.GLOBAL : fallback, true, false);
         }
 
+        MarketRegion parsedRegion = parseMarketRegion(value);
+        if (parsedRegion == null) {
+            return new RegionResolution(fallback == null ? MarketRegion.GLOBAL : fallback, false, true);
+        }
+        return new RegionResolution(parsedRegion, false, false);
+    }
+
+    private MarketRegion parseMarketRegion(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         if ("UK".equals(normalized)
                 || "GB".equals(normalized)
@@ -1418,19 +1477,18 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 || "IRL".equals(normalized)
                 || "IE".equals(normalized)) {
             normalized = "UK_IE";
-        } else if ("TURKEY".equals(normalized) || "TURKIYE".equals(normalized)) {
+        } else if ("TURKEY".equals(normalized) || "TURKIYE".equals(normalized) || "TÜRKİYE".equals(normalized)) {
             normalized = "TR";
         } else if ("EUROPE".equals(normalized) || "EUROPEAN UNION".equals(normalized)) {
             normalized = "EU";
         }
 
         try {
-            return new RegionResolution(MarketRegion.valueOf(normalized), false, false);
+            return MarketRegion.valueOf(normalized);
         } catch (IllegalArgumentException ex) {
-            return new RegionResolution(fallback == null ? MarketRegion.GLOBAL : fallback, false, true);
+            return null;
         }
     }
-
     private void addError(List<FoodProductImportErrorDto> errors, FoodProductImportErrorDto error) {
         if (errors.size() < MAX_ERROR_DETAILS) {
             errors.add(error);

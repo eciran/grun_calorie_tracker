@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -24,7 +25,9 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     Optional<FoodItemEntity> findByBarcode(String barcode);
     Optional<FoodItemEntity> findByNormalizedBarcode(String normalizedBarcode);
     Optional<FoodItemEntity> findBySourceKey(String sourceKey);
+    @EntityGraph(attributePaths = "marketRegions")
     List<FoodItemEntity> findByNormalizedBarcodeIn(List<String> normalizedBarcodes, Sort sort);
+    @EntityGraph(attributePaths = "marketRegions")
     List<FoodItemEntity> findBySourceKeyIn(List<String> sourceKeys, Sort sort);
     List<FoodItemEntity> findByCanonicalFoodKeyIn(List<String> canonicalFoodKeys, Sort sort);
     List<FoodItemEntity> findByVerificationStatus(VerificationStatus verificationStatus);

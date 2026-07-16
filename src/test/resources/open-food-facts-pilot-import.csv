@@ -1,0 +1,10 @@
+barcode,name,calories,protein,fat,carbs,fiber,sugar,sodium,serving_size_grams,serving_unit,market_region,image_url,allergens,nutri_score
+5010000000001,Irish Porridge Oats,380,13.0,7.5,62.0,9.0,1.0,0.01,100,GRAM,UK_IE,https://images.openfoodfacts.org/images/products/501/000/000/0001/front_en.400.jpg,,a
+5010000000002,Irish Low Fat Milk,46,3.4,1.5,4.8,0,4.8,0.04,100,MILLILITER,UK_IE,https://images.openfoodfacts.org/images/products/501/000/000/0002/front_en.400.jpg,milk,b
+5010000000003,Irish Whey Protein Vanilla,395,75.0,6.0,8.0,2.0,4.0,0.18,30,GRAM,UK_IE,https://images.openfoodfacts.org/images/products/501/000/000/0003/front_en.400.jpg,milk,b
+8690000000011,Turkish Strained Yogurt,65,10.0,1.5,3.2,0,3.2,0.05,100,GRAM,TR,https://images.openfoodfacts.org/images/products/869/000/000/0011/front_tr.400.jpg,milk,a
+8690000000012,Turkish Bulgur,342,12.3,1.3,69.0,12.5,0.4,0.01,100,GRAM,TR,https://images.openfoodfacts.org/images/products/869/000/000/0012/front_tr.400.jpg,wheat,a
+8690000000013,Turkish Ayran,38,2.0,1.5,3.0,0,3.0,0.25,200,MILLILITER,TR,https://images.openfoodfacts.org/images/products/869/000/000/0013/front_tr.400.jpg,milk,b
+5000000000001,UK Wholemeal Bread,247,9.0,3.2,41.0,6.8,3.8,0.42,40,GRAM,UK_IE,https://images.openfoodfacts.org/images/products/500/000/000/0001/front_en.400.jpg,wheat,b
+5000000000002,UK Protein Bar Chocolate,410,35.0,12.0,38.0,8.0,4.0,0.22,60,GRAM,UK_IE,https://images.openfoodfacts.org/images/products/500/000/000/0002/front_en.400.jpg,milk;soy,c
+5000000000003,UK Apple Juice,46,0.1,0.0,11.0,0.2,10.0,0.01,250,MILLILITER,UK_IE,https://images.openfoodfacts.org/images/products/500/000/000/0003/front_en.400.jpg,,c

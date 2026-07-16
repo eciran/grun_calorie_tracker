@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
+import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
@@ -45,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -136,6 +138,63 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals(true, result.getContent().get(0).getDefaultServingOptionId() != null);
         assertEquals(1, foodItemRepository.count());
         assertEquals(2, foodItemServingOptionRepository.count());
+    }
+    @Test
+    void approvedGenericManifestSeed_importsAndSupportsLocalizedSearch() throws Exception {
+        FoodProductImportServiceImpl importService = new FoodProductImportServiceImpl(
+                foodItemRepository,
+                foodItemLocalizationRepository,
+                foodItemSearchAliasRepository,
+                foodItemServingOptionRepository,
+                foodItemServingOptionLocalizationRepository,
+                Mockito.mock(FoodProductQualityIssueTracker.class),
+                Mockito.mock(com.grun.calorietracker.service.FoodProductEvidenceService.class),
+                new ObjectMapper()
+        );
+        byte[] seed;
+        try (var input = getClass().getResourceAsStream("/generic-food-approved-seed-v1.csv")) {
+            assertTrue(input != null, "Approved generic food seed is missing");
+            seed = input.readAllBytes();
+        }
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "generic-food-approved-seed-v1.csv",
+                "text/csv",
+                seed
+        );
+
+        FoodProductImportResultDto importResult = importService.importCsv(file, "manifest-gate@grun.app");
+
+        assertEquals(146, importResult.getSavedRows());
+        assertEquals(0, importResult.getSkippedRows());
+        assertEquals(0, importResult.getQualityWarningCounts().getOrDefault("MISSING_CALORIES", 0));
+        assertEquals(0, importResult.getQualityWarningCounts().getOrDefault("MISSING_MACROS", 0));
+        assertEquals(0, importResult.getQualityWarningCounts().getOrDefault("INVALID_SERVING_OPTIONS", 0));
+        assertEquals(0, importResult.getQualityWarningCounts().getOrDefault("GENERIC_MISSING_PREPARATION_STATE", 0));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(146, foodItemRepository.count());
+        assertEquals(292, foodItemLocalizationRepository.count());
+        assertEquals(146, foodItemServingOptionRepository.count());
+        assertEquals(292, foodItemServingOptionLocalizationRepository.count());
+
+        FoodSearchCriteriaDto turkishBanana = new FoodSearchCriteriaDto();
+        turkishBanana.setQuery("muz");
+        turkishBanana.setMarketRegion(MarketRegion.TR);
+        turkishBanana.setPreferredLanguage(PreferredLanguage.TR);
+        FoodProductSearchPageDto bananaResults = foodItemService.searchFoodItems(turkishBanana, 0, 10);
+        assertTrue(!bananaResults.getContent().isEmpty());
+        assertTrue(bananaResults.getContent().get(0).getProductName().contains("Muz"));
+        assertEquals(1, bananaResults.getContent().get(0).getServingOptions().size());
+
+        FoodSearchCriteriaDto turkishRice = new FoodSearchCriteriaDto();
+        turkishRice.setQuery("pirinç");
+        turkishRice.setMarketRegion(MarketRegion.TR);
+        turkishRice.setPreferredLanguage(PreferredLanguage.TR);
+        FoodProductSearchPageDto riceResults = foodItemService.searchFoodItems(turkishRice, 0, 10);
+        assertTrue(riceResults.getContent().size() >= 2);
     }
     @Test
     void searchFoodItems_excludesRejectedProductsFromUserSearch() {
@@ -550,6 +609,30 @@ class FoodItemServiceSearchIntegrationTest {
     }
 
     @Test
+    void searchFoodItems_coreWordDoesNotMatchSubstringInsideAnotherLocalizedWord() {
+        FoodItemEntity banana = product("Raw Banana", null, VerificationStatus.VERIFIED);
+        banana.setSourceKey("GLOBAL:GENERIC_INGREDIENT:RAW:banana-word-boundary");
+        banana.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        banana.setMarketRegion(MarketRegion.GLOBAL);
+        FoodItemEntity pork = product("Raw Pork Tenderloin", null, VerificationStatus.VERIFIED);
+        pork.setSourceKey("GLOBAL:GENERIC_INGREDIENT:RAW:pork-word-boundary");
+        pork.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        pork.setMarketRegion(MarketRegion.GLOBAL);
+        foodItemRepository.saveAllAndFlush(List.of(banana, pork));
+        saveLocalization(banana, PreferredLanguage.TR, "Çiğ Muz");
+        saveLocalization(pork, PreferredLanguage.TR, "Çiğ Domuz Bonfile");
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("muz");
+        criteria.setMarketRegion(MarketRegion.TR);
+        criteria.setPreferredLanguage(PreferredLanguage.TR);
+
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals(banana.getId(), result.getContent().get(0).getId());
+    }
+    @Test
     void searchFoodItems_matchesLocalizationTextWithoutDuplicatingProductData() {
         FoodItemEntity broccoli = product("Broccoli, raw", null, VerificationStatus.VERIFIED);
         broccoli.setSourceKey("GLOBAL:GENERIC_INGREDIENT:RAW:broccoli");
@@ -641,6 +724,50 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals(broccoliBabyfood.getId(), result.getContent().get(2).getId());
     }
 
+    @Test
+    void searchFoodItems_coreIdentityRanksMilkAheadOfYogurtWhoseSourceDescriptionMentionsMilk() {
+        FoodItemEntity yogurt = product(
+                "Yogurt, plain, whole milk", null, VerificationStatus.VERIFIED);
+        yogurt.setDisplayName("Prepared Plain Yogurt");
+        yogurt.setShortDisplayName("Plain Yogurt");
+        yogurt.setSourceKey("GLOBAL:GENERIC_INGREDIENT:PREPARED:plain-yogurt-milk-noise");
+        yogurt.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        yogurt.setMarketRegion(MarketRegion.GLOBAL);
+        yogurt.setPreparationState(FoodPreparationState.PREPARED);
+        yogurt.setQualityScore(100);
+
+        FoodItemEntity milk = product(
+                "Milk, whole, 3.25% milkfat, with added vitamin D", null, VerificationStatus.VERIFIED);
+        milk.setDisplayName("Prepared Whole Milk");
+        milk.setShortDisplayName("Whole Milk");
+        milk.setSourceKey("GLOBAL:GENERIC_INGREDIENT:PREPARED:whole-milk-identity");
+        milk.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        milk.setMarketRegion(MarketRegion.GLOBAL);
+        milk.setPreparationState(FoodPreparationState.PREPARED);
+        milk.setQualityScore(50);
+
+        foodItemRepository.saveAllAndFlush(List.of(yogurt, milk));
+        FoodItemSearchAliasEntity turkishMilkAlias = new FoodItemSearchAliasEntity();
+        turkishMilkAlias.setFoodItem(milk);
+        turkishMilkAlias.setLanguage(PreferredLanguage.TR);
+        turkishMilkAlias.setAlias("tam yağlı süt");
+        turkishMilkAlias.setNormalizedAlias("tam yagli sut");
+        turkishMilkAlias.setAliasType(FoodSearchAliasType.ADMIN_MANUAL);
+        turkishMilkAlias.setActive(true);
+        foodItemSearchAliasRepository.saveAndFlush(turkishMilkAlias);
+
+        FoodSearchCriteriaDto english = new FoodSearchCriteriaDto();
+        english.setQuery("milk");
+        english.setMarketRegion(MarketRegion.UK_IE);
+        english.setPreferredLanguage(PreferredLanguage.EN);
+        FoodSearchCriteriaDto turkish = new FoodSearchCriteriaDto();
+        turkish.setQuery("süt");
+        turkish.setMarketRegion(MarketRegion.TR);
+        turkish.setPreferredLanguage(PreferredLanguage.TR);
+
+        assertEquals(milk.getId(), foodItemService.searchFoodItems(english, 0, 10).getContent().get(0).getId());
+        assertEquals(milk.getId(), foodItemService.searchFoodItems(turkish, 0, 10).getContent().get(0).getId());
+    }
     @Test
     void searchFoodItems_defaultRanking_pushesDerivedProductsBelowCoreFood() {
         FoodItemEntity bananaBread = product("Banana Bread", null, VerificationStatus.VERIFIED);
@@ -794,9 +921,24 @@ class FoodItemServiceSearchIntegrationTest {
         importStatistics.clear();
         importService.importCsv(file, "admin@test.com");
         long curatedImportStatementCount = importStatistics.getPrepareStatementCount();
+        long curatedAliasCount = foodItemSearchAliasRepository.count();
+        long importedMarketAvailabilityCount = ((Number) entityManager
+                .createNativeQuery("select count(*) from food_item_market_regions")
+                .getSingleResult()).longValue();
+        long importedWriteRowCount = foodItemRepository.count()
+                + curatedAliasCount
+                + foodItemLocalizationRepository.count()
+                + foodItemServingOptionRepository.count()
+                + foodItemServingOptionLocalizationRepository.count()
+                + importedMarketAvailabilityCount;
         assertTrue(
-                curatedImportStatementCount <= 175,
-                "Curated 14-row import executed " + curatedImportStatementCount + " SQL statements."
+                curatedAliasCount >= 150,
+                "Golden search seed should preserve broad EN/TR alias coverage."
+        );
+        assertTrue(
+                curatedImportStatementCount <= importedWriteRowCount + 10,
+                "Curated 14-row import executed " + curatedImportStatementCount
+                        + " SQL statements for " + importedWriteRowCount + " persisted rows."
         );
 
         List<SearchReadinessExpectation> expectations = List.of(
@@ -1123,6 +1265,147 @@ FoodSearchCriteriaDto bananaEnglish = new FoodSearchCriteriaDto();
 
         assertEquals(1, result.getContent().size());
         assertEquals(alternate.getId(), result.getContent().get(0).getId());
+    }
+    @Test
+    void trEuBrandedFixture_preservesRegionalIntentAndLocalizedSourceNames() throws Exception {
+        FoodProductImportServiceImpl importService = new FoodProductImportServiceImpl(
+                foodItemRepository,
+                foodItemLocalizationRepository,
+                foodItemSearchAliasRepository,
+                foodItemServingOptionRepository,
+                foodItemServingOptionLocalizationRepository,
+                Mockito.mock(FoodProductQualityIssueTracker.class),
+                Mockito.mock(FoodProductEvidenceService.class),
+                new ObjectMapper()
+        );
+        byte[] brandedSeed;
+        try (var input = getClass().getResourceAsStream("/tr-eu-branded-search-v1.csv")) {
+            assertTrue(input != null, "TR/EU branded search fixture is missing");
+            brandedSeed = input.readAllBytes();
+        }
+
+        var importResult = importService.importCsv(
+                new MockMultipartFile("file", "tr-eu-branded-search-v1.csv", "text/csv", brandedSeed),
+                "s9-search-gate@grun.app"
+        );
+        assertEquals(10, importResult.getSavedRows());
+        assertEquals(0, importResult.getSkippedRows());
+        entityManager.flush();
+        entityManager.clear();
+
+        List<RegionalBrandedSearchExpectation> expectations = List.of(
+                new RegionalBrandedSearchExpectation("ülker kakaolu bisküvi", "8690504011507", MarketRegion.TR, PreferredLanguage.TR),
+                new RegionalBrandedSearchExpectation("migros mısır patlağı", "8681161102998", MarketRegion.TR, PreferredLanguage.TR),
+                new RegionalBrandedSearchExpectation("migros söğüş karides", "8690251481165", MarketRegion.TR, PreferredLanguage.TR),
+                new RegionalBrandedSearchExpectation("yer fıstığı ezmesi", "8683347037087", MarketRegion.TR, PreferredLanguage.TR),
+                new RegionalBrandedSearchExpectation("eti form tam çavdarlı", "8690526013527", MarketRegion.TR, PreferredLanguage.TR),
+                new RegionalBrandedSearchExpectation("carrefour velouté", "0000112407464", MarketRegion.EU, PreferredLanguage.EN),
+                new RegionalBrandedSearchExpectation("leclerc brioche", "0202526025912", MarketRegion.EU, PreferredLanguage.EN),
+                new RegionalBrandedSearchExpectation("aldi digestives", "00302784", MarketRegion.EU, PreferredLanguage.EN),
+                new RegionalBrandedSearchExpectation("hacendado seitán", "00001522", MarketRegion.EU, PreferredLanguage.EN),
+                new RegionalBrandedSearchExpectation("bofrost brochette", "00001307", MarketRegion.EU, PreferredLanguage.EN)
+        );
+        for (RegionalBrandedSearchExpectation expectation : expectations) {
+            FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+            criteria.setQuery(expectation.query());
+            criteria.setMarketRegion(expectation.marketRegion());
+            criteria.setPreferredLanguage(expectation.language());
+            var results = foodItemService.searchFoodItems(criteria, 0, 10).getContent();
+            assertTrue(!results.isEmpty(), expectation.query());
+            assertEquals(expectation.expectedBarcode(), results.get(0).getBarcode(), expectation.query());
+        }
+    }
+    @Test
+    void searchFoodItems_usesMergedMarketAvailabilityWithoutDuplicatingProduct() {
+        FoodItemEntity sharedProduct = product("Shared Market Yogurt", "8690000000001", VerificationStatus.VERIFIED);
+        sharedProduct.setSourceKey("barcode:8690000000001");
+        sharedProduct.setMarketRegion(MarketRegion.EU);
+        sharedProduct.setMarketRegions(Set.of(MarketRegion.EU, MarketRegion.TR));
+        foodItemRepository.saveAndFlush(sharedProduct);
+        entityManager.clear();
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("shared market yogurt");
+        criteria.setMarketRegion(MarketRegion.TR);
+        criteria.setPreferredLanguage(PreferredLanguage.TR);
+
+        var result = foodItemService.searchFoodItems(criteria, 0, 10);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals("8690000000001", result.getContent().get(0).getBarcode());
+        assertEquals(Set.of(MarketRegion.EU, MarketRegion.TR), result.getContent().get(0).getMarketRegions());
+    }
+    @Test
+    void ukIeBrandedFixture_importsAndKeepsRelevantProductsAheadOfNoise() throws Exception {
+        FoodProductImportServiceImpl importService = new FoodProductImportServiceImpl(
+                foodItemRepository,
+                foodItemLocalizationRepository,
+                foodItemSearchAliasRepository,
+                foodItemServingOptionRepository,
+                foodItemServingOptionLocalizationRepository,
+                Mockito.mock(FoodProductQualityIssueTracker.class),
+                Mockito.mock(FoodProductEvidenceService.class),
+                new ObjectMapper()
+        );
+        byte[] genericSeed;
+        byte[] brandedSeed;
+        try (var genericInput = getClass().getResourceAsStream("/generic-food-approved-seed-v1.csv");
+             var brandedInput = getClass().getResourceAsStream("/uk-ie-branded-search-v1.csv")) {
+            assertTrue(genericInput != null, "Generic manifest seed is missing");
+            assertTrue(brandedInput != null, "UK/IE branded search fixture is missing");
+            genericSeed = genericInput.readAllBytes();
+            brandedSeed = brandedInput.readAllBytes();
+        }
+
+        var genericResult = importService.importCsv(
+                new MockMultipartFile("file", "generic-food-approved-seed-v1.csv", "text/csv", genericSeed),
+                "s8-search-gate@grun.app"
+        );
+        var brandedResult = importService.importCsv(
+                new MockMultipartFile("file", "uk-ie-branded-search-v1.csv", "text/csv", brandedSeed),
+                "s8-search-gate@grun.app"
+        );
+        assertEquals(146, genericResult.getSavedRows());
+        assertEquals(9, brandedResult.getSavedRows());
+        assertEquals(0, brandedResult.getSkippedRows());
+        entityManager.flush();
+        entityManager.clear();
+
+        List<BrandedSearchExpectation> expectations = List.of(
+                new BrandedSearchExpectation("tesco melon medley", "00004753"),
+                new BrandedSearchExpectation("tesco butter beans", "0004948822069"),
+                new BrandedSearchExpectation("dunnes chicken breast", "0099874302384"),
+                new BrandedSearchExpectation("dunnes salted cashew nuts", "0023710316605"),
+                new BrandedSearchExpectation("sainsbury sliced white bread", "00014137")
+        );
+        for (BrandedSearchExpectation expectation : expectations) {
+            FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+            criteria.setQuery(expectation.query());
+            criteria.setMarketRegion(MarketRegion.UK_IE);
+            criteria.setPreferredLanguage(PreferredLanguage.EN);
+            var results = foodItemService.searchFoodItems(criteria, 0, 10).getContent();
+            assertTrue(!results.isEmpty(), expectation.query());
+            assertEquals(expectation.expectedBarcode(), results.get(0).getBarcode(), expectation.query());
+        }
+
+        FoodSearchCriteriaDto broadMilk = new FoodSearchCriteriaDto();
+        broadMilk.setQuery("milk");
+        broadMilk.setMarketRegion(MarketRegion.UK_IE);
+        broadMilk.setPreferredLanguage(PreferredLanguage.EN);
+        var milkResults = foodItemService.searchFoodItems(broadMilk, 0, 10).getContent();
+        assertTrue(milkResults.size() >= 2);
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, milkResults.get(0).getCatalogType());
+        assertTrue(milkResults.stream().anyMatch(product -> "0000493141402".equals(product.getBarcode())));
+    }
+
+    private record BrandedSearchExpectation(String query, String expectedBarcode) {
+    }
+    private record RegionalBrandedSearchExpectation(
+            String query,
+            String expectedBarcode,
+            MarketRegion marketRegion,
+            PreferredLanguage language
+    ) {
     }
     private FoodItemEntity product(String name, String barcode, VerificationStatus verificationStatus) {
         FoodItemEntity product = new FoodItemEntity();

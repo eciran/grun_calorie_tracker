@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "registryId": "tr-food-source-registry-v1",
+  "marketRegion": "TR",
+  "decisionDate": "2026-07-15",
+  "sources": [
+    {
+      "id": "OPEN_FOOD_FACTS",
+      "classification": "PRODUCTION_ALLOWED",
+      "commercialUse": true,
+      "persistentStorage": true,
+      "directImport": true,
+      "license": "ODbL-1.0",
+      "attributionRequired": true,
+      "shareAlikeReviewRequired": true,
+      "url": "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz",
+      "allowedRoles": ["PRODUCT_IDENTITY", "NUTRITION", "MARKET_EVIDENCE"]
+    },
+    {
+      "id": "OPEN_NUTRITION",
+      "classification": "EVIDENCE_ONLY",
+      "commercialUse": null,
+      "persistentStorage": null,
+      "directImport": false,
+      "license": "CLAIMED_ODbL_SOURCE_CHAIN_UNVERIFIED",
+      "attributionRequired": true,
+      "shareAlikeReviewRequired": true,
+      "url": "https://www.opennutrition.app/",
+      "allowedRoles": ["NUTRITION_COMPARISON", "IDENTITY_CANDIDATE"]
+    },
+    {
+      "id": "FOOD_REPO",
+      "classification": "EVIDENCE_ONLY",
+      "commercialUse": true,
+      "persistentStorage": null,
+      "directImport": false,
+      "license": "CC-BY-4.0_REVIEW_REQUIRED",
+      "attributionRequired": true,
+      "shareAlikeReviewRequired": false,
+      "url": "https://www.foodrepo.org/",
+      "allowedRoles": ["NUTRITION_COMPARISON", "IDENTITY_CANDIDATE"]
+    },
+    {
+      "id": "TURKOMP",
+      "classification": "REJECTED_CURRENT_SCOPE",
+      "commercialUse": false,
+      "persistentStorage": false,
+      "directImport": false,
+      "license": "COMMERCIAL_CONTRACT_REQUIRED",
+      "attributionRequired": true,
+      "shareAlikeReviewRequired": false,
+      "url": "https://turkomp.tarimorman.gov.tr/useofdata",
+      "allowedRoles": []
+    },
+    {
+      "id": "PUBLIC_RETAILER_OR_MANUFACTURER_PAGE",
+      "classification": "EVIDENCE_ONLY",
+      "commercialUse": null,
+      "persistentStorage": false,
+      "directImport": false,
+      "license": "PAGE_SPECIFIC_TERMS_REQUIRED",
+      "attributionRequired": true,
+      "shareAlikeReviewRequired": false,
+      "url": null,
+      "allowedRoles": ["MARKET_EVIDENCE_REFERENCE", "ADMIN_REVIEW_REFERENCE"]
+    },
+    {
+      "id": "UNVERIFIED_PUBLIC_DATASET",
+      "classification": "REJECTED_CURRENT_SCOPE",
+      "commercialUse": null,
+      "persistentStorage": false,
+      "directImport": false,
+      "license": "SOURCE_CHAIN_UNVERIFIED",
+      "attributionRequired": true,
+      "shareAlikeReviewRequired": true,
+      "url": null,
+      "allowedRoles": []
+    }
+  ],
+  "marketEvidence": {
+    "thresholds": {
+      "strict": 80,
+      "review": 40
+    },
+    "storePolicy": {
+      "exactTurkeySpecific": ["carrefoursa", "a101", "bim", "sok", "macrocenter"],
+      "ambiguousRequiresIndependentEvidence": ["migros", "metro"]
+    },
+    "signals": [
+      {
+        "id": "OFF_COUNTRY_TR",
+        "score": 80,
+        "strong": true,
+        "description": "OFF country tags explicitly include Turkey/Turkiye."
+      },
+      {
+        "id": "TR_RETAILER_TAG",
+        "score": 50,
+        "strong": true,
+        "description": "OFF store tags exactly match a configured Turkey-specific retailer. Ambiguous international chains such as Migros and Metro are excluded unless independent TR evidence exists."
+      },
+      {
+        "id": "TR_LOCALIZED_CONTENT",
+        "score": 25,
+        "strong": false,
+        "description": "A Turkish product, generic or ingredients field is present."
+      },
+      {
+        "id": "TR_PRIMARY_LANGUAGE",
+        "score": 15,
+        "strong": false,
+        "description": "The OFF primary language code is tr."
+      },
+      {
+        "id": "GS1_TR_PREFIX",
+        "score": 10,
+        "strong": false,
+        "description": "GTIN starts with 868/869; this never proves market or origin by itself."
+      }
+    ],
+    "strictRequires": "qualityPass && score >= 80 && (OFF_COUNTRY_TR || (TR_RETAILER_TAG && TR_LOCALIZED_CONTENT))",
+    "reviewRequires": "qualityPass && score >= 40",
+    "quarantineRequires": "!qualityPass || score < 40"
+  },
+  "qualityGate": {
+    "validGtinCheckDigit": true,
+    "requireName": true,
+    "requireBrand": true,
+    "requireCalories": true,
+    "requireCompleteMacros": true,
+    "requirePer100Basis": true,
+    "rejectImplausibleNutrition": true,
+    "deduplicateByBarcode": true
+  }
+}

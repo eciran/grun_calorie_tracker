@@ -222,7 +222,7 @@ $regionCountryTerms = Get-RegionCountryTerms -Region $MarketRegion
 $regionPriorityStoreTerms = Get-RegionPriorityStoreTerms -Region $MarketRegion
 $priorityTarget = [int][Math]::Ceiling($Limit * ($PriorityStoreTargetPercent / 100.0))
 
-foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter)) {
+foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter -Encoding UTF8)) {
     $rowsRead++
     if ($rowsRead -gt $MaxRowsToRead) {
         break
@@ -280,9 +280,16 @@ foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter))
         $priorityCandidateRows++
     }
 
+    $englishName = Get-TextValue -Row $row -Names @("product_name_en")
+    $turkishName = Get-TextValue -Row $row -Names @("product_name_tr")
+    if ($MarketRegion -eq "TR" -and [string]::IsNullOrWhiteSpace($turkishName)) {
+        $turkishName = $name
+    }
+
     $grunRow = [pscustomobject]@{
             catalog_type = "BRANDED_PRODUCT"
             data_source = "OPEN_FOOD_FACTS"
+            nutrition_basis = "SOURCE_REPORTED"
             barcode = $barcode
             source_key = "barcode:$barcode"
             name = $name
@@ -297,6 +304,13 @@ foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter))
             serving_size_grams = Get-ServingSizeGrams -Row $row
             serving_unit = Get-ServingUnit -Row $row
             market_region = $MarketRegion
+            market_regions = $MarketRegion
+            display_name_en = $englishName
+            short_display_name_en = $englishName
+            display_name_tr = $turkishName
+            short_display_name_tr = $turkishName
+            aliases_en = $null
+            aliases_tr = $null
             image_url = $imageUrl
             external_image_url = $imageUrl
             display_image_url = $null

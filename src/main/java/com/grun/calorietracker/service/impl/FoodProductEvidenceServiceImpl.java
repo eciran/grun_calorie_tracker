@@ -14,6 +14,7 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductSourceEvidenceRepository;
 import com.grun.calorietracker.service.FoodProductEvidenceService;
 import com.grun.calorietracker.service.support.BatchQuerySupport;
+import com.grun.calorietracker.service.support.FoodProductEvidenceBulkWriter;
 import com.grun.calorietracker.service.support.evidence.CuratedFoodSourceEvidenceAdapter;
 import com.grun.calorietracker.service.support.evidence.FallbackFoodSourceEvidenceAdapter;
 import com.grun.calorietracker.service.support.evidence.FoodSourceEvidenceAdapter;
@@ -58,6 +59,7 @@ public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceServic
     );
     private final FoodProductSourceEvidenceRepository evidenceRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodProductEvidenceBulkWriter evidenceBulkWriter;
 
     @Override
     @Transactional
@@ -109,6 +111,11 @@ public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceServic
         candidates.forEach(value -> value.setReviewerIdentity(resolvedReviewerIdentity));
         if (candidates.isEmpty()) {
             return 0;
+        }
+        if (candidates.size() >= 1000
+                && evidenceBulkWriter != null
+                && evidenceBulkWriter.supportsConflictSafeBulkInsert()) {
+            return evidenceBulkWriter.insertIgnoringFingerprintConflicts(candidates);
         }
         Set<String> fingerprints = new LinkedHashSet<>();
         candidates.forEach(value -> fingerprints.add(value.getFingerprint()));

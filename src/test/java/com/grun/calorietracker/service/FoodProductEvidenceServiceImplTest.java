@@ -10,6 +10,7 @@ import com.grun.calorietracker.enums.FoodEvidenceField;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductSourceEvidenceRepository;
 import com.grun.calorietracker.service.impl.FoodProductEvidenceServiceImpl;
+import com.grun.calorietracker.service.support.FoodProductEvidenceBulkWriter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -18,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +38,9 @@ class FoodProductEvidenceServiceImplTest {
 
     @Mock
     private FoodItemRepository foodItemRepository;
+
+    @Mock
+    private FoodProductEvidenceBulkWriter evidenceBulkWriter;
 
     @InjectMocks
     private FoodProductEvidenceServiceImpl service;
@@ -64,6 +70,25 @@ class FoodProductEvidenceServiceImplTest {
                 .allMatch(value -> "admin@grun.local".equals(value.getReviewerIdentity())));
     }
 
+    @Test
+    void recordImportEvidence_largePostgresBatchReliesOnConflictSafeInsert() {
+        List<FoodItemEntity> products = new ArrayList<>();
+        for (long id = 1; id <= 1000; id++) {
+            FoodItemEntity product = product(id, FoodDataSource.OPEN_FOOD_FACTS, FoodCatalogType.BRANDED_PRODUCT);
+            product.setCalories(100.0 + id);
+            products.add(product);
+        }
+        when(evidenceBulkWriter.supportsConflictSafeBulkInsert()).thenReturn(true);
+        when(evidenceBulkWriter.insertIgnoringFingerprintConflicts(any())).thenReturn(1000);
+
+        int created = service.recordImportEvidence(
+                products, FoodEvidenceBasis.PER_100_G,
+                LocalDateTime.of(2026, 7, 15, 10, 0), "OPEN_FOOD_FACTS", null);
+
+        assertEquals(1000, created);
+        verify(evidenceBulkWriter).insertIgnoringFingerprintConflicts(any());
+        verifyNoInteractions(evidenceRepository);
+    }
     @Test
     void compare_matchingProviders_staysWithinToleranceAndPrefersUsdaForGeneric() {
         FoodItemEntity usda = product(1L, FoodDataSource.USDA_FOODDATA, FoodCatalogType.GENERIC_INGREDIENT);

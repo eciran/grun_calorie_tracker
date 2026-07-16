@@ -12,6 +12,7 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -35,7 +36,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -137,6 +140,40 @@ class FoodProductImportServiceImplTest {
         assertEquals(ImageStatus.NEEDS_REVIEW, inserted.getImageStatus());
     }
 
+    @Test
+    void importCsv_mergesMarketAvailabilityWithoutDuplicatingBarcodeIdentity() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(1L);
+        existing.setBarcode("8690000000001");
+        existing.setNormalizedBarcode("8690000000001");
+        existing.setSourceKey("barcode:8690000000001");
+        existing.setName("Shared Product");
+        existing.setMarketRegion(MarketRegion.UK_IE);
+        existing.setMarketRegions(new HashSet<>(Set.of(MarketRegion.UK_IE)));
+
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,brand,calories,protein,fat,carbs,market_region,market_regions
+                8690000000001,Shared Product,Shared Brand,100,2,3,15,EU,EU;TR
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(
+                file,
+                "admin@test.com",
+                FoodProductImportMode.RAW_EXTERNAL
+        );
+
+        assertEquals(0, result.getInsertedRows());
+        assertEquals(1, result.getUpdatedRows());
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity updated = captor.getValue().get(0);
+        assertEquals(MarketRegion.UK_IE, updated.getMarketRegion());
+        assertEquals(Set.of(MarketRegion.UK_IE, MarketRegion.EU, MarketRegion.TR), updated.getMarketRegions());
+        assertEquals("barcode:8690000000001", updated.getSourceKey());
+    }
     @Test
     void importCsv_normalizesProductAndBrandDisplayNames() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
@@ -438,6 +475,29 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(1, result.getQualityWarningCounts().get("INVALID_SERVING_OPTIONS"));
         verify(foodItemServingOptionRepository, times(0)).saveAll(any());
     }
+    @Test
+    void importCsv_marksNutritionBasisExplicitlyByCatalogPolicy() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,name,calories,protein,fat,carbs,market_region,preparation_state,nutrition_basis
+                LOCAL_DISH,Mercimek Corbasi,92,5.8,2.4,12.1,TR,PREPARED,
+                LOCAL_DISH,Ev Yapimi Pilav,180,3.2,4.0,32.0,TR,PREPARED,CALCULATED
+                GENERIC_INGREDIENT,Rolled Oats,389,16.9,6.9,66.3,GLOBAL,RAW,
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(3, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> products = captor.getValue();
+        assertEquals(FoodNutritionBasis.ESTIMATED, products.get(0).getNutritionBasis());
+        assertEquals(FoodNutritionBasis.CALCULATED, products.get(1).getNutritionBasis());
+        assertEquals(FoodNutritionBasis.SOURCE_REPORTED, products.get(2).getNutritionBasis());
+    }
+
     @Test
     void importCsv_acceptsExplicitNonBarcodeCatalogRows() {
         when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
@@ -808,7 +868,7 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        byte[] sample = Files.readAllBytes(Path.of("docs/samples/open-food-facts-pilot-import.csv"));
+        byte[] sample = Files.readAllBytes(Path.of("src/test/resources/open-food-facts-pilot-import.csv"));
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "open-food-facts-pilot-import.csv",

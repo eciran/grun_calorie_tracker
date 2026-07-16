@@ -4,6 +4,7 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -16,6 +17,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -83,11 +85,17 @@ public class FoodProductDto {
     @Schema(description = "Image quality review status.", example = "RAW")
     private ImageStatus imageStatus;
 
-    @Schema(description = "Market region this food product belongs to.", example = "UK_IE")
+    @Schema(description = "Primary legacy market region for this food product.", example = "UK_IE")
     private MarketRegion marketRegion;
+
+    @Schema(description = "All markets where this single product identity is available.", example = "[\"UK_IE\", \"EU\"]")
+    private Set<MarketRegion> marketRegions;
 
     @Schema(description = "Preparation/cooking state for raw, cooked, grilled, fried, baked, or prepared foods.", example = "COOKED")
     private FoodPreparationState preparationState;
+
+    @Schema(description = "How the nutrition values were obtained. Estimated local dishes must be explicit.", example = "SOURCE_REPORTED")
+    private FoodNutritionBasis nutritionBasis;
 
     @Schema(description = "How many times this product has been added to food logs.", example = "42")
     private Long usageCount;

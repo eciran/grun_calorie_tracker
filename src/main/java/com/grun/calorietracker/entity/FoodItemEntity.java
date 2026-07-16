@@ -3,6 +3,7 @@ package com.grun.calorietracker.entity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -61,8 +62,17 @@ public class FoodItemEntity {
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
 
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "food_item_market_regions", joinColumns = @JoinColumn(name = "food_item_id"))
+    @Column(name = "market_region", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Set<MarketRegion> marketRegions = new HashSet<>();
+
     @Enumerated(EnumType.STRING)
     private FoodPreparationState preparationState;
+
+    @Enumerated(EnumType.STRING)
+    private FoodNutritionBasis nutritionBasis;
 
     private Long usageCount;
     private Integer qualityScore;

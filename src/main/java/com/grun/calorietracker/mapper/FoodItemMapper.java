@@ -9,7 +9,9 @@ import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodPortionUnitResolver;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FoodItemMapper {
@@ -37,7 +39,15 @@ public class FoodItemMapper {
         entity.setImageSource(dto.getImageSource());
         entity.setImageStatus(dto.getImageStatus());
         entity.setMarketRegion(dto.getMarketRegion());
+        Set<com.grun.calorietracker.enums.MarketRegion> marketRegions = dto.getMarketRegions() == null
+                ? new HashSet<>()
+                : new HashSet<>(dto.getMarketRegions());
+        if (dto.getMarketRegion() != null) {
+            marketRegions.add(dto.getMarketRegion());
+        }
+        entity.setMarketRegions(marketRegions);
         entity.setPreparationState(dto.getPreparationState());
+        entity.setNutritionBasis(dto.getNutritionBasis() != null ? dto.getNutritionBasis() : com.grun.calorietracker.enums.FoodNutritionBasis.SOURCE_REPORTED);
         entity.setUsageCount(dto.getUsageCount());
         entity.setQualityScore(dto.getQualityScore());
         entity.setConfidenceScore(dto.getConfidenceScore());
@@ -102,7 +112,15 @@ public class FoodItemMapper {
         dto.setImageSource(entity.getImageSource());
         dto.setImageStatus(entity.getImageStatus());
         dto.setMarketRegion(entity.getMarketRegion());
+        Set<com.grun.calorietracker.enums.MarketRegion> marketRegions = entity.getMarketRegions() == null
+                ? new HashSet<>()
+                : new HashSet<>(entity.getMarketRegions());
+        if (entity.getMarketRegion() != null) {
+            marketRegions.add(entity.getMarketRegion());
+        }
+        dto.setMarketRegions(marketRegions);
         dto.setPreparationState(entity.getPreparationState());
+        dto.setNutritionBasis(entity.getNutritionBasis());
         dto.setUsageCount(entity.getUsageCount());
         dto.setQualityScore(entity.getQualityScore());
         dto.setConfidenceScore(entity.getConfidenceScore());
