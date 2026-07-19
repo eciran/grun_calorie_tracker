@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-labelledby="title">
+  <title id="title">GRUN gradient background</title>
+  <defs>
+  <linearGradient id="grun-gradient" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#C20FE7"/>
+    <stop offset="0.42" stop-color="#7B1BC4"/>
+    <stop offset="0.72" stop-color="#49106F"/>
+    <stop offset="1" stop-color="#8F66E9"/>
+  </linearGradient>
+  <radialGradient id="grun-glow" cx="18%" cy="12%" r="92%">
+    <stop offset="0" stop-color="#E315F2" stop-opacity=".55"/>
+    <stop offset=".58" stop-color="#6B16B9" stop-opacity=".08"/>
+    <stop offset="1" stop-color="#24052B" stop-opacity=".42"/>
+  </radialGradient>
+  <pattern id="grun-facets" width="320" height="240" patternUnits="userSpaceOnUse">
+    <path d="M0 0 126 0 42 88Z" fill="#FFFFFF" opacity=".025"/>
+    <path d="M126 0 250 52 42 88Z" fill="#24052B" opacity=".045"/>
+    <path d="M250 52 320 0 320 142Z" fill="#FFFFFF" opacity=".02"/>
+    <path d="M42 88 190 176 0 240Z" fill="#FFFFFF" opacity=".018"/>
+    <path d="M250 52 320 142 190 176Z" fill="#24052B" opacity=".04"/>
+    <path d="M190 176 320 142 320 240 0 240Z" fill="#FFFFFF" opacity=".018"/>
+  </pattern>
+</defs>
+  <rect width="1920" height="1080" fill="url(#grun-gradient)"/>
+  <rect width="1920" height="1080" fill="url(#grun-glow)"/>
+  <rect width="1920" height="1080" fill="url(#grun-facets)"/>
+</svg>

@@ -435,23 +435,55 @@ export type FeatureMatrixItem = {
   planType?: string;
   feature?: string;
   enabled?: boolean;
+  aiCreditCost?: number;
   monthlyLimit?: number;
   effectiveFrom?: string;
   updatedAt?: string;
 };
 
 
+export type AiCreditPricingPolicy = {
+  feature: string;
+  pricingMode: "FIXED" | "NUTRITION_COMPLEXITY" | "WORKOUT_COMPLEXITY";
+  baseCreditCost: number;
+  includedUnits: number;
+  unitsPerAdditionalCredit: number;
+  contextSurcharge: number;
+  maxCreditCost: number;
+  updatedAt?: string;
+};
+
 export type SubscriptionFeatureAccess = {
   planType?: string;
+  barcodeScanner?: boolean;
+  manualFoodLogging?: boolean;
+  foodDiary?: boolean;
+  weightProgress?: boolean;
+  waterTracking?: boolean;
+  workoutLogging?: boolean;
+  savedMealTemplates?: boolean;
+  recipeBuilder?: boolean;
+  publicRecipeLibrary?: boolean;
+  advancedMacroTargets?: boolean;
+  micronutrientDetails?: boolean;
+  dataExport?: boolean;
+  fastingBasic?: boolean;
+  fastingAdvanced?: boolean;
   plan?: string;
   activeEntitlement?: boolean;
   aiMealDrafts?: boolean;
+  aiMealDraftsCreditCost?: number;
   aiWorkoutPlanner?: boolean;
+  aiWorkoutPlannerCreditCost?: number;
   aiRecipeGeneration?: boolean;
+  aiRecipeGenerationCreditCost?: number;
   aiMealPreparationGuide?: boolean;
   aiMealPreparationGuideCreditCost?: number;
   aiNutritionPlan?: boolean;
+  aiNutritionPlanBaseCreditCost?: number;
   aiInsights?: boolean;
+  aiInsightsCreditCost?: number;
+  aiCreditCosts?: Record<string, number>;
   healthIntegration?: boolean;
   advancedAnalytics?: boolean;
   adFree?: boolean;

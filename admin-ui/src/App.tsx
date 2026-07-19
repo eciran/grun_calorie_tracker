@@ -25,6 +25,7 @@ import {
   AdminAchievementMetrics,
   AiMealDraft,
   AiMonitoringSummary,
+  AiCreditPricingPolicy,
   AiQuotaRefundResponse,
   AuditEntry,
   DashboardSummary,
@@ -128,6 +129,20 @@ const SUBSCRIPTION_STATUS_OPTIONS = ["ACTIVE", "TRIALING", "CANCELED", "EXPIRED"
 const BILLING_PERIOD_OPTIONS = ["NONE", "MONTHLY", "YEARLY"];
 const PAYMENT_PROVIDER_OPTIONS = ["MANUAL_ADMIN", "REVENUECAT", "APPLE_APP_STORE", "GOOGLE_PLAY_STORE", "STRIPE"];
 const FEATURE_ORDER = [
+  "BARCODE_SCANNER",
+  "MANUAL_FOOD_LOGGING",
+  "FOOD_DIARY",
+  "WEIGHT_PROGRESS",
+  "WATER_TRACKING",
+  "WORKOUT_LOGGING",
+  "SAVED_MEAL_TEMPLATES",
+  "RECIPE_BUILDER",
+  "PUBLIC_RECIPE_LIBRARY",
+  "ADVANCED_MACRO_TARGETS",
+  "MICRONUTRIENT_DETAILS",
+  "DATA_EXPORT",
+  "FASTING_BASIC",
+  "FASTING_ADVANCED",
   "AI_MEAL_DRAFTS",
   "AI_RECIPE_GENERATION",
   "AI_MEAL_PREPARATION_GUIDE",
@@ -522,10 +537,10 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">G</div>
-          <div>
-            <strong>GRun Admin</strong>
-            <span>Control Center</span>
+          <img className="brand-symbol" src="./grun/grun-app-icon.svg" alt="" aria-hidden="true" />
+          <div className="brand-context">
+            <img className="brand-wordmark" src="./grun/grun-wordmark.svg" alt="GRUN" />
+            <span>Operations</span>
           </div>
         </div>
         <nav className="nav-list">
@@ -715,18 +730,11 @@ function LoginView({
         <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
       </div>
       <section className="login-hero">
-        <div className="hero-orbit">
-          <div className="pulse-card">
-            <span>Catalog</span>
-            <strong>Review queue</strong>
-          </div>
-          <div className="pulse-card secondary">
-            <span>System</span>
-            <strong>Health online</strong>
-          </div>
-        </div>
         <div className="hero-copy">
-          <p className="eyebrow">GRun Operations</p>
+          <div className="login-brand-lockup">
+            <img src="./grun/grun-wordmark.svg" alt="GRUN" />
+            <span>Operations</span>
+          </div>
           <h1>Admin control center for the calorie tracking platform.</h1>
           <p>Monitor users, review food data, inspect AI requests, and manage subscription features from one focused workspace.</p>
         </div>
@@ -888,6 +896,7 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
       target: "foodQuality"
     }
   ];
+
 
   return (
     <div className="stack">
@@ -1368,6 +1377,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       onError(formatRequestError(err));
     }
   }
+
   return (
     <div className="stack">
       <SectionToolbar title={modeTitle} state={state} onReload={reload}>
@@ -2023,6 +2033,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       setSaving(false);
     }
   }
+
 
   return (
     <div className="stack">
@@ -2828,6 +2839,7 @@ function AchievementAdminView({ onError }: { onError: (message: string | null) =
     }
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Achievement definitions" state={combineStates([state, metricState])} onReload={reload}>
@@ -2973,6 +2985,7 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
       onError(formatRequestError(error));
     }
   }
+
   return (
     <div className="stack">
       <SectionToolbar title={title} state={state} onReload={reload} />
@@ -3024,6 +3037,7 @@ type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "
 
 function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError: (message: string | null) => void }) {
   const { data, state, reload } = useEndpoint<FeatureMatrixItem[]>("/api/v1/admin/subscriptions/features", onError);
+  const { data: pricingData, state: pricingState, reload: reloadPricing } = useEndpoint<AiCreditPricingPolicy[]>("/api/v1/admin/ai-credit-pricing", onError);
   const { data: users, state: usersState } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
   const { data: revenueCat, state: revenueCatState, reload: reloadRevenueCat } = useEndpoint<RevenueCatConfigStatus>("/api/v1/admin/revenuecat/config", onError);
   const { data: subscriptionAudits, state: subscriptionAuditState, reload: reloadSubscriptionAudits } = useEndpoint<PageResponse<AuditEntry>>(buildAuditPath({ actionType: "", targetType: "USER_SUBSCRIPTION", page: 0, size: 20 }), onError);
@@ -3042,14 +3056,15 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     billingPeriod: "MONTHLY",
     startDate: todayIsoDate(),
     endDate: "",
-    aiMonthlyQuota: "100",
+    aiMonthlyQuota: "150",
     aiUsedThisPeriod: "0",
-    autoRenew: false,
+    autoRenew: true,
     provider: "MANUAL_ADMIN",
     providerSubscriptionId: ""
   });
   const [addonForm, setAddonForm] = useState({ amount: "15", validityDays: "30", note: "Admin credit adjustment" });
   const features = data ?? [];
+  const pricingPolicies = pricingData ?? [];
   const previewUsers = users ?? [];
   const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
   const selectedPreviewLabel = selectedPreviewUser ? userOptionLabel(selectedPreviewUser).toLowerCase() : "";
@@ -3100,6 +3115,17 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setUserPickerOpen(true);
   }
   function updateSubscriptionForm(key: keyof typeof subscriptionForm, value: string | boolean) {
+    if (key === "planType" && typeof value === "string") {
+      setSubscriptionForm((current) => ({
+        ...current,
+        planType: value,
+        billingPeriod: value === "FREE" ? "NONE" : current.billingPeriod === "NONE" ? "MONTHLY" : current.billingPeriod,
+        aiMonthlyQuota: String(defaultAiQuota(value)),
+        aiUsedThisPeriod: value === "FREE" ? "0" : current.aiUsedThisPeriod,
+        autoRenew: value !== "FREE"
+      }));
+      return;
+    }
     setSubscriptionForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -3135,9 +3161,26 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     onError(null);
     async function loadAccessPreview() {
       try {
-        const response = await request<SubscriptionFeatureAccess>(`/api/v1/admin/subscriptions/users/${accessPreviewUserId}/features`);
+        const [featureResponse, subscriptionResponse] = await Promise.all([
+          request<SubscriptionFeatureAccess>(`/api/v1/admin/subscriptions/users/${accessPreviewUserId}/features`),
+          request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${accessPreviewUserId}`)
+        ]);
         if (!active) return;
-        setAccessPreview(response);
+        setAccessPreview(featureResponse);
+        setSubscriptionResult(subscriptionResponse);
+        const planType = subscriptionResponse.planType ?? subscriptionResponse.plan ?? "FREE";
+        setSubscriptionForm((current) => ({
+          ...current,
+          planType,
+          status: subscriptionResponse.status ?? "ACTIVE",
+          billingPeriod: subscriptionResponse.billingPeriod ?? (planType === "FREE" ? "NONE" : "MONTHLY"),
+          startDate: subscriptionResponse.startDate ?? todayIsoDate(),
+          endDate: subscriptionResponse.endDate ?? "",
+          aiMonthlyQuota: String(subscriptionResponse.aiMonthlyQuota ?? defaultAiQuota(planType)),
+          aiUsedThisPeriod: String(subscriptionResponse.aiUsedThisPeriod ?? 0),
+          autoRenew: planType !== "FREE" && (subscriptionResponse.autoRenew ?? true),
+          provider: subscriptionResponse.provider ?? "MANUAL_ADMIN"
+        }));
         setAccessPreviewState("ready");
       } catch (err) {
         if (!active) return;
@@ -3256,6 +3299,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
         method: "PUT",
         body: {
           enabled,
+          aiCreditCost: item.aiCreditCost ?? 1,
           effectiveFrom: item.effectiveFrom || todayIsoDate()
         }
       });
@@ -3267,9 +3311,52 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     }
   }
 
+
+  async function updatePricingPolicy(
+    policy: AiCreditPricingPolicy,
+    draft: AiCreditPricingPolicy
+  ) {
+    if (!policy.feature) {
+      onError("AI feature key is missing.");
+      return;
+    }
+    const values = {
+      baseCreditCost: Number(draft.baseCreditCost),
+      includedUnits: Number(draft.includedUnits),
+      unitsPerAdditionalCredit: Number(draft.unitsPerAdditionalCredit),
+      contextSurcharge: Number(draft.contextSurcharge),
+      maxCreditCost: draft.pricingMode === "FIXED" ? Number(draft.baseCreditCost) : Number(draft.maxCreditCost)
+    };
+    if (!Object.values(values).every(Number.isInteger)
+        || values.baseCreditCost < 1
+        || values.includedUnits < 0
+        || values.unitsPerAdditionalCredit < 1
+        || values.contextSurcharge < 0
+        || values.maxCreditCost < values.baseCreditCost
+        || values.maxCreditCost > 50) {
+      onError("AI credit policy contains invalid values.");
+      return;
+    }
+    const key = "pricing:" + policy.feature;
+    setSavingKey(key);
+    onError(null);
+    try {
+      await request<AiCreditPricingPolicy>("/api/v1/admin/ai-credit-pricing/" + policy.feature, {
+        method: "PUT",
+        body: values
+      });
+      await reloadPricing();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSavingKey(null);
+    }
+  }
+  const matrixFeatures = uniqueFeatures(features);
+  const featureGroups = [matrixFeatures.slice(0, Math.ceil(matrixFeatures.length / 2)), matrixFeatures.slice(Math.ceil(matrixFeatures.length / 2))];
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={combineStates([state, revenueCatState, usersState, subscriptionAuditState, subscriptionActionState])} onReload={reload}>
+      <SectionToolbar title={title} state={combineStates([state, pricingState, revenueCatState, usersState, subscriptionAuditState, subscriptionActionState])} onReload={() => { void reload(); void reloadPricing(); }}>
         <button className="ghost-button" onClick={reloadRevenueCat} type="button">Reload RevenueCat</button>
       </SectionToolbar>
 
@@ -3318,11 +3405,13 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
 
       {mode === "features" && <Panel title="Plan feature matrix">
         <div className="feature-matrix">
-          <div className="feature-matrix-head">
-            <span>Feature rule</span>
-            {plans.map((plan) => <span key={plan}>{plan}</span>)}
-          </div>
-          {uniqueFeatures(features).map((feature) => (
+          {featureGroups.map((group, groupIndex) => (
+            <div className="feature-matrix-column" key={`feature-group-${groupIndex}`}>
+              <div className="feature-matrix-head">
+                <span>Feature rule</span>
+                {plans.map((plan) => <span key={plan}>{plan}</span>)}
+              </div>
+              {group.map((feature) => (
             <div className="feature-matrix-row" key={feature}>
               <div>
                 <strong>{humanizeFeature(feature)}</strong>
@@ -3332,19 +3421,22 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
                 const item = features.find((candidate) => candidate.planType === plan && candidate.feature === feature);
                 const key = item ? featureKey(item) : `${plan}:${feature}`;
                 return (
-                  <div className={item?.enabled ? "feature-toggle-cell enabled" : "feature-toggle-cell"} key={key}>
+                                    <div
+                    className={item?.enabled ? "feature-toggle-cell enabled" : "feature-toggle-cell"}
+                    key={key}
+                    title={item ? `${plan} ${feature}: ${item.enabled ? "enabled" : "disabled"}${item.effectiveFrom ? ` from ${item.effectiveFrom}` : ""}` : `${plan} ${feature}: not configured`}
+                  >
                     {item ? (
                       <>
                         <label className="switch-control" title={`${plan} ${feature}`}>
                           <input
                             checked={Boolean(item.enabled)}
-                            disabled={savingKey === key}
+                            disabled={savingKey === key || feature === "AD_FREE" || feature === "BARCODE_SCANNER"}
                             onChange={(event) => updateFeature(item, event.target.checked)}
                             type="checkbox"
                           />
                           <span />
                         </label>
-                        <small>{item.effectiveFrom ?? "today"}</small>
                       </>
                     ) : (
                       <span className="muted-text">Not configured</span>
@@ -3352,6 +3444,8 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
                   </div>
                 );
               })}
+            </div>
+              ))}
             </div>
           ))}
           {!features.length && <EmptyState message="No subscription feature rows found." />}
@@ -3684,6 +3778,8 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
             </div>
           </Panel>
 
+          <AiCreditCostPolicyPanel policies={pricingPolicies} savingKey={savingKey} onSave={updatePricingPolicy} />
+
           <Panel title="AI add-on product mapping">
             <div className="addon-quota-list">
               {Object.entries(revenueCat?.aiAddonQuotas ?? {}).map(([name, value]) => (
@@ -3711,13 +3807,24 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
           </Panel>
           <Panel title="Recent subscription and quota changes">
             <DataTable
-              columns={["Action", "Target user", "Admin", "Created"]}
-              rows={quotaAudits.map((audit) => [
-                <Badge value={audit.actionType ?? "-"} tone={audit.actionType === "AI_QUOTA_ADDON_GRANT" ? "good" : "neutral"} />,
-                audit.targetKey ?? audit.targetId ?? "-",
-                audit.adminEmail ?? "-",
-                formatDate(audit.createdAt)
-              ])}
+              columns={["Action", "Target user", "Change", "Admin", "Created"]}
+              rows={quotaAudits.map((audit) => {
+                const targetUserId = audit.targetKey ?? audit.targetId;
+                const targetUser = previewUsers.find((user) => String(user.id) === String(targetUserId));
+                const changeLines = subscriptionAuditChangeLines(audit);
+                return [
+                  <Badge value={humanizeSubscriptionAuditAction(audit.actionType)} tone={audit.actionType === "AI_QUOTA_ADDON_GRANT" ? "good" : "neutral"} />,
+                  <div className="entity-cell">
+                    <strong>{targetUser?.name ?? targetUser?.email ?? "Unknown user"}</strong>
+                    {targetUser?.name && targetUser.email && <small>{targetUser.email}</small>}
+                  </div>,
+                  <div className="table-stack subscription-change-cell">
+                    {changeLines.map((line, index) => <span key={audit.id + "-" + index}>{line}</span>)}
+                  </div>,
+                  audit.adminEmail ?? "-",
+                  formatDate(audit.createdAt)
+                ];
+              })}
               empty="No subscription or quota admin changes returned yet."
             />
           </Panel>
@@ -3747,6 +3854,81 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   );
 }
 
+function AiCreditCostPolicyPanel({ policies, savingKey, onSave }: {
+  policies: AiCreditPricingPolicy[];
+  savingKey: string | null;
+  onSave: (policy: AiCreditPricingPolicy, draft: AiCreditPricingPolicy) => Promise<void>;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, AiCreditPricingPolicy>>({});
+
+  useEffect(() => {
+    const next: Record<string, AiCreditPricingPolicy> = {};
+    for (const policy of policies) next[policy.feature] = { ...policy };
+    setDrafts(next);
+  }, [policies]);
+
+  function updateField(feature: string, field: keyof AiCreditPricingPolicy, value: string) {
+    setDrafts((current) => ({ ...current, [feature]: { ...current[feature], [field]: Number(value) } }));
+  }
+
+  function estimate(policy: AiCreditPricingPolicy, units: number, includeContext = false) {
+    const extraUnits = Math.max(0, units - policy.includedUnits);
+    const extraCredits = extraUnits === 0 ? 0 : Math.ceil(extraUnits / policy.unitsPerAdditionalCredit);
+    return Math.min(policy.maxCreditCost, policy.baseCreditCost + extraCredits + (includeContext ? policy.contextSurcharge : 0));
+  }
+
+  return (
+    <details className="panel ai-credit-policy-panel">
+      <summary className="ai-credit-policy-summary">
+        <div>
+          <h3>AI credit cost policy</h3>
+          <span>Global PLUS/PRO credit formulas</span>
+        </div>
+      </summary>
+      <div className="ai-credit-policy-content">
+      <div className="ai-credit-policy-intro">
+        <div>
+          <strong>One global tariff for every paid plan</strong>
+          <span>PLUS and PRO consume the same credits for the same request. Nutrition and workout costs grow only with request complexity.</span>
+        </div>
+        <Badge value="Backend controlled" tone="good" />
+      </div>
+      <div className="ai-credit-policy-grid">
+        <div className="ai-credit-policy-head">
+          <span>AI feature</span><span>Pricing formula</span><span>Cost preview</span><span>Action</span>
+        </div>
+        {CONTROLLED_AI_FEATURES.map((definition) => {
+          const policy = policies.find((candidate) => candidate.feature === definition.feature);
+          if (!policy) return null;
+          const draft = drafts[policy.feature] ?? policy;
+          const changed = JSON.stringify(draft) !== JSON.stringify(policy);
+          const isNutrition = policy.pricingMode === "NUTRITION_COMPLEXITY";
+          const isWorkout = policy.pricingMode === "WORKOUT_COMPLEXITY";
+          return <div className="ai-credit-policy-row" key={definition.feature}>
+            <div className="ai-credit-policy-feature">
+              <strong>{definition.label}</strong><small>{definition.detail}</small>
+              <Badge value={policy.pricingMode.replaceAll("_", " ")} />
+            </div>
+            <div className={`ai-credit-policy-fields ${policy.pricingMode === "FIXED" ? "is-fixed" : "is-dynamic"}`}>
+              <label>Base<input min="1" max="50" type="number" value={draft.baseCreditCost} onChange={(event) => updateField(policy.feature, "baseCreditCost", event.target.value)} /></label>
+              {(isNutrition || isWorkout) && <>
+                <label>Included {isNutrition ? "meal slots" : "minutes"}<input min="0" type="number" value={draft.includedUnits} onChange={(event) => updateField(policy.feature, "includedUnits", event.target.value)} /></label>
+                <label>{isNutrition ? "Slots" : "Minutes"} / extra credit<input min="1" type="number" value={draft.unitsPerAdditionalCredit} onChange={(event) => updateField(policy.feature, "unitsPerAdditionalCredit", event.target.value)} /></label>
+                {isNutrition && <label>Workout surcharge<input min="0" max="50" type="number" value={draft.contextSurcharge} onChange={(event) => updateField(policy.feature, "contextSurcharge", event.target.value)} /></label>}
+                <label>Maximum<input min="1" max="50" type="number" value={draft.maxCreditCost} onChange={(event) => updateField(policy.feature, "maxCreditCost", event.target.value)} /></label>
+              </>}
+            </div>
+            <div className="ai-credit-policy-preview">
+              {isNutrition ? <><span>1 day x 2 meals <strong>{estimate(draft, 2)} credit</strong></span><span>3 days x 3 meals <strong>{estimate(draft, 9)} credits</strong></span><span>7 days x 6 meals <strong>{estimate(draft, 42)} credits</strong></span><span>+ workout context <strong>{estimate(draft, 42, true)} credits</strong></span></> : isWorkout ? <><span>1 day x 10 min <strong>{estimate(draft, 10)} credit</strong></span><span>3 days x 45 min <strong>{estimate(draft, 135)} credits</strong></span><span>6 days x 75 min <strong>{estimate(draft, 450)} credits</strong></span></> : <span>Each successful request <strong>{draft.baseCreditCost} credit{draft.baseCreditCost === 1 ? "" : "s"}</strong></span>}
+            </div>
+            <button className={changed ? "primary-button" : "ghost-button"} disabled={!changed || savingKey === "pricing:" + policy.feature} onClick={() => void onSave(policy, draft)} type="button">{savingKey === "pricing:" + policy.feature ? "Saving" : "Save"}</button>
+          </div>;
+        })}
+      </div>
+      </div>
+    </details>
+  );
+}
 function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const [requestType, setRequestType] = useState("");
   const [status, setStatus] = useState("");
@@ -3822,6 +4004,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
       await reloadSummary();
     }
   }
+
 
   return (
     <div className="stack">
@@ -4086,6 +4269,7 @@ function SubscriptionEventsView({ onError, targetContext, onClearTarget }: { onE
     }
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Subscription provider events" state={combineStates([state, detailState, retryState])} onReload={reload}>
@@ -4186,6 +4370,7 @@ function RetentionPoliciesView({ onError }: { onError: (message: string | null) 
     }
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Retention policies" state={combineStates([state, saveState])} onReload={reload} />
@@ -4231,6 +4416,7 @@ function RetentionPoliciesView({ onError }: { onError: (message: string | null) 
   );
 }
 function GlobalSettingsView() {
+
   return (
     <div className="stack">
       <SectionToolbar title="Global settings" state="ready" onReload={() => undefined} />
@@ -4330,6 +4516,7 @@ function IntegrationsView({ mode, onError }: { mode: IntegrationMode; onError: (
     }
   ];
 
+
   return (
     <div className="stack">
       <SectionToolbar title={title} state={combineStates([healthState, revenueCatState, notificationState])} onReload={reloadAll} />
@@ -4400,6 +4587,7 @@ function MailOpsView({ onError, targetContext, onClearTarget }: { onError: (mess
     void reloadMail();
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Brevo mail operations" state={combineStates([healthState, notificationState, mailState])} onReload={reloadAll} />
@@ -4460,6 +4648,7 @@ function RevenueCatMonitoringView({ environment, onError }: { environment: "prod
     void reloadOverview();
     void reloadCharts();
   }
+
   return (
     <div className="stack">
       <SectionToolbar title={`RevenueCat ${environment === "production" ? "production" : "sandbox"} monitoring`} state={combineStates([overviewState, chartsState])} onReload={reloadAll}>
@@ -4513,6 +4702,7 @@ function RevenueCatMonitoringPanel({
     : revenueCatPlaceholderCharts(metricRows, environment, overview?.currency ?? charts?.currency, charts?.statusMessage ?? overview?.statusMessage));
   const [selectedChartKey, setSelectedChartKey] = useState<string | null>(null);
   const selectedChart = chartRows.find((chart) => chartKey(chart) === selectedChartKey) ?? chartRows[0] ?? null;
+
   return (
     <div className="stack">
       <div className="revenuecat-monitor-hero">
@@ -4918,6 +5108,7 @@ function MailEventsView({ onError }: { onError: (message: string | null) => void
   const { data, state, reload } = useEndpoint<AdminMailMonitoring>("/api/v1/admin/mail/monitoring?days=7&limit=50", onError);
   const events = data?.recentEvents ?? [];
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Recent Brevo mail events" state={state} onReload={reload} />
@@ -5000,6 +5191,7 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
       onError(formatRequestError(error));
     }
   }
+
 
   return (
     <div className="stack">
@@ -5261,6 +5453,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
       onError(formatRequestError(error));
     }
   }
+
 
   return (
     <div className="stack">
@@ -5877,6 +6070,7 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
     setPage(0);
   }, [actionType, targetType, pageSize]);
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Admin action audits" state={state} onReload={reload}>
@@ -6001,6 +6195,7 @@ function NotificationsView({ onError, onNavigate }: { onError: (message: string 
     if (target) onNavigate(target, notificationTargetContext(item));
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Admin notifications" state={combineStates([state, actionState])} onReload={reload}>
@@ -6115,6 +6310,7 @@ function PushDeliveryView({ onError }: { onError: (message: string | null) => vo
   const sent = data?.sentLast24h ?? 0;
   const totalDelivery = sent + failed;
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Push delivery monitoring" state={state} onReload={reload} />
@@ -6201,6 +6397,7 @@ function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError
   useEffect(() => {
     setTrackingPage(0);
   }, [mode, days, trackingPageSize, trendRows.length]);
+
 
   return (
     <div className="stack">
@@ -6336,6 +6533,7 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
     providers: "Provider health",
     production: "Production readiness"
   }[mode];
+
   return (
     <div className="stack">
       <SectionToolbar title={title} state={state} onReload={reload} />
@@ -7780,6 +7978,58 @@ function formatAuditValue(value?: string | null): string {
   }
 }
 
+function parseSubscriptionAuditValue(value?: string | null): SubscriptionDto {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed as SubscriptionDto : {};
+  } catch {
+    return {};
+  }
+}
+
+function humanizeSubscriptionAuditAction(action?: string): string {
+  switch (action) {
+    case "SUBSCRIPTION_UPDATE": return "Subscription update";
+    case "AI_QUOTA_RESET": return "AI quota reset";
+    case "AI_QUOTA_ADDON_GRANT": return "AI quota grant";
+    default: return action ? humanize(action.toLowerCase()) : "-";
+  }
+}
+
+function subscriptionAuditChangeLines(audit: AuditEntry): string[] {
+  const before = parseSubscriptionAuditValue(audit.oldValue);
+  const after = parseSubscriptionAuditValue(audit.newValue);
+  const fromPlan = before.planType ?? before.plan ?? "-";
+  const toPlan = after.planType ?? after.plan ?? "-";
+
+  if (audit.actionType === "AI_QUOTA_ADDON_GRANT") {
+    const granted = Math.max(0, (after.aiAddonQuota ?? 0) - (before.aiAddonQuota ?? 0));
+    const lines = ["+" + formatValue(granted) + " AI credits granted"];
+    if (before.aiAddonQuota !== after.aiAddonQuota) {
+      lines.push("Add-on quota: " + formatValue(before.aiAddonQuota ?? 0) + " -> " + formatValue(after.aiAddonQuota ?? 0));
+    }
+    if (after.aiAddonQuotaExpiresAt) lines.push("Valid until: " + formatDate(after.aiAddonQuotaExpiresAt));
+    return lines;
+  }
+
+  if (audit.actionType === "AI_QUOTA_RESET") {
+    const restored = Math.max(0, (before.aiUsedThisPeriod ?? 0) - (after.aiUsedThisPeriod ?? 0));
+    return [
+      formatValue(restored) + " AI credits restored",
+      "Used quota: " + formatValue(before.aiUsedThisPeriod ?? 0) + " -> " + formatValue(after.aiUsedThisPeriod ?? 0)
+    ];
+  }
+
+  const changes: string[] = [];
+  if (fromPlan !== toPlan) changes.push("Plan: " + fromPlan + " -> " + toPlan);
+  if (before.status !== after.status) changes.push("Status: " + (before.status ?? "-") + " -> " + (after.status ?? "-"));
+  if (before.billingPeriod !== after.billingPeriod) changes.push("Billing: " + (before.billingPeriod ?? "-") + " -> " + (after.billingPeriod ?? "-"));
+  if (before.aiMonthlyQuota !== after.aiMonthlyQuota) changes.push("Monthly AI quota: " + formatValue(before.aiMonthlyQuota ?? 0) + " -> " + formatValue(after.aiMonthlyQuota ?? 0));
+  if (before.aiUsedThisPeriod !== after.aiUsedThisPeriod) changes.push("Used AI quota: " + formatValue(before.aiUsedThisPeriod ?? 0) + " -> " + formatValue(after.aiUsedThisPeriod ?? 0));
+  return changes.length ? changes : ["Subscription details updated"];
+}
+
 function humanize(value: string): string {
   return value.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
 }
@@ -7945,6 +8195,34 @@ function healthCategories(data: SystemHealth): HealthCategory[] {
 function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: string): boolean {
   if (!access) return false;
   switch (feature) {
+    case "BARCODE_SCANNER":
+      return Boolean(access.barcodeScanner);
+    case "MANUAL_FOOD_LOGGING":
+      return Boolean(access.manualFoodLogging);
+    case "FOOD_DIARY":
+      return Boolean(access.foodDiary);
+    case "WEIGHT_PROGRESS":
+      return Boolean(access.weightProgress);
+    case "WATER_TRACKING":
+      return Boolean(access.waterTracking);
+    case "WORKOUT_LOGGING":
+      return Boolean(access.workoutLogging);
+    case "SAVED_MEAL_TEMPLATES":
+      return Boolean(access.savedMealTemplates);
+    case "RECIPE_BUILDER":
+      return Boolean(access.recipeBuilder);
+    case "PUBLIC_RECIPE_LIBRARY":
+      return Boolean(access.publicRecipeLibrary);
+    case "ADVANCED_MACRO_TARGETS":
+      return Boolean(access.advancedMacroTargets);
+    case "MICRONUTRIENT_DETAILS":
+      return Boolean(access.micronutrientDetails);
+    case "DATA_EXPORT":
+      return Boolean(access.dataExport);
+    case "FASTING_BASIC":
+      return Boolean(access.fastingBasic);
+    case "FASTING_ADVANCED":
+      return Boolean(access.fastingAdvanced);
     case "AI_MEAL_DRAFTS":
       return Boolean(access.aiMealDrafts);
     case "AI_RECIPE_GENERATION":
@@ -7987,6 +8265,34 @@ function featureKey(item: FeatureMatrixItem): string {
 function humanizeFeature(value?: string): string {
   if (!value) return "-";
   switch (value) {
+    case "BARCODE_SCANNER":
+      return "Barcode Scanner";
+    case "MANUAL_FOOD_LOGGING":
+      return "Manual Food Logging";
+    case "FOOD_DIARY":
+      return "Food Diary";
+    case "WEIGHT_PROGRESS":
+      return "Weight and Progress";
+    case "WATER_TRACKING":
+      return "Water Tracking";
+    case "WORKOUT_LOGGING":
+      return "Workout Logging";
+    case "SAVED_MEAL_TEMPLATES":
+      return "Saved Meal Templates";
+    case "RECIPE_BUILDER":
+      return "Recipe Builder";
+    case "PUBLIC_RECIPE_LIBRARY":
+      return "Public Recipe Library";
+    case "ADVANCED_MACRO_TARGETS":
+      return "Advanced Macro Targets";
+    case "MICRONUTRIENT_DETAILS":
+      return "Micronutrient Details";
+    case "DATA_EXPORT":
+      return "Data Export";
+    case "FASTING_BASIC":
+      return "Basic Fasting";
+    case "FASTING_ADVANCED":
+      return "Advanced Fasting";
     case "AI_MEAL_DRAFTS":
       return "AI Meal Drafts";
     case "AI_RECIPE_GENERATION":
@@ -8007,6 +8313,34 @@ function shortFeature(value?: string): string {
 
 function featureDescription(value?: string): string {
   switch (value) {
+    case "BARCODE_SCANNER":
+      return "Barcode scanning is available in every plan.";
+    case "MANUAL_FOOD_LOGGING":
+      return "Log foods manually with serving and gram-based quantities.";
+    case "FOOD_DIARY":
+      return "Core daily meal diary and nutrition logging.";
+    case "WEIGHT_PROGRESS":
+      return "Weight history, targets, and progress tracking.";
+    case "WATER_TRACKING":
+      return "Daily water logging and progress tracking.";
+    case "WORKOUT_LOGGING":
+      return "Manual exercise and workout history tracking.";
+    case "SAVED_MEAL_TEMPLATES":
+      return "Save meals and reuse them in the food diary.";
+    case "RECIPE_BUILDER":
+      return "Create and manage user recipes.";
+    case "PUBLIC_RECIPE_LIBRARY":
+      return "Browse the curated public recipe catalogue.";
+    case "ADVANCED_MACRO_TARGETS":
+      return "Flexible macro targets and meal-level planning.";
+    case "MICRONUTRIENT_DETAILS":
+      return "Detailed vitamins and minerals in nutrition views.";
+    case "DATA_EXPORT":
+      return "Export personal tracking data for portability.";
+    case "FASTING_BASIC":
+      return "Basic fasting timer and session history.";
+    case "FASTING_ADVANCED":
+      return "Advanced fasting schedules and analytics.";
     case "AI_MEAL_DRAFTS":
       return "Photo and voice meal draft generation. No diary entry is written before user confirmation.";
     case "AI_WORKOUT_PLANNER":
@@ -8029,8 +8363,8 @@ function featureDescription(value?: string): string {
 }
 
 function defaultAiQuota(planType?: string): number {
-  if (planType === "PRO") return 100;
-  if (planType === "PLUS") return 15;
+  if (planType === "PRO") return 150;
+  if (planType === "PLUS") return 50;
   return 0;
 }
 
