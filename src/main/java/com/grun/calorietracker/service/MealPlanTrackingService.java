@@ -2,6 +2,8 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.MealPlanDto;
 import com.grun.calorietracker.dto.MealPlanItemConsumptionDto;
+import com.grun.calorietracker.dto.MealPlanMealLogRequestDto;
+import com.grun.calorietracker.dto.MealPlanMealLogResponseDto;
 import com.grun.calorietracker.dto.MealPlanItemLogRequestDto;
 import com.grun.calorietracker.dto.MealPlanItemReplaceRequestDto;
 import com.grun.calorietracker.dto.MealPlanTodayDto;
@@ -14,6 +16,8 @@ public interface MealPlanTrackingService {
     MealPlanTodayDto getActiveForDate(String email, LocalDate date);
     MealPlanItemConsumptionDto logItem(String email, Long planId, Long itemId,
                                        String idempotencyKey, MealPlanItemLogRequestDto request);
+    MealPlanMealLogResponseDto logMeal(String email, Long planId, String idempotencyKey,
+                                       MealPlanMealLogRequestDto request);
     MealPlanItemConsumptionDto skipItem(String email, Long planId, Long itemId,
                                         String idempotencyKey);
     MealPlanItemConsumptionDto replaceItem(String email, Long planId, Long itemId,

@@ -25,4 +25,5 @@ public class MealPlanDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<MealPlanItemDto> items;
+    private List<MealPlanDayNutritionDto> aiDayNutrition;
 }

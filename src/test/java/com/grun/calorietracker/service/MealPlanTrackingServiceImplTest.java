@@ -146,6 +146,35 @@ class MealPlanTrackingServiceImplTest {
     }
 
     @Test
+    void logSnapshot_allowsPastPlannedMealToBeAddedToToday() {
+        MealPlanEntity plan = plan(11L, MealPlanStatus.ACTIVE);
+        MealPlanItemEntity item = snapshotItem(plan, 101L, today.minusDays(1));
+        FoodLogsDto savedDto = snapshotLogDto(703L, 300.0, 30.0, 24.0, 12.0);
+        FoodLogsEntity savedEntity = new FoodLogsEntity();
+        savedEntity.setId(703L);
+        prepareNewDecision(item, "meal-key-today");
+        when(foodLogsService.addAiEstimateFoodLog(any(FoodLogsDto.class), eq(user.getEmail())))
+                .thenReturn(savedDto);
+        when(foodLogsRepository.findByIdAndUser(703L, user)).thenReturn(Optional.of(savedEntity));
+        when(consumptionRepository.save(any())).thenAnswer(invocation -> {
+            MealPlanItemConsumptionEntity value = invocation.getArgument(0);
+            value.setId(503L);
+            value.setCreatedAt(today.atStartOfDay());
+            return value;
+        });
+
+        MealPlanItemConsumptionDto result = service.logItem(
+                user.getEmail(), 11L, 101L, "meal-key-today",
+                logRequest(150.0, FoodPortionUnit.GRAM, today.atTime(12, 0)));
+
+        ArgumentCaptor<FoodLogsDto> diaryRequest = ArgumentCaptor.forClass(FoodLogsDto.class);
+        verify(foodLogsService).addAiEstimateFoodLog(diaryRequest.capture(), eq(user.getEmail()));
+        assertThat(diaryRequest.getValue().getLogDate().toLocalDate()).isEqualTo(today);
+        assertThat(diaryRequest.getValue().getMealType()).isEqualTo("LUNCH");
+        assertThat(result.getStatus()).isEqualTo(MealPlanItemConsumptionStatus.LOGGED);
+    }
+
+    @Test
     void logSnapshot_scalesNutritionForAmountAbovePlan() {
         MealPlanEntity plan = plan(11L, MealPlanStatus.ACTIVE);
         MealPlanItemEntity item = snapshotItem(plan, 101L, today);

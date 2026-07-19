@@ -172,6 +172,48 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
 
     @Override
     @Transactional
+    public MealPlanMealLogResponseDto logMeal(
+            String email, Long planId, String idempotencyKey,
+            MealPlanMealLogRequestDto request) {
+        if (request == null || request.getPlanDate() == null
+                || request.getLoggedAt() == null || request.getMealType() == null
+                || request.getMealType().isBlank()) {
+            throw new IllegalArgumentException("Plan date, meal type, and log time are required.");
+        }
+        String mealType = request.getMealType().trim().toUpperCase(Locale.ROOT);
+        if (!List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").contains(mealType)) {
+            throw new IllegalArgumentException("Unsupported meal type.");
+        }
+
+        String batchKey = normalizeKey(idempotencyKey);
+        UserEntity user = userForUpdate(email);
+        MealPlanEntity plan = ownedPlan(user, planId);
+        if (plan.getStatus() != MealPlanStatus.ACTIVE) {
+            throw new IllegalArgumentException("Meals can be logged only while the plan is active.");
+        }
+        List<MealPlanItemEntity> mealItems = mealPlanItemRepository
+                .findByMealPlanOrderByPlanDateAscMealTypeAscItemOrderAscIdAsc(plan).stream()
+                .filter(item -> request.getPlanDate().equals(item.getPlanDate()))
+                .filter(item -> mealType.equalsIgnoreCase(item.getMealType()))
+                .toList();
+        if (mealItems.isEmpty()) {
+            throw new ResourceNotFoundException("Planned meal not found");
+        }
+
+        List<MealPlanItemConsumptionDto> logged = new ArrayList<>();
+        for (MealPlanItemEntity item : mealItems) {
+            PlannedAmount planned = plannedAmount(item);
+            MealPlanItemLogRequestDto itemRequest = new MealPlanItemLogRequestDto();
+            itemRequest.setConsumedQuantity(planned.quantity());
+            itemRequest.setConsumedUnit(planned.unit());
+            itemRequest.setLoggedAt(request.getLoggedAt());
+            logged.add(logItem(email, planId, item.getId(), batchItemKey(batchKey, item.getId()), itemRequest));
+        }
+        return new MealPlanMealLogResponseDto(mealType, logged.size(), logged);
+    }
+
+    @Override
+    @Transactional
     public MealPlanItemConsumptionDto skipItem(
             String email, Long planId, Long itemId, String idempotencyKey) {
         UserEntity user = userForUpdate(email);
@@ -353,9 +395,13 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
     }
 
     private void validateLogDate(MealPlanItemEntity item, LocalDate logDate, UserEntity user) {
-        validateReplacementDate(item, logDate);
-        if (logDate.isAfter(userTimeZoneSupport.today(user))) {
+        LocalDate today = userTimeZoneSupport.today(user);
+        if (logDate.isAfter(today)) {
             throw new IllegalArgumentException("A future meal-plan item cannot be logged.");
+        }
+        if (!item.getPlanDate().equals(logDate) && !today.equals(logDate)) {
+            throw new IllegalArgumentException(
+                    "A planned item can be logged only on its plan date or today.");
         }
     }
 
@@ -389,6 +435,12 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
                     "Idempotency-Key must contain 8-120 safe characters.");
         }
         return key;
+    }
+
+    private String batchItemKey(String batchKey, Long itemId) {
+        String suffix = ":" + itemId;
+        int prefixLength = Math.min(batchKey.length(), 120 - suffix.length());
+        return batchKey.substring(0, prefixLength) + suffix;
     }
 
     private Map<Long, MealPlanItemConsumptionDto> latestConsumptions(Long planId, UserEntity user) {

@@ -113,6 +113,22 @@ public class MealPlanController {
                 userDetails.getUsername(), planId, itemId, idempotencyKey, request));
     }
 
+    @PostMapping("/{planId}/meals/log")
+    @Operation(summary = "Log a planned meal", description = "Adds every planned item in one date and meal slot to the diary in a single transaction.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Planned meal logged."),
+            @ApiResponse(responseCode = "400", description = "Invalid meal, date, or idempotency key.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "409", description = "One or more meal items already have another tracking decision.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<MealPlanMealLogResponseDto> logMeal(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long planId,
+            @RequestHeader(IDEMPOTENCY_KEY) String idempotencyKey,
+            @RequestBody @Valid MealPlanMealLogRequestDto request) {
+        return ResponseEntity.ok(mealPlanTrackingService.logMeal(
+                userDetails.getUsername(), planId, idempotencyKey, request));
+    }
+
     @PostMapping("/{planId}/items/{itemId}/skip")
     @Operation(summary = "Skip planned item", description = "Marks the item as skipped without writing nutrition to the diary.")
     public ResponseEntity<MealPlanItemConsumptionDto> skipItem(

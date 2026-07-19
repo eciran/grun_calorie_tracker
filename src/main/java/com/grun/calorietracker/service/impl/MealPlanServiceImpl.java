@@ -12,7 +12,9 @@ import com.grun.calorietracker.enums.WorkoutPlanStatus;
 import com.grun.calorietracker.repository.WorkoutPlanRepository;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
 import com.grun.calorietracker.dto.GroceryListDto;
+import com.grun.calorietracker.dto.MealPlanDayNutritionDto;
 import com.grun.calorietracker.dto.GroceryListItemDto;
 import com.grun.calorietracker.dto.MealPlanDto;
 import com.grun.calorietracker.dto.MealPlanDuplicateRequestDto;
@@ -288,7 +290,33 @@ public class MealPlanServiceImpl implements MealPlanService {
         dto.setCreatedAt(plan.getCreatedAt());
         dto.setUpdatedAt(plan.getUpdatedAt());
         dto.setItems(plan.getItems().stream().map(this::toItemDto).toList());
+        dto.setAiDayNutrition(aiDayNutrition(plan));
         return dto;
+    }
+
+    private List<MealPlanDayNutritionDto> aiDayNutrition(MealPlanEntity plan) {
+        if (plan.getSourceAiRequest() == null
+                || plan.getSourceAiRequest().getOutputPayload() == null
+                || plan.getSourceAiRequest().getOutputPayload().isBlank()) {
+            return List.of();
+        }
+        try {
+            AiNutritionPlanDraftResponseDto draft = objectMapper.readValue(
+                    plan.getSourceAiRequest().getOutputPayload(),
+                    AiNutritionPlanDraftResponseDto.class);
+            if (draft.getDays() == null) {
+                return List.of();
+            }
+            return draft.getDays().stream().map(day -> {
+                MealPlanDayNutritionDto summary = new MealPlanDayNutritionDto();
+                summary.setDate(day.getDate());
+                summary.setDayType(day.getDayType());
+                summary.setTotalNutrition(day.getTotalNutrition());
+                return summary;
+            }).toList();
+        } catch (JsonProcessingException ex) {
+            return List.of();
+        }
     }
 
     private MealPlanItemDto toItemDto(MealPlanItemEntity item) {

@@ -280,6 +280,52 @@ class MealPlanServiceImplTest {
     }
 
 
+    @Test
+    void getMealPlan_whenAiPlan_exposesStoredDailyNutrition() throws Exception {
+        UserEntity user = user();
+        com.grun.calorietracker.dto.AiNutritionPlanDayDto day =
+                new com.grun.calorietracker.dto.AiNutritionPlanDayDto();
+        day.setDate(LocalDate.of(2026, 7, 20));
+        day.setDayType(com.grun.calorietracker.enums.NutritionPlanDayType.TRAINING);
+        MealPlanNutritionSnapshotDto total = new MealPlanNutritionSnapshotDto();
+        total.setCalories(2100.0);
+        total.setProtein(150.0);
+        total.setCarbs(220.0);
+        total.setFat(70.0);
+        total.setSodium(1800.0);
+        total.setVitaminC(75.0);
+        day.setTotalNutrition(total);
+        com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto draft =
+                new com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto();
+        draft.setDays(java.util.List.of(day));
+
+        com.grun.calorietracker.entity.AiRequestHistoryEntity history =
+                new com.grun.calorietracker.entity.AiRequestHistoryEntity();
+        history.setId(77L);
+        history.setOutputPayload(new ObjectMapper().findAndRegisterModules()
+                .writeValueAsString(draft));
+
+        MealPlanEntity plan = new MealPlanEntity();
+        plan.setId(90L);
+        plan.setUser(user);
+        plan.setStartDate(LocalDate.of(2026, 7, 20));
+        plan.setEndDate(LocalDate.of(2026, 7, 20));
+        plan.setSourceAiRequest(history);
+        plan.setItems(new java.util.ArrayList<>());
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.findByIdAndUser(90L, user)).thenReturn(Optional.of(plan));
+
+        MealPlanDto result = service.getMealPlan("user@test.com", 90L);
+
+        assertEquals(1, result.getAiDayNutrition().size());
+        assertEquals(com.grun.calorietracker.enums.NutritionPlanDayType.TRAINING,
+                result.getAiDayNutrition().get(0).getDayType());
+        assertEquals(1800.0,
+                result.getAiDayNutrition().get(0).getTotalNutrition().getSodium());
+        assertEquals(75.0,
+                result.getAiDayNutrition().get(0).getTotalNutrition().getVitaminC());
+    }
     private MealPlanRequestDto snapshotRequest() {
         MealPlanRequestDto request = new MealPlanRequestDto();
         request.setName("AI nutrition week");
