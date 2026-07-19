@@ -248,7 +248,9 @@ The staging package contains 51,746 approved input rows split into eight multipa
 
 The second full import was idempotent: it created zero products, updated the expected 51,746 market inputs and did not grow product, market, evidence, alias, localization or serving tables. Flyway reached V126, the pre-import snapshot restored successfully into an independent clone, and all ten English/Turkish search smoke queries returned relevant first results.
 
-S10 remains IN_PROGRESS until the same snapshot/import/restore procedure is executed against authenticated AWS staging from a clean revision and a signed rehearsal report is produced. No AWS or production resource was changed during the local rehearsal. Local cold search at roughly 50k products averaged 2.37 seconds and peaked at 3.70 seconds; query-plan and index work is therefore a mandatory S11 gate, not an accepted production baseline.
+S10 is DONE. The clean 5df9c17 application revision imported the package through authenticated AWS staging with 49,705 inserts and 2,041 updates on the first pass, followed by 0 inserts and 51,746 idempotent updates on the second pass. All ten English/Turkish smoke searches passed; the repeated AWS S11 gate measured p95 104 ms and completed ten concurrent requests in 581 ms.
+
+Encrypted pre/post snapshots were created, the pre-import snapshot restored to an isolated private clone, and the immutable application migrated that clone from Flyway V37 to V131 with zero food items. Runtime resources were then removed: ECS is at 0/0/0, and no temporary ALB or staging RDS instance remains. SHA-256 evidence is archived with the report. S12 remains blocked only by S9's licensed/authorized TR 5k and 25k catalog gates.
 ### S11 100k+ scale status
 
 S11 is DONE. The optimized PostgreSQL path first selects a bounded indexed candidate set, then preserves the existing quality, canonical, market, localization and relevance rules. A disposable PostgreSQL run passed 25k, 50k, 100k and 200k catalog gates with p95 values of 53 ms, 169 ms, 218 ms and 210 ms respectively, all below the 300 ms budget.
