@@ -36,6 +36,13 @@ public class AiWorkoutPlanDraftResponseDto implements AiUsageMetadataCarrier {
     private Integer qualityScore;
     private String estimatedUncertainty;
     private List<String> reviewReasons = new ArrayList<>();
+    @Schema(description = "Exact number of AI credits charged by the backend for this request.", example = "4")
+    private Integer quotaConsumedAmount;
+    @Schema(description = "Plan credits remaining after this request.", example = "10")
+    private Integer aiBaseRemainingThisPeriod;
+    @Schema(description = "One-off add-on credits remaining after this request.", example = "0")
+    private Integer aiAddonRemainingThisPeriod;
+    @Schema(description = "Total plan and add-on credits remaining after this request.", example = "10")
     private Integer aiRemainingThisPeriod;
     private List<AiWorkoutPlanDayDto> days = new ArrayList<>();
     @Schema(description = "Training principles that explain how the user should progress safely.")

@@ -22,6 +22,7 @@ public class SubscriptionDto {
     private LocalDate aiAddonQuotaExpiresAt;
     private Integer aiMonthlyQuota;
     private Integer aiAddonQuota;
+    private Integer aiAddonUsed;
     private Integer aiTotalQuotaThisPeriod;
     private Integer aiUsedThisPeriod;
     private Integer aiBaseRemainingThisPeriod;

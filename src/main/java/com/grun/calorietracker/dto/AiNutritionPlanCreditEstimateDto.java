@@ -10,9 +10,13 @@ import lombok.Data;
 @Schema(description = "Backend-calculated AI credit cost for a nutrition-plan request.")
 public class AiNutritionPlanCreditEstimateDto {
     private Integer dayCount;
+    private Integer mealsPerDay;
     private NutritionPlanGenerationMode generationMode;
     private Integer baseCreditCost;
-    private Integer durationMultiplier;
+    private Integer totalMealSlots;
+    private Integer includedMealSlots;
+    private Integer mealSlotsPerAdditionalCredit;
+    private Integer additionalCredits;
     private Boolean workoutContextIncluded;
     private Integer workoutContextCreditCost;
     private Integer totalCreditCost;

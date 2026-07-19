@@ -101,7 +101,7 @@ class OpenAiAiMealDraftProviderClientTest {
                         .value(org.hamcrest.Matchers.containsString("Request type: AI_NUTRITION_PLAN")))
                 .andExpect(jsonPath("$.input[1].content[0].text")
                         .value(org.hamcrest.Matchers.containsString(
-                                "fat target=60.0 preferredRange=45.0..75.0 hardRange=40.0..80.0")))
+                                "fat target=60.0 preferredRange=45.0..75.0 hardRange=24.0..96.0")))
                 .andRespond(withSuccess(outputTextResponse("{}"), MediaType.APPLICATION_JSON));
 
         AiNutritionPlanDraftResponseDto response = client.createNutritionPlanDraft(request);

@@ -9,7 +9,8 @@ import com.grun.calorietracker.dto.MealPlanDto;
 import com.grun.calorietracker.enums.NutritionPlanGenerationMode;
 
 public interface AiNutritionPlanService {
-    AiNutritionPlanCreditEstimateDto estimateCreditCost(String email, int dayCount, NutritionPlanGenerationMode generationMode);
+    AiNutritionPlanCreditEstimateDto estimateCreditCost(
+            String email, int dayCount, int mealsPerDay, NutritionPlanGenerationMode generationMode);
     AiNutritionPlanDraftResponseDto createDraft(String email, String idempotencyKey, AiNutritionPlanDraftRequestDto request);
     MealPlanDto confirmDraft(String email, Long requestId, AiNutritionPlanConfirmRequestDto request);
     void rejectDraft(String email, Long requestId, AiMealDraftRejectRequestDto request);

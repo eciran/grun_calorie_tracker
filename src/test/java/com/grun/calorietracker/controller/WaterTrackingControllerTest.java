@@ -11,6 +11,8 @@ import com.grun.calorietracker.dto.WaterRangeSummaryDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsRequestDto;
 import com.grun.calorietracker.service.WaterTrackingService;
+import com.grun.calorietracker.service.SubscriptionService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -47,6 +49,14 @@ class WaterTrackingControllerTest {
 
     @MockitoBean
     private WaterTrackingService waterTrackingService;
+
+    @MockitoBean
+    private SubscriptionService subscriptionService;
+
+    @BeforeEach
+    void allowResolvedFeatureAccess() {
+        when(subscriptionService.hasFeatureAccess(any(), any())).thenReturn(true);
+    }
 
     @Test
     @WithMockUser(username = "user@grun.app")

@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.NutritionPlanGenerationMode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.Data;
 
@@ -41,6 +42,13 @@ public class AiNutritionPlanDraftResponseDto implements AiUsageMetadataCarrier {
     private Double confidence;
     private Integer qualityScore;
     private String estimatedUncertainty;
+    @Schema(description = "Exact number of AI credits charged by the backend for this request.", example = "8")
+    private Integer quotaConsumedAmount;
+    @Schema(description = "Plan credits remaining after this request.", example = "10")
+    private Integer aiBaseRemainingThisPeriod;
+    @Schema(description = "One-off add-on credits remaining after this request.", example = "0")
+    private Integer aiAddonRemainingThisPeriod;
+    @Schema(description = "Total plan and add-on credits remaining after this request.", example = "10")
     private Integer aiRemainingThisPeriod;
     @JsonIgnore
     private Integer promptTokens;

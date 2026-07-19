@@ -3,8 +3,11 @@ package com.grun.calorietracker.config;
 import com.grun.calorietracker.security.JwtAuthenticationFilter;
 import com.grun.calorietracker.security.RateLimitingFilter;
 import com.grun.calorietracker.security.RestAuthenticationEntryPoint;
+import com.grun.calorietracker.security.SubscriptionFeatureAccessFilter;
 import com.grun.calorietracker.service.impl.UserDetailsServiceImpl;
+import com.grun.calorietracker.service.SubscriptionService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -49,7 +52,7 @@ public class SecurityConfig {
 
     @Bean
     @Profile("!test") // Disabled in the test profile.
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, SubscriptionFeatureAccessFilter subscriptionFeatureAccessFilter) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
@@ -77,7 +80,23 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(subscriptionFeatureAccessFilter, JwtAuthenticationFilter.class)
                 .build();
+    }
+
+    @Bean
+    @Profile("!test")
+    public SubscriptionFeatureAccessFilter subscriptionFeatureAccessFilter(SubscriptionService subscriptionService) {
+        return new SubscriptionFeatureAccessFilter(subscriptionService);
+    }
+
+    @Bean
+    @Profile("!test")
+    public FilterRegistrationBean<SubscriptionFeatureAccessFilter> disableFeatureFilterAutoRegistration(
+            SubscriptionFeatureAccessFilter filter) {
+        FilterRegistrationBean<SubscriptionFeatureAccessFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

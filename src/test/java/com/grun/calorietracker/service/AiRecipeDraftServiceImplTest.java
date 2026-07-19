@@ -60,6 +60,7 @@ class AiRecipeDraftServiceImplTest {
         historyRepository = mock(AiRequestHistoryRepository.class);
         userRepository = mock(UserRepository.class);
         subscriptionService = mock(SubscriptionService.class);
+        when(subscriptionService.resolveAiCreditCost(any(), any())).thenReturn(1);
         recipeService = mock(RecipeService.class);
         service = new AiRecipeDraftServiceImpl(
                 properties,
@@ -93,7 +94,7 @@ class AiRecipeDraftServiceImplTest {
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse());
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(quota);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(44L);
@@ -107,7 +108,8 @@ class AiRecipeDraftServiceImplTest {
         assertEquals(9, result.getAiRemainingThisPeriod());
         assertEquals(true, result.getReviewRequired());
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
-        verify(subscriptionService).consumeAiQuota("user@example.com");
+        verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
+        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository).save(captor.capture());
@@ -120,13 +122,14 @@ class AiRecipeDraftServiceImplTest {
     @Test
     void createRecipeDraft_whenQuotaUnavailable_doesNotCallProvider() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
-        when(subscriptionService.consumeAiQuota("user@example.com"))
+        when(subscriptionService.consumeAiQuota("user@example.com", 1))
                 .thenThrow(new IllegalArgumentException("AI quota is not available for the current subscription."));
 
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> service.createRecipeDraft("user@example.com", request()));
 
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
+        verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
         verify(providerClient, org.mockito.Mockito.never()).createRecipeDraft(any());
         verify(historyRepository, org.mockito.Mockito.never()).save(any());
     }
@@ -138,13 +141,13 @@ class AiRecipeDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createRecipeDraft(any())).thenReturn(invalid);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(new SubscriptionDto());
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> service.createRecipeDraft("user@example.com", request()));
 
-        verify(subscriptionService).consumeAiQuota("user@example.com");
+        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
         verify(subscriptionService).refundConsumedAiQuota(1L, 1);
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository).save(captor.capture());
@@ -174,7 +177,7 @@ class AiRecipeDraftServiceImplTest {
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse);
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(quota);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(44L);

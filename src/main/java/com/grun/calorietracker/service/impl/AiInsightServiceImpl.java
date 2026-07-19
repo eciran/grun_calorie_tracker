@@ -96,8 +96,9 @@ public class AiInsightServiceImpl implements AiInsightService {
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        int creditCost = subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_INSIGHTS);
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
+        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
         try {
             AiInsightResponseDto response = requestType == AiRequestType.AI_DAILY_INSIGHT
                     ? activeProvider().createDailyInsight(request)
@@ -111,18 +112,18 @@ public class AiInsightServiceImpl implements AiInsightService {
             history.setConfirmationPayload(writeJson(Map.of("autoConfirmed", true)));
             history.setConfirmedAt(LocalDateTime.now());
             history.setQuotaConsumed(true);
-            history.setQuotaConsumedAmount(1);
+            history.setQuotaConsumedAmount(creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user);
+            boolean refunded = refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true)));
             history.setQuotaConsumed(!refunded);
-            history.setQuotaConsumedAmount(refunded ? 0 : 1);
+            history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             aiRequestHistoryRepository.save(history);
             throw ex;
@@ -552,9 +553,9 @@ public class AiInsightServiceImpl implements AiInsightService {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user) {
+    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), 1);
+            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
             return true;
         } catch (RuntimeException ignored) {
             return false;

@@ -36,7 +36,7 @@ public class AiNutritionPlanDraftRequestDto {
     private Integer dayCount;
 
     @NotNull
-    @Min(2)
+    @Min(1)
     @Max(6)
     private Integer mealsPerDay;
 

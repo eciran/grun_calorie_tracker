@@ -145,8 +145,9 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        int creditCost = subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_MEAL_DRAFTS);
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
+        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
         try {
             AiMealDraftResponseDto response = responseValidator.validateAndNormalize(
                     supplier.get(),
@@ -161,18 +162,18 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
             history.setQuotaConsumed(true);
-            history.setQuotaConsumedAmount(1);
+            history.setQuotaConsumedAmount(creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user);
+            boolean refunded = refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true)));
             history.setQuotaConsumed(!refunded);
-            history.setQuotaConsumedAmount(refunded ? 0 : 1);
+            history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             aiRequestHistoryRepository.save(history);
             throw ex;
@@ -246,7 +247,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
                                                        AiRequestHistoryEntity history,
                                                        String email) {
         if (item.getFoodItemId() != null) {
-            return foodLogsService.addFoodLog(toFoodLogDto(item), email);
+            return foodLogsService.addFoodLog(toFoodLogDto(item, history), email);
         }
         validateAiEstimateConfirmation(item);
         return foodLogsService.addAiEstimateFoodLog(toAiEstimateFoodLogDto(item, history), email);
@@ -300,13 +301,16 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         }
         return FoodLogSource.AI_ESTIMATE;
     }
-    private FoodLogsDto toFoodLogDto(AiMealDraftConfirmItemRequestDto item) {
+    private FoodLogsDto toFoodLogDto(AiMealDraftConfirmItemRequestDto item, AiRequestHistoryEntity history) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setFoodItemId(item.getFoodItemId());
         dto.setPortionSize(item.getPortionSize());
         dto.setPortionUnit(item.getPortionUnit());
         dto.setMealType(item.getMealType());
         dto.setLogDate(item.getLogDate());
+        dto.setSource(resolveAiEstimateSource(history.getRequestType()));
+        dto.setAiRequestId(history.getId());
+        dto.setAiConfidence(item.getConfidence());
         return dto;
     }
 
@@ -348,9 +352,9 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user) {
+    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), 1);
+            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
             return true;
         } catch (RuntimeException ignored) {
             return false;

@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiWorkoutPlanDayDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
+import com.grun.calorietracker.dto.AiWorkoutPlanCreditEstimateDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanExerciseDto;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
 import com.grun.calorietracker.enums.AiProvider;
@@ -44,6 +45,20 @@ class AiWorkoutPlanControllerTest {
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
+    void estimateCreditCost_returnsBackendCalculatedWorkoutCost() throws Exception {
+        when(aiWorkoutPlanService.estimateCreditCost("user@example.com", 6, 75))
+                .thenReturn(new AiWorkoutPlanCreditEstimateDto(6, 75, 450, 1, 90, 120, 3, 4));
+
+        mockMvc.perform(get("/api/v1/ai/workout-plans/credit-cost")
+                        .param("daysPerWeek", "6")
+                        .param("minutesPerSession", "75"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPlannedMinutes").value(450))
+                .andExpect(jsonPath("$.totalCreditCost").value(4));
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
     void generateDraft_returnsWorkoutPlanDraft() throws Exception {
         when(aiWorkoutPlanService.createDraft(eq("user@example.com"), any())).thenReturn(draft());
 
@@ -63,6 +78,9 @@ class AiWorkoutPlanControllerTest {
                 .andExpect(jsonPath("$.requestId").value(81))
                 .andExpect(jsonPath("$.requestType").value("AI_WORKOUT_PLAN"))
                 .andExpect(jsonPath("$.days[0].exercises[0].name").value("Push-Up"))
+                .andExpect(jsonPath("$.quotaConsumedAmount").value(4))
+                .andExpect(jsonPath("$.aiBaseRemainingThisPeriod").value(9))
+                .andExpect(jsonPath("$.aiAddonRemainingThisPeriod").value(2))
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(11));
     }
 
@@ -133,6 +151,12 @@ class AiWorkoutPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(99));
 
+        when(aiWorkoutPlanService.listAllPlans("user@example.com")).thenReturn(List.of(plan()));
+        mockMvc.perform(get("/api/v1/ai/workout-plans").param("includeInactive", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(99));
+        verify(aiWorkoutPlanService).listAllPlans("user@example.com");
+
         mockMvc.perform(delete("/api/v1/ai/workout-plans/99"))
                 .andExpect(status().isNoContent());
         verify(aiWorkoutPlanService).archivePlan("user@example.com", 99L);
@@ -168,6 +192,9 @@ class AiWorkoutPlanControllerTest {
         response.setModel("log-draft-v1");
         response.setName("Starter strength plan");
         response.setSummary("Review before activating.");
+        response.setQuotaConsumedAmount(4);
+        response.setAiBaseRemainingThisPeriod(9);
+        response.setAiAddonRemainingThisPeriod(2);
         response.setAiRemainingThisPeriod(11);
         response.setDays(List.of(day));
         return response;

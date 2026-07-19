@@ -3,6 +3,7 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.AiWorkoutPlanConfirmRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
+import com.grun.calorietracker.dto.AiWorkoutPlanCreditEstimateDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
 import com.grun.calorietracker.dto.WorkoutPlanScheduleUpdateRequestDto;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -39,6 +41,17 @@ import java.util.List;
 public class AiWorkoutPlanController {
 
     private final AiWorkoutPlanService aiWorkoutPlanService;
+
+    @GetMapping("/credit-cost")
+    @Operation(summary = "Estimate workout-plan AI credit cost",
+            description = "Calculates the backend-authoritative cost from training days and session length without consuming credit.")
+    public ResponseEntity<AiWorkoutPlanCreditEstimateDto> estimateCreditCost(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam int daysPerWeek,
+            @RequestParam int minutesPerSession) {
+        return ResponseEntity.ok(aiWorkoutPlanService.estimateCreditCost(
+                userDetails.getUsername(), daysPerWeek, minutesPerSession));
+    }
 
     @PostMapping("/generate")
     @Operation(summary = "Generate an AI workout plan draft", description = "Creates a reviewed-first AI workout plan draft. It does not create exercise logs.")
@@ -72,10 +85,13 @@ public class AiWorkoutPlanController {
     }
 
     @GetMapping
-    @Operation(summary = "List active workout plans", description = "Returns active user-owned workout plan snapshots.")
-    public ResponseEntity<List<WorkoutPlanDto>> listActivePlans(
-            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(aiWorkoutPlanService.listActivePlans(userDetails.getUsername()));
+    @Operation(summary = "List workout plans", description = "Returns user-owned workout plan snapshots. Archived plans are included when requested.")
+    public ResponseEntity<List<WorkoutPlanDto>> listPlans(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return ResponseEntity.ok(includeInactive
+                ? aiWorkoutPlanService.listAllPlans(userDetails.getUsername())
+                : aiWorkoutPlanService.listActivePlans(userDetails.getUsername()));
     }
 
     @GetMapping("/{planId}")

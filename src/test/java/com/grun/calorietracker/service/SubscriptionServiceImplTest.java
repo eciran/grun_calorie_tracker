@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.SubscriptionPlanFeatureEntity;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.entity.UserSubscriptionEntitlementEntity;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
@@ -18,16 +19,17 @@ import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.impl.SubscriptionServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -57,7 +59,9 @@ class SubscriptionServiceImplTest {
     @Mock
     private MailDeliveryService mailDeliveryService;
 
-    @InjectMocks
+    @Mock
+    private AiCreditPricingService aiCreditPricingService;
+
     private SubscriptionServiceImpl service;
 
     private UserEntity user;
@@ -65,13 +69,19 @@ class SubscriptionServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        service = new SubscriptionServiceImpl(
+                subscriptionRepository, userRepository, subscriptionPlanFeatureRepository,
+                userSubscriptionEntitlementRepository, notificationRepository, mailDeliveryService,
+                aiCreditPricingService);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
         lenient().when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(any(), any())).thenReturn(Optional.empty());
+        lenient().when(aiCreditPricingService.fixedCost(any())).thenReturn(1);
         lenient().when(userSubscriptionEntitlementRepository.findBySubscription(any())).thenReturn(emptyList());
         lenient().when(userSubscriptionEntitlementRepository.countBySubscription(any())).thenReturn(0L);
-        lenient().when(userSubscriptionEntitlementRepository.existsActiveFeature(anyLong(), any(), any())).thenReturn(false);
+        lenient().when(userSubscriptionEntitlementRepository.existsActiveFeature(anyLong(), any(), any(), any())).thenReturn(false);
+        lenient().when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(anyLong(), any(), any())).thenReturn(false);
         lenient().when(userSubscriptionEntitlementRepository.findActiveEntitlementsForPlanFeature(any(), any(), any())).thenReturn(emptyList());
     }
 
@@ -106,7 +116,7 @@ class SubscriptionServiceImplTest {
         request.setBillingPeriod(BillingPeriod.MONTHLY);
         request.setStartDate(java.time.LocalDate.of(2026, 5, 1));
         request.setAiUsedThisPeriod(4);
-        request.setAutoRenew(true);
+
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.empty());
@@ -116,13 +126,13 @@ class SubscriptionServiceImplTest {
 
         assertEquals(SubscriptionPlan.PLUS, result.getPlanType());
         assertEquals(BillingPeriod.MONTHLY, result.getBillingPeriod());
-        assertEquals(15, result.getAiMonthlyQuota());
+        assertEquals(50, result.getAiMonthlyQuota());
         assertEquals(0, result.getAiAddonQuota());
-        assertEquals(15, result.getAiTotalQuotaThisPeriod());
+        assertEquals(50, result.getAiTotalQuotaThisPeriod());
         assertEquals(4, result.getAiUsedThisPeriod());
-        assertEquals(11, result.getAiBaseRemainingThisPeriod());
+        assertEquals(46, result.getAiBaseRemainingThisPeriod());
         assertEquals(0, result.getAiAddonRemainingThisPeriod());
-        assertEquals(11, result.getAiRemainingThisPeriod());
+        assertEquals(46, result.getAiRemainingThisPeriod());
         assertEquals(java.time.LocalDate.of(2026, 6, 1), result.getQuotaResetDate());
         assertEquals(true, result.getAutoRenew());
     }
@@ -162,6 +172,7 @@ class SubscriptionServiceImplTest {
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(aiCreditPricingService.fixedCost(SubscriptionFeature.AI_INSIGHTS)).thenReturn(3);
 
         var result = service.getFeatureAccess("user@example.com");
 
@@ -169,8 +180,11 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getAiWorkoutPlanner());
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getAdvancedAnalytics());
-        assertEquals(false, result.getAdFree());
+        assertEquals(true, result.getAdFree());
         assertEquals(true, result.getCustomFoodLibrary());
+        assertEquals(3, result.getAiInsightsCreditCost());
+        assertEquals(3, result.getAiCreditCosts().get(SubscriptionFeature.AI_INSIGHTS));
+        assertEquals(1, result.getAiCreditCosts().get(SubscriptionFeature.AI_WORKOUT_PLANNER));
         assertEquals(10, result.getAiRemainingThisPeriod());
     }
 
@@ -218,7 +232,8 @@ class SubscriptionServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
         when(userSubscriptionEntitlementRepository.countBySubscription(entity)).thenReturn(1L);
-        when(userSubscriptionEntitlementRepository.existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), any()))
+        when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any())).thenReturn(true);
+        when(userSubscriptionEntitlementRepository.existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), eq(SubscriptionPlan.PLUS), any()))
                 .thenReturn(false);
 
         assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
@@ -254,7 +269,7 @@ class SubscriptionServiceImplTest {
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.assertFeatureAccess("user@example.com", SubscriptionFeature.AD_FREE));
+                () -> service.assertFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
     }
 
     @Test
@@ -273,6 +288,45 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getUpgradeRecommended());
     }
 
+    @Test
+    void consumeAiQuota_whenAddonAvailable_consumesAddonBeforeBaseQuota() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        entity.setAiAddonQuota(1);
+        entity.setAiAddonUsed(0);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(1));
+
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionDto result = service.consumeAiQuota("user@example.com");
+
+        assertEquals(1, result.getAiUsedThisPeriod());
+        assertEquals(1, result.getAiAddonUsed());
+        assertEquals(15, result.getAiBaseRemainingThisPeriod());
+        assertEquals(0, result.getAiAddonRemainingThisPeriod());
+        assertEquals(15, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
+    void consumeAiQuota_withEightCreditCost_consumesThreeAddonAndFiveBaseCredits() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        entity.setAiAddonQuota(3);
+        entity.setAiAddonUsed(0);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(1));
+
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionDto result = service.consumeAiQuota("user@example.com", 8);
+
+        assertEquals(8, result.getAiUsedThisPeriod());
+        assertEquals(3, result.getAiAddonUsed());
+        assertEquals(10, result.getAiBaseRemainingThisPeriod());
+        assertEquals(0, result.getAiAddonRemainingThisPeriod());
+        assertEquals(10, result.getAiRemainingThisPeriod());
+    }
     @Test
     void consumeAiQuota_withConfiguredAmount_incrementsUsageAtomically() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 5);
@@ -316,6 +370,7 @@ class SubscriptionServiceImplTest {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 100);
         entity.setAiAddonQuota(50);
         entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(6));
+        entity.setAiAddonUsed(0);
 
         when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
@@ -324,6 +379,7 @@ class SubscriptionServiceImplTest {
         SubscriptionDto result = service.consumeAiQuota("user@example.com");
 
         assertEquals(101, result.getAiUsedThisPeriod());
+        assertEquals(1, result.getAiAddonUsed());
         assertEquals(0, result.getAiBaseRemainingThisPeriod());
         assertEquals(49, result.getAiAddonRemainingThisPeriod());
         assertEquals(49, result.getAiRemainingThisPeriod());
@@ -361,6 +417,26 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void refundConsumedAiQuota_whenAddonWasConsumed_restoresAddonBeforeBaseQuota() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 1);
+        entity.setAiAddonQuota(1);
+        entity.setAiAddonUsed(1);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(1));
+
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionDto result = service.refundConsumedAiQuota(1L, 1);
+
+        assertEquals(0, result.getAiUsedThisPeriod());
+        assertEquals(0, result.getAiAddonUsed());
+        assertEquals(15, result.getAiBaseRemainingThisPeriod());
+        assertEquals(1, result.getAiAddonRemainingThisPeriod());
+        assertEquals(16, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
     void refundConsumedAiQuota_whenAmountExceedsUsedQuota_rejects() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 2);
 
@@ -385,7 +461,7 @@ class SubscriptionServiceImplTest {
         assertEquals(SubscriptionPlan.PRO, result.getPlanType());
         assertEquals(100, result.getAiMonthlyQuota());
         assertEquals(70, result.getAiAddonQuota());
-        assertEquals(java.time.LocalDate.now().plusDays(6), result.getAiAddonQuotaExpiresAt());
+        assertEquals(java.time.LocalDate.now().plusDays(7), result.getAiAddonQuotaExpiresAt());
         assertEquals(170, result.getAiTotalQuotaThisPeriod());
         assertEquals(70, result.getAiRemainingThisPeriod());
     }
@@ -413,10 +489,29 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void getCurrentSubscription_whenConsumedAddonExpires_doesNotChargeBaseQuota() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 6);
+        entity.setAiAddonQuota(10);
+        entity.setAiAddonUsed(6);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().minusDays(1));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        SubscriptionDto result = service.getCurrentSubscription("user@example.com");
+
+        assertEquals(0, result.getAiAddonQuota());
+        assertEquals(0, result.getAiAddonUsed());
+        assertEquals(0, result.getAiUsedThisPeriod());
+        assertEquals(100, result.getAiBaseRemainingThisPeriod());
+    }
+
+    @Test
     void consumeAiQuota_whenBasePeriodResets_keepsUnexpiredOneOffAddonQuota() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 100);
         entity.setAiAddonQuota(15);
         entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(5));
+        entity.setAiAddonUsed(10);
         entity.setAiQuotaPeriodStartDate(java.time.LocalDate.now().minusMonths(1));
         entity.setAiQuotaPeriodEndDate(java.time.LocalDate.now().minusDays(1));
 
@@ -428,8 +523,9 @@ class SubscriptionServiceImplTest {
 
         assertEquals(15, result.getAiAddonQuota());
         assertEquals(java.time.LocalDate.now().plusDays(5), result.getAiAddonQuotaExpiresAt());
-        assertEquals(1, result.getAiUsedThisPeriod());
-        assertEquals(114, result.getAiRemainingThisPeriod());
+        assertEquals(11, result.getAiUsedThisPeriod());
+        assertEquals(11, result.getAiAddonUsed());
+        assertEquals(104, result.getAiRemainingThisPeriod());
     }
 
     @Test
@@ -469,6 +565,60 @@ class SubscriptionServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> service.updateUserSubscription(1L, request));
     }
 
+    @Test
+    void updateUserSubscription_whenDowngradedToFree_revokesActiveSnapshotsImmediately() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 10);
+        entity.setId(7L);
+        entity.setAiAddonQuota(15);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(5));
+        UserSubscriptionEntitlementEntity entitlement = new UserSubscriptionEntitlementEntity();
+        entitlement.setSubscription(entity);
+        entitlement.setUser(user);
+        entitlement.setFeature(SubscriptionFeature.AD_FREE);
+        entitlement.setEnabled(true);
+        entitlement.setSourcePlan(SubscriptionPlan.PRO);
+        entitlement.setValidFrom(java.time.LocalDate.now().minusDays(10));
+        entitlement.setValidUntil(null);
+
+        AdminSubscriptionUpdateRequestDto request = new AdminSubscriptionUpdateRequestDto();
+        request.setPlanType(SubscriptionPlan.FREE);
+        request.setStatus(SubscriptionStatus.ACTIVE);
+        request.setBillingPeriod(BillingPeriod.NONE);
+        request.setStartDate(java.time.LocalDate.now());
+        request.setAiMonthlyQuota(0);
+        request.setAiUsedThisPeriod(10);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userSubscriptionEntitlementRepository.findBySubscription(entity)).thenReturn(List.of(entitlement));
+
+        SubscriptionDto result = service.updateUserSubscription(1L, request);
+
+        assertEquals(SubscriptionPlan.FREE, result.getPlanType());
+        assertEquals(0, result.getAiMonthlyQuota());
+        assertEquals(0, result.getAiUsedThisPeriod());
+        assertEquals(0, result.getAiAddonQuota());
+        assertNull(result.getAiAddonQuotaExpiresAt());
+        assertEquals(false, entitlement.getEnabled());
+        assertEquals(java.time.LocalDate.now().minusDays(1), entitlement.getValidUntil());
+        verify(userSubscriptionEntitlementRepository).save(entitlement);
+    }
+
+    @Test
+    void getFeatureAccess_whenOnlyInactiveSnapshotsExist_usesCurrentPlanMatrix() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        entity.setId(7L);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any())).thenReturn(false);
+
+        var result = service.getFeatureAccess("user@example.com");
+
+        assertEquals(true, result.getHealthIntegration());
+        verify(userSubscriptionEntitlementRepository, never()).existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), eq(SubscriptionPlan.PLUS), any());
+    }
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {
         java.time.LocalDate today = java.time.LocalDate.now();
         SubscriptionEntity entity = new SubscriptionEntity();

@@ -39,20 +39,23 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
     private final WorkoutPlanRepository workoutPlanRepository;
     private final MealPlanService mealPlanService;
     private final SubscriptionService subscriptionService;
+    private final AiCreditPricingService aiCreditPricingService;
     private final UserNutritionPreferenceService nutritionPreferenceService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
 
     @Override
     public AiNutritionPlanCreditEstimateDto estimateCreditCost(
-            String email, int dayCount, NutritionPlanGenerationMode generationMode) {
-        nutritionPlanDurationMultiplier(dayCount);
+            String email, int dayCount, int mealsPerDay,
+            NutritionPlanGenerationMode generationMode) {
         if (generationMode == null) {
             throw new IllegalArgumentException("Nutrition-plan generation mode is required.");
         }
-        int baseCreditCost = subscriptionService.resolveAiCreditCost(
-                email, SubscriptionFeature.AI_NUTRITION_PLAN);
-        return nutritionPlanCreditEstimate(baseCreditCost, dayCount, generationMode);
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_NUTRITION_PLAN);
+        AiCreditCostEstimateDto estimate = aiCreditPricingService.estimateNutrition(
+                dayCount, mealsPerDay,
+                generationMode == NutritionPlanGenerationMode.WORKOUT_ALIGNED);
+        return nutritionPlanCreditEstimate(dayCount, mealsPerDay, generationMode, estimate);
     }
 
     @Override
@@ -62,10 +65,11 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         String key = normalizeKey(idempotencyKey);
         providerConfigurationValidator.validateConfiguredForDraft();
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_NUTRITION_PLAN);
-        int creditCost = nutritionPlanCreditCost(
-                subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_NUTRITION_PLAN),
+        int creditCost = aiCreditPricingService.estimateNutrition(
                 request.getDayCount(),
-                request.getGenerationMode());
+                request.getMealsPerDay(),
+                request.getGenerationMode() == NutritionPlanGenerationMode.WORKOUT_ALIGNED)
+                .getTotalCreditCost();
         UserEntity user = user(email);
 
         AiNutritionPlanDraftResponseDto previous = existing(user, key);
@@ -111,6 +115,9 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             AiNutritionPlanDraftResponseDto response = createValidatedProviderDraft(request, target, history);
             SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
             charged = true;
+            response.setQuotaConsumedAmount(creditCost);
+            response.setAiBaseRemainingThisPeriod(quota.getAiBaseRemainingThisPeriod());
+            response.setAiAddonRemainingThisPeriod(quota.getAiAddonRemainingThisPeriod());
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             copyUsage(response, history);
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
@@ -147,7 +154,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         if (request == null || request.getDraft() == null) {
             throw new IllegalArgumentException("Reviewed nutrition-plan draft is required.");
         }
-        UserEntity user = user(email);
+        UserEntity user = userForUpdate(email);
         AiRequestHistoryEntity history = ownedHistory(user, requestId);
         if (history.getStatus() == AiRequestStatus.CONFIRMED) {
             Long planId = confirmedPlanId(history);
@@ -184,6 +191,11 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         plan.setSourceAiRequest(history);
         plan.setSchemaVersion(reviewed.getSchemaVersion());
         plan.setPromptVersion(history.getPromptVersion());
+        mealPlanRepository.findByUserAndStatus(user, MealPlanStatus.ACTIVE)
+                .stream()
+                .filter(active -> !active.getId().equals(plan.getId()))
+                .forEach(active -> active.setStatus(MealPlanStatus.DRAFT));
+        plan.setStatus(MealPlanStatus.ACTIVE);
         plan.getItems().forEach(item -> {
             item.setSourceAiRequest(history);
             item.setSchemaVersion(reviewed.getSchemaVersion());
@@ -309,16 +321,16 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         mergeDailyMicronutrients(day.getTotalNutrition(), day.getDailyMicronutrients());
         validateDailyTarget(response, day.getTotalNutrition().getCalories(), target.getCalories(),
                 Math.max(100.0, target.getCalories() * 0.15),
-                Math.max(150.0, target.getCalories() * 0.25), "calories", date);
+                Math.max(150.0, target.getCalories() * 0.25), "calories", date, true);
         validateDailyTarget(response, day.getTotalNutrition().getProtein(), target.getProtein(),
                 Math.max(20.0, target.getProtein() * 0.20),
-                Math.max(30.0, target.getProtein() * 0.30), "protein", date);
+                Math.max(40.0, target.getProtein() * 0.45), "protein", date, false);
         validateDailyTarget(response, day.getTotalNutrition().getCarbs(), target.getCarbs(),
                 Math.max(30.0, target.getCarbs() * 0.20),
-                Math.max(45.0, target.getCarbs() * 0.30), "carbohydrates", date);
+                Math.max(70.0, target.getCarbs() * 0.45), "carbohydrates", date, false);
         validateDailyTarget(response, day.getTotalNutrition().getFat(), target.getFat(),
                 Math.max(15.0, target.getFat() * 0.20),
-                Math.max(20.0, target.getFat() * 0.30), "fat", date);
+                Math.max(30.0, target.getFat() * 0.60), "fat", date, false);
     }
 
     private AiNutritionPlanDraftResponseDto createValidatedProviderDraft(
@@ -567,10 +579,10 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
     private void validateDailyTarget(AiNutritionPlanDraftResponseDto response,
                                      Double actual, Double target,
                                      double preferredTolerance, double hardTolerance,
-                                     String nutrient, LocalDate date) {
+                                     String nutrient, LocalDate date, boolean failWhenOutsideHardRange) {
         double difference = actual == null || target == null
                 ? Double.POSITIVE_INFINITY : Math.abs(actual - target);
-        if (difference > hardTolerance) {
+        if (difference > hardTolerance && failWhenOutsideHardRange) {
             double minimum = target == null ? 0 : Math.max(0, target - hardTolerance);
             double maximum = target == null ? 0 : target + hardTolerance;
             throw new IllegalArgumentException(String.format(
@@ -877,52 +889,23 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         }
     }
 
-    private int nutritionPlanCreditCost(
-            int baseCreditCost,
-            int dayCount,
-            NutritionPlanGenerationMode generationMode) {
-        return nutritionPlanCreditEstimate(baseCreditCost, dayCount, generationMode)
-                .getTotalCreditCost();
-    }
-
     private AiNutritionPlanCreditEstimateDto nutritionPlanCreditEstimate(
-            int baseCreditCost,
             int dayCount,
-            NutritionPlanGenerationMode generationMode) {
-        if (baseCreditCost < 1 || baseCreditCost > 50) {
-            throw new IllegalStateException("Configured AI nutrition-plan credit cost is invalid.");
-        }
-        if (generationMode == null) {
-            throw new IllegalArgumentException("Nutrition-plan generation mode is required.");
-        }
-        int durationMultiplier = nutritionPlanDurationMultiplier(dayCount);
-        int durationCost = Math.multiplyExact(baseCreditCost, durationMultiplier);
-        boolean workoutContextIncluded =
-                generationMode == NutritionPlanGenerationMode.WORKOUT_ALIGNED;
-        int workoutContextCreditCost = workoutContextIncluded ? baseCreditCost : 0;
-        int totalCreditCost = Math.min(
-                50, Math.addExact(durationCost, workoutContextCreditCost));
+            int mealsPerDay,
+            NutritionPlanGenerationMode generationMode,
+            AiCreditCostEstimateDto estimate) {
         return new AiNutritionPlanCreditEstimateDto(
                 dayCount,
+                mealsPerDay,
                 generationMode,
-                baseCreditCost,
-                durationMultiplier,
-                workoutContextIncluded,
-                workoutContextCreditCost,
-                totalCreditCost);
-    }
-
-    private int nutritionPlanDurationMultiplier(int dayCount) {
-        if (dayCount < 1 || dayCount > 7) {
-            throw new IllegalArgumentException("Nutrition-plan day count must be between 1 and 7.");
-        }
-        if (dayCount == 1) {
-            return 1;
-        }
-        if (dayCount <= 3) {
-            return 2;
-        }
-        return 5;
+                estimate.getBaseCreditCost(),
+                estimate.getComplexityUnits(),
+                estimate.getIncludedUnits(),
+                estimate.getUnitsPerAdditionalCredit(),
+                estimate.getAdditionalCredits(),
+                estimate.getContextIncluded(),
+                estimate.getContextSurcharge(),
+                estimate.getTotalCreditCost());
     }
 
     private String normalizeKey(String value) {
@@ -1060,6 +1043,11 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
 
     private UserEntity user(String email) {
         return userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+    }
+
+    private UserEntity userForUpdate(String email) {
+        return userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 

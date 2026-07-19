@@ -51,7 +51,7 @@ class AiWorkoutPlanServiceImplTest {
         service = new AiWorkoutPlanServiceImpl(
                 new AiProperties(), List.of(), mock(AiRequestHistoryRepository.class),
                 userRepository, mock(ExerciseItemRepository.class), workoutPlanRepository,
-                mock(SubscriptionService.class), objectMapper,
+                mock(SubscriptionService.class), mock(AiCreditPricingService.class), objectMapper,
                 mock(AiProviderConfigurationValidator.class), userTimeZoneSupport);
         user = new UserEntity();
         user.setId(7L);

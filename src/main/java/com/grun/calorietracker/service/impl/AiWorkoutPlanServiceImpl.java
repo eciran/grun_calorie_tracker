@@ -4,12 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiWorkoutPlanConfirmRequestDto;
+import com.grun.calorietracker.dto.AiWorkoutPlanCreditEstimateDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDayDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanExerciseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
+import com.grun.calorietracker.dto.AiCreditCostEstimateDto;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
 import com.grun.calorietracker.dto.WorkoutPlanScheduleSessionRequestDto;
 import com.grun.calorietracker.dto.WorkoutPlanScheduleUpdateRequestDto;
@@ -33,6 +35,7 @@ import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiWorkoutPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.AiCreditPricingService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
@@ -64,9 +67,27 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     private final ExerciseItemRepository exerciseItemRepository;
     private final WorkoutPlanRepository workoutPlanRepository;
     private final SubscriptionService subscriptionService;
+    private final AiCreditPricingService aiCreditPricingService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
     private final UserTimeZoneSupport userTimeZoneSupport;
+
+    @Override
+    public AiWorkoutPlanCreditEstimateDto estimateCreditCost(
+            String email, int daysPerWeek, int minutesPerSession) {
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_WORKOUT_PLANNER);
+        AiCreditCostEstimateDto estimate = aiCreditPricingService.estimateWorkout(
+                daysPerWeek, minutesPerSession);
+        return new AiWorkoutPlanCreditEstimateDto(
+                daysPerWeek,
+                minutesPerSession,
+                estimate.getComplexityUnits(),
+                estimate.getBaseCreditCost(),
+                estimate.getIncludedUnits(),
+                estimate.getUnitsPerAdditionalCredit(),
+                estimate.getAdditionalCredits(),
+                estimate.getTotalCreditCost());
+    }
 
     @Override
     @Transactional
@@ -90,28 +111,34 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        int creditCost = aiCreditPricingService.estimateWorkout(
+                request.getDaysPerWeek(), request.getMinutesPerSession())
+                .getTotalCreditCost();
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
+        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
         try {
             AiWorkoutPlanDraftResponseDto response = normalize(activeProvider().createWorkoutPlanDraft(request));
+            response.setQuotaConsumedAmount(creditCost);
+            response.setAiBaseRemainingThisPeriod(quota.getAiBaseRemainingThisPeriod());
+            response.setAiAddonRemainingThisPeriod(quota.getAiAddonRemainingThisPeriod());
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             copyUsageMetadata(response, history);
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
             history.setQuotaConsumed(true);
-            history.setQuotaConsumedAmount(1);
+            history.setQuotaConsumedAmount(creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user);
+            boolean refunded = refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(AiRequestType.AI_WORKOUT_PLAN, true)));
             history.setQuotaConsumed(!refunded);
-            history.setQuotaConsumedAmount(refunded ? 0 : 1);
+            history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             aiRequestHistoryRepository.save(history);
             throw ex;
@@ -189,6 +216,15 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     public List<WorkoutPlanDto> listActivePlans(String email) {
         UserEntity user = getUser(email);
         return workoutPlanRepository.findByUserAndActiveTrueOrderByCreatedAtDesc(user).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WorkoutPlanDto> listAllPlans(String email) {
+        UserEntity user = getUser(email);
+        return workoutPlanRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -579,9 +615,9 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user) {
+    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), 1);
+            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
             return true;
         } catch (RuntimeException ignored) {
             return false;

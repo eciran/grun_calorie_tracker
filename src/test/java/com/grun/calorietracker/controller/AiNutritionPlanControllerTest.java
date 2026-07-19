@@ -40,37 +40,45 @@ class AiNutritionPlanControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void estimateCreditCost_returnsBackendAuthoritativeWeightedCost() throws Exception {
-        when(service.estimateCreditCost("user@example.com", 7, NutritionPlanGenerationMode.GENERAL))
-                .thenReturn(new AiNutritionPlanCreditEstimateDto(7, NutritionPlanGenerationMode.GENERAL, 3, 5, false, 0, 15));
+        when(service.estimateCreditCost("user@example.com", 7, 4, NutritionPlanGenerationMode.GENERAL))
+                .thenReturn(new AiNutritionPlanCreditEstimateDto(
+                        7, 4, NutritionPlanGenerationMode.GENERAL, 3, 28, 4, 8, 3, false, 0, 6));
 
         mockMvc.perform(get("/api/v1/ai/nutrition-plans/credit-cost")
-                        .param("dayCount", "7"))
+                        .param("dayCount", "7")
+                        .param("mealsPerDay", "4"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dayCount").value(7))
                 .andExpect(jsonPath("$.generationMode").value("GENERAL"))
                 .andExpect(jsonPath("$.baseCreditCost").value(3))
-                .andExpect(jsonPath("$.durationMultiplier").value(5))
+                .andExpect(jsonPath("$.mealsPerDay").value(4))
+                .andExpect(jsonPath("$.totalMealSlots").value(28))
+                .andExpect(jsonPath("$.includedMealSlots").value(4))
+                .andExpect(jsonPath("$.mealSlotsPerAdditionalCredit").value(8))
+                .andExpect(jsonPath("$.additionalCredits").value(3))
                 .andExpect(jsonPath("$.workoutContextIncluded").value(false))
                 .andExpect(jsonPath("$.workoutContextCreditCost").value(0))
-                .andExpect(jsonPath("$.totalCreditCost").value(15));
+                .andExpect(jsonPath("$.totalCreditCost").value(6));
     }
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void estimateCreditCost_forWorkoutAlignedPlan_includesWorkoutContextSurcharge() throws Exception {
-        when(service.estimateCreditCost("user@example.com", 7, NutritionPlanGenerationMode.WORKOUT_ALIGNED))
+        when(service.estimateCreditCost("user@example.com", 7, 4, NutritionPlanGenerationMode.WORKOUT_ALIGNED))
                 .thenReturn(new AiNutritionPlanCreditEstimateDto(
-                        7, NutritionPlanGenerationMode.WORKOUT_ALIGNED, 3, 5, true, 3, 18));
+                        7, 4, NutritionPlanGenerationMode.WORKOUT_ALIGNED, 3, 28, 4, 8, 3, true, 3, 9));
 
         mockMvc.perform(get("/api/v1/ai/nutrition-plans/credit-cost")
                         .param("dayCount", "7")
+                        .param("mealsPerDay", "4")
                         .param("generationMode", "WORKOUT_ALIGNED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.generationMode").value("WORKOUT_ALIGNED"))
                 .andExpect(jsonPath("$.workoutContextIncluded").value(true))
                 .andExpect(jsonPath("$.workoutContextCreditCost").value(3))
-                .andExpect(jsonPath("$.totalCreditCost").value(18));
+                .andExpect(jsonPath("$.totalCreditCost").value(9));
     }
+
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void generate_returnsDraftAndForwardsIdempotencyKey() throws Exception {
@@ -82,6 +90,9 @@ class AiNutritionPlanControllerTest {
         response.setModel("log-nutrition-v1");
         response.setGenerationMode(NutritionPlanGenerationMode.GENERAL);
         response.setName("Balanced Nutrition Plan");
+        response.setQuotaConsumedAmount(8);
+        response.setAiBaseRemainingThisPeriod(8);
+        response.setAiAddonRemainingThisPeriod(0);
         response.setAiRemainingThisPeriod(8);
         when(service.createDraft(eq("user@example.com"), eq("mobile-plan-001"), any()))
                 .thenReturn(response);
@@ -106,6 +117,9 @@ class AiNutritionPlanControllerTest {
                 .andExpect(jsonPath("$.requestId").value(91))
                 .andExpect(jsonPath("$.requestType").value("AI_NUTRITION_PLAN"))
                 .andExpect(jsonPath("$.generationMode").value("GENERAL"))
+                .andExpect(jsonPath("$.quotaConsumedAmount").value(8))
+                .andExpect(jsonPath("$.aiBaseRemainingThisPeriod").value(8))
+                .andExpect(jsonPath("$.aiAddonRemainingThisPeriod").value(0))
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(8));
     }
 

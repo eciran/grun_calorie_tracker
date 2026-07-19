@@ -135,7 +135,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                                 + "trustedDailyTarget is authoritative. Dietary preferences may change food selection but must never override its numeric targets. "
                                 + targetGuardrails
                                 + "Each daily total must stay within these backend validation limits: calories 15% or 100 kcal, "
-                                + "protein 20% or 20 g, carbohydrates 20% or 30 g, and fat 20% or 15 g, whichever is larger. "
+                                + "protein 20% or 20 g preferred / 45% or 40 g hard, carbohydrates 20% or 30 g preferred / 45% or 70 g hard, and fat 20% or 15 g preferred / 60% or 30 g hard. "
                                 + "If trustedValidationFeedback is present, the previous output was rejected. Regenerate the complete plan "
                                 + "and correct the stated day and numeric value so it falls inside the exact allowedRange. "
                                 + "Never claim medical treatment, never invent allergies, and keep cooking detail short. "
@@ -163,9 +163,9 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         MealPlanNutritionSnapshotDto target = request.getTrustedDailyTarget();
         return "Backend-computed daily target guardrails: "
                 + targetRange("calories", target.getCalories(), 100.0, 0.15, 150.0, 0.25)
-                + targetRange("protein", target.getProtein(), 20.0, 0.20, 30.0, 0.30)
-                + targetRange("carbohydrates", target.getCarbs(), 30.0, 0.20, 45.0, 0.30)
-                + targetRange("fat", target.getFat(), 15.0, 0.20, 20.0, 0.30)
+                + targetRange("protein", target.getProtein(), 20.0, 0.20, 40.0, 0.45)
+                + targetRange("carbohydrates", target.getCarbs(), 30.0, 0.20, 70.0, 0.45)
+                + targetRange("fat", target.getFat(), 15.0, 0.20, 30.0, 0.60)
                 + "Build item portions so their computed daily sums stay inside every preferred range. "
                 + "A value outside a hard range is unusable and will be rejected. ";
     }

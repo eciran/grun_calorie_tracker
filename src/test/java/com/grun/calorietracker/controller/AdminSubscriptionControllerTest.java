@@ -81,6 +81,30 @@ class AdminSubscriptionControllerTest {
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getUserSubscription_whenAdmin_returnsRenewalAndQuotaState() throws Exception {
+        SubscriptionDto response = new SubscriptionDto();
+        response.setPlanType(SubscriptionPlan.PLUS);
+        response.setAutoRenew(true);
+        response.setEndDate(java.time.LocalDate.of(2026, 8, 18));
+        response.setQuotaResetDate(java.time.LocalDate.of(2026, 8, 19));
+        response.setAiMonthlyQuota(50);
+        response.setAiAddonQuota(1);
+        response.setAiAddonQuotaExpiresAt(java.time.LocalDate.of(2026, 7, 18));
+
+        when(subscriptionService.getUserSubscriptionForAdmin(1L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/subscriptions/users/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planType").value("PLUS"))
+                .andExpect(jsonPath("$.autoRenew").value(true))
+                .andExpect(jsonPath("$.aiMonthlyQuota").value(50))
+                .andExpect(jsonPath("$.aiAddonQuota").value(1))
+                .andExpect(jsonPath("$.aiAddonQuotaExpiresAt").value("2026-07-18"));
+
+        verify(subscriptionService).getUserSubscriptionForAdmin(1L);
+    }
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void getUserFeatureAccess_whenAdmin_returnsResolvedAccess() throws Exception {
         SubscriptionFeatureAccessDto response = new SubscriptionFeatureAccessDto();
         response.setPlanType(SubscriptionPlan.FREE);

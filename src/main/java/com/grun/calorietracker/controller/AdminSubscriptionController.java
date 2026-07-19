@@ -51,6 +51,25 @@ public class AdminSubscriptionController {
     private final SubscriptionService subscriptionService;
     private final AdminAuditService adminAuditService;
 
+    @GetMapping("/users/{userId}")
+    @Operation(
+            summary = "Get a user's subscription",
+            description = "Returns the complete subscription, renewal, and AI quota state used by the admin assignment form."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Subscription state returned.",
+                    content = @Content(schema = @Schema(implementation = SubscriptionDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "User could not be found.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<SubscriptionDto> getUserSubscription(
+            @Parameter(description = "User id.", example = "1") @PathVariable Long userId) {
+        return ResponseEntity.ok(subscriptionService.getUserSubscriptionForAdmin(userId));
+    }
     @PatchMapping("/users/{userId}")
     @Operation(
             summary = "Update a user's subscription",

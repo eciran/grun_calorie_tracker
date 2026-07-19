@@ -46,6 +46,8 @@ public class SubscriptionEntity {
 
     private Integer aiAddonQuota;
 
+    private Integer aiAddonUsed;
+
     private LocalDate aiAddonQuotaExpiresAt;
 
     private Integer aiUsedThisPeriod;

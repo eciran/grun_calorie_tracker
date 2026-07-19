@@ -48,9 +48,10 @@ public class AiNutritionPlanController {
     public ResponseEntity<AiNutritionPlanCreditEstimateDto> estimateCreditCost(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails user,
             @RequestParam int dayCount,
+            @RequestParam(defaultValue = "3") int mealsPerDay,
             @RequestParam(defaultValue = "GENERAL") NutritionPlanGenerationMode generationMode) {
         return ResponseEntity.ok(service.estimateCreditCost(
-                user.getUsername(), dayCount, generationMode));
+                user.getUsername(), dayCount, mealsPerDay, generationMode));
     }
 
     @PostMapping("/generate")

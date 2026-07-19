@@ -42,6 +42,7 @@ class AiNutritionPlanServiceImplTest {
     private WorkoutPlanRepository workoutPlanRepository;
     private MealPlanService mealPlanService;
     private SubscriptionService subscriptionService;
+    private AiCreditPricingService aiCreditPricingService;
     private UserNutritionPreferenceService nutritionPreferenceService;
     private ObjectMapper objectMapper;
     private AiNutritionPlanServiceImpl service;
@@ -62,60 +63,83 @@ class AiNutritionPlanServiceImplTest {
         workoutPlanRepository = mock(WorkoutPlanRepository.class);
         mealPlanService = mock(MealPlanService.class);
         subscriptionService = mock(SubscriptionService.class);
+        aiCreditPricingService = mock(AiCreditPricingService.class);
         nutritionPreferenceService = mock(UserNutritionPreferenceService.class);
         objectMapper = new ObjectMapper().findAndRegisterModules();
         service = new AiNutritionPlanServiceImpl(
                 properties, List.of(provider), historyRepository, userRepository,
                 goalRepository, mealPlanRepository, workoutPlanRepository, mealPlanService,
-                subscriptionService, nutritionPreferenceService, objectMapper,
+                subscriptionService, aiCreditPricingService, nutritionPreferenceService, objectMapper,
                 new AiProviderConfigurationValidatorImpl(properties));
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("user@example.com");
         when(subscriptionService.resolveAiCreditCost(
                 anyString(), eq(SubscriptionFeature.AI_NUTRITION_PLAN))).thenReturn(1);
+        when(aiCreditPricingService.estimateNutrition(anyInt(), anyInt(), anyBoolean()))
+                .thenAnswer(invocation -> {
+                    boolean workoutAligned = invocation.getArgument(2);
+                    return new AiCreditCostEstimateDto(SubscriptionFeature.AI_NUTRITION_PLAN,
+                            1, 2, 4, 8, 0, workoutAligned, workoutAligned ? 1 : 0,
+                            workoutAligned ? 2 : 1);
+                });
     }
 
     @Test
-    void estimateCreditCost_usesDurationBandWithoutConsumingQuota() {
-        when(subscriptionService.resolveAiCreditCost(
-                "user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN)).thenReturn(3);
+    void estimateCreditCost_usesMealSlotPricingWithoutConsumingQuota() {
+        when(aiCreditPricingService.estimateNutrition(7, 4, false))
+                .thenReturn(new AiCreditCostEstimateDto(SubscriptionFeature.AI_NUTRITION_PLAN,
+                        3, 28, 4, 8, 3, false, 0, 6));
 
         AiNutritionPlanCreditEstimateDto result =
-                service.estimateCreditCost("user@example.com", 7, NutritionPlanGenerationMode.GENERAL);
+                service.estimateCreditCost("user@example.com", 7, 4, NutritionPlanGenerationMode.GENERAL);
 
         assertEquals(7, result.getDayCount());
         assertEquals(NutritionPlanGenerationMode.GENERAL, result.getGenerationMode());
         assertEquals(3, result.getBaseCreditCost());
-        assertEquals(5, result.getDurationMultiplier());
+        assertEquals(4, result.getMealsPerDay());
+        assertEquals(28, result.getTotalMealSlots());
+        assertEquals(4, result.getIncludedMealSlots());
+        assertEquals(8, result.getMealSlotsPerAdditionalCredit());
+        assertEquals(3, result.getAdditionalCredits());
         assertFalse(result.getWorkoutContextIncluded());
         assertEquals(0, result.getWorkoutContextCreditCost());
-        assertEquals(15, result.getTotalCreditCost());
+        assertEquals(6, result.getTotalCreditCost());
         verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
         verifyNoInteractions(provider);
     }
 
     @Test
     void estimateCreditCost_workoutAlignedIncludesContextSurcharge() {
-        when(subscriptionService.resolveAiCreditCost(
-                "user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN)).thenReturn(3);
+        when(aiCreditPricingService.estimateNutrition(7, 4, true))
+                .thenReturn(new AiCreditCostEstimateDto(SubscriptionFeature.AI_NUTRITION_PLAN,
+                        3, 28, 4, 8, 3, true, 3, 9));
 
         AiNutritionPlanCreditEstimateDto result = service.estimateCreditCost(
-                "user@example.com", 7, NutritionPlanGenerationMode.WORKOUT_ALIGNED);
+                "user@example.com", 7, 4, NutritionPlanGenerationMode.WORKOUT_ALIGNED);
 
-        assertEquals(5, result.getDurationMultiplier());
+        assertEquals(4, result.getMealsPerDay());
+        assertEquals(28, result.getTotalMealSlots());
+        assertEquals(4, result.getIncludedMealSlots());
+        assertEquals(8, result.getMealSlotsPerAdditionalCredit());
+        assertEquals(3, result.getAdditionalCredits());
         assertTrue(result.getWorkoutContextIncluded());
         assertEquals(3, result.getWorkoutContextCreditCost());
-        assertEquals(18, result.getTotalCreditCost());
+        assertEquals(9, result.getTotalCreditCost());
         verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
     }
 
     @Test
-    void estimateCreditCost_rejectsUnsupportedDurationBeforeSubscriptionLookup() {
-        assertThrows(IllegalArgumentException.class,
-                () -> service.estimateCreditCost("user@example.com", 8, NutritionPlanGenerationMode.GENERAL));
+    void estimateCreditCost_rejectsUnsupportedPricingPolicy() {
+        when(aiCreditPricingService.estimateNutrition(8, 4, false))
+                .thenThrow(new IllegalArgumentException(
+                        "Nutrition-plan day count must be between 1 and 7."));
 
-        verify(subscriptionService, never()).resolveAiCreditCost(anyString(), any());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.estimateCreditCost("user@example.com", 8, 4, NutritionPlanGenerationMode.GENERAL));
+
+        verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN);
+        verify(aiCreditPricingService).estimateNutrition(8, 4, false);
     }
 
     @Test
@@ -159,20 +183,26 @@ class AiNutritionPlanServiceImplTest {
     @Test
     void createDraft_usesAdminBaseCreditCostForOneDayPlan() {
         prepareUserAndGoal();
-        when(subscriptionService.resolveAiCreditCost(
-                "user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN)).thenReturn(3);
+        when(aiCreditPricingService.estimateNutrition(1, 2, false))
+                .thenReturn(new AiCreditCostEstimateDto(SubscriptionFeature.AI_NUTRITION_PLAN,
+                        3, 2, 4, 8, 0, false, 0, 3));
         when(provider.provider()).thenReturn(AiProvider.LOG);
         when(provider.createNutritionPlanDraft(any())).thenReturn(validResponse());
         when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(
                 any(), any(), any())).thenReturn(Optional.empty());
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiBaseRemainingThisPeriod(5);
+        quota.setAiAddonRemainingThisPeriod(2);
         quota.setAiRemainingThisPeriod(7);
         when(subscriptionService.consumeAiQuota("user@example.com", 3)).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-weighted-cost", request());
 
+        assertEquals(3, result.getQuotaConsumedAmount());
+        assertEquals(5, result.getAiBaseRemainingThisPeriod());
+        assertEquals(2, result.getAiAddonRemainingThisPeriod());
         assertEquals(7, result.getAiRemainingThisPeriod());
         verify(subscriptionService).consumeAiQuota("user@example.com", 3);
         ArgumentCaptor<AiRequestHistoryEntity> captor =
@@ -336,37 +366,44 @@ class AiNutritionPlanServiceImplTest {
     }
 
     @Test
-    void createDraft_whenMacrosMissTrustedTargets_doesNotConsumeQuota() {
+    void createDraft_whenMacrosMissTrustedTargets_returnsDraftWithReviewWarning() {
         prepareUserAndGoal();
         when(provider.provider()).thenReturn(AiProvider.LOG);
-        AiNutritionPlanDraftResponseDto invalid = validResponse();
-        invalid.getDays().get(0).getMeals().forEach(meal -> {
+        AiNutritionPlanDraftResponseDto macroMiss = validResponse();
+        macroMiss.getDays().get(0).getMeals().forEach(meal -> {
             meal.getItems().get(0).getNutrition().setProtein(25.0);
             meal.getTotalNutrition().setProtein(25.0);
         });
-        invalid.getDays().get(0).getTotalNutrition().setProtein(50.0);
-        invalid.setPromptTokens(100);
-        invalid.setCompletionTokens(200);
-        invalid.setTotalTokens(300);
-        invalid.setEstimatedCost(0.01);
-        invalid.setCostCurrency("USD");
-        when(provider.createNutritionPlanDraft(any())).thenReturn(invalid);
+        macroMiss.getDays().get(0).getTotalNutrition().setProtein(50.0);
+        macroMiss.setPromptTokens(100);
+        macroMiss.setCompletionTokens(200);
+        macroMiss.setTotalTokens(300);
+        macroMiss.setEstimatedCost(0.01);
+        macroMiss.setCostCurrency("USD");
+        when(provider.createNutritionPlanDraft(any())).thenReturn(macroMiss);
         when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(
                 any(), any(), any())).thenReturn(Optional.empty());
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiRemainingThisPeriod(8);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
 
-        assertThrows(AiProviderException.class, () -> service.createDraft(
-                "user@example.com", "nutrition-key-macro", request()));
+        AiNutritionPlanDraftResponseDto result = service.createDraft(
+                "user@example.com", "nutrition-key-macro", request());
 
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        assertTrue(result.getWarnings().stream().anyMatch(value ->
+                value.contains("protein is slightly outside")));
+        verify(provider, times(1)).createNutritionPlanDraft(any());
+        verify(subscriptionService, times(1)).consumeAiQuota("user@example.com", 1);
         ArgumentCaptor<AiRequestHistoryEntity> historyCaptor =
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(historyCaptor.capture());
-        AiRequestHistoryEntity failed = historyCaptor.getAllValues().get(1);
-        assertEquals(200, failed.getPromptTokens());
-        assertEquals(400, failed.getCompletionTokens());
-        assertEquals(600, failed.getTotalTokens());
-        assertEquals(0.02, failed.getEstimatedCost(), 0.000001);
+        AiRequestHistoryEntity saved = historyCaptor.getAllValues().get(1);
+        assertEquals(AiRequestStatus.DRAFT_CREATED, saved.getStatus());
+        assertEquals(100, saved.getPromptTokens());
+        assertEquals(200, saved.getCompletionTokens());
+        assertEquals(300, saved.getTotalTokens());
+        assertEquals(0.01, saved.getEstimatedCost(), 0.000001);
     }
 
     @Test
@@ -397,15 +434,15 @@ class AiNutritionPlanServiceImplTest {
     }
 
     @Test
-    void createDraft_whenTrustedMacroValidationFails_repairsOnceAndConsumesQuotaOnce() {
+    void createDraft_whenTrustedCalorieValidationFails_repairsOnceAndConsumesQuotaOnce() {
         prepareUserAndGoal();
         when(provider.provider()).thenReturn(AiProvider.LOG);
         AiNutritionPlanDraftResponseDto invalid = validResponse();
         invalid.getDays().get(0).getMeals().forEach(meal -> {
-            meal.getItems().get(0).getNutrition().setProtein(80.0);
-            meal.getTotalNutrition().setProtein(80.0);
+            meal.getItems().get(0).getNutrition().setCalories(1300.0);
+            meal.getTotalNutrition().setCalories(1300.0);
         });
-        invalid.getDays().get(0).getTotalNutrition().setProtein(160.0);
+        invalid.getDays().get(0).getTotalNutrition().setCalories(2600.0);
         invalid.setPromptTokens(100);
         invalid.setCompletionTokens(200);
         invalid.setTotalTokens(300);
@@ -441,10 +478,10 @@ class AiNutritionPlanServiceImplTest {
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(historyCaptor.capture());
         AiRequestHistoryEntity saved = historyCaptor.getAllValues().get(1);
-        assertTrue(saved.getCorrectionSummary().contains("Daily protein"));
-        assertTrue(saved.getCorrectionSummary().contains("actual=160.0"));
-        assertTrue(saved.getCorrectionSummary().contains("target=120.0"));
-        assertTrue(saved.getCorrectionSummary().contains("allowedRange=84.0..156.0"));
+        assertTrue(saved.getCorrectionSummary().contains("Daily calories"));
+        assertTrue(saved.getCorrectionSummary().contains("actual=2600.0"));
+        assertTrue(saved.getCorrectionSummary().contains("target=2000.0"));
+        assertTrue(saved.getCorrectionSummary().contains("allowedRange=1500.0..2500.0"));
         assertTrue(saved.getQuotaConsumed());
         assertEquals(1, saved.getQuotaConsumedAmount());
     }
@@ -624,7 +661,7 @@ class AiNutritionPlanServiceImplTest {
     }
     @Test
     void confirmDraft_rejectsWorkoutScheduleChangedAfterGeneration() throws Exception {
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         LocalDate planDate = LocalDate.now().plusDays(1);
         LocalDateTime originalScheduleTime = LocalDateTime.of(
                 planDate.minusDays(1), LocalTime.of(12, 0));
@@ -654,7 +691,7 @@ class AiNutritionPlanServiceImplTest {
     }
     @Test
     void confirmDraft_createsSnapshotMealPlanWithoutDiaryWrite() throws Exception {
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setId(77L);
         history.setUser(user);
@@ -671,6 +708,12 @@ class AiNutritionPlanServiceImplTest {
         plan.setId(90L);
         plan.setUser(user);
         plan.setItems(new java.util.ArrayList<>(List.of(new MealPlanItemEntity())));
+        MealPlanEntity previousActive = new MealPlanEntity();
+        previousActive.setId(89L);
+        previousActive.setUser(user);
+        previousActive.setStatus(MealPlanStatus.ACTIVE);
+        when(mealPlanRepository.findByUserAndStatus(user, MealPlanStatus.ACTIVE))
+                .thenReturn(List.of(previousActive));
         when(mealPlanRepository.findByIdAndUser(90L, user)).thenReturn(Optional.of(plan));
         when(mealPlanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(mealPlanService.getMealPlan("user@example.com", 90L)).thenReturn(created);
@@ -682,6 +725,8 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(90L, result.getId());
         assertEquals(AiRequestStatus.CONFIRMED, history.getStatus());
         assertEquals(history, plan.getSourceAiRequest());
+        assertEquals(MealPlanStatus.ACTIVE, plan.getStatus());
+        assertEquals(MealPlanStatus.DRAFT, previousActive.getStatus());
         assertEquals(history, plan.getItems().get(0).getSourceAiRequest());
         ArgumentCaptor<MealPlanRequestDto> requestCaptor =
                 ArgumentCaptor.forClass(MealPlanRequestDto.class);
