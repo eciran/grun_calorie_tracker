@@ -53,6 +53,9 @@ class MailFailureAlertServiceImplTest {
         assertThat(notifications).hasSize(2);
         assertThat(notifications.get(0).getType()).isEqualTo("system_alert");
         assertThat(notifications.get(0).getIsRead()).isFalse();
+        assertThat(notifications.get(0).getSeverity()).isEqualTo("CRITICAL");
+        assertThat(notifications.get(0).getSource()).isEqualTo("MAIL_PROVIDER");
+        assertThat(notifications.get(0).getTargetRoute()).isEqualTo("mail");
         assertThat(notifications.get(0).getMessage()).contains("flow=EMAIL_VERIFICATION");
         assertThat(notifications.get(0).getMessage()).contains("recipient=user@example.com");
     }

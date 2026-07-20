@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.MealPlanStatus;
+import com.grun.calorietracker.enums.NutritionPlanGenerationMode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -54,6 +55,24 @@ public class MealPlanEntity {
     @Column(nullable = false, length = 30)
     private MealPlanStatus status = MealPlanStatus.DRAFT;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "generation_mode", length = 30)
+    private NutritionPlanGenerationMode generationMode;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workout_plan_id")
+    private WorkoutPlanEntity workoutPlan;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_ai_request_id")
+    private AiRequestHistoryEntity sourceAiRequest;
+
+    @Column(name = "schema_version", nullable = false, length = 50)
+    private String schemaVersion = "meal_plan_v1";
+
+    @Column(name = "prompt_version", length = 100)
+    private String promptVersion;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -71,6 +90,9 @@ public class MealPlanEntity {
         updatedAt = now;
         if (status == null) {
             status = MealPlanStatus.DRAFT;
+        }
+        if (schemaVersion == null || schemaVersion.isBlank()) {
+            schemaVersion = "meal_plan_v1";
         }
     }
 

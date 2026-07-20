@@ -31,14 +31,49 @@ public class FoodProductQualityIssueTracker {
             boolean unsupportedRegion,
             String actor
     ) {
-        Map<FoodProductQualityIssue, String> issues = deriveFieldIssues(product);
-        if (missingRegion) {
-            issues.put(FoodProductQualityIssue.MISSING_REGION, "Product has no explicit market region and was imported as GLOBAL.");
+        syncIssues(product, deriveImportIssues(product, missingRegion, unsupportedRegion), actor);
+    }
+
+    public void syncImportIssues(List<ImportIssueContext> contexts, String actor) {
+        if (contexts == null || contexts.isEmpty()) {
+            return;
         }
-        if (unsupportedRegion) {
-            issues.put(FoodProductQualityIssue.UNSUPPORTED_REGION, "Product has an unsupported market region and was imported with fallback region.");
+
+        List<Long> productIds = contexts.stream()
+                .map(ImportIssueContext::product)
+                .filter(product -> product != null && product.getId() != null)
+                .map(FoodItemEntity::getId)
+                .distinct()
+                .toList();
+        List<FoodProductQualityIssueEntity> activeIssues = BatchQuerySupport.loadInChunks(
+                productIds,
+                foodProductQualityIssueRepository::findByFoodItemIdInAndResolvedFalse
+        );
+        Map<Long, List<FoodProductQualityIssueEntity>> activeByProductId = new LinkedHashMap<>();
+        activeIssues.forEach(issue -> activeByProductId
+                .computeIfAbsent(issue.getFoodItem().getId(), ignored -> new ArrayList<>())
+                .add(issue));
+
+        String resolvedActor = normalizeActor(actor);
+        LocalDateTime now = LocalDateTime.now();
+        List<FoodProductQualityIssueEntity> changes = new ArrayList<>();
+        for (ImportIssueContext context : contexts) {
+            FoodItemEntity product = context.product();
+            List<FoodProductQualityIssueEntity> productIssues = product == null || product.getId() == null
+                    ? List.of()
+                    : activeByProductId.getOrDefault(product.getId(), List.of());
+            collectChanges(
+                    product,
+                    deriveImportIssues(product, context.missingRegion(), context.unsupportedRegion()),
+                    productIssues,
+                    resolvedActor,
+                    now,
+                    changes
+            );
         }
-        syncIssues(product, issues, actor);
+        if (!changes.isEmpty()) {
+            foodProductQualityIssueRepository.saveAll(changes);
+        }
     }
 
     public Map<FoodProductQualityIssue, String> deriveFieldIssues(FoodItemEntity product) {
@@ -84,6 +119,21 @@ public class FoodProductQualityIssueTracker {
         return issues;
     }
 
+    private Map<FoodProductQualityIssue, String> deriveImportIssues(
+            FoodItemEntity product,
+            boolean missingRegion,
+            boolean unsupportedRegion
+    ) {
+        Map<FoodProductQualityIssue, String> issues = deriveFieldIssues(product);
+        if (missingRegion) {
+            issues.put(FoodProductQualityIssue.MISSING_REGION, "Product has no explicit market region and was imported as GLOBAL.");
+        }
+        if (unsupportedRegion) {
+            issues.put(FoodProductQualityIssue.UNSUPPORTED_REGION, "Product has an unsupported market region and was imported with fallback region.");
+        }
+        return issues;
+    }
+
     private void syncIssues(FoodItemEntity product, Map<FoodProductQualityIssue, String> currentIssues, String actor) {
         if (product == null) {
             return;
@@ -92,13 +142,35 @@ public class FoodProductQualityIssueTracker {
         List<FoodProductQualityIssueEntity> activeIssues = product.getId() == null
                 ? List.of()
                 : foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(product.getId());
+        List<FoodProductQualityIssueEntity> changes = new ArrayList<>();
+        collectChanges(
+                product,
+                currentIssues,
+                activeIssues,
+                normalizeActor(actor),
+                LocalDateTime.now(),
+                changes
+        );
+        if (!changes.isEmpty()) {
+            foodProductQualityIssueRepository.saveAll(changes);
+        }
+    }
+
+    private void collectChanges(
+            FoodItemEntity product,
+            Map<FoodProductQualityIssue, String> currentIssues,
+            List<FoodProductQualityIssueEntity> activeIssues,
+            String resolvedActor,
+            LocalDateTime now,
+            List<FoodProductQualityIssueEntity> changes
+    ) {
+        if (product == null) {
+            return;
+        }
+
         Map<FoodProductQualityIssue, FoodProductQualityIssueEntity> activeByType = new LinkedHashMap<>();
         activeIssues.forEach(issue -> activeByType.put(issue.getIssueType(), issue));
-
-        String resolvedActor = normalizeActor(actor);
         String identifier = resolveIdentifier(product);
-        LocalDateTime now = LocalDateTime.now();
-        List<FoodProductQualityIssueEntity> changes = new ArrayList<>();
 
         currentIssues.forEach((issueType, reason) -> {
             FoodProductQualityIssueEntity issue = activeByType.remove(issueType);
@@ -124,12 +196,14 @@ public class FoodProductQualityIssueTracker {
             issue.setResolvedBy(resolvedActor);
             changes.add(issue);
         });
-
-        if (!changes.isEmpty()) {
-            foodProductQualityIssueRepository.saveAll(changes);
-        }
     }
 
+    public record ImportIssueContext(
+            FoodItemEntity product,
+            boolean missingRegion,
+            boolean unsupportedRegion
+    ) {
+    }
     private boolean requiresBarcode(FoodItemEntity product) {
         return product.getCatalogType() == null || product.getCatalogType() == FoodCatalogType.BRANDED_PRODUCT;
     }

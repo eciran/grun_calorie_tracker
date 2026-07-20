@@ -3,9 +3,11 @@ package com.grun.calorietracker.entity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualitySuggestionSource;
 import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -28,10 +30,13 @@ public class FoodItemEntity {
     private Long id;
 
     private String name;
+    private String displayName;
+    private String shortDisplayName;
 
     private String barcode;
     private String normalizedBarcode;
     private String sourceKey;
+    private String canonicalFoodKey;
     private String brand;
     private String imageUrl;
     private String externalImageUrl;
@@ -57,8 +62,17 @@ public class FoodItemEntity {
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
 
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "food_item_market_regions", joinColumns = @JoinColumn(name = "food_item_id"))
+    @Column(name = "market_region", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Set<MarketRegion> marketRegions = new HashSet<>();
+
     @Enumerated(EnumType.STRING)
     private FoodPreparationState preparationState;
+
+    @Enumerated(EnumType.STRING)
+    private FoodNutritionBasis nutritionBasis;
 
     private Long usageCount;
     private Integer qualityScore;
@@ -68,6 +82,14 @@ public class FoodItemEntity {
     private LocalDateTime lastExternalSyncAt;
     private LocalDateTime lastReviewedAt;
     private String reviewedBy;
+    private LocalDateTime qualityValidatedAt;
+    private String qualityValidatedBy;
+
+    @Enumerated(EnumType.STRING)
+    private ProductQualitySuggestionSource qualityValidationSource;
+
+    @Column(length = 1000)
+    private String qualityValidationNotes;
 
     private Double calories;
     private Double protein;
@@ -115,3 +137,4 @@ public class FoodItemEntity {
     @OneToMany(mappedBy = "foodItem", fetch = FetchType.LAZY)
     private Set<FoodItemSearchAliasEntity> searchAliases = new HashSet<>();
 }
+

@@ -3,8 +3,10 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.GdprDataExportDto;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.entity.UserNutritionPreferenceEntity;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.repository.AppliedPromoRepository;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
@@ -37,6 +39,7 @@ import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserPushTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
@@ -94,6 +97,7 @@ class AccountGdprServiceImplTest {
     @Mock private FailedBarcodeScanRepository failedBarcodeScanRepository;
     @Mock private ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
     @Mock private ProductAnalyticsEventRepository productAnalyticsEventRepository;
+    @Mock private UserNutritionPreferenceRepository userNutritionPreferenceRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     private AccountGdprServiceImpl service;
@@ -139,6 +143,7 @@ class AccountGdprServiceImplTest {
                 failedBarcodeScanRepository,
                 productCorrectionSuggestionRepository,
                 productAnalyticsEventRepository,
+                userNutritionPreferenceRepository,
                 passwordEncoder
         );
 
@@ -179,6 +184,36 @@ class AccountGdprServiceImplTest {
         when(productCorrectionSuggestionRepository.countByUser(user)).thenReturn(2L);
         when(productAnalyticsEventRepository.countByUser(user)).thenReturn(13L);
 
+        com.grun.calorietracker.entity.MealPlanEntity plan = new com.grun.calorietracker.entity.MealPlanEntity();
+        plan.setId(77L);
+        plan.setUser(user);
+        plan.setName("AI week");
+        plan.setStartDate(java.time.LocalDate.of(2026, 7, 20));
+        plan.setEndDate(java.time.LocalDate.of(2026, 7, 26));
+        plan.setGenerationMode(com.grun.calorietracker.enums.NutritionPlanGenerationMode.GENERAL);
+        com.grun.calorietracker.entity.MealPlanItemEntity planItem = new com.grun.calorietracker.entity.MealPlanItemEntity();
+        planItem.setId(88L);
+        planItem.setMealPlan(plan);
+        planItem.setPlanDate(java.time.LocalDate.of(2026, 7, 20));
+        planItem.setMealType("LUNCH");
+        planItem.setItemType(com.grun.calorietracker.enums.MealPlanItemType.AI_SNAPSHOT);
+        planItem.setPortionSize(430.0);
+        planItem.setPortionUnit(com.grun.calorietracker.enums.FoodPortionUnit.GRAM);
+        planItem.setSnapshotName("Chicken Bowl");
+        planItem.setSnapshotCalories(520.0);
+        planItem.setSnapshotProtein(48.0);
+        planItem.setSnapshotCarbs(55.0);
+        planItem.setSnapshotFat(11.0);
+        plan.getItems().add(planItem);
+        when(mealPlanRepository.findByUserOrderByStartDateDesc(user)).thenReturn(java.util.List.of(plan));
+
+        UserNutritionPreferenceEntity preference = new UserNutritionPreferenceEntity();
+        preference.setUser(user);
+        preference.setAllergens(java.util.Set.of(RecipeAllergen.MILK));
+        preference.setExcludedFoods(java.util.List.of("Pork"));
+        preference.setDietaryPreferences(java.util.List.of("High protein"));
+        when(userNutritionPreferenceRepository.findByUser(user)).thenReturn(Optional.of(preference));
+
         GdprDataExportDto dto = service.exportMyData("user@grun.app");
 
         assertEquals("user@grun.app", dto.getEmail());
@@ -194,7 +229,12 @@ class AccountGdprServiceImplTest {
         assertEquals(2L, dto.getProductCorrectionSuggestionCount());
         assertEquals(13L, dto.getProductAnalyticsEventCount());
         assertEquals(100, dto.getSubscription().getAiMonthlyQuota());
+        assertEquals(java.util.Set.of(RecipeAllergen.MILK), dto.getNutritionPreferences().getAllergens());
+        assertEquals(java.util.List.of("Pork"), dto.getNutritionPreferences().getExcludedFoods());
         assertEquals(0, dto.getFoodLogs().size());
+        assertEquals("GENERAL", dto.getMealPlans().get(0).getGenerationMode());
+        assertEquals("Chicken Bowl", dto.getMealPlans().get(0).getItems().get(0).getSnapshotName());
+        assertEquals(520.0, dto.getMealPlans().get(0).getItems().get(0).getSnapshotNutrition().getCalories());
     }
 
     @Test
@@ -219,6 +259,7 @@ class AccountGdprServiceImplTest {
         verify(failedBarcodeScanRepository).deleteByUser(user);
         verify(productCorrectionSuggestionRepository).deleteByUser(user);
         verify(productAnalyticsEventRepository).deleteByUser(user);
+        verify(userNutritionPreferenceRepository).deleteByUser(user);
         verify(subscriptionProviderEventRepository).anonymizeUserReferences(user, "deleted-user:10", "{}");
         verify(aiRequestHistoryRepository).deleteByUser(user);
         verify(subscriptionRepository).deleteByUser(user);

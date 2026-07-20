@@ -44,6 +44,11 @@ public class MailFailureAlertServiceImpl implements MailFailureAlertService {
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(admin);
             notification.setType(ADMIN_ALERT_TYPE);
+            notification.setSeverity("CRITICAL");
+            notification.setSource("MAIL_PROVIDER");
+            notification.setTargetType("MAIL_MONITORING");
+            notification.setTargetId(flowType);
+            notification.setTargetRoute("mail");
             notification.setIsRead(false);
             notification.setMessage(message);
             notification.setCreatedAt(now);

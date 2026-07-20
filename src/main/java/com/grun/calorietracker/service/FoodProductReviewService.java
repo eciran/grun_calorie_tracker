@@ -1,5 +1,8 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
@@ -37,6 +40,12 @@ public interface FoodProductReviewService {
     FoodProductReviewAuditPageDto getProductReviewAudits(Long productId, int page, int size);
     List<FoodProductQualityIssueDto> getProductQualityIssues(Long productId, boolean activeOnly);
     FoodProductDuplicateGroupPageDto getDuplicateProductGroups(int page, int size);
+    default FoodCanonicalDuplicateGroupPageDto getCanonicalDuplicateProductGroups(int page, int size) {
+        return getCanonicalDuplicateProductGroups(page, size, null);
+    }
+    FoodCanonicalDuplicateGroupPageDto getCanonicalDuplicateProductGroups(int page, int size, Boolean resolved);
+    FoodCanonicalResolutionDto resolveCanonicalPrimary(FoodCanonicalResolutionRequestDto request, String reviewedBy);
+    void clearCanonicalResolution(String canonicalFoodKey, String reviewedBy);
     default FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request) {
         return mergeDuplicateProducts(request, null);
     }

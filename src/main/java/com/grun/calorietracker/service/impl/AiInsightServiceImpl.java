@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.DailySummaryDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
@@ -21,6 +22,7 @@ import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.DashboardService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -89,33 +91,39 @@ public class AiInsightServiceImpl implements AiInsightService {
         history.setRequestType(requestType);
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
+        history.setPromptVersion(properties.getPromptVersion());
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(requestType, request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        int creditCost = subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_INSIGHTS);
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email);
+        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
         try {
             AiInsightResponseDto response = requestType == AiRequestType.AI_DAILY_INSIGHT
                     ? activeProvider().createDailyInsight(request)
                     : activeProvider().createWeeklyInsight(request);
             response = normalize(response, requestType, request);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            copyUsageMetadata(response, history);
 
-            history.setStatus(AiRequestStatus.DRAFT_CREATED);
+            history.setStatus(AiRequestStatus.CONFIRMED);
             history.setOutputPayload(writeJson(response));
+            history.setConfirmationPayload(writeJson(Map.of("autoConfirmed", true)));
+            history.setConfirmedAt(LocalDateTime.now());
             history.setQuotaConsumed(true);
-            history.setQuotaConsumedAmount(1);
+            history.setQuotaConsumedAmount(creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user);
+            boolean refunded = refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true)));
             history.setQuotaConsumed(!refunded);
-            history.setQuotaConsumedAmount(refunded ? 0 : 1);
+            history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
             aiRequestHistoryRepository.save(history);
             throw ex;
@@ -129,7 +137,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         response.setRequestType(requestType);
         response.setProvider(properties.getProvider());
         response.setModel(properties.getModel());
-        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setStatus(AiRequestStatus.CONFIRMED);
         if (response.getTitle() == null || response.getTitle().isBlank()) {
             response.setTitle(requestType == AiRequestType.AI_DAILY_INSIGHT ? "Daily insight" : "Weekly insight");
         }
@@ -526,13 +534,28 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
     }
 
+    private void copyUsageMetadata(AiUsageMetadataCarrier response, AiRequestHistoryEntity history) {
+        if (response == null || history == null) {
+            return;
+        }
+        history.setPromptTokens(response.getPromptTokens());
+        history.setCompletionTokens(response.getCompletionTokens());
+        Integer totalTokens = response.getTotalTokens();
+        if (totalTokens == null && (response.getPromptTokens() != null || response.getCompletionTokens() != null)) {
+            totalTokens = (response.getPromptTokens() == null ? 0 : response.getPromptTokens())
+                    + (response.getCompletionTokens() == null ? 0 : response.getCompletionTokens());
+        }
+        history.setTotalTokens(totalTokens);
+        history.setEstimatedCost(response.getEstimatedCost());
+        history.setCostCurrency(response.getCostCurrency());
+    }
     private long elapsedMs(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user) {
+    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), 1);
+            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
             return true;
         } catch (RuntimeException ignored) {
             return false;

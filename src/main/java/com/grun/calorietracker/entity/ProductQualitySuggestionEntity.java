@@ -50,6 +50,9 @@ public class ProductQualitySuggestionEntity {
 
     private Integer confidenceScore;
 
+    @Column(length = 100)
+    private String fieldName;
+
     @Column(length = 1000)
     private String currentValue;
 
@@ -78,3 +81,5 @@ public class ProductQualitySuggestionEntity {
         }
     }
 }
+
+

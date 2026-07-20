@@ -182,27 +182,15 @@ class FoodLogsServiceImplTest {
         ));
         verifyNoInteractions(foodItemRepository);
     }
-    @Test
-    void quickAddCalories_writesCalorieOnlySnapshotsEvenWhenExistingQuickFoodHasMacros() {
-        FoodItemEntity quickItem = new FoodItemEntity();
-        quickItem.setId(9L);
-        quickItem.setName("Quick calories");
-        quickItem.setSourceKey("quick-calorie:user:1");
-        quickItem.setCalories(100.0);
-        quickItem.setProtein(42.0);
-        quickItem.setCarbs(30.0);
-        quickItem.setFat(10.0);
-        quickItem.setVerificationStatus(VerificationStatus.VERIFIED);
-        quickItem.setUsageCount(0L);
-        quickItem.setCreatedByUser(user);
 
+    @Test
+    void quickAddCalories_writesCalorieOnlySnapshotWithoutFoodItem() {
         QuickCalorieLogRequestDto request = new QuickCalorieLogRequestDto();
         request.setCalories(250.0);
         request.setMealType("LUNCH");
         request.setLogDate(LocalDateTime.of(2026, 7, 2, 12, 0));
 
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        when(foodItemRepository.findBySourceKey("quick-calorie:user:1")).thenReturn(Optional.of(quickItem));
         when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
             FoodLogsEntity entity = invocation.getArgument(0);
             entity.setId(90L);
@@ -211,20 +199,25 @@ class FoodLogsServiceImplTest {
 
         FoodLogsDto result = foodLogsService.quickAddCalories("test@test.com", request);
 
+        assertNull(result.getFoodItemId());
+        assertEquals("Quick calories", result.getFoodName());
         assertEquals(250.0, result.getSnapshotCalories());
         assertEquals(0.0, result.getSnapshotProtein());
         assertEquals(0.0, result.getSnapshotCarbs());
         assertEquals(0.0, result.getSnapshotFat());
-        assertEquals(0.0, quickItem.getProtein());
-        assertEquals(0.0, quickItem.getCarbs());
-        assertEquals(0.0, quickItem.getFat());
+        assertEquals(FoodLogSource.QUICK_ADD, result.getSource());
         verify(foodLogsRepository).save(argThat(entity ->
-                entity.getSnapshotCalories().equals(250.0)
+                entity.getFoodItem() == null
+                        && "Quick calories".equals(entity.getDisplayName())
+                        && entity.getSnapshotCalories().equals(250.0)
                         && entity.getSnapshotProtein().equals(0.0)
                         && entity.getSnapshotCarbs().equals(0.0)
                         && entity.getSnapshotFat().equals(0.0)
         ));
+        verify(foodItemRepository, never()).findBySourceKey(any());
+        verify(foodItemRepository, never()).save(any());
     }
+
     @Test
     void testAddFoodLog_whenServingUnitProvided_normalizesUsingFoodServingSize() {
         foodItem.setServingSizeGrams(50.0);
@@ -380,6 +373,33 @@ class FoodLogsServiceImplTest {
         assertEquals(dto.getLogDate(), result.getLogDate());
     }
 
+    @Test
+    void updateFoodLog_whenFoodItemIdMissing_keepsExistingFoodItem() {
+        foodItem.setServingSizeGrams(60.0);
+        FoodLogsEntity existing = new FoodLogsEntity();
+        existing.setId(21L);
+        existing.setUser(user);
+        existing.setFoodItem(foodItem);
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setPortionSize(2.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.of(2026, 7, 16, 10, 30));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(21L, user)).thenReturn(Optional.of(existing));
+        when(foodLogsRepository.save(existing)).thenReturn(existing);
+
+        FoodLogsDto result = foodLogsService.updateFoodLog(21L, dto, "test@test.com");
+
+        assertEquals(1L, result.getFoodItemId());
+        assertEquals("Egg", result.getFoodName());
+        assertEquals(FoodPortionUnit.SERVING, result.getPortionUnit());
+        assertEquals(120.0, result.getNormalizedPortionGrams());
+        assertEquals("SNACK", result.getMealType());
+        verify(foodItemRepository, never()).findById(any());
+    }
     @Test
     void copyMeal_clonesSourceLogsToTargetDate() {
         FoodLogsEntity source = new FoodLogsEntity();

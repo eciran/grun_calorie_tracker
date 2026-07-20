@@ -1,5 +1,12 @@
 package com.grun.calorietracker.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto;
+import com.grun.calorietracker.entity.WorkoutPlanEntity;
+import com.grun.calorietracker.enums.NutritionPlanGenerationMode;
+import com.grun.calorietracker.enums.WorkoutPlanStatus;
+import com.grun.calorietracker.repository.WorkoutPlanRepository;
+
 import com.grun.calorietracker.dto.GroceryListDto;
 import com.grun.calorietracker.dto.MealPlanDto;
 import com.grun.calorietracker.dto.MealPlanDuplicateRequestDto;
@@ -35,17 +42,22 @@ class MealPlanServiceImplTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final FoodItemRepository foodItemRepository = mock(FoodItemRepository.class);
     private final RecipeRepository recipeRepository = mock(RecipeRepository.class);
+    private final WorkoutPlanRepository workoutPlanRepository = mock(WorkoutPlanRepository.class);
     private final MealPlanServiceImpl service = new MealPlanServiceImpl(
             mealPlanRepository,
             userRepository,
             foodItemRepository,
-            recipeRepository
+            recipeRepository,
+            workoutPlanRepository,
+            new ObjectMapper().findAndRegisterModules()
     );
 
     @Test
     void createMealPlan_whenRecipeAndFoodItemsProvided_createsPlan() {
         UserEntity user = user();
         FoodItemEntity yogurt = food(10L, "Greek yogurt");
+        yogurt.setCalories(60.0);
+        yogurt.setProtein(10.0);
         RecipeEntity recipe = recipe(20L, "Chicken bowl", food(11L, "Chicken"), 180.0);
 
         when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
@@ -63,6 +75,8 @@ class MealPlanServiceImplTest {
         assertEquals("High protein week", result.getName());
         assertEquals(2, result.getItems().size());
         assertEquals(MealPlanItemType.FOOD_ITEM, result.getItems().get(0).getItemType());
+        assertEquals(90.0, result.getItems().get(0).getSnapshotNutrition().getCalories());
+        assertEquals(15.0, result.getItems().get(0).getSnapshotNutrition().getProtein());
         assertEquals(MealPlanItemType.RECIPE, result.getItems().get(1).getItemType());
     }
 
@@ -131,6 +145,9 @@ class MealPlanServiceImplTest {
         GroceryListDto result = service.getGroceryList("user@test.com", 99L);
 
         assertEquals(340.0, result.getItems().get(0).getTotalGrams());
+        assertEquals(2.0, result.getItems().get(0).getTotalQuantity());
+        assertEquals(FoodPortionUnit.SERVING, result.getItems().get(0).getQuantityUnit());
+        assertEquals(1, result.getItems().get(0).getPlannedUses());
     }
 
     @Test
@@ -166,6 +183,93 @@ class MealPlanServiceImplTest {
         assertEquals(LocalDate.of(2026, 6, 22), result.getItems().get(0).getPlanDate());
     }
 
+
+    @Test
+    void createMealPlan_whenAiSnapshotHasNoCatalogMatch_persistsSnapshot() {
+        UserEntity user = user();
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.save(any(MealPlanEntity.class))).thenAnswer(invocation -> {
+            MealPlanEntity plan = invocation.getArgument(0);
+            plan.setId(101L);
+            return plan;
+        });
+
+        MealPlanDto result = service.createMealPlan("user@test.com", snapshotRequest());
+
+        assertEquals(MealPlanItemType.AI_SNAPSHOT, result.getItems().get(0).getItemType());
+        assertEquals("Grilled Chicken with Rice", result.getItems().get(0).getSnapshotName());
+        assertEquals(520.0, result.getItems().get(0).getSnapshotNutrition().getCalories());
+        assertEquals(null, result.getItems().get(0).getFoodItemId());
+        assertEquals(null, result.getItems().get(0).getRecipeId());
+    }
+
+    @Test
+    void updateMealPlan_whenAiGeneratedPlanAddsItem_rejects() {
+        UserEntity user = user();
+        MealPlanEntity plan = new MealPlanEntity();
+        plan.setId(101L);
+        plan.setUser(user);
+        plan.setName("AI nutrition week");
+        plan.setStartDate(LocalDate.of(2026, 7, 20));
+        plan.setEndDate(LocalDate.of(2026, 7, 26));
+        plan.getItems().add(new com.grun.calorietracker.entity.MealPlanItemEntity());
+        plan.getItems().get(0).setItemType(MealPlanItemType.AI_SNAPSHOT);
+
+        MealPlanRequestDto update = snapshotRequest();
+        update.setItems(java.util.List.of(update.getItems().get(0), update.getItems().get(0)));
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.findByIdAndUser(101L, user)).thenReturn(Optional.of(plan));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.updateMealPlan("user@test.com", 101L, update));
+
+        assertEquals("Items cannot be added to an AI-generated meal plan.", error.getMessage());
+    }
+
+    @Test
+    void createMealPlan_whenWorkoutAligned_usesOwnedActiveWorkout() {
+        UserEntity user = user();
+        WorkoutPlanEntity workout = new WorkoutPlanEntity();
+        workout.setId(42L);
+        workout.setUser(user);
+        workout.setStatus(WorkoutPlanStatus.ACTIVE);
+        workout.setActive(true);
+        MealPlanRequestDto request = snapshotRequest();
+        request.setGenerationMode(NutritionPlanGenerationMode.WORKOUT_ALIGNED);
+        request.setWorkoutPlanId(42L);
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(workoutPlanRepository.findByIdAndUser(42L, user)).thenReturn(Optional.of(workout));
+        when(mealPlanRepository.save(any(MealPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MealPlanDto result = service.createMealPlan("user@test.com", request);
+
+        assertEquals(NutritionPlanGenerationMode.WORKOUT_ALIGNED, result.getGenerationMode());
+        assertEquals(42L, result.getWorkoutPlanId());
+    }
+
+    @Test
+    void createMealPlan_whenWorkoutIsNotOwned_rejects() {
+        UserEntity user = user();
+        MealPlanRequestDto request = snapshotRequest();
+        request.setGenerationMode(NutritionPlanGenerationMode.WORKOUT_ALIGNED);
+        request.setWorkoutPlanId(42L);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(workoutPlanRepository.findByIdAndUser(42L, user)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.createMealPlan("user@test.com", request));
+    }
+
+    @Test
+    void createMealPlan_whenSnapshotNutritionIsNegative_rejects() {
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user()));
+        MealPlanRequestDto request = snapshotRequest();
+        request.getItems().get(0).getSnapshotNutrition().setCalories(-1.0);
+
+        assertThrows(IllegalArgumentException.class, () -> service.createMealPlan("user@test.com", request));
+    }
+
     @Test
     void createMealPlan_whenItemDateOutsideRange_rejects() {
         when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user()));
@@ -173,6 +277,80 @@ class MealPlanServiceImplTest {
         request.getItems().get(0).setPlanDate(LocalDate.of(2026, 6, 30));
 
         assertThrows(IllegalArgumentException.class, () -> service.createMealPlan("user@test.com", request));
+    }
+
+
+    @Test
+    void getMealPlan_whenAiPlan_exposesStoredDailyNutrition() throws Exception {
+        UserEntity user = user();
+        com.grun.calorietracker.dto.AiNutritionPlanDayDto day =
+                new com.grun.calorietracker.dto.AiNutritionPlanDayDto();
+        day.setDate(LocalDate.of(2026, 7, 20));
+        day.setDayType(com.grun.calorietracker.enums.NutritionPlanDayType.TRAINING);
+        MealPlanNutritionSnapshotDto total = new MealPlanNutritionSnapshotDto();
+        total.setCalories(2100.0);
+        total.setProtein(150.0);
+        total.setCarbs(220.0);
+        total.setFat(70.0);
+        total.setSodium(1800.0);
+        total.setVitaminC(75.0);
+        day.setTotalNutrition(total);
+        com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto draft =
+                new com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto();
+        draft.setDays(java.util.List.of(day));
+
+        com.grun.calorietracker.entity.AiRequestHistoryEntity history =
+                new com.grun.calorietracker.entity.AiRequestHistoryEntity();
+        history.setId(77L);
+        history.setOutputPayload(new ObjectMapper().findAndRegisterModules()
+                .writeValueAsString(draft));
+
+        MealPlanEntity plan = new MealPlanEntity();
+        plan.setId(90L);
+        plan.setUser(user);
+        plan.setStartDate(LocalDate.of(2026, 7, 20));
+        plan.setEndDate(LocalDate.of(2026, 7, 20));
+        plan.setSourceAiRequest(history);
+        plan.setItems(new java.util.ArrayList<>());
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.findByIdAndUser(90L, user)).thenReturn(Optional.of(plan));
+
+        MealPlanDto result = service.getMealPlan("user@test.com", 90L);
+
+        assertEquals(1, result.getAiDayNutrition().size());
+        assertEquals(com.grun.calorietracker.enums.NutritionPlanDayType.TRAINING,
+                result.getAiDayNutrition().get(0).getDayType());
+        assertEquals(1800.0,
+                result.getAiDayNutrition().get(0).getTotalNutrition().getSodium());
+        assertEquals(75.0,
+                result.getAiDayNutrition().get(0).getTotalNutrition().getVitaminC());
+    }
+    private MealPlanRequestDto snapshotRequest() {
+        MealPlanRequestDto request = new MealPlanRequestDto();
+        request.setName("AI nutrition week");
+        request.setStartDate(LocalDate.of(2026, 7, 20));
+        request.setEndDate(LocalDate.of(2026, 7, 26));
+        request.setGenerationMode(NutritionPlanGenerationMode.GENERAL);
+
+        MealPlanNutritionSnapshotDto nutrition = new MealPlanNutritionSnapshotDto();
+        nutrition.setCalories(520.0);
+        nutrition.setProtein(48.0);
+        nutrition.setCarbs(55.0);
+        nutrition.setFat(11.0);
+        nutrition.setFiber(8.0);
+
+        MealPlanItemRequestDto item = new MealPlanItemRequestDto();
+        item.setPlanDate(LocalDate.of(2026, 7, 20));
+        item.setMealType("LUNCH");
+        item.setItemType(MealPlanItemType.AI_SNAPSHOT);
+        item.setSnapshotName("grilled chicken with rice");
+        item.setPortionSize(430.0);
+        item.setPortionUnit(FoodPortionUnit.GRAM);
+        item.setSnapshotNutrition(nutrition);
+        item.setWarnings(java.util.List.of("Nutrition values are estimated."));
+        request.setItems(java.util.List.of(item));
+        return request;
     }
 
     private MealPlanRequestDto request() {

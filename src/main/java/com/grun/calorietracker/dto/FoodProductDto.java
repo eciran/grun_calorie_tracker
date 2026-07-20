@@ -4,10 +4,12 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ProductQualityLabel;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -15,6 +17,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -34,8 +37,26 @@ public class FoodProductDto {
     @Schema(description = "Stable internal or external source key used for non-barcode catalog records.", example = "TR:LOCAL_DISH:mercimek_corbasi")
     private String sourceKey;
 
+    @Schema(description = "Normalized food identity used to detect equivalent generic foods across data sources.", example = "GLOBAL:GENERIC_INGREDIENT:RAW:banana")
+    private String canonicalFoodKey;
+
     @Schema(description = "Product display name.", example = "Nutella")
     private String productName;
+
+    @Schema(description = "Canonical/source-backed product name used for traceability and non-localized identity.", example = "Raw Banana")
+    private String canonicalName;
+
+    @Schema(description = "Language used for localized productName/displayName when applicable.", example = "TR")
+    private PreferredLanguage language;
+
+    @Schema(description = "Raw source product name kept for traceability.", example = "Rice, white, cooked")
+    private String sourceName;
+
+    @Schema(description = "Clean product name for detail screens.", example = "White Rice")
+    private String displayName;
+
+    @Schema(description = "Compact product name for search/list screens.", example = "Cooked White Rice")
+    private String shortDisplayName;
 
     @Schema(description = "Product brand.", example = "Ferrero")
     private String brand;
@@ -64,11 +85,17 @@ public class FoodProductDto {
     @Schema(description = "Image quality review status.", example = "RAW")
     private ImageStatus imageStatus;
 
-    @Schema(description = "Market region this food product belongs to.", example = "UK_IE")
+    @Schema(description = "Primary legacy market region for this food product.", example = "UK_IE")
     private MarketRegion marketRegion;
+
+    @Schema(description = "All markets where this single product identity is available.", example = "[\"UK_IE\", \"EU\"]")
+    private Set<MarketRegion> marketRegions;
 
     @Schema(description = "Preparation/cooking state for raw, cooked, grilled, fried, baked, or prepared foods.", example = "COOKED")
     private FoodPreparationState preparationState;
+
+    @Schema(description = "How the nutrition values were obtained. Estimated local dishes must be explicit.", example = "SOURCE_REPORTED")
+    private FoodNutritionBasis nutritionBasis;
 
     @Schema(description = "How many times this product has been added to food logs.", example = "42")
     private Long usageCount;
@@ -183,6 +210,9 @@ public class FoodProductDto {
 
     @Schema(description = "Default product-specific serving option id when available.", example = "5")
     private Long defaultServingOptionId;
+
+    @Schema(description = "Product-specific serving options that mobile can show on the add-food screen.")
+    private List<FoodServingOptionDto> servingOptions;
 
     @Schema(description = "Portion units mobile should show for this product. This prevents volume choices for solid foods such as chicken.", example = "[\"GRAM\", \"SERVING\"]")
     private List<FoodPortionUnit> allowedPortionUnits;

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "open-food-facts-tr-internet-discovery-v1",
+  "marketRegion": "TR",
+  "capturedAt": "2026-07-15T23:10:35Z",
+  "sourceRegistryId": "tr-food-source-registry-v1",
+  "source": {
+    "id": "OPEN_FOOD_FACTS",
+    "url": "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz",
+    "lastModified": "Wed, 15 Jul 2026 11:33:28 GMT",
+    "etag": "\"8d6629ac4d18f33e1ddec4cd9856f19d-77\"",
+    "bytes": 1275171186,
+    "sha256": "F72687EE8BC6522054FE69DBFDA6B91902C16AF1EC2E043CDE27BC6C29AD8176",
+    "license": "ODbL-1.0"
+  },
+  "analyzer": {
+    "runtime": "python",
+    "version": 1,
+    "rowsRead": 4532767,
+    "durationMs": 310318
+  },
+  "capacity": {
+    "relevantRows": 28304,
+    "uniqueCandidates": 28304,
+    "strict": 1595,
+    "review": 9,
+    "quarantine": 26700,
+    "qualityPassGtinPrefixWithoutCountryEvidence": 3807
+  },
+  "gates": {
+    "strict5k": "FAIL_CAPACITY",
+    "strict25k": "FAIL_CAPACITY"
+  },
+  "decision": "OFF alone cannot close the TR 5k or 25k gate. Quality and market-evidence thresholds remain unchanged."
+}

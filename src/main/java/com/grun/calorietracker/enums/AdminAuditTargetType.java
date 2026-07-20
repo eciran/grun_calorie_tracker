@@ -3,8 +3,10 @@ package com.grun.calorietracker.enums;
 public enum AdminAuditTargetType {
     USER_SUBSCRIPTION,
     AI_REQUEST,
+    AI_CREDIT_PRICING,
     SUBSCRIPTION_FEATURE,
     RETENTION_POLICY,
     RECIPE,
-    USER_ACCOUNT
+    USER_ACCOUNT,
+    PRODUCT_QUALITY_AI_SETTINGS
 }

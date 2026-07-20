@@ -1,0 +1,100 @@
+{
+    "schemaVersion":  1,
+    "manifestId":  "open-food-facts-eu-branded-v1",
+    "marketRegion":  "EU",
+    "catalogType":  "BRANDED_PRODUCT",
+    "dataSource":  "OPEN_FOOD_FACTS",
+    "nutritionBasis":  "SOURCE_REPORTED",
+    "license":  {
+                    "name":  "Open Database License (ODbL)",
+                    "source":  "Open Food Facts",
+                    "url":  "https://opendatacommons.org/licenses/odbl/1-0/"
+                },
+    "source":  {
+                   "downloadUrl":  "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz",
+                   "snapshotFileName":  "openfoodfacts-products.csv.gz",
+                   "capturedAt":  "2026-06-19",
+                   "sha256":  "F72687EE8BC6522054FE69DBFDA6B91902C16AF1EC2E043CDE27BC6C29AD8176"
+               },
+    "filters":  {
+                    "countryTerms":  [
+                                         "en:france",
+                                         "en:germany",
+                                         "en:spain",
+                                         "en:italy",
+                                         "en:netherlands",
+                                         "en:belgium",
+                                         "en:poland",
+                                         "en:portugal",
+                                         "en:austria",
+                                         "en:sweden",
+                                         "en:denmark",
+                                         "en:finland",
+                                         "en:czech-republic",
+                                         "en:slovakia",
+                                         "en:hungary",
+                                         "en:romania",
+                                         "en:bulgaria",
+                                         "en:greece",
+                                         "en:croatia",
+                                         "en:slovenia",
+                                         "en:estonia",
+                                         "en:latvia",
+                                         "en:lithuania",
+                                         "en:luxembourg",
+                                         "en:malta",
+                                         "en:cyprus"
+                                     ],
+                    "priorityStoreTerms":  [
+                                               "carrefour",
+                                               "lidl",
+                                               "aldi",
+                                               "auchan",
+                                               "rewe",
+                                               "edeka",
+                                               "intermarche",
+                                               "leclerc",
+                                               "mercadona",
+                                               "continente",
+                                               "delhaize",
+                                               "colruyt"
+                                           ],
+                    "priorityStoreTargetPercent":  40,
+                    "requireCalories":  true,
+                    "requireCompleteMacros":  true,
+                    "requireBrand":  true,
+                    "rejectImplausibleNutrition":  true
+                },
+    "stages":  {
+                   "pilot":  {
+                                 "targetRows":  5000,
+                                 "maxRowsToRead":  5000000
+                             },
+                   "gate":  {
+                                "targetRows":  25000,
+                                "maxRowsToRead":  5000000
+                            }
+               },
+    "qualityGate":  {
+                        "minimumAcceptedPercent":  100,
+                        "maximumMissingServingPercent":  70,
+                        "maximumDuplicateBarcodeGroups":  0,
+                        "maximumDuplicateSourceKeyGroups":  0,
+                        "maximumInvalidBarcodeRows":  0,
+                        "maximumMissingCoreNutritionRows":  0,
+                        "maximumMissingBrandRows":  0,
+                        "maximumImplausibleNutritionRows":  0,
+                        "maximumMarketMismatchRows":  0,
+                        "maximumMissingNameRows":  0,
+                        "maximumMarketAvailabilityMismatchRows":  0
+                    },
+    "languageReview":  {
+                           "preferredLanguage":  "EN",
+                           "trackLocalizedNames":  true,
+                           "trackLocalizedAliases":  true
+                       },
+    "servingPolicy":  {
+                          "fallback":  "GRAM_ONLY",
+                          "note":  "Missing source serving remains review-only; per-100g nutrition is never converted to an invented package serving."
+                      }
+}

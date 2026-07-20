@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -45,4 +46,7 @@ public class FoodSearchCriteriaDto {
 
     @Schema(description = "Optional preparation/cooking state filter.", example = "COOKED")
     private FoodPreparationState preparationState;
+
+    @Schema(description = "Preferred response/search language. Supported values: EN, TR.", example = "TR")
+    private PreferredLanguage preferredLanguage;
 }

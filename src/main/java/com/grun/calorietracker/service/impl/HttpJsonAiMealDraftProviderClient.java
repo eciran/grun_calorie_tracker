@@ -4,7 +4,13 @@ import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideProviderRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideResponseDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
@@ -62,6 +68,16 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
     }
 
     @Override
+    public AiPreparationGuideResponseDto createPreparationGuide(AiPreparationGuideProviderRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_MEAL_PREPARATION_GUIDE, properties.getModel(), request), AiPreparationGuideResponseDto.class);
+    }
+
+    @Override
+    public AiNutritionPlanDraftResponseDto createNutritionPlanDraft(AiNutritionPlanDraftRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_NUTRITION_PLAN, properties.getModel(), request), AiNutritionPlanDraftResponseDto.class);
+    }
+
+    @Override
     public AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request) {
         return callProvider(new ProviderRequest(AiRequestType.AI_WORKOUT_PLAN, properties.getModel(), request), AiWorkoutPlanDraftResponseDto.class);
     }
@@ -74,6 +90,11 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
     @Override
     public AiInsightResponseDto createWeeklyInsight(AiInsightRequestDto request) {
         return callProvider(new ProviderRequest(AiRequestType.AI_WEEKLY_INSIGHT, properties.getModel(), request), AiInsightResponseDto.class);
+    }
+
+    @Override
+    public AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request) {
+        return callProvider(new ProviderRequest(AiRequestType.AI_RECIPE_GENERATION, properties.getModel(), request), AiProductQualityValidationResponseDto.class);
     }
 
     private <T> T callProvider(ProviderRequest payload, Class<T> responseType) {
@@ -101,3 +122,4 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
     private record ProviderRequest(AiRequestType requestType, String model, Object input) {
     }
 }
+

@@ -21,6 +21,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -186,6 +187,20 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleMissingRequestHeader(
+            MissingRequestHeaderException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "error.invalid.request",
+                "Invalid request",
+                "Required request header is missing: " + ex.getHeaderName(),
+                request
+        );
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponseDto> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex,
                                                                                     HttpServletRequest request) {
@@ -210,6 +225,19 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(RequestConflictException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleRequestConflictException(
+            RequestConflictException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "error.request-conflict",
+                "Request conflict",
+                ex.getMessage(),
+                request
+        );
+    }
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponseDto> handleDataIntegrityViolationException(DataIntegrityViolationException ex,
                                                                                     HttpServletRequest request) {

@@ -228,6 +228,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             recipe.setImageReviewNote(request.getReviewNote().trim());
             changed = true;
         }
+        if (request.getCookingSteps() != null) {
+            replaceCookingSteps(recipe, request.getCookingSteps());
+            changed = true;
+        }
         if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
                 || recipe.getVerificationStatus() == VerificationStatus.VERIFIED) {
             validatePublicRecipeApproval(recipe);
@@ -486,6 +490,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setCreatedAt(candidate.getCreatedAt());
         dto.setUpdatedAt(candidate.getUpdatedAt());
         dto.setIngredients(toImportIngredients(candidate));
+        dto.setCookingSteps(toImportCookingSteps(candidate));
         return dto;
     }
 
@@ -506,6 +511,29 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 dto.setPortionSize(sourceIngredient.getPortionSize());
                 dto.setPortionUnit(sourceIngredient.getPortionUnit());
                 dto.setEstimatedGrams(sourceIngredient.getEstimatedGrams());
+                result.add(dto);
+            }
+            return result;
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+
+    private List<AdminRecipeImportCandidateDto.CookingStepDto> toImportCookingSteps(RecipeImportCandidateEntity candidate) {
+        try {
+            AdminRecipeImportCandidateRequestDto source = readRawPayload(candidate.getRawPayload());
+            if (source.getRecipe() == null || source.getRecipe().getCookingSteps() == null) {
+                return List.of();
+            }
+            List<AdminRecipeImportCandidateDto.CookingStepDto> result = new ArrayList<>();
+            for (int index = 0; index < source.getRecipe().getCookingSteps().size(); index++) {
+                AdminRecipeImportCandidateRequestDto.CookingStepPayload sourceStep = source.getRecipe().getCookingSteps().get(index);
+                if (sourceStep == null || sourceStep.getInstruction() == null || sourceStep.getInstruction().isBlank()) {
+                    continue;
+                }
+                AdminRecipeImportCandidateDto.CookingStepDto dto = new AdminRecipeImportCandidateDto.CookingStepDto();
+                dto.setStepNumber(index + 1);
+                dto.setInstruction(sourceStep.getInstruction().trim());
                 result.add(dto);
             }
             return result;
@@ -619,6 +647,24 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         return request != null && request.getReviewNote() != null && !request.getReviewNote().isBlank()
                 ? request.getReviewNote().trim()
                 : fallback;
+    }
+
+    private void replaceCookingSteps(RecipeEntity recipe, List<RecipeStepRequestDto> steps) {
+        recipe.getCookingSteps().clear();
+        if (steps == null) {
+            return;
+        }
+        int order = 0;
+        for (RecipeStepRequestDto step : steps) {
+            if (step == null || step.getInstruction() == null || step.getInstruction().isBlank()) {
+                continue;
+            }
+            RecipeCookingStepEntity entity = new RecipeCookingStepEntity();
+            entity.setRecipe(recipe);
+            entity.setStepOrder(order++);
+            entity.setInstruction(step.getInstruction().trim());
+            recipe.getCookingSteps().add(entity);
+        }
     }
     private Specification<RecipeEntity> buildSpecification(String query,
                                                            VerificationStatus verificationStatus,

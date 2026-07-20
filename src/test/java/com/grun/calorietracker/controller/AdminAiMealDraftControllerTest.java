@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
+import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundResponseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
@@ -73,9 +74,60 @@ class AdminAiMealDraftControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].requestId").value(10))
                 .andExpect(jsonPath("$.content[0].userEmail").value("user@test.com"))
-                .andExpect(jsonPath("$.content[0].refundableAmount").value(1));
+                .andExpect(jsonPath("$.content[0].refundableAmount").value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
     }
 
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void listAllRequests_whenAdmin_returnsStablePageContract() throws Exception {
+        AdminAiRequestReviewDto item = new AdminAiRequestReviewDto();
+        item.setRequestId(11L);
+        item.setStatus(AiRequestStatus.DRAFT_CREATED);
+        when(adminAiMealDraftService.listRequests(isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(item)));
+
+        mockMvc.perform(get("/api/v1/admin/ai/requests")
+                        .param("page", "0")
+                        .param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].requestId").value(11))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void getSummary_whenAdmin_returnsPrivacySafeMetrics() throws Exception {
+        AdminAiMonitoringSummaryDto summary = new AdminAiMonitoringSummaryDto();
+        summary.setWindowHours(24);
+        summary.setTotalRequests(12);
+        summary.setFailed(1);
+        summary.setFailureRate(1d / 12d);
+        summary.setTotalTokens(4200);
+        summary.setEstimatedCostByCurrency(java.util.Map.of("USD", 0.18d));
+        summary.setProviderModels(List.of());
+        summary.setRequestStatuses(List.of());
+        when(adminAiMealDraftService.getMonitoringSummary(24)).thenReturn(summary);
+
+        mockMvc.perform(get("/api/v1/admin/ai/requests/summary")
+                        .param("windowHours", "24"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.windowHours").value(24))
+                .andExpect(jsonPath("$.totalRequests").value(12))
+                .andExpect(jsonPath("$.failed").value(1))
+                .andExpect(jsonPath("$.totalTokens").value(4200))
+                .andExpect(jsonPath("$.estimatedCostByCurrency.USD").value(0.18));
+    }
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void refundQuota_whenAdmin_returnsRefundResultAndAudits() throws Exception {

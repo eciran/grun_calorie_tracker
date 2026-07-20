@@ -10,6 +10,7 @@ import com.grun.calorietracker.dto.ProductCorrectionSuggestionRequestDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.service.FailedBarcodeScanService;
 import com.grun.calorietracker.service.FoodItemService;
@@ -60,7 +61,9 @@ public class FoodItemController {
     })
     public ResponseEntity<FoodProductSearchPageDto> searchProducts(
             @Parameter(description = "Search text, product name, or barcode fragment.", example = "milk")
-            @RequestParam String q,
+            @RequestParam(name = "q", required = false) String q,
+            @Parameter(description = "Alias for q. Kept for frontend/client compatibility.", example = "milk")
+            @RequestParam(name = "query", required = false) String query,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -73,13 +76,21 @@ public class FoodItemController {
             @RequestParam(required = false) String brand,
             @Parameter(description = "Optional preparation/cooking state filter.", example = "COOKED")
             @RequestParam(required = false) FoodPreparationState preparationState,
+            @Parameter(description = "Preferred response language. Defaults to user profile language, then Accept-Language, then EN.", example = "TR")
+            @RequestParam(required = false) PreferredLanguage language,
+            @RequestHeader(name = "Accept-Language", required = false) String acceptLanguage,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        String searchText = q != null ? q : query;
+        if (searchText == null || searchText.isBlank()) {
+            throw new IllegalArgumentException("Search query is required. Use q or query.");
+        }
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
-        criteria.setQuery(q);
+        criteria.setQuery(searchText);
         criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
         criteria.setCatalogType(catalogType);
         criteria.setBrand(brand);
         criteria.setPreparationState(preparationState);
+        criteria.setPreferredLanguage(resolveSearchLanguage(language, acceptLanguage, userDetails));
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
 
@@ -93,6 +104,33 @@ public class FoodItemController {
         return userService.findByEmail(userDetails.getUsername())
                 .map(user -> user.getMarketRegion())
                 .orElse(null);
+    }
+
+    private PreferredLanguage resolveSearchLanguage(
+            PreferredLanguage requestedLanguage,
+            String acceptLanguage,
+            UserDetails userDetails
+    ) {
+        if (requestedLanguage != null) {
+            return requestedLanguage;
+        }
+        if (userDetails != null) {
+            return userService.findByEmail(userDetails.getUsername())
+                    .map(user -> user.getPreferredLanguage())
+                    .orElseGet(() -> resolveAcceptLanguage(acceptLanguage));
+        }
+        return resolveAcceptLanguage(acceptLanguage);
+    }
+
+    private PreferredLanguage resolveAcceptLanguage(String acceptLanguage) {
+        if (acceptLanguage == null || acceptLanguage.isBlank()) {
+            return PreferredLanguage.EN;
+        }
+        String normalized = acceptLanguage.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.startsWith("tr")) {
+            return PreferredLanguage.TR;
+        }
+        return PreferredLanguage.EN;
     }
 
     @GetMapping("/barcode/{barcode}")

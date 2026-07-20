@@ -15,6 +15,7 @@ public class AiRequestHistoryDetailDto {
     private AiRequestType requestType;
     private AiProvider provider;
     private String model;
+    private String promptVersion;
     private AiRequestStatus status;
     private Boolean quotaConsumed;
     private Integer quotaConsumedAmount;
@@ -28,6 +29,8 @@ public class AiRequestHistoryDetailDto {
     private String userMessage;
     private JsonNode inputPayload;
     private JsonNode outputPayload;
+    private JsonNode safeOutputPayload;
+    private Boolean hasSafeOutputPayload;
     private JsonNode confirmationPayload;
     private LocalDateTime createdAt;
     private LocalDateTime confirmedAt;

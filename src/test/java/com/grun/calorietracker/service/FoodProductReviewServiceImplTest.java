@@ -1,5 +1,8 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
@@ -9,9 +12,11 @@ import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
+import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
+import com.grun.calorietracker.enums.FoodCanonicalResolutionState;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
@@ -19,6 +24,7 @@ import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
@@ -39,12 +45,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -70,6 +78,9 @@ class FoodProductReviewServiceImplTest {
 
     @Mock
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
+
+    @Mock
+    private FoodCanonicalResolutionRepository foodCanonicalResolutionRepository;
 
     @InjectMocks
     private FoodProductReviewServiceImpl foodProductReviewService;
@@ -422,6 +433,266 @@ class FoodProductReviewServiceImplTest {
     }
 
     @Test
+    void getCanonicalDuplicateProductGroups_returnsOnlyGroupedGenericCandidates() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+
+        FoodItemEntity preferred = new FoodItemEntity();
+        preferred.setId(1L);
+        preferred.setName("Banana raw");
+        preferred.setCanonicalFoodKey(canonicalKey);
+        preferred.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        preferred.setQualityScore(95);
+        preferred.setCalories(89.0);
+        preferred.setProtein(1.1);
+        preferred.setFat(0.3);
+        preferred.setCarbs(22.8);
+
+        FoodItemEntity alternate = new FoodItemEntity();
+        alternate.setId(2L);
+        alternate.setName("Bananas raw");
+        alternate.setCanonicalFoodKey(canonicalKey);
+        alternate.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        alternate.setQualityScore(80);
+        alternate.setCalories(90.0);
+        alternate.setProtein(1.0);
+        alternate.setFat(0.4);
+        alternate.setCarbs(23.0);
+
+        when(foodItemRepository.findDuplicateCanonicalFoodKeys(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(canonicalKey), PageRequest.of(0, 25), 1));
+        when(foodItemRepository.findByCanonicalFoodKeyIn(any(), any(Sort.class)))
+                .thenReturn(List.of(preferred, alternate));
+        FoodCanonicalResolutionEntity resolution = new FoodCanonicalResolutionEntity();
+        resolution.setCanonicalFoodKey(canonicalKey);
+        resolution.setPrimaryFoodItem(preferred);
+        resolution.setResolvedBy("admin@test.com");
+        resolution.setResolvedAt(LocalDateTime.of(2026, 7, 13, 22, 0));
+        when(foodCanonicalResolutionRepository.findByCanonicalFoodKeyIn(List.of(canonicalKey)))
+                .thenReturn(List.of(resolution));
+
+        FoodCanonicalDuplicateGroupPageDto result =
+                foodProductReviewService.getCanonicalDuplicateProductGroups(0, 25);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals(canonicalKey, result.getContent().get(0).getCanonicalFoodKey());
+        assertEquals(2, result.getContent().get(0).getProductCount());
+        assertEquals(canonicalKey, result.getContent().get(0).getProducts().get(0).getCanonicalFoodKey());
+        assertEquals(true, result.getContent().get(0).getResolved());
+        assertEquals(FoodCanonicalResolutionState.RESOLVED, result.getContent().get(0).getResolutionState());
+        assertEquals(1L, result.getContent().get(0).getRecommendedPrimaryProductId());
+        assertEquals(1L, result.getContent().get(0).getPrimaryProductId());
+        assertEquals("admin@test.com", result.getContent().get(0).getResolvedBy());
+        assertEquals("2026-07-13T22:00", result.getContent().get(0).getResolvedAt());
+
+        ArgumentCaptor<Sort> sortCaptor = ArgumentCaptor.forClass(Sort.class);
+        verify(foodItemRepository).findByCanonicalFoodKeyIn(any(), sortCaptor.capture());
+        verify(foodCanonicalResolutionRepository).findByCanonicalFoodKeyIn(List.of(canonicalKey));
+        assertNotNull(sortCaptor.getValue().getOrderFor("qualityScore"));
+        assertNotNull(sortCaptor.getValue().getOrderFor("usageCount"));
+    }
+    @Test
+    void getCanonicalDuplicateProductGroups_whenPrimaryLeftGroup_marksResolutionStale() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity first = canonicalCandidate(1L, canonicalKey);
+        FoodItemEntity second = canonicalCandidate(2L, canonicalKey);
+        FoodItemEntity formerPrimary = canonicalCandidate(99L, "GLOBAL:GENERIC_INGREDIENT:COOKED:banana");
+        FoodCanonicalResolutionEntity resolution = new FoodCanonicalResolutionEntity();
+        resolution.setCanonicalFoodKey(canonicalKey);
+        resolution.setPrimaryFoodItem(formerPrimary);
+
+        when(foodItemRepository.findDuplicateCanonicalFoodKeys(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(canonicalKey), PageRequest.of(0, 25), 1));
+        when(foodItemRepository.findByCanonicalFoodKeyIn(any(), any(Sort.class)))
+                .thenReturn(List.of(first, second));
+        when(foodCanonicalResolutionRepository.findByCanonicalFoodKeyIn(List.of(canonicalKey)))
+                .thenReturn(List.of(resolution));
+        when(foodProductQualityIssueRepository.findByFoodItemIdInAndResolvedFalse(List.of(1L, 2L)))
+                .thenReturn(List.of());
+
+        var group = foodProductReviewService.getCanonicalDuplicateProductGroups(0, 25).getContent().get(0);
+
+        assertEquals(FoodCanonicalResolutionState.STALE, group.getResolutionState());
+        assertEquals(false, group.getResolved());
+        assertEquals(99L, group.getPrimaryProductId());
+        assertEquals(1L, group.getRecommendedPrimaryProductId());
+    }
+
+    @Test
+    void getCanonicalDuplicateProductGroups_whenPrimaryBecomesRejected_marksNeedsReview() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity selected = canonicalCandidate(1L, canonicalKey);
+        selected.setVerificationStatus(VerificationStatus.REJECTED);
+        FoodItemEntity alternative = canonicalCandidate(2L, canonicalKey);
+        alternative.setQualityScore(80);
+        FoodCanonicalResolutionEntity resolution = new FoodCanonicalResolutionEntity();
+        resolution.setCanonicalFoodKey(canonicalKey);
+        resolution.setPrimaryFoodItem(selected);
+
+        when(foodItemRepository.findDuplicateCanonicalFoodKeys(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(canonicalKey), PageRequest.of(0, 25), 1));
+        when(foodItemRepository.findByCanonicalFoodKeyIn(any(), any(Sort.class)))
+                .thenReturn(List.of(selected, alternative));
+        when(foodCanonicalResolutionRepository.findByCanonicalFoodKeyIn(List.of(canonicalKey)))
+                .thenReturn(List.of(resolution));
+        when(foodProductQualityIssueRepository.findByFoodItemIdInAndResolvedFalse(List.of(1L, 2L)))
+                .thenReturn(List.of());
+
+        var group = foodProductReviewService.getCanonicalDuplicateProductGroups(0, 25).getContent().get(0);
+
+        assertEquals(FoodCanonicalResolutionState.NEEDS_REVIEW, group.getResolutionState());
+        assertEquals(false, group.getResolved());
+        assertEquals(2L, group.getRecommendedPrimaryProductId());
+        assertEquals(false, group.getCandidateAssessments().get(0).getPrimaryEligible());
+        assertEquals(true, group.getCandidateAssessments().get(1).getPrimaryEligible());
+    }
+    @Test
+    void resolveCanonicalPrimary_preservesCandidatesAndAuditsSelection() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity first = new FoodItemEntity();
+        first.setId(1L);
+        first.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        first.setCanonicalFoodKey(canonicalKey);
+        FoodItemEntity selected = new FoodItemEntity();
+        selected.setId(2L);
+        selected.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        selected.setCanonicalFoodKey(canonicalKey);
+        selected.setCalories(89.0);
+        selected.setProtein(1.1);
+        selected.setFat(0.3);
+        selected.setCarbs(22.8);
+
+        when(foodItemRepository.findByCanonicalFoodKeyIn(eq(List.of(canonicalKey)), any(Sort.class)))
+                .thenReturn(List.of(first, selected));
+        when(foodCanonicalResolutionRepository.findById(canonicalKey)).thenReturn(Optional.empty());
+        when(foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(2L)).thenReturn(List.of());
+
+        FoodCanonicalResolutionRequestDto request = new FoodCanonicalResolutionRequestDto();
+        request.setCanonicalFoodKey(canonicalKey);
+        request.setPrimaryProductId(2L);
+
+        FoodCanonicalResolutionDto result = foodProductReviewService.resolveCanonicalPrimary(
+                request,
+                "admin@test.com"
+        );
+
+        assertEquals(canonicalKey, result.getCanonicalFoodKey());
+        assertEquals(2L, result.getPrimaryProductId());
+        ArgumentCaptor<FoodCanonicalResolutionEntity> resolutionCaptor =
+                ArgumentCaptor.forClass(FoodCanonicalResolutionEntity.class);
+        verify(foodCanonicalResolutionRepository).save(resolutionCaptor.capture());
+        assertEquals(selected, resolutionCaptor.getValue().getPrimaryFoodItem());
+        ArgumentCaptor<FoodProductReviewAuditEntity> auditCaptor =
+                ArgumentCaptor.forClass(FoodProductReviewAuditEntity.class);
+        verify(foodProductReviewAuditRepository).save(auditCaptor.capture());
+        assertEquals(FoodProductReviewAuditAction.CANONICAL_PRIMARY_CHANGE,
+                auditCaptor.getValue().getActionType());
+        verify(foodItemRepository, never()).delete(any(FoodItemEntity.class));
+    }
+    @Test
+    void resolveCanonicalPrimary_whenSelectedProductRejected_rejectsDecision() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity alternate = canonicalCandidate(1L, canonicalKey);
+        FoodItemEntity rejected = canonicalCandidate(2L, canonicalKey);
+        rejected.setVerificationStatus(VerificationStatus.REJECTED);
+        when(foodItemRepository.findByCanonicalFoodKeyIn(eq(List.of(canonicalKey)), any(Sort.class)))
+                .thenReturn(List.of(alternate, rejected));
+
+        FoodCanonicalResolutionRequestDto request = canonicalResolutionRequest(canonicalKey, 2L);
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> foodProductReviewService.resolveCanonicalPrimary(request, "admin@test.com")
+        );
+
+        assertEquals("Rejected product cannot be selected as canonical primary.", error.getMessage());
+        verify(foodCanonicalResolutionRepository, never()).save(any());
+    }
+
+    @Test
+    void resolveCanonicalPrimary_whenSelectedProductHasBlockingIssue_rejectsDecision() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity alternate = canonicalCandidate(1L, canonicalKey);
+        FoodItemEntity selected = canonicalCandidate(2L, canonicalKey);
+        when(foodItemRepository.findByCanonicalFoodKeyIn(eq(List.of(canonicalKey)), any(Sort.class)))
+                .thenReturn(List.of(alternate, selected));
+        FoodProductQualityIssueEntity issue = new FoodProductQualityIssueEntity();
+        issue.setIssueType(FoodProductQualityIssue.SUSPICIOUS_MACROS);
+        issue.setResolved(false);
+        when(foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(2L))
+                .thenReturn(List.of(issue));
+
+        FoodCanonicalResolutionRequestDto request = canonicalResolutionRequest(canonicalKey, 2L);
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> foodProductReviewService.resolveCanonicalPrimary(request, "admin@test.com")
+        );
+
+        assertTrue(error.getMessage().contains("SUSPICIOUS_MACROS"));
+        verify(foodCanonicalResolutionRepository, never()).save(any());
+    }
+
+    @Test
+    void resolveCanonicalPrimary_whenNutritionIsCritical_rejectsDecisionWithoutTrackedIssue() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity alternate = canonicalCandidate(1L, canonicalKey);
+        FoodItemEntity selected = canonicalCandidate(2L, canonicalKey);
+        selected.setCalories(null);
+        when(foodItemRepository.findByCanonicalFoodKeyIn(eq(List.of(canonicalKey)), any(Sort.class)))
+                .thenReturn(List.of(alternate, selected));
+        when(foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(2L)).thenReturn(List.of());
+
+        FoodCanonicalResolutionRequestDto request = canonicalResolutionRequest(canonicalKey, 2L);
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> foodProductReviewService.resolveCanonicalPrimary(request, "admin@test.com")
+        );
+
+        assertEquals(
+                "Product nutrition must pass critical quality validation before canonical selection.",
+                error.getMessage()
+        );
+        verify(foodCanonicalResolutionRepository, never()).save(any());
+    }
+
+    @Test
+    void getCanonicalDuplicateProductGroups_whenUnresolvedFilter_usesDatabaseFilter() {
+        when(foodItemRepository.findUnresolvedDuplicateCanonicalFoodKeys(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 25), 0));
+
+        FoodCanonicalDuplicateGroupPageDto result =
+                foodProductReviewService.getCanonicalDuplicateProductGroups(0, 25, false);
+
+        assertEquals(0, result.getTotalElements());
+        verify(foodItemRepository).findUnresolvedDuplicateCanonicalFoodKeys(any(Pageable.class));
+        verify(foodCanonicalResolutionRepository, never()).findByCanonicalFoodKeyIn(any());
+    }
+
+    @Test
+    void clearCanonicalResolution_deletesOnlyDecisionAndWritesAudit() {
+        String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
+        FoodItemEntity primary = new FoodItemEntity();
+        primary.setId(1L);
+        FoodCanonicalResolutionEntity resolution = new FoodCanonicalResolutionEntity();
+        resolution.setCanonicalFoodKey(canonicalKey);
+        resolution.setPrimaryFoodItem(primary);
+        when(foodCanonicalResolutionRepository.findById(canonicalKey)).thenReturn(Optional.of(resolution));
+
+        foodProductReviewService.clearCanonicalResolution(canonicalKey, "admin@test.com");
+
+        verify(foodCanonicalResolutionRepository).delete(resolution);
+        ArgumentCaptor<FoodProductReviewAuditEntity> auditCaptor =
+                ArgumentCaptor.forClass(FoodProductReviewAuditEntity.class);
+        verify(foodProductReviewAuditRepository).save(auditCaptor.capture());
+        assertEquals("1", auditCaptor.getValue().getOldValue());
+        assertEquals(null, auditCaptor.getValue().getNewValue());
+        assertEquals(FoodProductReviewAuditAction.CANONICAL_PRIMARY_CHANGE,
+                auditCaptor.getValue().getActionType());
+        verify(foodItemRepository, never()).delete(any(FoodItemEntity.class));
+    }
+
+    @Test
     void mergeDuplicateProducts_reassignsReferencesAndDeletesDuplicates() {
         FoodItemEntity targetProduct = new FoodItemEntity();
         targetProduct.setId(1L);
@@ -589,5 +860,23 @@ class FoodProductReviewServiceImplTest {
         assertEquals(1, result.getUpdatedRows());
         assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
         assertEquals(539.0, product.getCalories());
+    }
+    private FoodItemEntity canonicalCandidate(Long id, String canonicalKey) {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(id);
+        product.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        product.setCanonicalFoodKey(canonicalKey);
+        product.setCalories(89.0);
+        product.setProtein(1.1);
+        product.setFat(0.3);
+        product.setCarbs(22.8);
+        return product;
+    }
+
+    private FoodCanonicalResolutionRequestDto canonicalResolutionRequest(String canonicalKey, Long productId) {
+        FoodCanonicalResolutionRequestDto request = new FoodCanonicalResolutionRequestDto();
+        request.setCanonicalFoodKey(canonicalKey);
+        request.setPrimaryProductId(productId);
+        return request;
     }
 }

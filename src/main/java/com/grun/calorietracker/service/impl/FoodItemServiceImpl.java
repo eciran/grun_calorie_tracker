@@ -3,27 +3,42 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
+import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
+import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
+import com.grun.calorietracker.enums.FoodEvidenceBasis;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
+import com.grun.calorietracker.mapper.FoodServingOptionMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
+import com.grun.calorietracker.service.FoodProductEvidenceService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
+import com.grun.calorietracker.service.support.PostgresFoodSearchCandidateProvider;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -33,28 +48,47 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 public class FoodItemServiceImpl implements FoodItemService {
 
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final FoodItemServingOptionRepository foodItemServingOptionRepository;
+    private final FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository;
     private final OpenFoodFactsService openFoodFactsService;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
+    private final FoodProductEvidenceService foodProductEvidenceService;
+    private PostgresFoodSearchCandidateProvider postgresFoodSearchCandidateProvider;
     public FoodItemServiceImpl(
             FoodItemRepository foodItemRepository,
+            FoodItemLocalizationRepository foodItemLocalizationRepository,
             FoodItemServingOptionRepository foodItemServingOptionRepository,
+            FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository,
             OpenFoodFactsService openFoodFactsService,
-            FoodProductQualityIssueTracker foodProductQualityIssueTracker
+            FoodProductQualityIssueTracker foodProductQualityIssueTracker,
+            FoodProductEvidenceService foodProductEvidenceService
     ) {
         this.foodItemRepository = foodItemRepository;
+        this.foodItemLocalizationRepository = foodItemLocalizationRepository;
         this.foodItemServingOptionRepository = foodItemServingOptionRepository;
+        this.foodItemServingOptionLocalizationRepository = foodItemServingOptionLocalizationRepository;
         this.openFoodFactsService = openFoodFactsService;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
+        this.foodProductEvidenceService = foodProductEvidenceService;
+    }
+
+    @Autowired(required = false)
+    void setPostgresFoodSearchCandidateProvider(PostgresFoodSearchCandidateProvider candidateProvider) {
+        this.postgresFoodSearchCandidateProvider = candidateProvider;
     }
 
     @Override
@@ -96,11 +130,13 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FoodProductDto> searchFoodItems(FoodSearchCriteriaDto criteria) {
         return searchFoodItems(criteria, 0, 100).getContent();
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(cacheNames = "foodProductSearch", key = "T(com.grun.calorietracker.service.support.FoodProductCacheKeys).search(#criteria, #page, #size)", unless = "#result == null")
     public FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;
@@ -109,13 +145,21 @@ public class FoodItemServiceImpl implements FoodItemService {
 
         Page<FoodItemEntity> prioritizedLocalProducts = searchLocalProductsByRegionPriority(safeCriteria, pageable);
         if (prioritizedLocalProducts.hasContent()) {
-            return toSearchPageDto(prioritizedLocalProducts);
+            return toSearchPageDto(prioritizedLocalProducts, safeCriteria.getPreferredLanguage());
         }
 
         Specification<FoodItemEntity> specification = buildSearchSpecification(safeCriteria, true, !hasExplicitSort(safeCriteria));
+        String searchQuery = FoodProductNormalizationRules.normalizeText(safeCriteria.getQuery());
+        if (searchQuery != null && postgresFoodSearchCandidateProvider != null) {
+            var candidateIds = postgresFoodSearchCandidateProvider.findCandidateIds(searchQuery);
+            if (candidateIds.isPresent()) {
+                specification = specification.and((root, query, criteriaBuilder) ->
+                        root.get("id").in(candidateIds.get()));
+            }
+        }
         Page<FoodItemEntity> localProducts = foodItemRepository.findAll(specification, pageable);
         if (localProducts.hasContent()) {
-            return toSearchPageDto(localProducts);
+            return toSearchPageDto(localProducts, safeCriteria.getPreferredLanguage());
         }
 
         return searchAndCacheExternalProducts(safeCriteria, pageable);
@@ -136,6 +180,33 @@ public class FoodItemServiceImpl implements FoodItemService {
                     criteriaBuilder.isNull(root.get("isCustom")),
                     criteriaBuilder.isFalse(root.get("isCustom"))
             ));
+            predicates.add(criteriaBuilder.not(criteriaBuilder.exists(blockingQualityIssueSubquery(root, query, criteriaBuilder))));
+            predicates.add(criticalNutritionEligibilityPredicate(root, criteriaBuilder));
+
+            var blockedPrimaryIdsSubquery = query.subquery(Long.class);
+            var blockedPrimaryIssueRoot = blockedPrimaryIdsSubquery.from(FoodProductQualityIssueEntity.class);
+            blockedPrimaryIdsSubquery.select(blockedPrimaryIssueRoot.get("foodItem").get("id"));
+            blockedPrimaryIdsSubquery.where(
+                    criteriaBuilder.isFalse(blockedPrimaryIssueRoot.get("resolved")),
+                    blockedPrimaryIssueRoot.get("issueType").in(blockingUserSearchQualityIssues())
+            );
+
+            var canonicalResolutionSubquery = query.subquery(String.class);
+            var canonicalResolutionRoot = canonicalResolutionSubquery.from(FoodCanonicalResolutionEntity.class);
+            jakarta.persistence.criteria.Path<FoodItemEntity> resolvedPrimary =
+                    canonicalResolutionRoot.get("primaryFoodItem");
+            canonicalResolutionSubquery.select(canonicalResolutionRoot.get("canonicalFoodKey"));
+            canonicalResolutionSubquery.where(
+                    criteriaBuilder.equal(
+                            canonicalResolutionRoot.get("canonicalFoodKey"),
+                            root.get("canonicalFoodKey")
+                    ),
+                    criteriaBuilder.notEqual(resolvedPrimary, root),
+                    visibleVerificationStatusPredicate(resolvedPrimary, criteriaBuilder),
+                    criticalNutritionEligibilityPredicate(resolvedPrimary, criteriaBuilder),
+                    criteriaBuilder.not(resolvedPrimary.get("id").in(blockedPrimaryIdsSubquery))
+            );
+            predicates.add(criteriaBuilder.not(criteriaBuilder.exists(canonicalResolutionSubquery)));
 
             String searchQuery = FoodProductNormalizationRules.normalizeText(criteria.getQuery());
             if (searchQuery != null) {
@@ -145,6 +216,8 @@ public class FoodItemServiceImpl implements FoodItemService {
                     String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(term);
                     String normalizedAliasPattern = normalizedAlias == null ? pattern : "%" + normalizedAlias + "%";
                     searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern));
+                    searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("displayName")), pattern));
+                    searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("shortDisplayName")), pattern));
                     searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), pattern));
                     var aliasSubquery = query.subquery(Long.class);
                     var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
@@ -158,6 +231,44 @@ public class FoodItemServiceImpl implements FoodItemService {
                             )
                     );
                     searchPredicates.add(criteriaBuilder.exists(aliasSubquery));
+
+                    var localizationSubquery = query.subquery(Long.class);
+                    var localizationRoot = localizationSubquery.from(FoodItemLocalizationEntity.class);
+                    localizationSubquery.select(localizationRoot.get("id"));
+                    localizationSubquery.where(
+                            criteriaBuilder.equal(localizationRoot.get("foodItem"), root),
+                            criteriaBuilder.isTrue(localizationRoot.get("active")),
+                            criteriaBuilder.or(
+                                    criteriaBuilder.like(criteriaBuilder.lower(localizationRoot.get("displayName")), pattern),
+                                    criteriaBuilder.like(criteriaBuilder.lower(localizationRoot.get("shortDisplayName")), pattern)
+                            )
+                    );
+                    searchPredicates.add(criteriaBuilder.exists(localizationSubquery));
+                }
+                String normalizedTokenQuery = FoodProductNormalizationRules.normalizeSearchAlias(searchQuery);
+                String sourceTokenQuery = FoodProductNormalizationRules.normalizeText(searchQuery);
+                if (normalizedTokenQuery != null && sourceTokenQuery != null) {
+                    String[] normalizedTokens = normalizedTokenQuery.split("\\s+");
+                    String[] sourceTokens = sourceTokenQuery.toLowerCase(Locale.ROOT).split("\\s+");
+                    List<Predicate> tokenPredicates = new ArrayList<>();
+                    int tokenCount = Math.min(Math.min(normalizedTokens.length, sourceTokens.length), 6);
+                    for (int index = 0; index < tokenCount; index++) {
+                        Set<String> tokenVariants = new java.util.LinkedHashSet<>();
+                        if (sourceTokens[index].length() >= 2) {
+                            tokenVariants.add(sourceTokens[index]);
+                        }
+                        if (normalizedTokens[index].length() >= 2) {
+                            tokenVariants.add(normalizedTokens[index]);
+                        }
+                        if (!tokenVariants.isEmpty()) {
+                            tokenPredicates.add(criteriaBuilder.or(tokenVariants.stream()
+                                    .map(token -> buildSearchTokenMatch(root, query, criteriaBuilder, token))
+                                    .toArray(Predicate[]::new)));
+                        }
+                    }
+                    if (tokenPredicates.size() >= 2) {
+                        searchPredicates.add(criteriaBuilder.and(tokenPredicates.toArray(new Predicate[0])));
+                    }
                 }
                 String normalizedBarcodeQuery = FoodProductNormalizationRules.normalizeBarcode(searchQuery);
                 String barcodePattern = normalizedBarcodeQuery == null
@@ -166,6 +277,11 @@ public class FoodItemServiceImpl implements FoodItemService {
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), barcodePattern));
                 searchPredicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), barcodePattern));
                 predicates.add(criteriaBuilder.or(searchPredicates.toArray(new Predicate[0])));
+                if (isCoreFoodQuery(searchQuery)) {
+                    predicates.add(buildCoreFoodWordSearchMatch(
+                            root, query, criteriaBuilder, searchQuery
+                    ));
+                }
             }
             String brand = FoodProductNormalizationRules.normalizeText(criteria.getBrand());
             if (brand != null) {
@@ -192,11 +308,10 @@ public class FoodItemServiceImpl implements FoodItemService {
             }
 
             if (criteria.getMarketRegion() != null) {
-                if (expandRegionFallbacks) {
-                    predicates.add(root.get("marketRegion").in(resolveSearchRegions(criteria.getMarketRegion())));
-                } else {
-                    predicates.add(criteriaBuilder.equal(root.get("marketRegion"), criteria.getMarketRegion()));
-                }
+                List<MarketRegion> visibleRegions = expandRegionFallbacks
+                        ? resolveSearchRegions(criteria.getMarketRegion())
+                        : List.of(criteria.getMarketRegion());
+                predicates.add(buildMarketAvailabilityMatch(root, query, criteriaBuilder, visibleRegions));
             }
 
             if (criteria.getCatalogType() != null) {
@@ -208,30 +323,201 @@ public class FoodItemServiceImpl implements FoodItemService {
             }
 
             if (applyDefaultOrdering && query != null) {
-                query.orderBy(buildDefaultSearchOrders(root, criteriaBuilder, searchQuery));
+                query.orderBy(buildDefaultSearchOrders(
+                        root,
+                        query,
+                        criteriaBuilder,
+                        searchQuery,
+                        criteria.getMarketRegion(),
+                        criteria.getPreferredLanguage()
+                ));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
 
+    private Predicate buildMarketAvailabilityMatch(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            List<MarketRegion> regions
+    ) {
+        var availabilitySubquery = query.subquery(Long.class);
+        Root<FoodItemEntity> marketProduct = availabilitySubquery.from(FoodItemEntity.class);
+        var marketJoin = marketProduct.<FoodItemEntity, MarketRegion>joinSet("marketRegions");
+        availabilitySubquery.select(marketProduct.get("id"));
+        availabilitySubquery.where(
+                criteriaBuilder.equal(marketProduct.get("id"), root.get("id")),
+                marketJoin.in(regions)
+        );
+        return criteriaBuilder.or(
+                root.get("marketRegion").in(regions),
+                criteriaBuilder.exists(availabilitySubquery)
+        );
+    }
+    private Predicate buildSearchTokenMatch(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String token
+    ) {
+        String pattern = "%" + token.toLowerCase(Locale.ROOT) + "%";
+        List<Predicate> matches = new ArrayList<>();
+        matches.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern));
+        matches.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("displayName")), pattern));
+        matches.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("shortDisplayName")), pattern));
+        matches.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), pattern));
+
+        var aliasSubquery = query.subquery(Long.class);
+        var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
+        aliasSubquery.select(aliasRoot.get("id"));
+        aliasSubquery.where(
+                criteriaBuilder.equal(aliasRoot.get("foodItem"), root),
+                criteriaBuilder.isTrue(aliasRoot.get("active")),
+                criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(aliasRoot.get("alias")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(aliasRoot.get("normalizedAlias")), pattern)
+                )
+        );
+        matches.add(criteriaBuilder.exists(aliasSubquery));
+
+        var localizationSubquery = query.subquery(Long.class);
+        var localizationRoot = localizationSubquery.from(FoodItemLocalizationEntity.class);
+        localizationSubquery.select(localizationRoot.get("id"));
+        localizationSubquery.where(
+                criteriaBuilder.equal(localizationRoot.get("foodItem"), root),
+                criteriaBuilder.isTrue(localizationRoot.get("active")),
+                criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(localizationRoot.get("displayName")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(localizationRoot.get("shortDisplayName")), pattern)
+                )
+        );
+        matches.add(criteriaBuilder.exists(localizationSubquery));
+        return criteriaBuilder.or(matches.toArray(new Predicate[0]));
+    }
+    private jakarta.persistence.criteria.Subquery<Long> blockingQualityIssueSubquery(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        var subquery = query.subquery(Long.class);
+        var issueRoot = subquery.from(FoodProductQualityIssueEntity.class);
+        subquery.select(issueRoot.get("id"));
+        subquery.where(
+                criteriaBuilder.equal(issueRoot.get("foodItem"), root),
+                criteriaBuilder.isFalse(issueRoot.get("resolved")),
+                issueRoot.get("issueType").in(blockingUserSearchQualityIssues())
+        );
+        return subquery;
+    }
+
+    private Predicate visibleVerificationStatusPredicate(
+            jakarta.persistence.criteria.Path<?> product,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.or(
+                criteriaBuilder.isNull(product.get("verificationStatus")),
+                criteriaBuilder.notEqual(product.get("verificationStatus"), VerificationStatus.REJECTED)
+        );
+    }
+
+    private Predicate criticalNutritionEligibilityPredicate(
+            jakarta.persistence.criteria.Path<?> product,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        var calories = product.<Double>get("calories");
+        var protein = product.<Double>get("protein");
+        var fat = product.<Double>get("fat");
+        var carbs = product.<Double>get("carbs");
+        return criteriaBuilder.and(
+                criteriaBuilder.isNotNull(calories),
+                criteriaBuilder.between(calories, 0.0, 900.0),
+                criteriaBuilder.or(
+                        criteriaBuilder.isNotNull(protein),
+                        criteriaBuilder.isNotNull(fat),
+                        criteriaBuilder.isNotNull(carbs)
+                ),
+                nullableNutrientRangePredicate(protein, criteriaBuilder),
+                nullableNutrientRangePredicate(fat, criteriaBuilder),
+                nullableNutrientRangePredicate(carbs, criteriaBuilder)
+        );
+    }
+
+    private Predicate nullableNutrientRangePredicate(
+            jakarta.persistence.criteria.Expression<Double> nutrient,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.or(
+                criteriaBuilder.isNull(nutrient),
+                criteriaBuilder.between(nutrient, 0.0, 100.0)
+        );
+    }
+
+    private List<FoodProductQualityIssue> blockingUserSearchQualityIssues() {
+        return FoodProductQualityRules.blockingUserSearchQualityIssues();
+    }
+
     private List<jakarta.persistence.criteria.Order> buildDefaultSearchOrders(
             Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
             jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
-            String searchQuery
+            String searchQuery,
+            MarketRegion requestedRegion,
+            PreferredLanguage preferredLanguage
     ) {
         List<jakarta.persistence.criteria.Order> orders = new ArrayList<>();
 
         if (searchQuery != null) {
+            boolean coreFoodQuery = isCoreFoodQuery(searchQuery);
+            if (coreFoodQuery) {
+                orders.add(buildCoreFoodCatalogTypeRank(root, criteriaBuilder));
+            }
+
+            if (coreFoodQuery) {
+                orders.add(buildCoreFoodIdentityRank(
+                        root, query, criteriaBuilder, searchQuery
+                ));
+            }
+
             String normalizedQuery = searchQuery.toLowerCase(Locale.ROOT);
+            if (preferredLanguage != null) {
+                orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
+                        .when(criteriaBuilder.or(
+                                buildExactLocalizedNameMatch(
+                                        root,
+                                        query,
+                                        criteriaBuilder,
+                                        normalizedQuery,
+                                        preferredLanguage
+                                ),
+                                buildExactAliasMatch(
+                                        root,
+                                        query,
+                                        criteriaBuilder,
+                                        searchQuery,
+                                        normalizedQuery,
+                                        preferredLanguage
+                                )
+                        ), 0)
+                        .otherwise(1)));
+            }
             var lowerName = criteriaBuilder.lower(root.get("name"));
             var lowerBrand = criteriaBuilder.lower(root.get("brand"));
             orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
+                    .when(buildExactLocalizedNameMatch(root, query, criteriaBuilder, normalizedQuery, null), 0)
+                    .when(buildExactAliasMatch(root, query, criteriaBuilder, searchQuery, normalizedQuery, null), 0)
                     .when(criteriaBuilder.equal(lowerName, normalizedQuery), 0)
                     .when(criteriaBuilder.equal(lowerBrand, normalizedQuery), 1)
                     .when(criteriaBuilder.or(
                             criteriaBuilder.like(lowerName, normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerName, normalizedQuery + "s %"),
+                            criteriaBuilder.like(lowerName, normalizedQuery + ",%"),
+                            criteriaBuilder.like(lowerName, normalizedQuery + "s,%"),
                             criteriaBuilder.like(lowerName, "% " + normalizedQuery + " %"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery + "s %"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery + ",%"),
+                            criteriaBuilder.like(lowerName, "% " + normalizedQuery + "s,%"),
                             criteriaBuilder.like(lowerName, "% " + normalizedQuery),
                             criteriaBuilder.like(lowerBrand, normalizedQuery + " %"),
                             criteriaBuilder.like(lowerBrand, "% " + normalizedQuery + " %"),
@@ -242,6 +528,12 @@ public class FoodItemServiceImpl implements FoodItemService {
                             criteriaBuilder.like(lowerBrand, normalizedQuery + "%")
                     ), 3)
                     .otherwise(4)));
+            if (!coreFoodQuery) {
+                orders.add(buildCatalogTypeRank(root, criteriaBuilder));
+            }
+            if (coreFoodQuery) {
+                orders.add(buildDerivedProductPenalty(root, criteriaBuilder, searchQuery));
+            }
             orders.add(criteriaBuilder.asc(criteriaBuilder.length(root.get("name"))));
         }
 
@@ -251,17 +543,336 @@ public class FoodItemServiceImpl implements FoodItemService {
                 .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.RAW_IMPORTED), 2)
                 .otherwise(3)));
 
-        orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
-                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.LOCAL_DISH), 0)
-                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.GENERIC_INGREDIENT), 1)
-                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT), 2)
-                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.USER_CUSTOM), 3)
-                .otherwise(4)));
+        if (searchQuery == null) {
+            orders.add(buildCatalogTypeRank(root, criteriaBuilder));
+        }
+
+        if (requestedRegion != null) {
+            List<MarketRegion> regions = resolveSearchRegions(requestedRegion);
+            var regionRank = criteriaBuilder.selectCase();
+            for (int index = 0; index < regions.size(); index++) {
+                regionRank.when(
+                        buildMarketAvailabilityMatch(root, query, criteriaBuilder, List.of(regions.get(index))),
+                        index
+                );
+            }
+            orders.add(criteriaBuilder.asc(regionRank.otherwise(regions.size())));
+        }
 
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("qualityScore"), 0)));
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("usageCount"), 0L)));
         orders.add(criteriaBuilder.asc(root.get("name")));
         return orders;
+    }
+
+    private Predicate buildExactLocalizedNameMatch(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String normalizedQuery,
+            PreferredLanguage preferredLanguage
+    ) {
+        var localizationSubquery = query.subquery(Long.class);
+        var localizationRoot = localizationSubquery.from(FoodItemLocalizationEntity.class);
+        localizationSubquery.select(localizationRoot.get("id"));
+        List<Predicate> localizationPredicates = new ArrayList<>();
+        localizationPredicates.add(criteriaBuilder.equal(localizationRoot.get("foodItem"), root));
+        localizationPredicates.add(criteriaBuilder.isTrue(localizationRoot.get("active")));
+        localizationPredicates.add(criteriaBuilder.or(
+                criteriaBuilder.equal(criteriaBuilder.lower(localizationRoot.get("displayName")), normalizedQuery),
+                criteriaBuilder.equal(criteriaBuilder.lower(localizationRoot.get("shortDisplayName")), normalizedQuery)
+        ));
+        if (preferredLanguage != null) {
+            localizationPredicates.add(criteriaBuilder.equal(
+                    localizationRoot.get("language"),
+                    preferredLanguage
+            ));
+        }
+        localizationSubquery.where(localizationPredicates.toArray(new Predicate[0]));
+        return criteriaBuilder.exists(localizationSubquery);
+    }
+
+    private Predicate buildExactAliasMatch(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String searchQuery,
+            String normalizedQuery,
+            PreferredLanguage preferredLanguage
+    ) {
+        String normalizedAliasQuery = FoodProductNormalizationRules.normalizeSearchAlias(searchQuery);
+        var aliasSubquery = query.subquery(Long.class);
+        var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
+        aliasSubquery.select(aliasRoot.get("id"));
+
+        Predicate aliasMatch = criteriaBuilder.equal(criteriaBuilder.lower(aliasRoot.get("alias")), normalizedQuery);
+        if (normalizedAliasQuery != null) {
+            aliasMatch = criteriaBuilder.or(
+                    aliasMatch,
+                    criteriaBuilder.equal(criteriaBuilder.lower(aliasRoot.get("normalizedAlias")), normalizedAliasQuery)
+            );
+        }
+
+        List<Predicate> aliasPredicates = new ArrayList<>();
+        aliasPredicates.add(criteriaBuilder.equal(aliasRoot.get("foodItem"), root));
+        aliasPredicates.add(criteriaBuilder.isTrue(aliasRoot.get("active")));
+        aliasPredicates.add(aliasMatch);
+        if (preferredLanguage != null) {
+            aliasPredicates.add(criteriaBuilder.equal(aliasRoot.get("language"), preferredLanguage));
+        }
+        aliasSubquery.where(aliasPredicates.toArray(new Predicate[0]));
+        return criteriaBuilder.exists(aliasSubquery);
+    }
+    private jakarta.persistence.criteria.Order buildCoreFoodIdentityRank(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String searchQuery
+    ) {
+        Set<String> identityTerms = resolveSearchIdentityTerms(searchQuery);
+
+        if (identityTerms.isEmpty()) {
+            return criteriaBuilder.asc(criteriaBuilder.literal(0));
+        }
+
+        List<Predicate> identityMatches = new ArrayList<>();
+        for (String term : identityTerms) {
+            identityMatches.add(buildWholeWordMatch(criteriaBuilder.lower(root.get("displayName")), criteriaBuilder, term));
+            identityMatches.add(buildWholeWordMatch(criteriaBuilder.lower(root.get("shortDisplayName")), criteriaBuilder, term));
+        }
+
+        var aliasSubquery = query.subquery(Long.class);
+        var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
+        List<Predicate> aliasMatches = new ArrayList<>();
+        for (String term : identityTerms) {
+            aliasMatches.add(buildWholeWordMatch(criteriaBuilder.lower(aliasRoot.get("alias")), criteriaBuilder, term));
+            aliasMatches.add(buildWholeWordMatch(criteriaBuilder.lower(aliasRoot.get("normalizedAlias")), criteriaBuilder, term));
+        }
+        aliasSubquery.select(aliasRoot.get("id"));
+        aliasSubquery.where(
+                criteriaBuilder.equal(aliasRoot.get("foodItem"), root),
+                criteriaBuilder.isTrue(aliasRoot.get("active")),
+                criteriaBuilder.or(aliasMatches.toArray(new Predicate[0]))
+        );
+        identityMatches.add(criteriaBuilder.exists(aliasSubquery));
+
+        var localizationSubquery = query.subquery(Long.class);
+        var localizationRoot = localizationSubquery.from(FoodItemLocalizationEntity.class);
+        List<Predicate> localizationMatches = new ArrayList<>();
+        for (String term : identityTerms) {
+            localizationMatches.add(buildWholeWordMatch(
+                    criteriaBuilder.lower(localizationRoot.get("displayName")), criteriaBuilder, term));
+            localizationMatches.add(buildWholeWordMatch(
+                    criteriaBuilder.lower(localizationRoot.get("shortDisplayName")), criteriaBuilder, term));
+        }
+        localizationSubquery.select(localizationRoot.get("id"));
+        localizationSubquery.where(
+                criteriaBuilder.equal(localizationRoot.get("foodItem"), root),
+                criteriaBuilder.isTrue(localizationRoot.get("active")),
+                criteriaBuilder.or(localizationMatches.toArray(new Predicate[0]))
+        );
+        identityMatches.add(criteriaBuilder.exists(localizationSubquery));
+
+        return criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.or(identityMatches.toArray(new Predicate[0])), 0)
+                .otherwise(1));
+    }
+
+    private Predicate buildCoreFoodWordSearchMatch(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String searchQuery
+    ) {
+        Set<String> identityTerms = resolveSearchIdentityTerms(searchQuery);
+        List<Predicate> matches = new ArrayList<>();
+        for (String term : identityTerms) {
+            matches.add(buildWholeWordMatch(criteriaBuilder.lower(root.get("name")), criteriaBuilder, term));
+            matches.add(buildWholeWordMatch(criteriaBuilder.lower(root.get("displayName")), criteriaBuilder, term));
+            matches.add(buildWholeWordMatch(criteriaBuilder.lower(root.get("shortDisplayName")), criteriaBuilder, term));
+            matches.add(buildWholeWordMatch(criteriaBuilder.lower(root.get("brand")), criteriaBuilder, term));
+        }
+
+        var aliasSubquery = query.subquery(Long.class);
+        var aliasRoot = aliasSubquery.from(FoodItemSearchAliasEntity.class);
+        List<Predicate> aliasMatches = new ArrayList<>();
+        for (String term : identityTerms) {
+            aliasMatches.add(buildWholeWordMatch(criteriaBuilder.lower(aliasRoot.get("alias")), criteriaBuilder, term));
+            aliasMatches.add(buildWholeWordMatch(criteriaBuilder.lower(aliasRoot.get("normalizedAlias")), criteriaBuilder, term));
+        }
+        aliasSubquery.select(aliasRoot.get("id"));
+        aliasSubquery.where(
+                criteriaBuilder.equal(aliasRoot.get("foodItem"), root),
+                criteriaBuilder.isTrue(aliasRoot.get("active")),
+                criteriaBuilder.or(aliasMatches.toArray(new Predicate[0]))
+        );
+        matches.add(criteriaBuilder.exists(aliasSubquery));
+
+        var localizationSubquery = query.subquery(Long.class);
+        var localizationRoot = localizationSubquery.from(FoodItemLocalizationEntity.class);
+        List<Predicate> localizationMatches = new ArrayList<>();
+        for (String term : identityTerms) {
+            localizationMatches.add(buildWholeWordMatch(
+                    criteriaBuilder.lower(localizationRoot.get("displayName")), criteriaBuilder, term));
+            localizationMatches.add(buildWholeWordMatch(
+                    criteriaBuilder.lower(localizationRoot.get("shortDisplayName")), criteriaBuilder, term));
+        }
+        localizationSubquery.select(localizationRoot.get("id"));
+        localizationSubquery.where(
+                criteriaBuilder.equal(localizationRoot.get("foodItem"), root),
+                criteriaBuilder.isTrue(localizationRoot.get("active")),
+                criteriaBuilder.or(localizationMatches.toArray(new Predicate[0]))
+        );
+        matches.add(criteriaBuilder.exists(localizationSubquery));
+        return criteriaBuilder.or(matches.toArray(new Predicate[0]));
+    }
+
+    private Set<String> resolveSearchIdentityTerms(String searchQuery) {
+        Set<String> identityTerms = new java.util.LinkedHashSet<>();
+        for (String term : FoodProductNormalizationRules.expandSearchTerms(searchQuery)) {
+            String normalizedText = FoodProductNormalizationRules.normalizeText(term);
+            if (normalizedText != null) {
+                identityTerms.add(normalizedText.toLowerCase(Locale.ROOT));
+            }
+            String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(term);
+            if (normalizedAlias != null) {
+                identityTerms.add(normalizedAlias.toLowerCase(Locale.ROOT));
+            }
+        }
+        String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(searchQuery);
+        if (normalizedAlias != null) {
+            identityTerms.add(normalizedAlias.toLowerCase(Locale.ROOT));
+        }
+        return identityTerms;
+    }
+    private Predicate buildWholeWordMatch(
+            jakarta.persistence.criteria.Expression<String> expression,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String term
+    ) {
+        Predicate singularMatch = buildExactWordMatch(expression, criteriaBuilder, term);
+        if (!term.matches("[a-z]{3,}")) {
+            return singularMatch;
+        }
+        return criteriaBuilder.or(
+                singularMatch,
+                buildExactWordMatch(expression, criteriaBuilder, term + "s")
+        );
+    }
+
+    private Predicate buildExactWordMatch(
+            jakarta.persistence.criteria.Expression<String> expression,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String term
+    ) {
+        return criteriaBuilder.or(
+                criteriaBuilder.equal(expression, term),
+                criteriaBuilder.like(expression, term + " %"),
+                criteriaBuilder.like(expression, term + ",%"),
+                criteriaBuilder.like(expression, "% " + term + " %"),
+                criteriaBuilder.like(expression, "% " + term + ",%"),
+                criteriaBuilder.like(expression, "% " + term)
+        );
+    }
+    private jakarta.persistence.criteria.Order buildDerivedProductPenalty(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            String searchQuery
+    ) {
+        if (!isCoreFoodQuery(searchQuery)) {
+            return criteriaBuilder.asc(criteriaBuilder.literal(0));
+        }
+
+        var lowerName = criteriaBuilder.lower(root.get("name"));
+        Predicate derivedName = criteriaBuilder.or(
+                criteriaBuilder.like(lowerName, "babyfood%"),
+                criteriaBuilder.like(lowerName, "baby food%"),
+                criteriaBuilder.like(lowerName, "flour%"),
+                criteriaBuilder.like(lowerName, "soup%"),
+                criteriaBuilder.like(lowerName, "broth%"),
+                criteriaBuilder.like(lowerName, "mix%"),
+                criteriaBuilder.like(lowerName, "restaurant%"),
+                criteriaBuilder.like(lowerName, "% babyfood%"),
+                criteriaBuilder.like(lowerName, "baby food%"),
+                criteriaBuilder.like(lowerName, "% baby food%"),
+                criteriaBuilder.like(lowerName, "% bread%"),
+                criteriaBuilder.like(lowerName, "% bread"),
+                criteriaBuilder.like(lowerName, "% chips%"),
+                criteriaBuilder.like(lowerName, "% chips"),
+                criteriaBuilder.like(lowerName, "% loaf%"),
+                criteriaBuilder.like(lowerName, "% loaf"),
+                criteriaBuilder.like(lowerName, "% cake%"),
+                criteriaBuilder.like(lowerName, "% cake"),
+                criteriaBuilder.like(lowerName, "% cookie%"),
+                criteriaBuilder.like(lowerName, "% cookie"),
+                criteriaBuilder.like(lowerName, "% cookies%"),
+                criteriaBuilder.like(lowerName, "% cookies"),
+                criteriaBuilder.like(lowerName, "% biscuit%"),
+                criteriaBuilder.like(lowerName, "% biscuit"),
+                criteriaBuilder.like(lowerName, "% biscuits%"),
+                criteriaBuilder.like(lowerName, "% biscuits"),
+                criteriaBuilder.like(lowerName, "% snack%"),
+                criteriaBuilder.like(lowerName, "% snack"),
+                criteriaBuilder.like(lowerName, "% bar%"),
+                criteriaBuilder.like(lowerName, "% bar"),
+                criteriaBuilder.like(lowerName, "% flour%"),
+                criteriaBuilder.like(lowerName, "% flour"),
+                criteriaBuilder.like(lowerName, "% broth%"),
+                criteriaBuilder.like(lowerName, "% broth"),
+                criteriaBuilder.like(lowerName, "% soup%"),
+                criteriaBuilder.like(lowerName, "% soup"),
+                criteriaBuilder.like(lowerName, "% cube%"),
+                criteriaBuilder.like(lowerName, "% cube"),
+                criteriaBuilder.like(lowerName, "% cubes%"),
+                criteriaBuilder.like(lowerName, "% cubes"),
+                criteriaBuilder.like(lowerName, "% powder%"),
+                criteriaBuilder.like(lowerName, "% powder")
+        );
+        return criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(derivedName, 1)
+                .otherwise(0));
+    }
+
+    private boolean isCoreFoodQuery(String searchQuery) {
+        String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(searchQuery);
+        if (normalizedAlias == null) {
+            return false;
+        }
+        return Set.of(
+                "apple", "elma",
+                "banana", "muz",
+                "broccoli", "brokoli",
+                "chicken", "tavuk", "chicken breast", "tavuk gogsu",
+                "egg", "yumurta",
+                "milk", "sut",
+                "oats", "yulaf",
+                "potato", "patates",
+                "rice", "pirinc",
+                "yogurt", "yoghurt"
+        ).contains(normalizedAlias);
+    }
+
+    private jakarta.persistence.criteria.Order buildCoreFoodCatalogTypeRank(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.GENERIC_INGREDIENT), 0)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.LOCAL_DISH), 1)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT), 2)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.USER_CUSTOM), 3)
+                .otherwise(4));
+    }
+    private jakarta.persistence.criteria.Order buildCatalogTypeRank(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.LOCAL_DISH), 0)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.GENERIC_INGREDIENT), 1)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.BRANDED_PRODUCT), 2)
+                .when(criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.USER_CUSTOM), 3)
+                .otherwise(4));
     }
 
     private Sort buildSort(FoodSearchCriteriaDto criteria) {
@@ -292,6 +903,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         FoodItemEntity entity = buildImportedFoodItem(externalProduct, barcode);
         FoodItemEntity saved = foodItemRepository.save(entity);
         foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
+        recordOpenFoodFactsEvidence(saved);
         return saved;
     }
 
@@ -318,7 +930,8 @@ public class FoodItemServiceImpl implements FoodItemService {
                         cachedProducts.subList(fromIndex, toIndex),
                         pageable,
                         cachedProducts.size()
-                )
+                ),
+                criteria.getPreferredLanguage()
         );
     }
 
@@ -336,7 +949,18 @@ public class FoodItemServiceImpl implements FoodItemService {
 
         FoodItemEntity saved = foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
         foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
+        recordOpenFoodFactsEvidence(saved);
         return saved;
+    }
+
+    private void recordOpenFoodFactsEvidence(FoodItemEntity product) {
+        foodProductEvidenceService.recordImportEvidence(
+                List.of(product),
+                FoodEvidenceBasis.PER_100_G,
+                LocalDateTime.now(),
+                "OPEN_FOOD_FACTS_API",
+                "system:open-food-facts"
+        );
     }
 
     private FoodItemEntity buildImportedFoodItem(FoodProductDto externalProduct, String barcode) {
@@ -408,7 +1032,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private Page<FoodItemEntity> searchLocalProductsByRegionPriority(FoodSearchCriteriaDto criteria, Pageable pageable) {
-        if (criteria.getMarketRegion() == null || hasExplicitSort(criteria)) {
+        if (criteria.getMarketRegion() == null || hasExplicitSort(criteria) || hasSearchQuery(criteria)) {
             return org.springframework.data.domain.Page.empty(pageable);
         }
 
@@ -439,6 +1063,10 @@ public class FoodItemServiceImpl implements FoodItemService {
         return FoodProductNormalizationRules.normalizeText(criteria.getSortBy()) != null;
     }
 
+    private boolean hasSearchQuery(FoodSearchCriteriaDto criteria) {
+        return FoodProductNormalizationRules.normalizeText(criteria.getQuery()) != null;
+    }
+
     private FoodSearchCriteriaDto copyCriteriaWithRegion(FoodSearchCriteriaDto criteria, MarketRegion region) {
         FoodSearchCriteriaDto copy = new FoodSearchCriteriaDto();
         copy.setQuery(criteria.getQuery());
@@ -452,6 +1080,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         copy.setMarketRegion(region);
         copy.setCatalogType(criteria.getCatalogType());
         copy.setPreparationState(criteria.getPreparationState());
+        copy.setPreferredLanguage(criteria.getPreferredLanguage());
         return copy;
     }
 
@@ -475,8 +1104,27 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private FoodProductSearchPageDto toSearchPageDto(Page<FoodItemEntity> products) {
+        return toSearchPageDto(products, null);
+    }
+
+    private FoodProductSearchPageDto toSearchPageDto(Page<FoodItemEntity> products, PreferredLanguage language) {
         FoodProductSearchPageDto dto = new FoodProductSearchPageDto();
-        dto.setContent(products.getContent().stream().map(this::toProductDto).toList());
+        List<FoodItemEntity> content = products.getContent();
+        List<Long> productIds = content.stream().map(FoodItemEntity::getId).toList();
+        Map<Long, List<FoodItemServingOptionEntity>> servingOptionsByProductId = loadServingOptions(productIds);
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizationsByProductId =
+                loadLocalizations(productIds, language);
+        Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servingLocalizationsByOptionId =
+                loadServingOptionLocalizations(servingOptionsByProductId, language);
+        dto.setContent(content.stream()
+                .map(product -> toProductDto(
+                        product,
+                        language,
+                        servingOptionsByProductId.getOrDefault(product.getId(), List.of()),
+                        resolveLocalization(localizationsByProductId.get(product.getId()), language),
+                        servingLocalizationsByOptionId
+                ))
+                .toList());
         dto.setPage(products.getNumber());
         dto.setSize(products.getSize());
         dto.setTotalElements(products.getTotalElements());
@@ -487,15 +1135,179 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private FoodProductSearchPageDto emptySearchPage(Pageable pageable) {
-        return toSearchPageDto(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
+        return toSearchPageDto(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0), null);
     }
 
     private FoodProductDto toProductDto(FoodItemEntity product) {
+        return toProductDto(product, null);
+    }
+
+    private Map<Long, List<FoodItemServingOptionEntity>> loadServingOptions(List<Long> productIds) {
+        Map<Long, List<FoodItemServingOptionEntity>> result = new HashMap<>();
+        if (productIds.isEmpty()) {
+            return result;
+        }
+        foodItemServingOptionRepository
+                .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(productIds)
+                .forEach(option -> result
+                        .computeIfAbsent(option.getFoodItem().getId(), ignored -> new ArrayList<>())
+                        .add(option));
+        return result;
+    }
+
+    private Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> loadServingOptionLocalizations(
+            Map<Long, List<FoodItemServingOptionEntity>> servingOptionsByProductId,
+            PreferredLanguage language
+    ) {
+        List<Long> servingOptionIds = servingOptionsByProductId.values().stream()
+                .flatMap(List::stream)
+                .map(FoodItemServingOptionEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        return loadServingOptionLocalizations(servingOptionIds, language);
+    }
+
+    private Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> loadServingOptionLocalizations(
+            List<Long> servingOptionIds,
+            PreferredLanguage language
+    ) {
+        Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> result = new HashMap<>();
+        if (servingOptionIds.isEmpty()) {
+            return result;
+        }
+        PreferredLanguage resolvedLanguage = resolveLanguage(language);
+        Set<PreferredLanguage> languages = resolvedLanguage == PreferredLanguage.EN
+                ? Set.of(PreferredLanguage.EN)
+                : Set.of(resolvedLanguage, PreferredLanguage.EN);
+        foodItemServingOptionLocalizationRepository
+                .findByServingOptionIdInAndLanguageInAndActiveTrue(servingOptionIds, languages)
+                .forEach(localization -> result
+                        .computeIfAbsent(localization.getServingOption().getId(), ignored -> new HashMap<>())
+                        .put(localization.getLanguage(), localization));
+        return result;
+    }
+    private Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> loadLocalizations(
+            List<Long> productIds,
+            PreferredLanguage language
+    ) {
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> result = new HashMap<>();
+        if (productIds.isEmpty()) {
+            return result;
+        }
+        PreferredLanguage resolvedLanguage = resolveLanguage(language);
+        Set<PreferredLanguage> languages = resolvedLanguage == PreferredLanguage.EN
+                ? Set.of(PreferredLanguage.EN)
+                : Set.of(resolvedLanguage, PreferredLanguage.EN);
+        foodItemLocalizationRepository
+                .findByFoodItemIdInAndLanguageInAndActiveTrue(productIds, languages)
+                .forEach(localization -> result
+                        .computeIfAbsent(localization.getFoodItem().getId(), ignored -> new HashMap<>())
+                        .put(localization.getLanguage(), localization));
+        return result;
+    }
+
+    private FoodItemLocalizationEntity resolveLocalization(
+            Map<PreferredLanguage, FoodItemLocalizationEntity> localizations,
+            PreferredLanguage language
+    ) {
+        if (localizations == null || localizations.isEmpty()) {
+            return null;
+        }
+        PreferredLanguage resolvedLanguage = resolveLanguage(language);
+        FoodItemLocalizationEntity localization = localizations.get(resolvedLanguage);
+        return localization != null ? localization : localizations.get(PreferredLanguage.EN);
+    }
+
+    private FoodItemServingOptionLocalizationEntity resolveServingLocalization(
+            Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity> localizations,
+            PreferredLanguage language
+    ) {
+        if (localizations == null || localizations.isEmpty()) {
+            return null;
+        }
+        PreferredLanguage resolvedLanguage = resolveLanguage(language);
+        FoodItemServingOptionLocalizationEntity localization = localizations.get(resolvedLanguage);
+        return localization != null ? localization : localizations.get(PreferredLanguage.EN);
+    }
+    private PreferredLanguage resolveLanguage(PreferredLanguage language) {
+        return language == null ? PreferredLanguage.EN : language;
+    }
+
+    private void applyLocalization(
+            FoodProductDto dto,
+            FoodItemEntity product,
+            PreferredLanguage language,
+            FoodItemLocalizationEntity localization
+    ) {
+        dto.setLanguage(resolveLanguage(language));
+        if (localization == null) {
+            return;
+        }
+        String localizedDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(localization.getDisplayName());
+        String localizedShortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(localization.getShortDisplayName());
+        if (localizedDisplayName != null) {
+            dto.setDisplayName(localizedDisplayName);
+        }
+        if (localizedShortDisplayName != null) {
+            dto.setShortDisplayName(localizedShortDisplayName);
+        } else if (localizedDisplayName != null) {
+            dto.setShortDisplayName(localizedDisplayName);
+        }
+        boolean hasExplicitPreparation = product.getPreparationState() != null
+                && product.getPreparationState() != FoodPreparationState.UNSPECIFIED;
+        String preferredProductName = hasExplicitPreparation
+                ? dto.getDisplayName()
+                : dto.getShortDisplayName();
+        dto.setProductName(preferredProductName != null ? preferredProductName : dto.getDisplayName());
+    }
+
+    private FoodProductDto toProductDto(FoodItemEntity product, PreferredLanguage language) {
+        List<FoodItemServingOptionEntity> servingOptions =
+                foodItemServingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product);
+        PreferredLanguage resolvedLanguage = resolveLanguage(language);
+        FoodItemLocalizationEntity localization = foodItemLocalizationRepository
+                .findByFoodItemIdAndLanguageAndActiveTrue(product.getId(), resolvedLanguage)
+                .or(() -> resolvedLanguage == PreferredLanguage.EN
+                        ? java.util.Optional.empty()
+                        : foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(
+                                product.getId(),
+                                PreferredLanguage.EN
+                        ))
+                .orElse(null);
+Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servingLocalizations =
+                loadServingOptionLocalizations(
+                        servingOptions.stream().map(FoodItemServingOptionEntity::getId).filter(Objects::nonNull).toList(),
+                        language
+                );
+        return toProductDto(product, language, servingOptions, localization, servingLocalizations);
+    }
+
+    private FoodProductDto toProductDto(
+            FoodItemEntity product,
+            PreferredLanguage language,
+            List<FoodItemServingOptionEntity> servingOptions,
+            FoodItemLocalizationEntity localization,
+            Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servingLocalizations
+    ) {
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(product);
-        foodItemServingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product)
-                .stream()
+        applyLocalization(dto, product, language, localization);
+dto.setServingOptions(servingOptions.stream().map(option -> {
+            var servingDto = FoodServingOptionMapper.toDto(option);
+            FoodItemServingOptionLocalizationEntity servingLocalization = resolveServingLocalization(
+                    servingLocalizations.get(option.getId()),
+                    language
+            );
+            if (servingLocalization != null) {
+                servingDto.setLabel(servingLocalization.getLabel());
+            }
+            return servingDto;
+        }).toList());
+        servingOptions.stream()
+                .filter(option -> Boolean.TRUE.equals(option.getIsDefault()))
                 .findFirst()
+                .or(() -> servingOptions.stream().findFirst())
                 .ifPresent(option -> dto.setDefaultServingOptionId(option.getId()));
         return dto;
     }
 }
+

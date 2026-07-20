@@ -1,9 +1,11 @@
 package com.grun.calorietracker.service.support;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.VerificationStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public final class FoodProductQualityRules {
 
@@ -124,6 +126,14 @@ public final class FoodProductQualityRules {
         return Math.max(0, Math.min(score, 100));
     }
 
+    public static List<FoodProductQualityIssue> blockingUserSearchQualityIssues() {
+        return List.of(
+                FoodProductQualityIssue.MISSING_CALORIES,
+                FoodProductQualityIssue.MISSING_MACROS,
+                FoodProductQualityIssue.SUSPICIOUS_CALORIES,
+                FoodProductQualityIssue.SUSPICIOUS_MACROS
+        );
+    }
     public static boolean hasCriticalIssue(FoodItemEntity product) {
         return product == null
                 || product.getCalories() == null

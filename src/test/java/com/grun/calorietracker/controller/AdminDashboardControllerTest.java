@@ -10,6 +10,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Map;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,10 +44,14 @@ class AdminDashboardControllerTest {
                 4,
                 2,
                 3,
-                1,
-                6,
+                1,                6,
                 8,
-                12
+                12,
+                50,
+                30,
+                12,
+                3,
+                Map.of("WRONG_PORTION", 7L, "LOW_CONFIDENCE", 5L)
         );
 
         when(adminDashboardService.getSummary()).thenReturn(summary);
@@ -65,7 +71,12 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.activePlusSubscriptions").value(4))
                 .andExpect(jsonPath("$.activeProSubscriptions").value(2))
                 .andExpect(jsonPath("$.failedSubscriptionProviderEvents").value(8))
-                .andExpect(jsonPath("$.subscriptionProviderEventsLast24Hours").value(12));
+                .andExpect(jsonPath("$.subscriptionProviderEventsLast24Hours").value(12))
+                .andExpect(jsonPath("$.aiRequestsLast7Days").value(50))
+                .andExpect(jsonPath("$.aiConfirmedLast7Days").value(30))
+                .andExpect(jsonPath("$.aiRejectedLast7Days").value(12))
+                .andExpect(jsonPath("$.aiFailedLast7Days").value(3))
+                .andExpect(jsonPath("$.aiRejectionReasonsLast7Days.WRONG_PORTION").value(7));
     }
 
     @Test
@@ -75,4 +86,5 @@ class AdminDashboardControllerTest {
                 .andExpect(status().isForbidden());
     }
 }
+
 

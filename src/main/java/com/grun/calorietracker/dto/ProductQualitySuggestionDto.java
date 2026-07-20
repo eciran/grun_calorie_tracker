@@ -23,10 +23,50 @@ public class ProductQualitySuggestionDto {
     private ProductQualitySuggestionSource source;
     private ProductQualitySuggestionStatus status;
     private Integer confidenceScore;
+    private String fieldName;
     private String currentValue;
     private String suggestedValue;
     private String reason;
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;
     private String reviewedBy;
+
+    public ProductQualitySuggestionDto(
+            Long id,
+            Long foodItemId,
+            String productName,
+            String brand,
+            ProductQualitySuggestionType suggestionType,
+            ProductQualitySuggestionSource source,
+            ProductQualitySuggestionStatus status,
+            Integer confidenceScore,
+            String currentValue,
+            String suggestedValue,
+            String reason,
+            LocalDateTime createdAt,
+            LocalDateTime reviewedAt,
+            String reviewedBy
+    ) {
+        this(
+                id,
+                foodItemId,
+                productName,
+                brand,
+                suggestionType,
+                source,
+                status,
+                confidenceScore,
+                null,
+                currentValue,
+                suggestedValue,
+                reason,
+                createdAt,
+                reviewedAt,
+                reviewedBy
+        );
+    }
 }
+
+
+
+

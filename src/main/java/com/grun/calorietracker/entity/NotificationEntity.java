@@ -26,6 +26,16 @@ public class NotificationEntity {
 
     private String type; // "info", "warning", "reminder"
 
+    private String severity; // "INFO", "WARNING", "CRITICAL"
+
+    private String source;
+
+    private String targetType;
+
+    private String targetId;
+
+    private String targetRoute;
+
     private Boolean isRead;
 
     private LocalDateTime createdAt;

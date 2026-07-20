@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiWorkoutPlanDayDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
+import com.grun.calorietracker.dto.AiWorkoutPlanCreditEstimateDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanExerciseDto;
 import com.grun.calorietracker.dto.WorkoutPlanDto;
 import com.grun.calorietracker.enums.AiProvider;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +42,20 @@ class AiWorkoutPlanControllerTest {
 
     @MockBean
     private AiWorkoutPlanService aiWorkoutPlanService;
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void estimateCreditCost_returnsBackendCalculatedWorkoutCost() throws Exception {
+        when(aiWorkoutPlanService.estimateCreditCost("user@example.com", 6, 75))
+                .thenReturn(new AiWorkoutPlanCreditEstimateDto(6, 75, 450, 1, 90, 120, 3, 4));
+
+        mockMvc.perform(get("/api/v1/ai/workout-plans/credit-cost")
+                        .param("daysPerWeek", "6")
+                        .param("minutesPerSession", "75"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPlannedMinutes").value(450))
+                .andExpect(jsonPath("$.totalCreditCost").value(4));
+    }
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
@@ -62,6 +78,9 @@ class AiWorkoutPlanControllerTest {
                 .andExpect(jsonPath("$.requestId").value(81))
                 .andExpect(jsonPath("$.requestType").value("AI_WORKOUT_PLAN"))
                 .andExpect(jsonPath("$.days[0].exercises[0].name").value("Push-Up"))
+                .andExpect(jsonPath("$.quotaConsumedAmount").value(4))
+                .andExpect(jsonPath("$.aiBaseRemainingThisPeriod").value(9))
+                .andExpect(jsonPath("$.aiAddonRemainingThisPeriod").value(2))
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(11));
     }
 
@@ -97,12 +116,46 @@ class AiWorkoutPlanControllerTest {
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
+    void updateSchedule_acceptsUserConfirmedWorkoutCalendar() throws Exception {
+        WorkoutPlanDto scheduled = plan();
+        scheduled.setScheduleReady(true);
+        scheduled.setScheduleVersion("workout_schedule_v1");
+        when(aiWorkoutPlanService.updateSchedule(eq("user@example.com"), eq(99L), any()))
+                .thenReturn(scheduled);
+
+        mockMvc.perform(put("/api/v1/ai/workout-plans/99/schedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sessions": [
+                                    {
+                                      "dayIndex": 0,
+                                      "scheduledDate": "2026-07-20",
+                                      "scheduledStartTime": "18:00:00",
+                                      "intensity": "MODERATE"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduleReady").value(true))
+                .andExpect(jsonPath("$.scheduleVersion").value("workout_schedule_v1"));
+        verify(aiWorkoutPlanService).updateSchedule(eq("user@example.com"), eq(99L), any());
+    }
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
     void listAndArchivePlans_useUserOwnedPlanEndpoints() throws Exception {
         when(aiWorkoutPlanService.listActivePlans("user@example.com")).thenReturn(List.of(plan()));
 
         mockMvc.perform(get("/api/v1/ai/workout-plans"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(99));
+
+        when(aiWorkoutPlanService.listAllPlans("user@example.com")).thenReturn(List.of(plan()));
+        mockMvc.perform(get("/api/v1/ai/workout-plans").param("includeInactive", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(99));
+        verify(aiWorkoutPlanService).listAllPlans("user@example.com");
 
         mockMvc.perform(delete("/api/v1/ai/workout-plans/99"))
                 .andExpect(status().isNoContent());
@@ -139,6 +192,9 @@ class AiWorkoutPlanControllerTest {
         response.setModel("log-draft-v1");
         response.setName("Starter strength plan");
         response.setSummary("Review before activating.");
+        response.setQuotaConsumedAmount(4);
+        response.setAiBaseRemainingThisPeriod(9);
+        response.setAiAddonRemainingThisPeriod(2);
         response.setAiRemainingThisPeriod(11);
         response.setDays(List.of(day));
         return response;

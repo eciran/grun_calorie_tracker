@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,15 +49,17 @@ class NotificationServiceImplTest {
     @Test
     void listNotifications_whenUnreadAndTypeFilter_returnsPage() {
         NotificationEntity notification = notification(10L, false, "subscription");
-        when(notificationRepository.findByUserAndTypeAndIsRead(eq(user), eq("subscription"), eq(false), any(Pageable.class)))
+        when(notificationRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(notification)));
 
-        var result = service.listNotifications("user@example.com", true, "subscription", 0, 25);
+        var result = service.listNotifications("user@example.com", true, "subscription", "CRITICAL", 0, 25);
 
         assertEquals(1, result.getContent().size());
         assertEquals(10L, result.getContent().get(0).getId());
         assertEquals(false, result.getContent().get(0).getRead());
         assertEquals("subscription", result.getContent().get(0).getType());
+        assertEquals("CRITICAL", result.getContent().get(0).getSeverity());
+        assertEquals("SUBSCRIPTION_PROVIDER_EVENT", result.getContent().get(0).getTargetType());
     }
 
     @Test
@@ -99,6 +102,11 @@ class NotificationServiceImplTest {
         notification.setMessage("Feature changed");
         notification.setType(type);
         notification.setIsRead(read);
+        notification.setSeverity("CRITICAL");
+        notification.setSource("TEST");
+        notification.setTargetType("SUBSCRIPTION_PROVIDER_EVENT");
+        notification.setTargetId("42");
+        notification.setTargetRoute("subscriptionEvents");
         notification.setCreatedAt(LocalDateTime.of(2026, 5, 27, 14, 0));
         return notification;
     }

@@ -84,3 +84,17 @@ Backend smoke checks:
 ```
 
 Real App Store / Google Play sandbox purchase tests require a mobile build using the RevenueCat SDK.
+
+## AI Cost Estimation
+
+Admin AI monitoring uses backend-side estimated cost from provider token usage. Configure model-specific token prices through environment variables:
+
+```text
+GRUN_AI_OPENAI_INPUT_TOKEN_COST_PER_1M=0.75
+GRUN_AI_OPENAI_OUTPUT_TOKEN_COST_PER_1M=4.50
+GRUN_AI_OPENAI_COST_CURRENCY=USD
+```
+
+These defaults match the current local `gpt-5.4-mini` setup as an estimate. If `GRUN_AI_MODEL` changes, update the input/output token prices at the same time. Historical rows keep the cost metadata stored at request time.
+
+For invoice-grade reporting, use OpenAI organization Usage/Costs APIs as a separate provider-actual metric instead of replacing this request-level estimate.

@@ -9,7 +9,27 @@ import lombok.Data;
 public class RecipeIngredientDto {
     private Long foodItemId;
     private String foodName;
+    private Boolean snapshotIngredient;
     private Double portionSize;
     private FoodPortionUnit portionUnit;
     private Double normalizedPortionGrams;
+    private Double snapshotCalories;
+    private Double snapshotProtein;
+    private Double snapshotCarbs;
+    private Double snapshotFat;
+    private Double snapshotFiber;
+    private Double snapshotSugar;
+    private Double snapshotSaturatedFat;
+    private Double snapshotSodium;
+    private Double snapshotPotassium;
+    private Double snapshotCholesterol;
+    private Double snapshotCalcium;
+    private Double snapshotIron;
+    private Double snapshotMagnesium;
+    private Double snapshotZinc;
+    private Double snapshotVitaminA;
+    private Double snapshotVitaminC;
+    private Double snapshotVitaminD;
+    private Double snapshotVitaminE;
+    private Double snapshotVitaminB12;
 }

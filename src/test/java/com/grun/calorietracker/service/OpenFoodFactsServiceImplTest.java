@@ -16,9 +16,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class OpenFoodFactsServiceImplTest {
@@ -91,6 +93,71 @@ class OpenFoodFactsServiceImplTest {
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, product.getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, product.getVerificationStatus());
         assertEquals(ImageStatus.NEEDS_REVIEW, product.getImageStatus());
+        server.verify();
+    }
+    @Test
+    void getProductByBarcode_normalizesGramServingValuesToPer100g() {
+        String response = """
+                {
+                  "status": 1,
+                  "product": {
+                    "code": "333",
+                    "product_name": "Protein Snack",
+                    "serving_quantity": 30,
+                    "serving_quantity_unit": "g",
+                    "nutriments": {
+                      "energy-kcal_serving": 60,
+                      "proteins_serving": 6
+                    }
+                  }
+                }
+                """;
+        server.expect(requestTo("https://world.openfoodfacts.org/api/v2/product/333.json"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+
+        FoodProductDto product = service.getProductByBarcode("333").orElseThrow();
+
+        assertEquals(200.0, product.getCalories());
+        assertEquals(20.0, product.getProtein());
+        server.verify();
+    }
+
+    @Test
+    void getProductByBarcode_doesNotMislabelMilliliterServingValuesAsPer100g() {
+        String response = """
+                {
+                  "status": 1,
+                  "product": {
+                    "code": "444",
+                    "product_name": "Liquid Drink",
+                    "serving_quantity": 250,
+                    "serving_quantity_unit": "ml",
+                    "nutriments": {
+                      "energy-kcal_serving": 120,
+                      "proteins_serving": 4
+                    }
+                  }
+                }
+                """;
+        server.expect(requestTo("https://world.openfoodfacts.org/api/v2/product/444.json"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+
+        FoodProductDto product = service.getProductByBarcode("444").orElseThrow();
+
+        assertNull(product.getCalories());
+        assertNull(product.getProtein());
+        server.verify();
+    }
+
+
+    @Test
+    void getProductByBarcode_whenProviderFails_returnsNoFabricatedProduct() {
+        server.expect(requestTo("https://world.openfoodfacts.org/api/v2/product/500.json"))
+                .andRespond(withServerError());
+
+        Optional<FoodProductDto> result = service.getProductByBarcode("500");
+
+        assertTrue(result.isEmpty());
         server.verify();
     }
 

@@ -13,6 +13,9 @@ public class WorkoutPlanDto {
     private Long sourceAiRequestId;
     private AiWorkoutPlanDraftResponseDto plan;
     private Boolean active;
+    private Boolean scheduleReady;
+    private String scheduleVersion;
+    private LocalDateTime scheduleUpdatedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

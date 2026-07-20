@@ -13,7 +13,7 @@ import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
-import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
@@ -22,9 +22,9 @@ import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.SubscriptionFeature;
-import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
-import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AiMealDraftServiceImpl;
 import com.grun.calorietracker.service.impl.AiMealDraftResponseValidatorImpl;
@@ -53,8 +53,8 @@ class AiMealDraftServiceImplTest {
     private AiMealDraftProviderClient providerClient;
     private AiRequestHistoryRepository historyRepository;
     private UserRepository userRepository;
-    private FoodItemRepository foodItemRepository;
     private SubscriptionService subscriptionService;
+    private NotificationRepository notificationRepository;
     private FoodLogsService foodLogsService;
     private AiMealDraftServiceImpl service;
     private UserEntity user;
@@ -68,21 +68,22 @@ class AiMealDraftServiceImplTest {
         providerClient = mock(AiMealDraftProviderClient.class);
         historyRepository = mock(AiRequestHistoryRepository.class);
         userRepository = mock(UserRepository.class);
-        foodItemRepository = mock(FoodItemRepository.class);
         subscriptionService = mock(SubscriptionService.class);
+        when(subscriptionService.resolveAiCreditCost(any(), any())).thenReturn(1);
         foodLogsService = mock(FoodLogsService.class);
+        notificationRepository = mock(NotificationRepository.class);
         service = new AiMealDraftServiceImpl(
                 properties,
                 List.of(providerClient),
                 historyRepository,
                 userRepository,
-                foodItemRepository,
                 subscriptionService,
                 foodLogsService,
                 new ObjectMapper().findAndRegisterModules(),
                 new AiProviderConfigurationValidatorImpl(properties),
                 new AiMealDraftResponseValidatorImpl(),
-                new AiMealDraftSafetyServiceImpl(properties)
+                new AiMealDraftSafetyServiceImpl(properties),
+                notificationRepository
         );
         user = new UserEntity();
         user.setId(1L);
@@ -105,11 +106,9 @@ class AiMealDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(providerResponse());
-        when(foodItemRepository.findVisibleAiMatchCandidates(any(), org.mockito.Mockito.eq(user), any()))
-                .thenReturn(List.of(verifiedFoodItem()));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(14);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(quota);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(10L);
@@ -120,16 +119,18 @@ class AiMealDraftServiceImplTest {
 
         assertEquals(10L, result.getRequestId());
         assertEquals(14, result.getAiRemainingThisPeriod());
-        assertEquals(12L, result.getItems().get(0).getMatchedFoodItemId());
-        assertEquals(false, result.getItems().get(0).getReviewRequired());
-        assertEquals("VERIFIED_CATALOG_MATCH", result.getItems().get(0).getMatchReason());
+        assertEquals(null, result.getItems().get(0).getMatchedFoodItemId());
+        assertEquals(true, result.getItems().get(0).getReviewRequired());
+        assertEquals("AI_SNAPSHOT", result.getItems().get(0).getMatchReason());
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
-        verify(subscriptionService).consumeAiQuota("user@example.com");
+        verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
+        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository).save(captor.capture());
         assertEquals(AiRequestType.VOICE_FOOD_LOG, captor.getValue().getRequestType());
         assertEquals(AiProvider.LOG, captor.getValue().getProvider());
+        assertEquals("ai-prompt-v1", captor.getValue().getPromptVersion());
         assertEquals(AiRequestStatus.DRAFT_CREATED, captor.getValue().getStatus());
         assertEquals(true, captor.getValue().getQuotaConsumed());
         assertFalse(captor.getValue().getInputPayload().contains("I ate chicken and rice"));
@@ -142,11 +143,9 @@ class AiMealDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(providerResponse());
-        when(foodItemRepository.findVisibleAiMatchCandidates(any(), org.mockito.Mockito.eq(user), any()))
-                .thenReturn(List.of());
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(14);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(quota);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(10L);
@@ -157,7 +156,7 @@ class AiMealDraftServiceImplTest {
 
         assertEquals(null, result.getItems().get(0).getMatchedFoodItemId());
         assertEquals(true, result.getItems().get(0).getReviewRequired());
-        assertEquals("NO_CATALOG_MATCH", result.getItems().get(0).getMatchReason());
+        assertEquals("AI_SNAPSHOT", result.getItems().get(0).getMatchReason());
     }
 
     @Test
@@ -167,14 +166,15 @@ class AiMealDraftServiceImplTest {
         AiMealDraftResponseDto invalid = providerResponse();
         invalid.setItems(List.of());
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(invalid);
-        when(subscriptionService.consumeAiQuota("user@example.com")).thenReturn(new SubscriptionDto());
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.createVoiceFoodDraft("user@example.com", request()));
 
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
-        verify(subscriptionService).consumeAiQuota("user@example.com");
+        verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
+        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
         verify(subscriptionService).refundConsumedAiQuota(1L, 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
@@ -182,18 +182,26 @@ class AiMealDraftServiceImplTest {
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getLatencyMs());
+        com.fasterxml.jackson.databind.JsonNode safePayload = org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> new ObjectMapper().readTree(captor.getValue().getOutputPayload())
+        );
+        assertEquals("ai_error_v1", safePayload.get("schemaVersion").asText());
+        assertEquals("AI_ANALYSIS_FAILED", safePayload.get("errorCode").asText());
+        assertEquals("AI analysis could not be completed. Please try again with a different input.",
+                safePayload.get("userMessage").asText());
     }
 
     @Test
     void createVoiceFoodDraft_whenQuotaUnavailable_doesNotCallProvider() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
-        when(subscriptionService.consumeAiQuota("user@example.com"))
+        when(subscriptionService.consumeAiQuota("user@example.com", 1))
                 .thenThrow(new IllegalArgumentException("AI quota is not available for the current subscription."));
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.createVoiceFoodDraft("user@example.com", request()));
 
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
+        verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(providerClient, org.mockito.Mockito.never()).createVoiceFoodDraft(any());
         verify(historyRepository, org.mockito.Mockito.never()).save(any());
     }
@@ -249,7 +257,10 @@ class AiMealDraftServiceImplTest {
 
         assertEquals(AiRequestStatus.CONFIRMED, result.getStatus());
         assertEquals(1, result.getCreatedLogs().size());
-        verify(foodLogsService).addFoodLog(any(FoodLogsDto.class), org.mockito.Mockito.eq("user@example.com"));
+        ArgumentCaptor<FoodLogsDto> foodLogCaptor = ArgumentCaptor.forClass(FoodLogsDto.class);
+        verify(foodLogsService).addFoodLog(foodLogCaptor.capture(), org.mockito.Mockito.eq("user@example.com"));
+        assertEquals(FoodLogSource.AI_VOICE, foodLogCaptor.getValue().getSource());
+        assertEquals(10L, foodLogCaptor.getValue().getAiRequestId());
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository).save(captor.capture());
@@ -297,7 +308,7 @@ class AiMealDraftServiceImplTest {
         history.setCreatedAt(LocalDateTime.now());
 
         AiMealDraftConfirmItemRequestDto item = new AiMealDraftConfirmItemRequestDto();
-        item.setEstimatedFoodName("Ham and cheese sandwich");
+        item.setEstimatedFoodName("ham and cheese sandwich");
         item.setEstimatedCalories(350.0);
         item.setEstimatedProtein(20.0);
         item.setEstimatedCarbs(30.0);
@@ -327,7 +338,7 @@ class AiMealDraftServiceImplTest {
         assertEquals(1, result.getCreatedLogs().size());
         ArgumentCaptor<FoodLogsDto> logCaptor = ArgumentCaptor.forClass(FoodLogsDto.class);
         verify(foodLogsService).addAiEstimateFoodLog(logCaptor.capture(), org.mockito.Mockito.eq("user@example.com"));
-        assertEquals("Ham and cheese sandwich", logCaptor.getValue().getDisplayName());
+        assertEquals("Ham and Cheese Sandwich", logCaptor.getValue().getDisplayName());
         assertEquals(350.0, logCaptor.getValue().getSnapshotCalories());
         assertEquals(20.0, logCaptor.getValue().getSnapshotProtein());
         assertEquals(30.0, logCaptor.getValue().getSnapshotCarbs());
@@ -356,6 +367,11 @@ class AiMealDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(historyRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(history));
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UserEntity admin = new UserEntity();
+        admin.setId(99L);
+        admin.setEmail("admin@example.com");
+        admin.setRole(UserRole.ADMIN);
+        when(userRepository.findByRole(UserRole.ADMIN)).thenReturn(List.of(admin));
 
         var result = service.rejectDraft("user@example.com", 10L, request);
 
@@ -364,8 +380,32 @@ class AiMealDraftServiceImplTest {
         assertEquals(true, result.getHasRejectionFeedback());
         assertEquals("Suggested food was completely unrelated.", history.getRejectionFeedback());
         org.junit.jupiter.api.Assertions.assertNotNull(history.getRejectedAt());
+        ArgumentCaptor<List<NotificationEntity>> notificationCaptor = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(notificationCaptor.capture());
+        NotificationEntity notification = notificationCaptor.getValue().get(0);
+        assertEquals(admin, notification.getUser());
+        assertEquals("ai_rejection_alert", notification.getType());
+        assertEquals(false, notification.getIsRead());
+        assertEquals("WARNING", notification.getSeverity());
+        assertEquals("AI_OPS", notification.getSource());
+        assertEquals("AI_REQUEST", notification.getTargetType());
+        assertEquals("10", notification.getTargetId());
+        assertEquals("ai", notification.getTargetRoute());
+        org.junit.jupiter.api.Assertions.assertTrue(notification.getMessage().contains("requestId=10"));
+        org.junit.jupiter.api.Assertions.assertTrue(notification.getMessage().contains("reason=IRRELEVANT_RESULT"));
     }
 
+    private AiMealDraftConfirmRequestDto confirmRequest() {
+        AiMealDraftConfirmItemRequestDto item = new AiMealDraftConfirmItemRequestDto();
+        item.setFoodItemId(12L);
+        item.setPortionSize(150.0);
+        item.setPortionUnit(FoodPortionUnit.GRAM);
+        item.setMealType("LUNCH");
+        item.setLogDate(LocalDateTime.of(2026, 6, 1, 13, 30));
+        AiMealDraftConfirmRequestDto request = new AiMealDraftConfirmRequestDto();
+        request.setItems(List.of(item));
+        return request;
+    }
     private AiVoiceFoodDraftRequestDto request() {
         AiVoiceFoodDraftRequestDto request = new AiVoiceFoodDraftRequestDto();
         request.setTranscript("I ate chicken and rice");
@@ -391,27 +431,7 @@ class AiMealDraftServiceImplTest {
         response.setItems(List.of(item));
         return response;
     }
-
-    private FoodItemEntity verifiedFoodItem() {
-        FoodItemEntity foodItem = new FoodItemEntity();
-        foodItem.setId(12L);
-        foodItem.setName("Chicken and rice");
-        foodItem.setVerificationStatus(VerificationStatus.VERIFIED);
-        foodItem.setQualityScore(90);
-        return foodItem;
-    }
-
-    private AiMealDraftConfirmRequestDto confirmRequest() {
-        AiMealDraftConfirmItemRequestDto item = new AiMealDraftConfirmItemRequestDto();
-        item.setFoodItemId(12L);
-        item.setPortionSize(150.0);
-        item.setPortionUnit(FoodPortionUnit.GRAM);
-        item.setMealType("LUNCH");
-        item.setLogDate(LocalDateTime.of(2026, 6, 1, 13, 30));
-
-        AiMealDraftConfirmRequestDto request = new AiMealDraftConfirmRequestDto();
-        request.setItems(List.of(item));
-        return request;
-    }
 }
+
+
 

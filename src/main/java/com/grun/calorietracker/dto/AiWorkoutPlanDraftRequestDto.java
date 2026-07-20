@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -19,13 +20,15 @@ public class AiWorkoutPlanDraftRequestDto {
     @Schema(description = "Training level.", example = "BEGINNER")
     private String level;
 
+    @NotNull
     @Min(1)
-    @Max(7)
+    @Max(6)
     @Schema(description = "Available training days per week.", example = "4")
     private Integer daysPerWeek;
 
+    @NotNull
     @Min(10)
-    @Max(180)
+    @Max(75)
     @Schema(description = "Available minutes per session.", example = "45")
     private Integer minutesPerSession;
 

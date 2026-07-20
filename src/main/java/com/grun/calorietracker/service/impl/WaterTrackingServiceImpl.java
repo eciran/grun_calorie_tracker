@@ -14,6 +14,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.entity.WaterReminderSettingsEntity;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.NotificationRepository;
@@ -21,6 +22,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.PushDeliveryService;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.WaterTrackingService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
@@ -52,10 +54,12 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     private final WaterTrackingProperties waterTrackingProperties;
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final PushDeliveryService pushDeliveryService;
+    private final SubscriptionService subscriptionService;
 
     @Override
     @Transactional
     public WaterLogDto addWaterLog(String email, WaterLogRequestDto request) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         validateLogDate(request, user);
         validateDailyTotalLimit(user, request, null);
@@ -71,6 +75,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional
     public WaterLogDto updateWaterLog(String email, Long id, WaterLogRequestDto request) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         validateLogDate(request, user);
         WaterLogEntity entity = waterLogRepository.findByIdAndUser(id, user)
@@ -85,6 +90,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional(readOnly = true)
     public WaterDailySummaryDto getDailySummary(String email, LocalDate date) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         List<WaterLogDto> logs = waterLogRepository.findByUserAndLogDateOrderByLoggedAtAsc(user, date)
                 .stream()
@@ -108,6 +114,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional(readOnly = true)
     public WaterRangeSummaryDto getRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
@@ -143,6 +150,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional(readOnly = true)
     public WaterGoalDto getGoal(String email) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         return toGoalDto(getOrDefaultSettings(user));
     }
@@ -150,6 +158,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional
     public WaterGoalDto updateGoal(String email, WaterGoalRequestDto request) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         WaterReminderSettingsEntity settings = getOrDefaultSettings(user);
         settings.setDailyTargetMl(request.getTargetMl());
@@ -159,6 +168,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional
     public void deleteWaterLog(String email, Long id) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         WaterLogEntity entity = waterLogRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Water log not found"));
@@ -168,6 +178,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional(readOnly = true)
     public WaterReminderSettingsDto getReminderSettings(String email) {
+        assertWaterTrackingAccess(email);
         UserEntity user = getUser(email);
         return toReminderSettingsDto(getOrDefaultSettings(user));
     }
@@ -175,6 +186,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Override
     @Transactional
     public WaterReminderSettingsDto updateReminderSettings(String email, WaterReminderSettingsRequestDto request) {
+        assertWaterTrackingAccess(email);
         validateReminderSettingsRequest(request);
         UserEntity user = getUser(email);
         WaterReminderSettingsEntity settings = waterReminderSettingsRepository.findByUser(user)
@@ -199,6 +211,8 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         List<WaterReminderSettingsEntity> dueSettings = waterReminderSettingsRepository
                 .findByEnabledTrue()
                 .stream()
+                .filter(settings -> subscriptionService.hasFeatureAccess(
+                        settings.getUser().getEmail(), SubscriptionFeature.WATER_TRACKING))
                 .filter(this::isDue)
                 .toList();
 
@@ -216,6 +230,10 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         });
         waterReminderSettingsRepository.saveAll(dueSettings);
         return dueSettings.size();
+    }
+
+    private void assertWaterTrackingAccess(String email) {
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.WATER_TRACKING);
     }
 
     private UserEntity getUser(String email) {

@@ -33,7 +33,12 @@ if ($null -eq $curl) {
 
 & $curl.Source `
     -s `
+    --fail-with-body `
     -X POST `
     $uri `
     -H "Authorization: Bearer $Token" `
     -F "file=@$($resolvedFile.Path);type=text/csv"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Food product import failed with curl exit code $LASTEXITCODE."
+}

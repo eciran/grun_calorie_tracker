@@ -6,10 +6,12 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.service.AiMealDraftResponseValidator;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Component
 public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseValidator {
@@ -63,7 +65,7 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
         if (item.getConfidence() != null && (item.getConfidence() < 0 || item.getConfidence() > 1)) {
             throw new IllegalArgumentException("AI provider returned confidence outside the 0-1 range.");
         }
-        item.setName(item.getName().trim());
+        item.setName(normalizeFoodDisplayName(item.getName()));
         if (item.getUnit() != null) {
             item.setUnit(item.getUnit().trim());
         }
@@ -73,16 +75,51 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
         if (item.getNeedsUserPortionConfirmation() == null) {
             item.setNeedsUserPortionConfirmation(item.getQuantity() == null || item.getUnit() == null || item.getUnit().isBlank() || requiresReview(item));
         }
-        if (item.getAlternativeMatchNames() == null) {
-            item.setAlternativeMatchNames(List.of());
+        if (isBlank(item.getReasoning())) {
+            item.setReasoning("Estimated from the provided meal input and kept as an editable AI snapshot.");
         }
+        if (isBlank(item.getPortionNote())) {
+            item.setPortionNote(Boolean.TRUE.equals(item.getNeedsUserPortionConfirmation())
+                    ? "Confirm the portion before saving; calories and macros depend on the final amount."
+                    : "Portion appears usable, but you can adjust it before saving.");
+        }
+        item.setAlternativeMatchNames(normalizeAlternativeNames(item.getAlternativeMatchNames()));
     }
 
+    private List<String> normalizeAlternativeNames(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return List.of();
+        }
+        return names.stream()
+                .map(this::normalizeFoodDisplayName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
+    private String normalizeFoodDisplayName(String value) {
+        return FoodProductNormalizationRules.normalizeProductDisplayName(value);
+    }
 
     private void normalizeQuality(AiMealDraftResponseDto response) {
-        response.setSchemaVersion("ai_response_v2");
+        response.setSchemaVersion("ai_response_v3");
         if (response.getReviewReasons() == null) {
             response.setReviewReasons(List.of());
+        }
+        if (response.getAssumptions() == null) {
+            response.setAssumptions(List.of());
+        }
+        if (response.getNextBestActions() == null) {
+            response.setNextBestActions(List.of());
+        }
+        if (isBlank(response.getResultType())) {
+            response.setResultType("AI_SNAPSHOT");
+        }
+        if (isBlank(response.getUserMessage())) {
+            response.setUserMessage("AI prepared an editable meal estimate. Review portions before adding it to your diary.");
+        }
+        if (isBlank(response.getProfessionalSummary())) {
+            response.setProfessionalSummary(response.getSummary());
         }
         if (response.getConfidence() == null) {
             response.setConfidence(minConfidence(response.getItems()));
@@ -114,9 +151,12 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
             return "MEDIUM";
         }
         return "LOW";
-    }    private boolean requiresReview(AiMealDraftItemDto item) {
+    }
+
+    private boolean requiresReview(AiMealDraftItemDto item) {
         return Boolean.TRUE.equals(item.getReviewRequired()) || item.getConfidence() == null || item.getConfidence() < 0.75;
     }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }

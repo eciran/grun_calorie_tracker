@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
@@ -140,6 +141,7 @@ class UserProductLibraryServiceImplTest {
                 product.getCreatedByUser() == user
                         && Boolean.TRUE.equals(product.getIsCustom())
                         && product.getDataSource() == com.grun.calorietracker.enums.FoodDataSource.MANUAL
+                        && product.getNutritionBasis() == FoodNutritionBasis.ESTIMATED
         ));
     }
 

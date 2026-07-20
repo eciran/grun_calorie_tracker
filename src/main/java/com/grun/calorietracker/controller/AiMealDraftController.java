@@ -121,7 +121,7 @@ public class AiMealDraftController {
     @PostMapping("/{requestId}/confirm")
     @Operation(
             summary = "Confirm an AI meal draft into food logs",
-            description = "Writes user-reviewed AI draft items to the food diary. The user must supply final foodItemId, amount, unit, meal type, and log date for every item."
+            description = "Writes user-reviewed AI draft items to the food diary. Items may be linked to a catalog foodItemId or saved as an AI nutrition snapshot when no reliable catalog match exists."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "AI draft confirmed and food logs created.",

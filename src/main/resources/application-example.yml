@@ -110,7 +110,12 @@ grun:
     openai:
       api-key: ${GRUN_AI_OPENAI_API_KEY:}
       base-url: ${GRUN_AI_OPENAI_BASE_URL:https://api.openai.com/v1/responses}
-      timeout: ${GRUN_AI_OPENAI_TIMEOUT:30s}
+      connect-timeout: ${GRUN_AI_OPENAI_CONNECT_TIMEOUT:10s}
+      timeout: ${GRUN_AI_OPENAI_TIMEOUT:120s}
+      max-output-tokens: ${GRUN_AI_OPENAI_MAX_OUTPUT_TOKENS:12000}
+      input-token-cost-per-1m: ${GRUN_AI_OPENAI_INPUT_TOKEN_COST_PER_1M:0}
+      output-token-cost-per-1m: ${GRUN_AI_OPENAI_OUTPUT_TOKEN_COST_PER_1M:0}
+      cost-currency: ${GRUN_AI_OPENAI_COST_CURRENCY:USD}
     recipe-image-moderation:
       enabled: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENABLED:false}
       endpoint: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENDPOINT:}
@@ -193,3 +198,4 @@ grun:
       enabled: ${GRUN_LOCAL_DEMO_SEED_ENABLED:false}
       user-email: ${GRUN_LOCAL_DEMO_USER_EMAIL:}
       user-password: ${GRUN_LOCAL_DEMO_USER_PASSWORD:}
+

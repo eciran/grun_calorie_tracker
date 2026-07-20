@@ -44,16 +44,18 @@ class NotificationControllerTest {
         page.setFirst(true);
         page.setLast(true);
 
-        when(notificationService.listNotifications("user@example.com", true, "subscription", 0, 25))
+        when(notificationService.listNotifications("user@example.com", true, "subscription", "CRITICAL", 0, 25))
                 .thenReturn(page);
 
         mockMvc.perform(get("/api/v1/notifications")
                         .param("unreadOnly", "true")
-                        .param("type", "subscription"))
+                        .param("type", "subscription")
+                        .param("severity", "CRITICAL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(10))
                 .andExpect(jsonPath("$.content[0].read").value(false))
                 .andExpect(jsonPath("$.content[0].type").value("subscription"))
+                .andExpect(jsonPath("$.content[0].severity").value("CRITICAL"))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
@@ -86,6 +88,11 @@ class NotificationControllerTest {
         dto.setId(10L);
         dto.setMessage("Feature changed");
         dto.setType("subscription");
+        dto.setSeverity("CRITICAL");
+        dto.setSource("REVENUECAT");
+        dto.setTargetType("SUBSCRIPTION_PROVIDER_EVENT");
+        dto.setTargetId("42");
+        dto.setTargetRoute("subscriptionEvents");
         dto.setRead(false);
         dto.setCreatedAt(LocalDateTime.of(2026, 5, 27, 14, 0));
         return dto;

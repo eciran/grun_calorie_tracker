@@ -3,6 +3,7 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
+import com.grun.calorietracker.dto.SubscriptionPlanFeatureDto;
 import com.grun.calorietracker.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -18,6 +19,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/subscriptions")
@@ -60,4 +63,17 @@ public class SubscriptionController {
         return ResponseEntity.ok(subscriptionService.getFeatureAccess(userDetails.getUsername()));
     }
 
+    @GetMapping("/plans/features")
+    @Operation(
+            summary = "Get plan feature catalog",
+            description = "Returns sanitized admin-managed feature rules for FREE, PLUS, and PRO plan presentation. User-specific access must use /me/features."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Plan feature catalog returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<SubscriptionPlanFeatureDto>> getPlanFeatureCatalog() {
+        return ResponseEntity.ok(subscriptionService.listPlanFeatures());
+    }
 }

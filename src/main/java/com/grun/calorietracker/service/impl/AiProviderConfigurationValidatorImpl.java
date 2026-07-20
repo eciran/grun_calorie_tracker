@@ -20,6 +20,9 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
         if (isBlank(properties.getModel()) || "not-configured".equalsIgnoreCase(properties.getModel().trim())) {
             throw new IllegalArgumentException("AI model is not configured.");
         }
+        if (isBlank(properties.getPromptVersion())) {
+            throw new IllegalArgumentException("AI prompt version is not configured.");
+        }
         if (properties.getProvider() == AiProvider.HTTP_JSON) {
             validateHttpJson();
         }
@@ -57,6 +60,9 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
         }
         if (openai.getTimeout() == null || openai.getTimeout().isZero() || openai.getTimeout().isNegative()) {
             throw new IllegalArgumentException("OpenAI provider timeout must be positive.");
+        }
+        if (openai.getMaxRepairAttempts() < 0 || openai.getMaxRepairAttempts() > 1) {
+            throw new IllegalArgumentException("OpenAI provider max repair attempts must be 0 or 1.");
         }
     }
     private boolean isBlank(String value) {

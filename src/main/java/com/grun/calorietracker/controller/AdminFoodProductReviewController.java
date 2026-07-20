@@ -1,5 +1,11 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
+import com.grun.calorietracker.dto.AdminProductQualityAiValidationRequestDto;
+import com.grun.calorietracker.dto.AdminProductQualityAiValidationResultDto;
+import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
+import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
@@ -13,6 +19,10 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
+import com.grun.calorietracker.dto.ProductQualityScanRunPageDto;
+import com.grun.calorietracker.dto.ProductQualityAiSettingsDto;
+import com.grun.calorietracker.dto.ProductQualityAiSettingsUpdateRequestDto;
+import com.grun.calorietracker.dto.ProductQualityScanRunDetailDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionScanResultDto;
@@ -23,6 +33,7 @@ import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
@@ -48,6 +59,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -103,6 +115,28 @@ public class AdminFoodProductReviewController {
     }
 
 
+    @GetMapping("/quality-suggestions/ai-settings")
+    @Operation(
+            summary = "Get AI product quality settings",
+            description = "Returns admin-managed guardrails for AI-assisted product quality validation, including current daily and monthly usage."
+    )
+    public ResponseEntity<ProductQualityAiSettingsDto> getProductQualityAiSettings() {
+        return ResponseEntity.ok(productQualitySuggestionService.getAiSettings());
+    }
+
+    @PatchMapping("/quality-suggestions/ai-settings")
+    @Operation(
+            summary = "Update AI product quality settings",
+            description = "Updates admin-managed AI validation limits. Secrets and provider credentials remain backend configuration, not admin UI data."
+    )
+    public ResponseEntity<ProductQualityAiSettingsDto> updateProductQualityAiSettings(
+            @RequestBody @Valid ProductQualityAiSettingsUpdateRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.updateAiSettings(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
     @PostMapping("/quality-suggestions/scan")
     @Operation(
             summary = "Scan products for quality suggestions",
@@ -116,9 +150,18 @@ public class AdminFoodProductReviewController {
     public ResponseEntity<ProductQualitySuggestionScanResultDto> scanProductQualitySuggestions(
             @Parameter(description = "Optional market region filter. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE")
             @RequestParam(required = false) MarketRegion region,
-            @Parameter(description = "Maximum number of products to scan. Maximum 1000.", example = "500")
-            @RequestParam(defaultValue = "500") @Min(1) @Max(1000) int limit) {
-        return ResponseEntity.ok(productQualitySuggestionService.scanSuggestions(region, limit));
+            @Parameter(description = "Maximum number of products to scan. Manual scan is capped at 500.", example = "250")
+            @RequestParam(defaultValue = "250") @Min(1) @Max(500) int limit,
+            @Parameter(description = "When true, scans products even if they were previously quality-validated.", example = "false")
+            @RequestParam(defaultValue = "false") boolean forceRescan,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.scanSuggestions(
+                region,
+                limit,
+                forceRescan,
+                ProductQualityScanTriggerType.MANUAL,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
     }
 
     @GetMapping("/quality-suggestions")
@@ -139,6 +182,77 @@ public class AdminFoodProductReviewController {
             @Parameter(description = "Page size. Maximum 100.", example = "25")
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(productQualitySuggestionService.getSuggestions(status, page, size));
+    }
+
+    @GetMapping("/quality-suggestions/scan-runs")
+    @Operation(
+            summary = "List product quality scan runs",
+            description = "Returns manual and scheduled product quality scan history so admins can monitor limits, created suggestions, and validated product counts."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality scan runs returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<ProductQualityScanRunPageDto> getProductQualityScanRuns(
+            @Parameter(description = "Zero-based page number.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size. Maximum 100.", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(productQualitySuggestionService.getScanRuns(page, size));
+    }
+
+    @GetMapping("/quality-suggestions/scan-runs/{scanRunId}")
+    @Operation(
+            summary = "Get product quality scan run detail",
+            description = "Returns product-level validation and suggestion results captured for a quality scan run. Older runs may have no item details if they were created before item tracking was introduced."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality scan run detail returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Scan run was not found.")
+    })
+    public ResponseEntity<ProductQualityScanRunDetailDto> getProductQualityScanRunDetail(
+            @Parameter(description = "Scan run id.", example = "6")
+            @PathVariable Long scanRunId) {
+        return ResponseEntity.ok(productQualitySuggestionService.getScanRunDetail(scanRunId));
+    }
+
+    @PostMapping("/quality-suggestions/ai-validate-selected")
+    @Operation(
+            summary = "Validate selected products with AI",
+            description = "Runs AI-assisted data quality validation for selected products or products referenced by selected suggestions. The result creates admin-reviewable AI_ASSISTED suggestions only; product data is not changed directly. Admin AI settings enforce enabled state, per-run limit, daily quota, and monthly quota."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "AI-assisted validation completed."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<AdminProductQualityAiValidationResultDto> validateSelectedProductsWithAi(
+            @RequestBody @Valid AdminProductQualityAiValidationRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(productQualitySuggestionService.validateSelectedWithAi(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+    @GetMapping("/{id}/quality-workbench")
+    @Operation(
+            summary = "Get product AI quality workbench",
+            description = "Returns the complete admin review context for one product: names, aliases, serving options, source evidence, quality issues, AI suggestions, canonical duplicate candidates, and audit history."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Product quality workbench returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Product was not found.")
+    })
+    public ResponseEntity<AdminProductQualityWorkbenchDto> getProductQualityWorkbench(
+            @Parameter(description = "Food product id.", example = "123")
+            @PathVariable Long id) {
+        return ResponseEntity.ok(productQualitySuggestionService.getProductWorkbench(id));
     }
 
     @PatchMapping("/quality-suggestions/{suggestionId}/accept")
@@ -405,6 +519,63 @@ public class AdminFoodProductReviewController {
         return ResponseEntity.ok(foodProductReviewService.getDuplicateProductGroups(page, size));
     }
 
+    @GetMapping("/duplicates/canonical")
+    @Operation(
+            summary = "List canonical generic duplicate candidates",
+            description = "Returns generic ingredient groups that share a canonical food identity across source records. This endpoint is read-only; nutrition and provenance must be reviewed before any merge."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Canonical duplicate candidates returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodCanonicalDuplicateGroupPageDto> getCanonicalDuplicateProductGroups(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,
+            @Parameter(description = "Optional resolution-state filter. Omit to return all groups.")
+            @RequestParam(required = false) Boolean resolved) {
+        return ResponseEntity.ok(foodProductReviewService.getCanonicalDuplicateProductGroups(page, size, resolved));
+    }
+    @PostMapping("/duplicates/canonical/resolve")
+    @Operation(
+            summary = "Select the primary canonical product",
+            description = "Selects the generic product shown in user search for a canonical duplicate group. Source records remain stored and the decision can be replaced without destructive merging."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Canonical primary product selected."),
+            @ApiResponse(responseCode = "400", description = "The group is invalid or the selected product is not a member."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodCanonicalResolutionDto> resolveCanonicalPrimary(
+            @RequestBody @Valid FoodCanonicalResolutionRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.resolveCanonicalPrimary(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+    @DeleteMapping("/duplicates/canonical/resolution")
+    @Operation(
+            summary = "Clear a canonical primary decision",
+            description = "Restores an unresolved canonical group so all source candidates become searchable again. Product records are not deleted or modified."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Canonical resolution cleared."),
+            @ApiResponse(responseCode = "400", description = "Canonical food key is missing."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin."),
+            @ApiResponse(responseCode = "404", description = "Canonical resolution was not found.")
+    })
+    public ResponseEntity<Void> clearCanonicalResolution(
+            @RequestParam String canonicalFoodKey,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        foodProductReviewService.clearCanonicalResolution(
+                canonicalFoodKey,
+                userDetails == null ? null : userDetails.getUsername()
+        );
+        return ResponseEntity.noContent().build();
+    }
     @PostMapping("/duplicates/merge")
     @Operation(
             summary = "Merge duplicate products",
@@ -540,3 +711,5 @@ public class AdminFoodProductReviewController {
         return ResponseEntity.ok(foodProductReviewService.getProductReviewAudits(id, page, size));
     }
 }
+
+

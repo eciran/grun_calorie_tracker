@@ -11,6 +11,7 @@ import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -41,6 +42,9 @@ class RevenueCatWebhookServiceImplTest {
     private SubscriptionProviderEventRepository eventRepository;
 
     @Mock
+    private NotificationRepository notificationRepository;
+
+    @Mock
     private SubscriptionRepository subscriptionRepository;
 
     @Mock
@@ -59,7 +63,7 @@ class RevenueCatWebhookServiceImplTest {
         properties.getProducts().setPlus(List.of("grun_plus_monthly", "grun_plus_yearly"));
         properties.getProducts().getAiAddonQuotas().put("grun_ai_15_credits", 15);
         properties.getProducts().getAiAddonValidityDays().put("grun_ai_15_credits", 30);
-        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionRepository, subscriptionService);
+        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -192,7 +196,7 @@ class RevenueCatWebhookServiceImplTest {
     void processWebhook_whenAuthorizationNotConfigured_throwsAccessDenied() throws Exception {
         RevenueCatProperties properties = new RevenueCatProperties();
         RevenueCatWebhookServiceImpl unsecuredService =
-                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, subscriptionRepository, subscriptionService);
+                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService);
         String payload = """
                 {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
                 """;

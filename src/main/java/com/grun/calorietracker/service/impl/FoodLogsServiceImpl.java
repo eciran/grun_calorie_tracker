@@ -13,8 +13,6 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
-import com.grun.calorietracker.enums.FoodCatalogType;
-import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -28,6 +26,7 @@ import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -76,6 +75,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
         entity.setSource(resolveSource(dto.getSource(), FoodLogSource.MANUAL));
+        entity.setAiRequestId(dto.getAiRequestId());
+        entity.setAiConfidence(dto.getAiConfidence());
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         markFoodItemUsed(foodItem);
@@ -144,12 +145,11 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Override
     @Transactional
     public FoodLogsDto updateFoodLog(Long id, FoodLogsDto dto, String email) {
-        validateFoodLogRequest(dto);
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
-        FoodItemEntity foodItem = foodItemRepository.findById(dto.getFoodItemId())
-                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+        validateFoodLogUpdateRequest(dto, entity);
+        FoodItemEntity foodItem = resolveFoodItemForUpdate(dto, entity);
         ensureFoodItemAvailableToUser(foodItem, user);
 
         entity.setFoodItem(foodItem);
@@ -266,11 +266,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     @Transactional
     public FoodLogsDto quickAddCalories(String email, QuickCalorieLogRequestDto request) {
         UserEntity user = getUser(email);
-        FoodItemEntity quickCalories = getOrCreateQuickCaloriesFood(user);
 
         FoodLogsEntity entity = new FoodLogsEntity();
         entity.setUser(user);
-        entity.setFoodItem(quickCalories);
+        entity.setFoodItem(null);
+        entity.setDisplayName("Quick calories");
+        entity.setEstimated(false);
         entity.setPortionSize(request.getCalories());
         entity.setPortionUnit(FoodPortionUnit.GRAM);
         entity.setNormalizedPortionGrams(request.getCalories());
@@ -282,9 +283,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setLogDate(request.getLogDate());
         entity.setSource(FoodLogSource.QUICK_ADD);
 
-        FoodLogsEntity saved = foodLogsRepository.save(entity);
-        markFoodItemUsed(quickCalories);
-        return toDto(saved);
+        return toDto(foodLogsRepository.save(entity));
     }
 
     @Override
@@ -569,12 +568,42 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     private String normalizeDisplayName(String displayName, String fallbackName) {
         String value = displayName != null && !displayName.isBlank() ? displayName : fallbackName;
-        return value == null ? "" : value.trim();
+        String normalized = FoodProductNormalizationRules.normalizeProductDisplayName(value);
+        return normalized == null ? "" : normalized;
     }
 
     private Double roundOrZero(Double value) {
         return value == null ? 0.0 : round(value);
     }
+
+    private void validateFoodLogUpdateRequest(FoodLogsDto dto, FoodLogsEntity existing) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Food log request must not be empty.");
+        }
+        if ((dto.getFoodItemId() == null || dto.getFoodItemId() <= 0) && existing.getFoodItem() == null) {
+            throw new IllegalArgumentException("Food item id must be a positive value.");
+        }
+        if (dto.getPortionSize() == null || dto.getPortionSize() <= 0) {
+            throw new IllegalArgumentException("Portion size must be a positive value.");
+        }
+        if (dto.getLogDate() == null) {
+            throw new IllegalArgumentException("Log date is required.");
+        }
+        String mealType = normalizeMealType(dto.getMealType());
+        if (!List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").contains(mealType)) {
+            throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
+        }
+    }
+
+    private FoodItemEntity resolveFoodItemForUpdate(FoodLogsDto dto, FoodLogsEntity existing) {
+        Long requestedFoodItemId = dto.getFoodItemId();
+        if (requestedFoodItemId == null || requestedFoodItemId <= 0) {
+            return existing.getFoodItem();
+        }
+        return foodItemRepository.findById(requestedFoodItemId)
+                .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+    }
+
     private void validateFoodLogRequest(FoodLogsDto dto) {
         if (dto == null) {
             throw new IllegalArgumentException("Food log request must not be empty.");
@@ -777,37 +806,5 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return dto;
     }
 
-    private FoodItemEntity getOrCreateQuickCaloriesFood(UserEntity user) {
-        String sourceKey = "quick-calorie:user:" + user.getId();
-        return foodItemRepository.findBySourceKey(sourceKey)
-                .map(item -> {
-                    item.setCalories(100.0);
-                    item.setProtein(0.0);
-                    item.setCarbs(0.0);
-                    item.setFat(0.0);
-                    item.setServingSizeGrams(100.0);
-                    item.setServingUnit("kcal");
-                    return item;
-                })
-                .orElseGet(() -> {
-                    FoodItemEntity item = new FoodItemEntity();
-                    item.setName("Quick calories");
-                    item.setSourceKey(sourceKey);
-                    item.setCalories(100.0);
-                    item.setProtein(0.0);
-                    item.setCarbs(0.0);
-                    item.setFat(0.0);
-                    item.setServingSizeGrams(100.0);
-                    item.setServingUnit("kcal");
-                    item.setDataSource(FoodDataSource.MANUAL);
-                    item.setCatalogType(FoodCatalogType.USER_CUSTOM);
-                    item.setVerificationStatus(VerificationStatus.VERIFIED);
-                    item.setIsCustom(true);
-                    item.setCreatedByUser(user);
-                    item.setUsageCount(0L);
-                    FoodProductQualityRules.updateQualityAndReviewPriority(item);
-                    return foodItemRepository.save(item);
-                });
-    }
 }
 

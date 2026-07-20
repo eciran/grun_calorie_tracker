@@ -18,18 +18,29 @@ import {
   AdminPushMonitoring,
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
+  AdminProductQualityWorkbench,
   AdminTrackingTrendPoint,
+  AdminProductQualityAiValidationResult,
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AiMealDraft,
+  AiMonitoringSummary,
+  AiCreditPricingPolicy,
+  AiQuotaRefundResponse,
   AuditEntry,
   DashboardSummary,
   FeatureMatrixItem,
   FoodProduct,
+  FoodCanonicalDuplicateGroup,
+  FoodCanonicalDuplicateGroupPage,
   FoodSearchAlias,
+  ProductQualityScanRun,
+  ProductQualityScanRunDetail,
+  ProductQualityScanRunPage,
   ProductQualitySuggestion,
   ProductQualitySuggestionPage,
   ProductQualitySuggestionScanResult,
+  ProductQualityAiSettings,
   AdminRecipe,
   AdminRecipeImportCandidate,
   AdminRecipeImportResult,
@@ -62,6 +73,7 @@ type SectionKey =
   | "foodRegions"
   | "foodQuality"
   | "products"
+  | "productDuplicates"
   | "productImages"
   | "productNutrition"
   | "productRejected"
@@ -74,6 +86,7 @@ type SectionKey =
   | "subscriptionFeatures"
   | "subscriptionMapping"
   | "subscriptionEntitlements"
+  | "subscriptionAccess"
   | "subscriptionAiQuotas"
   | "subscriptionEvents"
   | "ai"
@@ -96,6 +109,18 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 type RevenueCatRange = "7d" | "28d" | "90d" | "custom";
 type ThemeMode = "light" | "dark";
 type SectionMeta = { key: SectionKey; label: string; hint: string; icon: string; logo?: string };
+
+type AdminTargetContext = {
+  section: SectionKey;
+  source: "notification" | "dashboard";
+  notificationId?: number;
+  severity?: string;
+  type?: string;
+  message?: string;
+  targetType?: string;
+  targetId?: string;
+  targetRoute?: string;
+};
 type NavigationItem = SectionMeta & { children?: SectionMeta[] };
 
 const THEME_KEY = "grun.admin.theme";
@@ -104,8 +129,24 @@ const SUBSCRIPTION_STATUS_OPTIONS = ["ACTIVE", "TRIALING", "CANCELED", "EXPIRED"
 const BILLING_PERIOD_OPTIONS = ["NONE", "MONTHLY", "YEARLY"];
 const PAYMENT_PROVIDER_OPTIONS = ["MANUAL_ADMIN", "REVENUECAT", "APPLE_APP_STORE", "GOOGLE_PLAY_STORE", "STRIPE"];
 const FEATURE_ORDER = [
+  "BARCODE_SCANNER",
+  "MANUAL_FOOD_LOGGING",
+  "FOOD_DIARY",
+  "WEIGHT_PROGRESS",
+  "WATER_TRACKING",
+  "WORKOUT_LOGGING",
+  "SAVED_MEAL_TEMPLATES",
+  "RECIPE_BUILDER",
+  "PUBLIC_RECIPE_LIBRARY",
+  "ADVANCED_MACRO_TARGETS",
+  "MICRONUTRIENT_DETAILS",
+  "DATA_EXPORT",
+  "FASTING_BASIC",
+  "FASTING_ADVANCED",
   "AI_MEAL_DRAFTS",
   "AI_RECIPE_GENERATION",
+  "AI_MEAL_PREPARATION_GUIDE",
+  "AI_NUTRITION_PLAN",
   "AI_WORKOUT_PLANNER",
   "AI_INSIGHTS",
   "HEALTH_INTEGRATION",
@@ -117,11 +158,13 @@ const AI_REQUEST_TYPES = [
   "VOICE_FOOD_LOG",
   "PHOTO_MEAL_LOG",
   "AI_RECIPE_GENERATION",
+  "AI_MEAL_PREPARATION_GUIDE",
+  "AI_NUTRITION_PLAN",
   "AI_WORKOUT_PLAN",
   "AI_DAILY_INSIGHT",
   "AI_WEEKLY_INSIGHT"
 ];
-const AI_REQUEST_STATUSES = ["PENDING", "CONFIRMED", "REJECTED", "FAILED"];
+const AI_REQUEST_STATUSES = ["DRAFT_CREATED", "CONFIRMED", "REJECTED", "FAILED"];
 const SUBSCRIPTION_EVENT_STATUSES = ["RECEIVED", "PROCESSED", "FAILED", "IGNORED"];
 const PRODUCT_QUALITY_SUGGESTION_STATUSES = ["OPEN", "ACCEPTED", "REJECTED"];
 const CONTROLLED_AI_FEATURES = [
@@ -136,6 +179,18 @@ const CONTROLLED_AI_FEATURES = [
     label: "Recipe assistant",
     endpoint: "/api/v1/ai/recipes/generate",
     detail: "Creates a recipe draft only. The reviewed recipe is saved after confirmation."
+  },
+  {
+    feature: "AI_MEAL_PREPARATION_GUIDE",
+    label: "Meal preparation guide",
+    endpoint: "/api/v1/ai/meal-preparation-guides",
+    detail: "Generates preparation guidance from an immutable meal snapshot. Reopening an existing guide does not consume AI quota."
+  },
+  {
+    feature: "AI_NUTRITION_PLAN",
+    label: "Nutrition planner",
+    endpoint: "/api/v1/ai/nutrition-plans/generate",
+    detail: "Creates reviewable nutrition-plan drafts using backend-owned profile, target, preference, and workout context."
   },
   {
     feature: "AI_WORKOUT_PLANNER",
@@ -166,6 +221,7 @@ const sections: SectionMeta[] = [
   { key: "foodRegions", label: "Regions", hint: "Market groups", icon: "R" },
   { key: "foodQuality", label: "Quality Rules", hint: "Catalog checks", icon: "Q" },
   { key: "products", label: "Product Review", hint: "Catalog quality", icon: "P" },
+  { key: "productDuplicates", label: "Canonical Duplicates", hint: "Generic identity decisions", icon: "D" },
   { key: "productImages", label: "Image Review", hint: "Product media", icon: "I" },
   { key: "productNutrition", label: "Nutrition Review", hint: "Macro quality", icon: "N" },
   { key: "productRejected", label: "Rejected Products", hint: "Review archive", icon: "R" },
@@ -174,10 +230,11 @@ const sections: SectionMeta[] = [
   { key: "users", label: "Users", hint: "Accounts", icon: "U" },
   { key: "admins", label: "Admins", hint: "Admin accounts", icon: "A" },
   { key: "userVerification", label: "Verification", hint: "Email status", icon: "V" },
-  { key: "subscriptions", label: "Subscriptions", hint: "Feature matrix", icon: "S" },
+  { key: "subscriptions", label: "Subscriptions", hint: "Overview", icon: "S" },
   { key: "subscriptionFeatures", label: "Feature Matrix", hint: "Plan rules", icon: "F" },
   { key: "subscriptionMapping", label: "Product Mapping", hint: "Store ids", icon: "M" },
   { key: "subscriptionEntitlements", label: "Entitlements", hint: "Snapshot policy", icon: "E" },
+  { key: "subscriptionAccess", label: "User Access", hint: "Resolved rights", icon: "U" },
   { key: "subscriptionAiQuotas", label: "AI Quotas", hint: "Credits", icon: "Q" },
   { key: "subscriptionEvents", label: "Provider Events", hint: "Webhook audit", icon: "E" },
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
@@ -209,63 +266,23 @@ function navSection(key: SectionKey): SectionMeta {
 const navigation: NavigationItem[] = [
   navSection("dashboard"),
   {
-    ...navSection("integrations"),
+    ...navSection("users"),
     children: [
-      { key: "integrations", label: "Overview", hint: "Provider board", icon: "O" },
-      navSection("integrationProviders")
-    ]
-  },
-  {
-    ...navSection("revenueCat"),
-    children: [
-      navSection("revenueCatProduction"),
-      navSection("revenueCatSandbox")
-    ]
-  },
-  {
-    ...navSection("mail"),
-    children: [
-      { key: "mail", label: "Overview", hint: "Delivery summary", icon: "O" },
-      navSection("brevoSenders"),
-      navSection("mailEvents")
+      { key: "users", label: "Users & access", hint: "Accounts and admin access", icon: "U" }
     ]
   },
   {
     ...navSection("foodOps"),
     children: [
-      { key: "foodOps", label: "Overview", hint: "Catalog summary", icon: "O" },
-      navSection("foodImports"),
-      navSection("foodRegions"),
-      navSection("foodQuality")
-    ]
-  },
-  {
-    ...navSection("products"),
-    children: [
-      { key: "products", label: "Review Queue", hint: "Pending products", icon: "Q" },
-      navSection("productImages"),
-      navSection("productNutrition"),
-      navSection("productRejected"),
-      navSection("recipes"),
-      navSection("achievements")
-    ]
-  },
-  {
-    ...navSection("users"),
-    children: [
-      { key: "users", label: "App Users", hint: "Customer accounts", icon: "U" },
-      navSection("admins"),
-      navSection("userVerification")
+      { key: "foodOps", label: "Catalog ops", hint: "Import and region health", icon: "F" },
+      navSection("products"),
+      navSection("recipes")
     ]
   },
   {
     ...navSection("subscriptions"),
     children: [
-      { key: "subscriptions", label: "Overview", hint: "Plan summary", icon: "O" },
-      navSection("subscriptionFeatures"),
-      navSection("subscriptionMapping"),
-      navSection("subscriptionEntitlements"),
-      navSection("subscriptionAiQuotas"),
+      { key: "subscriptions", label: "Plans & entitlements", hint: "Plan rules and user access", icon: "S" },
       navSection("subscriptionEvents")
     ]
   },
@@ -273,39 +290,44 @@ const navigation: NavigationItem[] = [
   {
     ...navSection("notifications"),
     children: [
-      { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
+      { key: "notifications", label: "Admin inbox", hint: "Operational alerts", icon: "N" },
+      navSection("mail"),
       navSection("pushDelivery")
     ]
   },
   {
-    ...navSection("tracking"),
+    ...navSection("integrations"),
     children: [
-      { key: "tracking", label: "Overview", hint: "Module summary", icon: "O" },
-      navSection("trackingWater"),
-      navSection("trackingFasting"),
-      navSection("trackingSteps")
+      { key: "integrations", label: "Provider board", hint: "External service status", icon: "I" },
+      { key: "revenueCatProduction", label: "RevenueCat", hint: "Subscription provider monitoring", icon: "R", logo: "./revenuecat.svg" }
     ]
   },
+  navSection("tracking"),
   {
     ...navSection("system"),
     children: [
-      { key: "system", label: "Overview", hint: "Health summary", icon: "O" },
-      navSection("systemRuntime"),
-      navSection("systemDatabase"),
-      navSection("systemProviders"),
-      navSection("systemProduction")
+      { key: "system", label: "System health", hint: "Runtime and readiness", icon: "H" },
+      navSection("audits")
     ]
   },
-  {
-    ...navSection("audits"),
-    children: [
-      { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
-      navSection("retentionPolicies")
-    ]
-  },
+  navSection("achievements"),
   navSection("settings")
 ];
 
+const sectionTabGroups: SectionMeta[][] = [
+  [navSection("users"), navSection("admins"), navSection("userVerification")],
+  [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
+  [navSection("products"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
+  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
+  [navSection("notifications"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
+  [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
+  [navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
+  [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
+];
+
+function tabsForSection(active: SectionKey): SectionMeta[] | undefined {
+  return sectionTabGroups.find((group) => group.some((item) => item.key === active));
+}
 const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
 const VERIFICATION_STATUSES = ["RAW_IMPORTED", "NEEDS_REVIEW", "VERIFIED", "REJECTED"];
 const IMAGE_STATUSES = ["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
@@ -469,7 +491,20 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
-  const [openNavGroups, setOpenNavGroups] = useState<Partial<Record<SectionKey, boolean>>>({});
+  const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
+  const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
+
+  function navigateToSection(section: SectionKey) {
+    setError(null);
+    setTargetContext(null);
+    setActive(section);
+  }
+
+  function navigateToTarget(section: SectionKey, context?: Omit<AdminTargetContext, "section">) {
+    setError(null);
+    setTargetContext(context ? { ...context, section } : null);
+    setActive(section);
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -502,10 +537,10 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">G</div>
-          <div>
-            <strong>GRun Admin</strong>
-            <span>Control Center</span>
+          <img className="brand-symbol" src="./grun/grun-app-icon.svg" alt="" aria-hidden="true" />
+          <div className="brand-context">
+            <img className="brand-wordmark" src="./grun/grun-wordmark.svg" alt="GRUN" />
+            <span>Operations</span>
           </div>
         </div>
         <nav className="nav-list">
@@ -516,9 +551,9 @@ export default function App() {
                 onClick={() => {
                   setError(null);
                   if (section.children) {
-                    setOpenNavGroups((current) => ({ ...current, [section.key]: !current[section.key] }));
+                    setOpenNavGroup((current) => current === section.key ? null : section.key);
                   } else {
-                    setActive(section.key);
+                    navigateToSection(section.key);
                   }
                 }}
                 type="button"
@@ -529,9 +564,9 @@ export default function App() {
                   <strong>{section.label}</strong>
                   <small>{section.hint}</small>
                 </span>
-                {section.children && <span className="nav-chevron">{openNavGroups[section.key] ? "-" : "+"}</span>}
+                {section.children && <span className="nav-chevron">{openNavGroup === section.key ? "-" : "+"}</span>}
               </button>
-              {section.children && openNavGroups[section.key] && (
+              {section.children && openNavGroup === section.key && (
                 <div className="nav-sublist">
                   {section.children.map((child) => (
                     <button
@@ -539,7 +574,7 @@ export default function App() {
                       key={`${child.key}-${child.label}`}
                       onClick={() => {
                         setError(null);
-                        setActive(child.key);
+                        navigateToSection(child.key);
                       }}
                       type="button"
                       title={child.hint}
@@ -581,13 +616,14 @@ export default function App() {
         </header>
 
         {error && <div className="error-banner">{error}</div>}
+        <SectionTabs active={active} onSelect={navigateToSection} />
         <section className="content-surface">
-          {active === "dashboard" && <DashboardView onError={setError} />}
+          {active === "dashboard" && <DashboardView onError={setError} onNavigate={navigateToSection} />}
           {active === "integrations" && <IntegrationsView mode="overview" onError={setError} />}
           {active === "integrationProviders" && <IntegrationsView mode="providers" onError={setError} />}
           {active === "revenueCatProduction" && <RevenueCatMonitoringView environment="production" onError={setError} />}
           {active === "revenueCatSandbox" && <RevenueCatMonitoringView environment="sandbox" onError={setError} />}
-          {active === "mail" && <MailOpsView onError={setError} />}
+          {active === "mail" && <MailOpsView onError={setError} targetContext={targetContext?.section === "mail" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "brevoSenders" && <BrevoSendersView onError={setError} />}
           {active === "mailEvents" && <MailEventsView onError={setError} />}
           {active === "foodOps" && <FoodOpsView mode="overview" onError={setError} />}
@@ -595,6 +631,7 @@ export default function App() {
           {active === "foodRegions" && <FoodOpsView mode="regions" onError={setError} />}
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
+          {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
           {active === "productImages" && <ProductReviewView mode="images" onError={setError} />}
           {active === "productNutrition" && <ProductReviewView mode="nutrition" onError={setError} />}
           {active === "productRejected" && <ProductReviewView mode="rejected" onError={setError} />}
@@ -607,13 +644,14 @@ export default function App() {
           {active === "subscriptionFeatures" && <SubscriptionsView mode="features" onError={setError} />}
           {active === "subscriptionMapping" && <SubscriptionsView mode="mapping" onError={setError} />}
           {active === "subscriptionEntitlements" && <SubscriptionsView mode="entitlements" onError={setError} />}
+          {active === "subscriptionAccess" && <SubscriptionsView mode="access" onError={setError} />}
           {active === "subscriptionAiQuotas" && <SubscriptionsView mode="aiQuotas" onError={setError} />}
-          {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} />}
-          {active === "ai" && <AiReviewView onError={setError} />}
+          {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
+          {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "settings" && <GlobalSettingsView />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
-          {active === "notifications" && <NotificationsView onError={setError} />}
+          {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
@@ -630,6 +668,27 @@ export default function App() {
   );
 }
 
+function SectionTabs({ active, onSelect }: { active: SectionKey; onSelect: (section: SectionKey) => void }) {
+  const tabs = tabsForSection(active);
+  if (!tabs || tabs.length <= 1) return null;
+
+  return (
+    <div className="section-tabs" aria-label="Section navigation">
+      {tabs.map((tab) => (
+        <button
+          className={tab.key === active ? "active" : ""}
+          key={tab.key}
+          onClick={() => onSelect(tab.key)}
+          title={tab.hint}
+          type="button"
+        >
+          <strong>{tab.label}</strong>
+          <span>{tab.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 function isNavItemActive(section: NavigationItem, active: SectionKey): boolean {
   return section.key === active || Boolean(section.children?.some((child) => child.key === active));
 }
@@ -671,18 +730,11 @@ function LoginView({
         <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
       </div>
       <section className="login-hero">
-        <div className="hero-orbit">
-          <div className="pulse-card">
-            <span>Catalog</span>
-            <strong>Review queue</strong>
-          </div>
-          <div className="pulse-card secondary">
-            <span>System</span>
-            <strong>Health online</strong>
-          </div>
-        </div>
         <div className="hero-copy">
-          <p className="eyebrow">GRun Operations</p>
+          <div className="login-brand-lockup">
+            <img src="./grun/grun-wordmark.svg" alt="GRUN" />
+            <span>Operations</span>
+          </div>
           <h1>Admin control center for the calorie tracking platform.</h1>
           <p>Monitor users, review food data, inspect AI requests, and manage subscription features from one focused workspace.</p>
         </div>
@@ -754,16 +806,45 @@ function ThemeToggle({ theme, toggleTheme }: { theme: ThemeMode; toggleTheme: ()
   );
 }
 
-function DashboardView({ onError }: { onError: (message: string | null) => void }) {
+type OperationCardItem = {
+  title: string;
+  value: string | number | undefined;
+  detail: string;
+  tone: "good" | "warn" | "danger";
+  target: SectionKey;
+};
+
+function OperationCard({ item, onNavigate }: { item: OperationCardItem; onNavigate: (section: SectionKey) => void }) {
+  return (
+    <button className={`operation-card ${item.tone}`} onClick={() => onNavigate(item.target)} type="button">
+      <span>{item.title}</span>
+      <strong>{formatValue(item.value)}</strong>
+      <small>{item.detail}</small>
+    </button>
+  );
+}
+function DashboardView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
   const { data, state, reload } = useEndpoint<DashboardSummary>("/api/v1/admin/dashboard/summary", onError);
+  const { data: unreadNotifications, state: unreadNotificationState, reload: reloadUnreadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&page=0&size=5", onError);
+  const { data: criticalNotifications, state: criticalNotificationState, reload: reloadCriticalNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&severity=CRITICAL&page=0&size=5", onError);
   const activeSubscriptions = (data?.activePlusSubscriptions ?? 0) + (data?.activeProSubscriptions ?? 0);
   const catalogReadyPercent = percent(data?.verifiedProducts, data?.totalProducts);
   const paidUserPercent = percent(activeSubscriptions, data?.totalUsers);
   const failedEvents = data?.failedSubscriptionProviderEvents ?? 0;
   const reviewQueue = data?.reviewQueueProducts ?? 0;
   const exhaustedAiQuota = data?.aiQuotaExhaustedSubscriptions ?? 0;
-  const healthLevel = failedEvents > 0 || reviewQueue > 100 ? "Needs attention" : "Stable";
-  const healthTone = failedEvents > 0 || reviewQueue > 100 ? "warn" : "good";
+  const aiRequests7d = data?.aiRequestsLast7Days ?? 0;
+  const aiConfirmed7d = data?.aiConfirmedLast7Days ?? 0;
+  const aiRejected7d = data?.aiRejectedLast7Days ?? 0;
+  const aiFailed7d = data?.aiFailedLast7Days ?? 0;
+  const aiAcceptancePercent = percent(aiConfirmed7d, aiRequests7d);
+  const aiRejectionPercent = percent(aiRejected7d, aiRequests7d);
+  const aiRejectionReasons = Object.entries(data?.aiRejectionReasonsLast7Days ?? {}).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
+  const unreadAlertTotal = unreadNotifications?.totalElements ?? unreadNotifications?.content?.length ?? 0;
+  const criticalAlertTotal = criticalNotifications?.totalElements ?? criticalNotifications?.content?.length ?? 0;
+  const criticalAlertRows = criticalNotifications?.content ?? [];
+  const healthLevel = failedEvents > 0 || criticalAlertTotal > 0 || reviewQueue > 100 ? "Needs attention" : "Stable";
+  const healthTone = failedEvents > 0 || criticalAlertTotal > 0 || reviewQueue > 100 ? "warn" : "good";
 
   const headlineCards = [
     ["Platform state", healthLevel, failedEvents > 0 ? `${failedEvents} failed provider event(s)` : "No failed provider events"],
@@ -771,15 +852,78 @@ function DashboardView({ onError }: { onError: (message: string | null) => void 
     ["Catalog readiness", `${catalogReadyPercent}%`, `${formatValue(data?.verifiedProducts)} verified of ${formatValue(data?.totalProducts)}`],
     ["Review queue", reviewQueue, `${formatValue(data?.needsReviewProducts)} data review / ${formatValue(data?.rawImportedProducts)} raw imports`]
   ];
+  const operationCards: OperationCardItem[] = [
+    {
+      title: "Admin alerts",
+      value: criticalAlertTotal,
+      detail: criticalAlertTotal > 0 ? `${formatValue(criticalAlertTotal)} unread critical alert(s). Open inbox before routine checks.` : `${formatValue(unreadAlertTotal)} unread alert(s), no critical item visible.`,
+      tone: criticalAlertTotal > 0 ? "danger" : unreadAlertTotal > 0 ? "warn" : "good",
+      target: "notifications"
+    },
+    {
+      title: "Provider events",
+      value: failedEvents,
+      detail: failedEvents > 0 ? "Failed payment/provider events need retry or config review." : "No failed payment/provider events.",
+      tone: failedEvents > 0 ? "danger" : "good",
+      target: "subscriptionEvents"
+    },
+    {
+      title: "Catalog review",
+      value: reviewQueue,
+      detail: reviewQueue > 0 ? "Products are waiting for data, image, or nutrition approval." : "No product review pressure reported.",
+      tone: reviewQueue > 100 ? "warn" : "good",
+      target: "products"
+    },
+    {
+      title: "AI quality",
+      value: aiRejected7d + aiFailed7d,
+      detail: `${formatValue(aiRejected7d)} rejected and ${formatValue(aiFailed7d)} failed AI request(s) in the last 7 days.`,
+      tone: aiRejected7d + aiFailed7d > 0 ? "warn" : "good",
+      target: "ai"
+    },
+    {
+      title: "AI quota pressure",
+      value: exhaustedAiQuota,
+      detail: exhaustedAiQuota > 0 ? "Users have exhausted AI quota and may need plan/add-on review." : "No exhausted AI quota pressure.",
+      tone: exhaustedAiQuota > 0 ? "warn" : "good",
+      target: "subscriptionAiQuotas"
+    },
+    {
+      title: "Catalog quality scan",
+      value: data?.needsReviewProducts ?? 0,
+      detail: "Run quality rules or AI-assisted validation against selected catalog suggestions.",
+      tone: (data?.needsReviewProducts ?? 0) > 0 ? "warn" : "good",
+      target: "foodQuality"
+    }
+  ];
+
 
   return (
     <div className="stack">
-      <SectionToolbar title="Admin command summary" state={state} onReload={reload} />
+      <SectionToolbar title="Admin command summary" state={combineStates([state, unreadNotificationState, criticalNotificationState])} onReload={() => { void reload(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }} />
       <div className="metric-grid">
         {headlineCards.map(([label, value, hint]) => (
           <MetricCard key={String(label)} label={String(label)} value={formatValue(value)} hint={String(hint)} />
         ))}
       </div>
+      <Panel title="Operations queue">
+        <div className="operation-card-grid">
+          {operationCards.map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
+        </div>
+      </Panel>
+      <Panel title="Critical admin alerts">
+        <div className="dashboard-alert-panel">
+          <div>
+            <strong>{formatValue(criticalAlertTotal)}</strong>
+            <span>unread critical alert(s)</span>
+            <small>{formatValue(unreadAlertTotal)} total unread admin alert(s)</small>
+          </div>
+          <div>
+            <MiniNotificationList notifications={criticalAlertRows} />
+          </div>
+          <button className="ghost-button" type="button" onClick={() => onNavigate("notifications")}>Open Admin Inbox</button>
+        </div>
+      </Panel>
       <div className="split-grid">
         <Panel title="Immediate attention">
           <PriorityList
@@ -803,17 +947,31 @@ function DashboardView({ onError }: { onError: (message: string | null) => void 
         </Panel>
       </div>
       <div className="split-grid">
+        <Panel title="AI result quality">
+          <div className="dashboard-ai-grid">
+            <MetricCard label="AI requests 7d" value={formatValue(aiRequests7d)} hint="All tracked AI request types" />
+            <MetricCard label="Accepted" value={`${aiAcceptancePercent}%`} hint={`${formatValue(aiConfirmed7d)} confirmed by users`} />
+            <MetricCard label="Rejected" value={`${aiRejectionPercent}%`} hint={`${formatValue(aiRejected7d)} rejected by users`} />
+            <MetricCard label="Failed" value={formatValue(aiFailed7d)} hint="Provider or processing failures" />
+          </div>
+          <div className="ai-reason-list">
+            {aiRejectionReasons.length === 0 && <span className="empty-inline">No rejection reasons in the last 7 days.</span>}
+            {aiRejectionReasons.map(([reason, value]) => <ProgressRow key={reason} label={shortFeature(reason)} value={value} total={aiRejected7d || value} tone="warn" />)}
+          </div>
+        </Panel>
         <Panel title="Catalog health">
           <ProgressRow label="Verified catalog" value={data?.verifiedProducts} total={data?.totalProducts} />
           <ProgressRow label="Needs review" value={data?.needsReviewProducts} total={data?.totalProducts} tone="warn" />
           <ProgressRow label="Rejected" value={data?.rejectedProducts} total={data?.totalProducts} tone="danger" />
         </Panel>
+      </div>
+      <div className="split-grid">
         <Panel title="Operational routing">
           <div className="roadmap-strip">
             <span><Badge value={healthLevel} tone={healthTone} /> Payment events first if failed count is above zero</span>
+            <span>AI Ops shows request-level detail, prompt lifecycle, rejection feedback, and refundable quota cases</span>
             <span>Product Review handles catalog queue and image/nutrition quality</span>
             <span>Provider Events gives webhook detail and retry</span>
-            <span>Retention Policies keeps legal data rules auditable</span>
           </div>
         </Panel>
       </div>
@@ -821,6 +979,179 @@ function DashboardView({ onError }: { onError: (message: string | null) => void 
   );
 }
 
+type CanonicalDecision = {
+  group: FoodCanonicalDuplicateGroup;
+  product: FoodProduct;
+};
+
+function CanonicalDuplicateWorkspace({ onError }: { onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [filter, setFilter] = useState<"ALL" | "UNRESOLVED" | "DECIDED">("ALL");
+  const [pendingDecision, setPendingDecision] = useState<CanonicalDecision | null>(null);
+  const [pendingClear, setPendingClear] = useState<FoodCanonicalDuplicateGroup | null>(null);
+  const [saving, setSaving] = useState(false);
+  const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
+  if (filter === "UNRESOLVED") params.set("resolved", "false");
+  if (filter === "DECIDED") params.set("resolved", "true");
+  const { data, state, reload } = useEndpoint<FoodCanonicalDuplicateGroupPage>(
+    `/api/v1/admin/products/duplicates/canonical?${params.toString()}`,
+    onError
+  );
+  const groups = data?.content ?? [];
+
+  useEffect(() => setPage(0), [filter, pageSize]);
+
+  async function resolvePrimary(decision: CanonicalDecision) {
+    if (!decision.group.canonicalFoodKey || !decision.product.id) return;
+    setSaving(true);
+    onError(null);
+    try {
+      await request("/api/v1/admin/products/duplicates/canonical/resolve", {
+        method: "POST",
+        body: {
+          canonicalFoodKey: decision.group.canonicalFoodKey,
+          primaryProductId: decision.product.id
+        }
+      });
+      setPendingDecision(null);
+      await reload();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearResolution(group: FoodCanonicalDuplicateGroup) {
+    if (!group.canonicalFoodKey) return;
+    setSaving(true);
+    onError(null);
+    try {
+      await request(`/api/v1/admin/products/duplicates/canonical/resolution?canonicalFoodKey=${encodeURIComponent(group.canonicalFoodKey)}`, {
+        method: "DELETE"
+      });
+      setPendingClear(null);
+      await reload();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div className="stack">
+    <SectionToolbar title="Canonical duplicate workspace" state={state} onReload={reload} />
+    <div className="review-workspace-summary">
+      <MetricCard label="Groups" value={formatValue(data?.totalElements ?? groups.length)} hint="Matching the current decision filter" />
+      <MetricCard label="Needs attention" value={formatValue(groups.filter((group) => group.resolutionState !== "RESOLVED").length)} hint="Visible page: unresolved, stale, or unsafe" />
+      <MetricCard label="Resolved" value={formatValue(groups.filter((group) => group.resolutionState === "RESOLVED").length)} hint="Visible page with a safe primary" />
+      <MetricCard label="Candidates" value={formatValue(groups.reduce((sum, group) => sum + (group.productCount ?? 0), 0))} hint="Source records remain preserved" />
+    </div>
+
+    <Panel title="Decision filter">
+      <div className="canonical-filter-row">
+        <label>
+          Resolution
+          <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
+            <option value="ALL">All groups</option>
+            <option value="UNRESOLVED">No stored decision</option>
+            <option value="DECIDED">Stored decision</option>
+          </select>
+        </label>
+        <p>Recommendations are deterministic. An admin must confirm every primary decision.</p>
+      </div>
+    </Panel>
+
+    {groups.length === 0 && <Panel title="Canonical groups"><p className="empty-state">No duplicate groups match this filter.</p></Panel>}
+    {groups.map((group) => {
+      const assessments = group.candidateAssessments?.length
+        ? group.candidateAssessments
+        : (group.products ?? []).map((product) => ({ product, primaryEligible: true, eligibilityIssues: [], recommended: product.id === group.recommendedPrimaryProductId }));
+      return <section className="canonical-group" key={group.canonicalFoodKey}>
+        <header className="canonical-group-header">
+          <div>
+            <span className="eyebrow">{group.canonicalFoodKey}</span>
+            <h2>{formatValue(group.productCount)} source candidates</h2>
+            {group.resolutionStatusReason && <p>{group.resolutionStatusReason}</p>}
+          </div>
+          <div className="canonical-group-status">
+            <Badge value={group.resolutionState} tone={group.resolutionState === "RESOLVED" ? "good" : group.resolutionState === "UNRESOLVED" ? "neutral" : "warn"} />
+            {group.primaryProductId && <small>Primary #{group.primaryProductId}</small>}
+            {group.primaryProductId && <button className="ghost-button" type="button" onClick={() => setPendingClear(group)}>Clear decision</button>}
+          </div>
+        </header>
+        <div className="canonical-candidate-grid">
+          {assessments.map((assessment) => {
+            const product = assessment.product;
+            if (!product) return null;
+            const selected = product.id === group.primaryProductId;
+            return <article className={`canonical-candidate${selected ? " selected" : ""}`} key={product.id ?? product.sourceKey}>
+              <div className="canonical-candidate-title">
+                <div>
+                  <h3>{productName(product)}</h3>
+                  <span>{product.dataSource ?? "Unknown source"} · {product.sourceKey ?? `Product #${product.id}`}</span>
+                </div>
+                <div className="badge-stack">
+                  {selected && <Badge value="CURRENT PRIMARY" tone="good" />}
+                  {assessment.recommended && <Badge value="RECOMMENDED" tone="neutral" />}
+                </div>
+              </div>
+              <dl className="canonical-facts">
+                <div><dt>Preparation</dt><dd>{product.preparationState ?? "UNSPECIFIED"}</dd></div>
+                <div><dt>Market</dt><dd>{product.marketRegion ?? "GLOBAL"}</dd></div>
+                <div><dt>Quality</dt><dd>{formatValue(product.qualityScore)} / 100</dd></div>
+                <div><dt>Usage</dt><dd>{formatValue(product.usageCount)}</dd></div>
+                <div><dt>Calories</dt><dd>{formatValue(product.calories)} kcal</dd></div>
+                <div><dt>Macros</dt><dd>P {formatValue(product.protein)} · C {formatValue(product.carbs)} · F {formatValue(product.fat)}</dd></div>
+              </dl>
+              <div className={`canonical-eligibility ${assessment.primaryEligible ? "good" : "blocked"}`}>
+                <strong>{assessment.primaryEligible ? "Eligible for primary" : "Selection blocked"}</strong>
+                {(assessment.eligibilityIssues ?? []).map((issue) => <span key={issue}>{issue}</span>)}
+              </div>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={saving || !assessment.primaryEligible || selected}
+                onClick={() => setPendingDecision({ group, product })}
+              >
+                {selected ? "Selected primary" : "Select as primary"}
+              </button>
+            </article>;
+          })}
+        </div>
+      </section>;
+    })}
+
+    <PaginationControls
+      page={data?.page ?? page}
+      pageSize={data?.size ?? pageSize}
+      totalElements={data?.totalElements ?? groups.length}
+      totalPages={data?.totalPages ?? 1}
+      first={Boolean(data?.first)}
+      last={Boolean(data?.last)}
+      onPageChange={setPage}
+      onPageSizeChange={setPageSize}
+    />
+
+    {pendingDecision && <ConfirmDialog
+      title="Change canonical primary?"
+      message={`Select ${productName(pendingDecision.product)} as the user-visible primary for this canonical group? Source records will remain stored.`}
+      confirmLabel="Confirm primary"
+      busy={saving}
+      onCancel={() => setPendingDecision(null)}
+      onConfirm={() => resolvePrimary(pendingDecision)}
+    />}
+    {pendingClear && <ConfirmDialog
+      title="Clear canonical decision?"
+      message="All eligible source candidates will become visible again until a new primary is selected. No product record will be deleted."
+      confirmLabel="Clear decision"
+      busy={saving}
+      onCancel={() => setPendingClear(null)}
+      onConfirm={() => clearResolution(pendingClear)}
+    />}
+  </div>;
+}
 type ProductReviewMode = "queue" | "images" | "nutrition" | "rejected";
 
 type NutritionCorrectionImportResult = {
@@ -847,7 +1178,8 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
   const [reviewNote, setReviewNote] = useState("");
   const [rejectConfirmationOpen, setRejectConfirmationOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [correctionFile, setCorrectionFile] = useState<File | null>(null);
+    const [savedNotice, setSavedNotice] = useState<string | null>(null);
+const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [correctionResult, setCorrectionResult] = useState<NutritionCorrectionImportResult | null>(null);
   const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
   const [transferState, setTransferState] = useState<LoadState>("idle");
@@ -953,6 +1285,8 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
       void updated;
       await reload();
       closeProductModal();
+      setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -986,6 +1320,8 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
       void updated;
       await reload();
       closeProductModal();
+      setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -1041,11 +1377,13 @@ function ProductReviewView({ mode, onError }: { mode: ProductReviewMode; onError
       onError(formatRequestError(err));
     }
   }
+
   return (
     <div className="stack">
       <SectionToolbar title={modeTitle} state={state} onReload={reload}>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
+      {savedNotice && <div className="success-banner compact-success">{savedNotice}</div>}
 
       <div className="review-workspace-summary">
         <MetricCard label="Returned products" value={formatValue(totalElements)} hint="Matching current filters" />
@@ -1225,6 +1563,7 @@ type AdminRecipeCreateForm = {
   imageSource: string;
   reviewNote: string;
   categories: string[];
+  cookingSteps: string[];
   ingredients: AdminRecipeIngredientForm[];
 };
 
@@ -1245,6 +1584,7 @@ const emptyRecipeCreateForm: AdminRecipeCreateForm = {
   imageSource: "",
   reviewNote: "",
   categories: [],
+  cookingSteps: [""],
   ingredients: [{ foodItemId: "", productSearchQuery: "", productLabel: "", portionSize: "100", portionUnit: "GRAM" }]
 };
 
@@ -1274,8 +1614,10 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [draftImageStatus, setDraftImageStatus] = useState("");
   const [draftImageSource, setDraftImageSource] = useState("");
   const [draftCategories, setDraftCategories] = useState<string[]>([]);
+  const [draftCookingSteps, setDraftCookingSteps] = useState<string[]>([]);
   const [reviewNote, setReviewNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [showCreateRecipe, setShowCreateRecipe] = useState(false);
   const [creatingRecipe, setCreatingRecipe] = useState(false);
   const [createForm, setCreateForm] = useState<AdminRecipeCreateForm>(emptyRecipeCreateForm);
@@ -1383,6 +1725,36 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     }
   }
 
+
+  function updateCreateCookingStep(index: number, value: string) {
+    setCreateForm((current) => ({
+      ...current,
+      cookingSteps: current.cookingSteps.map((step, itemIndex) => itemIndex === index ? value : step)
+    }));
+  }
+
+  function addCreateCookingStep() {
+    setCreateForm((current) => ({ ...current, cookingSteps: [...current.cookingSteps, ""] }));
+  }
+
+  function removeCreateCookingStep(index: number) {
+    setCreateForm((current) => ({
+      ...current,
+      cookingSteps: current.cookingSteps.length <= 1 ? current.cookingSteps : current.cookingSteps.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  }
+
+  function updateDraftCookingStep(index: number, value: string) {
+    setDraftCookingSteps((current) => current.map((step, itemIndex) => itemIndex === index ? value : step));
+  }
+
+  function addDraftCookingStep() {
+    setDraftCookingSteps((current) => [...current, ""]);
+  }
+
+  function removeDraftCookingStep(index: number) {
+    setDraftCookingSteps((current) => current.length <= 1 ? current : current.filter((_, itemIndex) => itemIndex !== index));
+  }
   async function searchCreateIngredientProducts(index: number) {
     const ingredient = createForm.ingredients[index];
     const searchText = ingredient?.productSearchQuery.trim();
@@ -1512,6 +1884,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         timeoutMs: 60000
       });
       setSelectedRecipe(created);
+      setSelectedImportCandidate(null);
       await reloadImports();
       await reload();
     } catch (err) {
@@ -1570,6 +1943,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         defaultServingGrams: numericOrNull(createForm.defaultServingGrams),
         servingCount,
         categories: createForm.categories,
+        cookingSteps: createForm.cookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction),
         ingredients
       },
       reviewNote: createForm.reviewNote.trim() || "Created from admin panel."
@@ -1612,6 +1986,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setDraftImageStatus(recipe.imageStatus ?? "");
     setDraftImageSource(recipe.imageSource ?? "");
     setDraftCategories(recipe.categories ?? []);
+    setDraftCookingSteps((recipe.cookingSteps ?? []).map((step) => step.instruction ?? "").filter(Boolean));
     setReviewNote("");
   }
 
@@ -1621,6 +1996,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setDraftImageStatus("");
     setDraftImageSource("");
     setDraftCategories([]);
+    setDraftCookingSteps([]);
     setReviewNote("");
   }
 
@@ -1642,18 +2018,22 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
           imageStatus: draftImageStatus || null,
           imageSource: draftImageSource || null,
           categories: draftCategories,
+          cookingSteps: draftCookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction),
           reviewNote: reviewNote || "Updated from admin panel."
         }
       });
-      setSelectedRecipe(updated);
+      void updated;
       await reload();
       closeRecipe();
+      setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
       setSaving(false);
     }
   }
+
 
   return (
     <div className="stack">
@@ -1662,6 +2042,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
         <button className="ghost-button" onClick={() => setShowCreateRecipe((value) => !value)} type="button">{showCreateRecipe ? "Close create" : "Create recipe"}</button>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
+      {savedNotice && <div className="success-banner compact-success">{savedNotice}</div>}
 
       <div className="review-workspace-summary">
         <MetricCard label="Returned recipes" value={formatValue(data?.totalElements ?? rows.length)} hint="Matching current filters" />
@@ -1841,18 +2222,12 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                           <div className="ingredient-search-results recipe-import-product-results">
                             {importIngredientSearchState === "loading" && <span>Searching products...</span>}
                             {importIngredientSearchState === "ready" && importIngredientSearchResults.length === 0 && <span>No product found. Create or import the product first, then map again.</span>}
-                            {importIngredientSearchResults.map((product) => {
-                              const productImage = product.displayImageUrl ?? product.imageUrl ?? product.externalImageUrl;
-                              return (
-                                <button className="ingredient-search-result with-image" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
-                                  {productImage ? <img src={productImage} alt="" /> : <span className="ingredient-search-placeholder">No image</span>}
-                                  <span>
-                                    <strong>{productName(product)}</strong>
-                                    <small>{productIngredientLabel(product)}</small>
-                                  </span>
-                                </button>
-                              );
-                            })}
+                            {importIngredientSearchResults.map((product) => (
+                              <button className="ingredient-search-result" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
+                                <strong>{productName(product)}</strong>
+                                <span>{productIngredientLabel(product)}</span>
+                              </button>
+                            ))}
                           </div>
                         )}
                       </article>
@@ -1861,7 +2236,17 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                   {(selectedImportCandidate.ingredients ?? []).length === 0 && <div className="empty-state compact-empty">No ingredient details returned for this candidate.</div>}
                 </div>
               </Panel>
-              <Panel title="Validation issues">
+              <Panel title="Source cooking steps">
+                <div className="recipe-step-list readonly-step-list">
+                  {(selectedImportCandidate.cookingSteps ?? []).map((step, index) => (
+                    <div className="recipe-step-row readonly-step-row" key={`import-step-${step.stepNumber ?? index}`}>
+                      <span>{step.stepNumber ?? index + 1}</span>
+                      <p>{step.instruction ?? "-"}</p>
+                    </div>
+                  ))}
+                  {(selectedImportCandidate.cookingSteps ?? []).length === 0 && <div className="empty-state compact-empty">No cooking steps returned in this import candidate.</div>}
+                </div>
+              </Panel>              <Panel title="Validation issues">
                 <div className={selectedImportCandidate.validationIssues ? "correction-error-list" : "empty-state compact-empty"}>
                   {selectedImportCandidate.validationIssues
                     ? selectedImportCandidate.validationIssues.split(";").map((issue) => <span key={issue.trim()}>{issue.trim()}</span>)
@@ -2053,7 +2438,19 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                 </div>
               ))}
             </div>
-            <label className="full-width-field">
+            <div className="admin-recipe-steps">
+              <div className="admin-recipe-ingredients-header">
+                <strong>Cooking steps</strong>
+                <button className="ghost-button" type="button" onClick={addCreateCookingStep}>Add step</button>
+              </div>
+              {createForm.cookingSteps.map((step, index) => (
+                <div className="recipe-step-editor-row" key={`create-step-${index}`}>
+                  <span>{index + 1}</span>
+                  <textarea value={step} onChange={(event) => updateCreateCookingStep(index, event.target.value)} placeholder="Describe this preparation step" />
+                  <button className="ghost-button danger-text" type="button" onClick={() => removeCreateCookingStep(index)} disabled={createForm.cookingSteps.length <= 1}>Remove</button>
+                </div>
+              ))}
+            </div>            <label className="full-width-field">
               Admin note
               <textarea value={createForm.reviewNote} onChange={(event) => updateCreateForm("reviewNote", event.target.value)} placeholder="Internal note for audit trail" />
             </label>
@@ -2263,6 +2660,19 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                     empty="No ingredients returned."
                   />
                 </Panel>
+                <Panel title="Review cooking steps">
+                  <div className="recipe-step-list">
+                    {draftCookingSteps.map((step, index) => (
+                      <div className="recipe-step-editor-row" key={`review-step-${index}`}>
+                        <span>{index + 1}</span>
+                        <textarea value={step} onChange={(event) => updateDraftCookingStep(index, event.target.value)} placeholder="Describe this preparation step" />
+                        <button className="ghost-button danger-text" type="button" onClick={() => removeDraftCookingStep(index)} disabled={draftCookingSteps.length <= 1}>Remove</button>
+                      </div>
+                    ))}
+                    {!draftCookingSteps.length && <div className="empty-state compact-empty">No cooking steps saved for this recipe.</div>}
+                  </div>
+                  <button className="ghost-button" type="button" onClick={addDraftCookingStep}>Add step</button>
+                </Panel>
                 <EditableDetail label="Review note">
                   <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Optional internal moderation note" />
                 </EditableDetail>
@@ -2429,6 +2839,7 @@ function AchievementAdminView({ onError }: { onError: (message: string | null) =
     }
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Achievement definitions" state={combineStates([state, metricState])} onReload={reload}>
@@ -2542,12 +2953,21 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
   const { data, state, reload } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [statusActionState, setStatusActionState] = useState<LoadState>("idle");
+  const [userPage, setUserPage] = useState(0);
+  const [userPageSize, setUserPageSize] = useState(25);
   const users = data ?? [];
   const adminUsers = users.filter((user) => user.role === "ADMIN");
   const standardUsers = users.filter((user) => user.role !== "ADMIN");
   const unverifiedUsers = users.filter((user) => !user.emailVerified);
   const visibleUsers = mode === "admins" ? adminUsers : mode === "verification" ? unverifiedUsers : standardUsers;
+  const userTotalPages = Math.max(1, Math.ceil(visibleUsers.length / userPageSize));
+  const safeUserPage = Math.min(userPage, userTotalPages - 1);
+  const pagedUsers = visibleUsers.slice(safeUserPage * userPageSize, safeUserPage * userPageSize + userPageSize);
   const title = mode === "admins" ? "Admin accounts" : mode === "verification" ? "Email verification queue" : "App users";
+
+  useEffect(() => {
+    setUserPage(0);
+  }, [mode, userPageSize, visibleUsers.length]);
 
   async function updateSelectedUserStatus(payload: { accountEnabled: boolean; accountLocked: boolean; reason: string }) {
     if (!selectedUser?.id) return;
@@ -2565,6 +2985,7 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
       onError(formatRequestError(error));
     }
   }
+
   return (
     <div className="stack">
       <SectionToolbar title={title} state={state} onReload={reload} />
@@ -2575,27 +2996,48 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
       </div>
       <DataTable
         columns={["User", "Role", "Status", "Region", "Language", "Email", "Profile"]}
-        rows={visibleUsers.map((user) => [
+        rows={pagedUsers.map((user) => [
           <UserCell user={user} />,
           <Badge value={user.role ?? "-"} />,
+          <div className="badge-stack">
+            <Badge
+              value={user.accountLocked ? "Locked" : user.accountEnabled === false ? "Disabled" : "Enabled"}
+              tone={user.accountLocked || user.accountEnabled === false ? "danger" : "good"}
+            />
+            <Badge value={user.emailVerified ? "Verified" : "Unverified"} tone={user.emailVerified ? "good" : "warn"} />
+          </div>,
           formatValue(user.marketRegion),
           formatValue(user.preferredLanguage),
-          <Badge value={user.emailVerified ? "Verified" : "Unverified"} tone={user.emailVerified ? "good" : "warn"} />,
+          formatValue(user.email),
           `${formatValue(user.age)} yrs | ${formatValue(user.height)} cm / ${formatValue(user.weight)} kg`
         ])}
-        rowData={visibleUsers}
+        rowData={pagedUsers}
         onRowClick={setSelectedUser}
         empty={mode === "admins" ? "No admin users found." : mode === "verification" ? "No unverified users found." : "No standard users found."}
+      />
+      <PaginationControls
+        page={safeUserPage}
+        pageSize={userPageSize}
+        totalElements={visibleUsers.length}
+        totalPages={userTotalPages}
+        first={safeUserPage <= 0}
+        last={safeUserPage >= userTotalPages - 1}
+        onPageChange={setUserPage}
+        onPageSizeChange={(size) => {
+          setUserPageSize(size);
+          setUserPage(0);
+        }}
       />
       {selectedUser && <UserDetailsModal user={selectedUser} statusState={statusActionState} onClose={() => setSelectedUser(null)} onStatusUpdate={updateSelectedUserStatus} />}
     </div>
   );
 }
 
-type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "aiQuotas";
+type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "access" | "aiQuotas";
 
 function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError: (message: string | null) => void }) {
   const { data, state, reload } = useEndpoint<FeatureMatrixItem[]>("/api/v1/admin/subscriptions/features", onError);
+  const { data: pricingData, state: pricingState, reload: reloadPricing } = useEndpoint<AiCreditPricingPolicy[]>("/api/v1/admin/ai-credit-pricing", onError);
   const { data: users, state: usersState } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
   const { data: revenueCat, state: revenueCatState, reload: reloadRevenueCat } = useEndpoint<RevenueCatConfigStatus>("/api/v1/admin/revenuecat/config", onError);
   const { data: subscriptionAudits, state: subscriptionAuditState, reload: reloadSubscriptionAudits } = useEndpoint<PageResponse<AuditEntry>>(buildAuditPath({ actionType: "", targetType: "USER_SUBSCRIPTION", page: 0, size: 20 }), onError);
@@ -2605,6 +3047,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [accessPreviewUserId, setAccessPreviewUserId] = useState<string>("");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [userPickerOpen, setUserPickerOpen] = useState(false);
+  const [previewUserAutoSelected, setPreviewUserAutoSelected] = useState(false);
   const [accessPreview, setAccessPreview] = useState<SubscriptionFeatureAccess | null>(null);
   const [accessPreviewState, setAccessPreviewState] = useState<LoadState>("idle");
   const [subscriptionForm, setSubscriptionForm] = useState({
@@ -2613,20 +3056,25 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     billingPeriod: "MONTHLY",
     startDate: todayIsoDate(),
     endDate: "",
-    aiMonthlyQuota: "100",
+    aiMonthlyQuota: "150",
     aiUsedThisPeriod: "0",
-    autoRenew: false,
+    autoRenew: true,
     provider: "MANUAL_ADMIN",
     providerSubscriptionId: ""
   });
   const [addonForm, setAddonForm] = useState({ amount: "15", validityDays: "30", note: "Admin credit adjustment" });
   const features = data ?? [];
+  const pricingPolicies = pricingData ?? [];
   const previewUsers = users ?? [];
+  const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
+  const selectedPreviewLabel = selectedPreviewUser ? userOptionLabel(selectedPreviewUser).toLowerCase() : "";
+  const previewSearchQuery = userSearchQuery.trim().toLowerCase();
+  const shouldFilterPreviewUsers = Boolean(previewSearchQuery && previewSearchQuery !== selectedPreviewLabel);
+  const userDropdownSearchValue = shouldFilterPreviewUsers ? userSearchQuery : "";
   const filteredPreviewUsers = previewUsers.filter((user) => {
     if (user.role === "ADMIN" || user.id === undefined) return false;
-    const query = userSearchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return [user.email, user.name, String(user.id)].some((value) => String(value ?? "").toLowerCase().includes(query));
+    if (!shouldFilterPreviewUsers) return true;
+    return [user.email, user.name, String(user.id)].some((value) => String(value ?? "").toLowerCase().includes(previewSearchQuery));
   });
   const plans = PLAN_ORDER;
   const grouped = plans.map((plan) => ({
@@ -2636,14 +3084,16 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   }));
   const enabledTotal = features.filter((item) => item.enabled).length;
   const warningCount = (revenueCat?.missingRequiredConfig?.length ?? 0) + (revenueCat?.warnings?.length ?? 0);
-  const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
   const selectedUserId = accessPreviewUserId ? Number(accessPreviewUserId) : null;
   const quotaAudits = (subscriptionAudits?.content ?? []).filter((audit) => ["SUBSCRIPTION_UPDATE", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT"].includes(audit.actionType ?? ""));
+
+
   const title = {
     overview: "Subscription control center",
     features: "Plan feature matrix",
     mapping: "RevenueCat product mapping",
     entitlements: "Entitlement snapshot policy",
+    access: "User access preview",
     aiQuotas: "AI quota and add-on mapping"
   }[mode];
 
@@ -2657,7 +3107,25 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setUserSearchQuery(userOptionLabel(user));
     setUserPickerOpen(false);
   }
+
+
+  function updateUserPickerSearch(value: string) {
+    setUserSearchQuery(value);
+    setAccessPreviewUserId("");
+    setUserPickerOpen(true);
+  }
   function updateSubscriptionForm(key: keyof typeof subscriptionForm, value: string | boolean) {
+    if (key === "planType" && typeof value === "string") {
+      setSubscriptionForm((current) => ({
+        ...current,
+        planType: value,
+        billingPeriod: value === "FREE" ? "NONE" : current.billingPeriod === "NONE" ? "MONTHLY" : current.billingPeriod,
+        aiMonthlyQuota: String(defaultAiQuota(value)),
+        aiUsedThisPeriod: value === "FREE" ? "0" : current.aiUsedThisPeriod,
+        autoRenew: value !== "FREE"
+      }));
+      return;
+    }
     setSubscriptionForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -2673,13 +3141,14 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   }
 
   useEffect(() => {
-    if (!accessPreviewUserId && previewUsers.length) {
-      const firstStandardUser = previewUsers.find((user) => user.role !== "ADMIN" && user.id !== undefined) ?? previewUsers.find((user) => user.id !== undefined);
-      if (firstStandardUser?.id !== undefined) {
-        setAccessPreviewUserId(String(firstStandardUser.id));
-      }
+    if (previewUserAutoSelected || accessPreviewUserId || !previewUsers.length) return;
+    const firstStandardUser = previewUsers.find((user) => user.role !== "ADMIN" && user.id !== undefined) ?? previewUsers.find((user) => user.id !== undefined);
+    if (firstStandardUser?.id !== undefined) {
+      setAccessPreviewUserId(String(firstStandardUser.id));
+      setUserSearchQuery(userOptionLabel(firstStandardUser));
     }
-  }, [accessPreviewUserId, previewUsers]);
+    setPreviewUserAutoSelected(true);
+  }, [accessPreviewUserId, previewUserAutoSelected, previewUsers]);
 
   useEffect(() => {
     if (!accessPreviewUserId) {
@@ -2692,9 +3161,26 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     onError(null);
     async function loadAccessPreview() {
       try {
-        const response = await request<SubscriptionFeatureAccess>(`/api/v1/admin/subscriptions/users/${accessPreviewUserId}/features`);
+        const [featureResponse, subscriptionResponse] = await Promise.all([
+          request<SubscriptionFeatureAccess>(`/api/v1/admin/subscriptions/users/${accessPreviewUserId}/features`),
+          request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${accessPreviewUserId}`)
+        ]);
         if (!active) return;
-        setAccessPreview(response);
+        setAccessPreview(featureResponse);
+        setSubscriptionResult(subscriptionResponse);
+        const planType = subscriptionResponse.planType ?? subscriptionResponse.plan ?? "FREE";
+        setSubscriptionForm((current) => ({
+          ...current,
+          planType,
+          status: subscriptionResponse.status ?? "ACTIVE",
+          billingPeriod: subscriptionResponse.billingPeriod ?? (planType === "FREE" ? "NONE" : "MONTHLY"),
+          startDate: subscriptionResponse.startDate ?? todayIsoDate(),
+          endDate: subscriptionResponse.endDate ?? "",
+          aiMonthlyQuota: String(subscriptionResponse.aiMonthlyQuota ?? defaultAiQuota(planType)),
+          aiUsedThisPeriod: String(subscriptionResponse.aiUsedThisPeriod ?? 0),
+          autoRenew: planType !== "FREE" && (subscriptionResponse.autoRenew ?? true),
+          provider: subscriptionResponse.provider ?? "MANUAL_ADMIN"
+        }));
         setAccessPreviewState("ready");
       } catch (err) {
         if (!active) return;
@@ -2813,6 +3299,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
         method: "PUT",
         body: {
           enabled,
+          aiCreditCost: item.aiCreditCost ?? 1,
           effectiveFrom: item.effectiveFrom || todayIsoDate()
         }
       });
@@ -2824,9 +3311,52 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     }
   }
 
+
+  async function updatePricingPolicy(
+    policy: AiCreditPricingPolicy,
+    draft: AiCreditPricingPolicy
+  ) {
+    if (!policy.feature) {
+      onError("AI feature key is missing.");
+      return;
+    }
+    const values = {
+      baseCreditCost: Number(draft.baseCreditCost),
+      includedUnits: Number(draft.includedUnits),
+      unitsPerAdditionalCredit: Number(draft.unitsPerAdditionalCredit),
+      contextSurcharge: Number(draft.contextSurcharge),
+      maxCreditCost: draft.pricingMode === "FIXED" ? Number(draft.baseCreditCost) : Number(draft.maxCreditCost)
+    };
+    if (!Object.values(values).every(Number.isInteger)
+        || values.baseCreditCost < 1
+        || values.includedUnits < 0
+        || values.unitsPerAdditionalCredit < 1
+        || values.contextSurcharge < 0
+        || values.maxCreditCost < values.baseCreditCost
+        || values.maxCreditCost > 50) {
+      onError("AI credit policy contains invalid values.");
+      return;
+    }
+    const key = "pricing:" + policy.feature;
+    setSavingKey(key);
+    onError(null);
+    try {
+      await request<AiCreditPricingPolicy>("/api/v1/admin/ai-credit-pricing/" + policy.feature, {
+        method: "PUT",
+        body: values
+      });
+      await reloadPricing();
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSavingKey(null);
+    }
+  }
+  const matrixFeatures = uniqueFeatures(features);
+  const featureGroups = [matrixFeatures.slice(0, Math.ceil(matrixFeatures.length / 2)), matrixFeatures.slice(Math.ceil(matrixFeatures.length / 2))];
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={combineStates([state, revenueCatState, usersState, subscriptionAuditState, subscriptionActionState])} onReload={reload}>
+      <SectionToolbar title={title} state={combineStates([state, pricingState, revenueCatState, usersState, subscriptionAuditState, subscriptionActionState])} onReload={() => { void reload(); void reloadPricing(); }}>
         <button className="ghost-button" onClick={reloadRevenueCat} type="button">Reload RevenueCat</button>
       </SectionToolbar>
 
@@ -2875,11 +3405,13 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
 
       {mode === "features" && <Panel title="Plan feature matrix">
         <div className="feature-matrix">
-          <div className="feature-matrix-head">
-            <span>Feature rule</span>
-            {plans.map((plan) => <span key={plan}>{plan}</span>)}
-          </div>
-          {uniqueFeatures(features).map((feature) => (
+          {featureGroups.map((group, groupIndex) => (
+            <div className="feature-matrix-column" key={`feature-group-${groupIndex}`}>
+              <div className="feature-matrix-head">
+                <span>Feature rule</span>
+                {plans.map((plan) => <span key={plan}>{plan}</span>)}
+              </div>
+              {group.map((feature) => (
             <div className="feature-matrix-row" key={feature}>
               <div>
                 <strong>{humanizeFeature(feature)}</strong>
@@ -2889,19 +3421,22 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
                 const item = features.find((candidate) => candidate.planType === plan && candidate.feature === feature);
                 const key = item ? featureKey(item) : `${plan}:${feature}`;
                 return (
-                  <div className={item?.enabled ? "feature-toggle-cell enabled" : "feature-toggle-cell"} key={key}>
+                                    <div
+                    className={item?.enabled ? "feature-toggle-cell enabled" : "feature-toggle-cell"}
+                    key={key}
+                    title={item ? `${plan} ${feature}: ${item.enabled ? "enabled" : "disabled"}${item.effectiveFrom ? ` from ${item.effectiveFrom}` : ""}` : `${plan} ${feature}: not configured`}
+                  >
                     {item ? (
                       <>
                         <label className="switch-control" title={`${plan} ${feature}`}>
                           <input
                             checked={Boolean(item.enabled)}
-                            disabled={savingKey === key}
+                            disabled={savingKey === key || feature === "AD_FREE" || feature === "BARCODE_SCANNER"}
                             onChange={(event) => updateFeature(item, event.target.checked)}
                             type="checkbox"
                           />
                           <span />
                         </label>
-                        <small>{item.effectiveFrom ?? "today"}</small>
                       </>
                     ) : (
                       <span className="muted-text">Not configured</span>
@@ -2910,11 +3445,161 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
                 );
               })}
             </div>
+              ))}
+            </div>
           ))}
           {!features.length && <EmptyState message="No subscription feature rows found." />}
         </div>
       </Panel>}
 
+      {mode === "access" && <div className="subscription-ops-grid user-access-preview-layout">
+        <div className="user-access-top-row">
+        <Panel title="Select user">
+          <div className="admin-subscription-grid access-user-grid">
+            <label className="user-search-field full-width-field">
+              User
+              <div className="searchable-select">
+                <input
+                  aria-expanded={userPickerOpen}
+                  aria-haspopup="listbox"
+                  role="combobox"
+                  value={userSearchQuery}
+                  onChange={(event) => {
+                    updateUserPickerSearch(event.target.value);
+                  }}
+                  onFocus={() => setUserPickerOpen(true)}
+                  placeholder="Search email, name, or id"
+                />
+                <button className="searchable-select-toggle" type="button" aria-label="Toggle user list" onMouseDown={(event) => event.preventDefault()} onClick={() => setUserPickerOpen((current) => !current)} />
+                {userPickerOpen && (
+                  <div className="searchable-select-menu" role="listbox">
+                    <div className="searchable-select-menu-search">
+                      <input
+                        autoFocus
+                        type="search"
+                        value={userDropdownSearchValue}
+                        onChange={(event) => updateUserPickerSearch(event.target.value)}
+                        placeholder="Search users..."
+                      />
+                    </div>
+                    {filteredPreviewUsers.slice(0, 30).map((user) => (
+                      <button
+                        className={String(user.id) === accessPreviewUserId ? "selected" : undefined}
+                        key={user.id ?? user.email}
+                        type="button"
+                        role="option"
+                        aria-selected={String(user.id) === accessPreviewUserId}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          selectQuotaUser(user);
+                        }}
+                      >
+                        <strong>{userOptionLabel(user)}</strong>
+                        <span>{user.name ?? user.role ?? "STANDARD"}</span>
+                      </button>
+                    ))}
+                    {!filteredPreviewUsers.length && <div className="searchable-select-empty">No user found</div>}
+                  </div>
+                )}
+              </div>
+            </label>
+          </div>
+          <div className="subscription-note access-preview-note">
+            <strong>Shows the effective access returned by backend policy.</strong>
+            <span>If feature matrix and this preview differ, the active entitlement snapshot or subscription state is controlling the user.</span>
+          </div>
+        </Panel>
+
+        <Panel title="Admin assignment">
+          <div className="admin-subscription-grid user-access-assignment-grid">
+            <label>
+              Plan
+              <select value={subscriptionForm.planType} onChange={(event) => updateSubscriptionForm("planType", event.target.value)}>
+                {PLAN_ORDER.map((plan) => <option key={plan} value={plan}>{plan}</option>)}
+              </select>
+            </label>
+            <label>
+              Status
+              <select value={subscriptionForm.status} onChange={(event) => updateSubscriptionForm("status", event.target.value)}>
+                {SUBSCRIPTION_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+            <label>
+              Billing period
+              <select value={subscriptionForm.billingPeriod} onChange={(event) => updateSubscriptionForm("billingPeriod", event.target.value)}>
+                {BILLING_PERIOD_OPTIONS.map((period) => <option key={period} value={period}>{period}</option>)}
+              </select>
+            </label>
+            <label>
+              Monthly AI quota
+              <input min="0" type="number" value={subscriptionForm.aiMonthlyQuota} onChange={(event) => updateSubscriptionForm("aiMonthlyQuota", event.target.value)} />
+            </label>
+            <label>
+              Used this period
+              <input min="0" type="number" value={subscriptionForm.aiUsedThisPeriod} onChange={(event) => updateSubscriptionForm("aiUsedThisPeriod", event.target.value)} />
+            </label>
+            <label>
+              Start date
+              <DatePickerButton label="Start date" value={subscriptionForm.startDate} onChange={(value) => updateSubscriptionForm("startDate", value)} />
+            </label>
+            <label>
+              End date
+              <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
+            </label>
+            <label className="checkbox-field">
+              <input checked={subscriptionForm.autoRenew} onChange={(event) => updateSubscriptionForm("autoRenew", event.target.checked)} type="checkbox" />
+              Auto renew
+            </label>
+          </div>
+          <div className="subscription-note access-preview-note">
+            <strong>Manual admin changes create an entitlement snapshot for this user.</strong>
+            <span>Use this for local testing, support corrections, beta access, or manually granting PLUS/PRO before store integration is complete.</span>
+          </div>
+          <div className="admin-subscription-actions">
+            <button className="primary-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={applySubscriptionUpdate} type="button">Apply subscription</button>
+            <button className="ghost-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={resetSelectedAiQuota} type="button">Reset used quota</button>
+          </div>
+        </Panel>
+        </div>
+        <Panel title="Resolved user access">
+          <div className="quota-summary-strip access-summary-strip">
+            <div>
+              <span>Selected user</span>
+              <strong title={selectedPreviewUser?.email ?? ""}>{selectedPreviewUser?.email ?? "-"}</strong>
+              <small>{selectedPreviewUser?.role ?? "No user selected"}</small>
+            </div>
+            <div>
+              <span>Resolved plan</span>
+              <strong>{accessPreview?.planType ?? accessPreview?.plan ?? "-"}</strong>
+              <small>Preview state: {accessPreviewState}</small>
+            </div>
+            <div>
+              <span>Active entitlement</span>
+              <strong>{accessPreview?.activeEntitlement ? "Yes" : "No"}</strong>
+              <small>Snapshot-aware backend result</small>
+            </div>
+            <div>
+              <span>AI remaining</span>
+              <strong>{formatValue(accessPreview?.aiRemainingThisPeriod)}</strong>
+              <small>{formatValue(accessPreview?.aiMonthlyQuota)} base + {formatValue(accessPreview?.aiAddonQuota)} add-on</small>
+            </div>
+          </div>
+          <div className="access-feature-grid">
+            {(uniqueFeatures(features).length ? uniqueFeatures(features) : FEATURE_ORDER).map((feature) => {
+              const enabled = accessFeatureValue(accessPreview, feature);
+              return (
+                <div className={enabled ? "access-feature-card enabled" : "access-feature-card"} key={feature}>
+                  <div>
+                    <strong>{humanizeFeature(feature)}</strong>
+                    <small>{featureDescription(feature)}</small>
+                  </div>
+                  <Badge value={enabled ? "Allowed" : "Blocked"} tone={enabled ? "good" : "neutral"} />
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>}
       {(mode === "mapping" || mode === "aiQuotas") && <div className={mode === "aiQuotas" ? "subscription-ops-grid ai-quota-layout" : "subscription-ops-grid"}>
         {mode === "mapping" && (
         <Panel title="RevenueCat configuration">
@@ -2951,16 +3636,14 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
             <div className="admin-subscription-grid">
               <label className="user-search-field">
                 User
-                <div className="searchable-select" onBlur={() => window.setTimeout(() => setUserPickerOpen(false), 120)}>
+                <div className="searchable-select">
                   <input
                     aria-expanded={userPickerOpen}
                     aria-haspopup="listbox"
                     role="combobox"
                     value={userSearchQuery}
                     onChange={(event) => {
-                      setUserSearchQuery(event.target.value);
-                      setAccessPreviewUserId("");
-                      setUserPickerOpen(true);
+                      updateUserPickerSearch(event.target.value);
                     }}
                     onFocus={() => setUserPickerOpen(true)}
                     placeholder="Search email, name, or id"
@@ -2968,6 +3651,15 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
                   <button className="searchable-select-toggle" type="button" aria-label="Toggle user list" onMouseDown={(event) => event.preventDefault()} onClick={() => setUserPickerOpen((current) => !current)} />
                   {userPickerOpen && (
                     <div className="searchable-select-menu" role="listbox">
+                      <div className="searchable-select-menu-search">
+                        <input
+                          autoFocus
+                          type="search"
+                          value={userDropdownSearchValue}
+                          onChange={(event) => updateUserPickerSearch(event.target.value)}
+                          placeholder="Search users..."
+                        />
+                      </div>
                       {filteredPreviewUsers.slice(0, 30).map((user) => (
                         <button
                           className={String(user.id) === accessPreviewUserId ? "selected" : undefined}
@@ -3017,11 +3709,11 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
               </label>
               <label>
                 Start date
-                <input type="date" value={subscriptionForm.startDate} onChange={(event) => updateSubscriptionForm("startDate", event.target.value)} />
+                <DatePickerButton label="Start date" value={subscriptionForm.startDate} onChange={(value) => updateSubscriptionForm("startDate", value)} />
               </label>
               <label>
                 End date
-                <input type="date" value={subscriptionForm.endDate} onChange={(event) => updateSubscriptionForm("endDate", event.target.value)} />
+                <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
               </label>
               <label>
                 Provider
@@ -3086,6 +3778,8 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
             </div>
           </Panel>
 
+          <AiCreditCostPolicyPanel policies={pricingPolicies} savingKey={savingKey} onSave={updatePricingPolicy} />
+
           <Panel title="AI add-on product mapping">
             <div className="addon-quota-list">
               {Object.entries(revenueCat?.aiAddonQuotas ?? {}).map(([name, value]) => (
@@ -3113,13 +3807,24 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
           </Panel>
           <Panel title="Recent subscription and quota changes">
             <DataTable
-              columns={["Action", "Target user", "Admin", "Created"]}
-              rows={quotaAudits.map((audit) => [
-                <Badge value={audit.actionType ?? "-"} tone={audit.actionType === "AI_QUOTA_ADDON_GRANT" ? "good" : "neutral"} />,
-                audit.targetKey ?? audit.targetId ?? "-",
-                audit.adminEmail ?? "-",
-                formatDate(audit.createdAt)
-              ])}
+              columns={["Action", "Target user", "Change", "Admin", "Created"]}
+              rows={quotaAudits.map((audit) => {
+                const targetUserId = audit.targetKey ?? audit.targetId;
+                const targetUser = previewUsers.find((user) => String(user.id) === String(targetUserId));
+                const changeLines = subscriptionAuditChangeLines(audit);
+                return [
+                  <Badge value={humanizeSubscriptionAuditAction(audit.actionType)} tone={audit.actionType === "AI_QUOTA_ADDON_GRANT" ? "good" : "neutral"} />,
+                  <div className="entity-cell">
+                    <strong>{targetUser?.name ?? targetUser?.email ?? "Unknown user"}</strong>
+                    {targetUser?.name && targetUser.email && <small>{targetUser.email}</small>}
+                  </div>,
+                  <div className="table-stack subscription-change-cell">
+                    {changeLines.map((line, index) => <span key={audit.id + "-" + index}>{line}</span>)}
+                  </div>,
+                  audit.adminEmail ?? "-",
+                  formatDate(audit.createdAt)
+                ];
+              })}
               empty="No subscription or quota admin changes returned yet."
             />
           </Panel>
@@ -3149,17 +3854,106 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   );
 }
 
-function AiReviewView({ onError }: { onError: (message: string | null) => void }) {
+function AiCreditCostPolicyPanel({ policies, savingKey, onSave }: {
+  policies: AiCreditPricingPolicy[];
+  savingKey: string | null;
+  onSave: (policy: AiCreditPricingPolicy, draft: AiCreditPricingPolicy) => Promise<void>;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, AiCreditPricingPolicy>>({});
+
+  useEffect(() => {
+    const next: Record<string, AiCreditPricingPolicy> = {};
+    for (const policy of policies) next[policy.feature] = { ...policy };
+    setDrafts(next);
+  }, [policies]);
+
+  function updateField(feature: string, field: keyof AiCreditPricingPolicy, value: string) {
+    setDrafts((current) => ({ ...current, [feature]: { ...current[feature], [field]: Number(value) } }));
+  }
+
+  function estimate(policy: AiCreditPricingPolicy, units: number, includeContext = false) {
+    const extraUnits = Math.max(0, units - policy.includedUnits);
+    const extraCredits = extraUnits === 0 ? 0 : Math.ceil(extraUnits / policy.unitsPerAdditionalCredit);
+    return Math.min(policy.maxCreditCost, policy.baseCreditCost + extraCredits + (includeContext ? policy.contextSurcharge : 0));
+  }
+
+  return (
+    <details className="panel ai-credit-policy-panel">
+      <summary className="ai-credit-policy-summary">
+        <div>
+          <h3>AI credit cost policy</h3>
+          <span>Global PLUS/PRO credit formulas</span>
+        </div>
+      </summary>
+      <div className="ai-credit-policy-content">
+      <div className="ai-credit-policy-intro">
+        <div>
+          <strong>One global tariff for every paid plan</strong>
+          <span>PLUS and PRO consume the same credits for the same request. Nutrition and workout costs grow only with request complexity.</span>
+        </div>
+        <Badge value="Backend controlled" tone="good" />
+      </div>
+      <div className="ai-credit-policy-grid">
+        <div className="ai-credit-policy-head">
+          <span>AI feature</span><span>Pricing formula</span><span>Cost preview</span><span>Action</span>
+        </div>
+        {CONTROLLED_AI_FEATURES.map((definition) => {
+          const policy = policies.find((candidate) => candidate.feature === definition.feature);
+          if (!policy) return null;
+          const draft = drafts[policy.feature] ?? policy;
+          const changed = JSON.stringify(draft) !== JSON.stringify(policy);
+          const isNutrition = policy.pricingMode === "NUTRITION_COMPLEXITY";
+          const isWorkout = policy.pricingMode === "WORKOUT_COMPLEXITY";
+          return <div className="ai-credit-policy-row" key={definition.feature}>
+            <div className="ai-credit-policy-feature">
+              <strong>{definition.label}</strong><small>{definition.detail}</small>
+              <Badge value={policy.pricingMode.replaceAll("_", " ")} />
+            </div>
+            <div className={`ai-credit-policy-fields ${policy.pricingMode === "FIXED" ? "is-fixed" : "is-dynamic"}`}>
+              <label>Base<input min="1" max="50" type="number" value={draft.baseCreditCost} onChange={(event) => updateField(policy.feature, "baseCreditCost", event.target.value)} /></label>
+              {(isNutrition || isWorkout) && <>
+                <label>Included {isNutrition ? "meal slots" : "minutes"}<input min="0" type="number" value={draft.includedUnits} onChange={(event) => updateField(policy.feature, "includedUnits", event.target.value)} /></label>
+                <label>{isNutrition ? "Slots" : "Minutes"} / extra credit<input min="1" type="number" value={draft.unitsPerAdditionalCredit} onChange={(event) => updateField(policy.feature, "unitsPerAdditionalCredit", event.target.value)} /></label>
+                {isNutrition && <label>Workout surcharge<input min="0" max="50" type="number" value={draft.contextSurcharge} onChange={(event) => updateField(policy.feature, "contextSurcharge", event.target.value)} /></label>}
+                <label>Maximum<input min="1" max="50" type="number" value={draft.maxCreditCost} onChange={(event) => updateField(policy.feature, "maxCreditCost", event.target.value)} /></label>
+              </>}
+            </div>
+            <div className="ai-credit-policy-preview">
+              {isNutrition ? <><span>1 day x 2 meals <strong>{estimate(draft, 2)} credit</strong></span><span>3 days x 3 meals <strong>{estimate(draft, 9)} credits</strong></span><span>7 days x 6 meals <strong>{estimate(draft, 42)} credits</strong></span><span>+ workout context <strong>{estimate(draft, 42, true)} credits</strong></span></> : isWorkout ? <><span>1 day x 10 min <strong>{estimate(draft, 10)} credit</strong></span><span>3 days x 45 min <strong>{estimate(draft, 135)} credits</strong></span><span>6 days x 75 min <strong>{estimate(draft, 450)} credits</strong></span></> : <span>Each successful request <strong>{draft.baseCreditCost} credit{draft.baseCreditCost === 1 ? "" : "s"}</strong></span>}
+            </div>
+            <button className={changed ? "primary-button" : "ghost-button"} disabled={!changed || savingKey === "pricing:" + policy.feature} onClick={() => void onSave(policy, draft)} type="button">{savingKey === "pricing:" + policy.feature ? "Saving" : "Save"}</button>
+          </div>;
+        })}
+      </div>
+      </div>
+    </details>
+  );
+}
+function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const [requestType, setRequestType] = useState("");
   const [status, setStatus] = useState("");
   const [refundableOnly, setRefundableOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  const [summaryWindowHours, setSummaryWindowHours] = useState(24);
   const [smokeState, setSmokeState] = useState<LoadState>("idle");
+  const [refundState, setRefundState] = useState<LoadState>("idle");
   const [smokeResult, setSmokeResult] = useState<string | null>(null);
+  const [refundDraft, setRefundDraft] = useState<{ item: AiMealDraft; amount: string; reason: string } | null>(null);
+  const [refundResult, setRefundResult] = useState<AiQuotaRefundResponse | null>(null);
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
+  const summaryPath = `/api/v1/admin/ai/requests/summary?windowHours=${summaryWindowHours}`;
   const { data, state, reload } = useEndpoint<PageResponse<AiMealDraft>>(path, onError);
+  const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AiMonitoringSummary>(summaryPath, onError);
   const rows = data?.content ?? [];
+  const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
+
+  useEffect(() => {
+    if (targetContext?.targetType !== "AI_REQUEST" || !targetContext.targetId) return;
+    setStatus("");
+    setRefundableOnly(false);
+    setPage(0);
+  }, [targetContext?.targetType, targetContext?.targetId]);
 
   function resetFilters() {
     setRequestType("");
@@ -3181,14 +3975,102 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
     }
   }
 
+  async function refundSelectedAiQuota(event: FormEvent) {
+    event.preventDefault();
+    if (!refundDraft) return;
+    const requestId = aiRequestId(refundDraft.item);
+    const amount = Number(refundDraft.amount);
+    const reason = refundDraft.reason.trim();
+    const refundableAmount = safeNumber(refundDraft.item.refundableAmount);
+    if (!requestId || !Number.isFinite(amount) || amount <= 0 || amount > refundableAmount || !reason) {
+      onError("Refund amount must be positive, must not exceed refundable amount, and reason is required.");
+      return;
+    }
+    setRefundState("loading");
+    try {
+      const result = await request<AiQuotaRefundResponse>(`/api/v1/admin/ai/meal-drafts/${requestId}/quota-refund`, {
+        method: "POST",
+        body: { amount, reason }
+      });
+      setRefundResult(result);
+      setRefundDraft(null);
+      setRefundState("ready");
+      await reload();
+      await reloadSummary();
+    } catch (error) {
+      setRefundState("error");
+      onError(formatRequestError(error));
+      await reload();
+      await reloadSummary();
+    }
+  }
+
+
   return (
     <div className="stack">
-      <SectionToolbar title="AI request operations" state={combineStates([state, smokeState])} onReload={reload}>
+      <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
       </SectionToolbar>
+      {targetContext && <TargetContextBanner context={targetContext} onClear={onClearTarget} />}
+
+      <Panel title="AI monitoring summary">
+        <div className="ai-monitoring-toolbar">
+          <div>
+            <strong>{summaryWindowLabel(summaryWindowHours)}</strong>
+            <small>Generated {formatDate(summary?.generatedAt)} | Window start {formatDate(summary?.windowStart)}</small>
+          </div>
+          <div className="segmented-control" role="group" aria-label="AI monitoring window">
+            {[24, 168, 744].map((hours) => (
+              <button className={summaryWindowHours === hours ? "active" : ""} key={hours} type="button" onClick={() => setSummaryWindowHours(hours)}>{summaryWindowLabel(hours)}</button>
+            ))}
+          </div>
+        </div>
+        <div className="metric-grid compact-grid">
+          <MetricCard label="Total requests" value={formatValue(summary?.totalRequests)} hint="All controlled AI requests" />
+          <MetricCard label="Drafts created" value={formatValue(summary?.draftCreated)} hint="AI produced reviewable output" />
+          <MetricCard label="Confirmed" value={formatValue(summary?.confirmed)} hint="User accepted the result" />
+          <MetricCard label="Rejected" value={formatValue(summary?.rejected)} hint="User rejected the result" />
+          <MetricCard label="Failures" value={formatValue(summary?.failed)} hint={`${formatFailureRate(summary?.failureRate)} failure rate`} />
+          <MetricCard label="Quota consumed" value={formatValue(summary?.quotaConsumedAmount)} hint={`${formatValue(summary?.quotaRefundedAmount)} refunded`} />
+          <MetricCard label="Tokens" value={formatValue(summary?.totalTokens)} hint={`${formatValue(summary?.promptTokens)} input / ${formatValue(summary?.completionTokens)} output`} />
+          <MetricCard label="Estimated cost" value={formatCurrencyBreakdown(summary?.estimatedCostByCurrency)} hint="Costs are separated by currency" />
+        </div>
+      </Panel>
+
+      <div className="ai-monitoring-grid">
+        <Panel title="Provider, model, and prompt version">
+          <DataTable
+            columns={["Provider", "Model", "Prompt", "Requests", "Tokens", "Cost", "Quota"]}
+            rows={(summary?.providerModels ?? []).map((item) => [
+              item.provider ?? "-",
+              item.model ?? "-",
+              item.promptVersion ?? "-",
+              formatValue(item.requestCount),
+              `${formatValue(item.promptTokens)} in / ${formatValue(item.completionTokens)} out / ${formatValue(item.totalTokens)} total`,
+              formatAiCostAmount(item.estimatedCost, item.costCurrency),
+              `${formatValue(item.quotaConsumedAmount)} used / ${formatValue(item.quotaRefundedAmount)} refunded`
+            ])}
+            empty="No provider/model metrics returned for this window."
+          />
+        </Panel>
+        <Panel title="Request type and status">
+          <DataTable
+            columns={["Request type", "Status", "Count", "Tokens", "Quota"]}
+            rows={(summary?.requestStatuses ?? []).map((item) => [
+              humanizeAiRequestType(item.requestType),
+              <Badge value={item.status ?? "-"} tone={aiStatusTone(item.status)} />,
+              formatValue(item.requestCount),
+              formatValue(item.totalTokens),
+              `${formatValue(item.quotaConsumedAmount)} used / ${formatValue(item.quotaRefundedAmount)} refunded`
+            ])}
+            empty="No request status metrics returned for this window."
+          />
+        </Panel>
+      </div>
+
       <Panel title="Request filters">
-        <div className="review-filter-grid">
+        <div className="review-filter-grid ai-review-filter-grid">
           <label>
             Request type
             <select value={requestType} onChange={(event) => { setRequestType(event.target.value); setPage(0); }}>
@@ -3209,22 +4091,38 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
           </label>
         </div>
       </Panel>
+      {refundResult && <Panel title="Last quota refund result">
+        <div className="ai-refund-result-grid">
+          <DetailItem label="Request" value={refundResult.requestId} />
+          <DetailItem label="Refunded now" value={refundResult.refundedNow} />
+          <DetailItem label="Total refunded" value={refundResult.quotaRefundedAmount} />
+          <DetailItem label="Refunded by" value={refundResult.quotaRefundedBy} />
+          <DetailItem label="Refunded at" value={formatDate(refundResult.quotaRefundedAt)} />
+          <DetailItem label="Subscription remaining" value={refundResult.subscription?.aiRemainingThisPeriod} />
+        </div>
+      </Panel>}
       {smokeResult && <Panel title="AI provider smoke result">
         <pre className="audit-value-block">{smokeResult}</pre>
       </Panel>}
       <DataTable
-        columns={["Request", "User", "Type", "Status", "Quota", "Provider", "Latency", "Cost", "Created"]}
-        rows={rows.map((item) => [
-          item.requestId ?? item.id ?? "-",
-          item.userEmail ?? item.userId ?? "-",
-          humanizeAiRequestType(item.requestType),
-          <Badge value={item.status} tone={aiStatusTone(item.status)} />,
-          `${formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} used / ${formatValue(item.quotaRefundedAmount ?? item.quotaRefunded ?? 0)} refunded / ${formatValue(item.refundableAmount ?? 0)} refundable`,
-          `${formatValue(item.provider)} ${formatValue(item.model)}`,
-          item.latencyMs ? `${formatValue(item.latencyMs)} ms` : "-",
-          formatAiCost(item),
-          formatDate(item.createdAt)
-        ])}
+        columns={["Request", "User", "Type", "Status", "Provider", "Performance", "Cost", "Quota", "Rejection", "Refund", "Actions"]}
+        rows={rows.map((item) => {
+          const refundableAmount = safeNumber(item.refundableAmount);
+          const canRefund = canRefundAiRequest(item);
+          return [
+            <TargetAwareValue value={aiRequestId(item) ?? "-"} focused={isTargetMatch(focusedRequestId, aiRequestId(item))} />,
+            <div className="entity-cell"><strong>{item.userEmail ?? "-"}</strong><small>User #{formatValue(item.userId)}</small></div>,
+            humanizeAiRequestType(item.requestType),
+            <Badge value={item.status} tone={aiStatusTone(item.status)} />,
+            <div className="entity-cell"><strong>{formatValue(item.provider)} {formatValue(item.model)}</strong><small>{item.promptVersion ?? "No prompt version"}</small></div>,
+            <div className="entity-cell"><strong>{item.latencyMs ? `${formatValue(item.latencyMs)} ms` : "-"}</strong><small>{formatValue(item.totalTokens)} tokens</small></div>,
+            formatAiCost(item),
+            `${formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} used / ${formatValue(item.quotaRefundedAmount ?? item.quotaRefunded ?? 0)} refunded / ${formatValue(refundableAmount)} refundable`,
+            <div className="ai-feedback-cell"><strong>{shortFeature(item.rejectionReason)}</strong><small>{item.rejectionFeedback ?? "-"}</small></div>,
+            <div className="ai-feedback-cell"><strong>{item.quotaRefundedBy ?? "-"}</strong><small>{item.quotaRefundedAt ? `${formatDate(item.quotaRefundedAt)} | ${item.quotaRefundReason ?? ""}` : "No refund recorded"}</small></div>,
+            <button className="ghost-button" type="button" disabled={!canRefund || refundState === "loading"} onClick={() => setRefundDraft({ item, amount: String(Math.max(1, refundableAmount)), reason: "" })}>Refund quota</button>
+          ];
+        })}
         empty="No AI requests returned."
       />
       <PaginationControls
@@ -3237,11 +4135,81 @@ function AiReviewView({ onError }: { onError: (message: string | null) => void }
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
+      {refundDraft && <AiQuotaRefundModal
+        draft={refundDraft}
+        busy={refundState === "loading"}
+        onChange={setRefundDraft}
+        onClose={() => setRefundDraft(null)}
+        onSubmit={refundSelectedAiQuota}
+      />}
     </div>
   );
 }
 
-function SubscriptionEventsView({ onError }: { onError: (message: string | null) => void }) {
+function AiQuotaRefundModal({
+  busy,
+  draft,
+  onChange,
+  onClose,
+  onSubmit
+}: {
+  busy: boolean;
+  draft: { item: AiMealDraft; amount: string; reason: string };
+  onChange: (draft: { item: AiMealDraft; amount: string; reason: string }) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  const item = draft.item;
+  const refundableAmount = safeNumber(item.refundableAmount);
+  const amount = Number(draft.amount);
+  const invalid = !Number.isFinite(amount) || amount <= 0 || amount > refundableAmount || !draft.reason.trim();
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <form className="modal-card compact ai-refund-modal" onSubmit={onSubmit} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>AI QUOTA REFUND</span>
+            <h2>Request #{aiRequestId(item) ?? "-"}</h2>
+            <p>{item.userEmail ?? `User #${formatValue(item.userId)}`}</p>
+          </div>
+          <button className="modal-icon-close" type="button" onClick={onClose} aria-label="Close refund modal">x</button>
+        </div>
+        <div className="modal-body ai-refund-body">
+          <div className="ai-refund-overview">
+            <div className="ai-refund-summary">
+              <DetailItem label="Status" value={shortFeature(item.status)} />
+              <DetailItem label="Consumed" value={formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} />
+              <DetailItem label="Already refunded" value={item.quotaRefundedAmount ?? item.quotaRefunded ?? 0} />
+              <DetailItem label="Refundable" value={refundableAmount} />
+            </div>
+            <label className="ai-refund-amount-field">
+              Refund amount
+              <input min="1" max={refundableAmount || undefined} type="number" value={draft.amount} onChange={(event) => onChange({ ...draft, amount: event.target.value })} required />
+              <small>Available refundable quota: {formatValue(refundableAmount)}</small>
+            </label>
+          </div>
+          <div className="ai-refund-user-rejection">
+            <span>User rejection</span>
+            <strong>{shortFeature(item.rejectionReason) || "No reason selected"}</strong>
+            <p>{item.rejectionFeedback || "No user feedback submitted."}</p>
+          </div>
+          <div className="ai-refund-form-grid">
+            <label className="ai-refund-reason-field">
+              Refund reason
+              <textarea maxLength={500} value={draft.reason} onChange={(event) => onChange({ ...draft, reason: event.target.value })} placeholder="Why this AI result deserves quota refund" required />
+            </label>
+            <aside className="ai-refund-warning">Backend enforces request-level refund limits. If this request is stale, the action returns a safe validation error and the queue refreshes.</aside>
+          </div>
+        </div>
+        <div className="modal-actions padded-actions ai-refund-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button" type="submit" disabled={busy || invalid}>Refund quota</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+function SubscriptionEventsView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const [status, setStatus] = useState("");
   const [eventType, setEventType] = useState("");
   const [productId, setProductId] = useState("");
@@ -3254,6 +4222,16 @@ function SubscriptionEventsView({ onError }: { onError: (message: string | null)
   const path = buildSubscriptionEventsPath({ status, eventType, productId, userId, page, size: pageSize });
   const { data, state, reload } = useEndpoint<SubscriptionProviderEventPage>(path, onError);
   const rows = data?.content ?? [];
+  const focusedEventId = targetContext?.targetType === "SUBSCRIPTION_PROVIDER_EVENT" ? targetContext.targetId : undefined;
+
+  useEffect(() => {
+    if (targetContext?.targetType !== "SUBSCRIPTION_PROVIDER_EVENT" || !targetContext.targetId) return;
+    setStatus("");
+    setEventType("");
+    setProductId("");
+    setUserId("");
+    setPage(0);
+  }, [targetContext?.targetType, targetContext?.targetId]);
 
   function resetFilters() {
     setStatus("");
@@ -3291,11 +4269,13 @@ function SubscriptionEventsView({ onError }: { onError: (message: string | null)
     }
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Subscription provider events" state={combineStates([state, detailState, retryState])} onReload={reload}>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
+      {targetContext && <TargetContextBanner context={targetContext} onClear={onClearTarget} />}
       <Panel title="Event filters">
         <div className="review-filter-grid">
           <label>
@@ -3322,7 +4302,7 @@ function SubscriptionEventsView({ onError }: { onError: (message: string | null)
       <DataTable
         columns={["ID", "Provider", "Event", "Product", "User", "Status", "Received", "Processed"]}
         rows={rows.map((item) => [
-          item.id ?? "-",
+          <TargetAwareValue value={item.id ?? "-"} focused={isTargetMatch(focusedEventId, item.id)} />,
           item.provider ?? "-",
           item.eventType ?? item.providerEventId ?? "-",
           item.productId ?? "-",
@@ -3390,6 +4370,7 @@ function RetentionPoliciesView({ onError }: { onError: (message: string | null) 
     }
   }
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Retention policies" state={combineStates([state, saveState])} onReload={reload} />
@@ -3435,6 +4416,7 @@ function RetentionPoliciesView({ onError }: { onError: (message: string | null) 
   );
 }
 function GlobalSettingsView() {
+
   return (
     <div className="stack">
       <SectionToolbar title="Global settings" state="ready" onReload={() => undefined} />
@@ -3534,6 +4516,7 @@ function IntegrationsView({ mode, onError }: { mode: IntegrationMode; onError: (
     }
   ];
 
+
   return (
     <div className="stack">
       <SectionToolbar title={title} state={combineStates([healthState, revenueCatState, notificationState])} onReload={reloadAll} />
@@ -3559,7 +4542,7 @@ function IntegrationsView({ mode, onError }: { mode: IntegrationMode; onError: (
   );
 }
 
-function MailOpsView({ onError }: { onError: (message: string | null) => void }) {
+function MailOpsView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const { data: health, state: healthState, reload: reloadHealth } = useEndpoint<SystemHealth>("/api/v1/admin/system/health", onError);
   const { data: notifications, state: notificationState, reload: reloadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?page=0&size=25&type=system", onError);
   const { data: mailMonitoring, state: mailState, reload: reloadMail } = useEndpoint<AdminMailMonitoring>("/api/v1/admin/mail/monitoring?days=7&limit=10", onError);
@@ -3603,6 +4586,7 @@ function MailOpsView({ onError }: { onError: (message: string | null) => void })
     void reloadNotifications();
     void reloadMail();
   }
+
 
   return (
     <div className="stack">
@@ -3664,6 +4648,7 @@ function RevenueCatMonitoringView({ environment, onError }: { environment: "prod
     void reloadOverview();
     void reloadCharts();
   }
+
   return (
     <div className="stack">
       <SectionToolbar title={`RevenueCat ${environment === "production" ? "production" : "sandbox"} monitoring`} state={combineStates([overviewState, chartsState])} onReload={reloadAll}>
@@ -3717,6 +4702,7 @@ function RevenueCatMonitoringPanel({
     : revenueCatPlaceholderCharts(metricRows, environment, overview?.currency ?? charts?.currency, charts?.statusMessage ?? overview?.statusMessage));
   const [selectedChartKey, setSelectedChartKey] = useState<string | null>(null);
   const selectedChart = chartRows.find((chart) => chartKey(chart) === selectedChartKey) ?? chartRows[0] ?? null;
+
   return (
     <div className="stack">
       <div className="revenuecat-monitor-hero">
@@ -4122,6 +5108,7 @@ function MailEventsView({ onError }: { onError: (message: string | null) => void
   const { data, state, reload } = useEndpoint<AdminMailMonitoring>("/api/v1/admin/mail/monitoring?days=7&limit=50", onError);
   const events = data?.recentEvents ?? [];
 
+
   return (
     <div className="stack">
       <SectionToolbar title="Recent Brevo mail events" state={state} onReload={reload} />
@@ -4204,6 +5191,7 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
       onError(formatRequestError(error));
     }
   }
+
 
   return (
     <div className="stack">
@@ -4309,17 +5297,41 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
   const [suggestionPage, setSuggestionPage] = useState(0);
   const [suggestionPageSize, setSuggestionPageSize] = useState(25);
   const [scanRegion, setScanRegion] = useState("");
-  const [scanLimit, setScanLimit] = useState("500");
+  const [scanLimit, setScanLimit] = useState("250");
+  const [forceRescan, setForceRescan] = useState(false);
   const [qualityActionState, setQualityActionState] = useState<LoadState>("idle");
   const [scanResult, setScanResult] = useState<ProductQualitySuggestionScanResult | null>(null);
+  const [selectedScanRunDetail, setSelectedScanRunDetail] = useState<ProductQualityScanRunDetail | null>(null);
+  const [aiValidationResult, setAiValidationResult] = useState<AdminProductQualityAiValidationResult | null>(null);
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<number[]>([]);
+  const [selectedQualitySuggestion, setSelectedQualitySuggestion] = useState<ProductQualitySuggestion | null>(null);
   const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, page: suggestionPage, size: suggestionPageSize });
   const { data: suggestions, state: suggestionState, reload: reloadSuggestions } = useEndpoint<ProductQualitySuggestionPage>(suggestionPath, onError);
+  const { data: scanRuns, state: scanRunState, reload: reloadScanRuns } = useEndpoint<ProductQualityScanRunPage>("/api/v1/admin/products/quality-suggestions/scan-runs?page=0&size=5", onError);
+  const { data: aiSettings, state: aiSettingsState, reload: reloadAiSettings } = useEndpoint<ProductQualityAiSettings>("/api/v1/admin/products/quality-suggestions/ai-settings", onError);
+  const [aiSettingsForm, setAiSettingsForm] = useState({ enabled: true, maxProductsPerRun: "25", dailyProductLimit: "250", monthlyProductLimit: "2000", forceRescanAllowed: true, adminNote: "" });
+  const [aiSettingsSaveState, setAiSettingsSaveState] = useState<LoadState>("idle");
   const rows = products?.content ?? [];
   const suggestionRows = suggestions?.content ?? [];
+  const scanRunRows = scanRuns?.content ?? [];
+  const selectedOpenSuggestionIds = selectedSuggestionIds.filter((id) => suggestionRows.some((item) => item.id === id && item.status === "OPEN"));
   const byRegion = countBy(rows, (item) => item.marketRegion ?? "Unknown");
   const byImageStatus = countBy(rows, (item) => item.imageStatus ?? "Unknown");
   const byCatalogType = countBy(rows, (item) => item.catalogType ?? "Unknown");
   const localReadyPercent = percent(summary?.verifiedProducts, summary?.totalProducts);
+  useEffect(() => {
+    if (!aiSettings) return;
+    setAiSettingsForm({
+      enabled: aiSettings.enabled !== false,
+      maxProductsPerRun: String(aiSettings.maxProductsPerRun ?? 25),
+      dailyProductLimit: String(aiSettings.dailyProductLimit ?? 250),
+      monthlyProductLimit: String(aiSettings.monthlyProductLimit ?? 2000),
+      forceRescanAllowed: aiSettings.forceRescanAllowed !== false,
+      adminNote: aiSettings.adminNote ?? ""
+    });
+  }, [aiSettings]);
+
+
   const title = {
     overview: "Food catalog operations",
     imports: "Food import jobs",
@@ -4331,19 +5343,47 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     void reloadSummary();
     void reloadProducts();
     void reloadSuggestions();
+    void reloadScanRuns();
+    void reloadAiSettings();
   }
 
+
+  async function saveAiQualitySettings() {
+    setAiSettingsSaveState("loading");
+    try {
+      await request<ProductQualityAiSettings>("/api/v1/admin/products/quality-suggestions/ai-settings", {
+        method: "PATCH",
+        body: {
+          enabled: aiSettingsForm.enabled,
+          maxProductsPerRun: Math.min(parsePositiveInt(aiSettingsForm.maxProductsPerRun), 25),
+          dailyProductLimit: parsePositiveInt(aiSettingsForm.dailyProductLimit),
+          monthlyProductLimit: parsePositiveInt(aiSettingsForm.monthlyProductLimit),
+          forceRescanAllowed: aiSettingsForm.forceRescanAllowed,
+          adminNote: aiSettingsForm.adminNote.trim()
+        }
+      });
+      await reloadAiSettings();
+      setAiSettingsSaveState("ready");
+    } catch (error) {
+      setAiSettingsSaveState("error");
+      onError(formatRequestError(error));
+    }
+  }
   async function scanQualitySuggestions() {
     setQualityActionState("loading");
     try {
       const params = new URLSearchParams();
       if (scanRegion) params.set("region", scanRegion);
-      params.set("limit", String(parsePositiveInt(scanLimit)));
+      params.set("limit", String(Math.min(parsePositiveInt(scanLimit), 500)));
+      params.set("forceRescan", String(forceRescan));
       const result = await request<ProductQualitySuggestionScanResult>(`/api/v1/admin/products/quality-suggestions/scan?${params.toString()}`, { method: "POST" });
       setScanResult(result);
+      setAiValidationResult(null);
+      setSelectedSuggestionIds([]);
       setSuggestionStatus("OPEN");
       setSuggestionPage(0);
       await reloadSuggestions();
+      await reloadScanRuns();
       setQualityActionState("ready");
     } catch (error) {
       setQualityActionState("error");
@@ -4351,12 +5391,28 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     }
   }
 
+
+  async function openScanRunDetail(item: ProductQualityScanRun) {
+    if (!item.id) return;
+    setQualityActionState("loading");
+    try {
+      const detail = await request<ProductQualityScanRunDetail>(`/api/v1/admin/products/quality-suggestions/scan-runs/${item.id}`);
+      setSelectedScanRunDetail(detail);
+      setQualityActionState("ready");
+    } catch (error) {
+      setQualityActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
   async function reviewQualitySuggestion(item: ProductQualitySuggestion, action: "accept" | "reject") {
     if (!item.id) return;
     setQualityActionState("loading");
     try {
       await request<ProductQualitySuggestion>(`/api/v1/admin/products/quality-suggestions/${item.id}/${action}`, { method: "PATCH" });
       await reloadSuggestions();
+      await reloadScanRuns();
+      setSelectedSuggestionIds((current) => current.filter((id) => id !== item.id));
+      setSelectedQualitySuggestion((current) => current?.id === item.id ? null : current);
       setQualityActionState("ready");
     } catch (error) {
       setQualityActionState("error");
@@ -4364,9 +5420,44 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     }
   }
 
+  function toggleSuggestionSelection(item: ProductQualitySuggestion, checked: boolean) {
+    if (!item.id || item.status !== "OPEN") return;
+    setSelectedSuggestionIds((current) => {
+      if (checked) return Array.from(new Set([...current, item.id as number]));
+      return current.filter((id) => id !== item.id);
+    });
+  }
+
+  async function validateSelectedSuggestionsWithAi() {
+    if (selectedOpenSuggestionIds.length === 0) return;
+    setQualityActionState("loading");
+    try {
+      const result = await request<AdminProductQualityAiValidationResult>("/api/v1/admin/products/quality-suggestions/ai-validate-selected", {
+        method: "POST",
+        body: {
+          suggestionIds: selectedOpenSuggestionIds,
+          limit: Math.min(selectedOpenSuggestionIds.length, 25),
+          forceRescan
+        }
+      });
+      setAiValidationResult(result);
+      setScanResult(null);
+      setSelectedSuggestionIds([]);
+      setSuggestionStatus("OPEN");
+      setSuggestionPage(0);
+      await reloadSuggestions();
+      await reloadScanRuns();
+      setQualityActionState("ready");
+    } catch (error) {
+      setQualityActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, qualityActionState])} onReload={reloadAll} />
+      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, scanRunState, aiSettingsState, qualityActionState, aiSettingsSaveState])} onReload={reloadAll} />
       {mode === "overview" && <div className="food-ops-hero">
         <div>
           <p className="eyebrow">Local catalog first</p>
@@ -4416,8 +5507,50 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           <span>User locale to market-group mapping</span>
         </div>
       </Panel>}
-      {mode === "quality" && <Panel title="Quality suggestion scan">
-        <div className="review-filter-grid">
+      {mode === "quality" && <Panel title="AI quality validation guardrails">
+        <div className="ai-quality-settings-grid">
+          <div className="ai-quality-quota-card">
+            <span>Today</span>
+            <strong>{formatValue(aiSettings?.remainingToday)} left</strong>
+            <small>{formatValue(aiSettings?.usedToday)} used / {formatValue(aiSettings?.dailyProductLimit)} daily cap</small>
+          </div>
+          <div className="ai-quality-quota-card">
+            <span>This month</span>
+            <strong>{formatValue(aiSettings?.remainingThisMonth)} left</strong>
+            <small>{formatValue(aiSettings?.usedThisMonth)} used / {formatValue(aiSettings?.monthlyProductLimit)} monthly cap</small>
+          </div>
+          <label className="inline-check ai-quality-toggle">
+            <input checked={aiSettingsForm.enabled} onChange={(event) => setAiSettingsForm((current) => ({ ...current, enabled: event.target.checked }))} type="checkbox" />
+            AI validation enabled
+          </label>
+          <label className="inline-check ai-quality-toggle">
+            <input checked={aiSettingsForm.forceRescanAllowed} onChange={(event) => setAiSettingsForm((current) => ({ ...current, forceRescanAllowed: event.target.checked }))} type="checkbox" />
+            Force rescan allowed
+          </label>
+          <label>
+            Max products per run
+            <input value={aiSettingsForm.maxProductsPerRun} onChange={(event) => setAiSettingsForm((current) => ({ ...current, maxProductsPerRun: event.target.value.replace(/[^0-9]/g, "") }))} />
+            <small>Hard capped at 25 for cost and safety.</small>
+          </label>
+          <label>
+            Daily product cap
+            <input value={aiSettingsForm.dailyProductLimit} onChange={(event) => setAiSettingsForm((current) => ({ ...current, dailyProductLimit: event.target.value.replace(/[^0-9]/g, "") }))} />
+          </label>
+          <label>
+            Monthly product cap
+            <input value={aiSettingsForm.monthlyProductLimit} onChange={(event) => setAiSettingsForm((current) => ({ ...current, monthlyProductLimit: event.target.value.replace(/[^0-9]/g, "") }))} />
+          </label>
+          <label className="ai-quality-note-field">
+            Admin note
+            <textarea value={aiSettingsForm.adminNote} onChange={(event) => setAiSettingsForm((current) => ({ ...current, adminNote: event.target.value }))} maxLength={1000} placeholder="Internal note for why limits were changed." />
+          </label>
+          <div className="ai-quality-settings-actions">
+            <span>Last update: {formatDate(aiSettings?.updatedAt)} by {aiSettings?.updatedBy ?? "-"}</span>
+            <button className="primary-button" type="button" disabled={aiSettingsSaveState === "loading"} onClick={saveAiQualitySettings}>Save AI settings</button>
+          </div>
+        </div>
+      </Panel>}      {mode === "quality" && <Panel title="Quality validation scan">
+        <div className="review-filter-grid quality-scan-grid">
           <label>
             Region
             <select value={scanRegion} onChange={(event) => setScanRegion(event.target.value)}>
@@ -4428,34 +5561,77 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           <label>
             Scan limit
             <input value={scanLimit} onChange={(event) => setScanLimit(event.target.value.replace(/[^0-9]/g, ""))} />
+            <small>Manual scans are capped at 500 products. Previously validated products are skipped unless forced.</small>
           </label>
-          <button className="primary-button" type="button" disabled={qualityActionState === "loading"} onClick={scanQualitySuggestions}>Run scan</button>
+          <label className="quality-force-toggle">
+            <input type="checkbox" checked={forceRescan} onChange={(event) => setForceRescan(event.target.checked)} />
+            <span>Force rescan validated products</span>
+          </label>
+          <div className="quality-scan-actions"><button className="primary-button" type="button" disabled={qualityActionState === "loading"} onClick={scanQualitySuggestions}>Run scan</button></div>
         </div>
         {scanResult && <div className="metric-grid compact-grid">
-          <MetricCard label="Scanned" value={formatValue(scanResult.scannedProducts)} hint="Products evaluated" />
-          <MetricCard label="Created" value={formatValue(scanResult.createdSuggestions)} hint="New suggestions" />
-          <MetricCard label="Skipped" value={formatValue(scanResult.skippedExistingSuggestions)} hint="Already had suggestions" />
+          <MetricCard label="Run" value={formatValue(scanResult.scanRunId)} hint="Scan history id" />
+          <MetricCard label="Scanned" value={formatValue(scanResult.scannedProducts)} hint={`Effective limit ${formatValue(scanResult.effectiveLimit)}`} />
+          <MetricCard label="Created" value={formatValue(scanResult.createdSuggestions)} hint="New review suggestions" />
+          <MetricCard label="Existing" value={formatValue(scanResult.skippedExistingSuggestions)} hint="Duplicate open suggestions skipped" />
+          <MetricCard label="Validated" value={formatValue(scanResult.validatedProducts)} hint="No current rule issues found" />
         </div>}
       </Panel>}
-      {mode === "quality" && <Panel title="Quality suggestion queue">
+      {mode === "quality" && <Panel title="Recent quality scan runs" className="quality-table-panel compact-empty-panel">
+        <DataTable
+          columns={["Run", "Source", "Trigger", "Region", "Limit", "Scanned", "Created", "Validated", "Status", "Actions"]}
+          rows={scanRunRows.map((item) => [
+            <div className="entity-cell"><strong>#{item.id ?? "-"}</strong><small>{formatDate(item.startedAt)}</small></div>,
+            <Badge value={item.source ?? "-"} tone={item.source === "AI_ASSISTED" ? "warn" : "neutral"} />,
+            <div className="badge-stack"><Badge value={item.triggerType ?? "-"} /><Badge value={item.forceRescan ? "FORCED" : "SKIP_VALIDATED"} tone={item.forceRescan ? "warn" : "good"} /></div>,
+            item.marketRegion ?? "All",
+            `${formatValue(item.effectiveLimit)} / requested ${formatValue(item.requestedLimit)}`,
+            formatValue(item.scannedProducts),
+            formatValue(item.createdSuggestions),
+            formatValue(item.validatedProducts),
+            <Badge value={item.status ?? "-"} tone={item.status === "COMPLETED" ? "good" : item.status === "FAILED" ? "danger" : "warn"} />,
+            <button className="ghost-button" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void openScanRunDetail(item); }}>View</button>
+          ])}
+          empty="No quality scan runs yet."
+        />
+      </Panel>}
+      {selectedScanRunDetail && <QualityScanRunDetailModal detail={selectedScanRunDetail} onClose={() => setSelectedScanRunDetail(null)} />}
+      {mode === "quality" && <Panel title="Quality suggestion queue" className="quality-table-panel compact-empty-panel">
+        <div className="quality-suggestion-toolbar">
+          <div>
+            <strong>{formatValue(selectedOpenSuggestionIds.length)} selected</strong>
+            <small>AI validation is capped at 25 selected open suggestions.</small>
+          </div>
+          <button className="primary-button" type="button" disabled={qualityActionState === "loading" || selectedOpenSuggestionIds.length === 0} onClick={validateSelectedSuggestionsWithAi}>Validate selected with AI</button>
+        </div>
+        {aiValidationResult && <div className="metric-grid compact-grid">
+          <MetricCard label="AI run" value={formatValue(aiValidationResult.scanRunId)} hint="AI-assisted scan history id" />
+          <MetricCard label="Requested" value={formatValue(aiValidationResult.requestedProducts)} hint={`Effective limit ${formatValue(aiValidationResult.effectiveLimit)}`} />
+          <MetricCard label="New suggestions" value={formatValue(aiValidationResult.createdSuggestions)} hint="Created for admin review" />
+          <MetricCard label="Already open" value={formatValue(aiValidationResult.skippedExistingSuggestions)} hint="Duplicates skipped" />
+          <MetricCard label="Validated" value={formatValue(aiValidationResult.validatedProducts)} hint="No AI issues found" />
+        </div>}
         <div className="audit-filter-grid">
           <label>
             Status
-            <select value={suggestionStatus} onChange={(event) => { setSuggestionStatus(event.target.value); setSuggestionPage(0); }}>
+            <select value={suggestionStatus} onChange={(event) => { setSuggestionStatus(event.target.value); setSuggestionPage(0); setSelectedSuggestionIds([]); }}>
               {PRODUCT_QUALITY_SUGGESTION_STATUSES.map((item) => <option key={item} value={item}>{shortFeature(item)}</option>)}
             </select>
           </label>
         </div>
         <DataTable
-          columns={["Product", "Type", "Confidence", "Current", "Suggested", "Reason", "Actions"]}
+          columns={["", "Product", "Type", "Field", "Confidence", "Current", "Suggested", "Decision", "Actions"]}
           rows={suggestionRows.map((item) => [
+            <input aria-label="Select suggestion for AI validation" type="checkbox" disabled={item.status !== "OPEN"} checked={item.id ? selectedOpenSuggestionIds.includes(item.id) : false} onChange={(event) => toggleSuggestionSelection(item, event.target.checked)} onClick={(event) => event.stopPropagation()} />,
             <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
             <div className="badge-stack"><Badge value={item.suggestionType} /><Badge value={item.source} tone="neutral" /></div>,
+            item.fieldName ?? "-",
             formatValue(item.confidenceScore),
             item.currentValue ?? "-",
             item.suggestedValue ?? "-",
-            item.reason ?? "-",
+            <QualitySuggestionDecision item={item} />,
             <div className="table-stack">
+              <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); setSelectedQualitySuggestion(item); }}>View details</button>
               <Badge value={item.status} tone={item.status === "OPEN" ? "warn" : item.status === "ACCEPTED" ? "good" : "neutral"} />
               {item.status === "OPEN" && <button className="ghost-button" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "accept"); }}>Accept</button>}
               {item.status === "OPEN" && <button className="ghost-button danger-text" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "reject"); }}>Reject</button>}
@@ -4474,10 +5650,411 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
           onPageSizeChange={(size) => { setSuggestionPageSize(size); setSuggestionPage(0); }}
         />
       </Panel>}
+      {selectedQualitySuggestion && <QualitySuggestionDetailModal
+        item={selectedQualitySuggestion}
+        busy={qualityActionState === "loading"}
+        onClose={() => setSelectedQualitySuggestion(null)}
+        onAccept={(item) => reviewQualitySuggestion(item, "accept")}
+        onReject={(item) => reviewQualitySuggestion(item, "reject")}
+      />}
     </div>
   );
 }
 
+function QualityScanRunDetailModal({ detail, onClose }: { detail: ProductQualityScanRunDetail; onClose: () => void }) {
+  const run = detail.run;
+  const items = detail.items ?? [];
+  const createdItems = items.filter((item) => item.status === "SUGGESTION_CREATED").length;
+  const validatedItems = items.filter((item) => item.status === "VALIDATED").length;
+  const issueItems = items.filter((item) => item.status && item.status !== "VALIDATED").length;
+  const completion = run?.startedAt && run?.completedAt ? `${formatDate(run.startedAt)} -> ${formatDate(run.completedAt)}` : formatDate(run?.startedAt);
+  const sourceTone = run?.source === "AI_ASSISTED" ? "warn" : "neutral";
+  const quotaHint = run?.source === "AI_ASSISTED"
+    ? `${formatValue(run.scannedProducts)} AI product validation credit(s) consumed by this run.`
+    : "Rule-based scan. No AI validation quota was consumed.";
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal-card scan-run-detail-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>QUALITY SCAN DETAIL</span>
+            <h2>Run #{run?.id ?? "-"}</h2>
+            <p>{completion}</p>
+          </div>
+          <button className="ghost-button" type="button" onClick={onClose}>Close</button>
+        </div>
+        <div className="modal-body">
+          <div className="quality-run-meta-grid">
+            <article>
+              <span>Source</span>
+              <strong><Badge value={run?.source ?? "-"} tone={sourceTone} /></strong>
+              <small>{quotaHint}</small>
+            </article>
+            <article>
+              <span>Trigger</span>
+              <strong>{shortFeature(run?.triggerType)}</strong>
+              <small>{run?.triggeredBy ? `Triggered by ${run.triggeredBy}` : "No admin actor recorded"}</small>
+            </article>
+            <article>
+              <span>Region and rescan</span>
+              <strong>{run?.marketRegion ?? "All regions"}</strong>
+              <small>{run?.forceRescan ? "Forced rescan included validated products" : "Validated products were skipped"}</small>
+            </article>
+          </div>
+          <div className="metric-grid compact-grid">
+            <MetricCard label="Requested" value={formatValue(run?.requestedLimit)} hint={`Effective limit ${formatValue(run?.effectiveLimit)}`} />
+            <MetricCard label="Scanned" value={formatValue(run?.scannedProducts)} hint="Products inspected" />
+            <MetricCard label="Created" value={formatValue(run?.createdSuggestions)} hint={`${formatValue(createdItems)} stored item row(s)`} />
+            <MetricCard label="Validated" value={formatValue(run?.validatedProducts)} hint={`${formatValue(validatedItems)} item row(s) without issue`} />
+            <MetricCard label="Existing" value={formatValue(run?.skippedExistingSuggestions)} hint="Duplicate open suggestions skipped" />
+            <MetricCard label="Skipped" value={formatValue(run?.skippedPreviouslyValidatedProducts)} hint="Previously validated products skipped" />
+          </div>
+          {run?.errorMessage && <div className="quality-run-error"><strong>Run error</strong><span>{run.errorMessage}</span></div>}
+          <div className="quality-run-status-strip">
+            <span>{formatValue(items.length)} item detail row(s)</span>
+            <span>{formatValue(issueItems)} row(s) requiring admin attention</span>
+            <span>Status: {shortFeature(run?.status)}</span>
+          </div>
+          <DataTable
+            columns={["Product", "Result", "Field", "Suggested value", "Confidence", "Admin note"]}
+            rows={items.map((item) => [
+              <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
+              <div className="badge-stack"><Badge value={item.status ?? "-"} tone={item.status === "VALIDATED" ? "good" : item.status === "SUGGESTION_CREATED" ? "warn" : "neutral"} />{item.suggestionType && <Badge value={item.suggestionType} tone="neutral" />}</div>,
+              qualityFieldLabel(item.fieldName),
+              item.suggestedValue ?? "-",
+              formatValue(item.confidenceScore),
+              <div className="quality-run-note"><strong>{item.note ?? "-"}</strong><small>{item.reason ?? ""}</small></div>
+            ])}
+            empty="No product-level detail was stored for this run. Older scan runs only contain aggregate counts."
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+function QualitySuggestionDecision({ item }: { item: ProductQualitySuggestion }) {
+  const decision = qualitySuggestionDecision(item);
+  return (
+    <div className="quality-decision-cell">
+      <Badge value={decision.label} tone={decision.tone} />
+      <small>{decision.detail}</small>
+    </div>
+  );
+}
+
+function QualitySuggestionDetailModal({
+  busy,
+  item,
+  onAccept,
+  onClose,
+  onReject
+}: {
+  busy: boolean;
+  item: ProductQualitySuggestion;
+  onAccept: (item: ProductQualitySuggestion) => void;
+  onClose: () => void;
+  onReject: (item: ProductQualitySuggestion) => void;
+}) {
+  const decision = qualitySuggestionDecision(item);
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <section className="modal-card quality-suggestion-modal" aria-label="Quality suggestion detail" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>QUALITY ASSISTANT SUGGESTION</span>
+            <h2>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</h2>
+            <p>{item.brand ?? "Unknown brand"}</p>
+          </div>
+          <button className="ghost-button" type="button" onClick={onClose}>Close</button>
+        </div>
+        <div className="modal-body quality-suggestion-body">
+          <div className="quality-suggestion-summary">
+            <div>
+              <span>Source</span>
+              <strong>{shortFeature(item.source)}</strong>
+            </div>
+            <div>
+              <span>Type</span>
+              <strong>{shortFeature(item.suggestionType)}</strong>
+            </div>
+            <div>
+              <span>Confidence</span>
+              <strong>{formatValue(item.confidenceScore)}%</strong>
+            </div>
+            <div>
+              <span>Status</span>
+              <strong>{shortFeature(item.status)}</strong>
+            </div>
+          </div>
+          <div className={`quality-decision-banner ${decision.tone}`}>
+            <Badge value={decision.label} tone={decision.tone} />
+            <div>
+              <strong>{decision.title}</strong>
+              <p>{decision.detail}</p>
+            </div>
+          </div>
+          <div className="quality-diff-grid">
+            <article>
+              <span>Field</span>
+              <strong>{qualityFieldLabel(item.fieldName)}</strong>
+              <small>{item.fieldName ?? "No field supplied"}</small>
+            </article>
+            <article>
+              <span>Current value</span>
+              <strong>{item.currentValue ?? "-"}</strong>
+              <small>Stored catalog value before admin decision</small>
+            </article>
+            <article>
+              <span>Suggested value</span>
+              <strong>{item.suggestedValue ?? "-"}</strong>
+              <small>Value proposed by rule or AI assistant</small>
+            </article>
+          </div>
+          <QualityImpactSummary item={item} />
+          <div className="quality-preview-grid">
+            <article>
+              <header>
+                <span>Before accept</span>
+                <Badge value="Current product" tone="neutral" />
+              </header>
+              <QualityPreviewRows item={item} mode="before" />
+            </article>
+            <article>
+              <header>
+                <span>After accept</span>
+                <Badge value={isQualitySuggestionApplyable(item) || item.suggestionType === "NAME_CLEANUP" || item.suggestionType === "SEARCH_ALIAS" ? "Preview" : "Review only"} tone={isQualitySuggestionApplyable(item) || item.suggestionType === "NAME_CLEANUP" || item.suggestionType === "SEARCH_ALIAS" ? "good" : "warn"} />
+              </header>
+              <QualityPreviewRows item={item} mode="after" />
+            </article>
+          </div>
+          <Panel title="Reason and audit context">
+            <div className="quality-reason-box">
+              <p>{item.reason ?? "No reason returned for this suggestion."}</p>
+              <div>
+                <DetailItem label="Created" value={formatDate(item.createdAt)} />
+                <DetailItem label="Reviewed" value={formatDate(item.reviewedAt)} />
+                <DetailItem label="Reviewed by" value={item.reviewedBy ?? "-"} />
+              </div>
+            </div>
+          </Panel>
+        </div>
+        <div className="modal-actions padded-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>Cancel</button>
+          {item.status === "OPEN" && <button className="ghost-button danger-text" type="button" disabled={busy} onClick={() => onReject(item)}>Reject</button>}
+          {item.status === "OPEN" && <button className="primary-button" type="button" disabled={busy} onClick={() => onAccept(item)}>Accept suggestion</button>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function QualityImpactSummary({ item }: { item: ProductQualitySuggestion }) {
+  const impact = qualityFieldImpact(item);
+  return (
+    <div className="quality-impact-grid">
+      <article>
+        <span>Field group</span>
+        <strong>{impact.group}</strong>
+        <small>{impact.description}</small>
+      </article>
+      <article>
+        <span>Catalog write</span>
+        <strong>{impact.writePath}</strong>
+        <small>{impact.resetValidation ? "Quality validation will be reset after accept." : "Existing product validation marker is not changed."}</small>
+      </article>
+      <article>
+        <span>Audit trail</span>
+        <strong>{impact.audit}</strong>
+        <small>{impact.adminAction}</small>
+      </article>
+    </div>
+  );
+}
+function QualityPreviewRows({ item, mode }: { item: ProductQualitySuggestion; mode: "before" | "after" }) {
+  const canPreviewApply = isQualitySuggestionApplyable(item) || item.suggestionType === "NAME_CLEANUP";
+  const isAfter = mode === "after";
+  const fieldValue = isAfter && canPreviewApply
+    ? item.suggestedValue ?? "-"
+    : item.currentValue ?? "-";
+  const rows: Array<[string, ReactNode]> = [
+    ["Product", item.productName ?? `Product #${item.foodItemId ?? "-"}`],
+    ["Brand", item.brand ?? "-"],
+    ["Field", qualityFieldLabel(item.fieldName)],
+    ["Value", fieldValue]
+  ];
+
+  if (item.suggestionType === "SEARCH_ALIAS") {
+    rows.splice(2, 2,
+      ["Alias action", isAfter ? "Alias will be created or reactivated" : "No alias change yet"],
+      ["Alias", isAfter ? item.suggestedValue ?? "-" : item.currentValue ?? "-"]
+    );
+  }
+
+  if (isAfter && !canPreviewApply && item.suggestionType !== "SEARCH_ALIAS") {
+    rows.push(["Catalog write", "No automatic product field update"]);
+  }
+
+  return (
+    <div className="quality-preview-rows">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+function qualitySuggestionDecision(item: ProductQualitySuggestion): { label: string; title: string; detail: string; tone: "default" | "good" | "warn" | "danger" | "neutral" } {
+  if (item.status && item.status !== "OPEN") {
+    return {
+      label: shortFeature(item.status),
+      title: "Already reviewed",
+      detail: item.reviewedBy ? `Reviewed by ${item.reviewedBy}` : "This suggestion is closed.",
+      tone: item.status === "ACCEPTED" ? "good" : "neutral"
+    };
+  }
+  if (isQualitySuggestionApplyable(item)) {
+    return {
+      label: "Field apply",
+      title: "Accept can update this catalog field",
+      detail: "The backend applies this whitelisted field, writes audit history, and resets quality validation for a future re-check.",
+      tone: "good"
+    };
+  }
+  if (item.suggestionType === "SEARCH_ALIAS" || item.suggestionType === "NAME_CLEANUP") {
+    return {
+      label: "Auto apply",
+      title: "Accept has a dedicated backend action",
+      detail: "This suggestion type has a specific safe apply path and audit entry.",
+      tone: "good"
+    };
+  }
+  return {
+    label: "Review only",
+    title: "Accept closes the issue without changing product fields",
+    detail: "Use this for warning-style AI findings that require manual product review before editing data.",
+    tone: "warn"
+  };
+}
+
+type QualityFieldImpact = {
+  group: string;
+  description: string;
+  writePath: string;
+  audit: string;
+  adminAction: string;
+  resetValidation: boolean;
+};
+
+function qualityFieldImpact(item: ProductQualitySuggestion): QualityFieldImpact {
+  if (item.suggestionType === "SEARCH_ALIAS") {
+    return {
+      group: "Search alias",
+      description: "Improves barcode/name search without changing nutrition values.",
+      writePath: "Alias create/reactivate",
+      audit: "SEARCH_ALIAS_CHANGE",
+      adminAction: "Accept creates or reactivates a safe search alias.",
+      resetValidation: false
+    };
+  }
+  if (item.suggestionType === "NAME_CLEANUP") {
+    return {
+      group: "Identity",
+      description: "Improves the visible product name stored in the catalog.",
+      writePath: "Product name update",
+      audit: "REVIEW_UPDATE",
+      adminAction: "Accept updates name and records product audit history.",
+      resetValidation: true
+    };
+  }
+  const field = normalizeQualityField(item.fieldName);
+  if (!field || !item.suggestedValue || !QUALITY_APPLY_FIELDS.has(field)) {
+    return {
+      group: "Review only",
+      description: "This finding is useful for admin review but is not auto-written to product fields.",
+      writePath: "No automatic write",
+      audit: "Suggestion decision only",
+      adminAction: "Accept closes the suggestion; manual product edit may still be needed.",
+      resetValidation: false
+    };
+  }
+  if (NUTRITION_QUALITY_FIELDS.has(field)) {
+    return {
+      group: "Nutrition and micronutrients",
+      description: "Calories, macros, serving size, or micronutrient catalog values.",
+      writePath: "Food item nutrition field update",
+      audit: "REVIEW_UPDATE",
+      adminAction: "Accept writes the suggested numeric/text value to the product.",
+      resetValidation: true
+    };
+  }
+  if (IMAGE_QUALITY_FIELDS.has(field)) {
+    return {
+      group: "Image quality",
+      description: "Image URL/source/status fields used by product presentation.",
+      writePath: "Food item image field update",
+      audit: "IMAGE_CHANGE",
+      adminAction: "Accept updates image metadata and keeps a product audit entry.",
+      resetValidation: true
+    };
+  }
+  if (STATUS_REGION_QUALITY_FIELDS.has(field)) {
+    return {
+      group: "Status, region, and preparation",
+      description: "Verification, market-region, preparation-state, or label quality metadata.",
+      writePath: "Food item metadata update",
+      audit: field === "verificationstatus" ? "STATUS_CHANGE" : "REVIEW_UPDATE",
+      adminAction: "Accept updates catalog metadata for downstream filtering and trust controls.",
+      resetValidation: true
+    };
+  }
+  return {
+    group: "Catalog field",
+    description: "Supported product field change.",
+    writePath: "Food item field update",
+    audit: "REVIEW_UPDATE",
+    adminAction: "Accept applies the suggested value through backend whitelist validation.",
+    resetValidation: true
+  };
+}
+function isQualitySuggestionApplyable(item: ProductQualitySuggestion): boolean {
+  const field = normalizeQualityField(item.fieldName);
+  if (!field || !item.suggestedValue) return false;
+  return QUALITY_APPLY_FIELDS.has(field);
+}
+
+const NUTRITION_QUALITY_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitamina", "vitaminc", "vitamind", "vitamine",
+  "vitaminb12", "saturatedfat", "transfat", "sugaralcohol", "servingsizegrams", "servingunit",
+  "nutriscore", "allergens"
+]);
+
+const IMAGE_QUALITY_FIELDS = new Set([
+  "imagesource", "imagestatus", "imageurl", "externalimageurl", "displayimageurl"
+]);
+
+const STATUS_REGION_QUALITY_FIELDS = new Set([
+  "verificationstatus", "marketregion", "preparationstate"
+]);
+const QUALITY_APPLY_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitamina", "vitaminc", "vitamind", "vitamine",
+  "vitaminb12", "saturatedfat", "transfat", "sugaralcohol", "servingsizegrams", "servingunit",
+  "imagesource", "imagestatus", "imageurl", "externalimageurl", "displayimageurl", "verificationstatus",
+  "marketregion", "preparationstate", "nutriscore", "allergens"
+]);
+
+function normalizeQualityField(value?: string): string {
+  return String(value ?? "").replace(/[_-]/g, "").toLowerCase();
+}
+
+function qualityFieldLabel(value?: string): string {
+  if (!value) return "No field";
+  return shortFeature(value.replace(/([a-z])([A-Z])/g, "$1 $2"));
+}
 function AuditsView({ onError }: { onError: (message: string | null) => void }) {
   const [actionType, setActionType] = useState("");
   const [targetType, setTargetType] = useState("");
@@ -4492,6 +6069,7 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
   useEffect(() => {
     setPage(0);
   }, [actionType, targetType, pageSize]);
+
 
   return (
     <div className="stack">
@@ -4550,25 +6128,176 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
   );
 }
 
-function NotificationsView({ onError }: { onError: (message: string | null) => void }) {
-  const { data, state, reload } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?page=0&size=25", onError);
+function NotificationsView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey, context?: Omit<AdminTargetContext, "section">) => void }) {
+  const [typeFilter, setTypeFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [actionState, setActionState] = useState<LoadState>("idle");
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const path = buildNotificationPath({ type: typeFilter, severity: severityFilter, unreadOnly, page, size: pageSize });
+  const { data, state, reload } = useEndpoint<PageResponse<Notification>>(path, onError);
+  const rows = data?.content ?? [];
+  const unread = rows.filter((item) => !item.read).length;
+  const critical = rows.filter((item) => item.severity === "CRITICAL").length;
+  const byType = countBy(rows, (item) => item.type ?? "Unknown");
+  const bySeverity = countBy(rows, (item) => item.severity ?? "INFO");
+  const bySource = countBy(rows, (item) => item.source ?? "UNKNOWN");
+  const byReadState = countBy(rows, (item) => item.read ? "READ" : "UNREAD");
+  const alertRules = notificationRuleCards();
+
+  function resetFilters() {
+    setTypeFilter("");
+    setSeverityFilter("");
+    setUnreadOnly(false);
+    setPage(0);
+    setActionNotice(null);
+  }
+
+  function applyQuickFilter(next: { type?: string; severity?: string; unreadOnly?: boolean }) {
+    setTypeFilter(next.type ?? "");
+    setSeverityFilter(next.severity ?? "");
+    setUnreadOnly(Boolean(next.unreadOnly));
+    setPage(0);
+    setActionNotice(null);
+  }
+
+  async function markAllRead() {
+    setActionState("loading");
+    try {
+      await request<unknown>("/api/v1/notifications/read-all", { method: "PATCH" });
+      await reload();
+      setActionNotice("Notification action completed.");
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function markRead(item: Notification) {
+    if (!item.id) return;
+    setActionState("loading");
+    try {
+      await request<Notification>(`/api/v1/notifications/${item.id}/read`, { method: "PATCH" });
+      setActionNotice("Notification action completed.");
+      await reload();
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  function goToTarget(item: Notification) {
+    const target = notificationTargetSection(item);
+    if (target) onNavigate(target, notificationTargetContext(item));
+  }
+
+
   return (
     <div className="stack">
-      <SectionToolbar title="Admin notifications" state={state} onReload={reload} />
+      <SectionToolbar title="Admin notifications" state={combineStates([state, actionState])} onReload={reload}>
+        <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
+        <button className="primary-button" type="button" disabled={actionState === "loading"} onClick={markAllRead}>Mark all read</button>
+      </SectionToolbar>
+      {actionNotice && <div className="form-notice">{actionNotice}</div>}
+      <div className="notification-command-strip">
+        <button type="button" className={severityFilter === "CRITICAL" && unreadOnly ? "active" : ""} onClick={() => applyQuickFilter({ severity: "CRITICAL", unreadOnly: true })}>Unread critical</button>
+        <button type="button" className={typeFilter === "subscription_provider_alert" ? "active" : ""} onClick={() => applyQuickFilter({ type: "subscription_provider_alert", unreadOnly: true })}>Provider failures</button>
+        <button type="button" className={typeFilter === "ai_rejection_alert" ? "active" : ""} onClick={() => applyQuickFilter({ type: "ai_rejection_alert", unreadOnly: true })}>AI rejections</button>
+        <button type="button" className={typeFilter === "system_alert" ? "active" : ""} onClick={() => applyQuickFilter({ type: "system_alert", unreadOnly: true })}>System/mail alerts</button>
+      </div>
+      <div className="metric-grid compact-grid">
+        <MetricCard label="Unread on page" value={formatValue(unread)} hint="Unread operational alerts in this result page" />
+        <MetricCard label="Critical on page" value={formatValue(critical)} hint="Critical severity alerts visible here" />
+        <MetricCard label="Returned" value={formatValue(data?.totalElements ?? rows.length)} hint="Notifications matching the current filters" />
+        <MetricCard label="Alert types" value={formatValue(Object.keys(byType).length)} hint="Distinct notification types visible here" />
+      </div>
+      <Panel title="Notification distribution">
+        <div className="notification-insight-grid">
+          <NotificationDistribution title="By severity" items={bySeverity} labelFormatter={shortFeature} />
+          <NotificationDistribution title="By source" items={bySource} labelFormatter={notificationSourceLabel} />
+          <NotificationDistribution title="Read state" items={byReadState} labelFormatter={shortFeature} />
+        </div>
+      </Panel>
+      <Panel title="Notification filters">
+        <div className="review-filter-grid">
+          <label>
+            Type
+            <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }}>
+              <option value="">All types</option>
+              <option value="ai_rejection_alert">AI rejection alert</option>
+              <option value="system_alert">System alert</option>
+              <option value="subscription_provider_alert">Subscription provider alert</option>
+              <option value="subscription">Subscription</option>
+            </select>
+          </label>
+          <label>
+            Severity
+            <select value={severityFilter} onChange={(event) => { setSeverityFilter(event.target.value); setPage(0); }}>
+              <option value="">All severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="WARNING">Warning</option>
+              <option value="INFO">Info</option>
+            </select>
+          </label>
+          <label className="inline-check">
+            <input checked={unreadOnly} onChange={(event) => { setUnreadOnly(event.target.checked); setPage(0); }} type="checkbox" />
+            Unread only
+          </label>
+        </div>
+      </Panel>
+      <Panel title="Alert routing rulebook">
+        <div className="notification-rule-grid">
+          {alertRules.map((rule) => (
+            <article className={`notification-rule-card ${rule.tone}`} key={rule.type}>
+              <header>
+                <div>
+                  <span>{rule.source}</span>
+                  <strong>{rule.label}</strong>
+                </div>
+                <Badge value={rule.severity} tone={rule.tone} />
+              </header>
+              <p>{rule.description}</p>
+              <div>
+                <small>Route</small>
+                <button className="ghost-button" type="button" onClick={() => onNavigate(rule.route)}>{sectionByKey[rule.route]?.label ?? rule.route}</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Panel>
       <DataTable
-        columns={["Type", "Message", "Read", "Created"]}
-        rows={(data?.content ?? []).map((item) => [
-          <Badge value={item.type} />,
-          item.message ?? "-",
+        columns={["Severity", "Type", "Message", "Target", "Read", "Created", "Actions"]}
+        rows={rows.map((item) => [
+          <Badge value={item.severity ?? "INFO"} tone={notificationSeverityTone(item.severity)} />,
+          <div className="badge-stack"><Badge value={notificationTypeLabel(item.type)} /><Badge value={notificationSourceLabel(item.source)} tone="neutral" /></div>,
+          <span className="notification-message-cell">{item.message ?? "-"}</span>,
+          notificationTargetLabel(item),
           <Badge value={item.read ? "Read" : "Unread"} tone={item.read ? "neutral" : "warn"} />,
-          formatDate(item.createdAt)
+          formatDate(item.createdAt),
+          <div className="table-stack notification-actions">
+            {notificationTargetSection(item) && <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); goToTarget(item); }}>Open target</button>}
+            {!item.read && <button className="ghost-button" type="button" disabled={actionState === "loading"} onClick={(event) => { event.stopPropagation(); void markRead(item); }}>Mark read</button>}
+          </div>
         ])}
         empty="No notifications returned."
+      />
+      <PaginationControls
+        page={data?.page ?? page}
+        pageSize={data?.size ?? pageSize}
+        totalElements={data?.totalElements ?? rows.length}
+        totalPages={data?.totalPages ?? 1}
+        first={Boolean(data?.first)}
+        last={Boolean(data?.last)}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
     </div>
   );
 }
-
 function PushDeliveryView({ onError }: { onError: (message: string | null) => void }) {
   const { data, state, reload } = useEndpoint<AdminPushMonitoring>("/api/v1/admin/system/push-monitoring", onError);
   const providerEntries = Object.entries(data?.activeTokensByProvider ?? {}).sort(([left], [right]) => left.localeCompare(right));
@@ -4580,6 +6309,7 @@ function PushDeliveryView({ onError }: { onError: (message: string | null) => vo
   const failed = data?.failedLast24h ?? 0;
   const sent = data?.sentLast24h ?? 0;
   const totalDelivery = sent + failed;
+
 
   return (
     <div className="stack">
@@ -4636,7 +6366,11 @@ type TrackingMode = "overview" | "water" | "fasting" | "steps";
 
 function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError: (message: string | null) => void }) {
   const [days, setDays] = useState(30);
+  const [trackingPage, setTrackingPage] = useState(0);
+  const [trackingPageSize, setTrackingPageSize] = useState(25);
   const { data, state, reload } = useEndpoint<AdminTrackingSummary>(`/api/v1/admin/tracking/summary?days=${days}`, onError);
+
+
 
   const title = {
     overview: "Tracking monitoring",
@@ -4655,6 +6389,15 @@ function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError
     ? [data?.water, data?.fasting, data?.steps].filter(Boolean) as AdminTrackingModuleSummary[]
     : [selectedModule].filter(Boolean) as AdminTrackingModuleSummary[];
   const trends = data?.trends ?? [];
+  const trendRows = trackingTrendRows(mode, trends);
+  const trackingTotalPages = Math.max(1, Math.ceil(trendRows.length / trackingPageSize));
+  const safeTrackingPage = Math.min(trackingPage, trackingTotalPages - 1);
+  const pagedTrendRows = trendRows.slice(safeTrackingPage * trackingPageSize, safeTrackingPage * trackingPageSize + trackingPageSize);
+
+  useEffect(() => {
+    setTrackingPage(0);
+  }, [mode, days, trackingPageSize, trendRows.length]);
+
 
   return (
     <div className="stack">
@@ -4744,8 +6487,21 @@ function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError
 
       <DataTable
         columns={trackingTrendColumns(mode)}
-        rows={trackingTrendRows(mode, trends)}
+        rows={pagedTrendRows}
         empty="No tracking trend returned."
+      />
+      <PaginationControls
+        page={safeTrackingPage}
+        pageSize={trackingPageSize}
+        totalElements={trendRows.length}
+        totalPages={trackingTotalPages}
+        first={safeTrackingPage <= 0}
+        last={safeTrackingPage >= trackingTotalPages - 1}
+        onPageChange={setTrackingPage}
+        onPageSizeChange={(size) => {
+          setTrackingPageSize(size);
+          setTrackingPage(0);
+        }}
       />
     </div>
   );
@@ -4768,6 +6524,8 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
     return ["Alerts", "Application Runtime", "Database"].includes(category.title);
   });
 
+
+
   const title = {
     overview: "System health",
     runtime: "Runtime health",
@@ -4775,6 +6533,7 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
     providers: "Provider health",
     production: "Production readiness"
   }[mode];
+
   return (
     <div className="stack">
       <SectionToolbar title={title} state={state} onReload={reload} />
@@ -4861,6 +6620,36 @@ function IntegrationCard({ card }: { card: IntegrationCardModel }) {
   );
 }
 
+function NotificationDistribution({
+  items,
+  labelFormatter,
+  title
+}: {
+  items: Record<string, number>;
+  labelFormatter?: (value?: string) => string;
+  title: string;
+}) {
+  const entries = Object.entries(items).sort((left, right) => right[1] - left[1]);
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  return (
+    <article className="notification-distribution-card">
+      <header>
+        <strong>{title}</strong>
+        <span>{formatValue(total)}</span>
+      </header>
+      <div>
+        {entries.map(([label, value]) => (
+          <div key={label}>
+            <span>{labelFormatter ? labelFormatter(label) : label}</span>
+            <div className="progress-track"><i style={{ width: `${percent(value, total)}%` }} /></div>
+            <strong>{formatValue(value)}</strong>
+          </div>
+        ))}
+        {!entries.length && <small>No data on this page.</small>}
+      </div>
+    </article>
+  );
+}
 function MiniNotificationList({ notifications }: { notifications: Notification[] }) {
   if (!notifications.length) {
     return <EmptyState message="No recent notification returned." />;
@@ -4868,10 +6657,17 @@ function MiniNotificationList({ notifications }: { notifications: Notification[]
   return (
     <div className="mini-notification-list">
       {notifications.map((item) => (
-        <div key={item.id ?? `${item.type}-${item.createdAt}-${item.message}`}>
-          <Badge value={item.type} />
+        <div className={item.read ? "mini-notification-row" : "mini-notification-row unread"} key={item.id ?? `${item.type}-${item.createdAt}-${item.message}`}>
+          <div className="mini-notification-topline">
+            <Badge value={item.severity ?? "INFO"} tone={notificationSeverityTone(item.severity)} />
+            <Badge value={item.type} />
+            {!item.read && <Badge value="Unread" tone="warn" />}
+          </div>
           <p>{item.message ?? "-"}</p>
-          <small>{formatDate(item.createdAt)}</small>
+          <div className="mini-notification-meta">
+            <small>{notificationTargetLabel(item)}</small>
+            <small>{formatDate(item.createdAt)}</small>
+          </div>
         </div>
       ))}
     </div>
@@ -4975,9 +6771,9 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <article className="panel">
+    <article className={`panel ${className ?? ""}`.trim()}>
       <h3>{title}</h3>
       {children}
     </article>
@@ -5143,6 +6939,7 @@ function ProductReviewModal({
           </div>
             <div className="product-detail-stack">
             <div className="detail-grid editable">
+            <ProductQualityWorkbench product={item} onError={onError} />
               <EditableDetail label="Product name">
                 <input value={draft.productName} onChange={(event) => updateDraft("productName", event.target.value)} />
               </EditableDetail>
@@ -5184,7 +6981,6 @@ function ProductReviewModal({
               <DetailItem label="Review priority" value={formatValue(item.reviewPriority)} />
               <DetailItem label="Usage count" value={formatValue(item.usageCount)} />
             </div>
-            <ProductAliasManager productId={item.id} onError={onError} />
             <div className="nutrition-editor">
               <div className="nutrition-editor-heading">
                 <div>
@@ -5243,6 +7039,170 @@ function ProductReviewModal({
       </section>
     </div>
   );
+}
+
+type ProductWorkbenchTab = "overview" | "nutrition" | "names" | "aliases" | "serving" | "evidence" | "ai" | "audit";
+
+const HIGH_IMPACT_PRODUCT_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitaminA", "vitaminC", "vitaminD", "vitaminE", "vitaminB12",
+  "saturatedFat", "transFat", "sugarAlcohol"
+]);
+
+function ProductQualityWorkbench({ product, onError }: { product: FoodProduct; onError: (message: string | null) => void }) {
+  const [tab, setTab] = useState<ProductWorkbenchTab>("overview");
+  const [data, setData] = useState<AdminProductQualityWorkbench | null>(null);
+  const [state, setState] = useState<LoadState>("idle");
+  const [pendingHighImpact, setPendingHighImpact] = useState<ProductQualitySuggestion | null>(null);
+
+  useEffect(() => {
+    void loadWorkbench();
+  }, [product.id]);
+
+  async function loadWorkbench() {
+    if (!product.id) return;
+    setState("loading");
+    try {
+      setData(await request<AdminProductQualityWorkbench>(`/api/v1/admin/products/${product.id}/quality-workbench`));
+      setState("ready");
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function analyzeWithAi() {
+    if (!product.id) return;
+    setState("loading");
+    try {
+      await request<AdminProductQualityAiValidationResult>("/api/v1/admin/products/quality-suggestions/ai-validate-selected", {
+        method: "POST",
+        body: { productIds: [product.id], limit: 1, forceRescan: true }
+      });
+      await loadWorkbench();
+      setTab("ai");
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function reviewSuggestion(item: ProductQualitySuggestion, action: "accept" | "reject", confirmed = false) {
+    if (!item.id) return;
+    if (action === "accept" && isHighImpactProductSuggestion(item) && !confirmed) {
+      setPendingHighImpact(item);
+      return;
+    }
+    setState("loading");
+    try {
+      await request(`/api/v1/admin/products/quality-suggestions/${item.id}/${action}`, { method: "PATCH" });
+      setPendingHighImpact(null);
+      await loadWorkbench();
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const suggestions = data?.suggestions ?? [];
+  const openSuggestions = suggestions.filter((item) => item.status === "OPEN");
+  const comparisons = data?.evidence?.comparisons ?? [];
+  const evidence = data?.evidence?.evidence ?? [];
+  const nameSuggestions = openSuggestions.filter((item) => ["NAME_CLEANUP", "DISPLAY_NAME", "LOCALIZATION"].includes(item.suggestionType ?? ""));
+  const aliasSuggestions = openSuggestions.filter((item) => item.suggestionType === "SEARCH_ALIAS");
+  const servingSuggestions = openSuggestions.filter((item) => item.suggestionType === "SERVING_OPTION" || item.suggestionType === "MISSING_SERVING_SIZE");
+  const nutritionSuggestions = openSuggestions.filter(isHighImpactProductSuggestion);
+
+  return <section className="product-quality-workbench" aria-label="AI product quality workbench">
+    <div className="product-workbench-toolbar">
+      <div>
+        <span className="eyebrow">AI quality workbench</span>
+        <strong>{formatValue(openSuggestions.length)} open recommendation(s)</strong>
+      </div>
+      <div className="product-workbench-actions">
+        <button className="ghost-button" type="button" disabled={state === "loading"} onClick={loadWorkbench}>Refresh</button>
+        <button className="primary-button" type="button" disabled={state === "loading" || !product.id} onClick={analyzeWithAi}>Analyze product with AI</button>
+      </div>
+    </div>
+    <div className="product-workbench-tabs" role="tablist">
+      {(["overview", "nutrition", "names", "aliases", "serving", "evidence", "ai", "audit"] as ProductWorkbenchTab[]).map((value) =>
+        <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{humanizeFeature(value)}</button>
+      )}
+    </div>
+
+    {state === "loading" && !data && <div className="empty-state">Loading product quality context...</div>}
+    {tab === "overview" && data && <div className="workbench-pane">
+      <div className="metric-grid compact-grid">
+        <MetricCard label="Quality" value={`${formatValue(data.product?.qualityScore)} / 100`} hint={`Confidence ${formatValue(data.product?.confidenceScore)}`} />
+        <MetricCard label="Active issues" value={formatValue((data.qualityIssues ?? []).filter((item) => !item.resolved).length)} hint="Deterministic quality rules" />
+        <MetricCard label="Evidence rows" value={formatValue(evidence.length)} hint={`${formatValue(comparisons.length)} field comparisons`} />
+        <MetricCard label="AI review" value={formatValue(openSuggestions.length)} hint="Pending admin decisions" />
+      </div>
+      <DataTable columns={["Issue", "Reason", "State"]} rows={(data.qualityIssues ?? []).map((item) => [<strong>{humanizeFeature(item.issueType)}</strong>, item.reason ?? "-", <Badge value={item.resolved ? "RESOLVED" : "OPEN"} tone={item.resolved ? "good" : "warn"} />])} empty="No quality issues detected." />
+      <div className="canonical-workbench-strip">
+        <div><span>Canonical identity</span><strong>{data.canonicalDuplicate?.canonicalFoodKey ?? "Not assigned"}</strong></div>
+        <div><span>Resolved primary</span><strong>{formatValue(data.canonicalDuplicate?.resolvedPrimaryProductId)}</strong></div>
+        <div><span>Candidates</span><strong>{formatValue(data.canonicalDuplicate?.candidates?.length)}</strong></div>
+      </div>
+      {(data.canonicalDuplicate?.candidates?.length ?? 0) > 1 && <DataTable columns={["Candidate", "Source", "State", "Quality"]} rows={(data.canonicalDuplicate?.candidates ?? []).map((item) => [<div className="entity-cell"><strong>{item.displayName ?? `Product ${item.productId}`}</strong><small>{item.brand ?? "Generic"}</small></div>, `${item.dataSource ?? "-"} / ${item.marketRegion ?? "-"}`, `${item.preparationState ?? "-"} / ${item.verificationStatus ?? "-"}`, `${formatValue(item.qualityScore)} / 100`])} empty="No canonical duplicate candidates." />}
+    </div>}
+
+    {tab === "nutrition" && <WorkbenchSuggestionTable suggestions={nutritionSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />}
+    {tab === "names" && <div className="workbench-pane">
+      <DataTable columns={["Language", "Display name", "Short name", "Source", "State"]} rows={(data?.localizations ?? []).map((item) => [item.language ?? "-", item.displayName ?? "-", item.shortDisplayName ?? "-", item.source ?? "-", <Badge value={item.active ? "ACTIVE" : "INACTIVE"} tone={item.active ? "good" : "neutral"} />])} empty="No localized names." />
+      <WorkbenchSuggestionTable suggestions={nameSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />
+    </div>}
+    {tab === "aliases" && <div className="workbench-pane"><ProductAliasManager productId={product.id} onError={onError} /><WorkbenchSuggestionTable suggestions={aliasSuggestions} comparisons={comparisons} onReview={reviewSuggestion} /></div>}
+    {tab === "serving" && <div className="workbench-pane">
+      <DataTable columns={["Serving", "Conversion", "Source", "Quality", "Localizations"]} rows={(data?.servingOptions ?? []).map((item) => [<div className="entity-cell"><strong>{item.label ?? "-"}</strong><small>{item.defaultOption ? "Default" : item.unitType ?? "-"}</small></div>, item.gramWeight != null ? `${item.gramWeight} g` : item.mlVolume != null ? `${item.mlVolume} ml` : `${formatValue(item.quantity)} ${item.unitType ?? ""}`, item.source ?? "-", <Badge value={item.qualityStatus ?? "-"} />, (item.localizations ?? []).map((value) => `${value.language}: ${value.label}`).join(", ") || "-"])} empty="No serving options." />
+      <WorkbenchSuggestionTable suggestions={servingSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />
+    </div>}
+    {tab === "evidence" && <div className="workbench-pane">
+      <DataTable columns={["Field", "Provider", "Value", "Basis", "Confidence", "Freshness", "Reviewer"]} rows={evidence.map((item) => [item.fieldName ?? "-", item.provider ?? "-", formatValue(item.numericValue), item.basis ?? "-", `${formatValue(item.confidenceScore)}%`, <Badge value={item.stale ? "STALE" : "CURRENT"} tone={item.stale ? "warn" : "good"} />, item.reviewerIdentity ?? "system"])} empty="No source evidence captured." />
+      <DataTable columns={["Field", "Basis", "Comparison", "Difference", "Reason"]} rows={comparisons.map((item) => [item.fieldName ?? "-", item.basis ?? "-", <Badge value={item.state ?? "-"} tone={item.state === "MATCH" ? "good" : item.state === "CONFLICT" ? "danger" : "warn"} />, formatValue(item.maximumDifference), item.reason ?? "-"])} empty="No evidence comparisons." />
+    </div>}
+    {tab === "ai" && <WorkbenchSuggestionTable suggestions={suggestions} comparisons={comparisons} onReview={reviewSuggestion} showReviewed />}
+    {tab === "audit" && <DataTable columns={["When", "Action", "Field", "Change", "Admin", "Note"]} rows={(data?.audit ?? []).map((item) => [formatDate(item.createdAt), item.actionType ?? "-", item.fieldName ?? "-", `${item.oldValue ?? "-"} -> ${item.newValue ?? "-"}`, item.reviewedBy ?? "-", item.note ?? "-"])} empty="No product audit history." />}
+
+    {pendingHighImpact && <ConfirmDialog title="Apply nutrition change?" message={`This changes ${pendingHighImpact.fieldName ?? "a nutrition field"} from ${pendingHighImpact.currentValue ?? "empty"} to ${pendingHighImpact.suggestedValue ?? "empty"}. Confirm only after checking the provider evidence shown in this workbench.`} confirmLabel="Apply verified change" danger busy={state === "loading"} onCancel={() => setPendingHighImpact(null)} onConfirm={() => reviewSuggestion(pendingHighImpact, "accept", true)} />}
+  </section>;
+}
+
+function WorkbenchSuggestionTable({ suggestions, comparisons, onReview, showReviewed = false }: { suggestions: ProductQualitySuggestion[]; comparisons: NonNullable<AdminProductQualityWorkbench["evidence"]>["comparisons"]; onReview: (item: ProductQualitySuggestion, action: "accept" | "reject") => void; showReviewed?: boolean }) {
+  return <DataTable columns={["Recommendation", "Current", "Provider evidence", "AI proposal", "Confidence", "Reason", "Actions"]} rows={suggestions.map((item) => {
+    const comparison = (comparisons ?? []).find((value) => value.fieldName === evidenceFieldForSuggestion(item.fieldName));
+    return [<div className="entity-cell"><strong>{humanizeFeature(item.suggestionType)}</strong><small>{item.fieldName ?? "-"}</small></div>, item.currentValue ?? "-", <div className="badge-stack"><Badge value={comparison?.state ?? "NO_EVIDENCE"} tone={comparison?.state === "MATCH" ? "good" : comparison?.state === "CONFLICT" ? "danger" : "warn"} /><small>{comparison?.reason ?? "No comparable provider evidence."}</small></div>, item.suggestedValue ?? "Review only", `${formatValue(item.confidenceScore)}%`, item.reason ?? "-", item.status === "OPEN" ? <div className="inline-actions"><button className="ghost-button" type="button" disabled={!canApplyWorkbenchSuggestion(item)} onClick={() => onReview(item, "accept")}>{canApplyWorkbenchSuggestion(item) ? "Accept" : "Review only"}</button><button className="ghost-button danger-text" type="button" onClick={() => onReview(item, "reject")}>Reject</button></div> : showReviewed ? <Badge value={item.status ?? "-"} tone={item.status === "ACCEPTED" ? "good" : "neutral"} /> : "-"];
+  })} empty="No recommendations for this view." />;
+}
+
+const SAFE_NUTRITION_SUGGESTION_TYPES = new Set([
+  "MISSING_MACRO_DATA", "MISSING_MICRO_DATA", "SUSPICIOUS_CALORIE_VALUE",
+  "MACRO_CALORIE_MISMATCH", "SUSPICIOUS_SODIUM_VALUE"
+]);
+const SAFE_NUTRITION_PRODUCT_FIELDS = new Set([
+  "calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "potassium", "cholesterol",
+  "calcium", "iron", "magnesium", "zinc", "vitaminA", "vitaminC", "vitaminD", "vitaminE", "vitaminB12",
+  "saturatedFat", "transFat", "sugarAlcohol"
+]);
+const SAFE_SERVING_PRODUCT_FIELDS = new Set(["servingSizeGrams", "servingUnit"]);
+
+function canApplyWorkbenchSuggestion(item: ProductQualitySuggestion) {
+  if (!item.suggestedValue) return false;
+  const suggestionType = item.suggestionType ?? "";
+  if (["NAME_CLEANUP", "DISPLAY_NAME", "LOCALIZATION", "SEARCH_ALIAS"].includes(suggestionType)) return true;
+  if (SAFE_NUTRITION_SUGGESTION_TYPES.has(suggestionType)) {
+    return SAFE_NUTRITION_PRODUCT_FIELDS.has(item.fieldName ?? "");
+  }
+  return suggestionType === "MISSING_SERVING_SIZE"
+    && SAFE_SERVING_PRODUCT_FIELDS.has(item.fieldName ?? "");
+}
+
+function isHighImpactProductSuggestion(item: ProductQualitySuggestion) {
+  return HIGH_IMPACT_PRODUCT_FIELDS.has(item.fieldName ?? "");
+}
+
+function evidenceFieldForSuggestion(fieldName?: string) {
+  return fieldName?.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
 }
 
 function ProductAliasManager({ productId, onError }: { productId?: number; onError: (message: string | null) => void }) {
@@ -5371,6 +7331,32 @@ function ProductAliasManager({ productId, onError }: { productId?: number; onErr
         )) : <span className="muted-text">No aliases yet. Add Turkish or English search terms without duplicating this product.</span>}
       </div>
     </div>
+  );
+}
+function TargetContextBanner({ context, onClear }: { context: AdminTargetContext; onClear?: () => void }) {
+  return (
+    <div className={`target-context-banner ${notificationSeverityTone(context.severity)}`}>
+      <div>
+        <span>Opened from {context.source === "notification" ? "admin notification" : "dashboard"}</span>
+        <strong>{notificationTargetLabel(context)}</strong>
+        <small>{context.message ?? "Target context is active for this workspace."}</small>
+      </div>
+      <div className="target-context-meta">
+        {context.type && <Badge value={context.type} tone="neutral" />}
+        {context.severity && <Badge value={context.severity} tone={notificationSeverityTone(context.severity)} />}
+        {context.targetId && <span>Target #{context.targetId}</span>}
+        {onClear && <button className="ghost-button" onClick={onClear} type="button">Clear focus</button>}
+      </div>
+    </div>
+  );
+}
+
+function TargetAwareValue({ value, focused }: { value: ReactNode; focused: boolean }) {
+  return (
+    <span className={focused ? "target-aware-value focused" : "target-aware-value"}>
+      {focused && <i>Target</i>}
+      <strong>{value}</strong>
+    </span>
   );
 }
 function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
@@ -5992,6 +7978,58 @@ function formatAuditValue(value?: string | null): string {
   }
 }
 
+function parseSubscriptionAuditValue(value?: string | null): SubscriptionDto {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed as SubscriptionDto : {};
+  } catch {
+    return {};
+  }
+}
+
+function humanizeSubscriptionAuditAction(action?: string): string {
+  switch (action) {
+    case "SUBSCRIPTION_UPDATE": return "Subscription update";
+    case "AI_QUOTA_RESET": return "AI quota reset";
+    case "AI_QUOTA_ADDON_GRANT": return "AI quota grant";
+    default: return action ? humanize(action.toLowerCase()) : "-";
+  }
+}
+
+function subscriptionAuditChangeLines(audit: AuditEntry): string[] {
+  const before = parseSubscriptionAuditValue(audit.oldValue);
+  const after = parseSubscriptionAuditValue(audit.newValue);
+  const fromPlan = before.planType ?? before.plan ?? "-";
+  const toPlan = after.planType ?? after.plan ?? "-";
+
+  if (audit.actionType === "AI_QUOTA_ADDON_GRANT") {
+    const granted = Math.max(0, (after.aiAddonQuota ?? 0) - (before.aiAddonQuota ?? 0));
+    const lines = ["+" + formatValue(granted) + " AI credits granted"];
+    if (before.aiAddonQuota !== after.aiAddonQuota) {
+      lines.push("Add-on quota: " + formatValue(before.aiAddonQuota ?? 0) + " -> " + formatValue(after.aiAddonQuota ?? 0));
+    }
+    if (after.aiAddonQuotaExpiresAt) lines.push("Valid until: " + formatDate(after.aiAddonQuotaExpiresAt));
+    return lines;
+  }
+
+  if (audit.actionType === "AI_QUOTA_RESET") {
+    const restored = Math.max(0, (before.aiUsedThisPeriod ?? 0) - (after.aiUsedThisPeriod ?? 0));
+    return [
+      formatValue(restored) + " AI credits restored",
+      "Used quota: " + formatValue(before.aiUsedThisPeriod ?? 0) + " -> " + formatValue(after.aiUsedThisPeriod ?? 0)
+    ];
+  }
+
+  const changes: string[] = [];
+  if (fromPlan !== toPlan) changes.push("Plan: " + fromPlan + " -> " + toPlan);
+  if (before.status !== after.status) changes.push("Status: " + (before.status ?? "-") + " -> " + (after.status ?? "-"));
+  if (before.billingPeriod !== after.billingPeriod) changes.push("Billing: " + (before.billingPeriod ?? "-") + " -> " + (after.billingPeriod ?? "-"));
+  if (before.aiMonthlyQuota !== after.aiMonthlyQuota) changes.push("Monthly AI quota: " + formatValue(before.aiMonthlyQuota ?? 0) + " -> " + formatValue(after.aiMonthlyQuota ?? 0));
+  if (before.aiUsedThisPeriod !== after.aiUsedThisPeriod) changes.push("Used AI quota: " + formatValue(before.aiUsedThisPeriod ?? 0) + " -> " + formatValue(after.aiUsedThisPeriod ?? 0));
+  return changes.length ? changes : ["Subscription details updated"];
+}
+
 function humanize(value: string): string {
   return value.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
 }
@@ -6157,10 +8195,42 @@ function healthCategories(data: SystemHealth): HealthCategory[] {
 function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: string): boolean {
   if (!access) return false;
   switch (feature) {
+    case "BARCODE_SCANNER":
+      return Boolean(access.barcodeScanner);
+    case "MANUAL_FOOD_LOGGING":
+      return Boolean(access.manualFoodLogging);
+    case "FOOD_DIARY":
+      return Boolean(access.foodDiary);
+    case "WEIGHT_PROGRESS":
+      return Boolean(access.weightProgress);
+    case "WATER_TRACKING":
+      return Boolean(access.waterTracking);
+    case "WORKOUT_LOGGING":
+      return Boolean(access.workoutLogging);
+    case "SAVED_MEAL_TEMPLATES":
+      return Boolean(access.savedMealTemplates);
+    case "RECIPE_BUILDER":
+      return Boolean(access.recipeBuilder);
+    case "PUBLIC_RECIPE_LIBRARY":
+      return Boolean(access.publicRecipeLibrary);
+    case "ADVANCED_MACRO_TARGETS":
+      return Boolean(access.advancedMacroTargets);
+    case "MICRONUTRIENT_DETAILS":
+      return Boolean(access.micronutrientDetails);
+    case "DATA_EXPORT":
+      return Boolean(access.dataExport);
+    case "FASTING_BASIC":
+      return Boolean(access.fastingBasic);
+    case "FASTING_ADVANCED":
+      return Boolean(access.fastingAdvanced);
     case "AI_MEAL_DRAFTS":
       return Boolean(access.aiMealDrafts);
     case "AI_RECIPE_GENERATION":
       return Boolean(access.aiRecipeGeneration);
+    case "AI_MEAL_PREPARATION_GUIDE":
+      return Boolean(access.aiMealPreparationGuide);
+    case "AI_NUTRITION_PLAN":
+      return Boolean(access.aiNutritionPlan);
     case "AI_WORKOUT_PLANNER":
       return Boolean(access.aiWorkoutPlanner);
     case "AI_INSIGHTS":
@@ -6195,6 +8265,34 @@ function featureKey(item: FeatureMatrixItem): string {
 function humanizeFeature(value?: string): string {
   if (!value) return "-";
   switch (value) {
+    case "BARCODE_SCANNER":
+      return "Barcode Scanner";
+    case "MANUAL_FOOD_LOGGING":
+      return "Manual Food Logging";
+    case "FOOD_DIARY":
+      return "Food Diary";
+    case "WEIGHT_PROGRESS":
+      return "Weight and Progress";
+    case "WATER_TRACKING":
+      return "Water Tracking";
+    case "WORKOUT_LOGGING":
+      return "Workout Logging";
+    case "SAVED_MEAL_TEMPLATES":
+      return "Saved Meal Templates";
+    case "RECIPE_BUILDER":
+      return "Recipe Builder";
+    case "PUBLIC_RECIPE_LIBRARY":
+      return "Public Recipe Library";
+    case "ADVANCED_MACRO_TARGETS":
+      return "Advanced Macro Targets";
+    case "MICRONUTRIENT_DETAILS":
+      return "Micronutrient Details";
+    case "DATA_EXPORT":
+      return "Data Export";
+    case "FASTING_BASIC":
+      return "Basic Fasting";
+    case "FASTING_ADVANCED":
+      return "Advanced Fasting";
     case "AI_MEAL_DRAFTS":
       return "AI Meal Drafts";
     case "AI_RECIPE_GENERATION":
@@ -6215,6 +8313,34 @@ function shortFeature(value?: string): string {
 
 function featureDescription(value?: string): string {
   switch (value) {
+    case "BARCODE_SCANNER":
+      return "Barcode scanning is available in every plan.";
+    case "MANUAL_FOOD_LOGGING":
+      return "Log foods manually with serving and gram-based quantities.";
+    case "FOOD_DIARY":
+      return "Core daily meal diary and nutrition logging.";
+    case "WEIGHT_PROGRESS":
+      return "Weight history, targets, and progress tracking.";
+    case "WATER_TRACKING":
+      return "Daily water logging and progress tracking.";
+    case "WORKOUT_LOGGING":
+      return "Manual exercise and workout history tracking.";
+    case "SAVED_MEAL_TEMPLATES":
+      return "Save meals and reuse them in the food diary.";
+    case "RECIPE_BUILDER":
+      return "Create and manage user recipes.";
+    case "PUBLIC_RECIPE_LIBRARY":
+      return "Browse the curated public recipe catalogue.";
+    case "ADVANCED_MACRO_TARGETS":
+      return "Flexible macro targets and meal-level planning.";
+    case "MICRONUTRIENT_DETAILS":
+      return "Detailed vitamins and minerals in nutrition views.";
+    case "DATA_EXPORT":
+      return "Export personal tracking data for portability.";
+    case "FASTING_BASIC":
+      return "Basic fasting timer and session history.";
+    case "FASTING_ADVANCED":
+      return "Advanced fasting schedules and analytics.";
     case "AI_MEAL_DRAFTS":
       return "Photo and voice meal draft generation. No diary entry is written before user confirmation.";
     case "AI_WORKOUT_PLANNER":
@@ -6237,8 +8363,8 @@ function featureDescription(value?: string): string {
 }
 
 function defaultAiQuota(planType?: string): number {
-  if (planType === "PRO") return 100;
-  if (planType === "PLUS") return 15;
+  if (planType === "PRO") return 150;
+  if (planType === "PLUS") return 50;
   return 0;
 }
 
@@ -6393,6 +8519,133 @@ function buildSubscriptionEventsPath(filters: {
   return `/api/v1/admin/subscription-events?${params.toString()}`;
 }
 
+function notificationRuleCards(): Array<{ type: string; label: string; source: string; severity: "CRITICAL" | "WARNING" | "INFO"; tone: "danger" | "warn" | "neutral"; route: SectionKey; description: string }> {
+  return [
+    {
+      type: "subscription_provider_alert",
+      label: "Subscription provider failure",
+      source: "RevenueCat",
+      severity: "CRITICAL",
+      tone: "danger",
+      route: "subscriptionEvents",
+      description: "Payment/provider events failed or could not be mapped. Admin should inspect raw payload and retry when safe."
+    },
+    {
+      type: "system_alert",
+      label: "Mail/provider system alert",
+      source: "Mail provider",
+      severity: "CRITICAL",
+      tone: "danger",
+      route: "mail",
+      description: "Transactional mail delivery failed or provider configuration needs attention. Admin should verify Brevo health and event logs."
+    },
+    {
+      type: "ai_rejection_alert",
+      label: "AI result rejected by user",
+      source: "AI Ops",
+      severity: "WARNING",
+      tone: "warn",
+      route: "ai",
+      description: "A user rejected an AI result with feedback. Admin should review request quality, prompt behavior, and refundable quota state."
+    }
+  ];
+}
+
+function notificationTypeLabel(value?: string): string {
+  switch (value) {
+    case "subscription_provider_alert":
+      return "Provider failure";
+    case "system_alert":
+      return "System alert";
+    case "ai_rejection_alert":
+      return "AI rejection";
+    case "subscription":
+      return "Subscription";
+    default:
+      return shortFeature(value);
+  }
+}
+
+function notificationSourceLabel(value?: string): string {
+  switch (value) {
+    case "REVENUECAT":
+      return "RevenueCat";
+    case "MAIL_PROVIDER":
+      return "Mail provider";
+    case "AI_OPS":
+      return "AI Ops";
+    default:
+      return shortFeature(value);
+  }
+}
+function buildNotificationPath(filters: { type: string; severity: string; unreadOnly: boolean; page: number; size: number }): string {
+  const params = new URLSearchParams();
+  if (filters.type) params.set("type", filters.type);
+  if (filters.severity) params.set("severity", filters.severity);
+  if (filters.unreadOnly) params.set("unreadOnly", "true");
+  params.set("page", String(filters.page));
+  params.set("size", String(filters.size));
+  return `/api/v1/notifications?${params.toString()}`;
+}
+
+function notificationSeverityTone(value?: string): "default" | "good" | "warn" | "danger" | "neutral" {
+  switch (value) {
+    case "CRITICAL":
+      return "danger";
+    case "WARNING":
+      return "warn";
+    case "INFO":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+function notificationTargetSection(item: Notification): SectionKey | null {
+  const candidate = item.targetRoute || fallbackNotificationTargetRoute(item.type, item.targetType);
+  return isSectionKey(candidate) ? candidate : null;
+}
+
+function notificationTargetLabel(item: Notification): string {
+  const target = item.targetType || fallbackNotificationTargetLabel(item.type);
+  if (!target) return "-";
+  return item.targetId ? `${shortFeature(target)} #${item.targetId}` : shortFeature(target);
+}
+
+function notificationTargetContext(item: Notification): Omit<AdminTargetContext, "section"> {
+  return {
+    source: "notification",
+    notificationId: item.id,
+    severity: item.severity,
+    type: item.type,
+    message: item.message,
+    targetType: item.targetType,
+    targetId: item.targetId,
+    targetRoute: item.targetRoute
+  };
+}
+
+function isTargetMatch(targetId: string | undefined, value: unknown): boolean {
+  return Boolean(targetId && value !== null && value !== undefined && String(value) === String(targetId));
+}
+
+function fallbackNotificationTargetRoute(type?: string, targetType?: string): string | undefined {
+  if (targetType === "AI_REQUEST" || type === "ai_rejection_alert") return "ai";
+  if (targetType === "MAIL_MONITORING" || type === "system_alert") return "mail";
+  if (targetType === "SUBSCRIPTION_PROVIDER_EVENT" || type === "subscription_provider_alert") return "subscriptionEvents";
+  return undefined;
+}
+
+function fallbackNotificationTargetLabel(type?: string): string | undefined {
+  if (type === "ai_rejection_alert") return "AI_REQUEST";
+  if (type === "system_alert") return "SYSTEM_ALERT";
+  if (type === "subscription_provider_alert") return "SUBSCRIPTION_PROVIDER_EVENT";
+  return undefined;
+}
+
+function isSectionKey(value?: string): value is SectionKey {
+  return Boolean(value && sectionByKey[value as SectionKey]);
+}
 function humanizeAiRequestType(value?: string): string {
   switch (value) {
     case "VOICE_FOOD_LOG":
@@ -6420,6 +8673,7 @@ function aiStatusTone(value?: string): "default" | "good" | "warn" | "danger" | 
       return "warn";
     case "FAILED":
       return "danger";
+    case "DRAFT_CREATED":
     case "PENDING":
       return "neutral";
     default:
@@ -6446,6 +8700,38 @@ function safeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function summaryWindowLabel(hours: number): string {
+  if (hours === 24) return "24h";
+  if (hours === 168) return "7d";
+  if (hours === 744) return "31d";
+  return `${hours}h`;
+}
+
+function formatFailureRate(value?: number): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatCurrencyBreakdown(value?: Record<string, number>): string {
+  const entries = Object.entries(value ?? {}).filter(([, amount]) => typeof amount === "number" && Number.isFinite(amount));
+  if (!entries.length) return "-";
+  return entries.map(([currency, amount]) => formatAiCostAmount(amount, currency)).join(" / ");
+}
+
+function formatAiCostAmount(amount?: number, currency?: string): string {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) return "-";
+  return `${amount.toFixed(4)} ${currency ?? ""}`.trim();
+}
+
+function aiRequestId(item: AiMealDraft): number | undefined {
+  return item.requestId ?? item.id;
+}
+
+function canRefundAiRequest(item: AiMealDraft): boolean {
+  return item.status === "REJECTED"
+    && Boolean(item.quotaConsumed)
+    && safeNumber(item.refundableAmount) > 0;
+}
 function formatAiCost(item: AiMealDraft): string {
   if (typeof item.estimatedCost !== "number") return "-";
   return `${item.estimatedCost.toFixed(4)} ${item.costCurrency ?? ""}`.trim();

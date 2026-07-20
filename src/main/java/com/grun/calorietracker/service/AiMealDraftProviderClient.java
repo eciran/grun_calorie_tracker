@@ -3,7 +3,13 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideProviderRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideResponseDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
@@ -16,7 +22,11 @@ public interface AiMealDraftProviderClient {
     AiMealDraftResponseDto createVoiceFoodDraft(AiVoiceFoodDraftRequestDto request);
     AiMealDraftResponseDto createPhotoMealDraft(AiPhotoMealDraftRequestDto request);
     AiRecipeDraftResponseDto createRecipeDraft(AiRecipeDraftRequestDto request);
+    AiPreparationGuideResponseDto createPreparationGuide(AiPreparationGuideProviderRequestDto request);
+    AiNutritionPlanDraftResponseDto createNutritionPlanDraft(AiNutritionPlanDraftRequestDto request);
     AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request);
     AiInsightResponseDto createDailyInsight(AiInsightRequestDto request);
     AiInsightResponseDto createWeeklyInsight(AiInsightRequestDto request);
+    AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request);
 }
+

@@ -5,7 +5,19 @@ import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftItemDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDayDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftRequestDto;
+import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
+import com.grun.calorietracker.dto.AiNutritionPlanItemDto;
+import com.grun.calorietracker.dto.AiNutritionPlanMealDto;
+import com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideIngredientDto;
+import com.grun.calorietracker.dto.AiPreparationGuideProviderRequestDto;
+import com.grun.calorietracker.dto.AiPreparationGuideResponseDto;
+import com.grun.calorietracker.dto.AiPreparationGuideStepDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
+import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeIngredientSuggestionDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
@@ -15,16 +27,22 @@ import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanExerciseDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
+import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
+import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -65,10 +83,118 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         response.setReviewRequired(true);
         response.setSuggestedRecipe(sampleRecipe(request));
         response.setSuggestedIngredients(sampleIngredients(request));
-        response.setWarnings(List.of("Ingredients must be reviewed and mapped to real foodItemId values before confirmation."));
+        response.setEstimatedNutritionTotal(sampleNutritionTotal());
+        response.setEstimatedNutritionPerServing(sampleNutritionPerServing());
+        response.setNutritionEstimateNote("Estimated preview nutrition generated from typical ingredient values. Confirmed recipe nutrition is recalculated from matched ingredients.");
+        response.setWarnings(List.of("Ingredients must be reviewed before confirmation. They may remain snapshot ingredients when no reliable catalog match exists."));
         return response;
     }
 
+    @Override
+    public AiPreparationGuideResponseDto createPreparationGuide(AiPreparationGuideProviderRequestDto request) {
+        AiPreparationGuideResponseDto response = new AiPreparationGuideResponseDto();
+        response.setRequestType(AiRequestType.AI_MEAL_PREPARATION_GUIDE);
+        response.setProvider(AiProvider.LOG);
+        response.setModel(properties.getModel());
+        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setPreparationMinutes(10);
+        response.setCookingMinutes(20);
+        response.setEquipment(List.of("Knife", "Pan"));
+        AiPreparationGuideIngredientDto ingredient = new AiPreparationGuideIngredientDto();
+        ingredient.setName(request.getItemName());
+        ingredient.setQuantity(request.getPlannedQuantity());
+        ingredient.setUnit(request.getPlannedUnit());
+        ingredient.setOptional(false);
+        ingredient.setChangesPlannedNutrition(false);
+        response.setIngredients(List.of(ingredient));
+        AiPreparationGuideStepDto step = new AiPreparationGuideStepDto();
+        step.setStepNumber(1);
+        step.setInstruction("Prepare and cook the planned portion until safely done.");
+        step.setDurationMinutes(20);
+        response.setSteps(List.of(step));
+        response.setFoodSafetyNotes(List.of("Cook thoroughly and follow safe handling guidance."));
+        response.setStorageInstructions(List.of("Refrigerate leftovers promptly in a sealed container."));
+        response.setAssumptions(List.of("The planned item snapshot and portion are unchanged."));
+        response.setQualityScore(70);
+        response.setConfidence(0.70);
+        response.setEstimatedUncertainty("MEDIUM");
+        return response;
+    }
+    @Override
+    public AiNutritionPlanDraftResponseDto createNutritionPlanDraft(AiNutritionPlanDraftRequestDto request) {
+        MealPlanNutritionSnapshotDto target = request.getTrustedDailyTarget() == null
+                ? nutrition(2000.0, 130.0, 220.0, 65.0)
+                : request.getTrustedDailyTarget();
+        AiNutritionPlanDraftResponseDto response = new AiNutritionPlanDraftResponseDto();
+        response.setRequestType(AiRequestType.AI_NUTRITION_PLAN);
+        response.setProvider(AiProvider.LOG);
+        response.setModel(properties.getModel());
+        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setGenerationMode(request.getGenerationMode());
+        response.setWorkoutPlanId(request.getWorkoutPlanId());
+        response.setName("Balanced nutrition plan");
+        response.setSummary("A practical nutrition draft built around the user's current target.");
+        response.setProfessionalSummary("Meals distribute energy and protein across the day while keeping portions editable.");
+        response.setStartDate(request.getStartDate());
+        response.setEndDate(request.getStartDate().plusDays(request.getDayCount() - 1L));
+        response.setDailyTarget(target);
+        response.setReviewRequired(true);
+        response.setConfidence(0.72);
+        response.setQualityScore(72);
+        response.setEstimatedUncertainty("MEDIUM");
+        response.setAssumptions(List.of("Ingredient brands and cooking fats may change the final nutrition."));
+        response.setWarnings(List.of("Review allergens and portions before confirming the plan."));
+        response.setNextBestActions(List.of("Review each portion and replace foods that do not fit your preferences."));
+        List<AiNutritionPlanDayDto> days = new ArrayList<>();
+        for (int dayIndex = 0; dayIndex < request.getDayCount(); dayIndex++) {
+            days.add(sampleNutritionDay(request.getStartDate().plusDays(dayIndex), request.getMealsPerDay(), target));
+        }
+        response.setDays(days);
+        return response;
+    }
+
+    private AiNutritionPlanDayDto sampleNutritionDay(LocalDate date, int mealsPerDay, MealPlanNutritionSnapshotDto target) {
+        AiNutritionPlanDayDto day = new AiNutritionPlanDayDto();
+        day.setDate(date);
+        List<AiNutritionPlanMealDto> meals = new ArrayList<>();
+        String[] types = {"BREAKFAST", "LUNCH", "DINNER", "SNACK", "SNACK", "SNACK"};
+        for (int index = 0; index < mealsPerDay; index++) {
+            AiNutritionPlanMealDto meal = new AiNutritionPlanMealDto();
+            meal.setMealType(types[index]);
+            meal.setSummary("Balanced meal with an editable snapshot portion.");
+            MealPlanNutritionSnapshotDto mealNutrition = scale(target, 1.0 / mealsPerDay);
+            AiNutritionPlanItemDto item = new AiNutritionPlanItemDto();
+            item.setDisplayName(index == 0 ? "Greek Yogurt With Oats" : index == 1 ? "Chicken Rice Bowl" : index == 2 ? "Salmon With Vegetables" : "Fruit And Nuts");
+            item.setDescription("Snapshot-based suggestion for user review.");
+            item.setQuantity(1.0);
+            item.setUnit(FoodPortionUnit.SERVING);
+            item.setNutrition(mealNutrition);
+            item.setShortPreparationState("Prepared");
+            item.setWorkoutRelation(MealPlanWorkoutRelation.NONE);
+            item.setAssumptions(List.of("Typical serving values were used."));
+            meal.setItems(List.of(item));
+            meal.setTotalNutrition(mealNutrition);
+            meals.add(meal);
+        }
+        day.setMeals(meals);
+        day.setTotalNutrition(target);
+        return day;
+    }
+
+    private MealPlanNutritionSnapshotDto scale(MealPlanNutritionSnapshotDto source, double factor) {
+        return nutrition(source.getCalories() * factor, source.getProtein() * factor,
+                source.getCarbs() * factor, source.getFat() * factor);
+    }
+
+    private MealPlanNutritionSnapshotDto nutrition(double calories, double protein, double carbs, double fat) {
+        MealPlanNutritionSnapshotDto nutrition = new MealPlanNutritionSnapshotDto();
+        nutrition.setCalories(calories);
+        nutrition.setProtein(protein);
+        nutrition.setCarbs(carbs);
+        nutrition.setFat(fat);
+        nutrition.setFiber(0.0);
+        return nutrition;
+    }
     @Override
     public AiWorkoutPlanDraftResponseDto createWorkoutPlanDraft(AiWorkoutPlanDraftRequestDto request) {
         AiWorkoutPlanDraftResponseDto response = new AiWorkoutPlanDraftResponseDto();
@@ -92,6 +218,51 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
     @Override
     public AiInsightResponseDto createWeeklyInsight(AiInsightRequestDto request) {
         return insight(AiRequestType.AI_WEEKLY_INSIGHT, "Weekly coaching insight", "Use this weekly review to adjust the next week's plan gradually.");
+    }
+
+
+    @Override
+    public AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request) {
+        List<AiProductQualityValidationResponseDto.AiProductQualityIssueDto> issues = new java.util.ArrayList<>();
+        if (request.getCalories() == null || request.getProtein() == null || request.getFat() == null || request.getCarbs() == null) {
+            issues.add(issue(ProductQualitySuggestionType.MISSING_MACRO_DATA, "macros", null, null, "Calories, protein, fat and carbs should be complete before treating this product as trusted.", 82));
+        }
+        if (request.getCalcium() == null || request.getIron() == null || request.getPotassium() == null || request.getVitaminC() == null) {
+            issues.add(issue(ProductQualitySuggestionType.MISSING_MICRO_DATA, "micronutrients", null, null, "Key micronutrients are missing; product quality can be improved with verified label/source data.", 74));
+        }
+        if (request.getServingSizeGrams() == null || request.getServingSizeGrams() <= 0) {
+            issues.add(issue(ProductQualitySuggestionType.MISSING_SERVING_SIZE, "servingSizeGrams", null, null, "Serving conversion may be inaccurate without a serving size in grams.", 78));
+        }
+        Double macroCalories = macroCalories(request);
+        if (request.getCalories() != null && macroCalories != null && Math.abs(request.getCalories() - macroCalories) > 80) {
+            issues.add(issue(ProductQualitySuggestionType.MACRO_CALORIE_MISMATCH, "calories", String.valueOf(request.getCalories()), String.valueOf(Math.round(macroCalories)), "Calories differ materially from protein/fat/carbs energy estimate; review label/source data.", 86));
+        }
+        AiProductQualityValidationResponseDto response = new AiProductQualityValidationResponseDto();
+        response.setSchemaVersion("product_quality_response_v2");
+        response.setSummary(issues.isEmpty() ? "No obvious LOG-provider quality issue found." : "LOG provider found product quality issues for admin review.");
+        response.setConfidence(issues.isEmpty() ? 0.35 : 0.55);
+        response.setQualityScore(issues.isEmpty() ? 75 : Math.max(30, 75 - issues.size() * 10));
+        response.setReviewRequired(!issues.isEmpty());
+        response.setIssues(issues);
+        return response;
+    }
+
+    private AiProductQualityValidationResponseDto.AiProductQualityIssueDto issue(ProductQualitySuggestionType type, String fieldName, String currentValue, String suggestedValue, String reason, Integer confidenceScore) {
+        AiProductQualityValidationResponseDto.AiProductQualityIssueDto issue = new AiProductQualityValidationResponseDto.AiProductQualityIssueDto();
+        issue.setSuggestionType(type);
+        issue.setFieldName(fieldName);
+        issue.setCurrentValue(currentValue);
+        issue.setSuggestedValue(suggestedValue);
+        issue.setReason(reason);
+        issue.setConfidenceScore(confidenceScore);
+        return issue;
+    }
+
+    private Double macroCalories(AiProductQualityValidationRequestDto request) {
+        if (request.getProtein() == null || request.getFat() == null || request.getCarbs() == null) {
+            return null;
+        }
+        return request.getProtein() * 4 + request.getFat() * 9 + request.getCarbs() * 4;
     }
 
     private AiInsightResponseDto insight(AiRequestType type, String title, String summary) {
@@ -156,6 +327,9 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         AiWorkoutPlanDayDto day = new AiWorkoutPlanDayDto();
         day.setDayLabel(label);
         day.setFocus(focus);
+        day.setEstimatedDurationMinutes(35);
+        day.setWarmup("5 minutes easy movement, joint circles, and two light practice sets.");
+        day.setCooldown("3-5 minutes easy walking followed by relaxed stretching for the trained muscles.");
         day.setExercises(List.of(sampleWorkoutExercise("Bodyweight Squat", ExerciseLogMeasurementType.SETS_REPS), sampleWorkoutExercise("Walking", ExerciseLogMeasurementType.DURATION)));
         return day;
     }
@@ -169,6 +343,17 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         exercise.setDurationMinutes(measurementType == ExerciseLogMeasurementType.DURATION ? 20 : null);
         exercise.setRest("60 sec");
         exercise.setRationale("Low-risk foundation movement for consistency.");
+        exercise.setExecutionInstructions("Set up with stable posture, brace your core, move through a comfortable range of motion, and finish each rep under control.");
+        exercise.setFormCues(List.of("Brace core", "Keep the movement controlled", "Avoid rushing reps"));
+        exercise.setCommonMistakes(List.of("Using momentum", "Losing posture", "Ignoring pain signals"));
+        exercise.setTempo(measurementType == ExerciseLogMeasurementType.SETS_REPS ? "2 sec down, controlled up" : "steady conversational pace");
+        exercise.setAlternatives(List.of("Easier variation", "Lower range of motion"));
+        exercise.setRestSeconds(60);
+        exercise.setIntensity("MODERATE");
+        exercise.setProgressionNote("Add 1-2 reps or 2-5 minutes next week only if the session feels controlled.");
+        exercise.setTargetMuscleGroup(measurementType == ExerciseLogMeasurementType.SETS_REPS ? "FULL_BODY" : "CARDIO");
+        exercise.setEquipmentUsed("BODYWEIGHT");
+        exercise.setReviewRequired(false);
         exercise.setSafetyNote("Keep the movement controlled and stop if pain appears.");
         return exercise;
     }
@@ -218,7 +403,28 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         recipe.setTotalYieldGrams(100.0);
         recipe.setDefaultServingGrams(100.0);
         recipe.setIngredients(List.of());
+        recipe.setCookingSteps(List.of(
+                step("Season the main protein and prepare all vegetables before heating the pan."),
+                step("Cook the protein until done, keeping heat controlled to avoid drying it out."),
+                step("Cook or steam vegetables until tender, then season lightly."),
+                step("Plate the protein with vegetables and review portions before saving.")
+        ));
         return recipe;
+    }
+
+
+    private RecipeNutritionDto sampleNutritionTotal() {
+        return new RecipeNutritionDto(520.0, 48.0, 34.0, 18.0, 8.0, 9.0, 4.5, 680.0, 980.0, 95.0, 140.0, 4.2, 85.0, 3.1, 620.0, 42.0, 2.0, 3.5, 2.4);
+    }
+
+    private RecipeNutritionDto sampleNutritionPerServing() {
+        return new RecipeNutritionDto(520.0, 48.0, 34.0, 18.0, 8.0, 9.0, 4.5, 680.0, 980.0, 95.0, 140.0, 4.2, 85.0, 3.1, 620.0, 42.0, 2.0, 3.5, 2.4);
+    }
+
+    private RecipeStepRequestDto step(String instruction) {
+        RecipeStepRequestDto step = new RecipeStepRequestDto();
+        step.setInstruction(instruction);
+        return step;
     }
 
     private List<AiRecipeIngredientSuggestionDto> sampleIngredients(AiRecipeDraftRequestDto request) {
@@ -245,3 +451,7 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         return normalized.length() > 120 ? normalized.substring(0, 120) : normalized;
     }
 }
+
+
+
+

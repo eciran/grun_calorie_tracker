@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -12,7 +13,7 @@ import java.util.List;
 
 @Data
 @Schema(description = "Controlled AI coaching insight. It contains app-scoped observations and actions only.")
-public class AiInsightResponseDto {
+public class AiInsightResponseDto implements AiUsageMetadataCarrier {
     private Long requestId;
     private String schemaVersion = "ai_response_v3";
     private AiRequestType requestType;
@@ -60,6 +61,16 @@ public class AiInsightResponseDto {
 
     @Schema(description = "Plain explanation of data limitations such as missing water, sleep, or incomplete logging.")
     private String dataQualityNote;
+    @JsonIgnore
+    private Integer promptTokens;
+    @JsonIgnore
+    private Integer completionTokens;
+    @JsonIgnore
+    private Integer totalTokens;
+    @JsonIgnore
+    private Double estimatedCost;
+    @JsonIgnore
+    private String costCurrency;
 
     @Data
     public static class DataCoverage {

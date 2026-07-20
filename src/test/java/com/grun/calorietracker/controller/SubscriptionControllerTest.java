@@ -2,8 +2,10 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
+import com.grun.calorietracker.dto.SubscriptionPlanFeatureDto;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionPlan;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.service.SubscriptionService;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -72,4 +76,21 @@ class SubscriptionControllerTest {
                 .andExpect(jsonPath("$.aiRemainingThisPeriod").value(88));
     }
 
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void getPlanFeatureCatalog_returnsAdminManagedRules() throws Exception {
+        SubscriptionPlanFeatureDto dto = new SubscriptionPlanFeatureDto();
+        dto.setPlanType(SubscriptionPlan.PLUS);
+        dto.setFeature(SubscriptionFeature.AI_WORKOUT_PLANNER);
+        dto.setEnabled(false);
+        dto.setAiCreditCost(1);
+        when(subscriptionService.listPlanFeatures()).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/subscriptions/plans/features"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].planType").value("PLUS"))
+                .andExpect(jsonPath("$[0].feature").value("AI_WORKOUT_PLANNER"))
+                .andExpect(jsonPath("$[0].enabled").value(false))
+                .andExpect(jsonPath("$[0].aiCreditCost").value(1));
+    }
 }

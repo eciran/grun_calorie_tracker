@@ -11,6 +11,7 @@ import com.grun.calorietracker.service.AiMealDraftSafetyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
@@ -100,13 +101,49 @@ public class AiMealDraftSafetyServiceImpl implements AiMealDraftSafetyService {
                 .map(String::trim)
                 .filter(prefix -> !prefix.isBlank())
                 .collect(Collectors.toSet());
-        boolean allowed = allowedPrefixes.stream()
+        boolean allowed = isManagedPhotoReference(trimmed) || allowedPrefixes.stream()
+                .filter(prefix -> !isGenericWebPrefix(prefix))
                 .anyMatch(prefix -> trimmed.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT)));
         if (!allowed) {
             throw new IllegalArgumentException("Image reference must use an approved storage prefix.");
         }
     }
 
+    private boolean isManagedPhotoReference(String imageReference) {
+        try {
+            URI reference = URI.create(imageReference);
+            URI publicBase = URI.create(properties.getPhoto().getPublicBaseUrl());
+            if (!equalsIgnoreCase(reference.getScheme(), publicBase.getScheme())
+                    || !equalsIgnoreCase(reference.getHost(), publicBase.getHost())
+                    || effectivePort(reference) != effectivePort(publicBase)
+                    || reference.getRawQuery() != null
+                    || reference.getRawFragment() != null) {
+                return false;
+            }
+            String basePath = publicBase.getPath() == null ? "" : publicBase.getPath().replaceAll("/+$", "");
+            String requiredPath = basePath + "/api/v1/ai/meal-drafts/photo-references/";
+            String referencePath = reference.getPath();
+            return referencePath != null && referencePath.startsWith(requiredPath);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    private boolean isGenericWebPrefix(String prefix) {
+        String normalized = prefix.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("https://") || normalized.equals("http://");
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
+    }
     private boolean containsSensitiveTerms(String text) {
         if (text == null || text.isBlank()) {
             return false;

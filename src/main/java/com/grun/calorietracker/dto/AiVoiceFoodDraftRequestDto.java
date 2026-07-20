@@ -23,4 +23,7 @@ public class AiVoiceFoodDraftRequestDto {
 
     @Schema(description = "Transcript language hint.", example = "en")
     private String locale;
+
+    @Schema(description = "Backend-built user profile context for provider calls. Clients should not set this field.", accessMode = Schema.AccessMode.READ_ONLY)
+    private Object userContext;
 }

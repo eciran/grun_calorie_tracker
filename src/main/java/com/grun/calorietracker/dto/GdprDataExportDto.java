@@ -43,6 +43,7 @@ public class GdprDataExportDto {
     private Long productCorrectionSuggestionCount;
     private Long productAnalyticsEventCount;
     private SubscriptionSnapshotDto subscription;
+    private UserNutritionPreferenceDto nutritionPreferences;
     private List<LinkedIdentityDto> linkedIdentities;
     private List<ConsentExportDto> consents;
     private List<FoodLogExportDto> foodLogs;
@@ -207,9 +208,40 @@ public class GdprDataExportDto {
         private LocalDate startDate;
         private LocalDate endDate;
         private String status;
+
+        private String generationMode;
+        private Long workoutPlanId;
+        private Long sourceAiRequestId;
+        private String schemaVersion;
+        private String promptVersion;
         private Integer itemCount;
+        private List<MealPlanItemExportDto> items;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class MealPlanItemExportDto {
+        private Long id;
+        private LocalDate planDate;
+        private String mealType;
+        private String itemType;
+        private Long foodItemId;
+        private Long recipeId;
+        private Double portionSize;
+        private String portionUnit;
+        private String snapshotName;
+        private String snapshotDescription;
+        private String shortPreparationState;
+        private MealPlanNutritionSnapshotDto snapshotNutrition;
+        private String allergensPayload;
+        private String warningsPayload;
+        private String assumptionsPayload;
+        private String workoutRelation;
+        private Long sourceAiRequestId;
+        private String schemaVersion;
+        private String promptVersion;
     }
 
     @Data

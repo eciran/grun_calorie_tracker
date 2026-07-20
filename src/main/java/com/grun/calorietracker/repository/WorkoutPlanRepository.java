@@ -9,5 +9,6 @@ import java.util.Optional;
 
 public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlanEntity, Long> {
     List<WorkoutPlanEntity> findByUserAndActiveTrueOrderByCreatedAtDesc(UserEntity user);
+    List<WorkoutPlanEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
     Optional<WorkoutPlanEntity> findByIdAndUser(Long id, UserEntity user);
 }

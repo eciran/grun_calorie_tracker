@@ -10,6 +10,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.entity.WaterReminderSettingsEntity;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 class WaterTrackingServiceImplTest {
@@ -47,6 +49,8 @@ class WaterTrackingServiceImplTest {
     private NotificationRepository notificationRepository;
     @Mock
     private PushDeliveryService pushDeliveryService;
+    @Mock
+    private SubscriptionService subscriptionService;
 
     private WaterTrackingServiceImpl service;
     private UserEntity user;
@@ -63,13 +67,30 @@ class WaterTrackingServiceImplTest {
                 userRepository,
                 properties,
                 new UserTimeZoneSupport(),
-                pushDeliveryService
+                pushDeliveryService,
+                subscriptionService
         );
 
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@grun.app");
         user.setTimeZone("Europe/Dublin");
+        when(subscriptionService.hasFeatureAccess(any(), any())).thenReturn(true);
+    }
+
+    @Test
+    void addWaterLog_whenFeatureIsDisabled_stopsBeforePersistence() {
+        WaterLogRequestDto request = new WaterLogRequestDto();
+        request.setLogDate(LocalDate.of(2026, 6, 5));
+        request.setAmountMl(250);
+        doThrow(new IllegalArgumentException("feature disabled"))
+                .when(subscriptionService)
+                .assertFeatureAccess("user@grun.app", SubscriptionFeature.WATER_TRACKING);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.addWaterLog("user@grun.app", request));
+
+        verify(waterLogRepository, never()).save(any(WaterLogEntity.class));
     }
 
     @Test
@@ -379,7 +400,8 @@ class WaterTrackingServiceImplTest {
                 userRepository,
                 properties,
                 new UserTimeZoneSupport(),
-                pushDeliveryService
+                pushDeliveryService,
+                subscriptionService
         );
 
         int created = service.createDueReminderNotifications();

@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.GdprDataExportDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
+import com.grun.calorietracker.dto.UserNutritionPreferenceDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
@@ -23,6 +24,7 @@ import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.UserConsentEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.entity.UserNutritionPreferenceEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -58,6 +60,7 @@ import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
@@ -70,6 +73,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -116,6 +121,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final FailedBarcodeScanRepository failedBarcodeScanRepository;
     private final ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
+    private final UserNutritionPreferenceRepository userNutritionPreferenceRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -124,6 +130,9 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         UserEntity user = findUser(userEmail);
         SubscriptionEntity subscription = subscriptionRepository.findByUser(user).orElse(null);
         List<LinkedIdentityDto> identities = accountIdentityService.listLinkedIdentities(userEmail);
+        UserNutritionPreferenceDto nutritionPreferences = userNutritionPreferenceRepository.findByUser(user)
+                .map(this::toNutritionPreferenceExport)
+                .orElseGet(UserNutritionPreferenceDto::new);
 
         LocalDateTime latestFoodLog = foodLogsRepository.findTopByUserOrderByLogDateDesc(user)
                 .map(FoodLogsEntity::getLogDate)
@@ -177,6 +186,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 productCorrectionSuggestionRepository.countByUser(user),
                 productAnalyticsEventRepository.countByUser(user),
                 subscriptionDto,
+                nutritionPreferences,
                 identities,
                 userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
                 foodLogsRepository.findByUser(user).stream().map(this::toFoodLogExport).toList(),
@@ -259,6 +269,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         productAnalyticsEventRepository.deleteByUser(user);
         healthConnectionRepository.deleteByUser(user);
         goalRepository.deleteByUser(user);
+        userNutritionPreferenceRepository.deleteByUser(user);
         appliedPromoRepository.deleteByUser(user);
         subscriptionProviderEventRepository.anonymizeUserReferences(user, anonymizedAppUserId, "{}");
         aiRequestHistoryRepository.deleteByUser(user);
@@ -267,6 +278,16 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         foodItemRepository.deleteByCreatedByUserAndIsCustomTrue(user);
 
         userRepository.save(user);
+    }
+
+    private UserNutritionPreferenceDto toNutritionPreferenceExport(
+            UserNutritionPreferenceEntity entity) {
+        UserNutritionPreferenceDto dto = new UserNutritionPreferenceDto();
+        dto.setAllergens(new LinkedHashSet<>(entity.getAllergens()));
+        dto.setExcludedFoods(new ArrayList<>(entity.getExcludedFoods()));
+        dto.setDietaryPreferences(new ArrayList<>(entity.getDietaryPreferences()));
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        return dto;
     }
 
     private UserEntity findUser(String userEmail) {
@@ -396,15 +417,56 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     }
 
     private GdprDataExportDto.MealPlanExportDto toMealPlanExport(MealPlanEntity plan) {
+        List<GdprDataExportDto.MealPlanItemExportDto> items = plan.getItems() == null
+                ? List.of()
+                : plan.getItems().stream().map(this::toMealPlanItemExport).toList();
         return new GdprDataExportDto.MealPlanExportDto(
                 plan.getId(),
                 plan.getName(),
                 plan.getStartDate(),
                 plan.getEndDate(),
                 plan.getStatus() == null ? null : plan.getStatus().name(),
-                plan.getItems() == null ? 0 : plan.getItems().size(),
+                plan.getGenerationMode() == null ? null : plan.getGenerationMode().name(),
+                plan.getWorkoutPlan() == null ? null : plan.getWorkoutPlan().getId(),
+                plan.getSourceAiRequest() == null ? null : plan.getSourceAiRequest().getId(),
+                plan.getSchemaVersion(),
+                plan.getPromptVersion(),
+                items.size(),
+                items,
                 plan.getCreatedAt(),
                 plan.getUpdatedAt()
+        );
+    }
+
+    private GdprDataExportDto.MealPlanItemExportDto toMealPlanItemExport(com.grun.calorietracker.entity.MealPlanItemEntity item) {
+        com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto nutrition =
+                item.getSnapshotCalories() == null ? null : new com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto(
+                        item.getSnapshotCalories(), item.getSnapshotProtein(), item.getSnapshotCarbs(), item.getSnapshotFat(),
+                        item.getSnapshotFiber(), item.getSnapshotSugar(), item.getSnapshotSaturatedFat(), item.getSnapshotSodium(),
+                        item.getSnapshotPotassium(), item.getSnapshotCholesterol(), item.getSnapshotCalcium(), item.getSnapshotIron(),
+                        item.getSnapshotMagnesium(), item.getSnapshotZinc(), item.getSnapshotVitaminA(), item.getSnapshotVitaminC(),
+                        item.getSnapshotVitaminD(), item.getSnapshotVitaminE(), item.getSnapshotVitaminB12()
+                );
+        return new GdprDataExportDto.MealPlanItemExportDto(
+                item.getId(),
+                item.getPlanDate(),
+                item.getMealType(),
+                item.getItemType() == null ? null : item.getItemType().name(),
+                item.getFoodItem() == null ? null : item.getFoodItem().getId(),
+                item.getRecipe() == null ? null : item.getRecipe().getId(),
+                item.getPortionSize(),
+                item.getPortionUnit() == null ? null : item.getPortionUnit().name(),
+                item.getSnapshotName(),
+                item.getSnapshotDescription(),
+                item.getShortPreparationState(),
+                nutrition,
+                item.getAllergensPayload(),
+                item.getWarningsPayload(),
+                item.getAssumptionsPayload(),
+                item.getWorkoutRelation() == null ? null : item.getWorkoutRelation().name(),
+                item.getSourceAiRequest() == null ? null : item.getSourceAiRequest().getId(),
+                item.getSchemaVersion(),
+                item.getPromptVersion()
         );
     }
 

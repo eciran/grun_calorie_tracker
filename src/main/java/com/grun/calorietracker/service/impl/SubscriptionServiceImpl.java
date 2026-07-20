@@ -23,6 +23,7 @@ import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.MailDeliveryService;
+import com.grun.calorietracker.service.AiCreditPricingService;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,6 +51,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final UserSubscriptionEntitlementRepository userSubscriptionEntitlementRepository;
     private final NotificationRepository notificationRepository;
     private final MailDeliveryService mailDeliveryService;
+    private final AiCreditPricingService aiCreditPricingService;
 
     @Override
     public SubscriptionDto getCurrentSubscription(String email) {
@@ -93,10 +96,26 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             case AI_MEAL_DRAFTS -> Boolean.TRUE.equals(access.getAiMealDrafts());
             case AI_WORKOUT_PLANNER -> Boolean.TRUE.equals(access.getAiWorkoutPlanner());
             case AI_RECIPE_GENERATION -> Boolean.TRUE.equals(access.getAiRecipeGeneration());
+            case AI_MEAL_PREPARATION_GUIDE -> Boolean.TRUE.equals(access.getAiMealPreparationGuide());
+            case AI_NUTRITION_PLAN -> Boolean.TRUE.equals(access.getAiNutritionPlan());
             case AI_INSIGHTS -> Boolean.TRUE.equals(access.getAiInsights());
             case HEALTH_INTEGRATION -> Boolean.TRUE.equals(access.getHealthIntegration());
             case ADVANCED_ANALYTICS -> Boolean.TRUE.equals(access.getAdvancedAnalytics());
             case AD_FREE -> Boolean.TRUE.equals(access.getAdFree());
+            case BARCODE_SCANNER -> Boolean.TRUE.equals(access.getBarcodeScanner());
+            case MANUAL_FOOD_LOGGING -> Boolean.TRUE.equals(access.getManualFoodLogging());
+            case FOOD_DIARY -> Boolean.TRUE.equals(access.getFoodDiary());
+            case WEIGHT_PROGRESS -> Boolean.TRUE.equals(access.getWeightProgress());
+            case WATER_TRACKING -> Boolean.TRUE.equals(access.getWaterTracking());
+            case WORKOUT_LOGGING -> Boolean.TRUE.equals(access.getWorkoutLogging());
+            case SAVED_MEAL_TEMPLATES -> Boolean.TRUE.equals(access.getSavedMealTemplates());
+            case RECIPE_BUILDER -> Boolean.TRUE.equals(access.getRecipeBuilder());
+            case PUBLIC_RECIPE_LIBRARY -> Boolean.TRUE.equals(access.getPublicRecipeLibrary());
+            case ADVANCED_MACRO_TARGETS -> Boolean.TRUE.equals(access.getAdvancedMacroTargets());
+            case MICRONUTRIENT_DETAILS -> Boolean.TRUE.equals(access.getMicronutrientDetails());
+            case DATA_EXPORT -> Boolean.TRUE.equals(access.getDataExport());
+            case FASTING_BASIC -> Boolean.TRUE.equals(access.getFastingBasic());
+            case FASTING_ADVANCED -> Boolean.TRUE.equals(access.getFastingAdvanced());
             case CUSTOM_FOOD_LIBRARY -> Boolean.TRUE.equals(access.getCustomFoodLibrary());
         };
     }
@@ -118,12 +137,26 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .toList();
     }
 
+    public SubscriptionPlanFeatureDto updatePlanFeature(SubscriptionPlan planType,
+                                                        SubscriptionFeature feature,
+                                                        boolean enabled,
+                                                        LocalDate effectiveFrom) {
+        return updatePlanFeature(planType, feature, enabled, effectiveFrom, null);
+    }
+
     @Override
     @Transactional
     public SubscriptionPlanFeatureDto updatePlanFeature(SubscriptionPlan planType,
                                                         SubscriptionFeature feature,
                                                         boolean enabled,
-                                                        LocalDate effectiveFrom) {
+                                                        LocalDate effectiveFrom,
+                                                        Integer aiCreditCost) {
+        if ((feature == SubscriptionFeature.AD_FREE || feature == SubscriptionFeature.BARCODE_SCANNER) && !enabled) {
+            throw new IllegalArgumentException(feature + " is enabled for every plan and cannot be disabled.");
+        }
+        if (planType == SubscriptionPlan.FREE && isAiFeature(feature) && enabled) {
+            throw new IllegalArgumentException("FREE plan cannot enable AI features.");
+        }
         SubscriptionPlanFeatureEntity entity = subscriptionPlanFeatureRepository
                 .findByPlanTypeAndFeature(planType, feature)
                 .orElseGet(SubscriptionPlanFeatureEntity::new);
@@ -133,6 +166,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setPlanType(planType);
         entity.setFeature(feature);
         entity.setEnabled(enabled);
+        int resolvedCreditCost = aiCreditCost == null ? (entity.getAiCreditCost() == null ? 1 : entity.getAiCreditCost()) : aiCreditCost;
+        if (resolvedCreditCost < 1 || resolvedCreditCost > 50) {
+            throw new IllegalArgumentException("AI credit cost must be between 1 and 50.");
+        }
+        entity.setAiCreditCost(resolvedCreditCost);
         entity.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
         entity.setUpdatedAt(LocalDateTime.now());
         SubscriptionPlanFeatureDto dto = toPlanFeatureDto(subscriptionPlanFeatureRepository.save(entity));
@@ -145,22 +183,40 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional
     public SubscriptionDto consumeAiQuota(String email) {
+        return consumeAiQuota(email, 1);
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionDto consumeAiQuota(String email, int amount) {
+        if (amount < 1 || amount > 50) {
+            throw new IllegalArgumentException("AI quota amount must be between 1 and 50.");
+        }
         UserEntity user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         SubscriptionEntity entity = subscriptionRepository.findByUser(user)
                 .orElseGet(() -> defaultEntity(user));
         resetAiQuotaIfPeriodExpired(entity);
         SubscriptionDto current = toDto(entity);
-        if (!Boolean.TRUE.equals(current.getAiAccessAllowed())) {
-            throw new IllegalArgumentException("AI quota is not available for the current subscription.");
+        if (!Boolean.TRUE.equals(current.getAiAccessAllowed())
+                || current.getAiRemainingThisPeriod() == null
+                || current.getAiRemainingThisPeriod() < amount) {
+            throw new IllegalArgumentException("AI quota is not available for the requested operation.");
         }
         entity.setAiMonthlyQuota(current.getAiMonthlyQuota());
-        entity.setAiUsedThisPeriod(current.getAiUsedThisPeriod() + 1);
+        int addonConsumed = Math.min(amount, safeInt(current.getAiAddonRemainingThisPeriod()));
+        entity.setAiAddonUsed(safeInt(entity.getAiAddonUsed()) + addonConsumed);
+        entity.setAiUsedThisPeriod(current.getAiUsedThisPeriod() + amount);
         entity.setUpdatedAt(LocalDateTime.now());
-        SubscriptionEntity saved = subscriptionRepository.save(entity);
-        return toDto(saved);
+        return toDto(subscriptionRepository.save(entity));
     }
 
+    @Override
+    public int resolveAiCreditCost(String email, SubscriptionFeature feature) {
+        userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        return aiCreditPricingService.fixedCost(feature);
+    }
     @Override
     @Transactional
     public SubscriptionDto resetUserAiQuota(Long userId) {
@@ -170,6 +226,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseGet(() -> defaultEntity(user));
         entity.setAiMonthlyQuota(resolveQuota(entity.getPlanType(), entity.getAiMonthlyQuota()));
         entity.setAiUsedThisPeriod(0);
+        entity.setAiAddonUsed(0);
         ensureQuotaPeriod(entity);
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(subscriptionRepository.save(entity));
@@ -188,9 +245,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
                 .orElseGet(() -> defaultEntity(user));
+        if (entity.getPlanType() == SubscriptionPlan.FREE || !isActiveEntitlement(entity.getStatus(), entity.getEndDate())) {
+            throw new IllegalArgumentException("AI add-on quota is available only for an active PLUS or PRO subscription.");
+        }
         ensureQuotaPeriod(entity);
         clearExpiredAiAddonQuota(entity);
-        LocalDate newExpiresAt = LocalDate.now().plusDays(validityDays - 1L);
+        LocalDate newExpiresAt = LocalDate.now().plusDays(validityDays);
         entity.setAiAddonQuota(safeInt(entity.getAiAddonQuota()) + amount);
         entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), newExpiresAt));
         entity.setUpdatedAt(LocalDateTime.now());
@@ -203,7 +263,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (amount <= 0) {
             throw new IllegalArgumentException("AI quota refund amount must be greater than zero.");
         }
-        UserEntity user = userRepository.findById(userId)
+        UserEntity user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
                 .orElseGet(() -> defaultEntity(user));
@@ -212,6 +272,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (amount > used) {
             throw new IllegalArgumentException("AI quota refund amount must not exceed used quota.");
         }
+        int addonRefund = Math.min(amount, safeInt(entity.getAiAddonUsed()));
+        entity.setAiAddonUsed(safeInt(entity.getAiAddonUsed()) - addonRefund);
         entity.setAiUsedThisPeriod(used - amount);
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(subscriptionRepository.save(entity));
@@ -231,6 +293,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (Boolean.TRUE.equals(command.getRefund())) {
             if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
                 entity.setAiAddonQuota(Math.max(0, safeInt(entity.getAiAddonQuota()) - command.getAiAddonQuotaAmount()));
+                int adjustedAddonUsed = Math.min(safeInt(entity.getAiAddonUsed()), safeInt(entity.getAiAddonQuota()));
+                int removedConsumedAddon = safeInt(entity.getAiAddonUsed()) - adjustedAddonUsed;
+                entity.setAiAddonUsed(adjustedAddonUsed);
+                entity.setAiUsedThisPeriod(Math.max(0,
+                        safeInt(entity.getAiUsedThisPeriod()) - removedConsumedAddon));
                 if (safeInt(entity.getAiAddonQuota()) == 0) {
                     entity.setAiAddonQuotaExpiresAt(null);
                 }
@@ -240,9 +307,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 entity.setAutoRenew(false);
             }
         } else if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
+            if (entity.getPlanType() == SubscriptionPlan.FREE || !isActiveEntitlement(entity.getStatus(), entity.getEndDate())) {
+                throw new IllegalArgumentException("AI add-on quota is available only for an active PLUS or PRO subscription.");
+            }
             ensureQuotaPeriod(entity);
             entity.setAiAddonQuota(safeInt(entity.getAiAddonQuota()) + command.getAiAddonQuotaAmount());
-            LocalDate expiresAt = LocalDate.now().plusDays(resolveAddonValidityDays(command) - 1L);
+            LocalDate expiresAt = LocalDate.now().plusDays(resolveAddonValidityDays(command));
             entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), expiresAt));
         } else if (command.getPlanType() != null && command.getStatus() != null) {
             refreshEntitlements = true;
@@ -290,7 +360,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionEntity entity = subscriptionRepository.findByUserId(userId).orElseGet(SubscriptionEntity::new);
         clearExpiredAiAddonQuota(entity);
         int quota = resolveQuota(request.getPlanType(), request.getAiMonthlyQuota());
-        int used = request.getAiUsedThisPeriod() == null ? 0 : request.getAiUsedThisPeriod();
+        boolean downgradingToFree = request.getPlanType() == SubscriptionPlan.FREE;
+        int used = downgradingToFree || request.getAiUsedThisPeriod() == null ? 0 : request.getAiUsedThisPeriod();
+        if (downgradingToFree) {
+            entity.setAiAddonQuota(0);
+            entity.setAiAddonUsed(0);
+            entity.setAiAddonQuotaExpiresAt(null);
+        }
         validateQuotaUsage(quota + safeInt(entity.getAiAddonQuota()), used);
 
         entity.setUser(user);
@@ -301,9 +377,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setEndDate(request.getEndDate());
         entity.setAiMonthlyQuota(quota);
         entity.setAiUsedThisPeriod(used);
+        entity.setAiAddonUsed(Math.min(safeInt(entity.getAiAddonUsed()), Math.min(safeInt(entity.getAiAddonQuota()), used)));
         entity.setAiQuotaPeriodStartDate(resolvePeriodStart(request.getStartDate()));
         entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(request.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), request.getEndDate()));
-        entity.setAutoRenew(Boolean.TRUE.equals(request.getAutoRenew()));
+        entity.setAutoRenew(!downgradingToFree && (request.getAutoRenew() == null || Boolean.TRUE.equals(request.getAutoRenew())));
         entity.setProvider(resolvePaymentProvider(request.getProvider()));
         entity.setProviderSubscriptionId(trimToNull(request.getProviderSubscriptionId()));
         entity.setUpdatedAt(LocalDateTime.now());
@@ -321,6 +398,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiAddonQuotaExpiresAt(null);
         dto.setAiMonthlyQuota(resolveQuota(SubscriptionPlan.FREE, null));
         dto.setAiAddonQuota(0);
+        dto.setAiAddonUsed(0);
         dto.setAiTotalQuotaThisPeriod(dto.getAiMonthlyQuota());
         dto.setAiUsedThisPeriod(0);
         dto.setAiBaseRemainingThisPeriod(dto.getAiMonthlyQuota());
@@ -347,10 +425,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiAddonQuotaExpiresAt(entity.getAiAddonQuotaExpiresAt());
         dto.setAiMonthlyQuota(resolveQuota(dto.getPlanType(), entity.getAiMonthlyQuota()));
         dto.setAiAddonQuota(safeInt(entity.getAiAddonQuota()));
+        dto.setAiAddonUsed(Math.min(dto.getAiAddonQuota(), safeInt(entity.getAiAddonUsed())));
         dto.setAiTotalQuotaThisPeriod(dto.getAiMonthlyQuota() + dto.getAiAddonQuota());
         dto.setAiUsedThisPeriod(safeInt(entity.getAiUsedThisPeriod()));
-        dto.setAiBaseRemainingThisPeriod(Math.max(0, dto.getAiMonthlyQuota() - dto.getAiUsedThisPeriod()));
-        dto.setAiAddonRemainingThisPeriod(Math.max(0, dto.getAiTotalQuotaThisPeriod() - dto.getAiUsedThisPeriod() - dto.getAiBaseRemainingThisPeriod()));
+        int baseUsed = Math.max(0, dto.getAiUsedThisPeriod() - dto.getAiAddonUsed());
+        dto.setAiBaseRemainingThisPeriod(Math.max(0, dto.getAiMonthlyQuota() - baseUsed));
+        dto.setAiAddonRemainingThisPeriod(Math.max(0, dto.getAiAddonQuota() - dto.getAiAddonUsed()));
         dto.setAiRemainingThisPeriod(dto.getAiBaseRemainingThisPeriod() + dto.getAiAddonRemainingThisPeriod());
         dto.setActiveEntitlement(isActiveEntitlement(dto.getStatus(), entity.getEndDate()));
         dto.setAiAccessAllowed(Boolean.TRUE.equals(dto.getActiveEntitlement()) && dto.getAiRemainingThisPeriod() > 0);
@@ -366,20 +446,55 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionFeatureAccessDto dto = new SubscriptionFeatureAccessDto();
         dto.setPlanType(subscription.getPlanType());
         dto.setActiveEntitlement(active);
+        EnumMap<SubscriptionFeature, Integer> aiCreditCosts = new EnumMap<>(SubscriptionFeature.class);
+        for (SubscriptionFeature feature : SubscriptionFeature.values()) {
+            if (isAiFeature(feature)) {
+                aiCreditCosts.put(feature, resolvePlanCreditCost(subscription.getPlanType(), feature));
+            }
+        }
+        dto.setAiCreditCosts(aiCreditCosts);
+        dto.setBarcodeScanner(featureAllowed(subscription, entity, SubscriptionFeature.BARCODE_SCANNER));
+        dto.setManualFoodLogging(featureAllowed(subscription, entity, SubscriptionFeature.MANUAL_FOOD_LOGGING));
+        dto.setFoodDiary(featureAllowed(subscription, entity, SubscriptionFeature.FOOD_DIARY));
+        dto.setWeightProgress(featureAllowed(subscription, entity, SubscriptionFeature.WEIGHT_PROGRESS));
+        dto.setWaterTracking(featureAllowed(subscription, entity, SubscriptionFeature.WATER_TRACKING));
+        dto.setWorkoutLogging(featureAllowed(subscription, entity, SubscriptionFeature.WORKOUT_LOGGING));
+        dto.setSavedMealTemplates(featureAllowed(subscription, entity, SubscriptionFeature.SAVED_MEAL_TEMPLATES));
+        dto.setRecipeBuilder(featureAllowed(subscription, entity, SubscriptionFeature.RECIPE_BUILDER));
+        dto.setPublicRecipeLibrary(featureAllowed(subscription, entity, SubscriptionFeature.PUBLIC_RECIPE_LIBRARY));
+        dto.setAdvancedMacroTargets(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_MACRO_TARGETS));
+        dto.setMicronutrientDetails(featureAllowed(subscription, entity, SubscriptionFeature.MICRONUTRIENT_DETAILS));
+        dto.setDataExport(featureAllowed(subscription, entity, SubscriptionFeature.DATA_EXPORT));
+        dto.setFastingBasic(featureAllowed(subscription, entity, SubscriptionFeature.FASTING_BASIC));
+        dto.setFastingAdvanced(featureAllowed(subscription, entity, SubscriptionFeature.FASTING_ADVANCED));
         dto.setAiMealDrafts(featureAllowed(subscription, entity, SubscriptionFeature.AI_MEAL_DRAFTS)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiMealDraftsCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_MEAL_DRAFTS));
         dto.setAiWorkoutPlanner(featureAllowed(subscription, entity, SubscriptionFeature.AI_WORKOUT_PLANNER)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiWorkoutPlannerCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_WORKOUT_PLANNER));
         dto.setAiRecipeGeneration(featureAllowed(subscription, entity, SubscriptionFeature.AI_RECIPE_GENERATION)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiRecipeGenerationCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_RECIPE_GENERATION));
+        dto.setAiMealPreparationGuide(featureAllowed(subscription, entity, SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiMealPreparationGuideCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE));
+        dto.setAiNutritionPlan(featureAllowed(subscription, entity, SubscriptionFeature.AI_NUTRITION_PLAN)
+                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiNutritionPlanBaseCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_NUTRITION_PLAN));
         dto.setAiInsights(featureAllowed(subscription, entity, SubscriptionFeature.AI_INSIGHTS)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiInsightsCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_INSIGHTS));
         dto.setHealthIntegration(featureAllowed(subscription, entity, SubscriptionFeature.HEALTH_INTEGRATION));
         dto.setAdvancedAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_ANALYTICS));
         dto.setAdFree(featureAllowed(subscription, entity, SubscriptionFeature.AD_FREE));
         dto.setCustomFoodLibrary(featureAllowed(subscription, entity, SubscriptionFeature.CUSTOM_FOOD_LIBRARY));
         dto.setAiMonthlyQuota(subscription.getAiMonthlyQuota());
         dto.setAiAddonQuota(subscription.getAiAddonQuota());
+        dto.setAiUsedThisPeriod(subscription.getAiUsedThisPeriod());
+        dto.setAiBaseRemainingThisPeriod(subscription.getAiBaseRemainingThisPeriod());
+        dto.setAiAddonRemainingThisPeriod(subscription.getAiAddonRemainingThisPeriod());
+        dto.setAiAddonQuotaExpiresAt(subscription.getAiAddonQuotaExpiresAt());
         dto.setAiRemainingThisPeriod(subscription.getAiRemainingThisPeriod());
         return dto;
     }
@@ -388,12 +503,23 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (!Boolean.TRUE.equals(subscription.getActiveEntitlement())) {
             return false;
         }
-        if (entity != null
-                && entity.getId() != null
-                && userSubscriptionEntitlementRepository.countBySubscription(entity) > 0) {
-            return userSubscriptionEntitlementRepository.existsActiveFeature(entity.getId(), feature, LocalDate.now());
+        if (feature == SubscriptionFeature.AD_FREE || feature == SubscriptionFeature.BARCODE_SCANNER) {
+            return true;
+        }
+        if (subscription.getPlanType() == SubscriptionPlan.FREE && isAiFeature(feature)) {
+            return false;
+        }
+        if (entity != null && entity.getId() != null) {
+            LocalDate today = LocalDate.now();
+            if (userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(entity.getId(), subscription.getPlanType(), today)) {
+                return userSubscriptionEntitlementRepository.existsActiveFeature(entity.getId(), feature, subscription.getPlanType(), today);
+            }
         }
         return isPlanFeatureEnabled(subscription.getPlanType(), feature);
+    }
+
+    private int resolvePlanCreditCost(SubscriptionPlan planType, SubscriptionFeature feature) {
+        return aiCreditPricingService.fixedCost(feature);
     }
 
     private boolean isPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
@@ -403,28 +529,58 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
+        if (feature == SubscriptionFeature.AD_FREE
+                || feature == SubscriptionFeature.BARCODE_SCANNER
+                || feature == SubscriptionFeature.MANUAL_FOOD_LOGGING
+                || feature == SubscriptionFeature.FOOD_DIARY
+                || feature == SubscriptionFeature.WEIGHT_PROGRESS
+                || feature == SubscriptionFeature.WATER_TRACKING
+                || feature == SubscriptionFeature.WORKOUT_LOGGING
+                || feature == SubscriptionFeature.SAVED_MEAL_TEMPLATES
+                || feature == SubscriptionFeature.RECIPE_BUILDER
+                || feature == SubscriptionFeature.PUBLIC_RECIPE_LIBRARY
+                || feature == SubscriptionFeature.FASTING_BASIC
+                || feature == SubscriptionFeature.CUSTOM_FOOD_LIBRARY) {
+            return true;
+        }
+        if (planType == SubscriptionPlan.FREE && isAiFeature(feature)) {
+            return false;
+        }
+        return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
+    }
+
+    private boolean isAiFeature(SubscriptionFeature feature) {
         return switch (feature) {
-            case AI_MEAL_DRAFTS, AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION, AI_INSIGHTS, CUSTOM_FOOD_LIBRARY -> true;
-            case HEALTH_INTEGRATION, ADVANCED_ANALYTICS -> planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
-            case AD_FREE -> planType == SubscriptionPlan.PRO;
+            case AI_MEAL_DRAFTS, AI_WORKOUT_PLANNER, AI_RECIPE_GENERATION,
+                    AI_MEAL_PREPARATION_GUIDE, AI_NUTRITION_PLAN, AI_INSIGHTS -> true;
+            default -> false;
         };
     }
 
     private void syncEntitlementsForCurrentPeriod(SubscriptionEntity entity) {
-        if (entity.getUser() == null || entity.getPlanType() == null || !isActiveEntitlement(entity.getStatus(), entity.getEndDate())) {
+        if (entity.getUser() == null || entity.getPlanType() == null) {
             return;
         }
-        LocalDate validFrom = entity.getStartDate() == null ? LocalDate.now() : entity.getStartDate();
-        LocalDate validUntil = entity.getEndDate();
+        LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
         for (UserSubscriptionEntitlementEntity existing : userSubscriptionEntitlementRepository.findBySubscription(entity)) {
-            if (existing.getValidUntil() == null || !existing.getValidUntil().isBefore(validFrom)) {
+            if (Boolean.TRUE.equals(existing.getEnabled())
+                    && existing.getValidFrom() != null
+                    && !existing.getValidFrom().isAfter(today)
+                    && (existing.getValidUntil() == null || !existing.getValidUntil().isBefore(today))) {
                 existing.setEnabled(false);
-                existing.setValidUntil(validFrom.minusDays(1));
+                existing.setValidUntil(today.minusDays(1));
                 existing.setUpdatedAt(now);
                 userSubscriptionEntitlementRepository.save(existing);
             }
         }
+        if (entity.getPlanType() == SubscriptionPlan.FREE || !isActiveEntitlement(entity.getStatus(), entity.getEndDate())) {
+            return;
+        }
+        LocalDate validFrom = entity.getStartDate() == null || entity.getStartDate().isBefore(today)
+                ? today
+                : entity.getStartDate();
+        LocalDate validUntil = entity.getEndDate();
         for (SubscriptionFeature feature : SubscriptionFeature.values()) {
             if (isPlanFeatureEnabled(entity.getPlanType(), feature)) {
                 UserSubscriptionEntitlementEntity entitlement = new UserSubscriptionEntitlementEntity();
@@ -447,6 +603,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setPlanType(entity.getPlanType());
         dto.setFeature(entity.getFeature());
         dto.setEnabled(entity.getEnabled());
+        dto.setAiCreditCost(entity.getAiCreditCost() == null ? 1 : entity.getAiCreditCost());
         dto.setEffectiveFrom(entity.getEffectiveFrom());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
@@ -535,6 +692,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setBillingPeriod(BillingPeriod.NONE);
         entity.setAiMonthlyQuota(resolveQuota(SubscriptionPlan.FREE, null));
         entity.setAiAddonQuota(0);
+        entity.setAiAddonUsed(0);
         entity.setAiAddonQuotaExpiresAt(null);
         entity.setAiUsedThisPeriod(0);
         entity.setAiQuotaPeriodStartDate(LocalDate.now());
@@ -611,7 +769,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             ensureQuotaPeriod(entity);
             return;
         }
-        entity.setAiUsedThisPeriod(0);
+        entity.setAiUsedThisPeriod(safeInt(entity.getAiAddonUsed()));
         entity.setAiQuotaPeriodStartDate(LocalDate.now());
         entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(entity.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), entity.getEndDate()));
     }
@@ -638,14 +796,17 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private int resolveQuota(SubscriptionPlan plan, Integer explicitQuota) {
+        if (plan == SubscriptionPlan.FREE) {
+            return 0;
+        }
         if (explicitQuota != null) {
             return explicitQuota;
         }
         if (plan == SubscriptionPlan.PRO) {
-            return 100;
+            return 150;
         }
         if (plan == SubscriptionPlan.PLUS) {
-            return 15;
+            return 50;
         }
         return 0;
     }
@@ -656,7 +817,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private void clearExpiredAiAddonQuota(SubscriptionEntity entity) {
         if (entity.getAiAddonQuotaExpiresAt() != null && entity.getAiAddonQuotaExpiresAt().isBefore(LocalDate.now())) {
+            entity.setAiUsedThisPeriod(Math.max(0, safeInt(entity.getAiUsedThisPeriod()) - safeInt(entity.getAiAddonUsed())));
             entity.setAiAddonQuota(0);
+            entity.setAiAddonUsed(0);
             entity.setAiAddonQuotaExpiresAt(null);
         }
     }

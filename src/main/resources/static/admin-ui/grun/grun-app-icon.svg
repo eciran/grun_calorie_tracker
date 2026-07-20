@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">GRUN app icon</title>
+  <defs>
+  <linearGradient id="grun-gradient" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#C20FE7"/>
+    <stop offset="0.42" stop-color="#7B1BC4"/>
+    <stop offset="0.72" stop-color="#49106F"/>
+    <stop offset="1" stop-color="#8F66E9"/>
+  </linearGradient>
+  <radialGradient id="grun-glow" cx="18%" cy="12%" r="92%">
+    <stop offset="0" stop-color="#E315F2" stop-opacity=".55"/>
+    <stop offset=".58" stop-color="#6B16B9" stop-opacity=".08"/>
+    <stop offset="1" stop-color="#24052B" stop-opacity=".42"/>
+  </radialGradient>
+  <pattern id="grun-facets" width="320" height="240" patternUnits="userSpaceOnUse">
+    <path d="M0 0 126 0 42 88Z" fill="#FFFFFF" opacity=".025"/>
+    <path d="M126 0 250 52 42 88Z" fill="#24052B" opacity=".045"/>
+    <path d="M250 52 320 0 320 142Z" fill="#FFFFFF" opacity=".02"/>
+    <path d="M42 88 190 176 0 240Z" fill="#FFFFFF" opacity=".018"/>
+    <path d="M250 52 320 142 190 176Z" fill="#24052B" opacity=".04"/>
+    <path d="M190 176 320 142 320 240 0 240Z" fill="#FFFFFF" opacity=".018"/>
+  </pattern>
+</defs>
+  <rect width="1024" height="1024" fill="url(#grun-gradient)"/>
+  <rect width="1024" height="1024" fill="url(#grun-glow)"/>
+  <rect width="1024" height="1024" fill="url(#grun-facets)"/>
+  <svg x="187" y="170" width="650" height="684" viewBox="-110 -120 190 200" preserveAspectRatio="xMidYMid meet">
+    <path fill="#FFFFFF" transform="scale(1 -1)" d="M 0 0
+  C -10.514 -4.055 -17.527 -11.295 -21.854 -21.378
+  C -22.568 6.379 -7.685 25.813 19.351 30.399
+  C 37.908 32.297 53.032 29.227 71.74 35.178
+  C 72.3 14.411 71 -5.781 61.727 -24.589
+  C 45.305 -57.584 9.555 -68.319 -25.031 -63.026
+  C -61.447 -57.452 -89.832 -29.222 -95.697 7.102
+  C -102.921 51.85 -78.949 94.271 -34.485 106.481
+  C -14.929 111.851 5.129 111.371 24.624 105.943
+  C 39.016 101.289 51.555 94.025 61.924 82.6
+  L 42.614 63.393
+  C 28.781 78.118 10.223 84.991 -9.802 84.058
+  C -47.306 82.31 -71.217 51.889 -67.292 15.019
+  C -64.869 -7.74 -50.413 -27.005 -28.726 -34.674
+  C -15.709 -39.277 -1.904 -39.036 11.209 -35.298
+  C 33.154 -28.245 41.087 -10.329 46.348 11.174
+  C 39.073 6.376 32.046 3.791 23.633 3.552
+  C 15.693 3.268 7.883 2.438 0 0 Z"/>
+  </svg>
+</svg>
