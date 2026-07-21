@@ -169,7 +169,9 @@ public class FoodProductQualityIssueTracker {
         }
 
         Map<FoodProductQualityIssue, FoodProductQualityIssueEntity> activeByType = new LinkedHashMap<>();
-        activeIssues.forEach(issue -> activeByType.put(issue.getIssueType(), issue));
+        activeIssues.stream()
+                .filter(issue -> issue.getIssueType() != FoodProductQualityIssue.STALE_SOURCE)
+                .forEach(issue -> activeByType.put(issue.getIssueType(), issue));
         String identifier = resolveIdentifier(product);
 
         currentIssues.forEach((issueType, reason) -> {

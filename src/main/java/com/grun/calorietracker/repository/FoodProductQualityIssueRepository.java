@@ -12,6 +12,11 @@ public interface FoodProductQualityIssueRepository extends JpaRepository<FoodPro
 
     List<FoodProductQualityIssueEntity> findByFoodItemIdAndResolvedFalse(Long foodItemId);
 
+    List<FoodProductQualityIssueEntity> findByIssueTypeAndResolvedFalse(
+            FoodProductQualityIssue issueType,
+            org.springframework.data.domain.Pageable pageable
+    );
+
     List<FoodProductQualityIssueEntity> findByFoodItemIdInAndResolvedFalse(Collection<Long> foodItemIds);
 
     List<FoodProductQualityIssueEntity> findByFoodItemIdOrderByResolvedAscLastDetectedAtDesc(Long foodItemId);

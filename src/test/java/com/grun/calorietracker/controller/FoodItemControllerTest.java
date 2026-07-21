@@ -8,8 +8,10 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.FoodServingOptionService;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.UserService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -50,6 +52,14 @@ class FoodItemControllerTest {
 
     @MockBean
     private UserService userService;
+
+    @MockBean
+    private SubscriptionService subscriptionService;
+
+    @BeforeEach
+    void allowSubscriptionFeaturesForControllerContract() {
+        when(subscriptionService.hasFeatureAccess(any(), any())).thenReturn(true);
+    }
 
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")

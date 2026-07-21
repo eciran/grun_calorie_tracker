@@ -69,6 +69,16 @@ openfoodfacts:
 grun:
   errors:
     include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
+  food-contribution-storage:
+    provider: ${GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER:LOCAL}
+    max-upload-bytes: ${GRUN_FOOD_CONTRIBUTION_MAX_UPLOAD_BYTES:6291456}
+    allowed-content-types: ${GRUN_FOOD_CONTRIBUTION_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+    storage-directory: ${GRUN_FOOD_CONTRIBUTION_STORAGE_DIRECTORY:storage/food-contribution-evidence}
+    private-base-url: ${GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL:https://api.grun.app}
+    s3:
+      bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
+      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
+      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:product-contributions}
   recipe-media:
     image:
       max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
@@ -145,6 +155,15 @@ grun:
       ai-addon-validity-days:
         grun_ai_15_credits: 30
         grun_ai_50_credits: 30
+  product-search:
+    telemetry-cleanup-cron: ${GRUN_PRODUCT_SEARCH_TELEMETRY_CLEANUP_CRON:0 20 3 * * *}
+  product-catalog:
+    maintenance:
+      stale-days: ${GRUN_PRODUCT_CATALOG_STALE_DAYS:180}
+      batch-size: ${GRUN_PRODUCT_CATALOG_MAINTENANCE_BATCH_SIZE:500}
+      scheduled-quality-enabled: ${GRUN_PRODUCT_CATALOG_SCHEDULED_QUALITY_ENABLED:false}
+      stale-scan-cron: ${GRUN_PRODUCT_CATALOG_STALE_SCAN_CRON:0 10 2 * * *}
+      quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 40 2 * * *}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
     from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}

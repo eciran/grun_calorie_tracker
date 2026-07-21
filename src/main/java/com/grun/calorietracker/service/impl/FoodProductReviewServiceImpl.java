@@ -1364,6 +1364,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     criteriaBuilder.lessThan(root.get("qualityScore"), 60)
             );
             case MISSING_IMAGE -> null;
+            case STALE_SOURCE -> null;
             case MISSING_CALORIES -> criteriaBuilder.isNull(root.get("calories"));
             case MISSING_MACROS -> criteriaBuilder.and(
                     criteriaBuilder.isNull(root.get("protein")),

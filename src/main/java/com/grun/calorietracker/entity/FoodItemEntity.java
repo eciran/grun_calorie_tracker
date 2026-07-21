@@ -75,6 +75,7 @@ public class FoodItemEntity {
     private FoodNutritionBasis nutritionBasis;
 
     private Long usageCount;
+    private Long searchSelectionCount;
     private Integer qualityScore;
     private Integer confidenceScore;
     private Boolean autoApprovedForCatalog;
