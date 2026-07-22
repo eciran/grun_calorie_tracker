@@ -150,19 +150,22 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
         validateFoodLogUpdateRequest(dto, entity);
         FoodItemEntity foodItem = resolveFoodItemForUpdate(dto, entity);
-        ensureFoodItemAvailableToUser(foodItem, user);
-
-        entity.setFoodItem(foodItem);
-        entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
-        entity.setPortionSize(dto.getPortionSize());
-        entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
-        entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
-                dto.getPortionSize(),
-                entity.getPortionUnit(),
-                foodItem,
-                entity.getServingOption()
-        ));
-        applyNutritionSnapshot(entity, foodItem);
+        if (foodItem != null) {
+            ensureFoodItemAvailableToUser(foodItem, user);
+            entity.setFoodItem(foodItem);
+            entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
+            entity.setPortionSize(dto.getPortionSize());
+            entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
+            entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
+                    dto.getPortionSize(),
+                    entity.getPortionUnit(),
+                    foodItem,
+                    entity.getServingOption()
+            ));
+            applyNutritionSnapshot(entity, foodItem);
+        } else {
+            updateSnapshotOnlyPortion(entity, dto);
+        }
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
         entity.setSource(resolveSource(dto.getSource(), entity.getSource()));
@@ -549,11 +552,24 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (dto.getSnapshotCalories() == null || dto.getSnapshotCalories() < 0) {
             throw new IllegalArgumentException("Snapshot calories must be provided for AI estimate food logs.");
         }
-        if ((dto.getSnapshotProtein() != null && dto.getSnapshotProtein() < 0)
-                || (dto.getSnapshotCarbs() != null && dto.getSnapshotCarbs() < 0)
-                || (dto.getSnapshotFat() != null && dto.getSnapshotFat() < 0)) {
-            throw new IllegalArgumentException("Snapshot macros must not be negative for AI estimate food logs.");
-        }
+        validateSnapshotNutritionValue(dto.getSnapshotProtein(), "protein");
+        validateSnapshotNutritionValue(dto.getSnapshotCarbs(), "carbohydrate");
+        validateSnapshotNutritionValue(dto.getSnapshotFat(), "fat");
+        validateSnapshotNutritionValue(dto.getSnapshotFiber(), "fiber");
+        validateSnapshotNutritionValue(dto.getSnapshotSugar(), "sugar");
+        validateSnapshotNutritionValue(dto.getSnapshotSaturatedFat(), "saturated fat");
+        validateSnapshotNutritionValue(dto.getSnapshotSodium(), "sodium");
+        validateSnapshotNutritionValue(dto.getSnapshotPotassium(), "potassium");
+        validateSnapshotNutritionValue(dto.getSnapshotCholesterol(), "cholesterol");
+        validateSnapshotNutritionValue(dto.getSnapshotCalcium(), "calcium");
+        validateSnapshotNutritionValue(dto.getSnapshotIron(), "iron");
+        validateSnapshotNutritionValue(dto.getSnapshotMagnesium(), "magnesium");
+        validateSnapshotNutritionValue(dto.getSnapshotZinc(), "zinc");
+        validateSnapshotNutritionValue(dto.getSnapshotVitaminA(), "vitamin A");
+        validateSnapshotNutritionValue(dto.getSnapshotVitaminC(), "vitamin C");
+        validateSnapshotNutritionValue(dto.getSnapshotVitaminD(), "vitamin D");
+        validateSnapshotNutritionValue(dto.getSnapshotVitaminE(), "vitamin E");
+        validateSnapshotNutritionValue(dto.getSnapshotVitaminB12(), "vitamin B12");
         if (dto.getAiConfidence() != null && (dto.getAiConfidence() < 0 || dto.getAiConfidence() > 1)) {
             throw new IllegalArgumentException("AI confidence must be between 0 and 1.");
         }
@@ -563,6 +579,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         String mealType = normalizeMealType(dto.getMealType());
         if (!List.of("BREAKFAST", "LUNCH", "DINNER", "SNACK").contains(mealType)) {
             throw new IllegalArgumentException("Meal type must be one of BREAKFAST, LUNCH, DINNER, or SNACK.");
+        }
+    }
+
+    private void validateSnapshotNutritionValue(Double value, String field) {
+        if (value != null && (!Double.isFinite(value) || value < 0)) {
+            throw new IllegalArgumentException("Snapshot " + field + " must not be negative or non-finite.");
         }
     }
 
@@ -580,7 +602,9 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (dto == null) {
             throw new IllegalArgumentException("Food log request must not be empty.");
         }
-        if ((dto.getFoodItemId() == null || dto.getFoodItemId() <= 0) && existing.getFoodItem() == null) {
+        if ((dto.getFoodItemId() == null || dto.getFoodItemId() <= 0)
+                && existing.getFoodItem() == null
+                && !hasNutritionSnapshot(existing)) {
             throw new IllegalArgumentException("Food item id must be a positive value.");
         }
         if (dto.getPortionSize() == null || dto.getPortionSize() <= 0) {
@@ -602,6 +626,49 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         }
         return foodItemRepository.findById(requestedFoodItemId)
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
+    }
+
+    private boolean hasNutritionSnapshot(FoodLogsEntity entity) {
+        return entity.getSnapshotCalories() != null
+                || entity.getSnapshotProtein() != null
+                || entity.getSnapshotCarbs() != null
+                || entity.getSnapshotFat() != null;
+    }
+
+    private void updateSnapshotOnlyPortion(FoodLogsEntity entity, FoodLogsDto dto) {
+        double previousPortion = entity.getPortionSize() != null && entity.getPortionSize() > 0
+                ? entity.getPortionSize()
+                : dto.getPortionSize();
+        double ratio = dto.getPortionSize() / previousPortion;
+
+        entity.setFoodItem(null);
+        entity.setServingOption(null);
+        entity.setPortionSize(dto.getPortionSize());
+        entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
+        entity.setNormalizedPortionGrams(scaleSnapshotValue(entity.getNormalizedPortionGrams(), ratio));
+        entity.setSnapshotCalories(scaleSnapshotValue(entity.getSnapshotCalories(), ratio));
+        entity.setSnapshotProtein(scaleSnapshotValue(entity.getSnapshotProtein(), ratio));
+        entity.setSnapshotCarbs(scaleSnapshotValue(entity.getSnapshotCarbs(), ratio));
+        entity.setSnapshotFat(scaleSnapshotValue(entity.getSnapshotFat(), ratio));
+        entity.setSnapshotFiber(scaleSnapshotValue(entity.getSnapshotFiber(), ratio));
+        entity.setSnapshotSugar(scaleSnapshotValue(entity.getSnapshotSugar(), ratio));
+        entity.setSnapshotSaturatedFat(scaleSnapshotValue(entity.getSnapshotSaturatedFat(), ratio));
+        entity.setSnapshotSodium(scaleSnapshotValue(entity.getSnapshotSodium(), ratio));
+        entity.setSnapshotPotassium(scaleSnapshotValue(entity.getSnapshotPotassium(), ratio));
+        entity.setSnapshotCholesterol(scaleSnapshotValue(entity.getSnapshotCholesterol(), ratio));
+        entity.setSnapshotCalcium(scaleSnapshotValue(entity.getSnapshotCalcium(), ratio));
+        entity.setSnapshotIron(scaleSnapshotValue(entity.getSnapshotIron(), ratio));
+        entity.setSnapshotMagnesium(scaleSnapshotValue(entity.getSnapshotMagnesium(), ratio));
+        entity.setSnapshotZinc(scaleSnapshotValue(entity.getSnapshotZinc(), ratio));
+        entity.setSnapshotVitaminA(scaleSnapshotValue(entity.getSnapshotVitaminA(), ratio));
+        entity.setSnapshotVitaminC(scaleSnapshotValue(entity.getSnapshotVitaminC(), ratio));
+        entity.setSnapshotVitaminD(scaleSnapshotValue(entity.getSnapshotVitaminD(), ratio));
+        entity.setSnapshotVitaminE(scaleSnapshotValue(entity.getSnapshotVitaminE(), ratio));
+        entity.setSnapshotVitaminB12(scaleSnapshotValue(entity.getSnapshotVitaminB12(), ratio));
+    }
+
+    private Double scaleSnapshotValue(Double value, double ratio) {
+        return value == null ? null : round(value * ratio);
     }
 
     private void validateFoodLogRequest(FoodLogsDto dto) {

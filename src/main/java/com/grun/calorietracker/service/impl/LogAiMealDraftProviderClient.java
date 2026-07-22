@@ -378,6 +378,12 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         item.setEstimatedProtein(10.0);
         item.setEstimatedCarbs(15.0);
         item.setEstimatedFat(5.0);
+        item.setEstimatedNutrition(new RecipeNutritionDto(
+                150.0, 10.0, 15.0, 5.0, 3.0, 4.0, 1.0,
+                180.0, 320.0, 15.0, 80.0, 1.5, 35.0, 1.0,
+                120.0, 12.0, 0.5, 1.2, 0.4
+        ));
+        item.setNutritionEstimateNote("Sample estimated nutrition for local provider testing.");
         item.setConfidence(0.3);
         return item;
     }

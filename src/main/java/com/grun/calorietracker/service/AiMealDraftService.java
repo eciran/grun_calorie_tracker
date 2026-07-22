@@ -13,6 +13,7 @@ import java.util.List;
 public interface AiMealDraftService {
     AiMealDraftResponseDto createVoiceFoodDraft(String email, AiVoiceFoodDraftRequestDto request);
     AiMealDraftResponseDto createPhotoMealDraft(String email, AiPhotoMealDraftRequestDto request);
+    AiMealDraftResponseDto getDraft(String email, Long requestId);
     AiMealDraftConfirmResponseDto confirmDraft(String email, Long requestId, AiMealDraftConfirmRequestDto request);
     AiRequestHistoryDto rejectDraft(String email, Long requestId, AiMealDraftRejectRequestDto request);
     List<AiRequestHistoryDto> listHistory(String email, int limit);

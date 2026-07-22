@@ -2,8 +2,11 @@ package com.grun.calorietracker.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.grun.calorietracker.config.AiProperties;
+import com.grun.calorietracker.dto.AiMealDraftAlternativeCandidateDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmItemRequestDto;
+import com.grun.calorietracker.dto.AiMealDraftItemDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmRequestDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmResponseDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
@@ -12,6 +15,7 @@ import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
 import com.grun.calorietracker.dto.AiRequestHistoryDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
@@ -42,6 +46,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,6 +68,8 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     private final AiProviderConfigurationValidator providerConfigurationValidator;
     private final AiMealDraftResponseValidator responseValidator;
     private static final String AI_REJECTION_ALERT_TYPE = "ai_rejection_alert";
+    private static final int MAX_CONFIRM_ITEMS = 50;
+    private static final double MAX_CONFIRM_PORTION_SIZE = 10000.0;
 
     private final AiMealDraftSafetyService safetyService;
     private final NotificationRepository notificationRepository;
@@ -80,13 +87,42 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public AiMealDraftResponseDto getDraft(String email, Long requestId) {
+        UserEntity user = getUser(email);
+        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
+                .orElseThrow(() -> new IllegalArgumentException("AI meal draft was not found."));
+        if (history.getRequestType() != AiRequestType.VOICE_FOOD_LOG
+                && history.getRequestType() != AiRequestType.PHOTO_MEAL_LOG) {
+            throw new IllegalArgumentException("AI meal draft was not found.");
+        }
+        AiMealDraftResponseDto draft = readOriginalDraft(history.getOutputPayload());
+        if (draft == null || draft.getItems() == null || draft.getItems().isEmpty()) {
+            throw new IllegalArgumentException("AI meal draft result is unavailable.");
+        }
+        draft.setRequestId(history.getId());
+        draft.setRequestType(history.getRequestType());
+        draft.setStatus(history.getStatus());
+        return draft;
+    }
+
+    @Override
     @Transactional
     public AiMealDraftConfirmResponseDto confirmDraft(String email, Long requestId, AiMealDraftConfirmRequestDto request) {
         UserEntity user = getUser(email);
-        AiRequestHistoryEntity history = getOwnedDraft(requestId, user);
-        List<FoodLogsDto> createdLogs = request.getItems().stream()
-                .map(item -> createFoodLogFromConfirmedItem(item, history, email))
-                .toList();
+        AiRequestHistoryEntity history = getOwnedDraftForConfirm(requestId, user);
+        if (history.getStatus() == AiRequestStatus.CONFIRMED) {
+            return alreadyConfirmedResponse(history);
+        }
+
+        validateConfirmRequest(request);
+        AiMealDraftResponseDto originalDraft = readOriginalDraft(history.getOutputPayload());
+        List<FoodLogsDto> createdLogs = new ArrayList<>();
+        for (int index = 0; index < request.getItems().size(); index++) {
+            AiMealDraftConfirmItemRequestDto confirmedItem = request.getItems().get(index);
+            AiMealDraftItemDto originalItem = originalItemFor(originalDraft, index, confirmedItem);
+            createdLogs.add(createFoodLogFromConfirmedItem(confirmedItem, originalItem, history, email));
+        }
         history.setStatus(AiRequestStatus.CONFIRMED);
         history.setConfirmationPayload(writeJson(createdLogs));
         history.setCorrectionSummary(writeJson(toCorrectionSummary(history.getOutputPayload(), request, createdLogs)));
@@ -97,6 +133,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         response.setRequestId(history.getId());
         response.setStatus(history.getStatus());
         response.setCreatedLogs(createdLogs);
+        response.setAlreadyConfirmed(false);
         return response;
     }
 
@@ -242,50 +279,425 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         }
         return history;
     }
+    private AiRequestHistoryEntity getOwnedDraftForConfirm(Long requestId, UserEntity user) {
+        if (requestId == null || requestId <= 0) {
+            throwConfirmValidation("INVALID_REQUEST_ID");
+        }
+        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
+                .orElseThrow(() -> new IllegalArgumentException("DRAFT_NOT_FOUND"));
+        if (history.getStatus() == AiRequestStatus.CONFIRMED) {
+            return history;
+        }
+        if (history.getStatus() != AiRequestStatus.DRAFT_CREATED) {
+            throwConfirmValidation("DRAFT_NOT_CONFIRMABLE");
+        }
+        return history;
+    }
+
+    private AiMealDraftConfirmResponseDto alreadyConfirmedResponse(AiRequestHistoryEntity history) {
+        AiMealDraftConfirmResponseDto response = new AiMealDraftConfirmResponseDto();
+        response.setRequestId(history.getId());
+        response.setStatus(AiRequestStatus.CONFIRMED);
+        response.setCreatedLogs(readConfirmedLogs(history.getConfirmationPayload()));
+        response.setAlreadyConfirmed(true);
+        return response;
+    }
+
+    private List<FoodLogsDto> readConfirmedLogs(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(payload, new TypeReference<List<FoodLogsDto>>() { });
+        } catch (JsonProcessingException ex) {
+            return List.of();
+        }
+    }
+
+    private void validateConfirmRequest(AiMealDraftConfirmRequestDto request) {
+        if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
+            throwConfirmValidation("MEAL_DRAFT_ITEMS_REQUIRED");
+        }
+        if (request.getItems().size() > MAX_CONFIRM_ITEMS) {
+            throwConfirmValidation("TOO_MANY_ITEMS");
+        }
+        String mealType = null;
+        LocalDateTime logDate = null;
+        for (AiMealDraftConfirmItemRequestDto item : request.getItems()) {
+            validateConfirmItem(item);
+            String currentMealType = item.getMealType().trim().toUpperCase();
+            if (mealType == null) {
+                mealType = currentMealType;
+            } else if (!mealType.equals(currentMealType)) {
+                throwConfirmValidation("INCONSISTENT_MEAL_CONTEXT");
+            }
+            if (logDate == null) {
+                logDate = item.getLogDate();
+            } else if (!logDate.equals(item.getLogDate())) {
+                throwConfirmValidation("INCONSISTENT_MEAL_CONTEXT");
+            }
+        }
+    }
+
+    private void validateConfirmItem(AiMealDraftConfirmItemRequestDto item) {
+        if (item == null) {
+            throwConfirmValidation("INVALID_MEAL_DRAFT_ITEM");
+        }
+        if (item.getMealType() == null || item.getMealType().isBlank()) {
+            throwConfirmValidation("MEAL_TYPE_REQUIRED");
+        }
+        if (!item.getMealType().matches("(?i)BREAKFAST|LUNCH|DINNER|SNACK")) {
+            throwConfirmValidation("MEAL_TYPE_INVALID");
+        }
+        if (item.getLogDate() == null) {
+            throwConfirmValidation("LOG_DATE_REQUIRED");
+        }
+        if (item.getPortionSize() == null || !Double.isFinite(item.getPortionSize())
+                || item.getPortionSize() <= 0 || item.getPortionSize() > MAX_CONFIRM_PORTION_SIZE) {
+            throwConfirmValidation("PORTION_SIZE_INVALID");
+        }
+        if (item.getPortionUnit() == null) {
+            throwConfirmValidation("PORTION_UNIT_REQUIRED");
+        }
+        if (item.getSourceItemIndex() != null && item.getSourceItemIndex() < 0) {
+            throwConfirmValidation("SOURCE_ITEM_INDEX_INVALID");
+        }
+        if (item.getAlternativeCandidateIndex() != null
+                && (item.getAlternativeCandidateIndex() < 0 || item.getAlternativeCandidateIndex() > 1)) {
+            throwConfirmValidation("ALTERNATIVE_CANDIDATE_INVALID");
+        }
+        boolean hasCatalogSource = item.getFoodItemId() != null;
+        boolean hasEstimateSource = normalizeFoodDisplayName(item.getEstimatedFoodName()) != null;
+        if (hasCatalogSource == hasEstimateSource) {
+            throwConfirmValidation("ITEM_SOURCE_INVALID");
+        }
+        if (hasCatalogSource && item.getFoodItemId() <= 0) {
+            throwConfirmValidation("FOOD_ITEM_NOT_FOUND");
+        }
+        if (hasCatalogSource && item.getAlternativeCandidateIndex() != null) {
+            throwConfirmValidation("ITEM_SOURCE_INVALID");
+        }
+        if (hasEstimateSource) {
+            if (normalizeFoodDisplayName(item.getEstimatedFoodName()).length() > 200) {
+                throwConfirmValidation("ESTIMATED_FOOD_NAME_INVALID");
+            }
+            if (item.getAlternativeCandidateIndex() == null) {
+                validateEstimatedMacro(item.getEstimatedCalories());
+                validateEstimatedMacro(item.getEstimatedProtein());
+                validateEstimatedMacro(item.getEstimatedCarbs());
+                validateEstimatedMacro(item.getEstimatedFat());
+                validateOptionalNutrition(item.getEstimatedNutrition());
+            }
+        }
+        if (item.getConfidence() != null && (!Double.isFinite(item.getConfidence())
+                || item.getConfidence() < 0 || item.getConfidence() > 1)) {
+            throwConfirmValidation("CONFIDENCE_INVALID");
+        }
+    }
+
+    private void validateEstimatedMacro(Double value) {
+        if (value == null || !Double.isFinite(value) || value < 0) {
+            throwConfirmValidation("ESTIMATED_NUTRITION_INVALID");
+        }
+    }
+
+    private void throwConfirmValidation(String code) {
+        throw new IllegalArgumentException(code);
+    }
 
     private FoodLogsDto createFoodLogFromConfirmedItem(AiMealDraftConfirmItemRequestDto item,
+                                                       AiMealDraftItemDto originalItem,
                                                        AiRequestHistoryEntity history,
                                                        String email) {
         if (item.getFoodItemId() != null) {
             return foodLogsService.addFoodLog(toFoodLogDto(item, history), email);
         }
-        validateAiEstimateConfirmation(item);
-        return foodLogsService.addAiEstimateFoodLog(toAiEstimateFoodLogDto(item, history), email);
+        RecipeNutritionDto nutrition = resolveConfirmedNutrition(item, originalItem);
+        validateAiEstimateConfirmation(item, nutrition);
+        return foodLogsService.addAiEstimateFoodLog(toAiEstimateFoodLogDto(item, nutrition, history, originalItem), email);
     }
 
-    private FoodLogsDto toAiEstimateFoodLogDto(AiMealDraftConfirmItemRequestDto item, AiRequestHistoryEntity history) {
+    private FoodLogsDto toAiEstimateFoodLogDto(AiMealDraftConfirmItemRequestDto item,
+                                               RecipeNutritionDto nutrition,
+                                               AiRequestHistoryEntity history,
+                                               AiMealDraftItemDto originalItem) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setDisplayName(normalizeFoodDisplayName(item.getEstimatedFoodName()));
         dto.setPortionSize(item.getPortionSize());
         dto.setPortionUnit(item.getPortionUnit());
-        dto.setNormalizedPortionGrams(item.getPortionSize());
-        dto.setSnapshotCalories(item.getEstimatedCalories());
-        dto.setSnapshotProtein(item.getEstimatedProtein());
-        dto.setSnapshotCarbs(item.getEstimatedCarbs());
-        dto.setSnapshotFat(item.getEstimatedFat());
+        dto.setNormalizedPortionGrams(resolveNormalizedPortionGrams(item, originalItem));
+        dto.setSnapshotCalories(nutrition.getCalories());
+        dto.setSnapshotProtein(nutrition.getProtein());
+        dto.setSnapshotCarbs(nutrition.getCarbs());
+        dto.setSnapshotFat(nutrition.getFat());
+        dto.setSnapshotFiber(nutrition.getFiber());
+        dto.setSnapshotSugar(nutrition.getSugar());
+        dto.setSnapshotSaturatedFat(nutrition.getSaturatedFat());
+        dto.setSnapshotSodium(nutrition.getSodium());
+        dto.setSnapshotPotassium(nutrition.getPotassium());
+        dto.setSnapshotCholesterol(nutrition.getCholesterol());
+        dto.setSnapshotCalcium(nutrition.getCalcium());
+        dto.setSnapshotIron(nutrition.getIron());
+        dto.setSnapshotMagnesium(nutrition.getMagnesium());
+        dto.setSnapshotZinc(nutrition.getZinc());
+        dto.setSnapshotVitaminA(nutrition.getVitaminA());
+        dto.setSnapshotVitaminC(nutrition.getVitaminC());
+        dto.setSnapshotVitaminD(nutrition.getVitaminD());
+        dto.setSnapshotVitaminE(nutrition.getVitaminE());
+        dto.setSnapshotVitaminB12(nutrition.getVitaminB12());
         dto.setMealType(item.getMealType());
         dto.setLogDate(item.getLogDate());
         dto.setSource(resolveAiEstimateSource(history.getRequestType()));
         dto.setAiRequestId(history.getId());
-        dto.setAiConfidence(item.getConfidence());
+        dto.setAiConfidence(item.getAlternativeCandidateIndex() == null || originalItem == null
+                ? item.getConfidence()
+                : originalItem.getConfidence());
         return dto;
     }
 
-    private void validateAiEstimateConfirmation(AiMealDraftConfirmItemRequestDto item) {
+    private Double resolveNormalizedPortionGrams(AiMealDraftConfirmItemRequestDto item,
+                                                 AiMealDraftItemDto originalItem) {
+        if (item.getPortionUnit() == com.grun.calorietracker.enums.FoodPortionUnit.GRAM) {
+            return item.getPortionSize();
+        }
+        if (originalItem != null && originalItem.getEstimatedTotalWeightGrams() != null
+                && originalItem.getEstimatedTotalWeightGrams() > 0) {
+            return originalItem.getEstimatedTotalWeightGrams() * portionScale(item, originalItem);
+        }
+        return null;
+    }
+    private void validateAiEstimateConfirmation(AiMealDraftConfirmItemRequestDto item,
+                                                RecipeNutritionDto nutrition) {
         if (item.getEstimatedFoodName() == null || item.getEstimatedFoodName().isBlank()) {
             throw new IllegalArgumentException("Estimated food name is required when no catalog food item is selected.");
         }
-        if (item.getEstimatedCalories() == null || item.getEstimatedCalories() < 0) {
-            throw new IllegalArgumentException("Estimated calories must be provided for unmatched AI items.");
-        }
-        if (item.getEstimatedProtein() == null || item.getEstimatedProtein() < 0
-                || item.getEstimatedCarbs() == null || item.getEstimatedCarbs() < 0
-                || item.getEstimatedFat() == null || item.getEstimatedFat() < 0) {
-            throw new IllegalArgumentException("Estimated macros must be provided for unmatched AI items.");
-        }
+        validateRequiredNutrition(nutrition);
+        validateOptionalNutrition(nutrition);
         if (item.getConfidence() != null && (item.getConfidence() < 0 || item.getConfidence() > 1)) {
             throw new IllegalArgumentException("AI confidence must be between 0 and 1.");
         }
+    }
+
+    private RecipeNutritionDto resolveConfirmedNutrition(AiMealDraftConfirmItemRequestDto item,
+                                                         AiMealDraftItemDto originalItem) {
+        RecipeNutritionDto originalNutrition = nutritionFromOriginal(originalItem);
+        if (item.getAlternativeCandidateIndex() != null) {
+            if (originalNutrition == null) {
+                throwConfirmValidation("ALTERNATIVE_NUTRITION_UNAVAILABLE");
+            }
+            return copyAndScaleNutrition(originalNutrition, portionScale(item, originalItem));
+        }
+        if (item.getEstimatedNutrition() != null) {
+            return copyAndScaleNutrition(item.getEstimatedNutrition(), 1.0);
+        }
+        if (originalNutrition != null) {
+            return copyAndScaleNutrition(originalNutrition, portionScale(item, originalItem));
+        }
+        RecipeNutritionDto legacy = new RecipeNutritionDto();
+        legacy.setCalories(item.getEstimatedCalories());
+        legacy.setProtein(item.getEstimatedProtein());
+        legacy.setCarbs(item.getEstimatedCarbs());
+        legacy.setFat(item.getEstimatedFat());
+        return legacy;
+    }
+
+    private RecipeNutritionDto nutritionFromOriginal(AiMealDraftItemDto originalItem) {
+        if (originalItem == null) {
+            return null;
+        }
+        if (originalItem.getEstimatedNutrition() != null) {
+            return originalItem.getEstimatedNutrition();
+        }
+        if (originalItem.getEstimatedCalories() == null
+                && originalItem.getEstimatedProtein() == null
+                && originalItem.getEstimatedCarbs() == null
+                && originalItem.getEstimatedFat() == null) {
+            return null;
+        }
+        RecipeNutritionDto nutrition = new RecipeNutritionDto();
+        nutrition.setCalories(originalItem.getEstimatedCalories());
+        nutrition.setProtein(originalItem.getEstimatedProtein());
+        nutrition.setCarbs(originalItem.getEstimatedCarbs());
+        nutrition.setFat(originalItem.getEstimatedFat());
+        return nutrition;
+    }
+
+    private double portionScale(AiMealDraftConfirmItemRequestDto item, AiMealDraftItemDto originalItem) {
+        if (originalItem == null || item.getPortionSize() == null || item.getPortionSize() <= 0
+                || item.getPortionUnit() == null) {
+            return 1.0;
+        }
+        if (originalItem.getQuantity() != null && originalItem.getQuantity() > 0
+                && equivalentUnit(originalItem.getUnit(), item.getPortionUnit().name())) {
+            return item.getPortionSize() / originalItem.getQuantity();
+        }
+        if (item.getPortionUnit() == com.grun.calorietracker.enums.FoodPortionUnit.GRAM
+                && originalItem.getEstimatedTotalWeightGrams() != null
+                && originalItem.getEstimatedTotalWeightGrams() > 0) {
+            return item.getPortionSize() / originalItem.getEstimatedTotalWeightGrams();
+        }
+        if (item.getPortionUnit() == com.grun.calorietracker.enums.FoodPortionUnit.PIECE
+                && originalItem.getDetectedPieceCount() != null
+                && originalItem.getDetectedPieceCount() > 0) {
+            return item.getPortionSize() / originalItem.getDetectedPieceCount();
+        }
+        return 1.0;
+    }
+
+    private boolean equivalentUnit(String providerUnit, String confirmedUnit) {
+        if (providerUnit == null || confirmedUnit == null) {
+            return false;
+        }
+        String normalized = providerUnit.trim().toUpperCase().replace(" ", "_");
+        normalized = switch (normalized) {
+            case "G", "GRAMS" -> "GRAM";
+            case "ML", "MILLILITERS", "MILLILITRES" -> "MILLILITER";
+            case "SERVINGS" -> "SERVING";
+            case "PIECES", "PCS" -> "PIECE";
+            case "SLICES" -> "SLICE";
+            case "TBSP" -> "TABLESPOON";
+            case "TSP" -> "TEASPOON";
+            default -> normalized;
+        };
+        return normalized.equals(confirmedUnit);
+    }
+
+    private RecipeNutritionDto copyAndScaleNutrition(RecipeNutritionDto source, double scale) {
+        return new RecipeNutritionDto(
+                scale(source.getCalories(), scale),
+                scale(source.getProtein(), scale),
+                scale(source.getCarbs(), scale),
+                scale(source.getFat(), scale),
+                scale(source.getFiber(), scale),
+                scale(source.getSugar(), scale),
+                scale(source.getSaturatedFat(), scale),
+                scale(source.getSodium(), scale),
+                scale(source.getPotassium(), scale),
+                scale(source.getCholesterol(), scale),
+                scale(source.getCalcium(), scale),
+                scale(source.getIron(), scale),
+                scale(source.getMagnesium(), scale),
+                scale(source.getZinc(), scale),
+                scale(source.getVitaminA(), scale),
+                scale(source.getVitaminC(), scale),
+                scale(source.getVitaminD(), scale),
+                scale(source.getVitaminE(), scale),
+                scale(source.getVitaminB12(), scale)
+        );
+    }
+
+    private Double scale(Double value, double multiplier) {
+        return value == null ? null : value * multiplier;
+    }
+
+    private void validateRequiredNutrition(RecipeNutritionDto nutrition) {
+        if (nutrition == null) {
+            throw new IllegalArgumentException("Estimated nutrition must be provided for unmatched AI items.");
+        }
+        validateNutritionValue(nutrition.getCalories(), "calories", true);
+        validateNutritionValue(nutrition.getProtein(), "protein", true);
+        validateNutritionValue(nutrition.getCarbs(), "carbohydrate", true);
+        validateNutritionValue(nutrition.getFat(), "fat", true);
+    }
+
+    private void validateOptionalNutrition(RecipeNutritionDto nutrition) {
+        if (nutrition == null) {
+            return;
+        }
+        validateNutritionValue(nutrition.getFiber(), "fiber", false);
+        validateNutritionValue(nutrition.getSugar(), "sugar", false);
+        validateNutritionValue(nutrition.getSaturatedFat(), "saturated fat", false);
+        validateNutritionValue(nutrition.getSodium(), "sodium", false);
+        validateNutritionValue(nutrition.getPotassium(), "potassium", false);
+        validateNutritionValue(nutrition.getCholesterol(), "cholesterol", false);
+        validateNutritionValue(nutrition.getCalcium(), "calcium", false);
+        validateNutritionValue(nutrition.getIron(), "iron", false);
+        validateNutritionValue(nutrition.getMagnesium(), "magnesium", false);
+        validateNutritionValue(nutrition.getZinc(), "zinc", false);
+        validateNutritionValue(nutrition.getVitaminA(), "vitamin A", false);
+        validateNutritionValue(nutrition.getVitaminC(), "vitamin C", false);
+        validateNutritionValue(nutrition.getVitaminD(), "vitamin D", false);
+        validateNutritionValue(nutrition.getVitaminE(), "vitamin E", false);
+        validateNutritionValue(nutrition.getVitaminB12(), "vitamin B12", false);
+    }
+
+    private void validateNutritionValue(Double value, String field, boolean required) {
+        if (value == null) {
+            if (required) {
+                throw new IllegalArgumentException("Estimated " + field + " must be provided for unmatched AI items.");
+            }
+            return;
+        }
+        if (!Double.isFinite(value) || value < 0) {
+            throw new IllegalArgumentException("Estimated " + field + " must not be negative or non-finite.");
+        }
+    }
+
+    private AiMealDraftItemDto originalItemFor(AiMealDraftResponseDto originalDraft,
+                                                int index,
+                                                AiMealDraftConfirmItemRequestDto confirmedItem) {
+        if (originalDraft == null || originalDraft.getItems() == null || confirmedItem == null) {
+            return null;
+        }
+        String confirmedName = normalizeFoodDisplayName(confirmedItem.getEstimatedFoodName());
+        if (confirmedName == null) {
+            return null;
+        }
+        int sourceIndex = confirmedItem.getSourceItemIndex() == null
+                ? index
+                : confirmedItem.getSourceItemIndex();
+        if (sourceIndex < 0 || sourceIndex >= originalDraft.getItems().size()) {
+            throwConfirmValidation("SOURCE_ITEM_INDEX_INVALID");
+        }
+        AiMealDraftItemDto sourceItem = originalDraft.getItems().get(sourceIndex);
+        if (confirmedItem.getAlternativeCandidateIndex() != null) {
+            return selectedAlternativeAsItem(sourceItem, confirmedItem.getAlternativeCandidateIndex(), confirmedName);
+        }
+        if (sameFoodName(sourceItem, confirmedName)) {
+            return sourceItem;
+        }
+        if (confirmedItem.getSourceItemIndex() != null) {
+            throwConfirmValidation("SOURCE_ITEM_NAME_MISMATCH");
+        }
+        return originalDraft.getItems().stream()
+                .filter(item -> sameFoodName(item, confirmedName))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private AiMealDraftItemDto selectedAlternativeAsItem(AiMealDraftItemDto sourceItem,
+                                                          int alternativeIndex,
+                                                          String confirmedName) {
+        List<AiMealDraftAlternativeCandidateDto> alternatives = sourceItem.getAlternativeCandidates();
+        if (alternatives == null || alternativeIndex < 0 || alternativeIndex >= alternatives.size()) {
+            throwConfirmValidation("ALTERNATIVE_CANDIDATE_INVALID");
+        }
+        AiMealDraftAlternativeCandidateDto alternative = alternatives.get(alternativeIndex);
+        if (!Objects.equals(normalizeFoodDisplayName(alternative.getName()), confirmedName)) {
+            throwConfirmValidation("ALTERNATIVE_CANDIDATE_NAME_MISMATCH");
+        }
+        AiMealDraftItemDto selected = new AiMealDraftItemDto();
+        selected.setName(normalizeFoodDisplayName(alternative.getName()));
+        selected.setQuantity(alternative.getQuantity());
+        selected.setUnit(alternative.getUnit());
+        selected.setDetectedPieceCount(alternative.getDetectedPieceCount());
+        selected.setEstimatedTotalWeightGrams(alternative.getEstimatedTotalWeightGrams());
+        selected.setEstimatedNutrition(alternative.getEstimatedNutrition());
+        if (alternative.getEstimatedNutrition() != null) {
+            selected.setEstimatedCalories(alternative.getEstimatedNutrition().getCalories());
+            selected.setEstimatedProtein(alternative.getEstimatedNutrition().getProtein());
+            selected.setEstimatedCarbs(alternative.getEstimatedNutrition().getCarbs());
+            selected.setEstimatedFat(alternative.getEstimatedNutrition().getFat());
+        }
+        selected.setNutritionEstimateNote(alternative.getNutritionEstimateNote());
+        selected.setMatchReason(alternative.getMatchReason());
+        selected.setConfidence(alternative.getConfidence());
+        selected.setNeedsUserPortionConfirmation(true);
+        return selected;
+    }
+
+    private boolean sameFoodName(AiMealDraftItemDto item, String confirmedName) {
+        return item != null && Objects.equals(normalizeFoodDisplayName(item.getName()), confirmedName);
     }
 
     private String normalizeFoodDisplayName(String value) {

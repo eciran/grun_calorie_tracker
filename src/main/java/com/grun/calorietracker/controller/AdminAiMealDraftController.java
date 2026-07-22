@@ -1,7 +1,9 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminAiRequestPageDto;
+import com.grun.calorietracker.dto.AdminAiRequestInspectionDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
+import com.grun.calorietracker.dto.AdminAiQuotaRefundRejectRequestDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
@@ -72,6 +74,41 @@ public class AdminAiMealDraftController {
                         null, status, refundableOnly, PageRequest.of(safePage, safeSize))));
     }
 
+    @GetMapping("/{requestId}/inspection")
+    @Operation(
+            summary = "Inspect a sanitized AI request",
+            description = "Returns only backend-approved fields. Raw prompts, media references, credentials, tokens, and unknown payload fields are never exposed."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Sanitized AI request inspection returned.",
+                    content = @Content(schema = @Schema(implementation = AdminAiRequestInspectionDto.class))),
+            @ApiResponse(responseCode = "400", description = "AI request was not found.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AdminAiRequestInspectionDto> inspectRequest(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "AI request id.", example = "10") @PathVariable Long requestId,
+            HttpServletRequest servletRequest) {
+        AdminAiRequestInspectionDto response = adminAiMealDraftService.inspectRequest(requestId);
+        adminAuditService.record(
+                userDetails.getUsername(),
+                AdminAuditActionType.AI_REQUEST_INSPECT,
+                AdminAuditTargetType.AI_REQUEST,
+                String.valueOf(requestId),
+                null,
+                java.util.Map.of(
+                        "requestId", requestId,
+                        "requestType", String.valueOf(response.getRequestType()),
+                        "sections", java.util.List.of("requestContext", "result", "confirmation")
+                ),
+                (String) servletRequest.getAttribute("correlationId")
+        );
+        return ResponseEntity.ok(response);
+    }
     @PostMapping("/{requestId}/quota-refund")
     @Operation(
             summary = "Refund AI quota for a rejected AI draft",
@@ -108,4 +145,40 @@ public class AdminAiMealDraftController {
         );
         return ResponseEntity.ok(response);
     }
-}
+
+    @PostMapping("/{requestId}/quota-refund/reject")
+    @Operation(
+            summary = "Reject an AI quota refund request",
+            description = "Closes a rejected AI request without refunding quota and notifies the user with the admin reason."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "AI quota refund request rejected.",
+                    content = @Content(schema = @Schema(implementation = AdminAiQuotaRefundResponseDto.class))),
+            @ApiResponse(responseCode = "400", description = "Request is not reviewable or was already decided.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AdminAiQuotaRefundResponseDto> rejectQuotaRefund(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "AI request id.", example = "10") @PathVariable Long requestId,
+            @RequestBody @Valid AdminAiQuotaRefundRejectRequestDto request,
+            HttpServletRequest servletRequest) {
+        AdminAiQuotaRefundResponseDto response = adminAiMealDraftService.rejectQuotaRefund(
+                userDetails.getUsername(),
+                requestId,
+                request
+        );
+        adminAuditService.record(
+                userDetails.getUsername(),
+                AdminAuditActionType.AI_QUOTA_REFUND,
+                AdminAuditTargetType.AI_REQUEST,
+                String.valueOf(requestId),
+                null,
+                response,
+                (String) servletRequest.getAttribute("correlationId")
+        );
+        return ResponseEntity.ok(response);
+    }}

@@ -87,7 +87,7 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
     private static final int MAX_SCHEDULED_SCAN_LIMIT = 250;
     private static final int MAX_AI_SELECTED_VALIDATION_LIMIT = 25;
     private static final String AI_PRODUCT_CONTEXT_SCHEMA_VERSION = "product_quality_context_v2";
-    private static final String AI_PRODUCT_PROMPT_VERSION = "product_quality_prompt_v2";
+    private static final String AI_PRODUCT_PROMPT_VERSION = "product_quality_prompt_v3";
     private static final String AI_PRODUCT_RESPONSE_SCHEMA_VERSION = "product_quality_response_v2";
     private static final String QUALITY_SUGGESTION_SOURCE = "quality_suggestion";
     private static final String QUALITY_VALIDATION_NOTE = "No open rule-based quality suggestions were produced for the current validation rules.";
@@ -804,9 +804,11 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         return switch (issue.getSuggestionType()) {
             case NAME_CLEANUP -> field.equals("name");
             case DISPLAY_NAME -> field.equals("displayName") || field.equals("shortDisplayName");
-            case LOCALIZATION -> field.matches("localizations\\.(EN|TR)\\.(displayName|shortDisplayName)");
-            case SEARCH_ALIAS -> field.matches("searchAliases\\.(EN|TR)");
-            case SERVING_OPTION -> field.matches("servingOptions(\\.[A-Za-z0-9_-]+)+");
+            case LOCALIZATION -> field.equals("localizations")
+                    || field.matches("localizations\\.(EN|TR)\\.(displayName|shortDisplayName)");
+            case SEARCH_ALIAS -> field.equals("searchAliases") || field.matches("searchAliases\\.(EN|TR)");
+            case SERVING_OPTION -> field.equals("servingOptions")
+                    || field.matches("servingOptions(\\.[A-Za-z0-9_-]+)+");
             case CANONICAL_DUPLICATE_REVIEW -> field.equals("canonicalFoodKey");
             case MISSING_MACRO_DATA, MISSING_MICRO_DATA, SUSPICIOUS_CALORIE_VALUE,
                     MACRO_CALORIE_MISMATCH, SUSPICIOUS_SODIUM_VALUE -> Set.of(
@@ -846,14 +848,42 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         suggestion.setStatus(ProductQualitySuggestionStatus.OPEN);
         suggestion.setFieldName(trimToNull(issue.getFieldName()));
         suggestion.setCurrentValue(trimToMax(issue.getCurrentValue(), 1000));
+        boolean aggregateReviewOnly = isAggregateReviewOnlyAiIssue(issue);
         boolean exactValueAllowed = exactNutritionSuggestionAllowed(issue, evidenceComparisons);
-        suggestion.setSuggestedValue(exactValueAllowed ? trimToMax(issue.getSuggestedValue(), 1000) : null);
+        suggestion.setSuggestedValue(!aggregateReviewOnly && exactValueAllowed
+                ? trimToMax(issue.getSuggestedValue(), 1000)
+                : null);
         String evidenceReason = exactValueAllowed
                 ? issue.getReason()
                 : appendEvidenceRestriction(issue.getReason());
+        if (aggregateReviewOnly) {
+            evidenceReason = appendAggregateReviewRestriction(evidenceReason);
+        }
         suggestion.setReason(trimToMax(evidenceReason, 1000));
         suggestion.setConfidenceScore(issue.getConfidenceScore() == null ? 50 : Math.max(0, Math.min(issue.getConfidenceScore(), 100)));
         return suggestion;
+    }
+
+    private boolean isAggregateReviewOnlyAiIssue(
+            AiProductQualityValidationResponseDto.AiProductQualityIssueDto issue
+    ) {
+        String field = trimToNull(issue.getFieldName());
+        if (field == null || issue.getSuggestionType() == null) {
+            return false;
+        }
+        return switch (issue.getSuggestionType()) {
+            case LOCALIZATION -> field.equals("localizations");
+            case SEARCH_ALIAS -> field.equals("searchAliases");
+            case SERVING_OPTION -> field.equals("servingOptions");
+            default -> false;
+        };
+    }
+
+    private String appendAggregateReviewRestriction(String reason) {
+        String prefix = trimToNull(reason);
+        String restriction = "Aggregate AI recommendation retained for admin review; "
+                + "a concrete field is required before it can be applied.";
+        return prefix == null ? restriction : prefix + " " + restriction;
     }
 
     private boolean exactNutritionSuggestionAllowed(

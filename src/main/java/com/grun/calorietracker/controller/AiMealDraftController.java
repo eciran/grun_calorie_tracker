@@ -118,6 +118,17 @@ public class AiMealDraftController {
                 .body(aiPhotoReferenceService.loadReference(token));
     }
 
+    @GetMapping("/{requestId}")
+    @Operation(
+            summary = "Load an AI meal draft",
+            description = "Returns the original draft result together with its current DRAFT_CREATED, CONFIRMED, or REJECTED state."
+    )
+    public ResponseEntity<AiMealDraftResponseDto> getDraft(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "AI meal draft request id.", example = "10") @PathVariable Long requestId) {
+        return ResponseEntity.ok(aiMealDraftService.getDraft(userDetails.getUsername(), requestId));
+    }
+
     @PostMapping("/{requestId}/confirm")
     @Operation(
             summary = "Confirm an AI meal draft into food logs",

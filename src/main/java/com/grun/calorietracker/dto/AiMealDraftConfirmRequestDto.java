@@ -13,6 +13,6 @@ import java.util.List;
 public class AiMealDraftConfirmRequestDto {
     @Valid
     @NotEmpty(message = "At least one confirmed food item is required")
-    @Size(max = 20, message = "At most 20 food items can be confirmed from one AI draft")
+    @Size(max = 50, message = "At most 50 food items can be confirmed from one AI draft")
     private List<AiMealDraftConfirmItemRequestDto> items;
 }

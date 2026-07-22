@@ -18,6 +18,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -165,6 +166,7 @@ class AiRecipeDraftServiceImplTest {
     @Test
     void createRecipeDraft_matchesSuggestedIngredientsAgainstCatalog() {
         AiRecipeDraftResponseDto providerResponse = providerResponse();
+        providerResponse.getSuggestedRecipe().setIngredients(null);
         AiRecipeIngredientSuggestionDto suggestion = new AiRecipeIngredientSuggestionDto();
         suggestion.setName("Chicken breast");
         suggestion.setPortionSize(150.0);
@@ -189,6 +191,13 @@ class AiRecipeDraftServiceImplTest {
         assertEquals(null, result.getSuggestedIngredients().get(0).getMatchedFoodItemId());
         assertEquals(true, result.getSuggestedIngredients().get(0).getReviewRequired());
         assertEquals("AI_SNAPSHOT", result.getSuggestedIngredients().get(0).getMatchReason());
+        assertEquals("Chicken breast", result.getSuggestedRecipe().getIngredients().get(0).getSnapshotFoodName());
+        assertEquals(150.0, result.getSuggestedRecipe().getIngredients().get(0).getPortionSize());
+        assertEquals(320.0, result.getSuggestedRecipe().getSnapshotNutritionTotal().getCalories());
+        org.junit.jupiter.api.Assertions.assertTrue(result.getSuggestedRecipe().getCategories().contains(RecipeCategory.DINNER));
+        org.junit.jupiter.api.Assertions.assertTrue(result.getSuggestedRecipe().getCategories().contains(RecipeCategory.HIGH_PROTEIN));
+        org.junit.jupiter.api.Assertions.assertTrue(result.getSuggestedRecipe().getCategories().contains(RecipeCategory.GLUTEN_FREE));
+        org.junit.jupiter.api.Assertions.assertTrue(result.getSuggestedRecipe().getCategories().contains(RecipeCategory.DAIRY_FREE));
     }
 
     @Test
@@ -230,6 +239,8 @@ class AiRecipeDraftServiceImplTest {
         request.setPrompt("high protein chicken dinner");
         request.setMealType("DINNER");
         request.setServingCount(2);
+        request.setDietaryPreferences(List.of("HIGH_PROTEIN"));
+        request.setExcludedIngredients(List.of("gluten", "dairy"));
         return request;
     }
 

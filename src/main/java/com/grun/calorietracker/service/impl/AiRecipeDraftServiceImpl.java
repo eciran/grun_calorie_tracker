@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.dto.RecipeNutritionDto;
+import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
@@ -19,6 +20,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
@@ -34,10 +36,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -81,7 +87,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         long startedAt = System.nanoTime();
         SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
         try {
-            AiRecipeDraftResponseDto response = normalize(activeProvider().createRecipeDraft(request), user);
+            AiRecipeDraftResponseDto response = normalize(activeProvider().createRecipeDraft(request), user, request);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             copyUsageMetadata(response, history);
 
@@ -129,7 +135,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         return recipe;
     }
 
-    private AiRecipeDraftResponseDto normalize(AiRecipeDraftResponseDto response, UserEntity user) {
+    private AiRecipeDraftResponseDto normalize(AiRecipeDraftResponseDto response, UserEntity user, AiRecipeDraftRequestDto request) {
         if (response == null) {
             throw new IllegalArgumentException("AI recipe provider returned an empty response.");
         }
@@ -144,6 +150,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         validateSuggestedRecipe(response);
         validateEstimatedNutrition(response);
         normalizeSuggestedIngredientsAsSnapshot(response);
+        enrichSuggestedRecipeForReview(response, request);
         normalizeQuality(response);
         if (response.getWarnings() == null) {
             response.setWarnings(List.of());
@@ -151,6 +158,114 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         return response;
     }
 
+    private void enrichSuggestedRecipeForReview(AiRecipeDraftResponseDto response, AiRecipeDraftRequestDto request) {
+        RecipeRequestDto recipe = response.getSuggestedRecipe();
+        if (recipe.getSnapshotNutritionTotal() == null) {
+            recipe.setSnapshotNutritionTotal(response.getEstimatedNutritionTotal());
+        }
+        if ((recipe.getIngredients() == null || recipe.getIngredients().isEmpty())
+                && response.getSuggestedIngredients() != null
+                && !response.getSuggestedIngredients().isEmpty()) {
+            recipe.setIngredients(toSnapshotIngredientRequests(response.getSuggestedIngredients()));
+        }
+        recipe.setCategories(mergeRecipeCategories(recipe.getCategories(), request));
+        if (recipe.getAllergens() == null) {
+            recipe.setAllergens(new LinkedHashSet<>());
+        } else {
+            recipe.setAllergens(new LinkedHashSet<>(recipe.getAllergens()));
+        }
+    }
+
+    private List<RecipeIngredientRequestDto> toSnapshotIngredientRequests(List<AiRecipeIngredientSuggestionDto> suggestions) {
+        List<RecipeIngredientRequestDto> ingredients = new ArrayList<>();
+        for (AiRecipeIngredientSuggestionDto suggestion : suggestions) {
+            if (suggestion == null || suggestion.getName() == null || suggestion.getName().isBlank()
+                    || suggestion.getPortionSize() == null || suggestion.getPortionSize() <= 0) {
+                continue;
+            }
+            RecipeIngredientRequestDto ingredient = new RecipeIngredientRequestDto();
+            ingredient.setSnapshotFoodName(suggestion.getName().trim());
+            ingredient.setPortionSize(suggestion.getPortionSize());
+            ingredient.setPortionUnit(suggestion.getPortionUnit() == null ? FoodPortionUnit.GRAM : suggestion.getPortionUnit());
+            ingredients.add(ingredient);
+        }
+        return ingredients;
+    }
+
+    private Set<RecipeCategory> mergeRecipeCategories(Set<RecipeCategory> existing, AiRecipeDraftRequestDto request) {
+        LinkedHashSet<RecipeCategory> categories = existing == null ? new LinkedHashSet<>() : new LinkedHashSet<>(existing);
+        if (request != null) {
+            RecipeCategory mealCategory = mapMealTypeToCategory(request.getMealType());
+            if (mealCategory != null) {
+                categories.add(mealCategory);
+            }
+            if (request.getDietaryPreferences() != null) {
+                for (String preference : request.getDietaryPreferences()) {
+                    RecipeCategory category = mapDietaryPreferenceToCategory(preference);
+                    if (category != null) {
+                        categories.add(category);
+                    }
+                }
+            }
+            if (request.getExcludedIngredients() != null) {
+                for (String exclusion : request.getExcludedIngredients()) {
+                    RecipeCategory category = mapAvoidanceToCategory(exclusion);
+                    if (category != null) {
+                        categories.add(category);
+                    }
+                }
+            }
+        }
+        return categories;
+    }
+
+    private RecipeCategory mapMealTypeToCategory(String mealType) {
+        String normalized = normalizeKey(mealType);
+        return switch (normalized) {
+            case "BREAKFAST" -> RecipeCategory.BREAKFAST;
+            case "LUNCH" -> RecipeCategory.LUNCH;
+            case "DINNER" -> RecipeCategory.DINNER;
+            case "SNACK" -> RecipeCategory.SNACK;
+            default -> null;
+        };
+    }
+
+    private RecipeCategory mapDietaryPreferenceToCategory(String value) {
+        String normalized = normalizeKey(value);
+        return switch (normalized) {
+            case "VEGAN" -> RecipeCategory.VEGAN;
+            case "VEGETARIAN" -> RecipeCategory.VEGETARIAN;
+            case "HIGH_PROTEIN", "PROTEIN", "HIGHPROTEIN" -> RecipeCategory.HIGH_PROTEIN;
+            case "LOW_CARB", "LOWCARB", "KETO" -> RecipeCategory.LOW_CARB;
+            case "LOW_FAT", "LOWFAT" -> RecipeCategory.LOW_FAT;
+            case "LOW_CALORIE", "LOWCALORIE", "CALORIE_DEFICIT" -> RecipeCategory.LOW_CALORIE;
+            case "HIGH_FIBER", "HIGHFIBER" -> RecipeCategory.HIGH_FIBER;
+            case "GLUTEN_FREE", "GLUTENFREE" -> RecipeCategory.GLUTEN_FREE;
+            case "DAIRY_FREE", "DAIRYFREE" -> RecipeCategory.DAIRY_FREE;
+            case "MEDITERRANEAN" -> RecipeCategory.MEDITERRANEAN;
+            case "TURKISH" -> RecipeCategory.TURKISH;
+            default -> null;
+        };
+    }
+
+    private RecipeCategory mapAvoidanceToCategory(String value) {
+        String normalized = normalizeKey(value);
+        return switch (normalized) {
+            case "GLUTEN", "WHEAT" -> RecipeCategory.GLUTEN_FREE;
+            case "DAIRY", "MILK", "LACTOSE" -> RecipeCategory.DAIRY_FREE;
+            default -> null;
+        };
+    }
+
+    private String normalizeKey(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim()
+                .replace('-', '_')
+                .replace(' ', '_')
+                .toUpperCase(Locale.ROOT);
+    }
     private void normalizeQuality(AiRecipeDraftResponseDto response) {
         response.setSchemaVersion("ai_response_v3");
         if (response.getReviewReasons() == null) {
@@ -286,11 +401,36 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         if (nutrition == null) {
             throw new IllegalArgumentException("AI recipe provider returned no " + label + " nutrition estimate.");
         }
-        if (nutrition.getCalories() == null || nutrition.getCalories() < 0
-                || nutrition.getProtein() == null || nutrition.getProtein() < 0
-                || nutrition.getCarbs() == null || nutrition.getCarbs() < 0
-                || nutrition.getFat() == null || nutrition.getFat() < 0) {
-            throw new IllegalArgumentException("AI recipe provider returned invalid " + label + " macro nutrition.");
+        validateNutritionValue(nutrition.getCalories(), label, "calories", true);
+        validateNutritionValue(nutrition.getProtein(), label, "protein", true);
+        validateNutritionValue(nutrition.getCarbs(), label, "carbohydrate", true);
+        validateNutritionValue(nutrition.getFat(), label, "fat", true);
+        validateNutritionValue(nutrition.getFiber(), label, "fiber", false);
+        validateNutritionValue(nutrition.getSugar(), label, "sugar", false);
+        validateNutritionValue(nutrition.getSaturatedFat(), label, "saturated fat", false);
+        validateNutritionValue(nutrition.getSodium(), label, "sodium", false);
+        validateNutritionValue(nutrition.getPotassium(), label, "potassium", false);
+        validateNutritionValue(nutrition.getCholesterol(), label, "cholesterol", false);
+        validateNutritionValue(nutrition.getCalcium(), label, "calcium", false);
+        validateNutritionValue(nutrition.getIron(), label, "iron", false);
+        validateNutritionValue(nutrition.getMagnesium(), label, "magnesium", false);
+        validateNutritionValue(nutrition.getZinc(), label, "zinc", false);
+        validateNutritionValue(nutrition.getVitaminA(), label, "vitamin A", false);
+        validateNutritionValue(nutrition.getVitaminC(), label, "vitamin C", false);
+        validateNutritionValue(nutrition.getVitaminD(), label, "vitamin D", false);
+        validateNutritionValue(nutrition.getVitaminE(), label, "vitamin E", false);
+        validateNutritionValue(nutrition.getVitaminB12(), label, "vitamin B12", false);
+    }
+
+    private void validateNutritionValue(Double value, String label, String field, boolean required) {
+        if (value == null) {
+            if (required) {
+                throw new IllegalArgumentException("AI recipe provider returned no " + label + " " + field + " estimate.");
+            }
+            return;
+        }
+        if (!Double.isFinite(value) || value < 0) {
+            throw new IllegalArgumentException("AI recipe provider returned invalid " + label + " " + field + " estimate.");
         }
     }
 
@@ -406,3 +546,4 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
     }
 }
+

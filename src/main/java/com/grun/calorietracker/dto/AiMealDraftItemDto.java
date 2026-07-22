@@ -1,5 +1,7 @@
 package com.grun.calorietracker.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -18,6 +20,12 @@ public class AiMealDraftItemDto {
     @Schema(description = "Unit detected or estimated from input.", example = "g")
     private String unit;
 
+    @Schema(description = "Number of visually identical pieces grouped into this item.", example = "2")
+    private Integer detectedPieceCount;
+
+    @Schema(description = "Estimated combined cooked weight of all grouped pieces in grams.", example = "360")
+    private Double estimatedTotalWeightGrams;
+
     @Schema(description = "Estimated calories for this item.", example = "248")
     private Double estimatedCalories;
 
@@ -29,6 +37,12 @@ public class AiMealDraftItemDto {
 
     @Schema(description = "Estimated fat grams.", example = "5.4")
     private Double estimatedFat;
+
+    @Schema(description = "Complete AI-estimated nutrition for this item's detected quantity. This is an editable estimate, not verified catalog data.")
+    private RecipeNutritionDto estimatedNutrition;
+
+    @Schema(description = "Plain-language explanation of nutrition assumptions and unavailable or uncertain micronutrients.")
+    private String nutritionEstimateNote;
 
     @Schema(description = "Optional matched product id when backend can map the suggestion to a catalog item.", example = "123")
     private Long matchedFoodItemId;
@@ -62,4 +76,8 @@ public class AiMealDraftItemDto {
 
     @Schema(description = "Alternative catalog/product names that may match this item.")
     private List<String> alternativeMatchNames = new ArrayList<>();
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @Schema(description = "Optional nutrition-complete alternatives for the same visible portion. Present only in the v4 experiment.")
+    private List<AiMealDraftAlternativeCandidateDto> alternativeCandidates = new ArrayList<>();
 }

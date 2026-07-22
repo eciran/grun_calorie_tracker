@@ -4,6 +4,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -78,6 +79,16 @@ public class AiRequestHistoryEntity {
 
     private LocalDateTime quotaRefundedAt;
 
+    @Enumerated(EnumType.STRING)
+    private AiQuotaRefundDecision quotaRefundDecision;
+
+    @Column(columnDefinition = "TEXT")
+    private String quotaRefundDecisionReason;
+
+    private String quotaRefundDecidedBy;
+
+    private LocalDateTime quotaRefundDecidedAt;
+
     private Long latencyMs;
 
     private Integer promptTokens;
@@ -92,6 +103,8 @@ public class AiRequestHistoryEntity {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    private LocalDateTime completionNotifiedAt;
 
     private LocalDateTime confirmedAt;
 

@@ -51,8 +51,10 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.model").value("gpt-5.4-mini"))
                 .andExpect(jsonPath("$.store").value(false))
                 .andExpect(jsonPath("$.max_output_tokens").value(12000))
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.sodium").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.vitaminB12").exists())
                 .andRespond(withSuccess(outputMessageResponse("""
-                        {"summary":"Draft created.","items":[{"name":"Chicken and rice","quantity":1,"unit":"serving","estimatedCalories":420,"confidence":0.82}]}
+                        {"summary":"Draft created.","items":[{"name":"Chicken and rice","quantity":1,"unit":"serving","estimatedCalories":420,"estimatedProtein":30,"estimatedCarbs":48,"estimatedFat":12,"estimatedNutrition":{"calories":420,"protein":30,"carbs":48,"fat":12,"fiber":5,"sugar":4,"saturatedFat":3,"sodium":540,"potassium":680,"cholesterol":55,"calcium":90,"iron":2.5,"magnesium":70,"zinc":2.2,"vitaminA":180,"vitaminC":8,"vitaminD":1.2,"vitaminE":2.1,"vitaminB12":0.9},"nutritionEstimateNote":"Estimated for one serving.","confidence":0.82}]}
                         """), MediaType.APPLICATION_JSON));
 
         AiMealDraftResponseDto response = client.createVoiceFoodDraft(voiceRequest());
@@ -60,6 +62,9 @@ class OpenAiAiMealDraftProviderClientTest {
         assertEquals(AiProvider.OPENAI, client.provider());
         assertEquals("Draft created.", response.getSummary());
         assertEquals("Chicken and rice", response.getItems().get(0).getName());
+        assertEquals(540.0, response.getItems().get(0).getEstimatedNutrition().getSodium());
+        assertEquals(0.9, response.getItems().get(0).getEstimatedNutrition().getVitaminB12());
+        assertEquals("Estimated for one serving.", response.getItems().get(0).getNutritionEstimateNote());
         assertEquals(1200, response.getPromptTokens());
         assertEquals(300, response.getCompletionTokens());
         assertEquals(1500, response.getTotalTokens());
@@ -122,6 +127,14 @@ class OpenAiAiMealDraftProviderClientTest {
 
         server.expect(requestTo("https://api.openai.test/v1/responses"))
                 .andExpect(jsonPath("$.model").value("gpt-5.4-mini"))
+                .andExpect(jsonPath("$.input[1].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString("never create one item per piece")))
+                .andExpect(jsonPath("$.input[1].content[1].text")
+                        .value(org.hamcrest.Matchers.containsString("Prefer GRAM for solid foods and MILLILITER for liquids")))
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.detectedPieceCount").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedTotalWeightGrams").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.alternativeCandidates").doesNotExist())
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.unit.enum[1]").value("MILLILITER"))
                 .andRespond(withSuccess(outputTextResponse("""
                         {"summary":"Photo draft.","items":[{"name":"Meal","quantity":1,"unit":"plate","estimatedCalories":500,"confidence":0.6}]}
                         """), MediaType.APPLICATION_JSON));
@@ -129,6 +142,58 @@ class OpenAiAiMealDraftProviderClientTest {
         AiMealDraftResponseDto response = client.createPhotoMealDraft(request);
 
         assertEquals("Photo draft.", response.getSummary());
+        server.verify();
+    }
+    @Test
+    void createPhotoMealDraft_whenAlternativeSnapshotsEnabled_usesV4SchemaAndParsesCandidates() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        AiProperties properties = properties();
+        properties.getPhoto().setAlternativeSnapshotsEnabled(true);
+        properties.getPhoto().setMaxAlternativeSnapshots(2);
+        OpenAiAiMealDraftProviderClient client = new OpenAiAiMealDraftProviderClient(
+                properties, restTemplate, new ObjectMapper());
+
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://cdn.grun.test/meal.jpg");
+
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.text.format.name").value("grun_meal_draft_v4"))
+                .andExpect(jsonPath("$.text.format.schema.properties.schemaVersion.enum[0]").value("ai_response_v4"))
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.alternativeCandidates").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.alternativeCandidates.items.required.length()").value(10))
+                .andExpect(jsonPath("$.input[1].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString("Maximum alternativeCandidates: 2")))
+                .andRespond(withSuccess(outputTextResponse("""
+                        {"schemaVersion":"ai_response_v4","summary":"Photo draft.","items":[{
+                          "name":"Chicken Breast","quantity":2,"unit":"PIECE","detectedPieceCount":2,
+                          "estimatedTotalWeightGrams":260,"estimatedCalories":430,"estimatedProtein":80,
+                          "estimatedCarbs":1,"estimatedFat":10,"estimatedNutrition":{"calories":430,
+                          "protein":80,"carbs":1,"fat":10,"fiber":0,"sugar":0,"saturatedFat":2.5,
+                          "sodium":420,"potassium":700,"cholesterol":220,"calcium":35,"iron":2,
+                          "magnesium":70,"zinc":3,"vitaminA":20,"vitaminC":0,"vitaminD":0.2,
+                          "vitaminE":1.2,"vitaminB12":0.8},"nutritionEstimateNote":"Estimated from photo.",
+                          "reviewRequired":true,"matchReason":"Lean poultry.","safetyWarning":null,
+                          "confidence":0.84,"portionEstimateMethod":"VISUAL_ESTIMATE","reasoning":"Two pieces.",
+                          "portionNote":"Confirm weight.","visibleInPhoto":true,
+                          "needsUserPortionConfirmation":true,"alternativeMatchNames":[],
+                          "alternativeCandidates":[{"name":"Chicken Thigh","quantity":2,"unit":"PIECE",
+                          "detectedPieceCount":2,"estimatedTotalWeightGrams":260,"estimatedNutrition":{"calories":540,
+                          "protein":65,"carbs":1,"fat":30,"fiber":0,"sugar":0,"saturatedFat":8,
+                          "sodium":460,"potassium":620,"cholesterol":250,"calcium":30,"iron":2.5,
+                          "magnesium":60,"zinc":4,"vitaminA":25,"vitaminC":0,"vitaminD":0.3,
+                          "vitaminE":1.5,"vitaminB12":1.1},"nutritionEstimateNote":"Higher-fat cut is plausible.",
+                          "matchReason":"Shape and browning may indicate thigh meat.","confidence":0.62,
+                          "materiallyDifferent":true}]}]}
+                        """), MediaType.APPLICATION_JSON));
+
+        AiMealDraftResponseDto response = client.createPhotoMealDraft(request);
+
+        assertEquals("ai_response_v4", response.getSchemaVersion());
+        assertEquals(1, response.getItems().get(0).getAlternativeCandidates().size());
+        assertEquals("Chicken Thigh", response.getItems().get(0).getAlternativeCandidates().get(0).getName());
+        assertEquals(540.0, response.getItems().get(0).getAlternativeCandidates().get(0)
+                .getEstimatedNutrition().getCalories());
         server.verify();
     }
     @Test
@@ -146,8 +211,9 @@ class OpenAiAiMealDraftProviderClientTest {
         request.setImageReference("https://api.grun.test/api/v1/ai/meal-drafts/photo-references/" + token);
 
         server.expect(requestTo("https://api.openai.test/v1/responses"))
-                .andExpect(jsonPath("$.input[1].content[1].type").value("input_image"))
-                .andExpect(jsonPath("$.input[1].content[1].image_url")
+                .andExpect(jsonPath("$.input[1].content[2].type").value("input_image"))
+                .andExpect(jsonPath("$.input[1].content[2].detail").value("high"))
+                .andExpect(jsonPath("$.input[1].content[2].image_url")
                         .value(org.hamcrest.Matchers.startsWith("data:image/jpeg;base64,")))
                 .andRespond(withSuccess(outputTextResponse("""
                         {"summary":"Photo draft.","items":[{"name":"Meal","quantity":1,"unit":"plate","estimatedCalories":500,"confidence":0.6}]}
@@ -187,11 +253,13 @@ class OpenAiAiMealDraftProviderClientTest {
 
         server.expect(requestTo("https://api.openai.test/v1/responses"))
                 .andExpect(jsonPath("$.text.format.schema.properties.suggestedIngredients.items.properties.portionUnit.enum[0]").value("GRAM"))
+                .andExpect(jsonPath("$.text.format.schema.properties.suggestedRecipe.properties.categories.items.enum[0]").value("VEGAN"))
+                .andExpect(jsonPath("$.text.format.schema.properties.suggestedRecipe.properties.allergens.items.enum[0]").value("MILK"))
                 .andRespond(withSuccess(outputTextResponse("""
                         {
                           "summary":"Recipe draft.",
                           "reviewRequired":true,
-                          "suggestedRecipe":{"name":"Chicken rice bowl","mealType":"DINNER","totalYieldGrams":500,"defaultServingGrams":250,"servingCount":2,"cookingSteps":[{"instruction":"Cook the chicken until done."},{"instruction":"Serve with rice."}]},
+                          "suggestedRecipe":{"name":"Chicken rice bowl","mealType":"DINNER","totalYieldGrams":500,"defaultServingGrams":250,"servingCount":2,"categories":["HIGH_PROTEIN","DINNER"],"allergens":[],"cookingSteps":[{"instruction":"Cook the chicken until done."},{"instruction":"Serve with rice."}]},
                           "estimatedNutritionTotal":{"calories":700,"protein":55,"carbs":70,"fat":18,"fiber":6,"sugar":4,"saturatedFat":4,"sodium":600,"potassium":900,"cholesterol":130,"calcium":80,"iron":3,"magnesium":90,"zinc":3,"vitaminA":200,"vitaminC":12,"vitaminD":1,"vitaminE":2,"vitaminB12":1.5},
                           "estimatedNutritionPerServing":{"calories":350,"protein":27.5,"carbs":35,"fat":9,"fiber":3,"sugar":2,"saturatedFat":2,"sodium":300,"potassium":450,"cholesterol":65,"calcium":40,"iron":1.5,"magnesium":45,"zinc":1.5,"vitaminA":100,"vitaminC":6,"vitaminD":0.5,"vitaminE":1,"vitaminB12":0.75},
                           "nutritionEstimateNote":"Estimated from typical cooked chicken and rice portions.",
@@ -246,6 +314,61 @@ class OpenAiAiMealDraftProviderClientTest {
         assertEquals(0.0018d, response.getEstimatedCost(), 0.0000001d);
         server.verify();
     }
+
+    @Test
+    void createVoiceFoodDraft_whenTwoRepairsConfigured_usesSecondRepairAndAggregatesUsage() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        AiProperties properties = properties();
+        properties.getOpenai().setMaxRepairAttempts(2);
+        OpenAiAiMealDraftProviderClient client =
+                new OpenAiAiMealDraftProviderClient(properties, restTemplate, new ObjectMapper());
+
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andRespond(withSuccess(outputMessageResponse("not-json"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.text.format.name").value("grun_meal_draft_repair"))
+                .andRespond(withSuccess(outputMessageResponse("still-not-json"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.text.format.name").value("grun_meal_draft_repair"))
+                .andRespond(withSuccess(outputMessageResponse("""
+                        {"summary":"Second repair draft.","items":[{"name":"Soup","quantity":250,"unit":"MILLILITER","estimatedCalories":180,"confidence":0.8}]}
+                        """), MediaType.APPLICATION_JSON));
+
+        AiMealDraftResponseDto response = client.createVoiceFoodDraft(voiceRequest());
+
+        assertEquals("Second repair draft.", response.getSummary());
+        assertEquals(3600, response.getPromptTokens());
+        assertEquals(900, response.getCompletionTokens());
+        assertEquals(4500, response.getTotalTokens());
+        server.verify();
+    }
+
+    @Test
+    void createPhotoMealDraft_whenManagedPhotoFormatIsUnsupported_rejectsBeforeProviderCall(
+            @TempDir Path tempDir) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        AiProperties properties = properties();
+        properties.getPhoto().setStorageDirectory(tempDir.toString());
+        properties.getPhoto().setPublicBaseUrl("https://api.grun.test");
+        String token = "1893456000000-test-photo.gif";
+        Files.write(tempDir.resolve(token), new byte[]{0x47, 0x49, 0x46});
+        OpenAiAiMealDraftProviderClient client =
+                new OpenAiAiMealDraftProviderClient(properties, restTemplate, new ObjectMapper());
+
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference(
+                "https://api.grun.test/api/v1/ai/meal-drafts/photo-references/" + token);
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> client.createPhotoMealDraft(request));
+
+        assertEquals("Unsupported managed AI photo format.", ex.getMessage());
+        server.verify();
+    }
+
     @Test
     void createVoiceFoodDraft_whenOpenAiReturnsIncompleteResponse_throwsProviderException() {
         RestTemplate restTemplate = new RestTemplate();
