@@ -113,6 +113,8 @@ grun:
       cleanup-interval-ms: ${GRUN_AI_PHOTO_CLEANUP_INTERVAL_MS:3600000}
       storage-directory: ${GRUN_AI_PHOTO_STORAGE_DIRECTORY:storage/ai-meal-photos}
       public-base-url: ${GRUN_AI_PHOTO_PUBLIC_BASE_URL:https://api.grun.app}
+      alternative-snapshots-enabled: ${GRUN_AI_PHOTO_ALTERNATIVE_SNAPSHOTS_ENABLED:false}
+      max-alternative-snapshots: ${GRUN_AI_PHOTO_MAX_ALTERNATIVE_SNAPSHOTS:2}
     http-json:
       endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
       api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}

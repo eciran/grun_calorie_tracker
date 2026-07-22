@@ -90,11 +90,24 @@ Real App Store / Google Play sandbox purchase tests require a mobile build using
 Admin AI monitoring uses backend-side estimated cost from provider token usage. Configure model-specific token prices through environment variables:
 
 ```text
-GRUN_AI_OPENAI_INPUT_TOKEN_COST_PER_1M=0.75
-GRUN_AI_OPENAI_OUTPUT_TOKEN_COST_PER_1M=4.50
+GRUN_AI_OPENAI_INPUT_TOKEN_COST_PER_1M=0
+GRUN_AI_OPENAI_OUTPUT_TOKEN_COST_PER_1M=0
 GRUN_AI_OPENAI_COST_CURRENCY=USD
 ```
 
-These defaults match the current local `gpt-5.4-mini` setup as an estimate. If `GRUN_AI_MODEL` changes, update the input/output token prices at the same time. Historical rows keep the cost metadata stored at request time.
+Keep zero as the repository-safe default and set both prices in deployment configuration for the selected model. For example, the current `gpt-5.4` rates are `2.50` input and `15.00` output per one million tokens. If `GRUN_AI_MODEL` changes, update both prices in the same release. Historical rows keep the cost metadata stored at request time. See `docs/AI_PHOTO_ALTERNATIVE_SNAPSHOTS.md` for the photo experiment baseline.
 
 For invoice-grade reporting, use OpenAI organization Usage/Costs APIs as a separate provider-actual metric instead of replacing this request-level estimate.
+## Food Contribution Evidence Storage
+
+Local development stores product-label evidence under the configured workspace directory. Production defaults to private S3 storage and fails startup when the bucket or region is missing.
+
+```text
+GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER=S3
+GRUN_FOOD_CONTRIBUTION_S3_BUCKET=<private-bucket>
+GRUN_FOOD_CONTRIBUTION_S3_REGION=eu-west-1
+GRUN_FOOD_CONTRIBUTION_S3_PREFIX=product-contributions
+GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL=https://api.grun.app
+```
+
+The bucket must remain private. The backend uses the AWS default credential chain, applies S3 server-side encryption, validates JPEG/PNG/WebP signatures, calculates SHA-256 server-side, and streams evidence only through authenticated owner/admin endpoints. Do not configure a public bucket URL or commit AWS credentials.
