@@ -35,6 +35,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,7 +43,13 @@ import java.util.stream.Collectors;
 public class WaterTrackingServiceImpl implements WaterTrackingService {
 
     private static final String WATER_REMINDER_TYPE = "water_reminder";
-    private static final String WATER_REMINDER_MESSAGE = "Time to drink water.";
+    private static final List<ReminderCopy> WATER_REMINDER_COPY = List.of(
+            new ReminderCopy("Tiny sip, big win", "Your water bottle called. It misses you."),
+            new ReminderCopy("Hydration check-in", "A few sips now, future you says thanks."),
+            new ReminderCopy("Plot twist: you need water", "Coffee has a sidekick. It is called water."),
+            new ReminderCopy("Sip happens", "Take a quick water break. You have earned it."),
+            new ReminderCopy("Keep the good stuff flowing", "A little hydration goes a long way.")
+    );
     private static final int MIN_REMINDER_INTERVAL_MINUTES = 30;
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MAX_DAILY_TOTAL_ML = 6000;
@@ -218,10 +225,18 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
 
         dueSettings.forEach(settings -> {
             LocalDateTime userNow = userTimeZoneSupport.now(settings.getUser());
+            ReminderCopy copy = randomCopy(WATER_REMINDER_COPY);
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(settings.getUser());
             notification.setType(WATER_REMINDER_TYPE);
-            notification.setMessage(WATER_REMINDER_MESSAGE);
+            notification.setTitle(copy.title());
+            notification.setMessage(copy.message());
+            notification.setSeverity("INFO");
+            notification.setSource("WATER_REMINDER");
+            notification.setTargetType("WATER_TRACKING");
+            notification.setTargetRoute("water");
+            notification.setPrimaryAction("QUICK_ADD_WATER");
+            notification.setActionAmountMl(250);
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
             NotificationEntity saved = notificationRepository.save(notification);
@@ -231,6 +246,12 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         waterReminderSettingsRepository.saveAll(dueSettings);
         return dueSettings.size();
     }
+
+    private ReminderCopy randomCopy(List<ReminderCopy> options) {
+        return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private record ReminderCopy(String title, String message) {}
 
     private void assertWaterTrackingAccess(String email) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.WATER_TRACKING);

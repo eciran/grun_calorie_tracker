@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +45,13 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MAX_DAILY_TOTAL_STEPS = 120000;
     private static final String STEP_REMINDER_TYPE = "step_reminder";
-    private static final String STEP_REMINDER_MESSAGE = "You are below your step target. A short walk can help you close the gap.";
+    private static final List<ReminderCopy> STEP_REMINDER_COPY = List.of(
+            new ReminderCopy("Tiny walk, big mood", "A short walk could be the plot twist your day needs."),
+            new ReminderCopy("Your steps are waiting", "Stretch those legs and give your step count a little boost."),
+            new ReminderCopy("A few steps closer", "No marathon required. A quick stroll still counts."),
+            new ReminderCopy("Walk this way", "Your goal is within walking distance. Literally."),
+            new ReminderCopy("Movement snack?", "Take five, take a walk, come back refreshed.")
+    );
 
     private final UserRepository userRepository;
     private final StepGoalRepository stepGoalRepository;
@@ -186,10 +193,17 @@ public class StepTrackingServiceImpl implements StepTrackingService {
 
         dueGoals.forEach(goal -> {
             LocalDateTime userNow = userTimeZoneSupport.now(goal.getUser());
+            ReminderCopy copy = randomCopy(STEP_REMINDER_COPY);
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(goal.getUser());
             notification.setType(STEP_REMINDER_TYPE);
-            notification.setMessage(STEP_REMINDER_MESSAGE);
+            notification.setTitle(copy.title());
+            notification.setMessage(copy.message());
+            notification.setSeverity("INFO");
+            notification.setSource("STEP_REMINDER");
+            notification.setTargetType("STEP_TRACKING");
+            notification.setTargetRoute("steps");
+            notification.setPrimaryAction("VIEW_STEPS");
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
             NotificationEntity saved = notificationRepository.save(notification);
@@ -199,6 +213,12 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         stepGoalRepository.saveAll(dueGoals);
         return dueGoals.size();
     }
+
+    private ReminderCopy randomCopy(List<ReminderCopy> options) {
+        return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private record ReminderCopy(String title, String message) {}
 
     private StepManualLogResponseDto toManualLogResponse(DeviceDataEntity entity) {
         return new StepManualLogResponseDto(

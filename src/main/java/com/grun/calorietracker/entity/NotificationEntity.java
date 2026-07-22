@@ -24,6 +24,17 @@ public class NotificationEntity {
 
     private String message;
 
+    @Column(length = 2000)
+    private String note;
+
+    @Column(length = 64)
+    private String primaryAction;
+
+    private Integer actionAmountMl;
+
+    @Column(length = 120)
+    private String title;
+
     private String type; // "info", "warning", "reminder"
 
     private String severity; // "INFO", "WARNING", "CRITICAL"
@@ -35,6 +46,13 @@ public class NotificationEntity {
     private String targetId;
 
     private String targetRoute;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campaign_id")
+    private NotificationCampaignEntity campaign;
+
+    @Column(name = "visible_in_app", nullable = false)
+    private Boolean visibleInApp = true;
 
     private Boolean isRead;
 

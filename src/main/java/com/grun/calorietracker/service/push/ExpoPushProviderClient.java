@@ -52,7 +52,11 @@ public class ExpoPushProviderClient implements PushProviderClient {
                 "body", notification.getMessage(),
                 "data", Map.of(
                         "notificationId", notification.getId(),
-                        "type", notification.getType()
+                        "type", valueOrEmpty(notification.getType()),
+                        "targetRoute", valueOrEmpty(notification.getTargetRoute()),
+                        "targetId", valueOrEmpty(notification.getTargetId()),
+                        "primaryAction", valueOrEmpty(notification.getPrimaryAction()),
+                        "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()
                 )
         );
         try {
@@ -77,7 +81,14 @@ public class ExpoPushProviderClient implements PushProviderClient {
         }
     }
 
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
     private String resolveTitle(NotificationEntity notification) {
+        if (notification.getTitle() != null && !notification.getTitle().isBlank()) {
+            return notification.getTitle();
+        }
         return notification.getType() == null ? "GRun" : "GRun " + notification.getType().replace('_', ' ');
     }
 

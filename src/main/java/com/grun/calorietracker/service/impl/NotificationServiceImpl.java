@@ -82,7 +82,11 @@ public class NotificationServiceImpl implements NotificationService {
     private NotificationDto toDto(NotificationEntity entity) {
         NotificationDto dto = new NotificationDto();
         dto.setId(entity.getId());
+        dto.setTitle(entity.getTitle());
         dto.setMessage(entity.getMessage());
+        dto.setNote(entity.getNote());
+        dto.setPrimaryAction(entity.getPrimaryAction());
+        dto.setActionAmountMl(entity.getActionAmountMl());
         dto.setType(entity.getType());
         dto.setSeverity(entity.getSeverity());
         dto.setSource(entity.getSource());
@@ -96,7 +100,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     private Specification<NotificationEntity> notificationSpecification(UserEntity user, boolean unreadOnly, String type, String severity) {
         return (root, query, criteriaBuilder) -> {
-            var predicate = criteriaBuilder.equal(root.get("user"), user);
+            var predicate = criteriaBuilder.and(
+                    criteriaBuilder.equal(root.get("user"), user),
+                    criteriaBuilder.isTrue(root.get("visibleInApp"))
+            );
             if (unreadOnly) {
                 predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.get("isRead"), false));
             }

@@ -104,4 +104,7 @@ public class UserEntity {
     @Column(name = "weekly_reports_enabled", nullable = false)
     private Boolean weeklyReportsEnabled = true;
 
+    @Column(name = "marketing_notifications_enabled", nullable = false)
+    private Boolean marketingNotificationsEnabled = false;
+
 }

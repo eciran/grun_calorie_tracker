@@ -302,6 +302,9 @@ public class UserServiceImpl implements UserService {
         if (request.getWeeklyReportsEnabled() != null) {
             user.setWeeklyReportsEnabled(request.getWeeklyReportsEnabled());
         }
+        if (request.getMarketingNotificationsEnabled() != null) {
+            user.setMarketingNotificationsEnabled(request.getMarketingNotificationsEnabled());
+        }
         return toNotificationPreferenceDto(userRepository.save(user));
     }
 
@@ -418,7 +421,8 @@ public class UserServiceImpl implements UserService {
                 user.getFastingRemindersEnabled(),
                 user.getRecipeSuggestionsEnabled(),
                 user.getAiInsightsEnabled(),
-                user.getWeeklyReportsEnabled()
+                user.getWeeklyReportsEnabled(),
+                user.getMarketingNotificationsEnabled()
         );
     }
 }

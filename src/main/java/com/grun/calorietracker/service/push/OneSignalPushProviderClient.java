@@ -50,11 +50,15 @@ public class OneSignalPushProviderClient implements PushProviderClient {
         Map<String, Object> body = Map.of(
                 "app_id", properties.getOnesignal().getAppId(),
                 "include_player_ids", List.of(token.getTokenValue()),
-                "headings", Map.of("en", "GRun"),
+                "headings", Map.of("en", notification.getTitle() == null ? "GRUN" : notification.getTitle()),
                 "contents", Map.of("en", notification.getMessage()),
                 "data", Map.of(
                         "notificationId", notification.getId(),
-                        "type", notification.getType()
+                        "type", valueOrEmpty(notification.getType()),
+                        "targetRoute", valueOrEmpty(notification.getTargetRoute()),
+                        "targetId", valueOrEmpty(notification.getTargetId()),
+                        "primaryAction", valueOrEmpty(notification.getPrimaryAction()),
+                        "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()
                 )
         );
         try {
@@ -70,6 +74,10 @@ public class OneSignalPushProviderClient implements PushProviderClient {
             log.warn("onesignal_push_failed tokenId={} notificationId={} reason={}", token.getId(), notification.getId(), ex.getMessage());
             return PushProviderSendResult.failed(ex.getMessage());
         }
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private boolean isBlank(String value) {

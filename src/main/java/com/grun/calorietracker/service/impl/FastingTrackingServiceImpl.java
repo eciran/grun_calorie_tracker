@@ -43,6 +43,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -51,7 +52,13 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private static final int DEFAULT_FASTING_HOURS = 16;
     private static final int DEFAULT_EATING_WINDOW_HOURS = 8;
     private static final String FASTING_REMINDER_TYPE = "fasting_reminder";
-    private static final String FASTING_REMINDER_MESSAGE = "Your fasting window is almost complete.";
+    private static final List<ReminderCopy> FASTING_REMINDER_COPY = List.of(
+            new ReminderCopy("Almost at the finish line", "Your fasting window is nearly complete. Nicely done."),
+            new ReminderCopy("The countdown is on", "Not long now. Your eating window is just around the corner."),
+            new ReminderCopy("Strong finish", "You are close to completing your fast. Keep cruising."),
+            new ReminderCopy("Nearly there", "Your fasting timer says you are doing great."),
+            new ReminderCopy("Final stretch", "A little more patience, then it is time to wrap up your fast.")
+    );
     private static final int DEFAULT_SESSION_PAGE_SIZE = 20;
     private static final int MAX_SESSION_PAGE_SIZE = 100;
 
@@ -286,10 +293,18 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
                 .toList();
         dueSessions.forEach(session -> {
             LocalDateTime userNow = userTimeZoneSupport.now(session.getUser());
+            ReminderCopy copy = randomCopy(FASTING_REMINDER_COPY);
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(session.getUser());
             notification.setType(FASTING_REMINDER_TYPE);
-            notification.setMessage(FASTING_REMINDER_MESSAGE);
+            notification.setTitle(copy.title());
+            notification.setMessage(copy.message());
+            notification.setSeverity("INFO");
+            notification.setSource("FASTING_REMINDER");
+            notification.setTargetType("FASTING_SESSION");
+            notification.setTargetId(String.valueOf(session.getId()));
+            notification.setTargetRoute("fasting");
+            notification.setPrimaryAction("VIEW_FASTING");
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
             NotificationEntity saved = notificationRepository.save(notification);
@@ -299,6 +314,12 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         fastingSessionRepository.saveAll(dueSessions);
         return dueSessions.size();
     }
+
+    private ReminderCopy randomCopy(List<ReminderCopy> options) {
+        return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private record ReminderCopy(String title, String message) {}
 
     private UserEntity getUser(String email) {
         return userRepository.findByEmail(email)
