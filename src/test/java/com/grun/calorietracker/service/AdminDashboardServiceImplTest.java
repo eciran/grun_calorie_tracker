@@ -3,14 +3,22 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.AdminDashboardSummaryDto;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiRequestStatus;
-import com.grun.calorietracker.enums.SubscriptionPlan;
+import com.grun.calorietracker.enums.ProductCorrectionStatus;
+import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
+import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
+import com.grun.calorietracker.enums.RecipeReportStatus;
+import com.grun.calorietracker.enums.RecipeVisibility;import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
-import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
+import com.grun.calorietracker.repository.ProductCorrectionSuggestionRepository;
+import com.grun.calorietracker.repository.ProductQualitySuggestionRepository;
+import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
+import com.grun.calorietracker.repository.RecipeReportRepository;
+import com.grun.calorietracker.repository.RecipeRepository;import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AdminDashboardServiceImpl;
@@ -44,9 +52,34 @@ class AdminDashboardServiceImplTest {
     @Mock
     private AiRequestHistoryRepository aiRequestHistoryRepository;
 
+    @Mock
+    private RecipeRepository recipeRepository;
+
+    @Mock
+    private RecipeImportCandidateRepository recipeImportCandidateRepository;
+
+    @Mock
+    private RecipeReportRepository recipeReportRepository;
+
+    @Mock
+    private ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
+
+    @Mock
+    private ProductQualitySuggestionRepository productQualitySuggestionRepository;
     @Test
     void getSummary_returnsUserAndFoodCatalogMetrics() {
-        AdminDashboardServiceImpl service = new AdminDashboardServiceImpl(userRepository, foodItemRepository, subscriptionRepository, subscriptionProviderEventRepository, aiRequestHistoryRepository);
+        AdminDashboardServiceImpl service = new AdminDashboardServiceImpl(
+                userRepository,
+                foodItemRepository,
+                subscriptionRepository,
+                subscriptionProviderEventRepository,
+                aiRequestHistoryRepository,
+                recipeRepository,
+                recipeImportCandidateRepository,
+                recipeReportRepository,
+                productCorrectionSuggestionRepository,
+                productQualitySuggestionRepository
+        );
 
         when(userRepository.count()).thenReturn(10L);
         when(userRepository.countByRole(UserRole.STANDARD)).thenReturn(7L);
@@ -60,7 +93,15 @@ class AdminDashboardServiceImplTest {
         when(foodItemRepository.countReviewQueueProducts(
                 List.of(VerificationStatus.RAW_IMPORTED, VerificationStatus.NEEDS_REVIEW)
         )).thenReturn(35L);
-        when(subscriptionRepository.countByPlanTypeAndStatus(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE)).thenReturn(4L);
+        when(recipeRepository.countByVisibilityAndVerificationStatusAndArchivedFalse(
+                RecipeVisibility.COMMUNITY_PENDING,
+                VerificationStatus.NEEDS_REVIEW
+        )).thenReturn(4L);
+        when(recipeImportCandidateRepository.countByStatus(RecipeImportCandidateStatus.PENDING)).thenReturn(2L);
+        when(recipeReportRepository.countByStatus(RecipeReportStatus.OPEN)).thenReturn(3L);
+        when(productCorrectionSuggestionRepository.countByStatus(ProductCorrectionStatus.OPEN)).thenReturn(5L);
+        when(productQualitySuggestionRepository.countByStatus(ProductQualitySuggestionStatus.OPEN)).thenReturn(6L);
+        when(aiRequestHistoryRepository.countRefundableRejectedDrafts()).thenReturn(7L);        when(subscriptionRepository.countByPlanTypeAndStatus(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE)).thenReturn(4L);
         when(subscriptionRepository.countByPlanTypeAndStatus(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE)).thenReturn(2L);
         when(subscriptionRepository.countByStatus(SubscriptionStatus.CANCELED)).thenReturn(3L);
         when(subscriptionRepository.countByStatus(SubscriptionStatus.REFUNDED)).thenReturn(1L);
@@ -86,7 +127,13 @@ class AdminDashboardServiceImplTest {
         assertThat(summary.getNeedsReviewProducts()).isEqualTo(10L);
         assertThat(summary.getRejectedProducts()).isEqualTo(5L);
         assertThat(summary.getReviewQueueProducts()).isEqualTo(35L);
-        assertThat(summary.getActivePlusSubscriptions()).isEqualTo(4L);
+        assertThat(summary.getPendingRecipeApprovals()).isEqualTo(4L);
+        assertThat(summary.getPendingRecipeImportCandidates()).isEqualTo(2L);
+        assertThat(summary.getOpenRecipeReports()).isEqualTo(3L);
+        assertThat(summary.getOpenProductCorrectionSuggestions()).isEqualTo(5L);
+        assertThat(summary.getOpenProductQualitySuggestions()).isEqualTo(6L);
+        assertThat(summary.getRefundableAiRequests()).isEqualTo(7L);
+        assertThat(summary.getTotalAdminApprovalItems()).isEqualTo(62L);        assertThat(summary.getActivePlusSubscriptions()).isEqualTo(4L);
         assertThat(summary.getActiveProSubscriptions()).isEqualTo(2L);
         assertThat(summary.getCanceledSubscriptions()).isEqualTo(3L);
         assertThat(summary.getRefundedSubscriptions()).isEqualTo(1L);

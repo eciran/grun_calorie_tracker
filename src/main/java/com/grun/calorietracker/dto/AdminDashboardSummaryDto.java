@@ -1,7 +1,6 @@
 package com.grun.calorietracker.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,7 +8,6 @@ import java.util.Map;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 @Schema(description = "Admin dashboard summary metrics for user and food catalog monitoring.")
 public class AdminDashboardSummaryDto {
 
@@ -42,6 +40,27 @@ public class AdminDashboardSummaryDto {
 
     @Schema(description = "Number of products currently requiring admin review because product data or image quality is not approved.", example = "62000")
     private long reviewQueueProducts;
+
+    @Schema(description = "User recipes currently waiting for publication approval.")
+    private long pendingRecipeApprovals;
+
+    @Schema(description = "Recipe JSON import candidates waiting for an admin decision.")
+    private long pendingRecipeImportCandidates;
+
+    @Schema(description = "Open user reports against public recipes.")
+    private long openRecipeReports;
+
+    @Schema(description = "Open user-submitted food product correction suggestions.")
+    private long openProductCorrectionSuggestions;
+
+    @Schema(description = "Open catalog quality suggestions waiting for an admin decision.")
+    private long openProductQualitySuggestions;
+
+    @Schema(description = "Rejected AI requests with quota still eligible for an admin refund.")
+    private long refundableAiRequests;
+
+    @Schema(description = "Total items currently waiting across admin approval queues.")
+    private long totalAdminApprovalItems;
 
     @Schema(description = "Number of active PLUS subscriptions.", example = "320")
     private long activePlusSubscriptions;

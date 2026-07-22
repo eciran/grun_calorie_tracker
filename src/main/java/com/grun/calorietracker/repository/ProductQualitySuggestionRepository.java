@@ -16,6 +16,8 @@ import java.util.Optional;
 
 public interface ProductQualitySuggestionRepository extends JpaRepository<ProductQualitySuggestionEntity, Long> {
 
+    long countByStatus(ProductQualitySuggestionStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM ProductQualitySuggestionEntity s WHERE s.id = :id")
     Optional<ProductQualitySuggestionEntity> findForUpdateById(@Param("id") Long id);

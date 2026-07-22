@@ -9,5 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface RecipeReportRepository extends JpaRepository<RecipeReportEntity, Long> {
+    long countByStatus(RecipeReportStatus status);
+
     Optional<RecipeReportEntity> findByUserAndRecipeAndStatus(UserEntity user, RecipeEntity recipe, RecipeReportStatus status);
 }

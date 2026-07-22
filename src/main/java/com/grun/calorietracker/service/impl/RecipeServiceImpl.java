@@ -139,7 +139,7 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.getIngredients().clear();
         recipe.getCookingSteps().clear();
         applyRequest(recipe, request, user);
-        markForReviewIfPublic(recipe);
+        returnToPrivateDraftIfSubmittedOrPublished(recipe);
         return toDto(recipeRepository.save(recipe), user);
     }
 
@@ -1137,11 +1137,11 @@ public class RecipeServiceImpl implements RecipeService {
         }
     }
 
-    private void markForReviewIfPublic(RecipeEntity recipe) {
+    private void returnToPrivateDraftIfSubmittedOrPublished(RecipeEntity recipe) {
         if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
                 || recipe.getVisibility() == RecipeVisibility.COMMUNITY_PENDING) {
-            recipe.setVisibility(RecipeVisibility.COMMUNITY_PENDING);
-            recipe.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+            recipe.setVisibility(RecipeVisibility.PRIVATE);
+            recipe.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         }
     }
 

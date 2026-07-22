@@ -15,6 +15,7 @@ public interface SubscriptionService {
     SubscriptionDto getCurrentSubscription(String email);
     SubscriptionDto getUserSubscriptionForAdmin(Long userId);
     SubscriptionFeatureAccessDto getUserFeatureAccessForAdmin(Long userId);
+    SubscriptionFeatureAccessDto applyCurrentFeatureMatrixToUser(Long userId);
     SubscriptionDto updateUserSubscription(Long userId, AdminSubscriptionUpdateRequestDto request);
     SubscriptionFeatureAccessDto getFeatureAccess(String email);
     SubscriptionDto consumeAiQuota(String email);

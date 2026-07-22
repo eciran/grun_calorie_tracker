@@ -38,6 +38,7 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -352,6 +353,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     @Transactional
+    public SubscriptionFeatureAccessDto applyCurrentFeatureMatrixToUser(Long userId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Optional<SubscriptionEntity> subscription = subscriptionRepository.findByUser(user);
+        if (subscription.isEmpty()) {
+            return toFeatureAccess(freeSubscription(), null);
+        }
+        SubscriptionEntity entity = subscription.get();
+        clearExpiredAiAddonQuota(entity);
+        syncEntitlementsForCurrentPeriod(entity);
+        return toFeatureAccess(toDto(entity), entity);
+    }
+    @Override
+    @Transactional
     public SubscriptionDto updateUserSubscription(Long userId, AdminSubscriptionUpdateRequestDto request) {
         validateDateRange(request.getStartDate(), request.getEndDate());
 
@@ -626,6 +641,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             notification.setUser(user);
             notification.setMessage(message);
             notification.setType("subscription");
+            notification.setTitle("A heads-up about your plan");
+            notification.setSeverity("INFO");
+            notification.setSource("SUBSCRIPTION_UPDATE");
+            notification.setTargetType("SUBSCRIPTION_FEATURE");
+            notification.setTargetId(feature.name());
+            notification.setTargetRoute("manage-subscription");
+            notification.setPrimaryAction("MANAGE_SUBSCRIPTION");
             notification.setIsRead(false);
             notification.setCreatedAt(LocalDateTime.now());
             notificationRepository.save(notification);

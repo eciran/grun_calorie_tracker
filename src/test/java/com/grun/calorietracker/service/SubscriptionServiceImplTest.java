@@ -19,6 +19,7 @@ import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.impl.SubscriptionServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.transaction.annotation.Transactional;
@@ -261,6 +262,42 @@ class SubscriptionServiceImplTest {
         assertEquals(java.time.LocalDate.of(2026, 6, 1), result.getEffectiveFrom());
     }
 
+    @Test
+    void applyCurrentFeatureMatrixToUser_refreshesActiveSnapshotFromCurrentPlanMatrix() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        entity.setId(7L);
+        UserSubscriptionEntitlementEntity oldEntitlement = new UserSubscriptionEntitlementEntity();
+        oldEntitlement.setSubscription(entity);
+        oldEntitlement.setUser(user);
+        oldEntitlement.setFeature(SubscriptionFeature.HEALTH_INTEGRATION);
+        oldEntitlement.setEnabled(true);
+        oldEntitlement.setSourcePlan(SubscriptionPlan.PLUS);
+        oldEntitlement.setValidFrom(java.time.LocalDate.now().minusDays(10));
+        oldEntitlement.setValidUntil(null);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(userSubscriptionEntitlementRepository.findBySubscription(entity)).thenReturn(List.of(oldEntitlement));
+        when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(SubscriptionPlan.PLUS, SubscriptionFeature.WATER_TRACKING))
+                .thenReturn(Optional.of(planFeature(SubscriptionPlan.PLUS, SubscriptionFeature.WATER_TRACKING, true)));
+        when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any()))
+                .thenReturn(true);
+        when(userSubscriptionEntitlementRepository.existsActiveFeature(eq(7L), eq(SubscriptionFeature.WATER_TRACKING), eq(SubscriptionPlan.PLUS), any()))
+                .thenReturn(true);
+
+        var result = service.applyCurrentFeatureMatrixToUser(1L);
+
+        assertEquals(true, result.getWaterTracking());
+        assertEquals(false, oldEntitlement.getEnabled());
+        assertEquals(java.time.LocalDate.now().minusDays(1), oldEntitlement.getValidUntil());
+        ArgumentCaptor<UserSubscriptionEntitlementEntity> captor = ArgumentCaptor.forClass(UserSubscriptionEntitlementEntity.class);
+        verify(userSubscriptionEntitlementRepository, org.mockito.Mockito.atLeastOnce()).save(captor.capture());
+        boolean waterSnapshotCreated = captor.getAllValues().stream()
+                .anyMatch(item -> item.getFeature() == SubscriptionFeature.WATER_TRACKING
+                        && item.getSourcePlan() == SubscriptionPlan.PLUS
+                        && Boolean.TRUE.equals(item.getEnabled()));
+        assertEquals(true, waterSnapshotCreated);
+    }
     @Test
     void assertFeatureAccess_whenFeatureDenied_throwsIllegalArgumentException() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
