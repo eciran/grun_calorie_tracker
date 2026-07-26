@@ -21,15 +21,18 @@ import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
+import com.grun.calorietracker.entity.SleepSessionEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.UserConsentEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.entity.UserFitnessPreferenceEntity;
 import com.grun.calorietracker.entity.UserNutritionPreferenceEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.AppliedPromoRepository;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.BodyMeasurementRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -45,6 +48,7 @@ import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.OnboardingDraftRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.ProductAnalyticsEventRepository;
 import com.grun.calorietracker.repository.ProductCorrectionSuggestionRepository;
@@ -56,10 +60,13 @@ import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
+import com.grun.calorietracker.repository.SleepGoalRepository;
+import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserFitnessPreferenceRepository;
 import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
@@ -89,6 +96,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final FoodLogsRepository foodLogsRepository;
     private final ExerciseLogRepository exerciseLogRepository;
     private final ProgressLogRepository progressLogRepository;
+    private final BodyMeasurementRepository bodyMeasurementRepository;
     private final NotificationRepository notificationRepository;
     private final FederatedIdentityRepository federatedIdentityRepository;
     private final MealTemplateRepository mealTemplateRepository;
@@ -122,6 +130,10 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
     private final UserNutritionPreferenceRepository userNutritionPreferenceRepository;
+    private final UserFitnessPreferenceRepository userFitnessPreferenceRepository;
+    private final OnboardingDraftRepository onboardingDraftRepository;
+    private final SleepGoalRepository sleepGoalRepository;
+    private final SleepSessionRepository sleepSessionRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -133,6 +145,9 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         UserNutritionPreferenceDto nutritionPreferences = userNutritionPreferenceRepository.findByUser(user)
                 .map(this::toNutritionPreferenceExport)
                 .orElseGet(UserNutritionPreferenceDto::new);
+        GdprDataExportDto.FitnessPreferenceExportDto fitnessPreferences = userFitnessPreferenceRepository.findByUser(user)
+                .map(this::toFitnessPreferenceExport)
+                .orElse(null);
 
         LocalDateTime latestFoodLog = foodLogsRepository.findTopByUserOrderByLogDateDesc(user)
                 .map(FoodLogsEntity::getLogDate)
@@ -161,6 +176,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 user.getName(),
                 user.getRole(),
                 user.getMarketRegion(),
+                user.getBirthDate(),
+                user.getCountryCode(),
                 user.getPreferredLanguage(),
                 user.getTimeZone(),
                 user.getEmailVerified(),
@@ -175,6 +192,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 mealTemplateRepository.countByUser(user),
                 userFavoriteRepository.countByUser(user),
                 deviceDataRepository.countByUser(user),
+                sleepSessionRepository.countByUser(user),
                 userConsentRepository.countByUser(user),
                 aiRequestHistoryRepository.countByUser(user),
                 waterLogRepository.countByUser(user),
@@ -187,6 +205,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 productAnalyticsEventRepository.countByUser(user),
                 subscriptionDto,
                 nutritionPreferences,
+                fitnessPreferences,
                 identities,
                 userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toConsentExport).toList(),
                 foodLogsRepository.findByUser(user).stream().map(this::toFoodLogExport).toList(),
@@ -201,6 +220,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 userFavoriteRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toFavoriteFoodExport).toList(),
                 healthConnectionRepository.findByUserOrderByProviderAsc(user).stream().map(this::toHealthConnectionExport).toList(),
                 deviceDataRepository.findByUserOrderByRecordedAtAsc(user).stream().map(this::toHealthMetricExport).toList(),
+                sleepGoalRepository.findByUser(user).map(this::toSleepGoalExport).orElse(null),
+                sleepSessionRepository.findByUserOrderByStartedAtAsc(user).stream().map(this::toSleepSessionExport).toList(),
                 notificationRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toNotificationExport).toList(),
                 aiRequestHistoryRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toAiRequestExport).toList(),
                 recipeLogRepository.findByUserOrderByLogDateAsc(user).stream().map(this::toRecipeLogExport).toList(),
@@ -232,6 +253,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         user.setName("Deleted User");
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setAge(null);
+        user.setBirthDate(null);
+        user.setCountryCode(null);
         user.setGender(null);
         user.setHeight(null);
         user.setWeight(null);
@@ -254,6 +277,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         fastingPlanRepository.deleteByUser(user);
         exerciseLogRepository.deleteByUser(user);
         progressLogRepository.deleteByUser(user);
+        bodyMeasurementRepository.deleteByUser(user);
         recipeLogRepository.deleteByUser(user);
         mealTemplateRepository.deleteByUser(user);
         mealPlanRepository.deleteByUser(user);
@@ -261,6 +285,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         notificationRepository.deleteByUser(user);
         userAchievementRepository.deleteByUser(user);
         deviceDataRepository.deleteByUser(user);
+        sleepSessionRepository.deleteByUser(user);
+        sleepGoalRepository.deleteByUser(user);
         stepGoalRepository.deleteByUser(user);
         userPushTokenRepository.deleteByUser(user);
         recipeUserInteractionRepository.deleteByUser(user);
@@ -269,7 +295,9 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         productAnalyticsEventRepository.deleteByUser(user);
         healthConnectionRepository.deleteByUser(user);
         goalRepository.deleteByUser(user);
+        onboardingDraftRepository.deleteByUser(user);
         userNutritionPreferenceRepository.deleteByUser(user);
+        userFitnessPreferenceRepository.deleteByUser(user);
         appliedPromoRepository.deleteByUser(user);
         subscriptionProviderEventRepository.anonymizeUserReferences(user, anonymizedAppUserId, "{}");
         aiRequestHistoryRepository.deleteByUser(user);
@@ -278,6 +306,31 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         foodItemRepository.deleteByCreatedByUserAndIsCustomTrue(user);
 
         userRepository.save(user);
+    }
+
+    private GdprDataExportDto.SleepGoalExportDto toSleepGoalExport(
+            com.grun.calorietracker.entity.SleepGoalEntity entity) {
+        return new GdprDataExportDto.SleepGoalExportDto(
+                entity.getTargetMinutes(),
+                entity.getPreferredBedtime() == null ? null : entity.getPreferredBedtime().toString(),
+                entity.getPreferredWakeTime() == null ? null : entity.getPreferredWakeTime().toString()
+        );
+    }
+
+    private GdprDataExportDto.SleepSessionExportDto toSleepSessionExport(SleepSessionEntity entity) {
+        return new GdprDataExportDto.SleepSessionExportDto(
+                entity.getId(),
+                entity.getStartedAt(),
+                entity.getEndedAt(),
+                entity.getSleepDate(),
+                entity.getDurationMinutes(),
+                entity.getTimeZone(),
+                entity.getProvider() == null ? null : entity.getProvider().name(),
+                entity.getExternalId(),
+                entity.getQualityScore(),
+                entity.getQualityConfidence() == null ? null : entity.getQualityConfidence().name(),
+                entity.getNote()
+        );
     }
 
     private UserNutritionPreferenceDto toNutritionPreferenceExport(
@@ -290,6 +343,13 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         return dto;
     }
 
+    private GdprDataExportDto.FitnessPreferenceExportDto toFitnessPreferenceExport(
+            UserFitnessPreferenceEntity entity) {
+        return new GdprDataExportDto.FitnessPreferenceExportDto(
+                entity.getWeeklyWorkoutFrequency(),
+                entity.getUpdatedAt()
+        );
+    }
     private UserEntity findUser(String userEmail) {
         return userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));

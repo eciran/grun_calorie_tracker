@@ -24,6 +24,7 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.ExerciseProviderActivityMappingRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
+import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.ExerciseLogsService;
@@ -48,6 +49,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     private final UserRepository userRepository;
     private final HealthConnectionRepository healthConnectionRepository;
     private final DeviceDataRepository deviceDataRepository;
+    private final SleepSessionRepository sleepSessionRepository;
     private final ExerciseProviderActivityMappingRepository exerciseProviderActivityMappingRepository;
     private final ExerciseLogsService exerciseLogsService;
     private final SubscriptionService subscriptionService;
@@ -292,7 +294,8 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     @Transactional
     public HealthDataDeleteResponseDto deleteProviderData(String email, HealthProvider provider) {
         UserEntity user = getUser(email);
-        long deletedCount = deviceDataRepository.deleteByUserAndProvider(user, provider);
+        long deletedCount = deviceDataRepository.deleteByUserAndProvider(user, provider)
+                + sleepSessionRepository.deleteByUserAndProvider(user, provider);
         healthConnectionRepository.findByUserAndProvider(user, provider)
                 .ifPresent(connection -> {
                     connection.setStatus(HealthConnectionStatus.REVOKED);
@@ -307,7 +310,8 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     @Transactional
     public HealthDataDeleteResponseDto deleteAllHealthData(String email) {
         UserEntity user = getUser(email);
-        long deletedCount = deviceDataRepository.deleteByUser(user);
+        long deletedCount = deviceDataRepository.deleteByUser(user)
+                + sleepSessionRepository.deleteByUser(user);
         healthConnectionRepository.findByUserOrderByProviderAsc(user)
                 .forEach(connection -> {
                     connection.setStatus(HealthConnectionStatus.REVOKED);

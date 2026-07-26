@@ -113,8 +113,9 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTargetCalories(targetCalories);
         dto.setConsumedCalories(consumedCalories);
         dto.setBurnedCalories(burnedCalories);
-        dto.setRemainingCalories(round((targetCalories + burnedCalories) - consumedCalories));
+        dto.setRemainingCalories(round(targetCalories - consumedCalories));
         dto.setNetCalories(round(consumedCalories - burnedCalories));
+        dto.setExerciseCaloriesAddedToBudget(false);
         dto.setCalorieProgressPercent(percent(consumedCalories, targetCalories.doubleValue()));
 
         dto.setTargetProtein(targetProtein);

@@ -25,5 +25,16 @@ public interface ProgressLogRepository extends JpaRepository<ProgressLogEntity, 
 
     Optional<ProgressLogEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
 
+    Optional<ProgressLogEntity> findTopByUserAndLogDateLessThanOrderByLogDateDesc(
+            UserEntity user,
+            LocalDateTime end
+    );
+
+    Optional<ProgressLogEntity> findTopByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+            UserEntity user,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
     long deleteByUser(UserEntity user);
 }

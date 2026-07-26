@@ -8,6 +8,7 @@ import com.grun.calorietracker.exception.ProgressLogNotFoundException;
 import com.grun.calorietracker.mapper.ProgressLogMapper;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.service.ProgressLogService;
+import com.grun.calorietracker.service.BodyMeasurementService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,15 +24,20 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     private final ProgressLogRepository progressLogRepository;
     private final UserService userService;
     private final ProgressLogMapper progressLogMapper;
+    private final BodyMeasurementService bodyMeasurementService;
 
     @Override
+    @Transactional
     public ProgressLogDto saveLog(ProgressLogDto log, String email) {
         UserEntity user = getUserByEmail(email);
         ProgressLogEntity entity = progressLogMapper.toEntity(log, user);
-        return progressLogMapper.toDto(progressLogRepository.save(entity));
+        ProgressLogEntity saved = progressLogRepository.save(entity);
+        bodyMeasurementService.syncWeightFromProgress(saved.getId(), saved.getWeight(), saved.getLogDate(), email);
+        return progressLogMapper.toDto(saved);
     }
 
     @Override
+    @Transactional
     public ProgressLogDto updateLog(Long id, ProgressLogDto log, String email) {
         UserEntity user = getUserByEmail(email);
         ProgressLogEntity entity = getOwnedLog(id, user);
@@ -41,7 +47,9 @@ public class ProgressLogServiceImpl implements ProgressLogService {
         entity.setFatIntake(log.getFatIntake());
         entity.setCarbIntake(log.getCarbIntake());
         entity.setNote(log.getNote());
-        return progressLogMapper.toDto(progressLogRepository.save(entity));
+        ProgressLogEntity saved = progressLogRepository.save(entity);
+        bodyMeasurementService.syncWeightFromProgress(saved.getId(), saved.getWeight(), saved.getLogDate(), email);
+        return progressLogMapper.toDto(saved);
     }
 
     @Override
@@ -52,9 +60,11 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     }
 
     @Override
+    @Transactional
     public void deleteLog(Long id, String email) {
         UserEntity user = getUserByEmail(email);
         progressLogRepository.delete(getOwnedLog(id, user));
+        bodyMeasurementService.deleteWeightFromProgress(id, email);
     }
 
     @Override

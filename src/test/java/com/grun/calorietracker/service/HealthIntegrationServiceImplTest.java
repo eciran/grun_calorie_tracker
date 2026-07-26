@@ -17,6 +17,7 @@ import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.ExerciseProviderActivityMappingRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
+import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.HealthIntegrationServiceImpl;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
@@ -37,6 +38,7 @@ class HealthIntegrationServiceImplTest {
     private UserRepository userRepository;
     private HealthConnectionRepository healthConnectionRepository;
     private DeviceDataRepository deviceDataRepository;
+    private SleepSessionRepository sleepSessionRepository;
     private ExerciseProviderActivityMappingRepository exerciseProviderActivityMappingRepository;
     private ExerciseLogsService exerciseLogsService;
     private SubscriptionService subscriptionService;
@@ -48,6 +50,7 @@ class HealthIntegrationServiceImplTest {
         userRepository = mock(UserRepository.class);
         healthConnectionRepository = mock(HealthConnectionRepository.class);
         deviceDataRepository = mock(DeviceDataRepository.class);
+        sleepSessionRepository = mock(SleepSessionRepository.class);
         exerciseProviderActivityMappingRepository = mock(ExerciseProviderActivityMappingRepository.class);
         exerciseLogsService = mock(ExerciseLogsService.class);
         subscriptionService = mock(SubscriptionService.class);
@@ -55,6 +58,7 @@ class HealthIntegrationServiceImplTest {
                 userRepository,
                 healthConnectionRepository,
                 deviceDataRepository,
+                sleepSessionRepository,
                 exerciseProviderActivityMappingRepository,
                 exerciseLogsService,
                 subscriptionService,
@@ -411,11 +415,12 @@ class HealthIntegrationServiceImplTest {
         when(healthConnectionRepository.findByUserAndProvider(user, HealthProvider.APPLE_HEALTH))
                 .thenReturn(Optional.of(connection));
         when(deviceDataRepository.deleteByUserAndProvider(user, HealthProvider.APPLE_HEALTH)).thenReturn(12L);
+        when(sleepSessionRepository.deleteByUserAndProvider(user, HealthProvider.APPLE_HEALTH)).thenReturn(2L);
 
         var result = service.deleteProviderData("user@example.com", HealthProvider.APPLE_HEALTH);
 
         assertEquals(HealthProvider.APPLE_HEALTH, result.getProvider());
-        assertEquals(12L, result.getDeletedMetricCount());
+        assertEquals(14L, result.getDeletedMetricCount());
         assertEquals(HealthConnectionStatus.REVOKED, connection.getStatus());
         assertNull(connection.getLastSyncAt());
         assertNotNull(connection.getDisconnectedAt());
@@ -430,12 +435,13 @@ class HealthIntegrationServiceImplTest {
         connection.setStatus(HealthConnectionStatus.CONNECTED);
 
         when(deviceDataRepository.deleteByUser(user)).thenReturn(25L);
+        when(sleepSessionRepository.deleteByUser(user)).thenReturn(3L);
         when(healthConnectionRepository.findByUserOrderByProviderAsc(user)).thenReturn(List.of(connection));
 
         var result = service.deleteAllHealthData("user@example.com");
 
         assertNull(result.getProvider());
-        assertEquals(25L, result.getDeletedMetricCount());
+        assertEquals(28L, result.getDeletedMetricCount());
         assertEquals(HealthConnectionStatus.REVOKED, connection.getStatus());
         verify(healthConnectionRepository).save(connection);
     }
