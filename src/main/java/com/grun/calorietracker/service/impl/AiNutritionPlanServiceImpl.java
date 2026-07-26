@@ -13,6 +13,7 @@ import com.grun.calorietracker.repository.*;
 import com.grun.calorietracker.service.*;
 import com.grun.calorietracker.service.support.RecipeAllergenResolver;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiUxContractFactory;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -119,6 +120,13 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             response.setAiBaseRemainingThisPeriod(quota.getAiBaseRemainingThisPeriod());
             response.setAiAddonRemainingThisPeriod(quota.getAiAddonRemainingThisPeriod());
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            response.setUx(AiUxContractFactory.success(
+                    AiRequestStatus.DRAFT_CREATED,
+                    true,
+                    creditCost,
+                    quota,
+                    user.getPreferredLanguage()
+            ));
             copyUsage(response, history);
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(json(response));
@@ -135,7 +143,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(json(AiSafeResponseBuilder.failurePayload(
-                    AiRequestType.AI_NUTRITION_PLAN, true)));
+                    AiRequestType.AI_NUTRITION_PLAN, true, creditCost, false, user.getPreferredLanguage())));
             history.setQuotaConsumed(false);
             history.setQuotaConsumedAmount(0);
             history.setLatencyMs(elapsed(startedAt));

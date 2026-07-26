@@ -142,9 +142,10 @@ class AiNutritionPlanControllerTest {
                                 }
                                 """))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("Request conflict"))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.code").value("REQUEST_CONFLICT"))
                 .andExpect(jsonPath("$.message").value(
-                        "An AI nutrition-plan request with this key is already processing."));
+                        "Request conflicts with the current resource state"));
     }
 
     @Test

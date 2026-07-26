@@ -29,6 +29,7 @@ import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
@@ -431,16 +432,13 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
 
         String type;
         String severity;
-        String message;
         if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
                 && recipe.getVerificationStatus() == VerificationStatus.VERIFIED) {
             type = "recipe_review_approved";
             severity = "INFO";
-            message = "Your recipe \"" + recipe.getName() + "\" was approved and published.";
         } else if (recipe.getVerificationStatus() == VerificationStatus.REJECTED) {
             type = "recipe_review_rejected";
             severity = "WARNING";
-            message = "Your recipe \"" + recipe.getName() + "\" was not approved.";
         } else {
             return;
         }
@@ -449,7 +447,17 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         notification.setUser(recipe.getOwnerUser());
         notification.setType(type);
         boolean approved = "recipe_review_approved".equals(type);
-        notification.setTitle(approved ? "Your recipe is live!" : "A few tweaks needed");
+        boolean turkish = recipe.getOwnerUser().getPreferredLanguage() == PreferredLanguage.TR;
+        notification.setTitle(approved
+                ? (turkish ? "Tarifin yayında!" : "Your recipe is live!")
+                : (turkish ? "Birkaç düzenleme gerekiyor" : "A few tweaks needed"));
+        String message = approved
+                ? (turkish
+                    ? "\"%s\" tarifin onaylandı ve yayınlandı.".formatted(recipe.getName())
+                    : "Your recipe \"%s\" was approved and published.".formatted(recipe.getName()))
+                : (turkish
+                    ? "\"%s\" tarifin onaylanmadı.".formatted(recipe.getName())
+                    : "Your recipe \"%s\" was not approved.".formatted(recipe.getName()));
         notification.setNote(approved ? null : reviewNote);
         notification.setPrimaryAction(approved ? "VIEW_RECIPE" : "EDIT_RECIPE");
         notification.setSeverity(severity);

@@ -48,9 +48,10 @@ class AiMealDraftControllerTest {
     @WithMockUser(username = "user@example.com", roles = "USER")
     void createVoiceDraft_returnsDraft() throws Exception {
         AiMealDraftResponseDto response = response(AiRequestType.VOICE_FOOD_LOG);
-        when(aiMealDraftService.createVoiceFoodDraft(eq("user@example.com"), any())).thenReturn(response);
+        when(aiMealDraftService.createVoiceFoodDraft(eq("user@example.com"), eq("voice-request-123"), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/ai/meal-drafts/voice")
+                        .header("Idempotency-Key", "voice-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -73,6 +74,7 @@ class AiMealDraftControllerTest {
     @WithMockUser(username = "user@example.com", roles = "USER")
     void createPhotoDraft_requiresImageReference() throws Exception {
         mockMvc.perform(post("/api/v1/ai/meal-drafts/photo")
+                        .header("Idempotency-Key", "photo-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

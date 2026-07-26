@@ -58,8 +58,10 @@ public class AiMealDraftController {
     })
     public ResponseEntity<AiMealDraftResponseDto> createVoiceDraft(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AiVoiceFoodDraftRequestDto request) {
-        return ResponseEntity.ok(aiMealDraftService.createVoiceFoodDraft(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiMealDraftService.createVoiceFoodDraft(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping("/photo")
@@ -77,8 +79,10 @@ public class AiMealDraftController {
     })
     public ResponseEntity<AiMealDraftResponseDto> createPhotoDraft(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AiPhotoMealDraftRequestDto request) {
-        return ResponseEntity.ok(aiMealDraftService.createPhotoMealDraft(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiMealDraftService.createPhotoMealDraft(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping(value = "/photo-references", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

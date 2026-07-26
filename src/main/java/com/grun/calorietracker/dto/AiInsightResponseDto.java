@@ -61,6 +61,7 @@ public class AiInsightResponseDto implements AiUsageMetadataCarrier {
 
     @Schema(description = "Plain explanation of data limitations such as missing water, sleep, or incomplete logging.")
     private String dataQualityNote;
+    private AiUxContractDto ux;
     @JsonIgnore
     private Integer promptTokens;
     @JsonIgnore

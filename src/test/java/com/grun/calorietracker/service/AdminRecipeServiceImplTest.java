@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -101,7 +102,9 @@ class AdminRecipeServiceImplTest {
         RecipeEntity recipe = new RecipeEntity();
         recipe.setId(13L);
         recipe.setName("Recipe needing changes");
-        recipe.setOwnerUser(owner());
+        UserEntity owner = owner();
+        owner.setPreferredLanguage(PreferredLanguage.TR);
+        recipe.setOwnerUser(owner);
         recipe.setVisibility(RecipeVisibility.COMMUNITY_PENDING);
         recipe.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
         recipe.setArchived(false);
@@ -120,8 +123,9 @@ class AdminRecipeServiceImplTest {
         var notificationCaptor = forClass(NotificationEntity.class);
         verify(notificationRepository).save(notificationCaptor.capture());
         assertEquals("recipe_review_rejected", notificationCaptor.getValue().getType());
+        assertEquals("Birkaç düzenleme gerekiyor", notificationCaptor.getValue().getTitle());
         assertEquals(
-                "Your recipe \"Recipe needing changes\" was not approved.",
+                "\"Recipe needing changes\" tarifin onaylanmadı.",
                 notificationCaptor.getValue().getMessage()
         );
         assertEquals("Add exact ingredient quantities.", notificationCaptor.getValue().getNote());

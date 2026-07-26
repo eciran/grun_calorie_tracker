@@ -14,6 +14,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.service.impl.AdminAiMealDraftServiceImpl;
@@ -140,6 +141,7 @@ class AdminAiMealDraftServiceImplTest {
     @Test
     void rejectQuotaRefund_whenRequestIsPending_recordsDecisionAndNotifiesUser() {
         AiRequestHistoryEntity history = history(1, 0, AiRequestStatus.REJECTED);
+        history.getUser().setPreferredLanguage(PreferredLanguage.TR);
         AdminAiQuotaRefundRejectRequestDto request = new AdminAiQuotaRefundRejectRequestDto();
         request.setReason("The generated result matched the submitted meal.");
 
@@ -155,7 +157,8 @@ class AdminAiMealDraftServiceImplTest {
         var notificationCaptor = forClass(NotificationEntity.class);
         verify(notificationRepository).save(notificationCaptor.capture());
         assertEquals("ai_quota_refund_rejected", notificationCaptor.getValue().getType());
-        assertEquals("Your AI credit refund request was declined.", notificationCaptor.getValue().getMessage());
+        assertEquals("İsteğinle ilgili bir güncelleme", notificationCaptor.getValue().getTitle());
+        assertEquals("AI kredi iadesi isteğin onaylanmadı.", notificationCaptor.getValue().getMessage());
         assertEquals("The generated result matched the submitted meal.", notificationCaptor.getValue().getNote());
         assertEquals("VIEW_AI_CREDITS", notificationCaptor.getValue().getPrimaryAction());
         verify(pushDeliveryService).deliver(notificationCaptor.getValue());

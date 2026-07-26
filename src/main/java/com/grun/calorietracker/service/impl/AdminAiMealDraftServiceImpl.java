@@ -14,6 +14,7 @@ import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.service.AdminAiMealDraftService;
@@ -245,8 +246,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
                 saved,
                 AI_QUOTA_REFUND_APPROVED_TYPE,
                 "INFO",
-                "%d AI credit%s refunded to your account."
-                        .formatted(amount, amount == 1 ? "" : "s"),
+                amount,
                 null
         );
         return toDto(saved, amount, subscription);
@@ -278,7 +278,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
                 saved,
                 AI_QUOTA_REFUND_REJECTED_TYPE,
                 "WARNING",
-                "Your AI credit refund request was declined.",
+                null,
                 reason
         );
         return toDto(saved, 0, null);
@@ -306,13 +306,24 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
             AiRequestHistoryEntity history,
             String type,
             String severity,
-            String message,
+            Integer refundedAmount,
             String note) {
         NotificationEntity notification = new NotificationEntity();
         notification.setUser(history.getUser());
         notification.setType(type);
         boolean approved = AI_QUOTA_REFUND_APPROVED_TYPE.equals(type);
-        notification.setTitle(approved ? "Your credits are back!" : "An update on your request");
+        boolean turkish = history.getUser().getPreferredLanguage() == PreferredLanguage.TR;
+        notification.setTitle(approved
+                ? (turkish ? "Kredilerin geri yüklendi!" : "Your credits are back!")
+                : (turkish ? "İsteğinle ilgili bir güncelleme" : "An update on your request"));
+        String message = approved
+                ? (turkish
+                    ? "%d AI kredisi hesabına geri yüklendi.".formatted(refundedAmount)
+                    : "%d AI credit%s refunded to your account."
+                        .formatted(refundedAmount, refundedAmount == 1 ? "" : "s"))
+                : (turkish
+                    ? "AI kredi iadesi isteğin onaylanmadı."
+                    : "Your AI credit refund request was declined.");
         notification.setNote(note);
         notification.setPrimaryAction("VIEW_AI_CREDITS");
         notification.setSeverity(severity);

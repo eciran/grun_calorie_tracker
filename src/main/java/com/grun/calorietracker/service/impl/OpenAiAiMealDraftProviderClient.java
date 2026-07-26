@@ -25,6 +25,7 @@ import com.grun.calorietracker.dto.MealPlanNutritionSnapshotDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.exception.AiProviderException;
+import com.grun.calorietracker.exception.AiProviderTimeoutException;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.prompt.AiPromptTemplates;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -226,6 +227,9 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         } catch (RestClientException ex) {
             String providerError = sanitizeError(ex.getMessage());
             log.warn("openai_provider_request_failed transportError={}", providerError);
+            if (causedByTimeout(ex)) {
+                throw new AiProviderTimeoutException("OpenAI provider request timed out.");
+            }
             throw new AiProviderException("OpenAI provider request failed: " + providerError);
         } catch (JsonProcessingException ex) {
             String error = sanitizeError(ex.getOriginalMessage());
@@ -237,6 +241,17 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         }
     }
 
+    private boolean causedByTimeout(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String simpleName = current.getClass().getSimpleName();
+            if (simpleName.contains("Timeout") || simpleName.contains("TimedOut")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
     private Map<String, Object> buildProviderPayload(
             String schemaName,
             Map<String, Object> schema,

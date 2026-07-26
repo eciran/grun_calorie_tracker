@@ -6,24 +6,31 @@ import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiInsightRequestDto;
 import com.grun.calorietracker.dto.AiInsightResponseDto;
 import com.grun.calorietracker.dto.DailySummaryDto;
+import com.grun.calorietracker.dto.ProgressAnalyticsDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AiInsightFocus;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiInsightService;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.DashboardService;
+import com.grun.calorietracker.service.ProgressAnalyticsService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiIdempotencySupport;
+import com.grun.calorietracker.service.support.AiUxContractFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,23 +52,24 @@ public class AiInsightServiceImpl implements AiInsightService {
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final UserRepository userRepository;
     private final DashboardService dashboardService;
+    private final ProgressAnalyticsService progressAnalyticsService;
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
 
     @Override
-    @Transactional
-    public AiInsightResponseDto createDailyInsight(String email, AiInsightRequestDto request) {
+    public AiInsightResponseDto createDailyInsight(
+            String email, String idempotencyKey, AiInsightRequestDto request) {
         AiInsightRequestDto safeRequest = request == null ? new AiInsightRequestDto() : request;
         LocalDate date = safeRequest.getDate() == null ? LocalDate.now() : safeRequest.getDate();
         safeRequest.setDate(date);
         safeRequest.setContext(toDailyContext(dashboardService.getDailySummary(email, date)));
-        return createInsight(email, AiRequestType.AI_DAILY_INSIGHT, safeRequest);
+        return createInsight(email, idempotencyKey, AiRequestType.AI_DAILY_INSIGHT, safeRequest);
     }
 
     @Override
-    @Transactional
-    public AiInsightResponseDto createWeeklyInsight(String email, AiInsightRequestDto request) {
+    public AiInsightResponseDto createWeeklyInsight(
+            String email, String idempotencyKey, AiInsightRequestDto request) {
         AiInsightRequestDto safeRequest = request == null ? new AiInsightRequestDto() : request;
         LocalDate end = safeRequest.getEndDate() == null ? LocalDate.now() : safeRequest.getEndDate();
         LocalDate start = safeRequest.getStartDate() == null ? end.minusDays(6) : safeRequest.getStartDate();
@@ -73,11 +81,17 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
         safeRequest.setStartDate(start);
         safeRequest.setEndDate(end);
-        safeRequest.setContext(toWeeklyContext(email, start, end));
-        return createInsight(email, AiRequestType.AI_WEEKLY_INSIGHT, safeRequest);
+        Map<String, Object> context = toWeeklyContext(email, start, end);
+        if (safeRequest.getFocus() == AiInsightFocus.WEIGHT_GOAL
+                && subscriptionService.hasFeatureAccess(email, SubscriptionFeature.ADVANCED_ANALYTICS)) {
+            appendProgressContext(context, progressAnalyticsService.getAnalytics(email, start, end, false));
+        }
+        safeRequest.setContext(context);
+        return createInsight(email, idempotencyKey, AiRequestType.AI_WEEKLY_INSIGHT, safeRequest);
     }
 
-    private AiInsightResponseDto createInsight(String email, AiRequestType requestType, AiInsightRequestDto request) {
+    private AiInsightResponseDto createInsight(
+            String email, String idempotencyKey, AiRequestType requestType, AiInsightRequestDto request) {
         sanitizeUserContext(request);
         providerConfigurationValidator.validateConfiguredForDraft();
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_INSIGHTS);
@@ -86,25 +100,55 @@ public class AiInsightServiceImpl implements AiInsightService {
             throw new IllegalArgumentException("AI insights are disabled for this user.");
         }
 
+        String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
+        AiInsightResponseDto previous = existingInsight(user, requestType, key);
+        if (previous != null) {
+            return previous;
+        }
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
         history.setRequestType(requestType);
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
         history.setPromptVersion(properties.getPromptVersion());
+        history.setStatus(AiRequestStatus.PROCESSING);
+        history.setIdempotencyKey(key);
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(requestType, request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        try {
+            AiRequestHistoryEntity reserved = aiRequestHistoryRepository.save(history);
+            if (reserved != null) {
+                history = reserved;
+            }
+        } catch (DataIntegrityViolationException ex) {
+            AiInsightResponseDto concurrent = existingInsight(user, requestType, key);
+            if (concurrent != null) {
+                return concurrent;
+            }
+            throw new RequestConflictException(
+                    "An AI insight request with this key is already processing.");
+        }
+
         int creditCost = subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_INSIGHTS);
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+        boolean charged = false;
         try {
+            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            charged = true;
             AiInsightResponseDto response = requestType == AiRequestType.AI_DAILY_INSIGHT
                     ? activeProvider().createDailyInsight(request)
                     : activeProvider().createWeeklyInsight(request);
             response = normalize(response, requestType, request);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            response.setUx(AiUxContractFactory.success(
+                    AiRequestStatus.CONFIRMED,
+                    false,
+                    creditCost,
+                    quota,
+                    user.getPreferredLanguage()
+            ));
             copyUsageMetadata(response, history);
 
             history.setStatus(AiRequestStatus.CONFIRMED);
@@ -118,10 +162,10 @@ public class AiInsightServiceImpl implements AiInsightService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
-            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true)));
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true, creditCost, !refunded, user.getPreferredLanguage())));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -130,6 +174,38 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
     }
 
+    private AiInsightResponseDto existingInsight(
+            UserEntity user, AiRequestType requestType, String idempotencyKey) {
+        return aiRequestHistoryRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                        user, requestType, idempotencyKey)
+                .map(history -> AiIdempotencySupport.replayOrReject(
+                        history,
+                        stored -> readInsight(stored, user),
+                        "AI insight"
+                )).orElse(null);
+    }
+
+    private AiInsightResponseDto readInsight(AiRequestHistoryEntity history, UserEntity user) {
+        try {
+            AiInsightResponseDto response = objectMapper.readValue(
+                    history.getOutputPayload(), AiInsightResponseDto.class);
+            response.setRequestId(history.getId());
+            response.setStatus(history.getStatus());
+            if (response.getUx() == null) {
+                int consumed = history.getQuotaConsumedAmount() == null ? 0 : history.getQuotaConsumedAmount();
+                response.setUx(AiUxContractFactory.history(
+                        history.getStatus(),
+                        false,
+                        consumed,
+                        Boolean.TRUE.equals(history.getQuotaConsumed()),
+                        user.getPreferredLanguage()
+                ));
+            }
+            return response;
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Stored AI insight is unavailable.");
+        }
+    }
     private AiInsightResponseDto normalize(AiInsightResponseDto response, AiRequestType requestType, AiInsightRequestDto request) {
         if (response == null) {
             throw new IllegalArgumentException("AI insight provider returned an empty response.");
@@ -282,6 +358,11 @@ public class AiInsightServiceImpl implements AiInsightService {
         coverage.setExerciseMinutes(defaultInt(coverage.getExerciseMinutes(), exerciseMinutes == null ? null : exerciseMinutes.intValue()));
         addSignal(coverage, "calorie trend");
         addSignal(coverage, "logging consistency");
+        if (Boolean.TRUE.equals(bool(context.get("progressTrendSufficient")))) {
+            addSignal(coverage, "weight and goal trend");
+        } else {
+            addMissingSignal(coverage, "weight and goal trend");
+        }
         if (Boolean.TRUE.equals(coverage.getExerciseLogged())) {
             addSignal(coverage, "exercise trend");
         } else {
@@ -476,6 +557,29 @@ public class AiInsightServiceImpl implements AiInsightService {
         context.put("totalExerciseMinutes", round(exerciseMinutes));
         context.put("diaryDays", diaryDays);
         return context;
+    }
+
+    private void appendProgressContext(Map<String, Object> context, ProgressAnalyticsDto analytics) {
+        if (analytics == null) {
+            return;
+        }
+        ProgressAnalyticsDto.Body body = analytics.getBody();
+        if (body != null) {
+            context.put("currentWeightKg", body.getCurrentWeightKg());
+            context.put("targetWeightKg", body.getTargetWeightKg());
+            context.put("weeklyWeightChangeKg", body.getWeeklyChangeKg());
+            context.put("goalProgressPercent", body.getGoalProgressPercent());
+            context.put("projectionStatus", body.getProjectionStatus());
+            context.put("projectionConfidence", body.getProjectionConfidence());
+            context.put("projectedGoalDate", body.getProjectedGoalDate());
+            context.put("weightRecordCount", body.getWeightPoints() == null ? 0 : body.getWeightPoints().size());
+        }
+        if (analytics.getWeightPlateau() != null) {
+            context.put("weightPlateauStatus", analytics.getWeightPlateau().getStatus());
+        }
+        if (analytics.getDataCoverage() != null) {
+            context.put("progressTrendSufficient", analytics.getDataCoverage().isSufficientForTrend());
+        }
     }
 
     private Map<String, Object> toPrivacySafeInputPayload(AiRequestType requestType, AiInsightRequestDto request) {

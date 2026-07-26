@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.support;
 
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.PreferredLanguage;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -22,6 +23,16 @@ public final class AiSafeResponseBuilder {
     }
 
     public static Map<String, Object> failurePayload(AiRequestType requestType, boolean retryable) {
+        return failurePayload(requestType, retryable, 0, false, PreferredLanguage.EN);
+    }
+
+    public static Map<String, Object> failurePayload(
+            AiRequestType requestType,
+            boolean retryable,
+            int creditCost,
+            boolean creditCharged,
+            PreferredLanguage outputLanguage
+    ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", SCHEMA_VERSION);
         payload.put("requestType", requestType);
@@ -30,6 +41,8 @@ public final class AiSafeResponseBuilder {
         payload.put("userMessage", GENERIC_AI_FAILURE_MESSAGE);
         payload.put("userAction", USER_ACTION);
         payload.put("retryable", retryable);
+        payload.put("ux", AiUxContractFactory.failure(
+                retryable, creditCost, creditCharged, outputLanguage));
         payload.put("nextBestActions", nextBestActions(requestType));
         payload.put("createdAt", LocalDateTime.now());
         return payload;
@@ -69,6 +82,13 @@ public final class AiSafeResponseBuilder {
                     "Provide goal, fitness level, available days, and equipment.",
                     "Mention injuries or movement limitations.",
                     "Try again with a shorter plan duration."
+            );
+        }
+        if (requestType == AiRequestType.AI_MEAL_PREPARATION_GUIDE) {
+            return List.of(
+                    "Review the planned portion and preparation state.",
+                    "Mention allergies, substitutions, or equipment limitations.",
+                    "Try again with more specific cooking preferences."
             );
         }
         return List.of(

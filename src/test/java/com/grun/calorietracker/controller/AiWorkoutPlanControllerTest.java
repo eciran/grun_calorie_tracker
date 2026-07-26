@@ -60,9 +60,10 @@ class AiWorkoutPlanControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void generateDraft_returnsWorkoutPlanDraft() throws Exception {
-        when(aiWorkoutPlanService.createDraft(eq("user@example.com"), any())).thenReturn(draft());
+        when(aiWorkoutPlanService.createDraft(eq("user@example.com"), eq("workout-request-123"), any())).thenReturn(draft());
 
         mockMvc.perform(post("/api/v1/ai/workout-plans/generate")
+                        .header("Idempotency-Key", "workout-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

@@ -5,11 +5,13 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.service.impl.AiCompletionNotificationService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
@@ -26,7 +28,7 @@ class AiCompletionNotificationServiceTest {
         AiRequestHistoryRepository historyRepository = mock(AiRequestHistoryRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
         PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
-        AiCompletionNotificationService service = new AiCompletionNotificationService(historyRepository, notificationRepository, pushDeliveryService);
+        AiCompletionNotificationService service = new AiCompletionNotificationService(historyRepository, notificationRepository, pushDeliveryService, messageSource());
         UserEntity user = new UserEntity(); user.setId(7L);
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setId(42L); history.setUser(user); history.setRequestType(AiRequestType.AI_WORKOUT_PLAN);
@@ -49,13 +51,48 @@ class AiCompletionNotificationServiceTest {
     }
 
     @Test
+    void publishPendingNotifications_usesUserPreferredLanguage() {
+        AiRequestHistoryRepository historyRepository = mock(AiRequestHistoryRepository.class);
+        NotificationRepository notificationRepository = mock(NotificationRepository.class);
+        PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
+        UserEntity user = new UserEntity();
+        user.setId(8L);
+        user.setPreferredLanguage(PreferredLanguage.TR);
+        AiRequestHistoryEntity history = new AiRequestHistoryEntity();
+        history.setId(43L);
+        history.setUser(user);
+        history.setRequestType(AiRequestType.AI_WORKOUT_PLAN);
+        history.setStatus(AiRequestStatus.DRAFT_CREATED);
+        when(historyRepository.findPendingCompletionNotifications(anyList(), any(Pageable.class)))
+                .thenReturn(List.of(history));
+        when(notificationRepository.save(any(NotificationEntity.class)))
+                .thenAnswer(call -> call.getArgument(0));
+
+        new AiCompletionNotificationService(
+                historyRepository, notificationRepository, pushDeliveryService, messageSource())
+                .publishPendingNotifications();
+
+        ArgumentCaptor<NotificationEntity> captor = ArgumentCaptor.forClass(NotificationEntity.class);
+        verify(notificationRepository).save(captor.capture());
+        assertEquals("antrenman plani hazir!", captor.getValue().getTitle());
+        assertEquals("GRun AI sonucunuz incelenmeye hazir.", captor.getValue().getMessage());
+    }
+
+    @Test
     void publishPendingNotifications_whenNothingFinished_doesNothing() {
         AiRequestHistoryRepository historyRepository = mock(AiRequestHistoryRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
         PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
         when(historyRepository.findPendingCompletionNotifications(anyList(), any(Pageable.class))).thenReturn(List.of());
 
-        assertEquals(0, new AiCompletionNotificationService(historyRepository, notificationRepository, pushDeliveryService).publishPendingNotifications());
+        assertEquals(0, new AiCompletionNotificationService(historyRepository, notificationRepository, pushDeliveryService, messageSource()).publishPendingNotifications());
         verifyNoInteractions(notificationRepository, pushDeliveryService);
+    }
+
+    private ResourceBundleMessageSource messageSource() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("messages");
+        source.setDefaultEncoding("UTF-8");
+        return source;
     }
 }

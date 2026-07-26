@@ -28,6 +28,7 @@ import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -38,9 +39,12 @@ import com.grun.calorietracker.service.AiMealDraftService;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiIdempotencySupport;
+import com.grun.calorietracker.service.support.AiUxContractFactory;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,15 +79,15 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     private final NotificationRepository notificationRepository;
 
     @Override
-    public AiMealDraftResponseDto createVoiceFoodDraft(String email, AiVoiceFoodDraftRequestDto request) {
+    public AiMealDraftResponseDto createVoiceFoodDraft(String email, String idempotencyKey, AiVoiceFoodDraftRequestDto request) {
         safetyService.validateVoiceRequest(request);
-        return createDraft(email, AiRequestType.VOICE_FOOD_LOG, request, () -> activeProvider().createVoiceFoodDraft(request));
+        return createDraft(email, idempotencyKey, AiRequestType.VOICE_FOOD_LOG, request, () -> activeProvider().createVoiceFoodDraft(request));
     }
 
     @Override
-    public AiMealDraftResponseDto createPhotoMealDraft(String email, AiPhotoMealDraftRequestDto request) {
+    public AiMealDraftResponseDto createPhotoMealDraft(String email, String idempotencyKey, AiPhotoMealDraftRequestDto request) {
         safetyService.validatePhotoRequest(request);
-        return createDraft(email, AiRequestType.PHOTO_MEAL_LOG, request, () -> activeProvider().createPhotoMealDraft(request));
+        return createDraft(email, idempotencyKey, AiRequestType.PHOTO_MEAL_LOG, request, () -> activeProvider().createPhotoMealDraft(request));
     }
 
     @Override
@@ -103,6 +107,16 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         draft.setRequestId(history.getId());
         draft.setRequestType(history.getRequestType());
         draft.setStatus(history.getStatus());
+        if (draft.getUx() == null) {
+            int consumed = history.getQuotaConsumedAmount() == null ? 0 : history.getQuotaConsumedAmount();
+            draft.setUx(AiUxContractFactory.history(
+                    history.getStatus(),
+                    true,
+                    consumed,
+                    Boolean.TRUE.equals(history.getQuotaConsumed()),
+                    user.getPreferredLanguage()
+            ));
+        }
         return draft;
     }
 
@@ -164,6 +178,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     }
 
     private AiMealDraftResponseDto createDraft(String email,
+                                               String idempotencyKey,
                                                AiRequestType requestType,
                                                Object request,
                                                DraftSupplier supplier) {
@@ -171,6 +186,11 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         UserEntity user = getUser(email);
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_MEAL_DRAFTS);
         enrichRequestContext(request, user);
+        String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
+        AiMealDraftResponseDto previous = existingDraft(user, requestType, key);
+        if (previous != null) {
+            return previous;
+        }
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
@@ -178,14 +198,32 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
         history.setPromptVersion(properties.getPromptVersion());
+        history.setStatus(AiRequestStatus.PROCESSING);
+        history.setIdempotencyKey(key);
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(requestType, request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        try {
+            AiRequestHistoryEntity reserved = aiRequestHistoryRepository.save(history);
+            if (reserved != null) {
+                history = reserved;
+            }
+        } catch (DataIntegrityViolationException ex) {
+            AiMealDraftResponseDto concurrent = existingDraft(user, requestType, key);
+            if (concurrent != null) {
+                return concurrent;
+            }
+            throw new RequestConflictException(
+                    "An AI meal-draft request with this key is already processing.");
+        }
+
         int creditCost = subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_MEAL_DRAFTS);
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+        boolean charged = false;
         try {
+            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            charged = true;
             AiMealDraftResponseDto response = responseValidator.validateAndNormalize(
                     supplier.get(),
                     requestType,
@@ -195,6 +233,13 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             response.setSafety(safetyService.reviewProviderResponse(response, requestType));
             normalizeItemsAsAiSnapshot(response);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            response.setUx(AiUxContractFactory.success(
+                    AiRequestStatus.DRAFT_CREATED,
+                    true,
+                    creditCost,
+                    quota,
+                    user.getPreferredLanguage()
+            ));
             copyUsageMetadata(response, history);
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setOutputPayload(writeJson(response));
@@ -205,10 +250,10 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
-            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true)));
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true, creditCost, !refunded, user.getPreferredLanguage())));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -217,6 +262,33 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         }
     }
 
+    private AiMealDraftResponseDto existingDraft(
+            UserEntity user, AiRequestType requestType, String idempotencyKey) {
+        return aiRequestHistoryRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                        user, requestType, idempotencyKey)
+                .map(history -> AiIdempotencySupport.replayOrReject(
+                        history,
+                        stored -> {
+                            AiMealDraftResponseDto draft = readOriginalDraft(stored.getOutputPayload());
+                            draft.setRequestId(stored.getId());
+                            draft.setRequestType(stored.getRequestType());
+                            draft.setStatus(stored.getStatus());
+                            if (draft.getUx() == null) {
+                                int consumed = stored.getQuotaConsumedAmount() == null
+                                        ? 0 : stored.getQuotaConsumedAmount();
+                                draft.setUx(AiUxContractFactory.history(
+                                        stored.getStatus(),
+                                        true,
+                                        consumed,
+                                        Boolean.TRUE.equals(stored.getQuotaConsumed()),
+                                        user.getPreferredLanguage()
+                                ));
+                            }
+                            return draft;
+                        },
+                        "AI meal-draft"
+                )).orElse(null);
+    }
     private void normalizeItemsAsAiSnapshot(AiMealDraftResponseDto response) {
         if (response.getItems() == null) {
             return;

@@ -42,6 +42,7 @@ public class AiNutritionPlanDraftResponseDto implements AiUsageMetadataCarrier {
     private Double confidence;
     private Integer qualityScore;
     private String estimatedUncertainty;
+    private AiUxContractDto ux;
     @Schema(description = "Exact number of AI credits charged by the backend for this request.", example = "8")
     private Integer quotaConsumedAmount;
     @Schema(description = "Plan credits remaining after this request.", example = "10")

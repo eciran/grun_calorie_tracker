@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -129,7 +130,7 @@ class AiMealDraftServiceImplTest {
         verify(subscriptionService).consumeAiQuota("user@example.com", 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
-        verify(historyRepository).save(captor.capture());
+        verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestType.VOICE_FOOD_LOG, captor.getValue().getRequestType());
         assertEquals(AiProvider.LOG, captor.getValue().getProvider());
         assertEquals("ai-prompt-v2", captor.getValue().getPromptVersion());
@@ -180,7 +181,7 @@ class AiMealDraftServiceImplTest {
         verify(subscriptionService).refundConsumedAiQuota(1L, 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
-        verify(historyRepository).save(captor.capture());
+        verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getLatencyMs());
@@ -205,7 +206,7 @@ class AiMealDraftServiceImplTest {
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(providerClient, org.mockito.Mockito.never()).createVoiceFoodDraft(any());
-        verify(historyRepository, org.mockito.Mockito.never()).save(any());
+        verify(historyRepository, times(2)).save(any());
     }
 
     @Test

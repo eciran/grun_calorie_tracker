@@ -12,6 +12,7 @@ import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.UserNutritionPreferenceDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
@@ -19,6 +20,7 @@ import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -31,11 +33,13 @@ import org.mockito.ArgumentCaptor;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -48,6 +52,7 @@ class AiRecipeDraftServiceImplTest {
     private UserRepository userRepository;
     private SubscriptionService subscriptionService;
     private RecipeService recipeService;
+    private UserNutritionPreferenceService nutritionPreferenceService;
     private AiRecipeDraftServiceImpl service;
     private UserEntity user;
 
@@ -63,6 +68,7 @@ class AiRecipeDraftServiceImplTest {
         subscriptionService = mock(SubscriptionService.class);
         when(subscriptionService.resolveAiCreditCost(any(), any())).thenReturn(1);
         recipeService = mock(RecipeService.class);
+        nutritionPreferenceService = mock(UserNutritionPreferenceService.class);
         service = new AiRecipeDraftServiceImpl(
                 properties,
                 List.of(providerClient),
@@ -70,6 +76,7 @@ class AiRecipeDraftServiceImplTest {
                 userRepository,
                 subscriptionService,
                 recipeService,
+                nutritionPreferenceService,
                 new ObjectMapper().findAndRegisterModules(),
                 new AiProviderConfigurationValidatorImpl(properties)
         );
@@ -113,13 +120,46 @@ class AiRecipeDraftServiceImplTest {
         verify(subscriptionService).consumeAiQuota("user@example.com", 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
-        verify(historyRepository).save(captor.capture());
+        verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestType.AI_RECIPE_GENERATION, captor.getValue().getRequestType());
         assertEquals(AiRequestStatus.DRAFT_CREATED, captor.getValue().getStatus());
         assertEquals(true, captor.getValue().getQuotaConsumed());
         assertFalse(captor.getValue().getInputPayload().contains("high protein chicken dinner"));
     }
 
+    @Test
+    void createRecipeDraft_mergesPersistentDietAllergensAndExcludedFoodsIntoProviderRequest() {
+        UserNutritionPreferenceDto preference = new UserNutritionPreferenceDto();
+        preference.setDietaryPreferences(List.of("VEGAN"));
+        preference.setExcludedFoods(List.of("pork"));
+        preference.setAllergens(Set.of(RecipeAllergen.MILK));
+        when(nutritionPreferenceService.get("user@example.com")).thenReturn(preference);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(providerClient.provider()).thenReturn(AiProvider.LOG);
+        when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse());
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
+            AiRequestHistoryEntity entity = invocation.getArgument(0);
+            entity.setId(44L);
+            return entity;
+        });
+
+        service.createRecipeDraft("user@example.com", request());
+
+        ArgumentCaptor<AiRecipeDraftRequestDto> requestCaptor =
+                ArgumentCaptor.forClass(AiRecipeDraftRequestDto.class);
+        verify(providerClient).createRecipeDraft(requestCaptor.capture());
+        assertEquals(List.of("VEGAN", "HIGH_PROTEIN"),
+                requestCaptor.getValue().getDietaryPreferences());
+        assertEquals(List.of("pork", "MILK", "gluten", "dairy"),
+                requestCaptor.getValue().getExcludedIngredients());
+
+        ArgumentCaptor<AiRequestHistoryEntity> historyCaptor =
+                ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
+        verify(historyRepository, times(2)).save(historyCaptor.capture());
+        assertFalse(historyCaptor.getValue().getInputPayload().contains("pork"));
+        assertFalse(historyCaptor.getValue().getInputPayload().contains("MILK"));
+    }
     @Test
     void createRecipeDraft_whenQuotaUnavailable_doesNotCallProvider() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
@@ -132,7 +172,7 @@ class AiRecipeDraftServiceImplTest {
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
         verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
         verify(providerClient, org.mockito.Mockito.never()).createRecipeDraft(any());
-        verify(historyRepository, org.mockito.Mockito.never()).save(any());
+        verify(historyRepository, times(2)).save(any());
     }
 
     @Test
@@ -151,7 +191,7 @@ class AiRecipeDraftServiceImplTest {
         verify(subscriptionService).consumeAiQuota("user@example.com", 1);
         verify(subscriptionService).refundConsumedAiQuota(1L, 1);
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
-        verify(historyRepository).save(captor.capture());
+        verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
         com.fasterxml.jackson.databind.JsonNode safePayload = org.junit.jupiter.api.Assertions.assertDoesNotThrow(

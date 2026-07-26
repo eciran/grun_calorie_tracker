@@ -101,6 +101,10 @@ class AiPreparationGuideServiceImplTest {
         assertThat(result.getPlannedNutrition().getCalories()).isEqualTo(240.0);
         assertThat(result.getCreditCost()).isEqualTo(3);
         assertThat(result.getAiRemainingThisPeriod()).isEqualTo(17);
+        assertThat(result.getUx()).isNotNull();
+        assertThat(result.getUx().getLifecycleStatus()).isEqualTo(AiClientLifecycleStatus.COMPLETED);
+        assertThat(result.getUx().getCreditCharged()).isTrue();
+        assertThat(result.getUx().getConfirmationRequired()).isTrue();
         verify(subscriptionService).consumeAiQuota("user@grun.test", 3);
         verify(provider, times(1)).createPreparationGuide(any());
     }
@@ -114,6 +118,9 @@ class AiPreparationGuideServiceImplTest {
         AiPreparationGuideResponseDto result = service.reopen("user@grun.test", 10L, 20L);
 
         assertThat(result.getGuideId()).isEqualTo(40L);
+        assertThat(result.getUx()).isNotNull();
+        assertThat(result.getUx().getLifecycleStatus()).isEqualTo(AiClientLifecycleStatus.COMPLETED);
+        assertThat(result.getUx().getConfirmationRequired()).isTrue();
         verifyNoInteractions(subscriptionService);
         verify(provider, never()).createPreparationGuide(any());
     }

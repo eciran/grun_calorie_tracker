@@ -51,9 +51,10 @@ class AiRecipeDraftControllerTest {
         response.setEstimatedNutritionPerServing(nutrition());
         response.setNutritionEstimateNote("Estimated preview nutrition. Confirmed recipe nutrition is recalculated after save.");
         response.setAiRemainingThisPeriod(8);
-        when(aiRecipeDraftService.createRecipeDraft(eq("user@example.com"), any())).thenReturn(response);
+        when(aiRecipeDraftService.createRecipeDraft(eq("user@example.com"), eq("recipe-request-123"), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/ai/recipes/generate")
+                        .header("Idempotency-Key", "recipe-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

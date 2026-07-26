@@ -14,6 +14,7 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.*;
 import com.grun.calorietracker.service.*;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiUxContractFactory;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -152,6 +153,13 @@ public class AiPreparationGuideServiceImpl implements AiPreparationGuideService 
             SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
             charged = true;
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            response.setUx(AiUxContractFactory.success(
+                    AiRequestStatus.DRAFT_CREATED,
+                    true,
+                    creditCost,
+                    quota,
+                    user.getPreferredLanguage()
+            ));
             copyUsage(response, history);
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
             history.setQuotaConsumed(true);
@@ -180,7 +188,13 @@ public class AiPreparationGuideServiceImpl implements AiPreparationGuideService 
             }
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(safeTechnicalMessage(ex));
-            history.setOutputPayload(json(AiSafeResponseBuilder.failurePayload(REQUEST_TYPE, true)));
+            history.setOutputPayload(json(AiSafeResponseBuilder.failurePayload(
+                    REQUEST_TYPE,
+                    true,
+                    creditCost,
+                    charged,
+                    user.getPreferredLanguage()
+            )));
             history.setQuotaConsumed(false);
             history.setQuotaConsumedAmount(0);
             history.setLatencyMs(elapsed(startedAt));
@@ -319,6 +333,19 @@ public class AiPreparationGuideServiceImpl implements AiPreparationGuideService 
             response.setRequestId(guide.getSourceAiRequest().getId());
             response.setStatus(guide.getSourceAiRequest().getStatus());
             response.setCreatedAt(guide.getCreatedAt());
+            if (response.getUx() == null) {
+                AiRequestHistoryEntity history = guide.getSourceAiRequest();
+                int creditCost = response.getCreditCost() == null
+                        ? Math.max(0, Optional.ofNullable(history.getQuotaConsumedAmount()).orElse(0))
+                        : response.getCreditCost();
+                response.setUx(AiUxContractFactory.history(
+                        history.getStatus(),
+                        true,
+                        creditCost,
+                        Boolean.TRUE.equals(history.getQuotaConsumed()),
+                        history.getUser() == null ? PreferredLanguage.EN : history.getUser().getPreferredLanguage()
+                ));
+            }
             return response;
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Stored preparation guide is unavailable.");
