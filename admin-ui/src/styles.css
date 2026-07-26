@@ -8595,3 +8595,67 @@ label {
     flex-direction: column;
   }
 }
+
+.security-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.security-role-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.security-role-grid span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.admin-security-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(170px, 0.7fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.admin-security-form .wide-field,
+.admin-security-form .form-actions {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .security-role-grid,
+  .admin-security-form {
+    grid-template-columns: 1fr;
+  }
+}
+.admin-security-grant {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(180px, 0.8fr) minmax(260px, 1.3fr) minmax(170px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 1500px) {
+  .admin-security-grant {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-security-grant .toggle-field,
+  .admin-security-grant .primary-button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-security-grant {
+    grid-template-columns: 1fr;
+  }
+}

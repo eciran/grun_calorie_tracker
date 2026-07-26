@@ -314,7 +314,7 @@ public class AdminPromoServiceImpl implements AdminPromoService {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("accountEnabled")));
             predicates.add(cb.isFalse(root.get("accountLocked")));
-            predicates.add(cb.notEqual(root.get("role"), UserRole.ADMIN));
+            predicates.add(root.get("role").in(UserRole.STANDARD, UserRole.PRO));
             if (promo.getTargetRegion() != null) predicates.add(cb.equal(root.get("marketRegion"), promo.getTargetRegion()));
             if (promo.getTargetPlan() != null && query != null) {
                 Subquery<Long> matching = query.subquery(Long.class);

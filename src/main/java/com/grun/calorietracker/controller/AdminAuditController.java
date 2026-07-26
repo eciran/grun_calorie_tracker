@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,5 +56,14 @@ public class AdminAuditController {
             @Parameter(description = "Page size, capped at 100.", example = "25")
             @RequestParam(defaultValue = "25") int size) {
         return ResponseEntity.ok(adminAuditService.list(actionType, targetType, page, size));
+    }
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportAudits(
+            @RequestParam(required = false) AdminAuditActionType actionType,
+            @RequestParam(required = false) AdminAuditTargetType targetType) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=admin-audits.csv")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(adminAuditService.exportCsv(actionType, targetType));
     }
 }

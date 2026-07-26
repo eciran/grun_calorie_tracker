@@ -11,6 +11,9 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Collection;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpecificationExecutor<UserEntity> {
@@ -27,6 +30,14 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     long countByRole(UserRole role);
 
     List<UserEntity> findByRole(UserRole role);
+
+    Page<UserEntity> findByRoleIn(Collection<UserRole> roles, Pageable pageable);
+
+    List<UserEntity> findByRoleIn(Collection<UserRole> roles);
+
+    long countByRoleIn(Collection<UserRole> roles);
+
+    long countByRoleAndAccountEnabledTrue(UserRole role);
 
     long countByCreatedAtIsNull();
 
@@ -56,7 +67,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     @Query("""
             select count(user)
             from UserEntity user
-            where user.role <> com.grun.calorietracker.enums.UserRole.ADMIN
+            where user.role in (com.grun.calorietracker.enums.UserRole.STANDARD, com.grun.calorietracker.enums.UserRole.PRO)
               and user.createdAt is not null
               and user.createdAt < :reportingCutoff
               and (user.lastActiveAt is null or user.lastActiveAt < :inactiveBefore)

@@ -1166,3 +1166,35 @@ export type AdminPromotionRedemptionPage = {
   content?: AdminPromotionRedemption[]; page?: number; size?: number; totalElements?: number;
   totalPages?: number; first?: boolean; last?: boolean;
 };
+
+export type AdminAccessProfile = {
+  userId?: number;
+  email?: string;
+  role?: string;
+  permissions?: string[];
+  mfaRequired?: boolean;
+  mfaEnabled?: boolean;
+};
+
+export type AdminTeamMember = {
+  id?: number;
+  name?: string;
+  email?: string;
+  role?: string;
+  enabled?: boolean;
+  locked?: boolean;
+  mfaEnabled?: boolean;
+  activeSessions?: number;
+  lastActiveAt?: string;
+  roleUpdatedAt?: string;
+};
+
+export type AdminTeamPage = {
+  content?: AdminTeamMember[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
+};

@@ -48,6 +48,12 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @Column(name = "admin_mfa_enabled", nullable = false)
+    private Boolean adminMfaEnabled = false;
+
+    @Column(name = "admin_role_updated_at")
+    private Instant adminRoleUpdatedAt;
+
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
 

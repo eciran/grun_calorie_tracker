@@ -31,6 +31,9 @@ import {
   AdminProductQualityAiValidationResult,
   AdminAchievementDefinition,
   AdminAchievementMetrics,
+  AdminAccessProfile,
+  AdminTeamMember,
+  AdminTeamPage,
   AiMealDraft,
   AiRequestInspection,
   AiMonitoringSummary,
@@ -370,7 +373,28 @@ const sectionTabGroups: SectionMeta[][] = [
 function tabsForSection(active: SectionKey): SectionMeta[] | undefined {
   return sectionTabGroups.find((group) => group.some((item) => item.key === active));
 }
-const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
+function permissionForSection(section: SectionKey): string {
+  if (section === "admins") return "ADMIN_TEAM_READ";
+  if (section === "users" || section === "userVerification") return "USERS_READ";
+  if (["foodOps", "foodImports", "foodRegions", "foodQuality", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
+  if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
+  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps"].includes(section)) return "GROWTH_READ";
+  if (section === "retentionPolicies") return "COMPLIANCE_READ";
+  if (section === "audits") return "AUDIT_READ";
+  if (["integrations", "integrationProviders", "revenueCat", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
+  return "DASHBOARD_READ";
+}
+
+function canViewSection(profile: AdminAccessProfile | null, section: SectionKey): boolean {
+  if (!profile) return section === "dashboard";
+  return Boolean(profile.permissions?.includes(permissionForSection(section)));
+}
+
+function filterNavigationByAccess(items: NavigationItem[], profile: AdminAccessProfile | null): NavigationItem[] {
+  return items
+    .map((item) => ({ ...item, children: item.children?.filter((child) => canViewSection(profile, child.key)) }))
+    .filter((item) => canViewSection(profile, item.key) || Boolean(item.children?.length));
+}const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
 const VERIFICATION_STATUSES = ["RAW_IMPORTED", "NEEDS_REVIEW", "VERIFIED", "REJECTED"];
 const IMAGE_STATUSES = ["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
 const IMAGE_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_UPLOAD", "USER_UPLOAD", "BRAND_OFFICIAL", "AI_GENERATED"];
@@ -423,20 +447,18 @@ const QUALITY_ISSUES = [
   "UNSUPPORTED_REGION"
 ];
 const AUDIT_ACTION_TYPES = [
-  "SUBSCRIPTION_FEATURE_UPDATE",
-  "RECIPE_REVIEW_UPDATE",
-  "SUBSCRIPTION_USER_PLAN_UPDATE",
-  "SUBSCRIPTION_AI_QUOTA_RESET",
-  "SUBSCRIPTION_AI_ADDON_GRANT",
-  "FOOD_PRODUCT_REVIEW_UPDATE",
-  "REVENUECAT_MAPPING_VALIDATION"
+  "SUBSCRIPTION_UPDATE", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT", "AI_QUOTA_REFUND",
+  "AI_REQUEST_INSPECT", "AI_CREDIT_PRICING_UPDATE", "SUBSCRIPTION_FEATURE_UPDATE",
+  "SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY", "RETENTION_POLICY_UPDATE", "RECIPE_CREATE",
+  "RECIPE_REVIEW_UPDATE", "USER_STATUS_UPDATE", "USER_SUPPORT_NOTE_CREATE", "USER_SESSION_REVOKE",
+  "PRODUCT_QUALITY_AI_SETTINGS_UPDATE", "NOTIFICATION_CAMPAIGN_CREATE", "NOTIFICATION_CAMPAIGN_UPDATE",
+  "NOTIFICATION_CAMPAIGN_SCHEDULE", "NOTIFICATION_CAMPAIGN_CANCEL", "PROMO_CREATE", "PROMO_UPDATE",
+  "PROMO_ACTIVATE", "PROMO_DEACTIVATE", "PROMO_RECONCILE", "PROMO_REDEMPTION_RECORD",
+  "ADMIN_ROLE_UPDATE", "ADMIN_STATUS_UPDATE", "ADMIN_MFA_STATUS_UPDATE"
 ];
 const AUDIT_TARGET_TYPES = [
-  "SUBSCRIPTION_FEATURE",
-  "USER_SUBSCRIPTION",
-  "FOOD_PRODUCT",
-  "RECIPE",
-  "REVENUECAT_MAPPING"
+  "USER_SUBSCRIPTION", "AI_REQUEST", "AI_CREDIT_PRICING", "SUBSCRIPTION_FEATURE", "RETENTION_POLICY",
+  "RECIPE", "USER_ACCOUNT", "PRODUCT_QUALITY_AI_SETTINGS", "NOTIFICATION_CAMPAIGN", "PROMOTION", "ADMIN_ACCOUNT"
 ];
 
 type ProductReviewDraft = {
@@ -535,6 +557,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
   const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
   const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
+  const [accessProfile, setAccessProfile] = useState<AdminAccessProfile | null>(null);
 
   function navigateToSection(section: SectionKey) {
     setError(null);
@@ -552,6 +575,16 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!authenticated) {
+      setAccessProfile(null);
+      return;
+    }
+    request<AdminAccessProfile>("/api/v1/admin/security/me")
+      .then(setAccessProfile)
+      .catch((failure) => setError(formatRequestError(failure)));
+  }, [authenticated]);
 
   useEffect(() => {
     return subscribeUnauthorized(() => {
@@ -574,6 +607,7 @@ export default function App() {
   }
 
   const activeMeta = sections.find((section) => section.key === active) ?? sections[0];
+  const visibleNavigation = filterNavigationByAccess(navigation, accessProfile);
 
   return (
     <div className="app-shell">
@@ -586,7 +620,7 @@ export default function App() {
           </div>
         </div>
         <nav className="nav-list">
-          {navigation.map((section) => (
+          {visibleNavigation.map((section) => (
             <div className="nav-group" key={`${section.key}-${section.label}`}>
               <button
                 className={isNavItemActive(section, active) ? "nav-item active" : "nav-item"}
@@ -652,13 +686,14 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+            <span className="status-pill">{accessProfile?.role ? humanizeFeature(accessProfile.role) : "Loading access"}</span>
             <span className="status-pill">API v1</span>
             <span className="status-pill live">Live backend</span>
           </div>
         </header>
 
         {error && <div className="error-banner">{error}</div>}
-        <SectionTabs active={active} onSelect={navigateToSection} />
+        <SectionTabs active={active} onSelect={navigateToSection} accessProfile={accessProfile} />
         <section className="content-surface">
           {active === "dashboard" && <DashboardView onError={setError} onNavigate={navigateToSection} />}
           {active === "integrations" && <IntegrationsView mode="overview" onError={setError} />}
@@ -681,7 +716,7 @@ export default function App() {
           {active === "recipes" && <RecipeAdminView onError={setError} />}
           {active === "achievements" && <AchievementAdminView onError={setError} />}
           {active === "users" && <UsersView mode="users" onError={setError} onNavigate={navigateToSection} />}
-          {active === "admins" && <UsersView mode="admins" onError={setError} onNavigate={navigateToSection} />}
+          {active === "admins" && <AdminSecurityView accessProfile={accessProfile} onError={setError} />}
           {active === "userVerification" && <UsersView mode="verification" onError={setError} onNavigate={navigateToSection} />}
           {active === "subscriptions" && <SubscriptionsView mode="overview" onError={setError} />}
           {active === "subscriptionFeatures" && <SubscriptionsView mode="features" onError={setError} />}
@@ -714,8 +749,8 @@ export default function App() {
   );
 }
 
-function SectionTabs({ active, onSelect }: { active: SectionKey; onSelect: (section: SectionKey) => void }) {
-  const tabs = tabsForSection(active);
+function SectionTabs({ active, onSelect, accessProfile }: { active: SectionKey; onSelect: (section: SectionKey) => void; accessProfile: AdminAccessProfile | null }) {
+  const tabs = tabsForSection(active)?.filter((tab) => canViewSection(accessProfile, tab.key));
   if (!tabs || tabs.length <= 1) return null;
 
   return (
@@ -3409,6 +3444,111 @@ function AchievementAdminView({ onError }: { onError: (message: string | null) =
   );
 }
 
+function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const path = `/api/v1/admin/security/team?page=${page}&size=${pageSize}`;
+  const { data, state, reload } = useEndpoint<AdminTeamPage>(path, onError);
+  const [selected, setSelected] = useState<AdminTeamMember | null>(null);
+  const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", enabled: true, mfaEnabled: false, reason: "" });
+  const [saving, setSaving] = useState(false);
+  const canManage = Boolean(accessProfile?.permissions?.includes("ADMIN_TEAM_MANAGE"));
+  const [grant, setGrant] = useState({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
+  const members = data?.content ?? [];
+
+  function selectMember(member: AdminTeamMember) {
+    setSelected(member);
+    setDraft({
+      role: member.role ?? "ADMIN_READ_ONLY",
+      enabled: member.enabled !== false,
+      mfaEnabled: Boolean(member.mfaEnabled),
+      reason: ""
+    });
+  }
+
+  async function saveMember(event: FormEvent) {
+    event.preventDefault();
+    if (!selected?.id || !canManage) return;
+    setSaving(true);
+    try {
+      await request<AdminTeamMember>(`/api/v1/admin/security/team/${selected.id}`, {
+        method: "PATCH",
+        body: { ...draft, reason: draft.reason.trim() }
+      });
+      setSelected(null);
+      await reload();
+    } catch (failure) {
+      onError(formatRequestError(failure));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function grantAccess(event: FormEvent) {
+    event.preventDefault();
+    if (!canManage) return;
+    setSaving(true);
+    try {
+      await request<AdminTeamMember>("/api/v1/admin/security/team/grant", { method: "POST", body: { ...grant, email: grant.email.trim(), reason: grant.reason.trim() } });
+      setGrant({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
+      await reload();
+    } catch (failure) {
+      onError(formatRequestError(failure));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return <div className="stack">
+    <SectionToolbar title="Admin security and access" description="Backend-enforced roles, current permissions, MFA readiness, and active sessions." state={state} onReload={reload} />
+    <div className="user-summary-grid">
+      <MetricCard label="Your role" value={humanizeFeature(accessProfile?.role)} hint={`${accessProfile?.permissions?.length ?? 0} backend permissions`} />
+      <MetricCard label="Team members" value={formatValue(data?.totalElements ?? 0)} hint="Paginated admin accounts" />
+      <MetricCard label="MFA policy" value={accessProfile?.mfaRequired ? "Required" : "Prepared"} hint={accessProfile?.mfaEnabled ? "Your MFA is enabled" : "Your MFA is not enrolled"} />
+    </div>
+    {canManage && <Panel title="Grant admin access">
+      <form className="admin-security-grant" onSubmit={grantAccess}>
+        <label>Existing verified account email<input type="email" required value={grant.email} onChange={(event) => setGrant((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
+        <label>Initial role<select value={grant.role} onChange={(event) => setGrant((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+        <label>Required audit reason<input required maxLength={500} value={grant.reason} onChange={(event) => setGrant((current) => ({ ...current, reason: event.target.value }))} placeholder="Why access is required" /></label>
+        <label className="toggle-field"><input type="checkbox" checked={grant.mfaEnabled} onChange={(event) => setGrant((current) => ({ ...current, mfaEnabled: event.target.checked }))} />MFA enrollment verified</label>
+        <button className="primary-button" disabled={saving || !grant.email.trim() || !grant.reason.trim()} type="submit">Grant access</button>
+      </form>
+    </Panel>}    <Panel title="Role boundaries">
+      <div className="security-role-grid">
+        <div><strong>Support</strong><span>User support only; no pricing, promotions, secrets, or system changes.</span></div>
+        <div><strong>Catalog</strong><span>Food, recipe, exercise, and review operations.</span></div>
+        <div><strong>Growth</strong><span>Campaigns, notifications, engagement, and analytics.</span></div>
+        <div><strong>Finance</strong><span>Subscriptions, quota, provider events, and commercial audit.</span></div>
+        <div><strong>Technical Ops</strong><span>Runtime, integrations, mail, push, and AI operations.</span></div>
+        <div><strong>Read-only</strong><span>Broad inspection access with every write blocked by backend.</span></div>
+      </div>
+    </Panel>
+    <DataTable
+      columns={["Admin", "Role", "Access", "MFA", "Sessions", "Last active"]}
+      rows={members.map((member) => [
+        <div className="entity-cell"><strong>{member.name ?? "Admin"}</strong><small>{member.email ?? "-"}</small></div>,
+        <Badge value={member.role} />,
+        <Badge value={member.enabled === false ? "Disabled" : member.locked ? "Locked" : "Enabled"} tone={member.enabled === false || member.locked ? "danger" : "good"} />,
+        <Badge value={member.mfaEnabled ? "Enabled" : "Not enrolled"} tone={member.mfaEnabled ? "good" : "warn"} />,
+        formatValue(member.activeSessions),
+        formatDate(member.lastActiveAt)
+      ])}
+      rowData={members}
+      onRowClick={canManage ? selectMember : undefined}
+      empty="No admin team members returned."
+    />
+    <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1, data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+    {selected && <Panel title={`Manage ${selected.email ?? "admin"}`}>
+      <form className="admin-security-form" onSubmit={saveMember}>
+        <label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+        <label className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
+        <label className="toggle-field"><input type="checkbox" checked={draft.mfaEnabled} onChange={(event) => setDraft((current) => ({ ...current, mfaEnabled: event.target.checked }))} />MFA enrollment verified</label>
+        <label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain this access change." /></label>
+        <div className="form-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="submit">{saving ? "Saving..." : "Apply access change"}</button></div>
+      </form>
+    </Panel>}
+  </div>;
+}
 type UsersMode = "users" | "admins" | "verification";
 
 function UsersView({
@@ -6949,11 +7089,23 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
     setPage(0);
   }, [actionType, targetType, pageSize]);
 
+  async function exportAudits() {
+    try {
+      const params = new URLSearchParams();
+      if (actionType) params.set("actionType", actionType);
+      if (targetType) params.set("targetType", targetType);
+      const blob = await requestBlob(`/api/v1/admin/audits/export?${params.toString()}`, { timeoutMs: 60000 });
+      downloadBlob(blob, `grun-admin-audits-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (failure) {
+      onError(formatRequestError(failure));
+    }
+  }
 
   return (
     <div className="stack">
       <SectionToolbar title="Admin action audits" state={state} onReload={reload}>
         <button className="ghost-button" onClick={() => { setActionType(""); setTargetType(""); }} type="button">Clear filters</button>
+        <button className="ghost-button" onClick={exportAudits} type="button">Export CSV</button>
       </SectionToolbar>
       <div className="audit-summary-grid">
         <MetricCard label="Returned entries" value={formatValue(data?.totalElements ?? rows.length)} hint="Matching current audit filters" />

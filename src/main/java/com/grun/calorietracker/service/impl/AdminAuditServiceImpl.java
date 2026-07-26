@@ -16,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -75,6 +76,31 @@ public class AdminAuditServiceImpl implements AdminAuditService {
         return dto;
     }
 
+    @Override
+    public byte[] exportCsv(AdminAuditActionType actionType, AdminAuditTargetType targetType) {
+        StringBuilder csv = new StringBuilder(
+                "id,createdAt,adminEmail,actionType,targetType,targetKey,correlationId,oldValue,newValue\n"
+        );
+        for (int page = 0; page < 100; page++) {
+            AdminActionAuditPageDto result = list(actionType, targetType, page, 100);
+            result.getContent().forEach(item -> csv.append(csv(item.getId())).append(',')
+                    .append(csv(item.getCreatedAt())).append(',')
+                    .append(csv(item.getAdminEmail())).append(',')
+                    .append(csv(item.getActionType())).append(',')
+                    .append(csv(item.getTargetType())).append(',')
+                    .append(csv(item.getTargetKey())).append(',')
+                    .append(csv(item.getCorrelationId())).append(',')
+                    .append(csv(item.getOldValue())).append(',')
+                    .append(csv(item.getNewValue())).append('\n'));
+            if (result.isLast()) break;
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String csv(Object value) {
+        if (value == null) return "";
+        return "\"" + value.toString().replace("\"", "\"\"") + "\"";
+    }
     private String toAuditValue(Object value) {
         if (value == null) {
             return null;

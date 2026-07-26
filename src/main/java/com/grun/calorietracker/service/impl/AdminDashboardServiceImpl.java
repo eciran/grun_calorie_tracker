@@ -81,7 +81,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         summary.setTotalUsers(userRepository.count());
         summary.setStandardUsers(userRepository.countByRole(UserRole.STANDARD));
         summary.setProUsers(userRepository.countByRole(UserRole.PRO));
-        summary.setAdminUsers(userRepository.countByRole(UserRole.ADMIN));
+        summary.setAdminUsers(userRepository.countByRoleIn(java.util.Arrays.stream(UserRole.values()).filter(UserRole::isAdminRole).toList()));
         summary.setTotalProducts(foodItemRepository.count());
         summary.setVerifiedProducts(verifiedProducts);
         summary.setRawImportedProducts(rawImportedProducts);

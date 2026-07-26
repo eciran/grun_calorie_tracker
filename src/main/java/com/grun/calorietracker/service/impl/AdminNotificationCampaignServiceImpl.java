@@ -165,7 +165,7 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
             ArrayList<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("accountEnabled")));
             predicates.add(cb.isFalse(root.get("accountLocked")));
-            predicates.add(cb.notEqual(root.get("role"), UserRole.ADMIN));
+            predicates.add(root.get("role").in(UserRole.STANDARD, UserRole.PRO));
             predicates.add(cb.greaterThan(root.get("id"), afterUserId));
             if (campaign.getCategory() == NotificationCampaignCategory.MARKETING) {
                 predicates.add(cb.isTrue(root.get("marketingNotificationsEnabled")));

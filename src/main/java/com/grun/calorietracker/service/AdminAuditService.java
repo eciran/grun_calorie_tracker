@@ -17,4 +17,6 @@ public interface AdminAuditService {
                                  AdminAuditTargetType targetType,
                                  int page,
                                  int size);
+
+    byte[] exportCsv(AdminAuditActionType actionType, AdminAuditTargetType targetType);
 }
