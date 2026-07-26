@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -29,4 +30,18 @@ public interface ProductAnalyticsEventRepository extends JpaRepository<ProductAn
             """)
     Double averageDurationMs(@Param("eventType") ProductAnalyticsEventType eventType,
                              @Param("createdAt") LocalDateTime createdAt);
+
+    @Query("""
+            select count(distinct event.user.id)
+            from ProductAnalyticsEventEntity event
+            where event.user is not null
+              and event.user.createdAt >= :registeredFrom
+              and event.user.createdAt < :registeredTo
+              and event.eventType = :eventType
+              and event.createdAt < :eventBefore
+            """)
+    long countUsersForRegistrationCohort(@Param("eventType") ProductAnalyticsEventType eventType,
+                                         @Param("registeredFrom") Instant registeredFrom,
+                                         @Param("registeredTo") Instant registeredTo,
+                                         @Param("eventBefore") LocalDateTime eventBefore);
 }

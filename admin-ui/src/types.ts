@@ -30,6 +30,52 @@ export type DashboardSummary = {
   aiRejectionReasonsLast7Days?: Record<string, number>;
 };
 
+export type GrowthKpi = {
+  key: string;
+  label: string;
+  value: number;
+  unit: "COUNT" | "PERCENT";
+  previousValue?: number | null;
+  changePercent?: number | null;
+  comparisonAvailable: boolean;
+  dataStatus: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+  detail: string;
+  targetSection?: string;
+};
+
+export type GrowthTrendPoint = {
+  date: string;
+  registrations: number;
+  activeUsers: number;
+};
+
+export type GrowthFunnelStep = {
+  key: string;
+  label: string;
+  users: number;
+  conversionFromRegistrationPercent: number;
+  dataStatus: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+  targetSection?: string;
+};
+
+export type DashboardGrowth = {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  timeZone: string;
+  generatedAt: string;
+  rangeDays: number;
+  legacyUsersWithoutRegistrationDate: number;
+  registrationCoveragePercent: number;
+  kpis: GrowthKpi[];
+  daily: GrowthTrendPoint[];
+  funnel: GrowthFunnelStep[];
+  planDistribution: Record<string, number>;
+  regionDistribution: Record<string, number>;
+  languageDistribution: Record<string, number>;
+};
+
 export type SystemHealth = Record<string, unknown>;
 
 export type UserProfile = {

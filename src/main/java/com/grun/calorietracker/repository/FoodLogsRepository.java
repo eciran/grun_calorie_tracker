@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -202,6 +203,17 @@ WHERE f.user_id = :userId
     );
 
     long deleteByUser(UserEntity user);
+
+    @Query("""
+            select count(distinct foodLog.user.id)
+            from FoodLogsEntity foodLog
+            where foodLog.user.createdAt >= :registeredFrom
+              and foodLog.user.createdAt < :registeredTo
+              and foodLog.logDate < :loggedBefore
+            """)
+    long countUsersWithLogForRegistrationCohort(@Param("registeredFrom") Instant registeredFrom,
+                                                @Param("registeredTo") Instant registeredTo,
+                                                @Param("loggedBefore") LocalDateTime loggedBefore);
 }
 
 

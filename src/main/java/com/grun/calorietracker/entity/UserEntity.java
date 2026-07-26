@@ -69,6 +69,9 @@ public class UserEntity {
     @Column(name = "email_verified", nullable = false)
     private Boolean emailVerified = true;
 
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     @Column(name = "password_set", nullable = false)
     private Boolean passwordSet = true;
 
@@ -134,6 +137,9 @@ public class UserEntity {
         Instant now = Instant.now();
         if (createdAt == null) {
             createdAt = now;
+        }
+        if (Boolean.TRUE.equals(emailVerified) && emailVerifiedAt == null) {
+            emailVerifiedAt = now;
         }
         if (updatedAt == null) {
             updatedAt = now;

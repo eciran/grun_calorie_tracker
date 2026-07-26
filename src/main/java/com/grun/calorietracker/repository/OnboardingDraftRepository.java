@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface OnboardingDraftRepository extends JpaRepository<OnboardingDraftEntity, Long> {
@@ -19,4 +21,16 @@ public interface OnboardingDraftRepository extends JpaRepository<OnboardingDraft
     Optional<OnboardingDraftEntity> findByUserForUpdate(@Param("user") UserEntity user);
 
     long deleteByUser(UserEntity user);
+
+    @Query("""
+            select count(distinct draft.user.id)
+            from OnboardingDraftEntity draft
+            where draft.user.createdAt >= :registeredFrom
+              and draft.user.createdAt < :registeredTo
+              and draft.completedAt is not null
+              and draft.completedAt < :completedBefore
+            """)
+    long countCompletedForRegistrationCohort(@Param("registeredFrom") Instant registeredFrom,
+                                             @Param("registeredTo") Instant registeredTo,
+                                             @Param("completedBefore") LocalDateTime completedBefore);
 }

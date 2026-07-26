@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -119,6 +120,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
     private UserEntity verifyExistingProviderEmail(UserEntity user, boolean emailVerified) {
         if (!Boolean.TRUE.equals(user.getEmailVerified())) {
             user.setEmailVerified(emailVerified);
+            user.setEmailVerifiedAt(Instant.now());
             return userRepository.save(user);
         }
         return user;
@@ -129,6 +131,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
         user.setEmail(email);
         user.setName(name);
         user.setEmailVerified(emailVerified);
+        user.setEmailVerifiedAt(Instant.now());
         user.setRole(UserRole.STANDARD);
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setPasswordSet(false);

@@ -29,8 +29,12 @@ import {
   AiCreditPricingPolicy,
   AiQuotaRefundResponse,
   AuditEntry,
+  DashboardGrowth,
   DashboardSummary,
   FeatureMatrixItem,
+  GrowthFunnelStep,
+  GrowthKpi,
+  GrowthTrendPoint,
   FoodProduct,
   FoodProductContribution,
   FoodCanonicalDuplicateGroup,
@@ -846,8 +850,113 @@ function OperationCard({ item, onNavigate }: { item: OperationCardItem; onNaviga
     </button>
   );
 }
+function dublinDateRange(rangeDays: number) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Dublin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const to = `${values.year}-${values.month}-${values.day}`;
+  const fromDate = new Date(`${to}T00:00:00Z`);
+  fromDate.setUTCDate(fromDate.getUTCDate() - (rangeDays - 1));
+  return { from: fromDate.toISOString().slice(0, 10), to };
+}
+
+function growthMetricValue(kpi: GrowthKpi) {
+  return kpi.unit === "PERCENT" ? `${kpi.value.toFixed(1)}%` : formatValue(kpi.value);
+}
+
+function GrowthKpiCard({ kpi, onOpen }: { kpi: GrowthKpi; onOpen: () => void }) {
+  const change = kpi.changePercent;
+  const trendTone = change == null ? "neutral" : change > 0 ? "positive" : change < 0 ? "negative" : "neutral";
+  const comparison = !kpi.comparisonAvailable
+    ? "Current snapshot"
+    : change == null
+      ? `Previous: ${kpi.previousValue ?? 0}`
+      : `${change > 0 ? "+" : ""}${change.toFixed(1)}% vs previous`;
+  return (
+    <button className="growth-kpi-card" onClick={onOpen} type="button">
+      <span>{kpi.label}</span>
+      <strong>{growthMetricValue(kpi)}</strong>
+      <small className={trendTone}>{comparison}</small>
+      <footer>
+        <i className={kpi.dataStatus.toLowerCase()}>{kpi.dataStatus === "PARTIAL" ? "Partial data" : "Tracked"}</i>
+        <span>Open</span>
+      </footer>
+    </button>
+  );
+}
+
+function GrowthTrendChart({ points }: { points: GrowthTrendPoint[] }) {
+  const maximum = Math.max(1, ...points.flatMap((point) => [point.registrations, point.activeUsers]));
+  const labelEvery = Math.max(1, Math.ceil(points.length / 6));
+  return (
+    <div className="growth-chart" role="img" aria-label="Daily registrations and active users">
+      <div className="growth-chart-legend">
+        <span><i className="registration" />Registrations</span>
+        <span><i className="activity" />Active users</span>
+      </div>
+      <div
+        className="growth-chart-plot"
+        style={{ "--growth-columns": points.length } as CSSProperties}
+      >
+        {points.map((point, index) => (
+          <div className="growth-chart-day" key={point.date} title={`${point.date}: ${point.registrations} registrations, ${point.activeUsers} active`}>
+            <div className="growth-chart-bars">
+              <i className="registration" style={{ height: `${(point.registrations / maximum) * 100}%` }} />
+              <i className="activity" style={{ height: `${(point.activeUsers / maximum) * 100}%` }} />
+            </div>
+            <span>{index % labelEvery === 0 || index === points.length - 1 ? point.date.slice(5) : ""}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GrowthFunnel({ steps, onOpen }: { steps: GrowthFunnelStep[]; onOpen: (step: GrowthFunnelStep) => void }) {
+  return (
+    <div className="growth-funnel">
+      {steps.map((step) => (
+        <button key={step.key} onClick={() => onOpen(step)} type="button">
+          <div>
+            <span>{step.label}</span>
+            <strong>{formatValue(step.users)}</strong>
+          </div>
+          <div className="growth-funnel-track">
+            <i style={{ width: `${Math.min(100, Math.max(0, step.conversionFromRegistrationPercent))}%` }} />
+          </div>
+          <small>{step.conversionFromRegistrationPercent.toFixed(1)}% of registrations{step.dataStatus === "PARTIAL" ? " · partial" : ""}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GrowthDistribution({ values, empty }: { values: Record<string, number>; empty: string }) {
+  const entries = Object.entries(values).sort((left, right) => right[1] - left[1]);
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  if (!entries.length) return <span className="empty-inline">{empty}</span>;
+  return (
+    <div className="growth-distribution">
+      {entries.map(([label, value]) => (
+        <div key={label}>
+          <header><span>{shortFeature(label)}</span><strong>{formatValue(value)}</strong></header>
+          <div><i style={{ width: `${percent(value, total)}%` }} /></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DashboardView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
+  const [growthRange, setGrowthRange] = useState<7 | 30 | 90>(30);
+  const growthDates = useMemo(() => dublinDateRange(growthRange), [growthRange]);
+  const growthPath = `/api/v1/admin/dashboard/growth?from=${growthDates.from}&to=${growthDates.to}&timeZone=Europe%2FDublin`;
   const { data, state, reload } = useEndpoint<DashboardSummary>("/api/v1/admin/dashboard/summary", onError);
+  const { data: growth, state: growthState, reload: reloadGrowth } = useEndpoint<DashboardGrowth>(growthPath, onError);
   const { data: unreadNotifications, state: unreadNotificationState, reload: reloadUnreadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&page=0&size=5", onError);
   const { data: criticalNotifications, state: criticalNotificationState, reload: reloadCriticalNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&severity=CRITICAL&page=0&size=5", onError);
   const activeSubscriptions = (data?.activePlusSubscriptions ?? 0) + (data?.activeProSubscriptions ?? 0);
@@ -982,7 +1091,49 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
 
   return (
     <div className="stack">
-      <SectionToolbar title="Admin command summary" state={combineStates([state, unreadNotificationState, criticalNotificationState])} onReload={() => { void reload(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }} />
+      <SectionToolbar
+        title="Executive overview"
+        description="Growth, activation, and operational pressure in one decision-ready view."
+        state={combineStates([state, growthState, unreadNotificationState, criticalNotificationState])}
+        onReload={() => { void reload(); void reloadGrowth(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }}
+      >
+        <div className="segmented-control dashboard-range" aria-label="Growth reporting range">
+          {([7, 30, 90] as const).map((days) => (
+            <button className={growthRange === days ? "active" : ""} key={days} onClick={() => setGrowthRange(days)} type="button">
+              {days} days
+            </button>
+          ))}
+        </div>
+      </SectionToolbar>
+      <div className="growth-coverage-strip">
+        <span><strong>{growth?.from ?? growthDates.from}</strong> to <strong>{growth?.to ?? growthDates.to}</strong></span>
+        <span>{growth?.registrationCoveragePercent.toFixed(1) ?? "0.0"}% registration history coverage</span>
+        {(growth?.legacyUsersWithoutRegistrationDate ?? 0) > 0 && <span className="partial">{formatValue(growth?.legacyUsersWithoutRegistrationDate)} legacy timestamp(s) unknown</span>}
+      </div>
+      <div className="growth-kpi-grid">
+        {(growth?.kpis ?? []).map((kpi) => (
+          <GrowthKpiCard
+            key={kpi.key}
+            kpi={kpi}
+            onOpen={() => kpi.targetSection && onNavigate(kpi.targetSection as SectionKey)}
+          />
+        ))}
+      </div>
+      <div className="growth-primary-grid">
+        <Panel title="Registration and activity trend" description="Daily values use the same Europe/Dublin reporting boundary as the KPI totals.">
+          {growth?.daily?.length ? <GrowthTrendChart points={growth.daily} /> : <EmptyState title="No trend data" message="No timestamped registrations or activity were returned for this period." />}
+        </Panel>
+        <Panel title="Activation funnel" description="Privacy-safe cohort counts; partial stages are labelled explicitly.">
+          {growth?.funnel?.length
+            ? <GrowthFunnel steps={growth.funnel} onOpen={(step) => step.targetSection && onNavigate(step.targetSection as SectionKey)} />
+            : <EmptyState title="No funnel data" message="No registered cohort exists for this period." />}
+        </Panel>
+      </div>
+      <div className="growth-breakdown-grid">
+        <Panel title="Plan mix"><GrowthDistribution values={growth?.planDistribution ?? {}} empty="No plan data for this cohort." /></Panel>
+        <Panel title="Region mix"><GrowthDistribution values={growth?.regionDistribution ?? {}} empty="No region data for this cohort." /></Panel>
+        <Panel title="Language mix"><GrowthDistribution values={growth?.languageDistribution ?? {}} empty="No language data for this cohort." /></Panel>
+      </div>
       <div className="metric-grid">
         {headlineCards.map(([label, value, hint]) => (
           <MetricCard key={String(label)} label={String(label)} value={formatValue(value)} hint={String(hint)} />

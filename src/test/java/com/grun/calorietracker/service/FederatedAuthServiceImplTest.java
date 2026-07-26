@@ -114,6 +114,7 @@ class FederatedAuthServiceImplTest {
         verify(userRepository).save(userCaptor.capture());
         assertEquals(UserRole.STANDARD, userCaptor.getValue().getRole());
         assertTrue(userCaptor.getValue().getEmailVerified());
+        assertNotNull(userCaptor.getValue().getEmailVerifiedAt());
         assertEquals(false, userCaptor.getValue().getPasswordSet());
         assertEquals("encoded-random-password", userCaptor.getValue().getPassword());
 

@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Optional;
@@ -94,6 +95,9 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         UserEntity user = token.getUser();
         user.setEmailVerified(true);
+        if (user.getEmailVerifiedAt() == null) {
+            user.setEmailVerifiedAt(Instant.now());
+        }
         userRepository.save(user);
 
         token.setUsedAt(LocalDateTime.now());

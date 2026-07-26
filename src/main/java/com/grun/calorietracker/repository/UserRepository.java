@@ -31,6 +31,62 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     long countByCreatedAtIsNull();
 
     @Query("""
+            select count(user)
+            from UserEntity user
+            where user.createdAt >= :fromInclusive
+              and user.createdAt < :toExclusive
+              and user.emailVerifiedAt is not null
+              and user.emailVerifiedAt < :verifiedBefore
+            """)
+    long countVerifiedRegistrations(@Param("fromInclusive") Instant fromInclusive,
+                                    @Param("toExclusive") Instant toExclusive,
+                                    @Param("verifiedBefore") Instant verifiedBefore);
+
+    @Query("""
+            select count(user)
+            from UserEntity user
+            where user.createdAt >= :fromInclusive
+              and user.createdAt < :toExclusive
+              and user.emailVerified = true
+              and user.emailVerifiedAt is null
+            """)
+    long countVerifiedRegistrationsWithoutTimestamp(@Param("fromInclusive") Instant fromInclusive,
+                                                    @Param("toExclusive") Instant toExclusive);
+
+    @Query("""
+            select count(user)
+            from UserEntity user
+            where user.role <> com.grun.calorietracker.enums.UserRole.ADMIN
+              and user.createdAt is not null
+              and user.createdAt < :reportingCutoff
+              and (user.lastActiveAt is null or user.lastActiveAt < :inactiveBefore)
+            """)
+    long countKnownInactiveUsers(@Param("reportingCutoff") Instant reportingCutoff,
+                                 @Param("inactiveBefore") Instant inactiveBefore);
+
+    @Query(value = """
+            select coalesce(u.market_region, 'UNKNOWN') as dimension, count(*) as user_count
+            from users u
+            where u.created_at >= :fromInclusive
+              and u.created_at < :toExclusive
+            group by coalesce(u.market_region, 'UNKNOWN')
+            order by user_count desc, dimension
+            """, nativeQuery = true)
+    List<Object[]> countRegistrationsByRegion(@Param("fromInclusive") Instant fromInclusive,
+                                              @Param("toExclusive") Instant toExclusive);
+
+    @Query(value = """
+            select coalesce(u.preferred_language, 'UNKNOWN') as dimension, count(*) as user_count
+            from users u
+            where u.created_at >= :fromInclusive
+              and u.created_at < :toExclusive
+            group by coalesce(u.preferred_language, 'UNKNOWN')
+            order by user_count desc, dimension
+            """, nativeQuery = true)
+    List<Object[]> countRegistrationsByLanguage(@Param("fromInclusive") Instant fromInclusive,
+                                                @Param("toExclusive") Instant toExclusive);
+
+    @Query("""
             select user.createdAt
             from UserEntity user
             where user.createdAt >= :fromInclusive
