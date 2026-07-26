@@ -98,6 +98,48 @@ export type UserProfile = {
   accountEnabled?: boolean;
   accountLocked?: boolean;
   statusReason?: string;
+  createdAt?: string;
+  emailVerifiedAt?: string;
+  lastLoginAt?: string;
+  lastActiveAt?: string;
+};
+
+export type AdminUserSupportNote = {
+  id?: number;
+  note?: string;
+  tags?: string[];
+  createdBy?: string;
+  createdAt?: string;
+};
+
+export type AdminCustomer360 = {
+  profile: UserProfile;
+  subscription: {
+    plan?: string; status?: string; billingPeriod?: string; startDate?: string; endDate?: string;
+    autoRenew?: boolean; aiMonthlyQuota?: number; aiUsedThisPeriod?: number;
+    aiAddonRemaining?: number; aiAddonExpiresAt?: string; activeFeatures?: string[];
+  };
+  ai: {
+    totalRequests?: number; lastRequestAt?: string; recentStatusCounts?: Record<string, number>;
+    recentRequestTypeCounts?: Record<string, number>; recentSampleSize?: number;
+  };
+  notifications: {
+    total?: number; unread?: number;
+    recent?: Array<{ id?: number; type?: string; severity?: string; source?: string; read?: boolean; createdAt?: string }>;
+  };
+  security: {
+    activeSessions?: number;
+    recentEvents?: Array<{ id?: number; eventType?: string; provider?: string; resultCode?: string; createdAt?: string }>;
+  };
+  consent: {
+    total?: number;
+    recent?: Array<{ id?: number; consentType?: string; version?: string; status?: string; source?: string; createdAt?: string }>;
+  };
+  activity: {
+    foodLogCount?: number; lastFoodLogAt?: string; productEventCount?: number;
+    recentProductEvents?: Array<{ id?: number; eventType?: string; surface?: string; createdAt?: string }>;
+  };
+  supportNotes?: AdminUserSupportNote[];
 };
 
 export type AdminAchievementDefinition = {

@@ -3,6 +3,7 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.ProductAnalyticsEventEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.ProductAnalyticsEventType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,7 @@ public interface ProductAnalyticsEventRepository extends JpaRepository<ProductAn
     long countByUser(UserEntity user);
 
     List<ProductAnalyticsEventEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
+    List<ProductAnalyticsEventEntity> findByUserOrderByCreatedAtDesc(UserEntity user, Pageable pageable);
 
     long deleteByUser(UserEntity user);
 

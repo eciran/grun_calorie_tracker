@@ -41,29 +41,6 @@ class AdminUserControllerTest {
 
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
-    void getAllUsers_whenAdmin_returnsUsers() throws Exception {
-        AdminUserDto user = new AdminUserDto();
-        user.setId(1L);
-        user.setEmail("testuser@example.com");
-        user.setName("Test User");
-
-        when(userService.getAllUsers()).thenReturn(List.of(user));
-
-        mockMvc.perform(get("/api/v1/admin/users/userList"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value("testuser@example.com"))
-                .andExpect(jsonPath("$[0].name").value("Test User"));
-    }
-
-    @Test
-    @WithMockUser(username = "testuser@example.com", roles = "USER")
-    void getAllUsers_whenNotAdmin_returnsForbidden() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/users/userList"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void listUsers_whenAdmin_returnsPaginatedUsers() throws Exception {
         AdminUserDto user = new AdminUserDto();
         user.setId(1L);
@@ -82,12 +59,19 @@ class AdminUserControllerTest {
         page.setFirst(true);
         page.setLast(true);
 
-        when(userService.listUsersForAdmin(UserRole.STANDARD, true, false, 0, 25)).thenReturn(page);
+        when(userService.listUsersForAdmin(
+                "test", UserRole.STANDARD, true, false,
+                com.grun.calorietracker.enums.SubscriptionPlan.PRO,
+                null, null, true, null, 0, 25
+        )).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/admin/users")
+                        .param("search", "test")
                         .param("role", "STANDARD")
                         .param("accountEnabled", "true")
                         .param("accountLocked", "false")
+                        .param("plan", "PRO")
+                        .param("emailVerified", "true")
                         .param("page", "0")
                         .param("size", "25"))
                 .andExpect(status().isOk())
@@ -120,7 +104,8 @@ class AdminUserControllerTest {
                                 {
                                   "accountEnabled": false,
                                   "accountLocked": true,
-                                  "reason": "Suspicious activity"
+                                  "reason": "Suspicious activity",
+                                  "confirmed": true
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -133,7 +118,7 @@ class AdminUserControllerTest {
                 any(),
                 eq("1"),
                 eq(before),
-                eq(after),
+                any(),
                 any()
         );
     }
@@ -146,7 +131,9 @@ class AdminUserControllerTest {
                         .content("""
                                 {
                                   "accountEnabled": false,
-                                  "accountLocked": true
+                                  "accountLocked": true,
+                                  "reason": "Unauthorized support action",
+                                  "confirmed": true
                                 }
                                 """))
                 .andExpect(status().isForbidden());

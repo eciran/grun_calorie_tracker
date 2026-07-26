@@ -13,6 +13,7 @@ import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Long>, JpaSpecificationExecutor<NotificationEntity> {
     long countByUser(UserEntity user);
+    long countByUserAndIsRead(UserEntity user, Boolean isRead);
     List<NotificationEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
     Page<NotificationEntity> findByUser(UserEntity user, Pageable pageable);
     Page<NotificationEntity> findByUserAndIsRead(UserEntity user, Boolean isRead, Pageable pageable);

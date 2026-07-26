@@ -1,6 +1,8 @@
 package com.grun.calorietracker.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -17,7 +19,12 @@ public class AdminUserStatusUpdateRequestDto {
     @Schema(description = "Whether the account is locked by admin/security action.", example = "false")
     private Boolean accountLocked;
 
+    @NotBlank
     @Size(max = 500)
-    @Schema(description = "Optional admin note explaining the status change.", example = "Temporary lock after suspicious activity.")
+    @Schema(description = "Required audit reason explaining the status change.", example = "Temporary lock after suspicious activity.")
     private String reason;
+
+    @AssertTrue(message = "Explicit confirmation is required.")
+    @Schema(description = "Explicit confirmation for this account access change.", example = "true")
+    private boolean confirmed;
 }

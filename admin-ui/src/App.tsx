@@ -12,6 +12,7 @@ import {
   subscribeUnauthorized
 } from "./api";
 import {
+  AdminCustomer360,
   AdminBrevoSender,
   AdminBrevoSenderList,
   AdminMailMonitoring,
@@ -663,9 +664,9 @@ export default function App() {
           {active === "productRejected" && <ProductReviewView mode="rejected" onError={setError} />}
           {active === "recipes" && <RecipeAdminView onError={setError} />}
           {active === "achievements" && <AchievementAdminView onError={setError} />}
-          {active === "users" && <UsersView mode="users" onError={setError} />}
-          {active === "admins" && <UsersView mode="admins" onError={setError} />}
-          {active === "userVerification" && <UsersView mode="verification" onError={setError} />}
+          {active === "users" && <UsersView mode="users" onError={setError} onNavigate={navigateToSection} />}
+          {active === "admins" && <UsersView mode="admins" onError={setError} onNavigate={navigateToSection} />}
+          {active === "userVerification" && <UsersView mode="verification" onError={setError} onNavigate={navigateToSection} />}
           {active === "subscriptions" && <SubscriptionsView mode="overview" onError={setError} />}
           {active === "subscriptionFeatures" && <SubscriptionsView mode="features" onError={setError} />}
           {active === "subscriptionMapping" && <SubscriptionsView mode="mapping" onError={setError} />}
@@ -3392,25 +3393,52 @@ function AchievementAdminView({ onError }: { onError: (message: string | null) =
 
 type UsersMode = "users" | "admins" | "verification";
 
-function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: string | null) => void }) {
-  const { data, state, reload } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [statusActionState, setStatusActionState] = useState<LoadState>("idle");
+function UsersView({
+  mode,
+  onError,
+  onNavigate
+}: {
+  mode: UsersMode;
+  onError: (message: string | null) => void;
+  onNavigate: (section: SectionKey) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [accountState, setAccountState] = useState("ANY");
+  const [plan, setPlan] = useState("");
+  const [region, setRegion] = useState("");
+  const [language, setLanguage] = useState("");
+  const [verification, setVerification] = useState("");
+  const [activity, setActivity] = useState("");
   const [userPage, setUserPage] = useState(0);
   const [userPageSize, setUserPageSize] = useState(25);
-  const users = data ?? [];
-  const adminUsers = users.filter((user) => user.role === "ADMIN");
-  const standardUsers = users.filter((user) => user.role !== "ADMIN");
-  const unverifiedUsers = users.filter((user) => !user.emailVerified);
-  const visibleUsers = mode === "admins" ? adminUsers : mode === "verification" ? unverifiedUsers : standardUsers;
-  const userTotalPages = Math.max(1, Math.ceil(visibleUsers.length / userPageSize));
-  const safeUserPage = Math.min(userPage, userTotalPages - 1);
-  const pagedUsers = visibleUsers.slice(safeUserPage * userPageSize, safeUserPage * userPageSize + userPageSize);
+  const path = useMemo(() => {
+    const params = new URLSearchParams({
+      role: mode === "admins" ? "ADMIN" : "STANDARD",
+      page: String(userPage),
+      size: String(userPageSize)
+    });
+    if (mode === "verification") params.set("emailVerified", "false");
+    else if (verification) params.set("emailVerified", verification);
+    if (appliedSearch) params.set("search", appliedSearch);
+    if (accountState === "ENABLED") params.set("accountEnabled", "true");
+    if (accountState === "DISABLED") params.set("accountEnabled", "false");
+    if (accountState === "LOCKED") params.set("accountLocked", "true");
+    if (plan) params.set("plan", plan);
+    if (region) params.set("region", region);
+    if (language) params.set("language", language);
+    if (activity) params.set("activity", activity);
+    return `/api/v1/admin/users?${params.toString()}`;
+  }, [mode, userPage, userPageSize, appliedSearch, accountState, plan, region, language, verification, activity]);
+  const { data, state, reload } = useEndpoint<PageResponse<UserProfile>>(path, onError);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [statusActionState, setStatusActionState] = useState<LoadState>("idle");
+  const users = data?.content ?? [];
   const title = mode === "admins" ? "Admin accounts" : mode === "verification" ? "Email verification queue" : "App users";
 
   useEffect(() => {
     setUserPage(0);
-  }, [mode, userPageSize, visibleUsers.length]);
+  }, [mode, userPageSize, accountState, plan, region, language, verification, activity, appliedSearch]);
 
   async function updateSelectedUserStatus(payload: { accountEnabled: boolean; accountLocked: boolean; reason: string }) {
     if (!selectedUser?.id) return;
@@ -3418,7 +3446,7 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
     try {
       const updated = await request<UserProfile>(`/api/v1/admin/users/${selectedUser.id}/status`, {
         method: "PATCH",
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, confirmed: true })
       });
       setSelectedUser(updated);
       await reload();
@@ -3437,21 +3465,41 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
         state={state}
         onReload={reload}
       />
+      <form className="user-filter-panel" onSubmit={(event) => {
+        event.preventDefault();
+        setUserPage(0);
+        setAppliedSearch(search.trim());
+      }}>
+        <label className="user-filter-search">Search<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Email, name, or user id" /></label>
+        <label>Account<select value={accountState} onChange={(event) => setAccountState(event.target.value)}><option value="ANY">Any state</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option><option value="LOCKED">Locked</option></select></label>
+        <label>Plan<select value={plan} onChange={(event) => setPlan(event.target.value)}><option value="">All plans</option><option value="FREE">Free</option><option value="PLUS">Plus</option><option value="PRO">Pro</option></select></label>
+        <label>Region<select value={region} onChange={(event) => setRegion(event.target.value)}><option value="">All regions</option><option value="TR">TR</option><option value="UK_IE">UK / IE</option><option value="GLOBAL">Global</option></select></label>
+        <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="">All languages</option><option value="EN">English</option><option value="TR">Turkish</option></select></label>
+        {mode !== "verification" && <label>Verification<select value={verification} onChange={(event) => setVerification(event.target.value)}><option value="">Any</option><option value="true">Verified</option><option value="false">Unverified</option></select></label>}
+        <label>Activity<select value={activity} onChange={(event) => setActivity(event.target.value)}><option value="">Any activity</option><option value="ACTIVE_30_DAYS">Active in 30 days</option><option value="INACTIVE_30_DAYS">Inactive 30+ days</option><option value="NEVER_ACTIVE">Never active</option></select></label>
+        <div className="user-filter-actions">
+          <button className="primary-button" type="submit">Search</button>
+          <button className="ghost-button" type="button" onClick={() => {
+            setSearch(""); setAppliedSearch(""); setAccountState("ANY"); setPlan("");
+            setRegion(""); setLanguage(""); setVerification(""); setActivity(""); setUserPage(0);
+          }}>Clear</button>
+        </div>
+      </form>
       <div className="user-summary-grid">
-        <MetricCard label="Standard users" value={formatValue(standardUsers.length)} hint="Non-admin accounts" />
-        <MetricCard label="Admin users" value={formatValue(adminUsers.length)} hint="Privileged accounts" />
-        <MetricCard label="Unverified" value={formatValue(unverifiedUsers.length)} hint="Email verification pending" />
+        <MetricCard label="Matching users" value={formatValue(data?.totalElements ?? 0)} hint="Server-filtered result" />
+        <MetricCard label="Current page" value={formatValue((data?.page ?? 0) + 1)} hint={`${users.length} records loaded`} />
+        <MetricCard label="Page size" value={formatValue(data?.size ?? userPageSize)} hint="No full-list download" />
       </div>
       <AsyncState
         state={state}
-        hasData={Boolean(data)}
+        hasData={users.length > 0}
         loadingMessage="Loading user accounts..."
         emptyMessage="No user accounts were returned."
       />
       {(data || state === "ready") && <DataTable
         caption={`${title} table`}
-        columns={["User", "Role", "Status", "Region", "Language", "Email", "Profile"]}
-        rows={pagedUsers.map((user) => [
+        columns={["User", "Role", "Status", "Region", "Language", "Created", "Last active"]}
+        rows={users.map((user) => [
           <UserCell user={user} />,
           <Badge value={user.role ?? "-"} />,
           <div className="badge-stack">
@@ -3463,28 +3511,36 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
           </div>,
           formatValue(user.marketRegion),
           formatValue(user.preferredLanguage),
-          formatValue(user.email),
-          `${formatValue(user.age)} yrs | ${formatValue(user.height)} cm / ${formatValue(user.weight)} kg`
+          formatDate(user.createdAt),
+          formatDate(user.lastActiveAt)
         ])}
-        rowData={pagedUsers}
-        rowKeys={pagedUsers.map((user) => user.id ?? user.email ?? "unknown-user")}
+        rowData={users}
+        rowKeys={users.map((user) => user.id ?? user.email ?? "unknown-user")}
         onRowClick={setSelectedUser}
         empty={mode === "admins" ? "No admin users found." : mode === "verification" ? "No unverified users found." : "No standard users found."}
       />}
       {(data || state === "ready") && <PaginationControls
-        page={safeUserPage}
+        page={data?.page ?? userPage}
         pageSize={userPageSize}
-        totalElements={visibleUsers.length}
-        totalPages={userTotalPages}
-        first={safeUserPage <= 0}
-        last={safeUserPage >= userTotalPages - 1}
+        totalElements={data?.totalElements ?? 0}
+        totalPages={Math.max(1, data?.totalPages ?? 1)}
+        first={data?.first ?? userPage <= 0}
+        last={data?.last ?? true}
         onPageChange={setUserPage}
         onPageSizeChange={(size) => {
           setUserPageSize(size);
           setUserPage(0);
         }}
       />}
-      {selectedUser && <UserDetailsModal user={selectedUser} statusState={statusActionState} onClose={() => setSelectedUser(null)} onStatusUpdate={updateSelectedUserStatus} />}
+      {selectedUser && <UserDetailsModal
+        user={selectedUser}
+        statusState={statusActionState}
+        onClose={() => setSelectedUser(null)}
+        onNavigate={onNavigate}
+        onStatusUpdate={updateSelectedUserStatus}
+        onReloadUsers={reload}
+        onError={onError}
+      />}
     </div>
   );
 }
@@ -3492,9 +3548,15 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
 type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "access" | "aiQuotas";
 
 function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError: (message: string | null) => void }) {
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const subscriptionUserPath = useMemo(() => {
+    const params = new URLSearchParams({ role: "STANDARD", page: "0", size: "25" });
+    if (userSearchQuery.trim()) params.set("search", userSearchQuery.trim());
+    return `/api/v1/admin/users?${params.toString()}`;
+  }, [userSearchQuery]);
   const { data, state, reload } = useEndpoint<FeatureMatrixItem[]>("/api/v1/admin/subscriptions/features", onError);
   const { data: pricingData, state: pricingState, reload: reloadPricing } = useEndpoint<AiCreditPricingPolicy[]>("/api/v1/admin/ai-credit-pricing", onError);
-  const { data: users, state: usersState } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
+  const { data: users, state: usersState } = useEndpoint<PageResponse<UserProfile>>(subscriptionUserPath, onError);
   const { data: revenueCat, state: revenueCatState, reload: reloadRevenueCat } = useEndpoint<RevenueCatConfigStatus>("/api/v1/admin/revenuecat/config", onError);
   const { data: subscriptionAudits, state: subscriptionAuditState, reload: reloadSubscriptionAudits } = useEndpoint<PageResponse<AuditEntry>>(buildAuditPath({ actionType: "", targetType: "USER_SUBSCRIPTION", page: 0, size: 20 }), onError);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -3502,7 +3564,6 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [subscriptionResult, setSubscriptionResult] = useState<SubscriptionDto | null>(null);
   const [matrixApplyConfirmationOpen, setMatrixApplyConfirmationOpen] = useState(false);
   const [accessPreviewUserId, setAccessPreviewUserId] = useState<string>("");
-  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [previewUserAutoSelected, setPreviewUserAutoSelected] = useState(false);
   const [accessPreview, setAccessPreview] = useState<SubscriptionFeatureAccess | null>(null);
@@ -3522,7 +3583,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [addonForm, setAddonForm] = useState({ amount: "15", validityDays: "30", note: "Admin credit adjustment" });
   const features = data ?? [];
   const pricingPolicies = pricingData ?? [];
-  const previewUsers = users ?? [];
+  const previewUsers = users?.content ?? [];
   const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
   const selectedPreviewLabel = selectedPreviewUser ? userOptionLabel(selectedPreviewUser).toLowerCase() : "";
   const previewSearchQuery = userSearchQuery.trim().toLowerCase();
@@ -8653,16 +8714,31 @@ function UserDetailsModal({
   user,
   statusState,
   onClose,
-  onStatusUpdate
+  onStatusUpdate,
+  onReloadUsers,
+  onNavigate,
+  onError
 }: {
   user: UserProfile;
   statusState: LoadState;
   onClose: () => void;
   onStatusUpdate: (payload: { accountEnabled: boolean; accountLocked: boolean; reason: string }) => Promise<void>;
+  onReloadUsers: () => Promise<void>;
+  onNavigate: (section: SectionKey) => void;
+  onError: (message: string | null) => void;
 }) {
+  const customerPath = `/api/v1/admin/users/${user.id}/customer-360`;
+  const { data: customer, state, reload } = useEndpoint<AdminCustomer360>(customerPath, onError);
+  const [tab, setTab] = useState<"account" | "subscription" | "ai" | "notifications" | "security" | "consent" | "activity" | "notes">("account");
   const [accountEnabled, setAccountEnabled] = useState(user.accountEnabled !== false);
   const [accountLocked, setAccountLocked] = useState(Boolean(user.accountLocked));
   const [reason, setReason] = useState("");
+  const [sessionReason, setSessionReason] = useState("");
+  const [note, setNote] = useState("");
+  const [tags, setTags] = useState("");
+  const [actionState, setActionState] = useState<LoadState>("idle");
+  const [confirmation, setConfirmation] = useState<"status" | "sessions" | null>(null);
+  const profile = customer?.profile ?? user;
 
   useEffect(() => {
     setAccountEnabled(user.accountEnabled !== false);
@@ -8670,90 +8746,145 @@ function UserDetailsModal({
     setReason("");
   }, [user.id, user.accountEnabled, user.accountLocked]);
 
+  async function confirmRiskAction() {
+    if (!user.id || !confirmation) return;
+    if (confirmation === "status") {
+      await onStatusUpdate({ accountEnabled, accountLocked, reason: reason.trim() });
+      setReason("");
+    } else {
+      setActionState("loading");
+      try {
+        await request(`/api/v1/admin/users/${user.id}/sessions/revoke`, {
+          method: "POST",
+          body: JSON.stringify({ reason: sessionReason.trim(), confirmed: true })
+        });
+        setSessionReason("");
+        setActionState("ready");
+      } catch (error) {
+        setActionState("error");
+        onError(formatRequestError(error));
+      }
+    }
+    setConfirmation(null);
+    await reload();
+    await onReloadUsers();
+  }
+
+  async function addSupportNote(event: FormEvent) {
+    event.preventDefault();
+    if (!user.id || !note.trim()) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/users/${user.id}/support-notes`, {
+        method: "POST",
+        body: JSON.stringify({
+          note: note.trim(),
+          tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+        })
+      });
+      setNote(""); setTags(""); setActionState("ready");
+      await reload();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const tabs = [
+    ["account", "Account"], ["subscription", "Subscription"], ["ai", "AI & refunds"],
+    ["notifications", "Notifications"], ["security", "Security"], ["consent", "Consent"],
+    ["activity", "Activity"], ["notes", "Support notes"]
+  ] as const;
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="user-modal" role="dialog" aria-modal="true" aria-label="User details" onClick={(event) => event.stopPropagation()}>
+      <section className="user-modal customer-360-modal" role="dialog" aria-modal="true" aria-label="Customer 360" onClick={(event) => event.stopPropagation()}>
         <header className="modal-header">
           <div>
-            <p className="eyebrow">Profile and account status</p>
-            <h2>{user.name ?? "Unnamed user"}</h2>
-            <span>{user.email ?? `ID ${user.id ?? "-"}`}</span>
+            <p className="eyebrow">Customer 360</p>
+            <h2>{profile.name ?? "Unnamed user"}</h2>
+            <span>{profile.email ?? `ID ${profile.id ?? "-"}`}</span>
           </div>
           <button className="icon-button" onClick={onClose} type="button" aria-label="Close">x</button>
         </header>
-        <div className="user-detail-layout">
-          <Panel title="Account">
-            <div className="readonly-grid">
-              <DetailItem label="ID" value={formatValue(user.id)} />
-              <DetailItem label="Email" value={user.email} />
-              <DetailItem label="Role" value={user.role} />
-              <DetailItem label="Account enabled" value={user.accountEnabled === false ? "No" : "Yes"} />
-              <DetailItem label="Account locked" value={user.accountLocked ? "Yes" : "No"} />
-              <DetailItem label="Email verified" value={user.emailVerified ? "Yes" : "No"} />
-              <DetailItem label="Password set" value={user.passwordSet ? "Yes" : "No"} />
-              <DetailItem label="Region" value={user.marketRegion} />
-              <DetailItem label="Language" value={user.preferredLanguage} />
-            </div>
-          </Panel>
-          <Panel title="Account status controls">
-            <form className="account-status-panel" onSubmit={(event) => {
-              event.preventDefault();
-              void onStatusUpdate({ accountEnabled, accountLocked, reason: reason.trim() });
-            }}>
-              <div className="account-status-summary">
-                <div>
-                  <span>Current state</span>
-                  <strong>{user.accountLocked ? "Locked" : user.accountEnabled === false ? "Disabled" : "Enabled"}</strong>
+        <nav className="customer-360-tabs" aria-label="Customer detail sections">
+          {tabs.map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)} type="button">{label}</button>)}
+        </nav>
+        <div className="customer-360-content">
+          <AsyncState state={state} hasData={Boolean(customer)} loadingMessage="Loading customer summary..." emptyMessage="Customer summary is unavailable." />
+          {customer && tab === "account" && <div className="customer-360-two-column">
+            <Panel title="Account summary">
+              <div className="readonly-grid">
+                <DetailItem label="ID" value={formatValue(profile.id)} />
+                <DetailItem label="Email" value={profile.email} />
+                <DetailItem label="Role" value={profile.role} />
+                <DetailItem label="Status" value={profile.accountLocked ? "Locked" : profile.accountEnabled === false ? "Disabled" : "Enabled"} />
+                <DetailItem label="Email verified" value={profile.emailVerified ? "Yes" : "No"} />
+                <DetailItem label="Password set" value={profile.passwordSet ? "Yes" : "No"} />
+                <DetailItem label="Region" value={profile.marketRegion} />
+                <DetailItem label="Language" value={profile.preferredLanguage} />
+                <DetailItem label="Created" value={formatDate(profile.createdAt)} />
+                <DetailItem label="Last active" value={formatDate(profile.lastActiveAt)} />
+              </div>
+            </Panel>
+            <Panel title="Controlled account action">
+              <form className="account-status-panel" onSubmit={(event) => {
+                event.preventDefault();
+                if (reason.trim()) setConfirmation("status");
+              }}>
+                <div className="account-status-toggles">
+                  <label className="status-toggle-card"><input checked={accountEnabled} onChange={(event) => setAccountEnabled(event.target.checked)} type="checkbox" /><span><strong>Allow sign in</strong><small>Disabled users cannot authenticate.</small></span></label>
+                  <label className="status-toggle-card danger"><input checked={accountLocked} onChange={(event) => setAccountLocked(event.target.checked)} type="checkbox" /><span><strong>Security lock</strong><small>Locked until an admin unlocks the account.</small></span></label>
                 </div>
-                <Badge value={user.accountLocked || user.accountEnabled === false ? "Restricted" : "Can sign in"} tone={user.accountLocked || user.accountEnabled === false ? "warn" : "good"} />
+                <label className="account-status-reason">Required audit reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Describe the support or security reason." maxLength={500} required /></label>
+                <div className="account-status-footer"><span>{reason.trim().length}/500</span><button className="primary-button" disabled={statusState === "loading" || !reason.trim()} type="submit">Review status change</button></div>
+              </form>
+            </Panel>
+          </div>}
+          {customer && tab === "subscription" && <div className="customer-360-two-column">
+            <Panel title="Subscription and entitlement">
+              <div className="readonly-grid">
+                <DetailItem label="Plan" value={customer.subscription.plan} /><DetailItem label="Status" value={customer.subscription.status} />
+                <DetailItem label="Billing" value={customer.subscription.billingPeriod} /><DetailItem label="Auto renew" value={customer.subscription.autoRenew ? "Yes" : "No"} />
+                <DetailItem label="Start" value={customer.subscription.startDate} /><DetailItem label="End" value={customer.subscription.endDate} />
+                <DetailItem label="Monthly AI" value={customer.subscription.aiMonthlyQuota} /><DetailItem label="Used" value={customer.subscription.aiUsedThisPeriod} />
+                <DetailItem label="Add-on remaining" value={customer.subscription.aiAddonRemaining} /><DetailItem label="Add-on expiry" value={customer.subscription.aiAddonExpiresAt} />
               </div>
-              <div className="account-status-toggles">
-                <label className="status-toggle-card">
-                  <input checked={accountEnabled} onChange={(event) => setAccountEnabled(event.target.checked)} type="checkbox" />
-                  <span>
-                    <strong>Allow sign in</strong>
-                    <small>Disabled users cannot authenticate.</small>
-                  </span>
-                </label>
-                <label className="status-toggle-card danger">
-                  <input checked={accountLocked} onChange={(event) => setAccountLocked(event.target.checked)} type="checkbox" />
-                  <span>
-                    <strong>Security lock</strong>
-                    <small>Locked users are blocked until unlocked by admin.</small>
-                  </span>
-                </label>
-              </div>
-              <label className="account-status-reason">
-                Admin reason
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Example: Temporary lock after suspicious activity." maxLength={500} />
-              </label>
-              <div className="account-status-footer">
-                <span>{reason.trim().length}/500 audit note characters</span>
-                <button className="primary-button" disabled={statusState === "loading"} type="submit">Apply status</button>
-              </div>
-            </form>
-          </Panel>
-          <Panel title="Body profile">
-            <div className="readonly-grid">
-              <DetailItem label="Age" value={formatValue(user.age)} />
-              <DetailItem label="Gender" value={user.gender} />
-              <DetailItem label="Height" value={user.height === undefined ? "-" : `${formatValue(user.height)} cm`} />
-              <DetailItem label="Weight" value={user.weight === undefined ? "-" : `${formatValue(user.weight)} kg`} />
-              <DetailItem label="BMI" value={formatValue(user.bmi)} />
-              <DetailItem label="Body fat" value={user.bodyFat === undefined ? "-" : `${formatValue(user.bodyFat)}%`} />
-            </div>
-          </Panel>
-          <Panel title="Goal recalculation">
-            <div className="readonly-grid">
-              <DetailItem label="Recommended" value={user.goalRecalculationRecommended ? "Yes" : "No"} />
-              <DetailItem label="Reason" value={user.goalRecalculationReason ?? "-"} />
-            </div>
-          </Panel>
+            </Panel>
+            <Panel title="Resolved features"><div className="customer-tag-list">{(customer.subscription.activeFeatures ?? []).map((feature) => <Badge key={feature} value={humanizeFeature(feature)} tone="good" />)}</div><button className="ghost-button" onClick={() => { onClose(); onNavigate("subscriptionAccess"); }} type="button">Open entitlement controls</button></Panel>
+          </div>}
+          {customer && tab === "ai" && <div className="customer-360-two-column">
+            <Panel title="AI support summary"><div className="readonly-grid"><DetailItem label="Total requests" value={customer.ai.totalRequests} /><DetailItem label="Last request" value={formatDate(customer.ai.lastRequestAt)} /><DetailItem label="Recent sample" value={customer.ai.recentSampleSize} /></div></Panel>
+            <Panel title="Recent outcome counts"><div className="customer-count-list">{Object.entries(customer.ai.recentStatusCounts ?? {}).map(([key, value]) => <div key={key}><span>{humanizeFeature(key)}</span><strong>{value}</strong></div>)}</div><button className="ghost-button" onClick={() => { onClose(); onNavigate("ai"); }} type="button">Open AI operations</button></Panel>
+            <Panel title="Recent request types"><div className="customer-count-list">{Object.entries(customer.ai.recentRequestTypeCounts ?? {}).map(([key, value]) => <div key={key}><span>{humanizeFeature(key)}</span><strong>{value}</strong></div>)}</div></Panel>
+          </div>}
+          {customer && tab === "notifications" && <Panel title={`Notifications (${customer.notifications.unread ?? 0} unread)`}><DataTable caption="Recent notification metadata" columns={["Type", "Severity", "Source", "State", "Created"]} rows={(customer.notifications.recent ?? []).map((item) => [item.type, <Badge value={item.severity} />, item.source, item.read ? "Read" : "Unread", formatDate(item.createdAt)])} empty="No notification metadata." /></Panel>}
+          {customer && tab === "security" && <div className="customer-360-two-column">
+            <Panel title="Active sessions"><div className="customer-risk-summary"><strong>{customer.security.activeSessions ?? 0}</strong><span>active refresh-token sessions</span></div><label>Required audit reason<textarea value={sessionReason} onChange={(event) => setSessionReason(event.target.value)} placeholder="Why must all sessions be revoked?" maxLength={500} /></label><button className="primary-button danger-button" disabled={!sessionReason.trim() || actionState === "loading" || (customer.security.activeSessions ?? 0) === 0} onClick={() => setConfirmation("sessions")} type="button">Review session revoke</button></Panel>
+            <Panel title="Recent security events"><DataTable caption="Security events" columns={["Event", "Provider", "Result", "Created"]} rows={(customer.security.recentEvents ?? []).map((item) => [humanizeFeature(item.eventType), item.provider, item.resultCode, formatDate(item.createdAt)])} empty="No security events." /></Panel>
+          </div>}
+          {customer && tab === "consent" && <Panel title={`Consent history (${customer.consent.total ?? 0})`}><DataTable caption="Consent history" columns={["Type", "Version", "Status", "Source", "Created"]} rows={(customer.consent.recent ?? []).map((item) => [humanizeFeature(item.consentType), item.version, <Badge value={item.status} />, item.source, formatDate(item.createdAt)])} empty="No consent records." /></Panel>}
+          {customer && tab === "activity" && <div className="customer-360-two-column"><Panel title="Recent activity summary"><div className="readonly-grid"><DetailItem label="Food logs" value={customer.activity.foodLogCount} /><DetailItem label="Last food log" value={formatDate(customer.activity.lastFoodLogAt)} /><DetailItem label="Product events" value={customer.activity.productEventCount} /></div></Panel><Panel title="Recent product activity"><DataTable caption="Recent product activity" columns={["Event", "Surface", "Created"]} rows={(customer.activity.recentProductEvents ?? []).map((item) => [humanizeFeature(item.eventType), item.surface, formatDate(item.createdAt)])} empty="No product activity." /></Panel></div>}
+          {customer && tab === "notes" && <div className="customer-360-two-column">
+            <Panel title="Add internal support note"><form className="customer-note-form" onSubmit={addSupportNote}><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} required /></label><label>Tags<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="BETA, BILLING, FOLLOW_UP" /></label><button className="primary-button" disabled={!note.trim() || actionState === "loading"} type="submit">Save note</button></form></Panel>
+            <Panel title="Support history"><div className="customer-note-list">{(customer.supportNotes ?? []).map((item) => <article key={item.id}><div><strong>{item.createdBy ?? "Admin"}</strong><span>{formatDate(item.createdAt)}</span></div><p>{item.note}</p><div className="customer-tag-list">{(item.tags ?? []).map((tag) => <Badge key={tag} value={tag} />)}</div></article>)}{!customer.supportNotes?.length && <EmptyState message="No internal support notes." />}</div></Panel>
+          </div>}
         </div>
+        <footer className="modal-actions"><button className="ghost-button" onClick={onClose} type="button">Close</button></footer>
+        {confirmation && <ConfirmDialog
+          title={confirmation === "status" ? "Apply account status change?" : "Revoke all active sessions?"}
+          message={confirmation === "status" ? `This changes sign-in access for ${profile.email}. The reason is stored in the audit trail.` : `This signs ${profile.email} out of every active session. The reason is stored in the audit trail.`}
+          confirmLabel={confirmation === "status" ? "Apply status" : "Revoke sessions"}
+          danger
+          busy={statusState === "loading" || actionState === "loading"}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => void confirmRiskAction()}
+        />}
       </section>
     </div>
   );
 }
+
 function AuditDetailsModal({ audit, onClose }: { audit: AuditEntry; onClose: () => void }) {
   const targetLabel = `${audit.targetType ?? "-"} #${audit.targetKey ?? audit.targetId ?? "-"}`;
   return (
