@@ -374,8 +374,10 @@ button {
 
 .main-panel {
   min-width: 0;
+  max-width: 100%;
   min-height: 100dvh;
   padding: 22px 26px 30px;
+  overflow-x: clip;
 }
 
 .topbar,
@@ -5503,6 +5505,8 @@ label {
 
 .section-tabs {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
   margin: 0 0 14px;
   padding: 8px;
@@ -8531,3 +8535,63 @@ label {
 .commercial-ledger-toolbar select { min-height: 38px; }
 .commercial-reconciliation { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
 .commercial-reconciliation p { margin: 0; color: var(--warning-text); }
+
+
+/* Campaign operations: engagement and contact pressure */
+.campaign-pressure-note {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+.campaign-pressure-note span,
+.campaign-ledger-heading p {
+  color: var(--muted);
+  font-size: .74rem;
+}
+.campaign-ledger-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.campaign-ledger-heading > div {
+  display: grid;
+  gap: 3px;
+}
+.campaign-ledger-heading p {
+  margin: 0;
+}
+.campaign-ledger-heading label {
+  width: min(180px, 100%);
+}
+.campaign-engagement-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.campaign-engagement-badges span {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .68rem;
+}
+.campaign-engagement-badges .is-active {
+  border-color: var(--success);
+  color: var(--success);
+}
+.campaign-engagement-badges .is-dismissed {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+@media (max-width: 720px) {
+  .campaign-ledger-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

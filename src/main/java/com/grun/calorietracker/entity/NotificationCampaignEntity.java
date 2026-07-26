@@ -93,6 +93,27 @@ public class NotificationCampaignEntity {
     @Column(nullable = false)
     private Long pushFailedCount = 0L;
 
+    @Column(nullable = false)
+    private Long openedCount = 0L;
+
+    @Column(nullable = false)
+    private Long clickedCount = 0L;
+
+    @Column(nullable = false)
+    private Long dismissedCount = 0L;
+
+    @Column(nullable = false)
+    private Long convertedCount = 0L;
+
+    @Column(nullable = false)
+    private Long suppressedCount = 0L;
+
+    @Column(nullable = false)
+    private Integer frequencyCapHours = 24;
+
+    @Column(nullable = false)
+    private Integer frequencyCapMax = 3;
+
     @Column(length = 2048)
     private String failureMessage;
 }

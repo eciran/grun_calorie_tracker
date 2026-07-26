@@ -30,5 +30,12 @@ public class AdminNotificationCampaignDto {
     private Long pushSentCount;
     private Long pushSkippedCount;
     private Long pushFailedCount;
+    private Long openedCount;
+    private Long clickedCount;
+    private Long dismissedCount;
+    private Long convertedCount;
+    private Long suppressedCount;
+    private Integer frequencyCapHours;
+    private Integer frequencyCapMax;
     private String failureMessage;
 }

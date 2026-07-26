@@ -1,8 +1,13 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.entity.NotificationCampaignEntity;
+import com.grun.calorietracker.entity.NotificationCampaignRecipientEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.NotificationEngagementType;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
+import com.grun.calorietracker.repository.NotificationCampaignRecipientRepository;
+import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.NotificationServiceImpl;
@@ -32,6 +37,10 @@ class NotificationServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private NotificationCampaignRecipientRepository recipientRepository;
+    @Mock
+    private NotificationCampaignRepository campaignRepository;
 
     private NotificationServiceImpl service;
     private UserEntity user;
@@ -39,7 +48,8 @@ class NotificationServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        service = new NotificationServiceImpl(notificationRepository, userRepository);
+        service = new NotificationServiceImpl(
+                notificationRepository, recipientRepository, campaignRepository, userRepository);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -75,6 +85,25 @@ class NotificationServiceImplTest {
 
         assertEquals(true, result.getRead());
         verify(notificationRepository).save(notification);
+    }
+
+    @Test
+    void recordEngagement_isIdempotentForCampaignRecipient() {
+        NotificationCampaignEntity campaign = new NotificationCampaignEntity();
+        campaign.setId(9L);
+        NotificationEntity notification = notification(10L, false, "marketing");
+        notification.setCampaign(campaign);
+        NotificationCampaignRecipientEntity recipient = new NotificationCampaignRecipientEntity();
+        recipient.setCampaign(campaign);
+        recipient.setUser(user);
+        when(notificationRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(notification));
+        when(recipientRepository.findByNotificationIdAndUserId(10L, 1L)).thenReturn(Optional.of(recipient));
+
+        service.recordEngagement("user@example.com", 10L, NotificationEngagementType.CLICKED);
+        service.recordEngagement("user@example.com", 10L, NotificationEngagementType.CLICKED);
+
+        verify(campaignRepository).incrementClicked(9L);
+        assertEquals(true, notification.getIsRead());
     }
 
     @Test

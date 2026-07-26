@@ -716,7 +716,28 @@ export type NotificationCampaign = {
   pushSentCount?: number;
   pushSkippedCount?: number;
   pushFailedCount?: number;
+  openedCount?: number;
+  clickedCount?: number;
+  dismissedCount?: number;
+  convertedCount?: number;
+  suppressedCount?: number;
+  frequencyCapHours?: number;
+  frequencyCapMax?: number;
   failureMessage?: string;
+};
+
+export type NotificationCampaignRecipient = {
+  id?: number;
+  userReference?: string;
+  status?: "CREATED" | "DELIVERED" | "SUPPRESSED" | "FAILED";
+  pushSent?: number;
+  pushFailed?: number;
+  suppressionReason?: string;
+  processedAt?: string;
+  openedAt?: string;
+  clickedAt?: string;
+  dismissedAt?: string;
+  convertedAt?: string;
 };
 
 export type NotificationCampaignPreview = {

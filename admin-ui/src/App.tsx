@@ -61,6 +61,7 @@ import {
   Notification,
   NotificationCampaign,
   NotificationCampaignPreview,
+  NotificationCampaignRecipient,
   RevenueCatChart,
   RevenueCatConfigStatus,
   RevenueCatMonitoringCharts,
@@ -7007,7 +7008,7 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
 }
 
 function NotificationCampaignsView({ onError }: { onError: (message: string | null) => void }) {
-  const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "" };
+  const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "", frequencyCapHours: 24, frequencyCapMax: 3 };
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -7113,7 +7114,9 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
       targetRoute: item.targetRoute ?? "",
       targetPlan: item.targetPlan ?? "",
       targetRegion: item.targetRegion ?? "",
-      targetLanguage: item.targetLanguage ?? ""
+      targetLanguage: item.targetLanguage ?? "",
+      frequencyCapHours: item.frequencyCapHours ?? 24,
+      frequencyCapMax: item.frequencyCapMax ?? 3
     });
     setPreview(null);
     setNotice(null);
@@ -7233,6 +7236,9 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
           <label className="span-2">User-facing title<input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Planned maintenance" /></label>
           <label className="span-2">Target route<input maxLength={255} value={draft.targetRoute} onChange={(event) => setDraft({ ...draft, targetRoute: event.target.value })} placeholder="/settings/subscription" /></label>
           <label className="span-4">Message<textarea required maxLength={1000} value={draft.message} onChange={(event) => setDraft({ ...draft, message: event.target.value })} placeholder="Write the concise user-facing message." /></label>
+          <label>Pressure window (hours)<input type="number" min={1} max={168} value={draft.frequencyCapHours} onChange={(event) => setDraft({ ...draft, frequencyCapHours: Number(event.target.value) })} /></label>
+          <label>Maximum marketing messages<input type="number" min={1} max={20} value={draft.frequencyCapMax} onChange={(event) => setDraft({ ...draft, frequencyCapMax: Number(event.target.value) })} /></label>
+          <div className="campaign-pressure-note span-2"><strong>Contact pressure</strong><span>System notices bypass this cap. Marketing recipients above the limit are suppressed and remain visible in delivery diagnostics.</span></div>
         </div>
         <div className="campaign-audience-strip">
           <label className="campaign-audience-filter">Plan<select value={draft.targetPlan} onChange={(event) => void updateAudienceFilter("targetPlan", event.target.value)}><option value="">All plans</option>{PLAN_ORDER.map((plan) => <option value={plan} key={plan}>{plan}</option>)}</select></label>
@@ -7339,17 +7345,57 @@ function NotificationCampaignPreviewModal({
               <div><small>In-app</small><strong>{formatValue(campaign.inAppCount)}</strong></div>
               <div><small>Push sent</small><strong>{formatValue(campaign.pushSentCount)}</strong></div>
               <div><small>Push failed</small><strong>{formatValue(campaign.pushFailedCount)}</strong></div>
+              <div><small>Suppressed</small><strong>{formatValue(campaign.suppressedCount)}</strong></div>
+              <div><small>Opened</small><strong>{formatValue(campaign.openedCount)}</strong></div>
+              <div><small>Clicked</small><strong>{formatValue(campaign.clickedCount)}</strong></div>
+              <div><small>Dismissed</small><strong>{formatValue(campaign.dismissedCount)}</strong></div>
+              <div><small>Converted</small><strong>{formatValue(campaign.convertedCount)}</strong></div>
+              <div><small>Pressure cap</small><strong>{campaign.frequencyCapMax ?? 3} / {campaign.frequencyCapHours ?? 24}h</strong></div>
               <div><small>Scheduled</small><strong>{formatDate(campaign.scheduledAt)}</strong></div>
               <div><small>Completed</small><strong>{formatDate(campaign.completedAt)}</strong></div>
             </div>
             {campaign.failureMessage && <div className="form-notice warning">{campaign.failureMessage}</div>}
           </section>
+          {campaign.id && <CampaignRecipientLedger campaignId={campaign.id} />}
         </div>
         <div className="modal-actions"><button className="primary-button" type="button" onClick={onClose}>Close preview</button></div>
       </section>
     </div>
   );
 }
+function CampaignRecipientLedger({ campaignId }: { campaignId: number }) {
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(0);
+  const params = new URLSearchParams({ page: String(page), size: "10" });
+  if (status) params.set("status", status);
+  const { data, state, reload } = useEndpoint<PageResponse<NotificationCampaignRecipient>>(
+    "/api/v1/admin/notification-campaigns/" + campaignId + "/recipients?" + params.toString(),
+    () => undefined
+  );
+  return (
+    <section className="campaign-history-section campaign-recipient-ledger">
+      <div className="campaign-ledger-heading">
+        <div><h3>Delivery and engagement</h3><p>Privacy-safe recipient references; no full profile or message payload is exposed.</p></div>
+        <label>Status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }}>
+          <option value="">All</option><option value="DELIVERED">Delivered</option><option value="SUPPRESSED">Suppressed</option><option value="FAILED">Failed</option>
+        </select></label>
+      </div>
+      <DataTable
+        columns={["Recipient", "Delivery", "Engagement", "Processed"]}
+        rows={(data?.content ?? []).map((row) => [
+          row.userReference ?? "user",
+          <div className="table-stack"><Badge value={row.status} tone={row.status === "FAILED" ? "danger" : row.status === "SUPPRESSED" ? "warn" : "good"} /><small>{row.suppressionReason || ((row.pushSent ?? 0) + " push sent")}</small></div>,
+          <div className="campaign-engagement-badges"><span className={row.openedAt ? "is-active" : ""}>Open</span><span className={row.clickedAt ? "is-active" : ""}>Click</span><span className={row.convertedAt ? "is-active" : ""}>Convert</span><span className={row.dismissedAt ? "is-dismissed" : ""}>Dismiss</span></div>,
+          formatDate(row.processedAt)
+        ])}
+        empty={state === "loading" ? "Loading delivery diagnostics..." : "No recipient rows match this filter."}
+      />
+      <PaginationControls page={data?.page ?? page} pageSize={data?.size ?? 10} totalElements={data?.totalElements ?? 0} totalPages={data?.totalPages ?? 1} first={Boolean(data?.first)} last={Boolean(data?.last)} onPageChange={setPage} onPageSizeChange={() => {}} />
+      {state === "error" && <button className="ghost-button" type="button" onClick={() => void reload()}>Retry diagnostics</button>}
+    </section>
+  );
+}
+
 function NotificationCampaignGuideModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop campaign-guide-backdrop" role="presentation" onClick={onClose}>

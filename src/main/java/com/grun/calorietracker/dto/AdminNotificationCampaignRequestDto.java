@@ -1,6 +1,8 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -32,4 +34,12 @@ public class AdminNotificationCampaignRequestDto {
     private SubscriptionPlan targetPlan;
     private MarketRegion targetRegion;
     private PreferredLanguage targetLanguage;
+
+    @Min(1)
+    @Max(168)
+    private Integer frequencyCapHours = 24;
+
+    @Min(1)
+    @Max(20)
+    private Integer frequencyCapMax = 3;
 }

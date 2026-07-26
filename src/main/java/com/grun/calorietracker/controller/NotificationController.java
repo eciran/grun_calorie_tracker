@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.NotificationDto;
 import com.grun.calorietracker.dto.NotificationPageDto;
 import com.grun.calorietracker.dto.NotificationReadAllResponseDto;
+import com.grun.calorietracker.enums.NotificationEngagementType;
 import com.grun.calorietracker.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -83,6 +84,16 @@ public class NotificationController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "Notification id.", example = "1") @PathVariable Long id) {
         return ResponseEntity.ok(notificationService.markAsRead(userDetails.getUsername(), id));
+    }
+
+    @PatchMapping("/{id}/engagement/{engagementType}")
+    @Operation(summary = "Record campaign notification engagement")
+    public ResponseEntity<NotificationDto> recordEngagement(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @PathVariable NotificationEngagementType engagementType) {
+        return ResponseEntity.ok(notificationService.recordEngagement(
+                userDetails.getUsername(), id, engagementType));
     }
 
     @PatchMapping("/read-all")

@@ -49,7 +49,11 @@ public class NotificationCampaignBatchProcessor {
         for (UserEntity user : users) {
             campaign.setLastProcessedUserId(user.getId());
             if (!recipientRepository.existsByCampaignIdAndUserId(campaign.getId(), user.getId())) {
-                deliver(campaign, user);
+                if (isFrequencyCapped(campaign, user)) {
+                    suppress(campaign, user);
+                } else {
+                    deliver(campaign, user);
+                }
             }
         }
 
@@ -66,6 +70,28 @@ public class NotificationCampaignBatchProcessor {
         campaign.setCompletedAt(LocalDateTime.now());
         campaign.setUpdatedAt(LocalDateTime.now());
         campaignRepository.save(campaign);
+    }
+
+    private boolean isFrequencyCapped(NotificationCampaignEntity campaign, UserEntity user) {
+        if (campaign.getCategory() != NotificationCampaignCategory.MARKETING) {
+            return false;
+        }
+        return recipientRepository.countRecentMarketingDeliveries(
+                user.getId(), LocalDateTime.now().minusHours(campaign.getFrequencyCapHours()))
+                >= campaign.getFrequencyCapMax();
+    }
+
+    private void suppress(NotificationCampaignEntity campaign, UserEntity user) {
+        NotificationCampaignRecipientEntity recipient = new NotificationCampaignRecipientEntity();
+        recipient.setCampaign(campaign);
+        recipient.setUser(user);
+        recipient.setStatus(NotificationCampaignRecipientStatus.SUPPRESSED);
+        recipient.setSuppressionReason("MARKETING_FREQUENCY_CAP");
+        recipient.setCreatedAt(LocalDateTime.now());
+        recipient.setProcessedAt(LocalDateTime.now());
+        recipientRepository.save(recipient);
+        campaign.setProcessedCount(campaign.getProcessedCount() + 1);
+        campaign.setSuppressedCount(campaign.getSuppressedCount() + 1);
     }
 
     private void deliver(NotificationCampaignEntity campaign, UserEntity user) {

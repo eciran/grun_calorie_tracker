@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.*;
+import com.grun.calorietracker.enums.NotificationCampaignRecipientStatus;
 import com.grun.calorietracker.enums.NotificationCampaignStatus;
 
 import java.time.LocalDateTime;
@@ -13,4 +14,6 @@ public interface AdminNotificationCampaignService {
     AdminNotificationCampaignPreviewDto preview(Long id);
     AdminNotificationCampaignDto schedule(Long id, LocalDateTime scheduledAt, String adminEmail, String correlationId);
     AdminNotificationCampaignDto cancel(Long id, String adminEmail, String correlationId);
+    AdminNotificationCampaignRecipientPageDto recipients(
+            Long id, NotificationCampaignRecipientStatus status, int page, int size);
 }
