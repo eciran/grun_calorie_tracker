@@ -53,6 +53,9 @@ class FederatedAuthServiceImplTest {
     @Mock
     private RefreshTokenService refreshTokenService;
 
+    @Mock
+    private UserActivityService userActivityService;
+
     private FederatedAuthServiceImpl federatedAuthService;
 
     @BeforeEach
@@ -64,7 +67,8 @@ class FederatedAuthServiceImplTest {
                 userRepository,
                 passwordEncoder,
                 jwtUtil,
-                refreshTokenService
+                refreshTokenService,
+                userActivityService
         );
         lenient().when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
     }

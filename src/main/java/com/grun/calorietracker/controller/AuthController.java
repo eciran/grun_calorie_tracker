@@ -17,6 +17,7 @@ import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.ApiErrorCode;
+import com.grun.calorietracker.enums.UserActivitySource;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -25,6 +26,7 @@ import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.FederatedAuthService;
 import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.RefreshTokenService;
+import com.grun.calorietracker.service.UserActivityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -34,6 +36,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -45,6 +48,7 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Authentication", description = "Registration and login endpoints that issue JWT access tokens.")
 public class AuthController {
 
@@ -57,6 +61,7 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final RefreshTokenService refreshTokenService;
     private final FederatedAuthService federatedAuthService;
+    private final UserActivityService userActivityService;
 
 
     @PostMapping("/register")
@@ -190,10 +195,19 @@ public class AuthController {
 
         UserEntity user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+        recordLoginSafely(user.getEmail());
 
         String token = jwtUtil.generateToken(user.getEmail());
         String refreshToken = refreshTokenService.createRefreshToken(user);
         return ResponseEntity.ok(new AuthResponse(token, refreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Login successful"));
+    }
+
+    private void recordLoginSafely(String email) {
+        try {
+            userActivityService.recordLogin(email, UserActivitySource.PASSWORD_LOGIN);
+        } catch (RuntimeException exception) {
+            log.warn("Password login activity could not be recorded", exception);
+        }
     }
 
     @PostMapping("/google")

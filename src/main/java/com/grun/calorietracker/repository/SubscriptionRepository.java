@@ -7,6 +7,7 @@ import com.grun.calorietracker.enums.SubscriptionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity, Long> {
@@ -15,6 +16,17 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
     long deleteByUser(UserEntity user);
     long countByPlanTypeAndStatus(SubscriptionPlan planType, SubscriptionStatus status);
     long countByStatus(SubscriptionStatus status);
+
+    @Query("""
+            select subscription.planType as planType, count(subscription.id) as subscriptionCount
+            from SubscriptionEntity subscription
+            where subscription.status in (
+                com.grun.calorietracker.enums.SubscriptionStatus.ACTIVE,
+                com.grun.calorietracker.enums.SubscriptionStatus.TRIALING
+            )
+            group by subscription.planType
+            """)
+    List<SubscriptionPlanCountProjection> countCurrentUsersByPlan();
 
     @Query("""
             select count(s)

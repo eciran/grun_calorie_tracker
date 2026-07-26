@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,4 +27,16 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     long countByRole(UserRole role);
 
     List<UserEntity> findByRole(UserRole role);
+
+    long countByCreatedAtIsNull();
+
+    @Query("""
+            select user.createdAt
+            from UserEntity user
+            where user.createdAt >= :fromInclusive
+              and user.createdAt < :toExclusive
+            order by user.createdAt
+            """)
+    List<Instant> findRegistrationTimestamps(@Param("fromInclusive") Instant fromInclusive,
+                                             @Param("toExclusive") Instant toExclusive);
 }
