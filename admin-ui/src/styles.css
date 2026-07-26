@@ -8525,3 +8525,9 @@ label {
   .commercial-filter-grid,
   .commercial-preview-summary { grid-template-columns: 1fr; }
 }
+
+.commercial-ledger-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.commercial-ledger-toolbar label { display: grid; gap: 5px; width: min(220px, 100%); font-size: 12px; }
+.commercial-ledger-toolbar select { min-height: 38px; }
+.commercial-reconciliation { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+.commercial-reconciliation p { margin: 0; color: var(--warning-text); }

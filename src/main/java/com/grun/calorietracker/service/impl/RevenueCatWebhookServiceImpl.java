@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.RevenueCatProperties;
 import com.grun.calorietracker.dto.RevenueCatWebhookEventDto;
 import com.grun.calorietracker.dto.RevenueCatWebhookResponseDto;
+import com.grun.calorietracker.dto.PromoProviderRedemptionCommand;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
@@ -23,12 +24,14 @@ import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RevenueCatWebhookService;
+import com.grun.calorietracker.service.PromoProviderRedemptionService;
 import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -57,6 +60,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     private final NotificationRepository notificationRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
+    private final PromoProviderRedemptionService promoProviderRedemptionService;
 
     @Override
     @Transactional
@@ -115,7 +119,15 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 eventRepository.save(audit);
                 return new RevenueCatWebhookResponseDto(true, false, providerEventId, "IGNORED", "Event type does not change backend entitlement state.");
             }
+            SubscriptionEntity previousSubscription = subscriptionRepository.findByUser(user.get()).orElse(null);
+            SubscriptionPlan previousPlan = previousSubscription == null ? SubscriptionPlan.FREE : previousSubscription.getPlanType();
+            SubscriptionStatus previousStatus = previousSubscription == null ? null : previousSubscription.getStatus();
             subscriptionService.applyProviderEvent(user.get().getId(), command);
+            if (isPromoAttributionEvent(event)) {
+                promoProviderRedemptionService.recordVerifiedPurchase(new PromoProviderRedemptionCommand(
+                        user.get().getId(), providerEventId, event.getProductId(), event.getPresentedOfferingId(),
+                        event.getStore(), toMinorUnits(event), event.getCurrency(), previousPlan, previousStatus));
+            }
             audit.setStatus(SubscriptionProviderEventStatus.PROCESSED);
             audit.setProcessedAt(LocalDateTime.now());
             eventRepository.save(audit);
@@ -130,6 +142,16 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         }
     }
 
+    private boolean isPromoAttributionEvent(RevenueCatWebhookEventDto.Event event) {
+        RevenueCatEventType type = RevenueCatEventType.from(event.getType());
+        return type == RevenueCatEventType.INITIAL_PURCHASE || type == RevenueCatEventType.NON_RENEWING_PURCHASE;
+    }
+
+    private Long toMinorUnits(RevenueCatWebhookEventDto.Event event) {
+        if (event.getPriceInPurchasedCurrency() == null) return null;
+        return event.getPriceInPurchasedCurrency().movePointRight(2)
+                .setScale(0, RoundingMode.HALF_UP).longValueExact();
+    }
     private void notifyAdminsAboutFailedProviderEvent(SubscriptionProviderEventEntity event) {
         List<UserEntity> admins = userRepository.findByRole(UserRole.ADMIN);
         if (admins == null || admins.isEmpty()) {
@@ -196,6 +218,10 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         audit.setProviderAppUserId(firstNonBlank(event.getAppUserId(), event.getOriginalAppUserId()));
         audit.setEventType(event.getType());
         audit.setProductId(event.getProductId());
+        audit.setStore(event.getStore());
+        audit.setPresentedOfferingId(event.getPresentedOfferingId());
+        audit.setPurchaseCurrency(event.getCurrency() == null ? null : event.getCurrency().trim().toUpperCase(Locale.ROOT));
+        audit.setPriceAmountMinor(toMinorUnits(event));
         audit.setEntitlementIds(String.join(",", entitlementIds(event)));
         audit.setTransactionId(event.getTransactionId());
         audit.setOriginalTransactionId(event.getOriginalTransactionId());

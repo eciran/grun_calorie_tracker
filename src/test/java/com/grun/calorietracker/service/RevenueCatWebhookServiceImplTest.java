@@ -50,6 +50,9 @@ class RevenueCatWebhookServiceImplTest {
     @Mock
     private SubscriptionService subscriptionService;
 
+    @Mock
+    private PromoProviderRedemptionService promoProviderRedemptionService;
+
     private RevenueCatWebhookServiceImpl service;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private UserEntity user;
@@ -63,7 +66,7 @@ class RevenueCatWebhookServiceImplTest {
         properties.getProducts().setPlus(List.of("grun_plus_monthly", "grun_plus_yearly"));
         properties.getProducts().getAiAddonQuotas().put("grun_ai_15_credits", 15);
         properties.getProducts().getAiAddonValidityDays().put("grun_ai_15_credits", 30);
-        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService);
+        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService, promoProviderRedemptionService);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -103,6 +106,7 @@ class RevenueCatWebhookServiceImplTest {
         assertEquals(SubscriptionStatus.ACTIVE, captor.getValue().getStatus());
         assertEquals("grun_pro_monthly", captor.getValue().getProviderProductId());
         verify(eventRepository).save(any(SubscriptionProviderEventEntity.class));
+        verify(promoProviderRedemptionService).recordVerifiedPurchase(any());
     }
 
     @Test
@@ -196,7 +200,7 @@ class RevenueCatWebhookServiceImplTest {
     void processWebhook_whenAuthorizationNotConfigured_throwsAccessDenied() throws Exception {
         RevenueCatProperties properties = new RevenueCatProperties();
         RevenueCatWebhookServiceImpl unsecuredService =
-                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService);
+                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService, promoProviderRedemptionService);
         String payload = """
                 {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
                 """;

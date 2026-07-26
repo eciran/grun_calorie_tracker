@@ -72,8 +72,9 @@ public class PromoCodeEntity {
     @Column(nullable = false, length = 3)
     private String currency;
 
-    @Column(length = 80)
-    private String eligibilityRule;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private PromoEligibilityRule eligibilityRule = PromoEligibilityRule.ALL_USERS;
 
     @Column(nullable = false)
     private Integer perUserLimit = 1;

@@ -9,7 +9,7 @@ public record AdminPromoDto(
         Double discountPercent, PromoStatus status, PromoType promoType, boolean active,
         LocalDateTime startAt, LocalDateTime endAt, SubscriptionPlan targetPlan,
         String targetProductId, PromoStore targetStore, MarketRegion targetRegion,
-        String currency, String eligibilityRule, Integer perUserLimit, Integer globalLimit,
+        String currency, PromoEligibilityRule eligibilityRule, Integer perUserLimit, Integer globalLimit,
         Integer usedCount, String campaignKey, String providerOfferId, String providerProductId,
         boolean providerMappingReady, String createdBy, LocalDateTime createdAt,
         String updatedBy, LocalDateTime updatedAt, String deactivatedReason

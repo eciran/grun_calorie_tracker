@@ -25,6 +25,7 @@ public class AdminPromoServiceImpl implements AdminPromoService {
     private final PromoCodeRepository promoRepository;
     private final AppliedPromoRepository redemptionRepository;
     private final UserRepository userRepository;
+    private final SubscriptionProviderEventRepository providerEventRepository;
     private final AdminAuditService auditService;
 
     @Override
@@ -134,13 +135,20 @@ public class AdminPromoServiceImpl implements AdminPromoService {
     public AdminPromoReconciliationDto reconcile(Long id, String adminEmail, String correlationId) {
         PromoCodeEntity entity = requirePromo(id);
         List<String> issues = new ArrayList<>();
-        if (!providerMappingReady(entity)) {
-            issues.add("Store-targeted promotions require both provider offer id and provider product id.");
-        }
+        if (!providerMappingReady(entity)) issues.add("Provider offer and product mapping are incomplete.");
+        String providerStore = providerStore(entity.getTargetStore());
+        long observed = hasText(entity.getProviderProductId())
+                ? providerEventRepository.countPromoMappingObservations(entity.getProviderProductId(), trimToNull(entity.getProviderOfferId()), providerStore) : 0;
+        LocalDateTime lastObserved = hasText(entity.getProviderProductId())
+                ? providerEventRepository.lastPromoMappingObservation(entity.getProviderProductId(), trimToNull(entity.getProviderOfferId()), providerStore) : null;
+        if (providerMappingReady(entity) && observed == 0) issues.add("Mapping is configured but no processed provider event has been observed yet.");
+        boolean ready = providerMappingReady(entity);
         AdminPromoReconciliationDto result = new AdminPromoReconciliationDto(entity.getId(), entity.getTargetStore(),
-                issues.isEmpty(), entity.getProviderOfferId(), entity.getProviderProductId(), issues, ENTITLEMENT_GUARDRAIL);
+                ready, entity.getProviderOfferId(), entity.getProviderProductId(), observed, lastObserved,
+                "RevenueCat -> " + (providerStore == null ? "Apple App Store / Google Play" : providerStore), issues,
+                ENTITLEMENT_GUARDRAIL);
         auditService.record(adminEmail, AdminAuditActionType.PROMO_RECONCILE, AdminAuditTargetType.PROMOTION,
-                id.toString(), null, Map.of("mappingReady", result.mappingReady(), "store", entity.getTargetStore()), correlationId);
+                id.toString(), null, Map.of("mappingReady", ready, "observedProviderEvents", observed), correlationId);
         return result;
     }
 
@@ -155,9 +163,31 @@ public class AdminPromoServiceImpl implements AdminPromoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion not found"));
         UserEntity user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if ((request.getStatus() == PromoRedemptionStatus.PROVIDER_VERIFIED
-                || request.getStatus() == PromoRedemptionStatus.CONVERTED) && !hasText(request.getProviderEventId())) {
-            throw new IllegalArgumentException("Provider event id is required for verified or converted redemption.");
+        if (request.getStatus() == PromoRedemptionStatus.PROVIDER_VERIFIED
+                || request.getStatus() == PromoRedemptionStatus.CONVERTED) {
+            if (!hasText(request.getProviderEventId())) {
+                throw new IllegalArgumentException("Provider event id is required for verified or converted redemption.");
+            }
+            AppliedPromoEntity attributed = redemptionRepository.findByProviderEventId(request.getProviderEventId().trim()).orElse(null);
+            if (attributed != null) {
+                if (!Objects.equals(attributed.getPromoCode().getId(), promo.getId())
+                        || !Objects.equals(attributed.getUser().getId(), user.getId())) {
+                    throw new IllegalArgumentException("Provider event is already attributed to another promotion or user.");
+                }
+                attributed.setDuplicateHits(attributed.getDuplicateHits() + 1);
+                attributed.setLastDuplicateAt(LocalDateTime.now());
+                return toRedemptionDto(redemptionRepository.save(attributed));
+            }
+            SubscriptionProviderEventEntity providerEvent = providerEventRepository
+                    .findByProviderAndProviderEventId(PaymentProvider.REVENUECAT, request.getProviderEventId().trim())
+                    .orElseThrow(() -> new IllegalArgumentException("Processed RevenueCat event was not found."));
+            if (providerEvent.getStatus() != SubscriptionProviderEventStatus.PROCESSED
+                    || providerEvent.getUser() == null || !Objects.equals(providerEvent.getUser().getId(), user.getId())) {
+                throw new IllegalArgumentException("Provider event is not processed for the selected user.");
+            }
+            if (hasText(promo.getProviderProductId()) && !promo.getProviderProductId().equals(providerEvent.getProductId())) {
+                throw new IllegalArgumentException("Provider event product does not match the promotion mapping.");
+            }
         }
         if (request.getStatus() == PromoRedemptionStatus.REJECTED && !hasText(request.getRejectionReason())) {
             throw new IllegalArgumentException("Rejection reason is required for rejected redemption.");
@@ -198,13 +228,56 @@ public class AdminPromoServiceImpl implements AdminPromoService {
         long total = redemptionRepository.countForPromo(promoId);
         long converted = redemptionRepository.countForPromoAndStatus(promoId, PromoRedemptionStatus.CONVERTED);
         long rejected = redemptionRepository.countForPromoAndStatus(promoId, PromoRedemptionStatus.REJECTED);
+        long duplicates = redemptionRepository.sumDuplicateHits(promoId);
+        long limitRejections = redemptionRepository.countLimitRejections(promoId);
         return new AdminPromoMetricsDto(promoRepository.countCurrentlyActive(LocalDateTime.now()), total, converted,
                 rejected, redemptionRepository.countUniqueUsers(promoId),
                 redemptionRepository.sumConvertedRevenueByCurrency(promoId).stream()
                         .map(row -> new AdminPromoMetricsDto.CurrencyRevenue(row.getCurrency(), row.getAmountMinor()))
-                        .toList(), rate(converted, total), rate(rejected, total));
+                        .toList(), rate(converted, total), rate(rejected, total), duplicates, limitRejections,
+                duplicates + limitRejections);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public AdminPromoRedemptionPageDto redemptions(Long promoId, PromoRedemptionStatus status, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100),
+                Sort.by(Sort.Direction.DESC, "appliedAt"));
+        Page<AppliedPromoEntity> result = redemptionRepository.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (promoId != null) predicates.add(cb.equal(root.get("promoCode").get("id"), promoId));
+            if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            return cb.and(predicates.toArray(Predicate[]::new));
+        }, pageable);
+        return new AdminPromoRedemptionPageDto(result.getContent().stream().map(this::toRedemptionRow).toList(),
+                result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages(),
+                result.isFirst(), result.isLast());
+    }
+
+    private AdminPromoRedemptionRowDto toRedemptionRow(AppliedPromoEntity entity) {
+        return new AdminPromoRedemptionRowDto(entity.getId(), entity.getPromoCode().getId(), entity.getPromoCode().getCode(),
+                entity.getUser().getId(), maskEmail(entity.getUser().getEmail()), entity.getStatus(),
+                maskProviderEvent(entity.getProviderEventId()), entity.getAmountMinor(), entity.getCurrency(),
+                entity.getRejectionReason(), entity.getDuplicateHits(), entity.getAppliedAt(), entity.getConvertedAt(),
+                entity.getLastDuplicateAt());
+    }
+
+    private String maskEmail(String email) {
+        if (!hasText(email) || !email.contains("@")) return "hidden";
+        int at = email.indexOf('@');
+        return email.substring(0, Math.min(2, at)) + "***" + email.substring(at);
+    }
+
+    private String maskProviderEvent(String eventId) {
+        if (!hasText(eventId)) return null;
+        return eventId.length() <= 12 ? eventId : eventId.substring(0, 6) + "..." + eventId.substring(eventId.length() - 4);
+    }
+
+    private String providerStore(PromoStore store) {
+        if (store == PromoStore.APPLE_APP_STORE) return "APP_STORE";
+        if (store == PromoStore.GOOGLE_PLAY) return "PLAY_STORE";
+        return null;
+    }
     private Specification<PromoCodeEntity> specification(String search, PromoStatus status, PromoType type, PromoStore store) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -303,7 +376,7 @@ public class AdminPromoServiceImpl implements AdminPromoService {
         entity.setTargetRegion(request.getTargetRegion());
         entity.setTargetProductId(trimToNull(request.getTargetProductId()));
         entity.setCurrency(request.getCurrency().trim().toUpperCase(Locale.ROOT));
-        entity.setEligibilityRule(trimToNull(request.getEligibilityRule()));
+        entity.setEligibilityRule(request.getEligibilityRule());
         entity.setPerUserLimit(request.getPerUserLimit());
         entity.setGlobalLimit(request.getGlobalLimit());
         entity.setMaxUsageCount(request.getGlobalLimit());

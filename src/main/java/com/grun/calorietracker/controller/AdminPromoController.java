@@ -90,6 +90,15 @@ public class AdminPromoController {
         return ResponseEntity.ok(promoService.recordRedemption(id, request, admin.getUsername(), correlationId(servletRequest)));
     }
 
+    @GetMapping("/redemptions")
+    @Operation(summary = "List sanitized promotion redemption and abuse signals")
+    public ResponseEntity<AdminPromoRedemptionPageDto> redemptions(
+            @RequestParam(required = false) @Positive Long promoId,
+            @RequestParam(required = false) PromoRedemptionStatus status,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(promoService.redemptions(promoId, status, page, size));
+    }
     @GetMapping("/metrics")
     public ResponseEntity<AdminPromoMetricsDto> metrics(@RequestParam(required = false) @Positive Long promoId) {
         return ResponseEntity.ok(promoService.metrics(promoId));

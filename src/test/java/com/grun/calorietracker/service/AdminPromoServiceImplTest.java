@@ -17,6 +17,7 @@ class AdminPromoServiceImplTest {
     private PromoCodeRepository promoRepository;
     private AppliedPromoRepository redemptionRepository;
     private UserRepository userRepository;
+    private SubscriptionProviderEventRepository providerEventRepository;
     private AdminAuditService auditService;
     private AdminPromoServiceImpl service;
 
@@ -26,7 +27,8 @@ class AdminPromoServiceImplTest {
         redemptionRepository = mock(AppliedPromoRepository.class);
         userRepository = mock(UserRepository.class);
         auditService = mock(AdminAuditService.class);
-        service = new AdminPromoServiceImpl(promoRepository, redemptionRepository, userRepository, auditService);
+        providerEventRepository = mock(SubscriptionProviderEventRepository.class);
+        service = new AdminPromoServiceImpl(promoRepository, redemptionRepository, userRepository, providerEventRepository, auditService);
     }
 
     @Test
@@ -80,6 +82,7 @@ class AdminPromoServiceImplTest {
         request.setPromoType(PromoType.INTRO_OFFER);
         request.setTargetStore(store);
         request.setCurrency("eur");
+        request.setEligibilityRule(PromoEligibilityRule.ALL_USERS);
         request.setPerUserLimit(1);
         return request;
     }

@@ -1123,5 +1123,25 @@ export type AdminPromotionMetrics = {
   uniqueUsers?: number;
   revenueByCurrency?: Array<{ currency?: string; amountMinor?: number }>;
   conversionRate?: number;
-  rejectionRate?: number;
+rejectionRate?: number;
+  duplicateAttempts?: number;
+  limitRejections?: number;
+  abuseSignals?: number;
+};
+
+export type AdminPromotionReconciliation = {
+  promoId?: number; store?: string; mappingReady?: boolean; providerOfferId?: string; providerProductId?: string;
+  observedProviderEvents?: number; lastObservedAt?: string; providerRoute?: string; issues?: string[]; entitlementGuardrail?: string;
+};
+
+export type AdminPromotionRedemption = {
+  id?: number; promoId?: number; promoCode?: string; userId?: number; maskedUserEmail?: string;
+  status?: "RESERVED" | "PROVIDER_VERIFIED" | "CONVERTED" | "REJECTED";
+  providerEventReference?: string; amountMinor?: number; currency?: string; rejectionReason?: string;
+  duplicateHits?: number; appliedAt?: string; convertedAt?: string; lastDuplicateAt?: string;
+};
+
+export type AdminPromotionRedemptionPage = {
+  content?: AdminPromotionRedemption[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
 };

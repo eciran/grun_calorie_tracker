@@ -36,8 +36,20 @@ public class SubscriptionProviderEventEntity {
     @Column(name = "event_type", length = 100)
     private String eventType;
 
-    @Column(name = "product_id", length = 255)
+@Column(name = "product_id", length = 255)
     private String productId;
+
+    @Column(length = 40)
+    private String store;
+
+    @Column(name = "presented_offering_id", length = 255)
+    private String presentedOfferingId;
+
+    @Column(name = "purchase_currency", length = 3)
+    private String purchaseCurrency;
+
+    @Column(name = "price_amount_minor")
+    private Long priceAmountMinor;
 
     @Column(name = "entitlement_ids", length = 1000)
     private String entitlementIds;

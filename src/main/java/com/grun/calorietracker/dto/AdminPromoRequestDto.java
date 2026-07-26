@@ -26,8 +26,8 @@ public class AdminPromoRequestDto {
     private String targetProductId;
     @NotBlank @Pattern(regexp = "[A-Za-z]{3}")
     private String currency;
-    @Size(max = 80)
-    private String eligibilityRule;
+    @NotNull
+    private PromoEligibilityRule eligibilityRule;
     @NotNull @Min(1)
     private Integer perUserLimit;
     @Min(1)

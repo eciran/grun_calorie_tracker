@@ -22,6 +22,8 @@ import {
   AdminPromotionMetrics,
   AdminPromotionPage,
   AdminPromotionPreview,
+  AdminPromotionReconciliation,
+  AdminPromotionRedemptionPage,
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
   AdminProductQualityWorkbench,
@@ -10271,7 +10273,7 @@ type PromotionDraft = {
 const EMPTY_PROMOTION: PromotionDraft = {
   code: "", name: "", description: "", discountPercent: "0", promoType: "CAMPAIGN",
   targetStore: "ALL", targetPlan: "", targetRegion: "", targetProductId: "",
-  currency: "EUR", eligibilityRule: "", perUserLimit: "1", globalLimit: "",
+  currency: "EUR", eligibilityRule: "ALL_USERS", perUserLimit: "1", globalLimit: "",
   campaignKey: "", providerOfferId: "", providerProductId: "", startAt: "", endAt: ""
 };
 
@@ -10279,6 +10281,10 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
   const [state, setState] = useState<LoadState>("idle");
   const [pageData, setPageData] = useState<AdminPromotionPage>({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true });
   const [metrics, setMetrics] = useState<AdminPromotionMetrics | null>(null);
+  const [redemptions, setRedemptions] = useState<AdminPromotionRedemptionPage>({ content: [], page: 0, size: 10, totalElements: 0, totalPages: 0, first: true, last: true });
+  const [redemptionPage, setRedemptionPage] = useState(0);
+  const [redemptionStatus, setRedemptionStatus] = useState("");
+  const [reconciliation, setReconciliation] = useState<AdminPromotionReconciliation | null>(null);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
   const [search, setSearch] = useState("");
@@ -10303,12 +10309,16 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
       if (status) params.set("status", status);
       if (type) params.set("type", type);
       if (store) params.set("store", store);
-      const [promotions, summary] = await Promise.all([
+      const redemptionParams = new URLSearchParams({ page: String(redemptionPage), size: "10" });
+      if (redemptionStatus) redemptionParams.set("status", redemptionStatus);
+      const [promotions, summary, redemptionPageData] = await Promise.all([
         request<AdminPromotionPage>(`/api/v1/admin/promotions?${params}`),
-        request<AdminPromotionMetrics>("/api/v1/admin/promotions/metrics")
+        request<AdminPromotionMetrics>("/api/v1/admin/promotions/metrics"),
+        request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${redemptionParams}`)
       ]);
       setPageData(promotions);
       setMetrics(summary);
+      setRedemptions(redemptionPageData);
       setState("ready");
     } catch (error) {
       setState("error");
@@ -10316,7 +10326,7 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
     }
   }
 
-  useEffect(() => { void load(); }, [page, size, appliedSearch, status, type, store]);
+  useEffect(() => { void load(); }, [page, size, appliedSearch, status, type, store, redemptionPage, redemptionStatus]);
 
   function resetDraft() {
     setDraft(EMPTY_PROMOTION);
@@ -10352,7 +10362,7 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
         targetPlan: draft.targetPlan || null,
         targetRegion: draft.targetRegion || null,
         targetProductId: draft.targetProductId || null,
-        eligibilityRule: draft.eligibilityRule || null,
+        eligibilityRule: draft.eligibilityRule,
         campaignKey: draft.campaignKey || null,
         providerOfferId: draft.providerOfferId || null,
         providerProductId: draft.providerProductId || null,
@@ -10396,6 +10406,17 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
     }
   }
 
+  async function reconcileSelected() {
+    if (!selected?.id) return;
+    setActionState("loading");
+    try {
+      setReconciliation(await request<AdminPromotionReconciliation>(`/api/v1/admin/promotions/${selected.id}/reconcile`, { method: "POST" }));
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
   async function deactivate(event: FormEvent) {
     event.preventDefault();
     if (!deactivating?.id) return;
@@ -10426,6 +10447,7 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
         <MetricCard label="Conversion" value={`${formatValue(metrics?.conversionRate)}%`} hint={`${formatValue(metrics?.convertedRedemptions)} provider-confirmed`} />
         <MetricCard label="Rejected" value={`${formatValue(metrics?.rejectionRate)}%`} hint="Provider or eligibility rejection rate" />
         <MetricCard label="Converted revenue" value={revenueLabel} hint="Separated by provider currency" />
+        <MetricCard label="Abuse signals" value={formatValue(metrics?.abuseSignals)} hint={`${formatValue(metrics?.duplicateAttempts)} duplicate / ${formatValue(metrics?.limitRejections)} limit`} />
       </div>
 
       <div className="commercial-workspace-grid">
@@ -10447,7 +10469,7 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
               <label>Provider offer ID<input maxLength={160} value={draft.providerOfferId} onChange={(event) => setDraft({ ...draft, providerOfferId: event.target.value })} /></label>
               <label>Provider product ID<input maxLength={160} value={draft.providerProductId} onChange={(event) => setDraft({ ...draft, providerProductId: event.target.value })} /></label>
               <label>Campaign key<input maxLength={120} value={draft.campaignKey} onChange={(event) => setDraft({ ...draft, campaignKey: event.target.value })} /></label>
-              <label>Eligibility rule<input maxLength={80} value={draft.eligibilityRule} onChange={(event) => setDraft({ ...draft, eligibilityRule: event.target.value })} placeholder="Optional provider segment key" /></label>
+              <label>Eligibility rule<select required value={draft.eligibilityRule} onChange={(event) => setDraft({ ...draft, eligibilityRule: event.target.value })}><option value="ALL_USERS">All users</option><option value="NO_PRIOR_PROMO_REDEMPTION">No prior promo</option><option value="FIRST_PAID_PURCHASE">First paid purchase</option><option value="LAPSED_SUBSCRIBER">Lapsed subscriber</option><option value="ADMIN_SUPPORT_ONLY">Admin support only</option></select></label>
             </div>
             <label>Description<textarea maxLength={600} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
             <div className="inline-actions commercial-form-actions"><button className="primary-button" disabled={actionState === "loading"} type="submit">{editingId ? "Save draft" : "Create draft"}</button>{editingId && <button className="ghost-button" onClick={resetDraft} type="button">Cancel edit</button>}</div>
@@ -10485,7 +10507,20 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
         <PaginationControls page={pageData.page ?? page} pageSize={pageData.size ?? size} totalElements={pageData.totalElements ?? 0} totalPages={pageData.totalPages ?? 0} first={pageData.first ?? page === 0} last={pageData.last ?? true} onPageChange={setPage} onPageSizeChange={(value) => { setPage(0); setSize(value); }} />
       </Panel>
 
-      {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="modal-card compact commercial-preview-modal" role="dialog" aria-modal="true" aria-label="Promotion validation" onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>COMMERCIAL VALIDATION</span><h2>{selected.name}</h2><p>{selected.code} ? {selected.promoType}</p></div><button className="modal-icon-close" onClick={() => setSelected(null)} type="button">x</button></header><div className="modal-body"><div className="commercial-preview-summary"><div><span>Estimated audience</span><strong>{formatValue(preview?.estimatedAudience)}</strong></div><div><span>Provider mapping</span><strong>{preview?.providerMappingReady ? "Ready" : "Incomplete"}</strong></div><div><span>Activation</span><strong>{preview?.activationReady ? "Ready" : "Blocked"}</strong></div></div><div className="commercial-validation-list">{preview?.validationIssues?.length ? preview.validationIssues.map((issue) => <p key={issue}>{issue}</p>) : <p className="success-note">No activation blockers detected.</p>}</div><p className="commercial-entitlement-warning">Activating this promotion does not grant entitlement. Store/provider verification remains mandatory.</p></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => selected.id && void runAction(`/api/v1/admin/promotions/${selected.id}/reconcile`)} type="button">Reconcile mapping</button>{selected.status !== "ACTIVE" && <button className="primary-button" disabled={!preview?.activationReady || actionState === "loading"} onClick={() => selected.id && void runAction(`/api/v1/admin/promotions/${selected.id}/activate`)} type="button">Activate promotion</button>}</footer></section></div>}
+      <Panel title="Provider redemption ledger" description="Sanitized provider attribution, eligibility rejections and duplicate signals.">
+        <div className="commercial-ledger-toolbar"><label>Status<select value={redemptionStatus} onChange={(event) => { setRedemptionPage(0); setRedemptionStatus(event.target.value); }}><option value="">All statuses</option><option>CONVERTED</option><option>REJECTED</option><option>PROVIDER_VERIFIED</option><option>RESERVED</option></select></label></div>
+        <DataTable columns={["Promotion", "User", "Result", "Provider event", "Value", "Abuse", "Time"]} empty="No provider redemption records returned." rows={(redemptions.content ?? []).map((item) => [
+          item.promoCode ?? `#${item.promoId ?? "-"}`,
+          <div className="table-stack"><strong>{item.maskedUserEmail ?? "hidden"}</strong><small>User #{item.userId ?? "-"}</small></div>,
+          <div className="table-stack"><span className={`status-pill ${item.status === "CONVERTED" ? "live" : ""}`}>{item.status ?? "-"}</span><small>{item.rejectionReason ?? "Eligible"}</small></div>,
+          item.providerEventReference ?? "-",
+          item.amountMinor == null ? "-" : `${(item.amountMinor / 100).toFixed(2)} ${item.currency ?? ""}`,
+          <div className="table-stack"><strong>{formatValue(item.duplicateHits)}</strong><small>{item.lastDuplicateAt ? `Last ${formatDate(item.lastDuplicateAt)}` : "No duplicate"}</small></div>,
+          formatDate(item.convertedAt ?? item.appliedAt)
+        ])} />
+        <PaginationControls page={redemptions.page ?? redemptionPage} pageSize={redemptions.size ?? 10} totalElements={redemptions.totalElements ?? 0} totalPages={redemptions.totalPages ?? 0} first={redemptions.first ?? redemptionPage === 0} last={redemptions.last ?? true} onPageChange={setRedemptionPage} onPageSizeChange={() => undefined} />
+      </Panel>
+      {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="modal-card compact commercial-preview-modal" role="dialog" aria-modal="true" aria-label="Promotion validation" onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>COMMERCIAL VALIDATION</span><h2>{selected.name}</h2><p>{selected.code} ? {selected.promoType}</p></div><button className="modal-icon-close" onClick={() => setSelected(null)} type="button">x</button></header><div className="modal-body"><div className="commercial-preview-summary"><div><span>Estimated audience</span><strong>{formatValue(preview?.estimatedAudience)}</strong></div><div><span>Provider mapping</span><strong>{preview?.providerMappingReady ? "Ready" : "Incomplete"}</strong></div><div><span>Activation</span><strong>{preview?.activationReady ? "Ready" : "Blocked"}</strong></div></div><div className="commercial-validation-list">{preview?.validationIssues?.length ? preview.validationIssues.map((issue) => <p key={issue}>{issue}</p>) : <p className="success-note">No activation blockers detected.</p>}</div>{reconciliation && <div className="commercial-reconciliation"><strong>{reconciliation.providerRoute}</strong><span>{formatValue(reconciliation.observedProviderEvents)} processed provider event(s)</span><small>Last observed: {formatDate(reconciliation.lastObservedAt)}</small>{reconciliation.issues?.map((issue) => <p key={issue}>{issue}</p>)}</div>}<p className="commercial-entitlement-warning">Activating this promotion does not grant entitlement. Store/provider verification remains mandatory.</p></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => void reconcileSelected()} type="button">Reconcile mapping</button>{selected.status !== "ACTIVE" && <button className="primary-button" disabled={!preview?.activationReady || actionState === "loading"} onClick={() => selected.id && void runAction(`/api/v1/admin/promotions/${selected.id}/activate`)} type="button">Activate promotion</button>}</footer></section></div>}
 
       {deactivating && <div className="modal-backdrop" role="presentation" onClick={() => setDeactivating(null)}><form className="modal-card compact commercial-deactivate-modal" onSubmit={deactivate} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>DEACTIVATE PROMOTION</span><h2>{deactivating.name}</h2></div><button className="modal-icon-close" onClick={() => setDeactivating(null)} type="button">x</button></header><div className="modal-body"><label>Required audit reason<textarea required maxLength={500} rows={4} value={deactivationReason} onChange={(event) => setDeactivationReason(event.target.value)} placeholder="Why must this promotion stop?" /></label></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => setDeactivating(null)} type="button">Cancel</button><button className="primary-button danger-button" disabled={!deactivationReason.trim() || actionState === "loading"} type="submit">Deactivate</button></footer></form></div>}
     </div>

@@ -46,4 +46,9 @@ public class AppliedPromoEntity {
     private String rejectionReason;
 
     private LocalDateTime convertedAt;
+
+    @Column(nullable = false)
+    private int duplicateHits;
+
+    private LocalDateTime lastDuplicateAt;
 }

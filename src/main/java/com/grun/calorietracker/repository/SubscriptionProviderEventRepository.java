@@ -21,6 +21,28 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
     long countByReceivedAtAfter(LocalDateTime receivedAt);
     List<SubscriptionProviderEventEntity> findByUserOrderByReceivedAtDesc(UserEntity user);
 
+    @Query("""
+            select count(event) from SubscriptionProviderEventEntity event
+            where event.productId = :productId
+              and (:offeringId is null or event.presentedOfferingId = :offeringId)
+              and (:store is null or event.store = :store)
+              and event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+            """)
+    long countPromoMappingObservations(@Param("productId") String productId,
+                                       @Param("offeringId") String offeringId,
+                                       @Param("store") String store);
+
+    @Query("""
+            select max(event.processedAt) from SubscriptionProviderEventEntity event
+            where event.productId = :productId
+              and (:offeringId is null or event.presentedOfferingId = :offeringId)
+              and (:store is null or event.store = :store)
+              and event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+            """)
+    LocalDateTime lastPromoMappingObservation(@Param("productId") String productId,
+                                               @Param("offeringId") String offeringId,
+                                               @Param("store") String store);
+
     @Modifying
     @Query("""
             update SubscriptionProviderEventEntity event
