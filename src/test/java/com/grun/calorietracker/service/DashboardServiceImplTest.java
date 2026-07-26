@@ -55,10 +55,12 @@ class DashboardServiceImplTest {
     private SubscriptionService subscriptionService;
 
     private DashboardServiceImpl dashboardService;
+    private MicronutrientReferenceService micronutrientReferenceService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        micronutrientReferenceService = new com.grun.calorietracker.service.impl.DefaultMicronutrientReferenceService();
         dashboardService = new DashboardServiceImpl(
                 userService,
                 goalRepository,
@@ -68,7 +70,8 @@ class DashboardServiceImplTest {
                 recipeLogRepository,
                 healthIntegrationService,
                 stepTrackingService,
-                subscriptionService
+                subscriptionService,
+                micronutrientReferenceService
         );
     }
 
@@ -213,7 +216,9 @@ class DashboardServiceImplTest {
         assertEquals(3, result.getCurrentLogStreakDays());
         assertEquals(true, result.getMicronutrientDetailsAvailable());
         assertEquals(25.0, result.getTargetMicros().getFiber());
-        assertEquals(25.0, result.getRemainingMicros().getFiber());
+        assertNull(result.getRemainingMicros());
+        assertEquals("NONE", result.getMicronutrientDataQuality().getCoverageLevel());
+        assertEquals(true, result.getMicronutrientDataQuality().getTargetProfileApplicable());
     }
 
     @Test
