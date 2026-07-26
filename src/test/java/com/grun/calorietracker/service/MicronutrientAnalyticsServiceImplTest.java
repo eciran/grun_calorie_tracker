@@ -1,0 +1,163 @@
+package com.grun.calorietracker.service;
+
+import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
+import com.grun.calorietracker.dto.MicronutrientAnalyticsDto;
+import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.SubscriptionFeature;
+import com.grun.calorietracker.service.impl.DefaultMicronutrientReferenceService;
+import com.grun.calorietracker.service.impl.MicronutrientAnalyticsServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class MicronutrientAnalyticsServiceImplTest {
+
+    @Mock private SubscriptionService subscriptionService;
+    @Mock private UserService userService;
+    @Mock private FoodLogsService foodLogsService;
+
+    private MicronutrientAnalyticsServiceImpl service;
+    private UserEntity user;
+
+    @BeforeEach
+    void setUp() {
+        service = new MicronutrientAnalyticsServiceImpl(
+                subscriptionService,
+                userService,
+                foodLogsService,
+                new DefaultMicronutrientReferenceService()
+        );
+        user = new UserEntity();
+        user.setEmail("micro@grun.app");
+        user.setAge(32);
+        user.setTimeZone("Europe/Dublin");
+    }
+
+    @Test
+    void getAnalytics_ReturnsNullSafeTrendsCoverageTargetsAndComparison() {
+        LocalDate start = LocalDate.of(2026, 7, 2);
+        LocalDate end = LocalDate.of(2026, 7, 8);
+        LocalDate previousStart = LocalDate.of(2026, 6, 25);
+        LocalDate previousEnd = LocalDate.of(2026, 7, 1);
+        when(userService.findByEmail("micro@grun.app")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", start.atStartOfDay(), end.plusDays(1).atStartOfDay()))
+                .thenReturn(List.of(
+                        food("2026-07-02", 1500.0, 800.0),
+                        food("2026-07-03", 2500.0, 400.0),
+                        food("2026-07-04", 1000.0, 900.0),
+                        food("2026-07-05", 3000.0, null),
+                        food("2026-07-09", 9000.0, 9000.0)
+                ));
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", previousStart.atStartOfDay(), previousEnd.plusDays(1).atStartOfDay()))
+                .thenReturn(List.of(
+                        food("2026-06-25", 1000.0, null),
+                        food("2026-06-26", 1000.0, null),
+                        food("2026-06-27", 1000.0, null),
+                        food("2026-06-28", 1000.0, null)
+                ));
+
+        MicronutrientAnalyticsDto result =
+                service.getAnalytics("micro@grun.app", start, end, true);
+
+        verify(subscriptionService).assertFeatureAccess(
+                "micro@grun.app", SubscriptionFeature.MICRONUTRIENT_ANALYTICS);
+        assertEquals(7, result.getRange().getDayCount());
+        assertEquals(previousStart, result.getRange().getComparisonStartDate());
+        assertEquals(4, result.getCoverage().getFoodLoggedDays());
+        assertEquals(11, result.getCoverage().getTrackedNutrientCount());
+        assertEquals(57.14, result.getCoverage().getFoodDiaryCoveragePercent());
+        assertEquals(15.91, result.getCoverage().getAverageMicronutrientCoveragePercent());
+
+        MicronutrientAnalyticsDto.NutrientMetric sodium = nutrient(result, "SODIUM");
+        assertEquals(2000.0, sodium.getTarget());
+        assertEquals(2000.0, sodium.getAverageOnAvailableDays());
+        assertEquals(4, sodium.getAvailableDayCount());
+        assertEquals(2, sodium.getTargetHitDays());
+        assertEquals(50.0, sodium.getTargetHitRatePercent());
+        assertEquals("WITHIN_REFERENCE", sodium.getInterpretation());
+        assertEquals(7, sodium.getTrend().size());
+        assertNull(sodium.getTrend().get(4).getValue());
+        assertNull(sodium.getTrend().get(4).getTargetMet());
+        assertTrue(sodium.getComparison().isSufficientData());
+        assertEquals(1000.0, sodium.getComparison().getAbsoluteChange());
+        assertEquals(100.0, sodium.getComparison().getPercentChange());
+        assertEquals("UP", sodium.getComparison().getDirection());
+
+        MicronutrientAnalyticsDto.NutrientMetric calcium = nutrient(result, "CALCIUM");
+        assertEquals(3, calcium.getAvailableDayCount());
+        assertEquals("INSUFFICIENT_DATA", calcium.getInterpretation());
+        assertFalse(calcium.getComparison().isSufficientData());
+    }
+
+    @Test
+    void getAnalytics_ForMinor_ReturnsTrendsWithoutAdultTargetInterpretation() {
+        user.setAge(17);
+        LocalDate date = LocalDate.of(2026, 7, 8);
+        FoodLogDailyStatsDto day = new FoodLogDailyStatsDto();
+        day.setDate(date.toString());
+        day.setTotalPotassium(2200.0);
+        when(userService.findByEmail("micro@grun.app")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(
+                eq("micro@grun.app"), eq(date.atStartOfDay()), eq(date.plusDays(1).atStartOfDay())))
+                .thenReturn(List.of(day));
+
+        MicronutrientAnalyticsDto result =
+                service.getAnalytics("micro@grun.app", date, date, false);
+
+        assertFalse(result.getTargetProfile().isApplicable());
+        assertEquals("ADULT_PROFILE_NOT_APPLICABLE", result.getTargetProfile().getUnavailableReason());
+        MicronutrientAnalyticsDto.NutrientMetric potassium = nutrient(result, "POTASSIUM");
+        assertNull(potassium.getTarget());
+        assertEquals(2200.0, potassium.getAverageOnAvailableDays());
+        assertEquals("TARGET_UNAVAILABLE", potassium.getInterpretation());
+        assertNull(potassium.getTargetHitDays());
+        assertNull(potassium.getComparison());
+    }
+
+    @Test
+    void getAnalytics_WhenRangeExceedsLimit_RejectsBeforeLoadingData() {
+        assertThrows(IllegalArgumentException.class, () -> service.getAnalytics(
+                "micro@grun.app",
+                LocalDate.of(2025, 1, 1),
+                LocalDate.of(2026, 1, 2),
+                false
+        ));
+    }
+
+    private MicronutrientAnalyticsDto.NutrientMetric nutrient(
+            MicronutrientAnalyticsDto result,
+            String code
+    ) {
+        return result.getNutrients().stream()
+                .filter(metric -> code.equals(metric.getCode()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private FoodLogDailyStatsDto food(String date, Double sodium, Double calcium) {
+        FoodLogDailyStatsDto dto = new FoodLogDailyStatsDto();
+        dto.setDate(date);
+        dto.setTotalSodium(sodium);
+        dto.setTotalCalcium(calcium);
+        return dto;
+    }
+}
