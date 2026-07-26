@@ -15,7 +15,9 @@ public class MicronutrientAnalyticsDto {
     private Range range;
     private TargetProfile targetProfile;
     private Coverage coverage;
+    @Schema(description = "Deterministic aggregate counts and overall data confidence.")
     private AnalysisSummary summary;
+    @Schema(description = "Priority-sorted, non-diagnostic insight codes. Contains at most five entries.")
     private List<Insight> insights;
     private List<NutrientMetric> nutrients;
 
@@ -53,6 +55,7 @@ public class MicronutrientAnalyticsDto {
 
     @Data
     @Builder
+    @Schema(description = "Aggregate interpretation counts for the requested range.")
     public static class AnalysisSummary {
         private String dataConfidence;
         private int evaluatedNutrientCount;
@@ -64,6 +67,7 @@ public class MicronutrientAnalyticsDto {
 
     @Data
     @Builder
+    @Schema(description = "A localization-ready, non-diagnostic micronutrient insight.")
     public static class Insight {
         private String code;
         private String nutrientCode;

@@ -35,10 +35,13 @@ public class MicronutrientAnalyticsController {
     @Operation(
             summary = "Get advanced micronutrient analytics",
             description = "Returns daily vitamin and mineral trends, data coverage, target adherence, and optional "
-                    + "previous-period comparisons. Missing values remain null. The inclusive range is capped at 366 days."
+                    + "previous-period comparisons for users with MICRONUTRIENT_ANALYTICS access. The response also "
+                    + "contains deterministic data-confidence and non-diagnostic insight codes. Missing values remain "
+                    + "null. The inclusive range is capped at 366 days."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Micronutrient analytics returned."),
+            @ApiResponse(responseCode = "200", description = "Micronutrient analytics returned.",
+                    content = @Content(schema = @Schema(implementation = MicronutrientAnalyticsDto.class))),
             @ApiResponse(responseCode = "400", description = "Date range is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
             @ApiResponse(responseCode = "403", description = "Micronutrient analytics is not available in the active entitlement.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
