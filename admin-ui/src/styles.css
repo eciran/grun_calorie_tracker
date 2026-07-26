@@ -8384,3 +8384,144 @@ label {
     grid-template-columns: 1fr;
   }
 }
+.commercial-metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.commercial-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.commercial-form,
+.commercial-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.commercial-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.commercial-form-grid label,
+.commercial-filter-grid label {
+  min-width: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.commercial-form input,
+.commercial-form select,
+.commercial-form textarea,
+.commercial-filter-grid input,
+.commercial-filter-grid select {
+  width: 100%;
+}
+
+.commercial-form-actions {
+  margin-top: 4px;
+}
+
+.commercial-guardrails {
+  display: grid;
+  gap: 10px;
+}
+
+.commercial-guardrails > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+}
+
+.commercial-guardrails span,
+.commercial-entitlement-warning {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.commercial-filter-grid {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, minmax(150px, 0.7fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.commercial-row-actions {
+  flex-wrap: nowrap;
+}
+
+.commercial-preview-modal {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.commercial-preview-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.commercial-preview-summary > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+}
+
+.commercial-preview-summary span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.commercial-validation-list {
+  margin-top: 14px;
+}
+
+.commercial-validation-list p {
+  margin: 6px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+}
+
+.commercial-validation-list .success-note {
+  border-left-color: var(--success);
+  background: var(--success-soft);
+}
+
+.commercial-entitlement-warning {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+}
+
+@media (max-width: 1280px) {
+  .commercial-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .commercial-workspace-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+  .commercial-metrics,
+  .commercial-form-grid,
+  .commercial-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .commercial-metrics,
+  .commercial-form-grid,
+  .commercial-filter-grid,
+  .commercial-preview-summary { grid-template-columns: 1fr; }
+}

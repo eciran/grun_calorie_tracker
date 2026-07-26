@@ -18,6 +18,10 @@ import {
   AdminMailMonitoring,
   AdminPushMonitoring,
   AdminEngagementAnalytics,
+  AdminPromotion,
+  AdminPromotionMetrics,
+  AdminPromotionPage,
+  AdminPromotionPreview,
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
   AdminProductQualityWorkbench,
@@ -111,6 +115,7 @@ type SectionKey =
   | "subscriptionAccess"
   | "subscriptionAiQuotas"
   | "subscriptionEvents"
+  | "promotions"
   | "ai"
   | "audits"
   | "retentionPolicies"
@@ -263,6 +268,7 @@ const sections: SectionMeta[] = [
   { key: "subscriptionAccess", label: "User Access", hint: "Resolved rights", icon: "U" },
   { key: "subscriptionAiQuotas", label: "AI Quotas", hint: "Credits", icon: "Q" },
   { key: "subscriptionEvents", label: "Provider Events", hint: "Webhook audit", icon: "E" },
+  { key: "promotions", label: "Promotions", hint: "Offers and conversion", icon: "%" },
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
   { key: "settings", label: "Settings", hint: "App config", icon: "G" },
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
@@ -311,7 +317,8 @@ const navigation: NavigationItem[] = [
     ...navSection("subscriptions"),
     children: [
       { key: "subscriptions", label: "Plans & entitlements", hint: "Plan rules and user access", icon: "S" },
-      navSection("subscriptionEvents")
+      navSection("subscriptionEvents"),
+      navSection("promotions")
     ]
   },
   navSection("ai"),
@@ -350,7 +357,7 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
   [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
   [navSection("products"), navSection("productContributions"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
-  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
+  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
   [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
   [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
@@ -680,6 +687,7 @@ export default function App() {
           {active === "subscriptionAccess" && <SubscriptionsView mode="access" onError={setError} />}
           {active === "subscriptionAiQuotas" && <SubscriptionsView mode="aiQuotas" onError={setError} />}
           {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
+          {active === "promotions" && <PromotionsView onError={setError} />}
           {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "settings" && <GlobalSettingsView />}
           {active === "audits" && <AuditsView onError={setError} />}
@@ -10251,4 +10259,235 @@ function formatDurationMs(value?: number): string {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+type PromotionDraft = {
+  code: string; name: string; description: string; discountPercent: string;
+  promoType: string; targetStore: string; targetPlan: string; targetRegion: string;
+  targetProductId: string; currency: string; eligibilityRule: string;
+  perUserLimit: string; globalLimit: string; campaignKey: string;
+  providerOfferId: string; providerProductId: string; startAt: string; endAt: string;
+};
+
+const EMPTY_PROMOTION: PromotionDraft = {
+  code: "", name: "", description: "", discountPercent: "0", promoType: "CAMPAIGN",
+  targetStore: "ALL", targetPlan: "", targetRegion: "", targetProductId: "",
+  currency: "EUR", eligibilityRule: "", perUserLimit: "1", globalLimit: "",
+  campaignKey: "", providerOfferId: "", providerProductId: "", startAt: "", endAt: ""
+};
+
+function PromotionsView({ onError }: { onError: (message: string | null) => void }) {
+  const [state, setState] = useState<LoadState>("idle");
+  const [pageData, setPageData] = useState<AdminPromotionPage>({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true });
+  const [metrics, setMetrics] = useState<AdminPromotionMetrics | null>(null);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [type, setType] = useState("");
+  const [store, setStore] = useState("");
+  const [draft, setDraft] = useState<PromotionDraft>(EMPTY_PROMOTION);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<AdminPromotion | null>(null);
+  const [preview, setPreview] = useState<AdminPromotionPreview | null>(null);
+  const [deactivating, setDeactivating] = useState<AdminPromotion | null>(null);
+  const [deactivationReason, setDeactivationReason] = useState("");
+  const [actionState, setActionState] = useState<LoadState>("idle");
+
+  async function load() {
+    setState("loading");
+    onError(null);
+    try {
+      const params = new URLSearchParams({ page: String(page), size: String(size) });
+      if (appliedSearch) params.set("search", appliedSearch);
+      if (status) params.set("status", status);
+      if (type) params.set("type", type);
+      if (store) params.set("store", store);
+      const [promotions, summary] = await Promise.all([
+        request<AdminPromotionPage>(`/api/v1/admin/promotions?${params}`),
+        request<AdminPromotionMetrics>("/api/v1/admin/promotions/metrics")
+      ]);
+      setPageData(promotions);
+      setMetrics(summary);
+      setState("ready");
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  useEffect(() => { void load(); }, [page, size, appliedSearch, status, type, store]);
+
+  function resetDraft() {
+    setDraft(EMPTY_PROMOTION);
+    setEditingId(null);
+  }
+
+  function editPromotion(item: AdminPromotion) {
+    if (item.status !== "DRAFT") return;
+    setEditingId(item.id ?? null);
+    setDraft({
+      code: item.code ?? "", name: item.name ?? "", description: item.description ?? "",
+      discountPercent: String(item.discountPercent ?? 0), promoType: item.promoType ?? "CAMPAIGN",
+      targetStore: item.targetStore ?? "ALL", targetPlan: item.targetPlan ?? "",
+      targetRegion: item.targetRegion ?? "", targetProductId: item.targetProductId ?? "",
+      currency: item.currency ?? "EUR", eligibilityRule: item.eligibilityRule ?? "",
+      perUserLimit: String(item.perUserLimit ?? 1), globalLimit: item.globalLimit == null ? "" : String(item.globalLimit),
+      campaignKey: item.campaignKey ?? "", providerOfferId: item.providerOfferId ?? "",
+      providerProductId: item.providerProductId ?? "", startAt: item.startAt?.slice(0, 16) ?? "",
+      endAt: item.endAt?.slice(0, 16) ?? ""
+    });
+  }
+
+  async function savePromotion(event: FormEvent) {
+    event.preventDefault();
+    setActionState("loading");
+    onError(null);
+    try {
+      const body = {
+        ...draft,
+        discountPercent: Number(draft.discountPercent),
+        perUserLimit: Number(draft.perUserLimit),
+        globalLimit: draft.globalLimit ? Number(draft.globalLimit) : null,
+        targetPlan: draft.targetPlan || null,
+        targetRegion: draft.targetRegion || null,
+        targetProductId: draft.targetProductId || null,
+        eligibilityRule: draft.eligibilityRule || null,
+        campaignKey: draft.campaignKey || null,
+        providerOfferId: draft.providerOfferId || null,
+        providerProductId: draft.providerProductId || null,
+        startAt: draft.startAt || null,
+        endAt: draft.endAt || null
+      };
+      await request<AdminPromotion>(editingId ? `/api/v1/admin/promotions/${editingId}` : "/api/v1/admin/promotions", {
+        method: editingId ? "PUT" : "POST", body
+      });
+      resetDraft();
+      setActionState("ready");
+      await load();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function openPreview(item: AdminPromotion) {
+    if (!item.id) return;
+    setSelected(item);
+    setPreview(null);
+    try {
+      setPreview(await request<AdminPromotionPreview>(`/api/v1/admin/promotions/${item.id}/preview`, { method: "POST" }));
+    } catch (error) {
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function runAction(path: string) {
+    setActionState("loading");
+    try {
+      await request(path, { method: "POST" });
+      setSelected(null);
+      setPreview(null);
+      setActionState("ready");
+      await load();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function deactivate(event: FormEvent) {
+    event.preventDefault();
+    if (!deactivating?.id) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/promotions/${deactivating.id}/deactivate`, { method: "POST", body: { reason: deactivationReason } });
+      setDeactivating(null);
+      setDeactivationReason("");
+      setActionState("ready");
+      await load();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const items = pageData.content ?? [];
+  const revenueLabel = (metrics?.revenueByCurrency ?? []).length
+    ? (metrics?.revenueByCurrency ?? []).map((item) => `${((item.amountMinor ?? 0) / 100).toFixed(2)} ${item.currency ?? ""}`).join(" ? ")
+    : "0.00";
+  return (
+    <div className="view-stack commercial-ops-view">
+      <SectionToolbar title="Commercial operations" description="Store-safe promotion lifecycle, targeting, provider mapping and conversion health." state={state} onReload={load} />
+
+      <div className="metrics-grid commercial-metrics">
+        <MetricCard label="Active promotions" value={formatValue(metrics?.activePromos)} hint="Currently enabled commercial rules" />
+        <MetricCard label="Redemptions" value={formatValue(metrics?.totalRedemptions)} hint={`${formatValue(metrics?.uniqueUsers)} unique users`} />
+        <MetricCard label="Conversion" value={`${formatValue(metrics?.conversionRate)}%`} hint={`${formatValue(metrics?.convertedRedemptions)} provider-confirmed`} />
+        <MetricCard label="Rejected" value={`${formatValue(metrics?.rejectionRate)}%`} hint="Provider or eligibility rejection rate" />
+        <MetricCard label="Converted revenue" value={revenueLabel} hint="Separated by provider currency" />
+      </div>
+
+      <div className="commercial-workspace-grid">
+        <Panel title={editingId ? "Edit draft promotion" : "Create promotion draft"} description="Activation is a separate, validated and audited action.">
+          <form className="commercial-form" onSubmit={savePromotion}>
+            <div className="commercial-form-grid">
+              <label>Code<input required maxLength={80} value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })} /></label>
+              <label>Name<input required maxLength={160} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+              <label>Offer type<select value={draft.promoType} onChange={(event) => setDraft({ ...draft, promoType: event.target.value })}><option>CAMPAIGN</option><option>INTRO_OFFER</option><option>WIN_BACK</option><option>SUPPORT_GRANT</option></select></label>
+              <label>Discount %<input required min="0" max="100" step="0.01" type="number" value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} /></label>
+              <label>Store<select value={draft.targetStore} onChange={(event) => setDraft({ ...draft, targetStore: event.target.value })}><option>ALL</option><option>REVENUECAT</option><option>APPLE_APP_STORE</option><option>GOOGLE_PLAY</option></select></label>
+              <label>Plan<select value={draft.targetPlan} onChange={(event) => setDraft({ ...draft, targetPlan: event.target.value })}><option value="">All plans</option><option>FREE</option><option>PLUS</option><option>PRO</option></select></label>
+              <label>Region<select value={draft.targetRegion} onChange={(event) => setDraft({ ...draft, targetRegion: event.target.value })}><option value="">All regions</option><option>GLOBAL</option><option>TR</option><option>UK_IE</option><option>EU</option></select></label>
+              <label>Currency<input required maxLength={3} value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} /></label>
+              <label>Per-user limit<input required min="1" type="number" value={draft.perUserLimit} onChange={(event) => setDraft({ ...draft, perUserLimit: event.target.value })} /></label>
+              <label>Global limit<input min="1" type="number" value={draft.globalLimit} onChange={(event) => setDraft({ ...draft, globalLimit: event.target.value })} placeholder="Unlimited" /></label>
+              <label>Start time<input type="datetime-local" value={draft.startAt} onChange={(event) => setDraft({ ...draft, startAt: event.target.value })} /></label>
+              <label>End time<input type="datetime-local" value={draft.endAt} onChange={(event) => setDraft({ ...draft, endAt: event.target.value })} /></label>
+              <label>Provider offer ID<input maxLength={160} value={draft.providerOfferId} onChange={(event) => setDraft({ ...draft, providerOfferId: event.target.value })} /></label>
+              <label>Provider product ID<input maxLength={160} value={draft.providerProductId} onChange={(event) => setDraft({ ...draft, providerProductId: event.target.value })} /></label>
+              <label>Campaign key<input maxLength={120} value={draft.campaignKey} onChange={(event) => setDraft({ ...draft, campaignKey: event.target.value })} /></label>
+              <label>Eligibility rule<input maxLength={80} value={draft.eligibilityRule} onChange={(event) => setDraft({ ...draft, eligibilityRule: event.target.value })} placeholder="Optional provider segment key" /></label>
+            </div>
+            <label>Description<textarea maxLength={600} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+            <div className="inline-actions commercial-form-actions"><button className="primary-button" disabled={actionState === "loading"} type="submit">{editingId ? "Save draft" : "Create draft"}</button>{editingId && <button className="ghost-button" onClick={resetDraft} type="button">Cancel edit</button>}</div>
+          </form>
+        </Panel>
+
+        <Panel title="Store guardrails" description="Commercial configuration cannot silently grant paid access.">
+          <div className="commercial-guardrails">
+            <div><strong>Provider truth</strong><span>Paid entitlement still requires a verified RevenueCat, App Store or Google Play event.</span></div>
+            <div><strong>Mapping check</strong><span>Store-targeted offers require both offer and product identifiers before activation.</span></div>
+            <div><strong>Immutable redemption key</strong><span>Provider redemptions use a unique idempotency key to block duplicate conversion credit.</span></div>
+            <div><strong>Lifecycle separation</strong><span>Intro, win-back, support grant and campaign offers stay distinguishable in reporting.</span></div>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Promotion inventory" description="Server-side paginated commercial rules and current lifecycle state.">
+        <form className="commercial-filter-grid" onSubmit={(event) => { event.preventDefault(); setPage(0); setAppliedSearch(search.trim()); }}>
+          <label>Search<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Code, name or campaign" /></label>
+          <label>Status<select value={status} onChange={(event) => { setPage(0); setStatus(event.target.value); }}><option value="">All statuses</option><option>DRAFT</option><option>ACTIVE</option><option>DEACTIVATED</option><option>EXPIRED</option></select></label>
+          <label>Type<select value={type} onChange={(event) => { setPage(0); setType(event.target.value); }}><option value="">All types</option><option>CAMPAIGN</option><option>INTRO_OFFER</option><option>WIN_BACK</option><option>SUPPORT_GRANT</option></select></label>
+          <label>Store<select value={store} onChange={(event) => { setPage(0); setStore(event.target.value); }}><option value="">All stores</option><option>ALL</option><option>REVENUECAT</option><option>APPLE_APP_STORE</option><option>GOOGLE_PLAY</option></select></label>
+          <button className="primary-button" type="submit">Apply</button>
+        </form>
+        <DataTable columns={["Promotion", "Type", "Target", "Window", "Usage", "Mapping", "Status", "Actions"]} empty="No promotions match these filters." rows={items.map((item) => [
+          <div className="table-stack"><strong>{item.name ?? "-"}</strong><small>{item.code ?? "-"} ? {formatValue(item.discountPercent)}%</small></div>,
+          humanizeFeature(item.promoType),
+          <div className="table-stack"><span>{item.targetPlan ?? "All plans"}</span><small>{item.targetStore ?? "ALL"} ? {item.targetRegion ?? "All regions"}</small></div>,
+          <div className="table-stack"><span>{formatDate(item.startAt)}</span><small>to {formatDate(item.endAt)}</small></div>,
+          `${formatValue(item.usedCount)} / ${item.globalLimit == null ? "?" : formatValue(item.globalLimit)}`,
+          <span className={`status-pill ${item.providerMappingReady ? "live" : ""}`}>{item.providerMappingReady ? "Ready" : "Missing"}</span>,
+          <span className={`status-pill ${item.status === "ACTIVE" ? "live" : ""}`}>{item.status ?? "-"}</span>,
+          <div className="inline-actions commercial-row-actions"><button className="ghost-button" onClick={() => void openPreview(item)} type="button">Inspect</button>{item.status === "DRAFT" && <button className="ghost-button" onClick={() => editPromotion(item)} type="button">Edit</button>}{item.status === "ACTIVE" && <button className="ghost-button danger-button" onClick={() => setDeactivating(item)} type="button">Deactivate</button>}</div>
+        ])} />
+        <PaginationControls page={pageData.page ?? page} pageSize={pageData.size ?? size} totalElements={pageData.totalElements ?? 0} totalPages={pageData.totalPages ?? 0} first={pageData.first ?? page === 0} last={pageData.last ?? true} onPageChange={setPage} onPageSizeChange={(value) => { setPage(0); setSize(value); }} />
+      </Panel>
+
+      {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="modal-card compact commercial-preview-modal" role="dialog" aria-modal="true" aria-label="Promotion validation" onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>COMMERCIAL VALIDATION</span><h2>{selected.name}</h2><p>{selected.code} ? {selected.promoType}</p></div><button className="modal-icon-close" onClick={() => setSelected(null)} type="button">x</button></header><div className="modal-body"><div className="commercial-preview-summary"><div><span>Estimated audience</span><strong>{formatValue(preview?.estimatedAudience)}</strong></div><div><span>Provider mapping</span><strong>{preview?.providerMappingReady ? "Ready" : "Incomplete"}</strong></div><div><span>Activation</span><strong>{preview?.activationReady ? "Ready" : "Blocked"}</strong></div></div><div className="commercial-validation-list">{preview?.validationIssues?.length ? preview.validationIssues.map((issue) => <p key={issue}>{issue}</p>) : <p className="success-note">No activation blockers detected.</p>}</div><p className="commercial-entitlement-warning">Activating this promotion does not grant entitlement. Store/provider verification remains mandatory.</p></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => selected.id && void runAction(`/api/v1/admin/promotions/${selected.id}/reconcile`)} type="button">Reconcile mapping</button>{selected.status !== "ACTIVE" && <button className="primary-button" disabled={!preview?.activationReady || actionState === "loading"} onClick={() => selected.id && void runAction(`/api/v1/admin/promotions/${selected.id}/activate`)} type="button">Activate promotion</button>}</footer></section></div>}
+
+      {deactivating && <div className="modal-backdrop" role="presentation" onClick={() => setDeactivating(null)}><form className="modal-card compact commercial-deactivate-modal" onSubmit={deactivate} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>DEACTIVATE PROMOTION</span><h2>{deactivating.name}</h2></div><button className="modal-icon-close" onClick={() => setDeactivating(null)} type="button">x</button></header><div className="modal-body"><label>Required audit reason<textarea required maxLength={500} rows={4} value={deactivationReason} onChange={(event) => setDeactivationReason(event.target.value)} placeholder="Why must this promotion stop?" /></label></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => setDeactivating(null)} type="button">Cancel</button><button className="primary-button danger-button" disabled={!deactivationReason.trim() || actionState === "loading"} type="submit">Deactivate</button></footer></form></div>}
+    </div>
+  );
 }

@@ -1065,3 +1065,63 @@ export type FoodProductContribution = {
   reviewedAt?: string;
   createdAt?: string;
 };
+export type AdminPromotion = {
+  id?: number;
+  version?: number;
+  code?: string;
+  name?: string;
+  description?: string;
+  discountPercent?: number;
+  status?: "DRAFT" | "ACTIVE" | "DEACTIVATED" | "EXPIRED";
+  promoType?: "CAMPAIGN" | "INTRO_OFFER" | "WIN_BACK" | "SUPPORT_GRANT";
+  active?: boolean;
+  startAt?: string;
+  endAt?: string;
+  targetPlan?: "FREE" | "PLUS" | "PRO";
+  targetProductId?: string;
+  targetStore?: "ALL" | "REVENUECAT" | "APPLE_APP_STORE" | "GOOGLE_PLAY";
+  targetRegion?: "GLOBAL" | "TR" | "UK_IE" | "EU";
+  currency?: string;
+  eligibilityRule?: string;
+  perUserLimit?: number;
+  globalLimit?: number;
+  usedCount?: number;
+  campaignKey?: string;
+  providerOfferId?: string;
+  providerProductId?: string;
+  providerMappingReady?: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  deactivatedReason?: string;
+};
+
+export type AdminPromotionPage = {
+  content?: AdminPromotion[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
+};
+
+export type AdminPromotionPreview = {
+  promoId?: number;
+  estimatedAudience?: number;
+  providerMappingReady?: boolean;
+  activationReady?: boolean;
+  validationIssues?: string[];
+};
+
+export type AdminPromotionMetrics = {
+  activePromos?: number;
+  totalRedemptions?: number;
+  convertedRedemptions?: number;
+  rejectedRedemptions?: number;
+  uniqueUsers?: number;
+  revenueByCurrency?: Array<{ currency?: string; amountMinor?: number }>;
+  conversionRate?: number;
+  rejectionRate?: number;
+};
