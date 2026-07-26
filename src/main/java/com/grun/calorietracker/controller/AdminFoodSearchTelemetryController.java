@@ -1,6 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.FoodSearchTelemetrySummaryDto;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.service.FoodSearchTelemetryAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,7 +28,9 @@ public class AdminFoodSearchTelemetryController {
     @GetMapping("/summary")
     @Operation(summary = "Get product-search quality summary")
     public ResponseEntity<FoodSearchTelemetrySummaryDto> getSummary(
-            @RequestParam(defaultValue = "24") @Min(1) @Max(720) int hours) {
-        return ResponseEntity.ok(telemetryAdminService.getSummary(hours));
+            @RequestParam(defaultValue = "24") @Min(1) @Max(720) int hours,
+            @RequestParam(required = false) MarketRegion region,
+            @RequestParam(required = false) PreferredLanguage language) {
+        return ResponseEntity.ok(telemetryAdminService.getSummary(hours, region, language));
     }
 }

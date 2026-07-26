@@ -38,6 +38,9 @@ public class ProductAnalyticsEventEntity {
     @Column(name = "event_type", nullable = false, length = 80)
     private ProductAnalyticsEventType eventType;
 
+    @Column(name = "event_version", nullable = false)
+    private Integer eventVersion = 1;
+
     @Column(name = "surface", length = 120)
     private String surface;
 
@@ -70,6 +73,9 @@ public class ProductAnalyticsEventEntity {
 
     @PrePersist
     protected void onCreate() {
+        if (eventVersion == null) {
+            eventVersion = 1;
+        }
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }

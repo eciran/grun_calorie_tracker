@@ -17,6 +17,7 @@ import {
   AdminBrevoSenderList,
   AdminMailMonitoring,
   AdminPushMonitoring,
+  AdminEngagementAnalytics,
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
   AdminProductQualityWorkbench,
@@ -117,6 +118,7 @@ type SectionKey =
   | "notifications"
   | "notificationCampaigns"
   | "pushDelivery"
+  | "engagement"
   | "tracking"
   | "trackingWater"
   | "trackingFasting"
@@ -268,6 +270,7 @@ const sections: SectionMeta[] = [
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
   { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
   { key: "pushDelivery", label: "Push Delivery", hint: "Device tokens", icon: "P" },
+  { key: "engagement", label: "Product Analytics", hint: "Funnels and adoption", icon: "P" },
   { key: "tracking", label: "Tracking", hint: "Usage analytics", icon: "T" },
   { key: "trackingWater", label: "Water", hint: "Hydration usage", icon: "W" },
   { key: "trackingFasting", label: "Fasting", hint: "Session usage", icon: "F" },
@@ -328,7 +331,10 @@ const navigation: NavigationItem[] = [
       { key: "revenueCatProduction", label: "RevenueCat", hint: "Subscription provider monitoring", icon: "R", logo: "./revenuecat.svg" }
     ]
   },
-  navSection("tracking"),
+  {
+    ...navSection("engagement"),
+    children: [navSection("engagement"), navSection("tracking")]
+  },
   {
     ...navSection("system"),
     children: [
@@ -347,7 +353,7 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
   [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
-  [navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
+  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
 ];
 
@@ -681,6 +687,7 @@ export default function App() {
           {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} />}
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
+          {active === "engagement" && <EngagementAnalyticsView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
           {active === "trackingFasting" && <TrackingMonitoringView mode="fasting" onError={setError} />}
@@ -7584,6 +7591,139 @@ function PushDeliveryView({ onError }: { onError: (message: string | null) => vo
           <span>Real delivery validation requires mobile device tokens</span>
         </div>
       </Panel>
+    </div>
+  );
+}
+
+function EngagementAnalyticsView({ onError }: { onError: (message: string | null) => void }) {
+  const [hours, setHours] = useState(168);
+  const [region, setRegion] = useState("");
+  const [language, setLanguage] = useState("");
+  const [plan, setPlan] = useState("");
+  const path = useMemo(() => {
+    const params = new URLSearchParams({ hours: String(hours) });
+    if (region) params.set("region", region);
+    if (language) params.set("language", language);
+    if (plan) params.set("plan", plan);
+    return `/api/v1/admin/engagement/analytics?${params.toString()}`;
+  }, [hours, region, language, plan]);
+  const { data, state, reload } = useEndpoint<AdminEngagementAnalytics>(path, onError);
+  const onboarding = data?.onboarding;
+  const search = data?.search;
+  const food = data?.foodLogging;
+  const barcode = data?.barcode;
+
+  return (
+    <div className="stack engagement-analytics">
+      <SectionToolbar title="Product engagement" state={state} onReload={reload}>
+        <span className="status-pill">Contract v{formatValue(data?.eventContractVersion ?? 1)}</span>
+      </SectionToolbar>
+
+      <Panel title="Analysis scope">
+        <div className="engagement-filter-grid">
+          <label>Window
+            <select value={hours} onChange={(event) => setHours(Number(event.target.value))}>
+              <option value={24}>24 hours</option>
+              <option value={168}>7 days</option>
+              <option value={720}>30 days</option>
+              <option value={2160}>90 days</option>
+            </select>
+          </label>
+          <label>Region
+            <select value={region} onChange={(event) => setRegion(event.target.value)}>
+              <option value="">All regions</option>
+              {MARKET_REGIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>Language
+            <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+              <option value="">All languages</option>
+              {PREFERRED_LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>Current plan
+            <select value={plan} onChange={(event) => setPlan(event.target.value)}>
+              <option value="">All plans</option>
+              {PLAN_ORDER.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="field-hint">Filters apply on the backend. Search telemetry remains anonymous, so plan only filters authenticated product events.</p>
+      </Panel>
+
+      <div className="review-workspace-summary">
+        <MetricCard label="Onboarding completion" value={`${formatValue(onboarding?.completionRate)}%`} hint={`${formatValue(onboarding?.completed)} completed / ${formatValue(onboarding?.started)} started`} />
+        <MetricCard label="Search selection" value={`${formatValue(search?.selectionRate ? search.selectionRate * 100 : 0)}%`} hint={`${formatValue(search?.selectedSearches)} selected searches`} />
+        <MetricCard label="Zero-result rate" value={`${formatValue(search?.zeroResultRate ? search.zeroResultRate * 100 : 0)}%`} hint={`${formatValue(search?.zeroResultSearches)} searches need catalog attention`} />
+        <MetricCard label="Barcode completion" value={`${formatValue(barcode?.completionRate)}%`} hint={`${formatValue(barcode?.completed)} completed / ${formatValue(barcode?.failed)} failed`} />
+      </div>
+
+      <div className="ops-grid engagement-flow-grid">
+        <Panel title="Onboarding funnel">
+          <MiniBarChart label="Funnel events" items={[
+            ["Started", onboarding?.started ?? 0],
+            ["Step viewed", onboarding?.stepViewed ?? 0],
+            ["Step complete", onboarding?.stepCompleted ?? 0],
+            ["Previewed", onboarding?.previewed ?? 0],
+            ["Completed", onboarding?.completed ?? 0],
+            ["Abandoned", onboarding?.abandoned ?? 0]
+          ]} />
+          <div className="engagement-inline-metrics">
+            <span>Step failures <strong>{formatValue(onboarding?.stepFailed)}</strong></span>
+            <span>Resumed <strong>{formatValue(onboarding?.resumed)}</strong></span>
+            <span>Avg. completion <strong>{formatDurationMs(onboarding?.averageCompletionDurationMs)}</strong></span>
+          </div>
+        </Panel>
+        <Panel title="Core logging flows">
+          <DataTable
+            columns={["Flow", "Started", "Completed", "First completed", "Failed", "Users", "Rate", "Avg. duration"]}
+            rows={[
+              ["Food log", formatValue(food?.started), formatValue(food?.completed), formatValue(food?.firstCompletions), formatValue(food?.failed), formatValue(food?.uniqueUsers), `${formatValue(food?.completionRate)}%`, formatDurationMs(food?.averageDurationMs)],
+              ["Barcode", formatValue(barcode?.started), formatValue(barcode?.completed), "-", formatValue(barcode?.failed), formatValue(barcode?.uniqueUsers), `${formatValue(barcode?.completionRate)}%`, formatDurationMs(barcode?.averageDurationMs)]
+            ]}
+            empty="No flow analytics returned."
+          />
+        </Panel>
+      </div>
+
+      <Panel title="Feature adoption">
+        <DataTable
+          columns={["Feature", "Events", "Users", "Repeat events", "Avg. duration"]}
+          rows={(data?.featureAdoption ?? []).map((item) => [
+            humanizeFeature(item.feature), formatValue(item.events), formatValue(item.uniqueUsers),
+            formatValue(item.repeatEvents), formatDurationMs(item.averageDurationMs)
+          ])}
+          empty="No feature adoption events returned."
+        />
+      </Panel>
+
+      <div className="ops-grid engagement-lower-grid">
+        <Panel title="Zero-result searches">
+          <DataTable
+            columns={["Privacy-safe query", "Searches"]}
+            rows={(search?.topZeroResultQueries ?? []).map((item) => [item.query || "-", formatValue(item.searches)])}
+            empty="No zero-result query in this window."
+          />
+        </Panel>
+        <Panel title="Segment comparison">
+          <DataTable
+            columns={["Dimension", "Segment", "Events", "Users"]}
+            rows={[
+              ...(data?.regionComparison ?? []).map((item) => ["Region", item.segment || "-", formatValue(item.events), formatValue(item.uniqueUsers)]),
+              ...(data?.languageComparison ?? []).map((item) => ["Language", item.segment || "-", formatValue(item.events), formatValue(item.uniqueUsers)]),
+              ...(data?.planComparison ?? []).map((item) => ["Current plan", item.segment || "-", formatValue(item.events), formatValue(item.uniqueUsers)])
+            ]}
+            empty="No segment analytics returned."
+          />
+        </Panel>
+      </div>
+
+      <div className="roadmap-strip">
+        <span>Aggregates only: no prompt, note, or health detail</span>
+        <span>Feature events use a backend allowlist</span>
+        <span>Zero-result queries are redacted and retention-limited</span>
+        <span>Plan comparison reflects the current subscription state</span>
+      </div>
     </div>
   );
 }

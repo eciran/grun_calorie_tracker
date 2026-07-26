@@ -934,6 +934,59 @@ export type AdminPushMonitoring = {
   oneSignalConfigured?: boolean;
 };
 
+export type AdminEngagementMetric = {
+  started?: number;
+  completed?: number;
+  firstCompletions?: number;
+  failed?: number;
+  uniqueUsers?: number;
+  completionRate?: number;
+  averageDurationMs?: number;
+};
+
+export type AdminEngagementAnalytics = {
+  eventContractVersion?: number;
+  hours?: number;
+  since?: string;
+  generatedAt?: string;
+  filters?: { region?: string; language?: string; plan?: string };
+  onboarding?: {
+    started?: number;
+    stepViewed?: number;
+    stepCompleted?: number;
+    stepFailed?: number;
+    resumed?: number;
+    previewed?: number;
+    completed?: number;
+    abandoned?: number;
+    completionRate?: number;
+    failureRate?: number;
+    averageCompletionDurationMs?: number;
+  };
+  search?: {
+    searches?: number;
+    zeroResultSearches?: number;
+    selectedSearches?: number;
+    noSelectionSearches?: number;
+    zeroResultRate?: number;
+    selectionRate?: number;
+    planFilterApplied?: boolean;
+    topZeroResultQueries?: Array<{ query?: string; searches?: number }>;
+  };
+  foodLogging?: AdminEngagementMetric;
+  barcode?: AdminEngagementMetric;
+  featureAdoption?: Array<{
+    feature?: string;
+    events?: number;
+    uniqueUsers?: number;
+    repeatEvents?: number;
+    averageDurationMs?: number;
+  }>;
+  regionComparison?: Array<{ segment?: string; events?: number; uniqueUsers?: number }>;
+  languageComparison?: Array<{ segment?: string; events?: number; uniqueUsers?: number }>;
+  planComparison?: Array<{ segment?: string; events?: number; uniqueUsers?: number }>;
+};
+
 export type AdminTrackingModuleSummary = {
   module?: string;
   recordsLastRange?: number;
