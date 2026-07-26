@@ -41,6 +41,7 @@ import {
   AiMealDraft,
   AiRequestInspection,
   AiMonitoringSummary,
+  AiOperationsPolicy,
   AiCreditPricingPolicy,
   AiQuotaRefundResponse,
   AuditEntry,
@@ -4663,6 +4664,9 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [summaryWindowHours, setSummaryWindowHours] = useState(24);
+  const [policyActionState, setPolicyActionState] = useState<LoadState>("idle");
+  const [rollbackConfirmationOpen, setRollbackConfirmationOpen] = useState(false);
+  const [policyDraft, setPolicyDraft] = useState({ circuitOpen: false, failureRateThreshold: "0.20", rejectionRateThreshold: "0.40", maxTokensPer24Hours: "1000000", maxCostPer24Hours: "20", costCurrency: "USD", activeModel: "", activePromptVersion: "", reason: "" });
   const [smokeState, setSmokeState] = useState<LoadState>("idle");
   const [refundState, setRefundState] = useState<LoadState>("idle");
   const [smokeResult, setSmokeResult] = useState<string | null>(null);
@@ -4673,10 +4677,26 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [inspectionState, setInspectionState] = useState<LoadState>("idle");
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
   const summaryPath = `/api/v1/admin/ai/requests/summary?windowHours=${summaryWindowHours}`;
+  const policyPath = "/api/v1/admin/ai/monitoring/policy";
   const { data, state, reload } = useEndpoint<PageResponse<AiMealDraft>>(path, onError);
   const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AiMonitoringSummary>(summaryPath, onError);
+  const { data: policy, state: policyState, reload: reloadPolicy } = useEndpoint<AiOperationsPolicy>(policyPath, onError);
   const rows = data?.content ?? [];
   const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
+  useEffect(() => {
+    if (!policy) return;
+    setPolicyDraft({
+      circuitOpen: Boolean(policy.circuitOpen),
+      failureRateThreshold: String(policy.failureRateThreshold ?? 0.2),
+      rejectionRateThreshold: String(policy.rejectionRateThreshold ?? 0.4),
+      maxTokensPer24Hours: String(policy.maxTokensPer24Hours ?? 1000000),
+      maxCostPer24Hours: String(policy.maxCostPer24Hours ?? 20),
+      costCurrency: policy.costCurrency ?? "USD",
+      activeModel: policy.activeModel ?? "",
+      activePromptVersion: policy.activePromptVersion ?? "",
+      reason: ""
+    });
+  }, [policy]);
 
   useEffect(() => {
     if (targetContext?.targetType !== "AI_REQUEST" || !targetContext.targetId) return;
@@ -4692,6 +4712,61 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     setPage(0);
   }
 
+  async function saveOperationsPolicy(event: FormEvent) {
+    event.preventDefault();
+    if (policy?.version == null || policyDraft.reason.trim().length < 8) {
+      onError("A reason of at least 8 characters is required.");
+      return;
+    }
+    setPolicyActionState("loading");
+    try {
+      await request<AiOperationsPolicy>(policyPath, {
+        method: "PUT",
+        body: {
+          version: policy.version,
+          circuitOpen: policyDraft.circuitOpen,
+          failureRateThreshold: Number(policyDraft.failureRateThreshold),
+          rejectionRateThreshold: Number(policyDraft.rejectionRateThreshold),
+          maxTokensPer24Hours: Number(policyDraft.maxTokensPer24Hours),
+          maxCostPer24Hours: Number(policyDraft.maxCostPer24Hours),
+          costCurrency: policyDraft.costCurrency.trim().toUpperCase(),
+          activeModel: policyDraft.activeModel.trim(),
+          activePromptVersion: policyDraft.activePromptVersion.trim(),
+          reason: policyDraft.reason.trim()
+        }
+      });
+      setPolicyActionState("ready");
+      await reloadPolicy();
+      await reloadSummary();
+    } catch (error) {
+      setPolicyActionState("error");
+      onError(formatRequestError(error));
+      await reloadPolicy();
+    }
+  }
+
+  async function rollbackOperationsDeployment() {
+    if (policy?.version == null || policyDraft.reason.trim().length < 8) {
+      onError("Enter an operational reason before rollback.");
+      return;
+    }
+    setPolicyActionState("loading");
+    try {
+      await request<AiOperationsPolicy>(`${policyPath}/rollback`, {
+        method: "POST",
+        body: { version: policy.version, reason: policyDraft.reason.trim() }
+      });
+      setRollbackConfirmationOpen(false);
+      setPolicyActionState("ready");
+      await reloadPolicy();
+      await reloadSummary();
+    } catch (error) {
+      setRollbackConfirmationOpen(false);
+      setPolicyActionState("error");
+      onError(formatRequestError(error));
+      await reloadPolicy();
+    }
+  }
   async function runProviderSmoke() {
     setSmokeState("loading");
     setSmokeResult(null);
@@ -4778,7 +4853,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
 
   return (
     <div className="stack">
-      <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
+      <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, policyState, policyActionState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
       </SectionToolbar>
@@ -4805,7 +4880,39 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           <MetricCard label="Quota consumed" value={formatValue(summary?.quotaConsumedAmount)} hint={`${formatValue(summary?.quotaRefundedAmount)} refunded`} />
           <MetricCard label="Tokens" value={formatValue(summary?.totalTokens)} hint={`${formatValue(summary?.promptTokens)} input / ${formatValue(summary?.completionTokens)} output`} />
           <MetricCard label="Estimated cost" value={formatCurrencyBreakdown(summary?.estimatedCostByCurrency)} hint="Costs are separated by currency" />
+          <MetricCard label="Latency p50 / p95 / p99" value={`${formatValue(summary?.latencyP50Ms)} / ${formatValue(summary?.latencyP95Ms)} / ${formatValue(summary?.latencyP99Ms)} ms`} hint={`${formatValue(summary?.timeoutCount)} timeout failures`} />
+          <MetricCard label="Success / rejection" value={`${formatFailureRate(summary?.successRate)} / ${formatFailureRate(summary?.rejectionRate)}`} hint="Reviewable output and user rejection rates" />
+          <MetricCard label="Subscription revenue" value={formatCurrencyBreakdown(summary?.subscriptionRevenueByCurrency)} hint="Processed store revenue in the same window" />
+          <MetricCard label="AI cost / revenue" value={formatRatioBreakdown(summary?.costToRevenueRatioByCurrency)} hint="Only matching currencies are compared" />
         </div>
+      </Panel>
+
+      {(summary?.alerts ?? []).length > 0 && <Panel title="Operational alerts">
+        <div className="operations-alert-list">
+          {(summary?.alerts ?? []).map((alert) => <div className={`operations-alert ${alert.severity === "CRITICAL" ? "critical" : "warning"}`} key={`${alert.code}-${alert.requestType ?? "all"}-${alert.currency ?? "all"}`}>
+            <Badge value={alert.severity ?? "WARNING"} tone={alert.severity === "CRITICAL" ? "danger" : "warn"} />
+            <div><strong>{shortFeature(alert.code)}</strong><small>{alert.message}{alert.requestType ? ` | ${humanizeAiRequestType(alert.requestType)}` : ""}{alert.currency ? ` | ${alert.currency}` : ""}</small></div>
+          </div>)}
+        </div>
+      </Panel>}
+
+      <Panel title="AI reliability policy">
+        <form className="campaign-form-grid ai-operations-policy-form" onSubmit={saveOperationsPolicy}>
+          <label className="inline-check"><input checked={policyDraft.circuitOpen} onChange={(event) => setPolicyDraft((current) => ({ ...current, circuitOpen: event.target.checked }))} type="checkbox" />Circuit breaker open</label>
+          <label>Failure alert threshold<input min="0.01" max="1" step="0.01" type="number" value={policyDraft.failureRateThreshold} onChange={(event) => setPolicyDraft((current) => ({ ...current, failureRateThreshold: event.target.value }))} /></label>
+          <label>Rejection alert threshold<input min="0.01" max="1" step="0.01" type="number" value={policyDraft.rejectionRateThreshold} onChange={(event) => setPolicyDraft((current) => ({ ...current, rejectionRateThreshold: event.target.value }))} /></label>
+          <label>24h token budget<input min="1000" type="number" value={policyDraft.maxTokensPer24Hours} onChange={(event) => setPolicyDraft((current) => ({ ...current, maxTokensPer24Hours: event.target.value }))} /></label>
+          <label>24h cost budget<input min="0.01" step="0.01" type="number" value={policyDraft.maxCostPer24Hours} onChange={(event) => setPolicyDraft((current) => ({ ...current, maxCostPer24Hours: event.target.value }))} /></label>
+          <label>Currency<input maxLength={12} value={policyDraft.costCurrency} onChange={(event) => setPolicyDraft((current) => ({ ...current, costCurrency: event.target.value.toUpperCase() }))} /></label>
+          <label>Active model<input value={policyDraft.activeModel} onChange={(event) => setPolicyDraft((current) => ({ ...current, activeModel: event.target.value }))} /></label>
+          <label>Prompt version<input value={policyDraft.activePromptVersion} onChange={(event) => setPolicyDraft((current) => ({ ...current, activePromptVersion: event.target.value }))} /></label>
+          <label className="span-4">Admin reason<textarea placeholder="Why this reliability or deployment policy is changing" value={policyDraft.reason} onChange={(event) => setPolicyDraft((current) => ({ ...current, reason: event.target.value }))} /></label>
+          <div className="span-4 modal-actions inline-actions">
+            <small>Version {formatValue(policy?.version)} | Updated {formatDate(policy?.updatedAt)} by {policy?.updatedBy ?? "-"}</small>
+            <button className="ghost-button danger-button" disabled={!policy?.rollbackAvailable || policyActionState === "loading"} onClick={() => setRollbackConfirmationOpen(true)} type="button">Rollback deployment</button>
+            <button className="primary-button" disabled={policyActionState === "loading"} type="submit">Save policy</button>
+          </div>
+        </form>
       </Panel>
 
       <div className="ai-monitoring-grid">
@@ -4838,6 +4945,18 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           />
         </Panel>
       </div>
+
+      <Panel title="Feature and audience economics">
+        <DataTable
+          columns={["Feature", "Plan", "Region", "Language", "Requests", "Failed", "Rejected", "Cost"]}
+          rows={(summary?.segments ?? []).map((item) => [
+            humanizeAiRequestType(item.requestType), shortFeature(item.plan), shortFeature(item.region), shortFeature(item.language),
+            formatValue(item.requestCount), formatValue(item.failedCount), formatValue(item.rejectedCount),
+            formatAiCostAmount(item.estimatedCost, item.costCurrency)
+          ])}
+          empty="No segmented AI economics returned for this window."
+        />
+      </Panel>
 
       <Panel title="Request filters">
         <div className="review-filter-grid ai-review-filter-grid">
@@ -4916,6 +5035,15 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
         onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
       {inspection && <AiRequestInspectionModal inspection={inspection} onClose={() => setInspection(null)} />}
+      {rollbackConfirmationOpen && <ConfirmDialog
+        title="Rollback AI deployment?"
+        message={`This will restore the previous model and prompt version. The circuit breaker and budget limits remain unchanged. Reason: ${policyDraft.reason || "missing"}`}
+        confirmLabel="Rollback deployment"
+        danger
+        busy={policyActionState === "loading"}
+        onCancel={() => setRollbackConfirmationOpen(false)}
+        onConfirm={() => void rollbackOperationsDeployment()}
+      />}
       {refundDraft && <AiQuotaRefundModal
         draft={refundDraft}
         busy={refundState === "loading"}
@@ -10508,6 +10636,11 @@ function formatCurrencyBreakdown(value?: Record<string, number>): string {
   return entries.map(([currency, amount]) => formatAiCostAmount(amount, currency)).join(" / ");
 }
 
+function formatRatioBreakdown(value?: Record<string, number>): string {
+  const entries = Object.entries(value ?? {}).filter(([, ratio]) => typeof ratio === "number" && Number.isFinite(ratio));
+  if (!entries.length) return "-";
+  return entries.map(([currency, ratio]) => `${currency} ${(ratio * 100).toFixed(1)}%`).join(" / ");
+}
 function formatAiCostAmount(amount?: number, currency?: string): string {
   if (typeof amount !== "number" || !Number.isFinite(amount)) return "-";
   return `${amount.toFixed(4)} ${currency ?? ""}`.trim();

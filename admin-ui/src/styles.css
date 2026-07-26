@@ -8790,3 +8790,59 @@ label {
 .catalog-collapsible > :not(summary) {
   margin: 12px;
 }
+
+.ai-operations-policy-form {
+  align-items: end;
+}
+
+.ai-operations-policy-form .inline-check {
+  min-height: 42px;
+  align-self: end;
+}
+
+.ai-operations-policy-form .inline-actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.ai-operations-policy-form .inline-actions small {
+  margin-right: auto;
+}
+
+.operations-alert-list {
+  display: grid;
+  gap: 8px;
+}
+
+.operations-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid #c98b21;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+}
+
+.operations-alert.critical {
+  border-left-color: #b42318;
+}
+
+.operations-alert div {
+  display: grid;
+  gap: 2px;
+}
+
+@media (max-width: 1024px) {
+  .ai-operations-policy-form .inline-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .ai-operations-policy-form .inline-actions small {
+    flex-basis: 100%;
+  }
+}

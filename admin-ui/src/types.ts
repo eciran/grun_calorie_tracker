@@ -832,16 +832,53 @@ export type AiMonitoringSummary = {
   rejected?: number;
   failed?: number;
   failureRate?: number;
+  rejectionRate?: number;
+  successRate?: number;
+  timeoutCount?: number;
+  latencyP50Ms?: number;
+  latencyP95Ms?: number;
+  latencyP99Ms?: number;
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
   quotaConsumedAmount?: number;
   quotaRefundedAmount?: number;
   estimatedCostByCurrency?: Record<string, number>;
+  subscriptionRevenueByCurrency?: Record<string, number>;
+  costToRevenueRatioByCurrency?: Record<string, number>;
   providerModels?: AiProviderModelMetric[];
   requestStatuses?: AiRequestStatusMetric[];
+  segments?: AiOperationsSegmentMetric[];
+  attentionRequired?: boolean;
+  alerts?: { code?: string; severity?: string; message?: string; requestType?: string; currency?: string }[];
 };
 
+export type AiOperationsPolicy = {
+  version?: number;
+  circuitOpen?: boolean;
+  failureRateThreshold?: number;
+  rejectionRateThreshold?: number;
+  maxTokensPer24Hours?: number;
+  maxCostPer24Hours?: number;
+  costCurrency?: string;
+  activeModel?: string;
+  activePromptVersion?: string;
+  rollbackAvailable?: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
+export type AiOperationsSegmentMetric = {
+  requestType?: string;
+  plan?: string;
+  region?: string;
+  language?: string;
+  costCurrency?: string;
+  requestCount?: number;
+  failedCount?: number;
+  rejectedCount?: number;
+  estimatedCost?: number;
+};
 export type AiProviderModelMetric = {
   provider?: string;
   model?: string;
@@ -982,6 +1019,12 @@ export type AdminEngagementAnalytics = {
     abandoned?: number;
     completionRate?: number;
     failureRate?: number;
+  rejectionRate?: number;
+  successRate?: number;
+  timeoutCount?: number;
+  latencyP50Ms?: number;
+  latencyP95Ms?: number;
+  latencyP99Ms?: number;
     averageCompletionDurationMs?: number;
   };
   search?: {

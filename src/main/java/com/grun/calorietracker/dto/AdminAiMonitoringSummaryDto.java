@@ -24,14 +24,23 @@ public class AdminAiMonitoringSummaryDto {
     private long rejected;
     private long failed;
     private double failureRate;
+    private double rejectionRate;
+    private double successRate;
+    private long timeoutCount;
+    private long latencyP50Ms;
+    private long latencyP95Ms;
+    private long latencyP99Ms;
     private long promptTokens;
     private long completionTokens;
     private long totalTokens;
     private long quotaConsumedAmount;
     private long quotaRefundedAmount;
     private Map<String, Double> estimatedCostByCurrency;
+    private Map<String, Double> subscriptionRevenueByCurrency;
+    private Map<String, Double> costToRevenueRatioByCurrency;
     private List<ProviderModelMetric> providerModels;
     private List<RequestStatusMetric> requestStatuses;
+    private List<OperationsSegmentMetric> segments;
     private boolean attentionRequired;
     private List<OperationalAlert> alerts;
     @Data
@@ -60,6 +69,21 @@ public class AdminAiMonitoringSummaryDto {
         private double estimatedCost;
         private long quotaConsumedAmount;
         private long quotaRefundedAmount;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OperationsSegmentMetric {
+        private AiRequestType requestType;
+        private String plan;
+        private String region;
+        private String language;
+        private String costCurrency;
+        private long requestCount;
+        private long failedCount;
+        private long rejectedCount;
+        private double estimatedCost;
     }
 
     @Data

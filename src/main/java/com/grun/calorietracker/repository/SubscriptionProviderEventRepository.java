@@ -43,6 +43,16 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
                                                @Param("offeringId") String offeringId,
                                                @Param("store") String store);
 
+    @Query("""
+            select event.purchaseCurrency, coalesce(sum(event.priceAmountMinor), 0)
+            from SubscriptionProviderEventEntity event
+            where event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+              and event.processedAt >= :processedAfter
+              and event.purchaseCurrency is not null
+              and event.priceAmountMinor is not null
+            group by event.purchaseCurrency
+            """)
+    List<Object[]> summarizeRevenueByCurrencyAfter(@Param("processedAfter") LocalDateTime processedAfter);
     @Modifying
     @Query("""
             update SubscriptionProviderEventEntity event
