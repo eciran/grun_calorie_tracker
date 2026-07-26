@@ -86,6 +86,14 @@ class MicronutrientAnalyticsServiceImplTest {
         assertEquals(11, result.getCoverage().getTrackedNutrientCount());
         assertEquals(57.14, result.getCoverage().getFoodDiaryCoveragePercent());
         assertEquals(15.91, result.getCoverage().getAverageMicronutrientCoveragePercent());
+        assertEquals("LOW", result.getSummary().getDataConfidence());
+        assertEquals(1, result.getSummary().getEvaluatedNutrientCount());
+        assertEquals(1, result.getSummary().getWithinReferenceCount());
+        assertEquals(0, result.getSummary().getAttentionNutrientCount());
+        assertEquals(1, result.getSummary().getInsufficientDataNutrientCount());
+        assertEquals(9, result.getSummary().getNoDataNutrientCount());
+        assertEquals(1, result.getInsights().size());
+        assertEquals("MICRONUTRIENT_DATA_INCOMPLETE", result.getInsights().get(0).getCode());
 
         MicronutrientAnalyticsDto.NutrientMetric sodium = nutrient(result, "SODIUM");
         assertEquals(2000.0, sodium.getTarget());
@@ -134,6 +142,54 @@ class MicronutrientAnalyticsServiceImplTest {
     }
 
     @Test
+    void getAnalytics_WithReferenceAttention_ReturnsRankedNonDiagnosticInsights() {
+        LocalDate start = LocalDate.of(2026, 7, 5);
+        LocalDate end = LocalDate.of(2026, 7, 8);
+        when(userService.findByEmail("micro@grun.app")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", start.atStartOfDay(), end.plusDays(1).atStartOfDay()))
+                .thenReturn(List.of(
+                        food("2026-07-05", 3000.0, 200.0),
+                        food("2026-07-06", 3000.0, 200.0),
+                        food("2026-07-07", 3000.0, 200.0),
+                        food("2026-07-08", 3000.0, 200.0)
+                ));
+
+        MicronutrientAnalyticsDto result =
+                service.getAnalytics("micro@grun.app", start, end, false);
+
+        assertEquals("LOW", result.getSummary().getDataConfidence());
+        assertEquals(2, result.getSummary().getAttentionNutrientCount());
+        assertEquals(3, result.getInsights().size());
+        assertEquals("CAUTION", result.getInsights().get(0).getTone());
+        assertEquals("CALCIUM", result.getInsights().get(0).getNutrientCode());
+        assertEquals("MICRONUTRIENT_BELOW_REFERENCE", result.getInsights().get(0).getCode());
+        assertEquals("MICRONUTRIENT_DATA_INCOMPLETE", result.getInsights().get(2).getCode());
+    }
+
+    @Test
+    void getAnalytics_WithCompleteDiary_ReturnsHighConfidencePositiveSummary() {
+        LocalDate start = LocalDate.of(2026, 7, 2);
+        LocalDate end = LocalDate.of(2026, 7, 8);
+        when(userService.findByEmail("micro@grun.app")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", start.atStartOfDay(), end.plusDays(1).atStartOfDay()))
+                .thenReturn(start.datesUntil(end.plusDays(1))
+                        .map(this::completeFood)
+                        .toList());
+
+        MicronutrientAnalyticsDto result =
+                service.getAnalytics("micro@grun.app", start, end, false);
+
+        assertEquals("HIGH", result.getSummary().getDataConfidence());
+        assertEquals(11, result.getSummary().getEvaluatedNutrientCount());
+        assertEquals(11, result.getSummary().getWithinReferenceCount());
+        assertEquals(0, result.getSummary().getAttentionNutrientCount());
+        assertEquals(1, result.getInsights().size());
+        assertEquals("POSITIVE", result.getInsights().get(0).getTone());
+    }
+
+    @Test
     void getAnalytics_WhenRangeExceedsLimit_RejectsBeforeLoadingData() {
         assertThrows(IllegalArgumentException.class, () -> service.getAnalytics(
                 "micro@grun.app",
@@ -160,4 +216,22 @@ class MicronutrientAnalyticsServiceImplTest {
         dto.setTotalCalcium(calcium);
         return dto;
     }
+
+    private FoodLogDailyStatsDto completeFood(LocalDate date) {
+        FoodLogDailyStatsDto dto = new FoodLogDailyStatsDto();
+        dto.setDate(date.toString());
+        dto.setTotalSodium(1800.0);
+        dto.setTotalPotassium(3500.0);
+        dto.setTotalCalcium(800.0);
+        dto.setTotalIron(14.0);
+        dto.setTotalMagnesium(375.0);
+        dto.setTotalZinc(10.0);
+        dto.setTotalVitaminA(800.0);
+        dto.setTotalVitaminC(80.0);
+        dto.setTotalVitaminD(5.0);
+        dto.setTotalVitaminE(12.0);
+        dto.setTotalVitaminB12(2.5);
+        return dto;
+    }
+
 }

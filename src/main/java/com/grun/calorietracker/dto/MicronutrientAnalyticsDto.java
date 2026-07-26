@@ -15,6 +15,8 @@ public class MicronutrientAnalyticsDto {
     private Range range;
     private TargetProfile targetProfile;
     private Coverage coverage;
+    private AnalysisSummary summary;
+    private List<Insight> insights;
     private List<NutrientMetric> nutrients;
 
     @Data
@@ -47,6 +49,29 @@ public class MicronutrientAnalyticsDto {
         private int completeMicronutrientDays;
         private double foodDiaryCoveragePercent;
         private double averageMicronutrientCoveragePercent;
+    }
+
+    @Data
+    @Builder
+    public static class AnalysisSummary {
+        private String dataConfidence;
+        private int evaluatedNutrientCount;
+        private int withinReferenceCount;
+        private int attentionNutrientCount;
+        private int insufficientDataNutrientCount;
+        private int noDataNutrientCount;
+    }
+
+    @Data
+    @Builder
+    public static class Insight {
+        private String code;
+        private String nutrientCode;
+        private String tone;
+        private int priority;
+        private Double averageTargetPercent;
+        private String trendDirection;
+        private int availableDayCount;
     }
 
     @Data

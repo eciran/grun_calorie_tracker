@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,7 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
 
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MINIMUM_COMPARISON_DAYS = 4;
+    private static final int MAX_INSIGHTS = 5;
     private static final List<NutrientDefinition> NUTRIENTS = List.of(
             nutrient("SODIUM", "MG", "AT_MOST", FoodLogDailyStatsDto::getTotalSodium, MicronutrientTotalsDto::getSodium),
             nutrient("POTASSIUM", "MG", "AT_LEAST", FoodLogDailyStatsDto::getTotalPotassium, MicronutrientTotalsDto::getPotassium),
@@ -81,6 +84,13 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
         MicronutrientTotalsDto targets = micronutrientReferenceService.resolveTargets(user.getAge());
         MicronutrientDataQualityDto targetMetadata =
                 micronutrientReferenceService.assessDataQuality(null, user.getAge());
+        MicronutrientAnalyticsDto.Coverage coverage = buildCoverage(current, dayCount);
+        List<MicronutrientAnalyticsDto.NutrientMetric> nutrients = NUTRIENTS.stream()
+                .map(definition -> buildMetric(
+                        definition, current, previous, targets, startDate, endDate, dayCount, comparePrevious))
+                .toList();
+        String dataConfidence = resolveDataConfidence(coverage);
+
 
         return MicronutrientAnalyticsDto.builder()
                 .range(MicronutrientAnalyticsDto.Range.builder()
@@ -98,11 +108,10 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
                         .unavailableReason(targetMetadata.getTargetProfileUnavailableReason())
                         .referenceSources(targetMetadata.getReferenceSources())
                         .build())
-                .coverage(buildCoverage(current, dayCount))
-                .nutrients(NUTRIENTS.stream()
-                        .map(definition -> buildMetric(
-                                definition, current, previous, targets, startDate, endDate, dayCount, comparePrevious))
-                        .toList())
+                .coverage(coverage)
+                .summary(buildSummary(nutrients, dataConfidence))
+                .insights(buildInsights(nutrients, dataConfidence))
+                .nutrients(nutrients)
                 .build();
     }
 
@@ -257,6 +266,125 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
         }
         return average >= target ? "AT_OR_ABOVE_REFERENCE" : "BELOW_REFERENCE";
     }
+
+    private MicronutrientAnalyticsDto.AnalysisSummary buildSummary(
+            List<MicronutrientAnalyticsDto.NutrientMetric> nutrients,
+            String dataConfidence
+    ) {
+        int withinReference = countInterpretations(
+                nutrients, "WITHIN_REFERENCE", "AT_OR_ABOVE_REFERENCE");
+        int attention = countInterpretations(nutrients, "ABOVE_REFERENCE", "BELOW_REFERENCE");
+        int insufficient = countInterpretations(
+                nutrients, "INSUFFICIENT_DATA", "TARGET_UNAVAILABLE");
+        int noData = countInterpretations(nutrients, "NO_DATA");
+        return MicronutrientAnalyticsDto.AnalysisSummary.builder()
+                .dataConfidence(dataConfidence)
+                .evaluatedNutrientCount(withinReference + attention)
+                .withinReferenceCount(withinReference)
+                .attentionNutrientCount(attention)
+                .insufficientDataNutrientCount(insufficient)
+                .noDataNutrientCount(noData)
+                .build();
+    }
+
+
+    private String resolveDataConfidence(MicronutrientAnalyticsDto.Coverage coverage) {
+        if (coverage.getFoodLoggedDays() >= 7
+                && coverage.getFoodDiaryCoveragePercent() >= 70.0
+                && coverage.getAverageMicronutrientCoveragePercent() >= 70.0) {
+            return "HIGH";
+        }
+        if (coverage.getFoodLoggedDays() >= MINIMUM_COMPARISON_DAYS
+                && coverage.getFoodDiaryCoveragePercent() >= 40.0
+                && coverage.getAverageMicronutrientCoveragePercent() >= 40.0) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }
+
+    private int countInterpretations(
+            List<MicronutrientAnalyticsDto.NutrientMetric> nutrients,
+            String... interpretations
+    ) {
+        List<String> accepted = List.of(interpretations);
+        return (int) nutrients.stream()
+                .map(MicronutrientAnalyticsDto.NutrientMetric::getInterpretation)
+                .filter(accepted::contains)
+                .count();
+    }
+
+    private double referenceDistance(MicronutrientAnalyticsDto.NutrientMetric metric) {
+        return metric.getAverageTargetPercent() == null
+                ? 0.0
+                : Math.abs(metric.getAverageTargetPercent() - 100.0);
+    }
+
+
+    private MicronutrientAnalyticsDto.Insight buildNutrientInsight(
+            MicronutrientAnalyticsDto.NutrientMetric metric,
+            String tone,
+            int priority
+    ) {
+        return MicronutrientAnalyticsDto.Insight.builder()
+                .code("MICRONUTRIENT_" + metric.getInterpretation())
+                .nutrientCode(metric.getCode())
+                .tone(tone)
+                .priority(priority)
+                .averageTargetPercent(metric.getAverageTargetPercent())
+                .trendDirection(metric.getComparison() != null && metric.getComparison().isSufficientData()
+                        ? metric.getComparison().getDirection()
+                        : null)
+                .availableDayCount(metric.getAvailableDayCount())
+                .build();
+    }
+
+    private List<MicronutrientAnalyticsDto.Insight> buildInsights(
+            List<MicronutrientAnalyticsDto.NutrientMetric> nutrients,
+            String dataConfidence
+    ) {
+        List<MicronutrientAnalyticsDto.Insight> insights = new ArrayList<>();
+        nutrients.stream()
+                .filter(metric -> "ABOVE_REFERENCE".equals(metric.getInterpretation())
+                        || "BELOW_REFERENCE".equals(metric.getInterpretation()))
+                .sorted(Comparator
+                        .comparingDouble(this::referenceDistance).reversed()
+                        .thenComparing(MicronutrientAnalyticsDto.NutrientMetric::getCode))
+                .limit(3)
+                .map(metric -> buildNutrientInsight(metric, "CAUTION", 100))
+                .forEach(insights::add);
+
+        if ("LOW".equals(dataConfidence)) {
+            insights.add(MicronutrientAnalyticsDto.Insight.builder()
+                    .code("MICRONUTRIENT_DATA_INCOMPLETE")
+                    .tone("NEUTRAL")
+                    .priority(80)
+                    .build());
+        }
+
+        if (insights.stream().noneMatch(insight -> "CAUTION".equals(insight.getTone()))
+                && !"LOW".equals(dataConfidence)) {
+            nutrients.stream()
+                    .filter(metric -> "WITHIN_REFERENCE".equals(metric.getInterpretation())
+                            || "AT_OR_ABOVE_REFERENCE".equals(metric.getInterpretation()))
+                    .max(Comparator
+                            .comparingDouble(MicronutrientAnalyticsDto.NutrientMetric::getLoggedDayCoveragePercent)
+                            .thenComparing(MicronutrientAnalyticsDto.NutrientMetric::getCode))
+                    .map(metric -> buildNutrientInsight(metric, "POSITIVE", 30))
+                    .ifPresent(insights::add);
+        }
+
+        return insights.stream()
+                .sorted(Comparator
+                        .comparingInt(MicronutrientAnalyticsDto.Insight::getPriority).reversed()
+                        .thenComparing(insight -> insight.getNutrientCode() == null
+                                ? ""
+                                : insight.getNutrientCode()))
+                .limit(MAX_INSIGHTS)
+                .toList();
+    }
+
+
+
 
     private int availableNutrientCount(FoodLogDailyStatsDto day) {
         return (int) NUTRIENTS.stream()

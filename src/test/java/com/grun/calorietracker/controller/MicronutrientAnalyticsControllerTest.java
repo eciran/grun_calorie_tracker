@@ -36,6 +36,16 @@ class MicronutrientAnalyticsControllerTest {
                         .dayCount(7)
                         .pointGranularity("DAY")
                         .build())
+                .summary(MicronutrientAnalyticsDto.AnalysisSummary.builder()
+                        .dataConfidence("HIGH")
+                        .evaluatedNutrientCount(11)
+                        .build())
+                .insights(List.of(MicronutrientAnalyticsDto.Insight.builder()
+                        .code("MICRONUTRIENT_WITHIN_REFERENCE")
+                        .nutrientCode("SODIUM")
+                        .tone("POSITIVE")
+                        .priority(30)
+                        .build()))
                 .nutrients(List.of(MicronutrientAnalyticsDto.NutrientMetric.builder()
                         .code("SODIUM")
                         .unit("MG")
@@ -54,6 +64,9 @@ class MicronutrientAnalyticsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.range.dayCount").value(7))
                 .andExpect(jsonPath("$.range.pointGranularity").value("DAY"))
+                .andExpect(jsonPath("$.summary.dataConfidence").value("HIGH"))
+                .andExpect(jsonPath("$.summary.evaluatedNutrientCount").value(11))
+                .andExpect(jsonPath("$.insights[0].tone").value("POSITIVE"))
                 .andExpect(jsonPath("$.nutrients[0].code").value("SODIUM"));
 
         verify(micronutrientAnalyticsService).getAnalytics(
