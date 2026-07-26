@@ -1274,3 +1274,57 @@ export type ExerciseCatalogPage = {
   content?: ExerciseCatalogItem[]; page?: number; size?: number; totalElements?: number;
   totalPages?: number; first?: boolean; last?: boolean;
 };
+
+export type RuntimeOperationsPolicy = {
+  version: number;
+  maintenanceEnabled: boolean;
+  maintenanceMessage: string;
+  releaseVersion: string;
+  deploymentEnvironment: string;
+  minimumIosVersion: string;
+  minimumAndroidVersion: string;
+  rolloutFeature: string;
+  rolloutEnabled: boolean;
+  rolloutPlan?: string | null;
+  rolloutRegion?: string | null;
+  rolloutSegment: string;
+  rolloutPercentage: number;
+  apiLatencyWarningMs: number;
+  apiErrorRateThreshold: number;
+  escalationTarget?: string | null;
+  rollbackAvailable: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
+export type RuntimeApiMetrics = {
+  requests: number;
+  errors: number;
+  errorRate: number;
+  latencyP50Ms: number;
+  latencyP95Ms: number;
+  latencyP99Ms: number;
+  rateLimited: number;
+  authenticationFailures: number;
+  authorizationFailures: number;
+  latencyThresholdBreached: boolean;
+  errorRateThresholdBreached: boolean;
+  windowStartedAt?: string;
+};
+
+export type RuntimeOperationRecord = {
+  id: number;
+  recordType: string;
+  status: string;
+  operationKey: string;
+  title: string;
+  summary: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  nextRunAt?: string | null;
+  retryable: boolean;
+  retryCount: number;
+  parentRecordId?: number | null;
+  createdBy: string;
+  createdAt: string;
+};

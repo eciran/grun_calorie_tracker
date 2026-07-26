@@ -1,4 +1,5 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import {
   clearTokens,
   formatRequestError,
@@ -740,7 +741,7 @@ export default function App() {
           {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "promotions" && <PromotionsView onError={setError} />}
           {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
-          {active === "settings" && <GlobalSettingsView />}
+          {active === "settings" && <RuntimeOperationsView onError={setError} />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
           {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} />}
@@ -755,7 +756,7 @@ export default function App() {
           {active === "systemRuntime" && <SystemHealthView mode="runtime" onError={setError} />}
           {active === "systemDatabase" && <SystemHealthView mode="database" onError={setError} />}
           {active === "systemProviders" && <SystemHealthView mode="providers" onError={setError} />}
-          {active === "systemProduction" && <SystemHealthView mode="production" onError={setError} />}
+          {active === "systemProduction" && <RuntimeOperationsView onError={setError} />}
         </section>
       </main>
     </div>

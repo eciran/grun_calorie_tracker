@@ -1,12 +1,16 @@
 package com.grun.calorietracker.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.grun.calorietracker.security.JwtAuthenticationFilter;
 import com.grun.calorietracker.security.AdminAuthorizationFilter;
 import com.grun.calorietracker.security.RateLimitingFilter;
 import com.grun.calorietracker.security.RestAuthenticationEntryPoint;
+import com.grun.calorietracker.security.RuntimeMaintenanceFilter;
 import com.grun.calorietracker.security.SubscriptionFeatureAccessFilter;
 import com.grun.calorietracker.service.impl.UserDetailsServiceImpl;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.RuntimeOperationsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -53,7 +57,11 @@ public class SecurityConfig {
 
     @Bean
     @Profile("!test") // Disabled in the test profile.
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, SubscriptionFeatureAccessFilter subscriptionFeatureAccessFilter, AdminAuthorizationFilter adminAuthorizationFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            SubscriptionFeatureAccessFilter subscriptionFeatureAccessFilter,
+            AdminAuthorizationFilter adminAuthorizationFilter,
+            RuntimeMaintenanceFilter runtimeMaintenanceFilter) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
@@ -83,6 +91,7 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(adminAuthorizationFilter, JwtAuthenticationFilter.class)
                 .addFilterAfter(subscriptionFeatureAccessFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(runtimeMaintenanceFilter, SubscriptionFeatureAccessFilter.class)
                 .build();
     }
 
@@ -106,6 +115,22 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<AdminAuthorizationFilter> disableAdminAuthorizationFilterAutoRegistration(AdminAuthorizationFilter filter) {
         FilterRegistrationBean<AdminAuthorizationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    @Profile("!test")
+    public RuntimeMaintenanceFilter runtimeMaintenanceFilter(
+            RuntimeOperationsService runtimeOperationsService, ObjectMapper objectMapper) {
+        return new RuntimeMaintenanceFilter(runtimeOperationsService, objectMapper);
+    }
+
+    @Bean
+    @Profile("!test")
+    public FilterRegistrationBean<RuntimeMaintenanceFilter> disableRuntimeMaintenanceFilterAutoRegistration(
+            RuntimeMaintenanceFilter filter) {
+        FilterRegistrationBean<RuntimeMaintenanceFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setEnabled(false);
         return registration;
     }

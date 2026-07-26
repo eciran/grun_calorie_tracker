@@ -8846,3 +8846,126 @@ label {
     flex-basis: 100%;
   }
 }
+/* Runtime operations control center */
+.runtime-operations-view { min-width: 0; }
+.runtime-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.runtime-maintenance-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+.runtime-maintenance-banner.active {
+  border-color: #c76868;
+  background: #fff3f1;
+}
+.runtime-policy-grid,
+.runtime-record-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.runtime-policy-grid label,
+.runtime-record-form label,
+.runtime-filter-row label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.runtime-policy-grid input,
+.runtime-policy-grid select,
+.runtime-record-form input,
+.runtime-record-form select,
+.runtime-record-form textarea,
+.runtime-filter-row select {
+  width: 100%;
+  min-width: 0;
+}
+.runtime-policy-grid .wide-field,
+.runtime-record-form .wide-field { grid-column: span 2; }
+.runtime-policy-grid .toggle-field,
+.runtime-maintenance-banner .toggle-field {
+  flex-direction: row;
+  align-items: center;
+}
+.runtime-policy-grid .toggle-field.compact {
+  min-height: 42px;
+  align-self: end;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+.runtime-policy-grid .toggle-field input,
+.runtime-maintenance-banner .toggle-field input { width: auto; }
+.runtime-policy-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--brand);
+  background: var(--surface-soft);
+}
+.runtime-policy-preview span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.runtime-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.runtime-action-row > span { margin-left: auto; color: var(--muted); font-size: 0.8rem; }
+.runtime-operations-split {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 14px;
+}
+.runtime-record-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.runtime-record-form textarea { min-height: 84px; resize: vertical; }
+.runtime-record-form button { justify-self: start; }
+.runtime-guardrail-list { display: grid; gap: 10px; }
+.runtime-guardrail-list span {
+  padding: 10px 12px;
+  border-left: 3px solid var(--brand);
+  background: var(--surface-soft);
+}
+.runtime-filter-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.runtime-filter-row label { width: min(260px, 100%); }
+.runtime-operations-view .entity-cell small {
+  max-width: 560px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1180px) {
+  .runtime-metric-grid,
+  .runtime-policy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .runtime-metric-grid,
+  .runtime-policy-grid,
+  .runtime-record-form,
+  .runtime-operations-split { grid-template-columns: 1fr; }
+  .runtime-policy-grid .wide-field,
+  .runtime-record-form .wide-field { grid-column: auto; }
+  .runtime-maintenance-banner,
+  .runtime-action-row,
+  .runtime-filter-row { align-items: stretch; flex-direction: column; }
+  .runtime-action-row > span { margin-left: 0; }
+  .runtime-filter-row label { width: 100%; }
+}
