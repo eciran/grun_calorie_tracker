@@ -39,3 +39,17 @@ The Vite dev server proxies `/api/...` requests to `http://localhost:8080`, so t
 - System health payload.
 
 The legacy static admin page under `src/main/resources/static/admin-ui` remains available as a temporary local fallback.
+
+
+## Admin UI quality gate
+
+Run these checks before an admin UI sprint is considered complete:
+
+```powershell
+npm run test:foundation
+npm run build
+```
+
+The shared primitives in `src/AdminPrimitives.tsx` own page status, panels,
+tables, pagination, and empty/error states. New screens should extend these
+patterns instead of adding independent base components.

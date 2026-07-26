@@ -61,6 +61,17 @@ import {
   SystemHealth,
   UserProfile
 } from "./types";
+import {
+  AsyncState,
+  CollapsiblePanel,
+  DataTable,
+  EmptyState,
+  LoadState,
+  MetricCard,
+  PaginationControls,
+  Panel,
+  SectionToolbar
+} from "./AdminPrimitives";
 
 type SectionKey =
   | "dashboard"
@@ -111,7 +122,6 @@ type SectionKey =
   | "systemProviders"
   | "systemProduction";
 
-type LoadState = "idle" | "loading" | "ready" | "error";
 type RevenueCatRange = "7d" | "28d" | "90d" | "custom";
 type ThemeMode = "light" | "dark";
 type SectionMeta = { key: SectionKey; label: string; hint: string; icon: string; logo?: string };
@@ -3269,13 +3279,25 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={state} onReload={reload} />
+      <SectionToolbar
+        title={title}
+        description="Review account access, verification, region, and profile readiness. Select a row for controlled account actions."
+        state={state}
+        onReload={reload}
+      />
       <div className="user-summary-grid">
         <MetricCard label="Standard users" value={formatValue(standardUsers.length)} hint="Non-admin accounts" />
         <MetricCard label="Admin users" value={formatValue(adminUsers.length)} hint="Privileged accounts" />
         <MetricCard label="Unverified" value={formatValue(unverifiedUsers.length)} hint="Email verification pending" />
       </div>
-      <DataTable
+      <AsyncState
+        state={state}
+        hasData={Boolean(data)}
+        loadingMessage="Loading user accounts..."
+        emptyMessage="No user accounts were returned."
+      />
+      {(data || state === "ready") && <DataTable
+        caption={`${title} table`}
         columns={["User", "Role", "Status", "Region", "Language", "Email", "Profile"]}
         rows={pagedUsers.map((user) => [
           <UserCell user={user} />,
@@ -3293,10 +3315,11 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
           `${formatValue(user.age)} yrs | ${formatValue(user.height)} cm / ${formatValue(user.weight)} kg`
         ])}
         rowData={pagedUsers}
+        rowKeys={pagedUsers.map((user) => user.id ?? user.email ?? "unknown-user")}
         onRowClick={setSelectedUser}
         empty={mode === "admins" ? "No admin users found." : mode === "verification" ? "No unverified users found." : "No standard users found."}
-      />
-      <PaginationControls
+      />}
+      {(data || state === "ready") && <PaginationControls
         page={safeUserPage}
         pageSize={userPageSize}
         totalElements={visibleUsers.length}
@@ -3308,7 +3331,7 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
           setUserPageSize(size);
           setUserPage(0);
         }}
-      />
+      />}
       {selectedUser && <UserDetailsModal user={selectedUser} statusState={statusActionState} onClose={() => setSelectedUser(null)} onStatusUpdate={updateSelectedUserStatus} />}
     </div>
   );
@@ -7526,7 +7549,18 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={state} onReload={reload} />
+      <SectionToolbar
+        title={title}
+        description="Monitor runtime, database, provider, and production readiness signals from backend-owned health data."
+        state={state}
+        onReload={reload}
+      />
+      <AsyncState
+        state={state}
+        hasData={Boolean(data)}
+        loadingMessage="Loading system health..."
+        emptyMessage="No system health payload was returned."
+      />
       {data && mode === "overview" && (
         <>
           <div className="health-summary-grid">
@@ -7569,12 +7603,13 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
           </div>
         </Panel>
       )}
-      <div className="health-category-grid">
-        {visibleCategories.map((category) => (
-          <HealthCategoryCard key={category.title} category={category} />
-        ))}
-        {!visibleCategories.length && <EmptyState message="No system health payload returned." />}
-      </div>
+      {data && visibleCategories.length > 0 && (
+        <div className="health-category-grid">
+          {visibleCategories.map((category) => (
+            <HealthCategoryCard key={category.title} category={category} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -7734,144 +7769,6 @@ function useEndpoint<T>(path: string, onError: (message: string | null) => void)
   }, [stablePath, reloadToken]);
 
   return { data, state, reload: load };
-}
-
-function SectionToolbar({ title, state, onReload, children }: { title: string; state: LoadState; onReload: () => void; children?: ReactNode }) {
-  return (
-    <div className="section-toolbar">
-      <div>
-        <h2>{title}</h2>
-        <span className={`load-state ${state}`}>{state}</span>
-      </div>
-      <div className="toolbar-actions">
-        {children}
-        <button className="ghost-button" onClick={onReload} type="button">Refresh</button>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <article className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{hint}</small>
-    </article>
-  );
-}
-
-function Panel({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
-  return (
-    <article className={`panel ${className ?? ""}`.trim()}>
-      <h3>{title}</h3>
-      {children}
-    </article>
-  );
-}
-
-
-function CollapsiblePanel({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: ReactNode }) {
-  return (
-    <article className="panel collapsible-panel">
-      <button className="collapsible-panel-header" type="button" onClick={onToggle} aria-expanded={open}>
-        <h3>{title}</h3>
-        <span>{open ? "Hide" : "Show"}</span>
-      </button>
-      {open && <div className="collapsible-panel-body">{children}</div>}
-    </article>
-  );
-}
-function DataTable<T = unknown>({
-  columns,
-  rows,
-  empty,
-  rowData,
-  onRowClick
-}: {
-  columns: string[];
-  rows: ReactNode[][];
-  empty: string;
-  rowData?: T[];
-  onRowClick?: (row: T) => void;
-}) {
-  if (!rows.length) {
-    return <EmptyState message={empty} />;
-  }
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => <th key={column}>{column}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              className={onRowClick ? "clickable-row" : undefined}
-              key={index}
-              onClick={() => {
-                if (onRowClick && rowData?.[index]) {
-                  onRowClick(rowData[index]);
-                }
-              }}
-            >
-              {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PaginationControls({
-  page,
-  pageSize,
-  totalElements,
-  totalPages,
-  first,
-  last,
-  onPageChange,
-  onPageSizeChange
-}: {
-  page: number;
-  pageSize: number;
-  totalElements: number;
-  totalPages: number;
-  first: boolean;
-  last: boolean;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
-}) {
-  const safeTotalPages = Math.max(totalPages || 1, 1);
-  const from = totalElements === 0 ? 0 : page * pageSize + 1;
-  const to = Math.min((page + 1) * pageSize, totalElements);
-  return (
-    <div className="pagination-bar">
-      <div>
-        <strong>{formatValue(from)}-{formatValue(to)}</strong>
-        <span>of {formatValue(totalElements)} items</span>
-      </div>
-      <div className="pagination-actions">
-        <label>
-          Page size
-          <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </label>
-        <button className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(0)} type="button">First</button>
-        <button className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(Math.max(0, page - 1))} type="button">Previous</button>
-        <span className="page-indicator">Page {formatValue(page + 1)} / {formatValue(safeTotalPages)}</span>
-        <button className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(Math.min(safeTotalPages - 1, page + 1))} type="button">Next</button>
-        <button className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(safeTotalPages - 1)} type="button">Last</button>
-      </div>
-    </div>
-  );
 }
 
 function ProductCell({ item }: { item: FoodProduct }) {
@@ -8819,10 +8716,6 @@ function PriorityList({ items }: { items: Array<[string, string | number]> }) {
       ))}
     </div>
   );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return <div className="empty-state">{message}</div>;
 }
 
 function formatValue(value: unknown): string {
