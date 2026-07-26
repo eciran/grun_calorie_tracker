@@ -101,6 +101,7 @@ export async function request<T>(
   try {
     response = await fetch(path, {
       method: options.method ?? "GET",
+      cache: (options.method ?? "GET") === "GET" ? "no-store" : undefined,
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal

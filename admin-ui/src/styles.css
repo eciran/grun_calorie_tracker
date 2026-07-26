@@ -6307,7 +6307,7 @@ label {
 }
 .login-hero {
     border: 0;
-    background: linear-gradient(135deg,#24052b14,#24052b4d),url(../grun/grun-gradient-background.svg) center / cover no-repeat;
+    background: linear-gradient(135deg,#24052b14,#24052b4d),url(/grun/grun-gradient-background.svg) center / cover no-repeat;
     box-shadow: 0 24px 70px #46106738;
     position: relative;
     overflow: hidden

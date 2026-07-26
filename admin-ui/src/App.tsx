@@ -144,6 +144,7 @@ const FEATURE_ORDER = [
   "SAVED_MEAL_TEMPLATES",
   "RECIPE_BUILDER",
   "PUBLIC_RECIPE_LIBRARY",
+  "NEXT_MEAL_SUGGESTIONS",
   "ADVANCED_MACRO_TARGETS",
   "MICRONUTRIENT_DETAILS",
   "DATA_EXPORT",
@@ -3397,14 +3398,21 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   }
   function updateSubscriptionForm(key: keyof typeof subscriptionForm, value: string | boolean) {
     if (key === "planType" && typeof value === "string") {
-      setSubscriptionForm((current) => ({
-        ...current,
-        planType: value,
-        billingPeriod: value === "FREE" ? "NONE" : current.billingPeriod === "NONE" ? "MONTHLY" : current.billingPeriod,
-        aiMonthlyQuota: String(defaultAiQuota(value)),
-        aiUsedThisPeriod: value === "FREE" ? "0" : current.aiUsedThisPeriod,
-        autoRenew: value !== "FREE"
-      }));
+      setSubscriptionForm((current) => {
+        const nextBillingPeriod = value === "FREE" ? "NONE" : current.billingPeriod === "NONE" ? "MONTHLY" : current.billingPeriod;
+        const expiredEndDate = isPastIsoDate(current.endDate);
+        const nextStartDate = value !== "FREE" && expiredEndDate ? todayIsoDate() : current.startDate;
+        return {
+          ...current,
+          planType: value,
+          billingPeriod: nextBillingPeriod,
+          startDate: nextStartDate,
+          endDate: value === "FREE" ? "" : expiredEndDate ? subscriptionPeriodEndDate(nextStartDate, nextBillingPeriod) : current.endDate,
+          aiMonthlyQuota: String(defaultAiQuota(value)),
+          aiUsedThisPeriod: value === "FREE" ? "0" : current.aiUsedThisPeriod,
+          autoRenew: value !== "FREE"
+        };
+      });
       return;
     }
     setSubscriptionForm((current) => ({ ...current, [key]: value }));
@@ -3493,6 +3501,10 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   async function applySubscriptionUpdate() {
     if (!selectedUserId) {
       onError("Select a user before updating subscription.");
+      return;
+    }
+    if (isActivePaidSubscriptionWithExpiredEndDate(subscriptionForm)) {
+      onError("Active PLUS/PRO subscriptions must end today or later. Select a new end date before applying.");
       return;
     }
     setSubscriptionActionState("loading");
@@ -3844,7 +3856,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
             </label>
             <label>
               End date
-              <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
+              <DatePickerButton label="End date" min={subscriptionEndDateMinimum(subscriptionForm)} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
             </label>
             <label className="checkbox-field">
               <input checked={subscriptionForm.autoRenew} onChange={(event) => updateSubscriptionForm("autoRenew", event.target.checked)} type="checkbox" />
@@ -4014,7 +4026,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
               </label>
               <label>
                 End date
-                <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
+                <DatePickerButton label="End date" min={subscriptionEndDateMinimum(subscriptionForm)} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
               </label>
               <label>
                 Provider
@@ -9205,6 +9217,8 @@ function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: s
       return Boolean(access.recipeBuilder);
     case "PUBLIC_RECIPE_LIBRARY":
       return Boolean(access.publicRecipeLibrary);
+    case "NEXT_MEAL_SUGGESTIONS":
+      return Boolean(access.nextMealSuggestions);
     case "ADVANCED_MACRO_TARGETS":
       return Boolean(access.advancedMacroTargets);
     case "MICRONUTRIENT_DETAILS":
@@ -9275,6 +9289,8 @@ function humanizeFeature(value?: string): string {
       return "Recipe Builder";
     case "PUBLIC_RECIPE_LIBRARY":
       return "Public Recipe Library";
+    case "NEXT_MEAL_SUGGESTIONS":
+      return "Next Meal Suggestions";
     case "ADVANCED_MACRO_TARGETS":
       return "Advanced Macro Targets";
     case "MICRONUTRIENT_DETAILS":
@@ -9323,6 +9339,8 @@ function featureDescription(value?: string): string {
       return "Create and manage user recipes.";
     case "PUBLIC_RECIPE_LIBRARY":
       return "Browse the curated public recipe catalogue.";
+    case "NEXT_MEAL_SUGGESTIONS":
+      return "Home-screen meal targets with matched recipe suggestions and AI recipe prefill.";
     case "ADVANCED_MACRO_TARGETS":
       return "Flexible macro targets and meal-level planning.";
     case "MICRONUTRIENT_DETAILS":
@@ -9373,6 +9391,35 @@ function parsePositiveInt(value: string): number {
 }
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isPastIsoDate(value?: string): boolean {
+  return Boolean(value && value < todayIsoDate());
+}
+
+function subscriptionPeriodEndDate(startDate: string, billingPeriod: string): string {
+  const [year, month, day] = startDate.split("-").map(Number);
+  const monthOffset = billingPeriod === "YEARLY" ? 12 : 1;
+  const targetMonthIndex = month - 1 + monthOffset;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const targetMonth = targetMonthIndex % 12;
+  const targetMonthLastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const result = new Date(Date.UTC(targetYear, targetMonth, Math.min(day, targetMonthLastDay)));
+  result.setUTCDate(result.getUTCDate() - 1);
+  return result.toISOString().slice(0, 10);
+}
+
+function isActivePaidSubscriptionWithExpiredEndDate(form: { planType: string; status: string; endDate: string }): boolean {
+  return form.planType !== "FREE"
+    && (form.status === "ACTIVE" || form.status === "TRIALING")
+    && isPastIsoDate(form.endDate);
+}
+
+function subscriptionEndDateMinimum(form: { planType: string; status: string; startDate: string }): string | undefined {
+  if (form.planType !== "FREE" && (form.status === "ACTIVE" || form.status === "TRIALING")) {
+    return form.startDate > todayIsoDate() ? form.startDate : todayIsoDate();
+  }
+  return form.startDate || undefined;
 }
 
 function listPreview(values?: string[]): string {

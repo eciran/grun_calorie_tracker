@@ -471,6 +471,7 @@ export type SubscriptionFeatureAccess = {
   savedMealTemplates?: boolean;
   recipeBuilder?: boolean;
   publicRecipeLibrary?: boolean;
+  nextMealSuggestions?: boolean;
   advancedMacroTargets?: boolean;
   micronutrientDetails?: boolean;
   dataExport?: boolean;
