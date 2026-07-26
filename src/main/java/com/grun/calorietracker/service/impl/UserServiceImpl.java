@@ -1,17 +1,13 @@
 package com.grun.calorietracker.service.impl;
 
-import com.grun.calorietracker.dto.AdminUserStatusUpdateRequestDto;
-import com.grun.calorietracker.dto.AdminUserPageDto;
-import com.grun.calorietracker.dto.BodyFatRequestDto;
-import com.grun.calorietracker.dto.BodyFatResultDto;
-import com.grun.calorietracker.dto.NotificationPreferenceDto;
-import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.RefreshTokenService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.support.UserAgeSupport;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,6 +42,7 @@ public class UserServiceImpl implements UserService {
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final UserAgeSupport userAgeSupport;
     private final int maxFailedLoginAttempts;
     private final int loginLockMinutes;
 
@@ -55,6 +52,7 @@ public class UserServiceImpl implements UserService {
                            JwtUtil jwtUtil,
                            RefreshTokenService refreshTokenService,
                            UserTimeZoneSupport userTimeZoneSupport,
+                           UserAgeSupport userAgeSupport,
                            @Value("${grun.security.login.max-failed-attempts:" + DEFAULT_MAX_FAILED_LOGIN_ATTEMPTS + "}") int maxFailedLoginAttempts,
                            @Value("${grun.security.login.lock-minutes:" + DEFAULT_LOGIN_LOCK_MINUTES + "}") int loginLockMinutes) {
         this.userRepository = userRepository;
@@ -63,6 +61,7 @@ public class UserServiceImpl implements UserService {
         this.jwtUtil = jwtUtil;
         this.refreshTokenService = refreshTokenService;
         this.userTimeZoneSupport = userTimeZoneSupport;
+        this.userAgeSupport = userAgeSupport;
         this.maxFailedLoginAttempts = Math.max(1, maxFailedLoginAttempts);
         this.loginLockMinutes = Math.max(1, loginLockMinutes);
     }
@@ -117,11 +116,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserProfileDto> getAllUsers() {
+    public List<AdminUserDto> getAllUsers() {
         return userRepository.findAll(PageRequest.of(0, MAX_ADMIN_USER_PAGE_SIZE, Sort.by("id").descending()))
                 .getContent()
                 .stream()
-                .map(this::mapToUserProfileDto)
+                .map(this::mapToAdminUserDto)
                 .collect(Collectors.toList());
     }
 
@@ -146,7 +145,7 @@ public class UserServiceImpl implements UserService {
                 PageRequest.of(safePage, safeSize, Sort.by("id").descending())
         );
         AdminUserPageDto dto = new AdminUserPageDto();
-        dto.setContent(users.getContent().stream().map(this::mapToUserProfileDto).toList());
+        dto.setContent(users.getContent().stream().map(this::mapToAdminUserDto).toList());
         dto.setPage(users.getNumber());
         dto.setSize(users.getSize());
         dto.setTotalElements(users.getTotalElements());
@@ -158,12 +157,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UserProfileDto> getById(Long id) {
-        return userRepository.findById(id).map(this::mapToUserProfileDto);
+    public Optional<AdminUserDto> getById(Long id) {
+        return userRepository.findById(id).map(this::mapToAdminUserDto);
     }
 
     @Override
-    public UserProfileDto updateUserStatus(Long userId, AdminUserStatusUpdateRequestDto request, String adminEmail) {
+    public AdminUserDto updateUserStatus(Long userId, AdminUserStatusUpdateRequestDto request, String adminEmail) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         boolean selfTarget = user.getEmail() != null && user.getEmail().equalsIgnoreCase(adminEmail);
@@ -178,20 +177,121 @@ public class UserServiceImpl implements UserService {
         if (Boolean.FALSE.equals(request.getAccountEnabled()) || Boolean.TRUE.equals(request.getAccountLocked())) {
             refreshTokenService.revokeAllForUser(user);
         }
-        return mapToUserProfileDto(userRepository.save(user));
+        return mapToAdminUserDto(userRepository.save(user));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public MyProfileDto getMyProfile(String email) {
+        return mapToMyProfileDto(requireUser(email));
+    }
+
+    @Override
+    public MyProfileDto updateMyProfile(MyProfileUpdateRequestDto request, String email) {
+        UserEntity user = requireUser(email);
+        if (request.getName() != null) {
+            user.setName(request.getName().trim());
+        }
+        return mapToMyProfileDto(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileBodyDto getProfileBody(String email) {
+        return mapToProfileBodyDto(requireUser(email));
+    }
+
+    @Override
+    public MyProfileDto updateProfileBody(ProfileBodyUpdateRequestDto request, String email) {
+        UserEntity user = requireUser(email);
+        boolean recalculate = false;
+        if (request.getBirthDate() != null) {
+            Integer resolvedAge = userAgeSupport.resolveAge(
+                    request.getBirthDate(),
+                    null,
+                    userTimeZoneSupport.zoneId(user)
+            );
+            recalculate |= valueChanged(user.getBirthDate(), request.getBirthDate())
+                    || valueChanged(user.getAge(), resolvedAge);
+            user.setBirthDate(request.getBirthDate());
+            user.setAge(resolvedAge);
+        } else if (request.getAge() != null && user.getBirthDate() == null) {
+            recalculate |= valueChanged(user.getAge(), request.getAge());
+            user.setAge(request.getAge());
+        }
+        if (request.getGender() != null) {
+            String normalizedGender = request.getGender().toUpperCase();
+            recalculate |= valueChanged(user.getGender(), normalizedGender);
+            user.setGender(normalizedGender);
+        }
+        if (request.getHeight() != null) {
+            recalculate |= valueChanged(user.getHeight(), request.getHeight());
+            user.setHeight(request.getHeight());
+        }
+        if (request.getWeight() != null) {
+            recalculate |= valueChanged(user.getWeight(), request.getWeight());
+            user.setWeight(request.getWeight());
+        }
+        if (request.getBodyFat() != null) {
+            recalculate |= valueChanged(user.getBodyFatPercentage(), request.getBodyFat());
+            user.setBodyFatPercentage(request.getBodyFat());
+        }
+        MyProfileDto response = mapToMyProfileDto(userRepository.save(user));
+        response.setGoalRecalculationRecommended(recalculate);
+        if (recalculate) {
+            response.setGoalRecalculationReason("Profile metrics that affect calorie calculation changed.");
+        }
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfilePreferencesDto getProfilePreferences(String email) {
+        return mapToProfilePreferencesDto(requireUser(email));
+    }
+
+    @Override
+    public MyProfileDto updateProfilePreferences(ProfilePreferencesUpdateRequestDto request, String email) {
+        UserEntity user = requireUser(email);
+        if (request.getCountryCode() != null) {
+            user.setCountryCode(request.getCountryCode());
+        }
+        if (request.getMarketRegion() != null) {
+            user.setMarketRegion(request.getMarketRegion());
+        }
+        if (request.getPreferredLanguage() != null) {
+            user.setPreferredLanguage(request.getPreferredLanguage());
+        }
+        if (request.getTimeZone() != null) {
+            user.setTimeZone(userTimeZoneSupport.normalizeOrDefault(request.getTimeZone()));
+        }
+        if (request.getUnitPreference() != null) {
+            user.setUnitPreference(request.getUnitPreference());
+        }
+        return mapToMyProfileDto(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileSecurityDto getProfileSecurity(String email) {
+        UserEntity user = requireUser(email);
+        return ProfileSecurityDto.builder()
+                .emailVerified(user.getEmailVerified())
+                .passwordSet(user.getPasswordSet())
+                .build();
+    }
     @Override
     @Transactional(readOnly = true)
     public UserProfileDto getCurrentUser(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
-        // Bu metot zaten doğru şekilde DTO döndürüyor, olduğu gibi bırakıldı.
+        // Bu metot zaten doÄŸru ÅŸekilde DTO dÃ¶ndÃ¼rÃ¼yor, olduÄŸu gibi bÄ±rakÄ±ldÄ±.
         UserProfileDto dto = new UserProfileDto();
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setName(user.getName());
-        dto.setAge(user.getAge());
+        dto.setAge(resolvedAge(user));
+        dto.setBirthDate(user.getBirthDate());
         dto.setGender(user.getGender());
         dto.setHeight(user.getHeight());
         dto.setWeight(user.getWeight());
@@ -201,6 +301,7 @@ public class UserServiceImpl implements UserService {
         dto.setAccountEnabled(user.getAccountEnabled());
         dto.setAccountLocked(user.getAccountLocked());
         dto.setMarketRegion(user.getMarketRegion());
+        dto.setCountryCode(user.getCountryCode());
         dto.setPreferredLanguage(user.getPreferredLanguage());
         dto.setAvatarUrl(user.getAvatarUrl());
         dto.setTimeZone(userTimeZoneSupport.normalizeOrDefault(user.getTimeZone()));
@@ -229,7 +330,17 @@ public class UserServiceImpl implements UserService {
                 goalRecalculationRecommended |= valueChanged(existingUser.getGender(), updatedUserDto.getGender());
                 existingUser.setGender(updatedUserDto.getGender());
             }
-            if (updatedUserDto.getAge() != null) {
+            if (updatedUserDto.getBirthDate() != null) {
+                Integer resolvedAge = userAgeSupport.resolveAge(
+                        updatedUserDto.getBirthDate(),
+                        null,
+                        userTimeZoneSupport.zoneId(existingUser)
+                );
+                goalRecalculationRecommended |= valueChanged(existingUser.getBirthDate(), updatedUserDto.getBirthDate())
+                        || valueChanged(existingUser.getAge(), resolvedAge);
+                existingUser.setBirthDate(updatedUserDto.getBirthDate());
+                existingUser.setAge(resolvedAge);
+            } else if (updatedUserDto.getAge() != null && existingUser.getBirthDate() == null) {
                 goalRecalculationRecommended |= valueChanged(existingUser.getAge(), updatedUserDto.getAge());
                 existingUser.setAge(updatedUserDto.getAge());
             }
@@ -247,13 +358,14 @@ public class UserServiceImpl implements UserService {
             }
             if (updatedUserDto.getBmi() != null) existingUser.setBmi(updatedUserDto.getBmi());
             if (updatedUserDto.getMarketRegion() != null) existingUser.setMarketRegion(updatedUserDto.getMarketRegion());
+            if (updatedUserDto.getCountryCode() != null) existingUser.setCountryCode(updatedUserDto.getCountryCode());
             if (updatedUserDto.getPreferredLanguage() != null) existingUser.setPreferredLanguage(updatedUserDto.getPreferredLanguage());
             if (updatedUserDto.getTimeZone() != null) existingUser.setTimeZone(userTimeZoneSupport.normalizeOrDefault(updatedUserDto.getTimeZone()));
             if (updatedUserDto.getUnitPreference() != null) existingUser.setUnitPreference(updatedUserDto.getUnitPreference());
 
-            // DTO'dan gelen verilerle entity'yi güncelledikten sonra kaydet
+            // DTO'dan gelen verilerle entity'yi gÃ¼ncelledikten sonra kaydet
             UserEntity updatedUser = userRepository.save(existingUser);
-            // Kaydedilen entity'yi DTO'ya dönüştürerek döndür
+            // Kaydedilen entity'yi DTO'ya dÃ¶nÃ¼ÅŸtÃ¼rerek dÃ¶ndÃ¼r
             UserProfileDto response = mapToUserProfileDto(updatedUser);
             response.setGoalRecalculationRecommended(goalRecalculationRecommended);
             if (goalRecalculationRecommended) {
@@ -388,12 +500,74 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    private UserEntity requireUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+    }
+
+    private Integer resolvedAge(UserEntity user) {
+        return userAgeSupport.resolveAge(user, userTimeZoneSupport.zoneId(user));
+    }
+    private MyProfileDto mapToMyProfileDto(UserEntity user) {
+        return MyProfileDto.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .avatarUrl(user.getAvatarUrl())
+                .body(mapToProfileBodyDto(user))
+                .preferences(mapToProfilePreferencesDto(user))
+                .security(ProfileSecurityDto.builder()
+                        .emailVerified(user.getEmailVerified())
+                        .passwordSet(user.getPasswordSet())
+                        .build())
+                .build();
+    }
+
+    private ProfileBodyDto mapToProfileBodyDto(UserEntity user) {
+        return ProfileBodyDto.builder()
+                .age(resolvedAge(user))
+                .birthDate(user.getBirthDate())
+                .gender(user.getGender())
+                .height(user.getHeight())
+                .weight(user.getWeight())
+                .bmi(user.getBmi())
+                .bodyFat(user.getBodyFatPercentage())
+                .build();
+    }
+
+    private ProfilePreferencesDto mapToProfilePreferencesDto(UserEntity user) {
+        return ProfilePreferencesDto.builder()
+                .marketRegion(user.getMarketRegion())
+                .countryCode(user.getCountryCode())
+                .preferredLanguage(user.getPreferredLanguage())
+                .timeZone(userTimeZoneSupport.normalizeOrDefault(user.getTimeZone()))
+                .unitPreference(user.getUnitPreference())
+                .build();
+    }
+
+    private AdminUserDto mapToAdminUserDto(UserEntity user) {
+        return AdminUserDto.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .role(user.getRole())
+                .emailVerified(user.getEmailVerified())
+                .passwordSet(user.getPasswordSet())
+                .accountEnabled(user.getAccountEnabled())
+                .accountLocked(user.getAccountLocked())
+                .marketRegion(user.getMarketRegion())
+                .countryCode(user.getCountryCode())
+                .preferredLanguage(user.getPreferredLanguage())
+                .timeZone(userTimeZoneSupport.normalizeOrDefault(user.getTimeZone()))
+                .build();
+    }
     private UserProfileDto mapToUserProfileDto(UserEntity user) {
         UserProfileDto dto = new UserProfileDto();
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setName(user.getName());
-        dto.setAge(user.getAge());
+        dto.setAge(resolvedAge(user));
+        dto.setBirthDate(user.getBirthDate());
         dto.setGender(user.getGender());
         dto.setHeight(user.getHeight());
         dto.setWeight(user.getWeight());
@@ -405,6 +579,7 @@ public class UserServiceImpl implements UserService {
         dto.setAccountEnabled(user.getAccountEnabled());
         dto.setAccountLocked(user.getAccountLocked());
         dto.setMarketRegion(user.getMarketRegion());
+        dto.setCountryCode(user.getCountryCode());
         dto.setPreferredLanguage(user.getPreferredLanguage());
         dto.setAvatarUrl(user.getAvatarUrl());
         dto.setTimeZone(userTimeZoneSupport.normalizeOrDefault(user.getTimeZone()));

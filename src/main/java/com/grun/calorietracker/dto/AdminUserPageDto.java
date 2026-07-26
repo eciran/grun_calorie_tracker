@@ -10,7 +10,7 @@ import java.util.List;
 public class AdminUserPageDto {
 
     @Schema(description = "Users in the current page.")
-    private List<UserProfileDto> content;
+    private List<AdminUserDto> content;
 
     @Schema(description = "Current zero-based page number.", example = "0")
     private int page;

@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.CountryCode;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -10,9 +11,12 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
 
 @Data
 @AllArgsConstructor
@@ -24,13 +28,16 @@ public class OnboardingCompleteRequestDto {
     @Schema(description = "User display name.", example = "Emrah", requiredMode = Schema.RequiredMode.REQUIRED)
     private String name;
 
-    @NotNull(message = "{validation.user-profile.age.required}")
     @Min(value = 13, message = "{validation.user-profile.age.min}")
     @Max(value = 100, message = "{validation.user-profile.age.max}")
-    @Schema(description = "User age in years.", example = "32", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Legacy user age in years. Required only when birthDate is absent.", example = "32")
     private Integer age;
 
+    @Schema(description = "Date of birth. When present, the backend derives and persists age from this value.", example = "1994-06-18")
+    private LocalDate birthDate;
+
     @NotBlank(message = "{validation.user-profile.gender.required}")
+    @Pattern(regexp = "(?i)MALE|FEMALE", message = "{validation.user-profile.gender.invalid}")
     @Schema(description = "User gender value used by calculations.", example = "MALE", requiredMode = Schema.RequiredMode.REQUIRED)
     private String gender;
 
@@ -55,6 +62,9 @@ public class OnboardingCompleteRequestDto {
     @Schema(description = "User's selected market region for localized food search. Supported values: GLOBAL, TR, UK_IE, EU.", example = "UK_IE", requiredMode = Schema.RequiredMode.REQUIRED)
     private MarketRegion marketRegion;
 
+    @Schema(description = "ISO country code. Supported values: IE, GB, TR.", example = "IE")
+    private CountryCode countryCode;
+
     @NotNull(message = "Preferred language is required.")
     @Schema(description = "User's selected application language. Supported values: EN, TR.", example = "EN", requiredMode = Schema.RequiredMode.REQUIRED)
     private PreferredLanguage preferredLanguage;
@@ -67,6 +77,7 @@ public class OnboardingCompleteRequestDto {
 
     @NotNull(message = "{validation.user-goal.target-weight.required}")
     @Min(value = 30, message = "{validation.user-goal.target-weight.min}")
+    @Max(value = 300, message = "{validation.user-profile.weight.max}")
     @Schema(description = "Target body weight in kilograms.", example = "78.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double targetWeight;
 
@@ -85,11 +96,13 @@ public class OnboardingCompleteRequestDto {
         return UserProfileDto.builder()
                 .name(name)
                 .age(age)
+                .birthDate(birthDate)
                 .gender(gender)
                 .height(height)
                 .weight(weight)
                 .bodyFat(bodyFat)
                 .marketRegion(marketRegion)
+                .countryCode(countryCode)
                 .preferredLanguage(preferredLanguage)
                 .timeZone(timeZone)
                 .unitPreference(unitPreference)

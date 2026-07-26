@@ -3,7 +3,7 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.AdminUserStatusUpdateRequestDto;
 import com.grun.calorietracker.dto.AdminUserPageDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
-import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.dto.AdminUserDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.UserRole;
@@ -59,7 +59,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content),
             @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.", content = @Content)
     })
-    public List<UserProfileDto> getAllUsers() {
+    public List<AdminUserDto> getAllUsers() {
         return userService.getAllUsers();
     }
 
@@ -92,7 +92,7 @@ public class AdminUserController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User account status updated.",
-                    content = @Content(schema = @Schema(implementation = UserProfileDto.class))),
+                    content = @Content(schema = @Schema(implementation = AdminUserDto.class))),
             @ApiResponse(responseCode = "400", description = "Request validation failed or admin attempted to lock their own account.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
@@ -102,13 +102,13 @@ public class AdminUserController {
             @ApiResponse(responseCode = "404", description = "User could not be found.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
-    public UserProfileDto updateUserStatus(
+    public AdminUserDto updateUserStatus(
             @Parameter(description = "User id.", example = "1") @PathVariable Long userId,
             @RequestBody @Valid AdminUserStatusUpdateRequestDto request,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
-        Optional<UserProfileDto> before = userService.getById(userId);
-        UserProfileDto response = userService.updateUserStatus(userId, request, adminEmail(userDetails));
+        Optional<AdminUserDto> before = userService.getById(userId);
+        AdminUserDto response = userService.updateUserStatus(userId, request, adminEmail(userDetails));
         adminAuditService.record(
                 adminEmail(userDetails),
                 AdminAuditActionType.USER_STATUS_UPDATE,

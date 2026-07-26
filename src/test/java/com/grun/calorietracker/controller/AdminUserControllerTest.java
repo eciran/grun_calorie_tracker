@@ -1,7 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminUserPageDto;
-import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.dto.AdminUserDto;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.UserService;
@@ -42,7 +42,7 @@ class AdminUserControllerTest {
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void getAllUsers_whenAdmin_returnsUsers() throws Exception {
-        UserProfileDto user = new UserProfileDto();
+        AdminUserDto user = new AdminUserDto();
         user.setId(1L);
         user.setEmail("testuser@example.com");
         user.setName("Test User");
@@ -65,7 +65,7 @@ class AdminUserControllerTest {
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void listUsers_whenAdmin_returnsPaginatedUsers() throws Exception {
-        UserProfileDto user = new UserProfileDto();
+        AdminUserDto user = new AdminUserDto();
         user.setId(1L);
         user.setEmail("testuser@example.com");
         user.setName("Test User");
@@ -99,13 +99,13 @@ class AdminUserControllerTest {
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void updateUserStatus_whenAdmin_returnsUpdatedUserAndRecordsAudit() throws Exception {
-        UserProfileDto before = new UserProfileDto();
+        AdminUserDto before = new AdminUserDto();
         before.setId(1L);
         before.setEmail("testuser@example.com");
         before.setAccountEnabled(true);
         before.setAccountLocked(false);
 
-        UserProfileDto after = new UserProfileDto();
+        AdminUserDto after = new AdminUserDto();
         after.setId(1L);
         after.setEmail("testuser@example.com");
         after.setAccountEnabled(false);
@@ -152,4 +152,3 @@ class AdminUserControllerTest {
                 .andExpect(status().isForbidden());
     }
 }
-
