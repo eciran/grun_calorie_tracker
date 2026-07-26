@@ -58,7 +58,7 @@ public final class AdminPermissionMatrix {
         if (path.startsWith("/api/v1/admin/users")) {
             return write ? AdminPermission.USERS_MANAGE : AdminPermission.USERS_READ;
         }
-        if (containsAny(path, "/products", "/recipes", "/food", "/achievements", "/exercises")) {
+        if (containsAny(path, "/catalog", "/products", "/recipes", "/food", "/achievements", "/exercises")) {
             return write ? AdminPermission.CATALOG_MANAGE : AdminPermission.CATALOG_READ;
         }
         if (containsAny(path, "/promos", "/notification-campaigns", "/engagement", "/tracking", "/growth", "/onboarding")) {

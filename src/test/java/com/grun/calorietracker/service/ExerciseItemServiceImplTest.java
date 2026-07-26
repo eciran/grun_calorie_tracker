@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ExerciseItemDto;
 import com.grun.calorietracker.dto.ExerciseItemPageDto;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.enums.ExerciseDifficulty;
+import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import com.grun.calorietracker.exception.DuplicateExerciseItemException;
 import com.grun.calorietracker.mapper.ExerciseItemMapper;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
@@ -70,7 +71,8 @@ class ExerciseItemServiceImplTest {
         assertEquals("Quadriceps", result.getPrimaryMuscleGroup());
         assertEquals("Dumbbell", result.getEquipment());
         assertEquals(ExerciseDifficulty.BEGINNER, result.getDifficulty());
-        assertTrue(result.getAiEligible());
+        assertEquals(false, result.getAiEligible());
+        assertEquals(ExerciseTechniqueReviewStatus.PENDING, result.getTechniqueReviewStatus());
         assertTrue(result.getActive());
         verify(exerciseItemRepository).save(any(ExerciseItemEntity.class));
     }
@@ -93,7 +95,6 @@ class ExerciseItemServiceImplTest {
                 "Lower Body",
                 "None",
                 ExerciseDifficulty.INTERMEDIATE,
-                true,
                 0,
                 25
         );
@@ -111,6 +112,7 @@ class ExerciseItemServiceImplTest {
         existing.setName("Old Exercise");
         existing.setMetCode("OLD");
         existing.setCaloriesPerMinute(5.0);
+        existing.setTechniqueReviewStatus(ExerciseTechniqueReviewStatus.PENDING);
 
         ExerciseItemDto request = new ExerciseItemDto();
         request.setName("Kettlebell Swing");
@@ -119,7 +121,8 @@ class ExerciseItemServiceImplTest {
         request.setPrimaryMuscleGroup("Glutes");
         request.setEquipment("Kettlebell");
         request.setDifficulty(ExerciseDifficulty.INTERMEDIATE);
-        request.setAiEligible(false);
+        request.setAiEligible(true);
+        request.setTechniqueReviewStatus(ExerciseTechniqueReviewStatus.APPROVED);
         request.setActive(true);
 
         when(exerciseItemRepository.findById(5L)).thenReturn(Optional.of(existing));
@@ -133,6 +136,7 @@ class ExerciseItemServiceImplTest {
         assertEquals("Kettlebell", result.getEquipment());
         assertEquals(ExerciseDifficulty.INTERMEDIATE, result.getDifficulty());
         assertEquals(false, result.getAiEligible());
+        assertEquals(ExerciseTechniqueReviewStatus.PENDING, result.getTechniqueReviewStatus());
         assertTrue(result.getActive());
         verify(exerciseItemRepository).save(existing);
     }

@@ -51,6 +51,22 @@ class AdminPermissionMatrixTest {
         assertEquals(403, response.getStatus());
     }
 
+    @Test
+    void supportCannotManageExerciseCatalog() throws Exception {
+        authenticate(UserRole.ADMIN_SUPPORT);
+        MockHttpServletResponse response = execute("POST", "/api/v1/admin/catalog/exercises");
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentAsString().contains("CATALOG_MANAGE"));
+    }
+
+    @Test
+    void catalogAdminCanManageExerciseCatalog() throws Exception {
+        authenticate(UserRole.ADMIN_CATALOG);
+        MockHttpServletResponse response = execute("POST", "/api/v1/admin/catalog/exercises");
+
+        assertEquals(200, response.getStatus());
+    }
     private void authenticate(UserRole role) {
         List<SimpleGrantedAuthority> authorities = AdminPermissionMatrix.permissionsFor(role).stream()
                 .map(AdminPermissionMatrix::authority)

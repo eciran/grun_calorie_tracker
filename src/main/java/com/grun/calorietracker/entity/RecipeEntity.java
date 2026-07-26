@@ -104,6 +104,9 @@ public class RecipeEntity {
     private Double snapshotVitaminB12;
 
     private Boolean archived = false;
+    private String reviewAssignee;
+    private LocalDateTime reviewDueAt;
+    private LocalDateTime reviewClaimedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

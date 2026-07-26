@@ -1198,3 +1198,36 @@ export type AdminTeamPage = {
   first?: boolean;
   last?: boolean;
 };
+export type CatalogTypeSummary = {
+  total?: number; approved?: number; pendingReview?: number; missingMedia?: number;
+  staleSource?: number; overdueReview?: number;
+};
+
+export type AdminCatalogSummary = {
+  food?: CatalogTypeSummary;
+  recipes?: CatalogTypeSummary;
+  exercises?: CatalogTypeSummary;
+  sources?: Array<{ source?: string; itemCount?: number; staleCount?: number; missingLicenseCount?: number }>;
+};
+
+export type AdminCatalogImportJob = {
+  jobKey?: string; catalogType?: string; source?: string; triggerType?: string; region?: string;
+  status?: string; processedItems?: number; issueItems?: number; licenseEvidence?: string;
+  retryable?: boolean; failureDetail?: string; startedAt?: string; completedAt?: string;
+};
+
+export type ExerciseCatalogItem = {
+  id?: number; name?: string; metCode?: string; caloriesPerMinute?: number; description?: string;
+  iconUrl?: string; primaryMuscleGroup?: string; secondaryMuscleGroups?: string; equipment?: string;
+  difficulty?: string; instructions?: string; safetyNotes?: string; thumbnailUrl?: string; videoUrl?: string;
+  animationUrl?: string; defaultMeasurementType?: string; allowedMeasurementTypes?: string[];
+  aiEligible?: boolean; active?: boolean; techniqueReviewStatus?: string; techniqueReviewNote?: string;
+  techniqueReviewedBy?: string; techniqueReviewedAt?: string; sourceName?: string; sourceUrl?: string;
+  licenseName?: string; licenseUrl?: string; sourceLastRefreshedAt?: string; reviewAssignee?: string;
+  reviewDueAt?: string; reviewClaimedAt?: string;
+};
+
+export type ExerciseCatalogPage = {
+  content?: ExerciseCatalogItem[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
+};

@@ -220,4 +220,22 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
             nativeQuery = true
     )
     Page<String> findUnresolvedDuplicateCanonicalFoodKeys(Pageable pageable);
+
+    @Query("select count(f) from FoodItemEntity f where f.imageStatus is null or f.imageStatus <> com.grun.calorietracker.enums.ImageStatus.APPROVED")
+    long countMissingApprovedMedia();
+
+    @Query("select count(f) from FoodItemEntity f where f.dataSource <> com.grun.calorietracker.enums.FoodDataSource.MANUAL and (f.lastExternalSyncAt is null or f.lastExternalSyncAt < :cutoff)")
+    long countStaleCatalogItems(@Param("cutoff") LocalDateTime cutoff);
+
+    long countByReviewDueAtBefore(LocalDateTime cutoff);
+
+    @Query(value = """
+            SELECT COALESCE(data_source, 'UNKNOWN') AS source,
+                   COUNT(*) AS item_count,
+                   COUNT(*) FILTER (WHERE data_source <> 'MANUAL' AND (last_external_sync_at IS NULL OR last_external_sync_at < :cutoff)) AS stale_count
+            FROM food_items
+            GROUP BY COALESCE(data_source, 'UNKNOWN')
+            ORDER BY item_count DESC
+            """, nativeQuery = true)
+    List<Object[]> summarizeSources(@Param("cutoff") LocalDateTime cutoff);
 }

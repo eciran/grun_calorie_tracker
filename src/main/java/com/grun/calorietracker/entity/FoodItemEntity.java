@@ -83,6 +83,9 @@ public class FoodItemEntity {
     private LocalDateTime lastExternalSyncAt;
     private LocalDateTime lastReviewedAt;
     private String reviewedBy;
+    private String reviewAssignee;
+    private LocalDateTime reviewDueAt;
+    private LocalDateTime reviewClaimedAt;
     private LocalDateTime qualityValidatedAt;
     private String qualityValidatedBy;
 

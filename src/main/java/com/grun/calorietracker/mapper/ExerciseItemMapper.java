@@ -34,7 +34,19 @@ public class ExerciseItemMapper {
         entity.setDefaultMeasurementType(dto.getDefaultMeasurementType());
         entity.setAllowedMeasurementTypes(toAllowedMeasurementTypesCsv(dto.getAllowedMeasurementTypes()));
         entity.setAiEligible(dto.getAiEligible());
-        entity.setActive(dto.getActive());
+entity.setActive(dto.getActive());
+        entity.setTechniqueReviewStatus(dto.getTechniqueReviewStatus());
+        entity.setTechniqueReviewNote(dto.getTechniqueReviewNote());
+        entity.setTechniqueReviewedBy(dto.getTechniqueReviewedBy());
+        entity.setTechniqueReviewedAt(dto.getTechniqueReviewedAt());
+        entity.setSourceName(dto.getSourceName());
+        entity.setSourceUrl(dto.getSourceUrl());
+        entity.setLicenseName(dto.getLicenseName());
+        entity.setLicenseUrl(dto.getLicenseUrl());
+        entity.setSourceLastRefreshedAt(dto.getSourceLastRefreshedAt());
+        entity.setReviewAssignee(dto.getReviewAssignee());
+        entity.setReviewDueAt(dto.getReviewDueAt());
+        entity.setReviewClaimedAt(dto.getReviewClaimedAt());
         return entity;
     }
 
@@ -59,7 +71,19 @@ public class ExerciseItemMapper {
         dto.setDefaultMeasurementType(entity.getDefaultMeasurementType());
         dto.setAllowedMeasurementTypes(parseAllowedMeasurementTypes(entity.getAllowedMeasurementTypes()));
         dto.setAiEligible(entity.getAiEligible());
-        dto.setActive(entity.getActive());
+dto.setActive(entity.getActive());
+        dto.setTechniqueReviewStatus(entity.getTechniqueReviewStatus());
+        dto.setTechniqueReviewNote(entity.getTechniqueReviewNote());
+        dto.setTechniqueReviewedBy(entity.getTechniqueReviewedBy());
+        dto.setTechniqueReviewedAt(entity.getTechniqueReviewedAt());
+        dto.setSourceName(entity.getSourceName());
+        dto.setSourceUrl(entity.getSourceUrl());
+        dto.setLicenseName(entity.getLicenseName());
+        dto.setLicenseUrl(entity.getLicenseUrl());
+        dto.setSourceLastRefreshedAt(entity.getSourceLastRefreshedAt());
+        dto.setReviewAssignee(entity.getReviewAssignee());
+        dto.setReviewDueAt(entity.getReviewDueAt());
+        dto.setReviewClaimedAt(entity.getReviewClaimedAt());
         return dto;
     }
 

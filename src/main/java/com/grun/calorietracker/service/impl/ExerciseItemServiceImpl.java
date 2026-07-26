@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.ExerciseItemPageDto;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.enums.ExerciseDifficulty;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
+import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import com.grun.calorietracker.exception.DuplicateExerciseItemException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.ExerciseItemMapper;
@@ -37,6 +38,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     public List<ExerciseItemDto> getAllItems() {
         return exerciseItemRepository.findAll()
                 .stream()
+                .filter(this::isPubliclyAvailable)
                 .map(exerciseItemMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -47,7 +49,6 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
                                            String primaryMuscleGroup,
                                            String equipment,
                                            ExerciseDifficulty difficulty,
-                                           Boolean active,
                                            int page,
                                            int size) {
         PageRequest pageRequest = PageRequest.of(
@@ -57,7 +58,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
         );
 
         Page<ExerciseItemEntity> resultPage = exerciseItemRepository.findAll(
-                buildSearchSpecification(query, primaryMuscleGroup, equipment, difficulty, active),
+                buildSearchSpecification(query, primaryMuscleGroup, equipment, difficulty),
                 pageRequest
         );
 
@@ -78,7 +79,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     @Transactional(readOnly = true)
     public ExerciseItemDto getItem(Long id) {
         ExerciseItemEntity existing = exerciseItemRepository.findById(id)
-                .filter(item -> Boolean.TRUE.equals(item.getActive()))
+                .filter(this::isPubliclyAvailable)
                 .orElseThrow(() -> new ResourceNotFoundException("Exercise item not found with id: " + id));
         return exerciseItemMapper.toDto(existing);
     }
@@ -87,6 +88,8 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
         ensureMetCodeIsAvailable(dto.getMetCode(), null);
         ExerciseItemEntity entity = exerciseItemMapper.toEntity(dto);
         entity.setMetCode(normalizeMetCode(entity.getMetCode()));
+        entity.setTechniqueReviewStatus(ExerciseTechniqueReviewStatus.PENDING);
+        entity.setAiEligible(false);
         applyCatalogDefaults(entity);
         ExerciseItemEntity saved = exerciseItemRepository.save(entity);
         return exerciseItemMapper.toDto(saved);
@@ -116,7 +119,15 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
         existing.setAllowedMeasurementTypes(com.grun.calorietracker.mapper.ExerciseItemMapper.toAllowedMeasurementTypesCsv(dto.getAllowedMeasurementTypes()));
         existing.setAiEligible(dto.getAiEligible());
         existing.setActive(dto.getActive());
+        existing.setSourceName(dto.getSourceName());
+        existing.setSourceUrl(dto.getSourceUrl());
+        existing.setLicenseName(dto.getLicenseName());
+        existing.setLicenseUrl(dto.getLicenseUrl());
+        existing.setSourceLastRefreshedAt(dto.getSourceLastRefreshedAt());
         applyCatalogDefaults(existing);
+        if (existing.getTechniqueReviewStatus() != ExerciseTechniqueReviewStatus.APPROVED) {
+            existing.setAiEligible(false);
+        }
 
         ExerciseItemEntity updated = exerciseItemRepository.save(existing);
         return exerciseItemMapper.toDto(updated);
@@ -132,6 +143,9 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     private void applyCatalogDefaults(ExerciseItemEntity entity) {
         if (entity.getAiEligible() == null) {
             entity.setAiEligible(true);
+        }
+        if (entity.getTechniqueReviewStatus() == null) {
+            entity.setTechniqueReviewStatus(ExerciseTechniqueReviewStatus.PENDING);
         }
         if (entity.getActive() == null) {
             entity.setActive(true);
@@ -154,8 +168,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     private Specification<ExerciseItemEntity> buildSearchSpecification(String query,
                                                                        String primaryMuscleGroup,
                                                                        String equipment,
-                                                                       ExerciseDifficulty difficulty,
-                                                                       Boolean active) {
+                                                                       ExerciseDifficulty difficulty) {
         return (root, criteriaQuery, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -185,12 +198,18 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
             if (difficulty != null) {
                 predicates.add(criteriaBuilder.equal(root.get("difficulty"), difficulty));
             }
-
-            if (active != null) {
-                predicates.add(criteriaBuilder.equal(root.get("active"), active));
-            }
+            predicates.add(criteriaBuilder.isTrue(root.get("active")));
+            predicates.add(criteriaBuilder.equal(
+                    root.get("techniqueReviewStatus"),
+                    ExerciseTechniqueReviewStatus.APPROVED
+            ));
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private boolean isPubliclyAvailable(ExerciseItemEntity item) {
+        return Boolean.TRUE.equals(item.getActive())
+                && item.getTechniqueReviewStatus() == ExerciseTechniqueReviewStatus.APPROVED;
     }
 }

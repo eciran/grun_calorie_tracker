@@ -12,6 +12,10 @@ import {
   subscribeUnauthorized
 } from "./api";
 import {
+  AdminCatalogImportJob,
+  AdminCatalogSummary,
+  ExerciseCatalogItem,
+  ExerciseCatalogPage,
   AdminCustomer360,
   AdminBrevoSender,
   AdminBrevoSenderList,
@@ -103,6 +107,8 @@ type SectionKey =
   | "foodImports"
   | "foodRegions"
   | "foodQuality"
+  | "catalogExercises"
+  | "catalogSources"
   | "products"
   | "productContributions"
   | "productDuplicates"
@@ -256,6 +262,8 @@ const sections: SectionMeta[] = [
   { key: "foodImports", label: "Import Jobs", hint: "Bulk data flow", icon: "I" },
   { key: "foodRegions", label: "Regions", hint: "Market groups", icon: "R" },
   { key: "foodQuality", label: "Quality Rules", hint: "Catalog checks", icon: "Q" },
+  { key: "catalogExercises", label: "Exercise Library", hint: "Technique and media", icon: "E" },
+  { key: "catalogSources", label: "Sources & Jobs", hint: "Coverage and evidence", icon: "S" },
   { key: "products", label: "Product Review", hint: "Catalog quality", icon: "P" },
   { key: "productContributions", label: "Label Contributions", hint: "User evidence", icon: "L" },
   { key: "productDuplicates", label: "Canonical Duplicates", hint: "Generic identity decisions", icon: "D" },
@@ -316,7 +324,9 @@ const navigation: NavigationItem[] = [
     children: [
       { key: "foodOps", label: "Catalog ops", hint: "Import and region health", icon: "F" },
       navSection("products"),
-      navSection("recipes")
+      navSection("recipes"),
+      navSection("catalogExercises"),
+      navSection("catalogSources")
     ]
   },
   {
@@ -361,7 +371,7 @@ const navigation: NavigationItem[] = [
 
 const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
-  [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
+  [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality"), navSection("catalogExercises"), navSection("catalogSources")],
   [navSection("products"), navSection("productContributions"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
   [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
@@ -376,7 +386,7 @@ function tabsForSection(active: SectionKey): SectionMeta[] | undefined {
 function permissionForSection(section: SectionKey): string {
   if (section === "admins") return "ADMIN_TEAM_READ";
   if (section === "users" || section === "userVerification") return "USERS_READ";
-  if (["foodOps", "foodImports", "foodRegions", "foodQuality", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
+  if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSources", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
   if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
   if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps"].includes(section)) return "GROWTH_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
@@ -707,6 +717,8 @@ export default function App() {
           {active === "foodImports" && <FoodOpsView mode="imports" onError={setError} />}
           {active === "foodRegions" && <FoodOpsView mode="regions" onError={setError} />}
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
+          {active === "catalogExercises" && <CatalogOperationsView mode="exercises" onError={setError} />}
+          {active === "catalogSources" && <CatalogOperationsView mode="sources" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
           {active === "productContributions" && <FoodContributionReviewView onError={setError} />}
           {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
@@ -6307,6 +6319,215 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
   );
 }
 
+type CatalogOperationsMode = "exercises" | "sources";
+
+const EMPTY_EXERCISE: ExerciseCatalogItem = {
+  name: "", metCode: "", caloriesPerMinute: 1, description: "", primaryMuscleGroup: "",
+  secondaryMuscleGroups: "", equipment: "", difficulty: "BEGINNER", instructions: "", safetyNotes: "",
+  thumbnailUrl: "", videoUrl: "", animationUrl: "", defaultMeasurementType: "DURATION",
+  allowedMeasurementTypes: ["DURATION"], aiEligible: false, active: true, sourceName: "", sourceUrl: "",
+  licenseName: "", licenseUrl: ""
+};
+
+function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode; onError: (message: string | null) => void }) {
+  const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [selected, setSelected] = useState<ExerciseCatalogItem | null>(null);
+  const [draft, setDraft] = useState<ExerciseCatalogItem>(EMPTY_EXERCISE);
+  const [reviewNote, setReviewNote] = useState("");
+  const [assignment, setAssignment] = useState({ assignee: "", dueAt: "", reason: "" });
+  const [actionState, setActionState] = useState<LoadState>("ready");
+  const exercisePath = useMemo(() => {
+    const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
+    if (appliedQuery) params.set("q", appliedQuery);
+    if (reviewStatus) params.set("reviewStatus", reviewStatus);
+    if (activeFilter) params.set("active", activeFilter);
+    return `/api/v1/admin/catalog/exercises?${params}`;
+  }, [page, pageSize, appliedQuery, reviewStatus, activeFilter]);
+  const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AdminCatalogSummary>("/api/v1/admin/catalog/summary", onError);
+  const { data: importJobs, state: importState, reload: reloadImports } = useEndpoint<AdminCatalogImportJob[]>("/api/v1/admin/catalog/import-jobs", onError);
+  const { data: exercises, state: exerciseState, reload: reloadExercises } = useEndpoint<ExerciseCatalogPage>(exercisePath, onError);
+  const exerciseRows = exercises?.content ?? [];
+
+  function openExercise(item?: ExerciseCatalogItem) {
+    const next = item ? { ...item } : { ...EMPTY_EXERCISE };
+    setSelected(item ?? {});
+    setDraft(next);
+    setReviewNote(item?.techniqueReviewNote ?? "");
+    setAssignment({ assignee: item?.reviewAssignee ?? "", dueAt: item?.reviewDueAt?.slice(0, 16) ?? "", reason: "" });
+  }
+
+  async function saveExercise(event: FormEvent) {
+    event.preventDefault();
+    setActionState("loading");
+    try {
+      const payload = {
+        ...draft,
+        caloriesPerMinute: Number(draft.caloriesPerMinute),
+        allowedMeasurementTypes: draft.allowedMeasurementTypes?.length ? draft.allowedMeasurementTypes : ["DURATION"],
+        sourceLastRefreshedAt: draft.sourceName ? new Date().toISOString().slice(0, 19) : null
+      };
+      await request<ExerciseCatalogItem>(draft.id ? `/api/v1/admin/catalog/exercises/${draft.id}` : "/api/v1/admin/catalog/exercises", {
+        method: draft.id ? "PUT" : "POST",
+        body: payload
+      });
+      setSelected(null);
+      await Promise.all([reloadExercises(), reloadSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function reviewExercise(status: string) {
+    if (!draft.id || !reviewNote.trim()) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/catalog/exercises/${draft.id}/review`, { method: "PATCH", body: { status, note: reviewNote.trim() } });
+      setSelected(null);
+      await Promise.all([reloadExercises(), reloadSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function assignExerciseReview() {
+    if (!draft.id || !assignment.dueAt || !assignment.reason.trim()) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/catalog/review-items/EXERCISE/${draft.id}/assignment`, {
+        method: "PATCH",
+        body: { assignee: assignment.assignee.trim() || null, dueAt: `${assignment.dueAt}:00`, reason: assignment.reason.trim() }
+      });
+      setSelected(null);
+      await Promise.all([reloadExercises(), reloadSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const combinedState = combineStates([summaryState, importState, exerciseState, actionState]);
+  return <div className="stack catalog-operations-view">
+    <SectionToolbar
+      title={mode === "exercises" ? "Exercise library operations" : "Catalog sources and jobs"}
+      description={mode === "exercises" ? "Moderate technique, safety, media, source evidence, ownership, and active state." : "Cross-catalog coverage, source freshness, licensing evidence, and recent pipeline runs."}
+      state={combinedState}
+      onReload={() => { void reloadSummary(); void reloadImports(); void reloadExercises(); }}
+    />
+    {mode === "sources" && <>
+      <div className="catalog-domain-grid">
+        {(["food", "recipes", "exercises"] as const).map((key) => {
+          const item = summary?.[key];
+          return <article key={key} className="catalog-domain-card">
+            <header><strong>{humanizeFeature(key)}</strong><Badge value={`${formatValue(item?.approved)} approved`} tone="good" /></header>
+            <div><span>Total</span><strong>{formatValue(item?.total)}</strong></div>
+            <div><span>Pending review</span><strong>{formatValue(item?.pendingReview)}</strong></div>
+            <div><span>Missing media</span><strong>{formatValue(item?.missingMedia)}</strong></div>
+            <div><span>Stale source</span><strong>{formatValue(item?.staleSource)}</strong></div>
+            <div><span>Overdue SLA</span><strong>{formatValue(item?.overdueReview)}</strong></div>
+          </article>;
+        })}
+      </div>
+      <Panel title="Food source coverage" description="Server-side aggregate; no product payload is loaded into the browser.">
+        <DataTable columns={["Source", "Items", "Stale", "License gaps"]} rows={(summary?.sources ?? []).map((item) => [<strong>{humanizeFeature(item.source)}</strong>, formatValue(item.itemCount), formatValue(item.staleCount), formatValue(item.missingLicenseCount)])} empty="No catalog source metrics returned." />
+      </Panel>
+      <Panel title="Recent catalog pipeline jobs" description="Recipe import batches and food quality runs share one operational ledger.">
+        <DataTable columns={["Job", "Catalog", "Source", "Trigger", "Region", "Processed", "Issues", "Evidence", "Status", "Window"]} rows={(importJobs ?? []).map((item) => [
+          <div className="entity-cell"><strong>{item.jobKey ?? "-"}</strong><small>{item.failureDetail ?? "No failure detail"}</small></div>,
+          <Badge value={item.catalogType} />,
+          item.source ?? "-", item.triggerType ?? "-", item.region ?? "All", formatValue(item.processedItems), formatValue(item.issueItems),
+          item.licenseEvidence ?? "Missing", <Badge value={item.status} tone={item.status === "FAILED" ? "danger" : item.status === "PENDING" ? "warn" : "good"} />,
+          <div className="entity-cell"><strong>{formatDate(item.startedAt)}</strong><small>{formatDate(item.completedAt)}</small></div>
+        ])} empty="No catalog import or validation jobs returned." />
+      </Panel>
+    </>}
+    {mode === "exercises" && <>
+      <Panel title="Exercise moderation queue">
+        <form className="catalog-exercise-filter" onSubmit={(event) => { event.preventDefault(); setPage(0); setAppliedQuery(query.trim()); }}>
+          <label>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, MET code, muscle" /></label>
+          <label>Review status<select value={reviewStatus} onChange={(event) => { setReviewStatus(event.target.value); setPage(0); }}><option value="">All statuses</option>{["PENDING", "IN_REVIEW", "APPROVED", "REJECTED"].map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Active state<select value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value); setPage(0); }}><option value="">All items</option><option value="true">Active</option><option value="false">Inactive</option></select></label>
+          <button className="ghost-button" type="submit">Apply</button>
+          <button className="primary-button" type="button" onClick={() => openExercise()}>New exercise</button>
+        </form>
+        <DataTable
+          columns={["Exercise", "Technique", "Muscles", "Media", "Source", "Owner / SLA", "State"]}
+          rows={exerciseRows.map((item) => [
+            <div className="entity-cell"><strong>{item.name ?? "-"}</strong><small>{item.metCode ?? "-"} | {formatValue(item.caloriesPerMinute)} kcal/min</small></div>,
+            <Badge value={item.techniqueReviewStatus ?? "PENDING"} tone={item.techniqueReviewStatus === "APPROVED" ? "good" : item.techniqueReviewStatus === "REJECTED" ? "danger" : "warn"} />,
+            <div className="entity-cell"><strong>{item.primaryMuscleGroup ?? "-"}</strong><small>{item.equipment ?? "No equipment"}</small></div>,
+            <Badge value={item.videoUrl || item.animationUrl || item.thumbnailUrl ? "Available" : "Missing"} tone={item.videoUrl || item.animationUrl || item.thumbnailUrl ? "good" : "warn"} />,
+            <div className="entity-cell"><strong>{item.sourceName ?? "Missing"}</strong><small>{item.licenseName ?? "No license evidence"}</small></div>,
+            <div className="entity-cell"><strong>{item.reviewAssignee ?? "Unassigned"}</strong><small>{formatDate(item.reviewDueAt)}</small></div>,
+            <div className="badge-stack"><Badge value={item.active === false ? "Inactive" : "Active"} tone={item.active === false ? "neutral" : "good"} /><Badge value={item.aiEligible ? "AI eligible" : "AI blocked"} /></div>
+          ])}
+          rowData={exerciseRows}
+          onRowClick={openExercise}
+          empty="No exercise catalog items match the filters."
+        />
+        <PaginationControls page={exercises?.page ?? page} pageSize={exercises?.size ?? pageSize} totalElements={exercises?.totalElements ?? 0} totalPages={Math.max(1, exercises?.totalPages ?? 1)} first={exercises?.first ?? page === 0} last={exercises?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+      </Panel>
+      {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
+        <form className="modal-card catalog-exercise-modal" onSubmit={saveExercise} onClick={(event) => event.stopPropagation()}>
+          <header className="modal-header"><div><span>EXERCISE CATALOG</span><h2>{draft.id ? draft.name : "New exercise"}</h2><p>Catalog edits remain pending until technique review is approved.</p></div><button className="modal-icon-close" type="button" onClick={() => setSelected(null)}>x</button></header>
+          <div className="modal-body catalog-exercise-body">
+            <details className="catalog-collapsible" open><summary>Core catalog data</summary>
+              <div className="catalog-exercise-form-grid">
+                <label>Name<input required value={draft.name ?? ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+                <label>MET code<input required value={draft.metCode ?? ""} onChange={(event) => setDraft({ ...draft, metCode: event.target.value.toUpperCase() })} /></label>
+                <label>Calories / minute<input required min="0.01" step="0.01" type="number" value={draft.caloriesPerMinute ?? 1} onChange={(event) => setDraft({ ...draft, caloriesPerMinute: Number(event.target.value) })} /></label>
+                <label>Difficulty<select value={draft.difficulty ?? "BEGINNER"} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value })}>{["BEGINNER", "INTERMEDIATE", "ADVANCED"].map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label>Primary muscle<input value={draft.primaryMuscleGroup ?? ""} onChange={(event) => setDraft({ ...draft, primaryMuscleGroup: event.target.value })} /></label>
+                <label>Equipment<input value={draft.equipment ?? ""} onChange={(event) => setDraft({ ...draft, equipment: event.target.value })} /></label>
+                <label className="wide-field">Description<textarea rows={2} value={draft.description ?? ""} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+                <label className="wide-field">Instructions<textarea rows={4} value={draft.instructions ?? ""} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /></label>
+                <label className="wide-field">Safety notes<textarea rows={3} value={draft.safetyNotes ?? ""} onChange={(event) => setDraft({ ...draft, safetyNotes: event.target.value })} /></label>
+                <label className="toggle-field"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} />Active in catalog</label>
+                <label className="toggle-field"><input type="checkbox" checked={draft.aiEligible === true} onChange={(event) => setDraft({ ...draft, aiEligible: event.target.checked })} />AI workout eligible</label>
+              </div>
+            </details>
+            <details className="catalog-collapsible"><summary>Media and source evidence</summary>
+              <div className="catalog-exercise-form-grid">
+                <label>Thumbnail URL<input value={draft.thumbnailUrl ?? ""} onChange={(event) => setDraft({ ...draft, thumbnailUrl: event.target.value })} /></label>
+                <label>Video URL<input value={draft.videoUrl ?? ""} onChange={(event) => setDraft({ ...draft, videoUrl: event.target.value })} /></label>
+                <label>Animation URL<input value={draft.animationUrl ?? ""} onChange={(event) => setDraft({ ...draft, animationUrl: event.target.value })} /></label>
+                <label>Source name<input value={draft.sourceName ?? ""} onChange={(event) => setDraft({ ...draft, sourceName: event.target.value })} /></label>
+                <label>Source URL<input value={draft.sourceUrl ?? ""} onChange={(event) => setDraft({ ...draft, sourceUrl: event.target.value })} /></label>
+                <label>License name<input value={draft.licenseName ?? ""} onChange={(event) => setDraft({ ...draft, licenseName: event.target.value })} /></label>
+                <label className="wide-field">License URL<input value={draft.licenseUrl ?? ""} onChange={(event) => setDraft({ ...draft, licenseUrl: event.target.value })} /></label>
+              </div>
+            </details>
+            {draft.id && <details className="catalog-collapsible" open><summary>Review ownership and SLA</summary>
+              <div className="catalog-review-grid">
+                <label>Assignee email<input type="email" value={assignment.assignee} onChange={(event) => setAssignment({ ...assignment, assignee: event.target.value })} placeholder="catalog@grun.app" /></label>
+                <label>Due at<input type="datetime-local" value={assignment.dueAt} onChange={(event) => setAssignment({ ...assignment, dueAt: event.target.value })} /></label>
+                <label>Assignment reason<input value={assignment.reason} onChange={(event) => setAssignment({ ...assignment, reason: event.target.value })} /></label>
+                <button className="ghost-button" type="button" disabled={!assignment.dueAt || !assignment.reason.trim() || actionState === "loading"} onClick={assignExerciseReview}>Assign review</button>
+              </div>
+            </details>}
+            {draft.id && <details className="catalog-collapsible" open><summary>Technique decision</summary>
+              <div className="catalog-technique-review">
+                <div><Badge value={draft.techniqueReviewStatus ?? "PENDING"} tone={draft.techniqueReviewStatus === "APPROVED" ? "good" : "warn"} /><small>{draft.techniqueReviewedBy ? `Last reviewed by ${draft.techniqueReviewedBy}` : "No completed review"}</small></div>
+                <label>Required review note<textarea rows={3} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Technique, safety, and media evidence checked." /></label>
+                <div className="inline-actions"><button className="ghost-button danger-text" type="button" disabled={!reviewNote.trim()} onClick={() => void reviewExercise("REJECTED")}>Reject</button><button className="primary-button" type="button" disabled={!reviewNote.trim()} onClick={() => void reviewExercise("APPROVED")}>Approve technique</button></div>
+              </div>
+            </details>}
+          </div>
+          <footer className="modal-actions padded-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={actionState === "loading"} type="submit">{draft.id ? "Save catalog item" : "Create pending item"}</button></footer>
+        </form>
+      </div>}
+    </>}
+  </div>;
+}
 type FoodOpsMode = "overview" | "imports" | "regions" | "quality";
 
 function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: string | null) => void }) {

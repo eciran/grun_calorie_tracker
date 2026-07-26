@@ -2,6 +2,7 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ExerciseDifficulty;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
+import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -79,4 +80,20 @@ public class ExerciseItemDto {
 
     @Schema(description = "Whether this exercise is active in the catalog.", example = "true")
     private Boolean active;
+
+    @Schema(description = "Admin-reviewed technique state. Public technique surfaces must only expose APPROVED items.")
+    private ExerciseTechniqueReviewStatus techniqueReviewStatus;
+    private String techniqueReviewNote;
+    private String techniqueReviewedBy;
+    private java.time.LocalDateTime techniqueReviewedAt;
+
+    private String sourceName;
+    private String sourceUrl;
+    private String licenseName;
+    private String licenseUrl;
+    private java.time.LocalDateTime sourceLastRefreshedAt;
+
+    private String reviewAssignee;
+    private java.time.LocalDateTime reviewDueAt;
+    private java.time.LocalDateTime reviewClaimedAt;
 }

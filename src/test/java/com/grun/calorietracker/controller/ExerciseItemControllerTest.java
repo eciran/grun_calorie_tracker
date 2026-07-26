@@ -63,7 +63,6 @@ class ExerciseItemControllerTest {
                 eq("Lower Body"),
                 eq("None"),
                 eq(ExerciseDifficulty.INTERMEDIATE),
-                eq(true),
                 eq(0),
                 eq(25)
         )).thenReturn(page);
@@ -101,7 +100,6 @@ class ExerciseItemControllerTest {
                 eq(null),
                 eq(null),
                 eq(null),
-                eq(true),
                 eq(0),
                 eq(25)
         )).thenReturn(page);
@@ -139,7 +137,7 @@ class ExerciseItemControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = "ADMIN_PERMISSION_CATALOG_MANAGE")
     void addExerciseItem_whenAdmin_returnsCreatedItem() throws Exception {
         ExerciseItemDto request = buildRequest();
         ExerciseItemDto response = buildRequest();
@@ -156,7 +154,7 @@ class ExerciseItemControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = "ADMIN_PERMISSION_CATALOG_MANAGE")
     void addExerciseItem_whenMetCodeExists_returnsConflict() throws Exception {
         ExerciseItemDto request = buildRequest();
 
@@ -173,7 +171,7 @@ class ExerciseItemControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = "ADMIN_PERMISSION_CATALOG_MANAGE")
     void addExerciseItem_whenRequiredFieldsMissing_returnsBadRequest() throws Exception {
         ExerciseItemDto request = new ExerciseItemDto();
 
@@ -216,7 +214,7 @@ class ExerciseItemControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = "ADMIN_PERMISSION_CATALOG_MANAGE")
     void deleteExerciseItem_whenAdmin_returnsNoContent() throws Exception {
         doNothing().when(exerciseItemService).deleteItem(1L);
 

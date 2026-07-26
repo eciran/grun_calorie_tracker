@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,4 +52,12 @@ public interface RecipeRepository extends JpaRepository<RecipeEntity, Long>, Jpa
                   )
             """)
     Optional<RecipeEntity> findAccessibleRecipe(@Param("id") Long id, @Param("user") UserEntity user);
+
+    long countByArchivedFalse();
+    long countByVerificationStatusAndArchivedFalse(VerificationStatus status);
+
+    @Query("select count(r) from RecipeEntity r where r.archived = false and (r.imageStatus is null or r.imageStatus <> com.grun.calorietracker.enums.ImageStatus.APPROVED)")
+    long countMissingApprovedMedia();
+
+    long countByReviewDueAtBeforeAndArchivedFalse(LocalDateTime cutoff);
 }
