@@ -54,7 +54,10 @@ public class DailySummaryDto {
     @Schema(description = "Consumed carbohydrates as percentage of target carbohydrates.", example = "53.85")
     private Double carbsProgressPercent;
 
-    @Schema(description = "Micronutrients consumed on the summary date. Null means no micronutrient data was available.")
+    @Schema(description = "Whether the current subscription can view dashboard micronutrient details.", example = "true")
+    private Boolean micronutrientDetailsAvailable;
+
+    @Schema(description = "Micronutrients consumed on the summary date. Null means access is unavailable or no micronutrient data was recorded.")
     private MicronutrientTotalsDto consumedMicros;
 
     @Schema(description = "Default daily micronutrient targets used by the dashboard quality model.")
