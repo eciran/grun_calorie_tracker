@@ -15,10 +15,19 @@ public class StepGoalDto {
     @Schema(description = "Whether step reminder notifications are enabled.", example = "true")
     private Boolean reminderEnabled;
 
-    @Schema(description = "Local time when the system should check whether a step reminder is needed.", example = "20:00")
+    @Schema(description = "Legacy single reminder time retained for backward compatibility.", example = "20:00")
     private LocalTime reminderTime;
 
-    @Schema(description = "Reminder is sent only when progress is below this percent at reminder time.", example = "70")
+    @Schema(description = "Minutes between step reminders during active hours.", example = "120")
+    private Integer reminderIntervalMinutes;
+
+    @Schema(description = "Local time when recurring step reminders become active.", example = "09:00")
+    private LocalTime reminderStartTime;
+
+    @Schema(description = "Local time when recurring step reminders stop.", example = "21:00")
+    private LocalTime reminderEndTime;
+
+    @Schema(description = "Legacy reminder threshold retained for backward compatibility.", example = "70")
     private Integer reminderThresholdPercent;
 
     @Schema(description = "Last step reminder notification creation time in user's local time.")

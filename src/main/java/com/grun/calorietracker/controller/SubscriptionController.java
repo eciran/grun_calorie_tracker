@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -44,7 +45,9 @@ public class SubscriptionController {
     })
     public ResponseEntity<SubscriptionDto> getCurrentSubscription(
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(subscriptionService.getCurrentSubscription(userDetails.getUsername()));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(subscriptionService.getCurrentSubscription(userDetails.getUsername()));
     }
 
     @GetMapping("/me/features")
@@ -60,7 +63,9 @@ public class SubscriptionController {
     })
     public ResponseEntity<SubscriptionFeatureAccessDto> getFeatureAccess(
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(subscriptionService.getFeatureAccess(userDetails.getUsername()));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(subscriptionService.getFeatureAccess(userDetails.getUsername()));
     }
 
     @GetMapping("/plans/features")
@@ -74,6 +79,8 @@ public class SubscriptionController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<List<SubscriptionPlanFeatureDto>> getPlanFeatureCatalog() {
-        return ResponseEntity.ok(subscriptionService.listPlanFeatures());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(subscriptionService.listPlanFeatures());
     }
 }

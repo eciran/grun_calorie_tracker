@@ -163,8 +163,9 @@ class FoodLogsControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Invalid request"))
-                .andExpect(jsonPath("$.message").value("Malformed JSON request. Check date/time formats and field types."))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Invalid request"))
                 .andExpect(jsonPath("$.path").value("/api/v1/food-logs/quick-calorie"));
     }
 
@@ -201,7 +202,8 @@ class FoodLogsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.path").value("/api/v1/food-logs"));
     }
 

@@ -180,13 +180,28 @@ class SubscriptionServiceImplTest {
         assertEquals(SubscriptionPlan.PLUS, result.getPlanType());
         assertEquals(true, result.getAiWorkoutPlanner());
         assertEquals(true, result.getHealthIntegration());
-        assertEquals(true, result.getAdvancedAnalytics());
+        assertEquals(true, result.getNextMealSuggestions());
+        assertEquals(true, result.getRecipeBuilder());
+        assertEquals(true, result.getPublicRecipeLibrary());
+        assertEquals(false, result.getAdvancedAnalytics());
         assertEquals(true, result.getAdFree());
         assertEquals(true, result.getCustomFoodLibrary());
         assertEquals(3, result.getAiInsightsCreditCost());
         assertEquals(3, result.getAiCreditCosts().get(SubscriptionFeature.AI_INSIGHTS));
         assertEquals(1, result.getAiCreditCosts().get(SubscriptionFeature.AI_WORKOUT_PLANNER));
         assertEquals(10, result.getAiRemainingThisPeriod());
+    }
+    @Test
+    void getFeatureAccess_whenProPlan_enablesAdvancedAnalytics() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 0);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        var result = service.getFeatureAccess("user@example.com");
+
+        assertEquals(SubscriptionPlan.PRO, result.getPlanType());
+        assertEquals(true, result.getAdvancedAnalytics());
     }
 
     @Test
@@ -202,6 +217,7 @@ class SubscriptionServiceImplTest {
 
         assertEquals(SubscriptionPlan.FREE, result.getPlanType());
         assertEquals(false, result.getAiRecipeGeneration());
+        assertEquals(false, result.getNextMealSuggestions());
         assertEquals(0, result.getAiRemainingThisPeriod());
     }
 
@@ -213,6 +229,27 @@ class SubscriptionServiceImplTest {
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
         assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.AD_FREE));
+    }
+
+    @Test
+    void hasFeatureAccess_whenNextMealSuggestionsOnFreePlan_returnsFalse() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
+    }
+
+    @Test
+    void hasFeatureAccess_onFreePlan_allowsRecipeBuilderButRestrictsPublicLibrary() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.RECIPE_BUILDER));
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.PUBLIC_RECIPE_LIBRARY));
     }
 
     @Test
@@ -588,6 +625,22 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void updateUserSubscription_whenActivePaidPlanAlreadyExpired_throwsIllegalArgumentException() {
+        AdminSubscriptionUpdateRequestDto request = new AdminSubscriptionUpdateRequestDto();
+        request.setPlanType(SubscriptionPlan.PRO);
+        request.setStatus(SubscriptionStatus.ACTIVE);
+        request.setBillingPeriod(BillingPeriod.MONTHLY);
+        request.setStartDate(java.time.LocalDate.now().minusMonths(1));
+        request.setEndDate(java.time.LocalDate.now().minusDays(1));
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.updateUserSubscription(1L, request)
+        );
+
+        assertEquals("An active paid subscription end date must be today or later.", exception.getMessage());
+    }
+    @Test
     void updateUserSubscription_whenAiUsageExceedsQuota_throwsIllegalArgumentException() {
         AdminSubscriptionUpdateRequestDto request = new AdminSubscriptionUpdateRequestDto();
         request.setPlanType(SubscriptionPlan.PLUS);
@@ -654,6 +707,7 @@ class SubscriptionServiceImplTest {
         var result = service.getFeatureAccess("user@example.com");
 
         assertEquals(true, result.getHealthIntegration());
+        assertEquals(true, result.getNextMealSuggestions());
         verify(userSubscriptionEntitlementRepository, never()).existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), eq(SubscriptionPlan.PLUS), any());
     }
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {

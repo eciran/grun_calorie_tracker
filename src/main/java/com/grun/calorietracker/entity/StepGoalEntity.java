@@ -44,6 +44,15 @@ public class StepGoalEntity {
     @Column(name = "reminder_time", nullable = false)
     private LocalTime reminderTime = LocalTime.of(20, 0);
 
+    @Column(name = "reminder_interval_minutes", nullable = false)
+    private Integer reminderIntervalMinutes = 120;
+
+    @Column(name = "reminder_start_time", nullable = false)
+    private LocalTime reminderStartTime = LocalTime.of(9, 0);
+
+    @Column(name = "reminder_end_time", nullable = false)
+    private LocalTime reminderEndTime = LocalTime.of(21, 0);
+
     @Column(name = "reminder_threshold_percent", nullable = false)
     private Integer reminderThresholdPercent = 70;
 

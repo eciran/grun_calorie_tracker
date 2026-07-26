@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.enums.NotificationCampaignStatus;
 import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,11 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        name = "grun.notifications.campaign-dispatch-enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class NotificationCampaignDispatchService {
     private final NotificationCampaignRepository campaignRepository;
     private final NotificationCampaignBatchProcessor batchProcessor;

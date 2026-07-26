@@ -12,6 +12,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserSubscriptionEntitlementEntity;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.PaymentProvider;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
@@ -112,6 +113,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             case SAVED_MEAL_TEMPLATES -> Boolean.TRUE.equals(access.getSavedMealTemplates());
             case RECIPE_BUILDER -> Boolean.TRUE.equals(access.getRecipeBuilder());
             case PUBLIC_RECIPE_LIBRARY -> Boolean.TRUE.equals(access.getPublicRecipeLibrary());
+            case NEXT_MEAL_SUGGESTIONS -> Boolean.TRUE.equals(access.getNextMealSuggestions());
             case ADVANCED_MACRO_TARGETS -> Boolean.TRUE.equals(access.getAdvancedMacroTargets());
             case MICRONUTRIENT_DETAILS -> Boolean.TRUE.equals(access.getMicronutrientDetails());
             case DATA_EXPORT -> Boolean.TRUE.equals(access.getDataExport());
@@ -369,6 +371,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Transactional
     public SubscriptionDto updateUserSubscription(Long userId, AdminSubscriptionUpdateRequestDto request) {
         validateDateRange(request.getStartDate(), request.getEndDate());
+        validateActivePaidSubscriptionDates(request);
 
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -477,6 +480,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setSavedMealTemplates(featureAllowed(subscription, entity, SubscriptionFeature.SAVED_MEAL_TEMPLATES));
         dto.setRecipeBuilder(featureAllowed(subscription, entity, SubscriptionFeature.RECIPE_BUILDER));
         dto.setPublicRecipeLibrary(featureAllowed(subscription, entity, SubscriptionFeature.PUBLIC_RECIPE_LIBRARY));
+        dto.setNextMealSuggestions(featureAllowed(subscription, entity, SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
         dto.setAdvancedMacroTargets(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_MACRO_TARGETS));
         dto.setMicronutrientDetails(featureAllowed(subscription, entity, SubscriptionFeature.MICRONUTRIENT_DETAILS));
         dto.setDataExport(featureAllowed(subscription, entity, SubscriptionFeature.DATA_EXPORT));
@@ -544,6 +548,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
+        if (feature == SubscriptionFeature.ADVANCED_ANALYTICS) {
+            return planType == SubscriptionPlan.PRO;
+        }
+        if (feature == SubscriptionFeature.NEXT_MEAL_SUGGESTIONS) {
+            return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
+        }
+        if (feature == SubscriptionFeature.PUBLIC_RECIPE_LIBRARY) {
+            return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
+        }
         if (feature == SubscriptionFeature.AD_FREE
                 || feature == SubscriptionFeature.BARCODE_SCANNER
                 || feature == SubscriptionFeature.MANUAL_FOOD_LOGGING
@@ -553,7 +566,6 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 || feature == SubscriptionFeature.WORKOUT_LOGGING
                 || feature == SubscriptionFeature.SAVED_MEAL_TEMPLATES
                 || feature == SubscriptionFeature.RECIPE_BUILDER
-                || feature == SubscriptionFeature.PUBLIC_RECIPE_LIBRARY
                 || feature == SubscriptionFeature.FASTING_BASIC
                 || feature == SubscriptionFeature.CUSTOM_FOOD_LIBRARY) {
             return true;
@@ -635,13 +647,17 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             if (user == null || user.getId() == null || !notifiedUserIds.add(user.getId())) {
                 continue;
             }
-            String message = "%s is changing for %s. Your current access remains active until your current subscription period ends."
-                    .formatted(feature.name(), planType.name());
+            boolean turkish = user.getPreferredLanguage() == PreferredLanguage.TR;
+            String message = turkish
+                    ? "%s planÃ„Â±ndaki bir ÃƒÂ¶zellik deÃ„Å¸iÃ…Å¸iyor. Mevcut eriÃ…Å¸imin, ÃƒÂ¼yelik dÃƒÂ¶nemin sona erene kadar devam edecek."
+                        .formatted(planType.name())
+                    : "%s is changing for %s. Your current access remains active until your current subscription period ends."
+                        .formatted(feature.name(), planType.name());
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(user);
             notification.setMessage(message);
             notification.setType("subscription");
-            notification.setTitle("A heads-up about your plan");
+            notification.setTitle(turkish ? "PlanÃ„Â±nla ilgili bir bilgilendirme" : "A heads-up about your plan");
             notification.setSeverity("INFO");
             notification.setSource("SUBSCRIPTION_UPDATE");
             notification.setTargetType("SUBSCRIPTION_FEATURE");
@@ -811,6 +827,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
     }
 
+    private void validateActivePaidSubscriptionDates(AdminSubscriptionUpdateRequestDto request) {
+        boolean activePaidPlan = request.getPlanType() != SubscriptionPlan.FREE
+                && (request.getStatus() == SubscriptionStatus.ACTIVE
+                || request.getStatus() == SubscriptionStatus.TRIALING);
+        if (activePaidPlan && request.getEndDate() != null && request.getEndDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("An active paid subscription end date must be today or later.");
+        }
+    }
     private void validateQuotaUsage(int quota, int used) {
         if (used > quota) {
             throw new IllegalArgumentException("AI usage must not exceed AI monthly quota.");

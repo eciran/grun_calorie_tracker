@@ -16,6 +16,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FastingPlanType;
 import com.grun.calorietracker.enums.FastingSessionStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FastingPlanRepository;
@@ -52,12 +53,19 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private static final int DEFAULT_FASTING_HOURS = 16;
     private static final int DEFAULT_EATING_WINDOW_HOURS = 8;
     private static final String FASTING_REMINDER_TYPE = "fasting_reminder";
-    private static final List<ReminderCopy> FASTING_REMINDER_COPY = List.of(
+    private static final List<ReminderCopy> FASTING_REMINDER_COPY_EN = List.of(
             new ReminderCopy("Almost at the finish line", "Your fasting window is nearly complete. Nicely done."),
             new ReminderCopy("The countdown is on", "Not long now. Your eating window is just around the corner."),
             new ReminderCopy("Strong finish", "You are close to completing your fast. Keep cruising."),
             new ReminderCopy("Nearly there", "Your fasting timer says you are doing great."),
             new ReminderCopy("Final stretch", "A little more patience, then it is time to wrap up your fast.")
+    );
+    private static final List<ReminderCopy> FASTING_REMINDER_COPY_TR = List.of(
+            new ReminderCopy("Hedefe çok az kaldı", "Oruç süren neredeyse tamamlandı. Harika gidiyorsun."),
+            new ReminderCopy("Geri sayım başladı", "Yemek pencerene çok az kaldı."),
+            new ReminderCopy("Güçlü bir final", "Orucunu tamamlamaya yaklaştın. Böyle devam et."),
+            new ReminderCopy("Neredeyse tamam", "Oruç zamanlayıcın harika ilerlediğini söylüyor."),
+            new ReminderCopy("Son düzlük", "Biraz daha sabır; oruç süren yakında tamamlanacak.")
     );
     private static final int DEFAULT_SESSION_PAGE_SIZE = 20;
     private static final int MAX_SESSION_PAGE_SIZE = 100;
@@ -293,7 +301,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
                 .toList();
         dueSessions.forEach(session -> {
             LocalDateTime userNow = userTimeZoneSupport.now(session.getUser());
-            ReminderCopy copy = randomCopy(FASTING_REMINDER_COPY);
+            ReminderCopy copy = randomCopy(reminderCopyFor(session.getUser().getPreferredLanguage()));
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(session.getUser());
             notification.setType(FASTING_REMINDER_TYPE);
@@ -317,6 +325,10 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
 
     private ReminderCopy randomCopy(List<ReminderCopy> options) {
         return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private List<ReminderCopy> reminderCopyFor(PreferredLanguage language) {
+        return language == PreferredLanguage.TR ? FASTING_REMINDER_COPY_TR : FASTING_REMINDER_COPY_EN;
     }
 
     private record ReminderCopy(String title, String message) {}

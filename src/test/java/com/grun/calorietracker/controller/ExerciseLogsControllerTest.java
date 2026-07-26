@@ -99,7 +99,8 @@ class ExerciseLogsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.path").value("/api/v1/exercise-logs"));
     }
 
@@ -225,7 +226,8 @@ class ExerciseLogsControllerTest {
                         .param("start", "2025-01-01")
                         .param("end", "2026-06-01"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Exercise date range must not exceed 366 days."));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Invalid request"));
     }
 }
 

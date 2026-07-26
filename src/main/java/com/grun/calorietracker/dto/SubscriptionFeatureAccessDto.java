@@ -23,6 +23,7 @@ public class SubscriptionFeatureAccessDto {
     private Boolean savedMealTemplates;
     private Boolean recipeBuilder;
     private Boolean publicRecipeLibrary;
+    private Boolean nextMealSuggestions;
     private Boolean advancedMacroTargets;
     private Boolean micronutrientDetails;
     private Boolean dataExport;
