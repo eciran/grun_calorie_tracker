@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiRecipeDraftConfirmRequestDto;
+import com.grun.calorietracker.dto.AiMealDraftRejectRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -49,8 +51,10 @@ public class AiRecipeDraftController {
     })
     public ResponseEntity<AiRecipeDraftResponseDto> generateRecipeDraft(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AiRecipeDraftRequestDto request) {
-        return ResponseEntity.ok(aiRecipeDraftService.createRecipeDraft(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiRecipeDraftService.createRecipeDraft(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping("/{requestId}/confirm")
@@ -71,5 +75,17 @@ public class AiRecipeDraftController {
             @Parameter(description = "AI recipe request id returned by generation.", example = "10") @PathVariable Long requestId,
             @RequestBody @Valid AiRecipeDraftConfirmRequestDto request) {
         return ResponseEntity.ok(aiRecipeDraftService.confirmRecipeDraft(userDetails.getUsername(), requestId, request));
+    }
+    @PostMapping("/{requestId}/reject")
+    @Operation(
+            summary = "Reject an AI recipe draft",
+            description = "Closes a recipe draft without persisting it. Optional feedback is retained for quality review."
+    )
+    public ResponseEntity<Void> rejectRecipeDraft(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long requestId,
+            @RequestBody(required = false) AiMealDraftRejectRequestDto request) {
+        aiRecipeDraftService.rejectRecipeDraft(userDetails.getUsername(), requestId, request);
+        return ResponseEntity.noContent().build();
     }
 }

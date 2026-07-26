@@ -1,16 +1,21 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.CountryCode;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.WeeklyWorkoutFrequency;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class GdprDataExportDto {
     private LocalDateTime exportedAt;
@@ -18,6 +23,8 @@ public class GdprDataExportDto {
     private String name;
     private UserRole role;
     private MarketRegion marketRegion;
+    private LocalDate birthDate;
+    private CountryCode countryCode;
     private PreferredLanguage preferredLanguage;
     private String timeZone;
     private Boolean emailVerified;
@@ -32,6 +39,7 @@ public class GdprDataExportDto {
     private Long mealTemplateCount;
     private Long favoriteCount;
     private Long healthMetricCount;
+    private Long sleepSessionCount;
     private Long consentCount;
     private Long aiRequestCount;
     private Long waterLogCount;
@@ -44,6 +52,7 @@ public class GdprDataExportDto {
     private Long productAnalyticsEventCount;
     private SubscriptionSnapshotDto subscription;
     private UserNutritionPreferenceDto nutritionPreferences;
+    private FitnessPreferenceExportDto fitnessPreferences;
     private List<LinkedIdentityDto> linkedIdentities;
     private List<ConsentExportDto> consents;
     private List<FoodLogExportDto> foodLogs;
@@ -58,6 +67,8 @@ public class GdprDataExportDto {
     private List<FavoriteFoodExportDto> favoriteFoods;
     private List<HealthConnectionExportDto> healthConnections;
     private List<HealthMetricExportDto> healthMetrics;
+    private SleepGoalExportDto sleepGoal;
+    private List<SleepSessionExportDto> sleepSessions;
     private List<NotificationExportDto> notifications;
     private List<AiRequestExportDto> aiRequests;
     private List<RecipeLogExportDto> recipeLogs;
@@ -67,6 +78,12 @@ public class GdprDataExportDto {
     private List<ProductAnalyticsEventExportDto> productAnalyticsEvents;
     private List<SubscriptionEventExportDto> subscriptionEvents;
 
+    @Data
+    @AllArgsConstructor
+    public static class FitnessPreferenceExportDto {
+        private WeeklyWorkoutFrequency weeklyWorkoutFrequency;
+        private LocalDateTime updatedAt;
+    }
     @Data
     @AllArgsConstructor
     public static class SubscriptionSnapshotDto {
@@ -278,6 +295,30 @@ public class GdprDataExportDto {
         private Double distanceMeters;
         private LocalDateTime recordedAt;
         private String source;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SleepGoalExportDto {
+        private Integer targetMinutes;
+        private String preferredBedtime;
+        private String preferredWakeTime;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SleepSessionExportDto {
+        private Long id;
+        private Instant startedAt;
+        private Instant endedAt;
+        private LocalDate sleepDate;
+        private Integer durationMinutes;
+        private String timeZone;
+        private String provider;
+        private String externalId;
+        private Integer qualityScore;
+        private String qualityConfidence;
+        private String note;
     }
 
     @Data

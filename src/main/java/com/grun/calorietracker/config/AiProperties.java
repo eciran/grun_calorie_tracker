@@ -12,7 +12,7 @@ public class AiProperties {
     private boolean enabled = false;
     private AiProvider provider = AiProvider.DISABLED;
     private String model = "not-configured";
-    private String promptVersion = "ai-prompt-v1";
+    private String promptVersion = "ai-prompt-v2";
     private int maxHistoryLimit = 30;
     private Safety safety = new Safety();
     private Photo photo = new Photo();
@@ -38,6 +38,8 @@ public class AiProperties {
         private long cleanupIntervalMs = 3_600_000;
         private String storageDirectory = "storage/ai-meal-photos";
         private String publicBaseUrl = "https://api.grun.app";
+        private boolean alternativeSnapshotsEnabled = false;
+        private int maxAlternativeSnapshots = 2;
     }
 
     @Data

@@ -12,7 +12,7 @@ import java.util.List;
 public class AppStartupDto {
 
     @Schema(description = "Authenticated user profile.")
-    private UserProfileDto profile;
+    private MyProfileDto profile;
 
     @Schema(description = "Current saved goal. Null when the user has not completed goal setup.")
     private UserGoalDto goal;
@@ -25,6 +25,9 @@ public class AppStartupDto {
 
     @Schema(description = "Whether onboarding is complete enough for the main tracking flow.", example = "true")
     private boolean onboardingCompleted;
+
+    @Schema(description = "Resumable onboarding draft and current step.")
+    private OnboardingStateDto onboardingState;
 
     @Schema(description = "Whether the user's email address is verified.", example = "false")
     private boolean emailVerified;

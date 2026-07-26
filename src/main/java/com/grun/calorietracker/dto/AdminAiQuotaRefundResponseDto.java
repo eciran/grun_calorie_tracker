@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 
 import java.time.LocalDateTime;
 
@@ -18,5 +19,9 @@ public class AdminAiQuotaRefundResponseDto {
     private String quotaRefundReason;
     private String quotaRefundedBy;
     private LocalDateTime quotaRefundedAt;
+    private AiQuotaRefundDecision quotaRefundDecision;
+    private String quotaRefundDecisionReason;
+    private String quotaRefundDecidedBy;
+    private LocalDateTime quotaRefundDecidedAt;
     private SubscriptionDto subscription;
 }

@@ -36,9 +36,10 @@ class AiInsightControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void dailyInsight_returnsControlledInsight() throws Exception {
-        when(aiInsightService.createDailyInsight(eq("user@example.com"), any())).thenReturn(response(AiRequestType.AI_DAILY_INSIGHT));
+        when(aiInsightService.createDailyInsight(eq("user@example.com"), eq("daily-request-123"), any())).thenReturn(response(AiRequestType.AI_DAILY_INSIGHT));
 
         mockMvc.perform(post("/api/v1/ai/insights/daily")
+                        .header("Idempotency-Key", "daily-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -55,9 +56,10 @@ class AiInsightControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void weeklyInsight_returnsControlledInsight() throws Exception {
-        when(aiInsightService.createWeeklyInsight(eq("user@example.com"), any())).thenReturn(response(AiRequestType.AI_WEEKLY_INSIGHT));
+        when(aiInsightService.createWeeklyInsight(eq("user@example.com"), eq("weekly-request-123"), any())).thenReturn(response(AiRequestType.AI_WEEKLY_INSIGHT));
 
         mockMvc.perform(post("/api/v1/ai/insights/weekly")
+                        .header("Idempotency-Key", "weekly-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

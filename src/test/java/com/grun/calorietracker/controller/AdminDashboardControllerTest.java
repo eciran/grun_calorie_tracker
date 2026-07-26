@@ -30,29 +30,36 @@ class AdminDashboardControllerTest {
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void getSummary_whenAdmin_returnsDashboardMetrics() throws Exception {
-        AdminDashboardSummaryDto summary = new AdminDashboardSummaryDto(
-                10,
-                7,
-                2,
-                1,
-                100,
-                60,
-                25,
-                10,
-                5,
-                35,
-                4,
-                2,
-                3,
-                1,                6,
-                8,
-                12,
-                50,
-                30,
-                12,
-                3,
-                Map.of("WRONG_PORTION", 7L, "LOW_CONFIDENCE", 5L)
-        );
+        AdminDashboardSummaryDto summary = new AdminDashboardSummaryDto();
+        summary.setTotalUsers(10);
+        summary.setStandardUsers(7);
+        summary.setProUsers(2);
+        summary.setAdminUsers(1);
+        summary.setTotalProducts(100);
+        summary.setVerifiedProducts(60);
+        summary.setRawImportedProducts(25);
+        summary.setNeedsReviewProducts(10);
+        summary.setRejectedProducts(5);
+        summary.setReviewQueueProducts(35);
+        summary.setPendingRecipeApprovals(4);
+        summary.setPendingRecipeImportCandidates(2);
+        summary.setOpenRecipeReports(3);
+        summary.setOpenProductCorrectionSuggestions(5);
+        summary.setOpenProductQualitySuggestions(6);
+        summary.setRefundableAiRequests(7);
+        summary.setTotalAdminApprovalItems(62);
+        summary.setActivePlusSubscriptions(4);
+        summary.setActiveProSubscriptions(2);
+        summary.setCanceledSubscriptions(3);
+        summary.setRefundedSubscriptions(1);
+        summary.setAiQuotaExhaustedSubscriptions(6);
+        summary.setFailedSubscriptionProviderEvents(8);
+        summary.setSubscriptionProviderEventsLast24Hours(12);
+        summary.setAiRequestsLast7Days(50);
+        summary.setAiConfirmedLast7Days(30);
+        summary.setAiRejectedLast7Days(12);
+        summary.setAiFailedLast7Days(3);
+        summary.setAiRejectionReasonsLast7Days(Map.of("WRONG_PORTION", 7L, "LOW_CONFIDENCE", 5L));
 
         when(adminDashboardService.getSummary()).thenReturn(summary);
 
@@ -68,7 +75,13 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.needsReviewProducts").value(10))
                 .andExpect(jsonPath("$.rejectedProducts").value(5))
                 .andExpect(jsonPath("$.reviewQueueProducts").value(35))
-                .andExpect(jsonPath("$.activePlusSubscriptions").value(4))
+                .andExpect(jsonPath("$.pendingRecipeApprovals").value(4))
+                .andExpect(jsonPath("$.pendingRecipeImportCandidates").value(2))
+                .andExpect(jsonPath("$.openRecipeReports").value(3))
+                .andExpect(jsonPath("$.openProductCorrectionSuggestions").value(5))
+                .andExpect(jsonPath("$.openProductQualitySuggestions").value(6))
+                .andExpect(jsonPath("$.refundableAiRequests").value(7))
+                .andExpect(jsonPath("$.totalAdminApprovalItems").value(62))                .andExpect(jsonPath("$.activePlusSubscriptions").value(4))
                 .andExpect(jsonPath("$.activeProSubscriptions").value(2))
                 .andExpect(jsonPath("$.failedSubscriptionProviderEvents").value(8))
                 .andExpect(jsonPath("$.subscriptionProviderEventsLast24Hours").value(12))

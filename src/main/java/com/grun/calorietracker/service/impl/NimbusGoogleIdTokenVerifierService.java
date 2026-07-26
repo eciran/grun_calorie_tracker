@@ -58,7 +58,7 @@ public class NimbusGoogleIdTokenVerifierService implements GoogleIdTokenVerifier
             throw new InvalidCredentialsException("Google account identity is incomplete or unverified");
         }
 
-        return new VerifiedGoogleIdentityDto(subject, email, trimToNull(jwt.getClaimAsString("name")), true);
+        return new VerifiedGoogleIdentityDto(subject, email, trimToNull(jwt.getClaimAsString("name")), true, jwt.getIssuedAt());
     }
 
     private String trimToNull(String value) {

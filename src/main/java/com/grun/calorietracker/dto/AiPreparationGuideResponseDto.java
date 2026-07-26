@@ -43,6 +43,7 @@ public class AiPreparationGuideResponseDto implements AiUsageMetadataCarrier {
     private String estimatedUncertainty;
     private Integer creditCost;
     private Integer aiRemainingThisPeriod;
+    private AiUxContractDto ux;
     private LocalDateTime createdAt;
     @JsonIgnore private Integer promptTokens;
     @JsonIgnore private Integer completionTokens;

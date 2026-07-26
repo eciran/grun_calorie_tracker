@@ -167,7 +167,9 @@ class ExerciseItemControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("Duplicate exercise item"));
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.code").value("DUPLICATE_EXERCISE_ITEM"))
+                .andExpect(jsonPath("$.message").value("Duplicate exercise item"));
     }
 
     @Test
@@ -179,7 +181,8 @@ class ExerciseItemControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.path").value("/api/v1/exercise-items"));
     }
 
@@ -189,7 +192,8 @@ class ExerciseItemControllerTest {
         mockMvc.perform(get("/api/v1/exercise-items")
                         .param("size", "101"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.path").value("/api/v1/exercise-items"));
     }
 

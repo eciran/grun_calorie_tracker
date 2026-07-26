@@ -121,7 +121,9 @@ class WaterTrackingControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"));
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Validation error"));
     }
 
     @Test
@@ -263,7 +265,9 @@ class WaterTrackingControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"));
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Validation error"));
     }
 
     private WaterReminderSettingsDto reminderSettingsResponse() {

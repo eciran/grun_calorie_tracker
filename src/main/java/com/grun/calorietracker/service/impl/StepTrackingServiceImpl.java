@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.StepGoalEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.HealthProvider;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.DuplicateManualStepLogException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +46,20 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MAX_DAILY_TOTAL_STEPS = 120000;
     private static final String STEP_REMINDER_TYPE = "step_reminder";
-    private static final String STEP_REMINDER_MESSAGE = "You are below your step target. A short walk can help you close the gap.";
+    private static final List<ReminderCopy> STEP_REMINDER_COPY_EN = List.of(
+            new ReminderCopy("Tiny walk, big mood", "A short walk could be the plot twist your day needs."),
+            new ReminderCopy("Your steps are waiting", "Stretch those legs and give your step count a little boost."),
+            new ReminderCopy("A few steps closer", "No marathon required. A quick stroll still counts."),
+            new ReminderCopy("Walk this way", "Your goal is within walking distance. Literally."),
+            new ReminderCopy("Movement snack?", "Take five, take a walk, come back refreshed.")
+    );
+    private static final List<ReminderCopy> STEP_REMINDER_COPY_TR = List.of(
+            new ReminderCopy("Kısa yürüyüş, büyük enerji", "Kısa bir yürüyüş gününe iyi gelebilir."),
+            new ReminderCopy("Adımların seni bekliyor", "Biraz hareket ederek adım sayını yükselt."),
+            new ReminderCopy("Hedefine birkaç adım daha", "Maraton gerekmiyor; kısa bir yürüyüş de sayılır."),
+            new ReminderCopy("Biraz yürüyüş zamanı", "Hedefin düşündüğünden daha yakın olabilir."),
+            new ReminderCopy("Hareket molası", "Beş dakika ayır, biraz yürü ve yenilen.")
+    );
 
     private final UserRepository userRepository;
     private final StepGoalRepository stepGoalRepository;
@@ -77,8 +92,21 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         if (request.getReminderTime() != null) {
             goal.setReminderTime(request.getReminderTime());
         }
+        if (request.getReminderIntervalMinutes() != null) {
+            goal.setReminderIntervalMinutes(request.getReminderIntervalMinutes());
+        }
+        if (request.getReminderStartTime() != null) {
+            goal.setReminderStartTime(request.getReminderStartTime());
+        }
+        if (request.getReminderEndTime() != null) {
+            goal.setReminderEndTime(request.getReminderEndTime());
+        }
         if (request.getReminderThresholdPercent() != null) {
             goal.setReminderThresholdPercent(request.getReminderThresholdPercent());
+        }
+        validateReminderSchedule(goal);
+        if (!Boolean.TRUE.equals(goal.getReminderEnabled())) {
+            goal.setLastReminderAt(null);
         }
         return toGoalDto(stepGoalRepository.save(goal));
     }
@@ -186,10 +214,17 @@ public class StepTrackingServiceImpl implements StepTrackingService {
 
         dueGoals.forEach(goal -> {
             LocalDateTime userNow = userTimeZoneSupport.now(goal.getUser());
+            ReminderCopy copy = randomCopy(reminderCopyFor(goal.getUser().getPreferredLanguage()));
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(goal.getUser());
             notification.setType(STEP_REMINDER_TYPE);
-            notification.setMessage(STEP_REMINDER_MESSAGE);
+            notification.setTitle(copy.title());
+            notification.setMessage(copy.message());
+            notification.setSeverity("INFO");
+            notification.setSource("STEP_REMINDER");
+            notification.setTargetType("STEP_TRACKING");
+            notification.setTargetRoute("steps");
+            notification.setPrimaryAction("VIEW_STEPS");
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
             NotificationEntity saved = notificationRepository.save(notification);
@@ -199,6 +234,16 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         stepGoalRepository.saveAll(dueGoals);
         return dueGoals.size();
     }
+
+    private ReminderCopy randomCopy(List<ReminderCopy> options) {
+        return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private List<ReminderCopy> reminderCopyFor(PreferredLanguage language) {
+        return language == PreferredLanguage.TR ? STEP_REMINDER_COPY_TR : STEP_REMINDER_COPY_EN;
+    }
+
+    private record ReminderCopy(String title, String message) {}
 
     private StepManualLogResponseDto toManualLogResponse(DeviceDataEntity entity) {
         return new StepManualLogResponseDto(
@@ -357,6 +402,9 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         goal.setTargetSteps(DEFAULT_TARGET_STEPS);
         goal.setReminderEnabled(false);
         goal.setReminderTime(java.time.LocalTime.of(20, 0));
+        goal.setReminderIntervalMinutes(120);
+        goal.setReminderStartTime(java.time.LocalTime.of(9, 0));
+        goal.setReminderEndTime(java.time.LocalTime.of(21, 0));
         goal.setReminderThresholdPercent(70);
         return goal;
     }
@@ -366,6 +414,9 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         dto.setTargetSteps(entity.getTargetSteps());
         dto.setReminderEnabled(entity.getReminderEnabled());
         dto.setReminderTime(entity.getReminderTime());
+        dto.setReminderIntervalMinutes(entity.getReminderIntervalMinutes());
+        dto.setReminderStartTime(entity.getReminderStartTime());
+        dto.setReminderEndTime(entity.getReminderEndTime());
         dto.setReminderThresholdPercent(entity.getReminderThresholdPercent());
         dto.setLastReminderAt(entity.getLastReminderAt());
         return dto;
@@ -424,6 +475,19 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         return LocalDateTime.parse(value.toString().replace(' ', 'T'));
     }
 
+    private void validateReminderSchedule(StepGoalEntity goal) {
+        if (goal.getReminderIntervalMinutes() == null
+                || goal.getReminderIntervalMinutes() < 30
+                || goal.getReminderIntervalMinutes() > 180) {
+            throw new IllegalArgumentException("Step reminder interval must be between 30 and 180 minutes.");
+        }
+        if (goal.getReminderStartTime() == null
+                || goal.getReminderEndTime() == null
+                || !goal.getReminderStartTime().isBefore(goal.getReminderEndTime())) {
+            throw new IllegalArgumentException("Step reminder startTime must be before endTime.");
+        }
+    }
+
     private boolean isReminderDue(StepGoalEntity goal) {
         UserEntity user = goal.getUser();
         if (user == null
@@ -432,15 +496,22 @@ public class StepTrackingServiceImpl implements StepTrackingService {
             return false;
         }
         LocalDateTime userNow = userTimeZoneSupport.now(user);
-        if (goal.getReminderTime() != null && userNow.toLocalTime().isBefore(goal.getReminderTime())) {
+        java.time.LocalTime startTime = goal.getReminderStartTime() == null
+                ? java.time.LocalTime.of(9, 0)
+                : goal.getReminderStartTime();
+        java.time.LocalTime endTime = goal.getReminderEndTime() == null
+                ? java.time.LocalTime.of(21, 0)
+                : goal.getReminderEndTime();
+        if (userNow.toLocalTime().isBefore(startTime) || !userNow.toLocalTime().isBefore(endTime)) {
             return false;
         }
-        if (goal.getLastReminderAt() != null && goal.getLastReminderAt().toLocalDate().equals(userNow.toLocalDate())) {
+        int intervalMinutes = goal.getReminderIntervalMinutes() == null ? 120 : goal.getReminderIntervalMinutes();
+        if (goal.getLastReminderAt() != null
+                && goal.getLastReminderAt().plusMinutes(intervalMinutes).isAfter(userNow)) {
             return false;
         }
         StepDailySummaryDto summary = buildDailySummary(user, userNow.toLocalDate(), getTargetSteps(user), false);
-        int threshold = goal.getReminderThresholdPercent() == null ? 70 : goal.getReminderThresholdPercent();
-        return summary.getProgressPercent() < threshold;
+        return !Boolean.TRUE.equals(summary.getTargetReached());
     }
 
     private record DailyStepAggregate(

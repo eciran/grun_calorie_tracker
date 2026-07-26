@@ -14,6 +14,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.entity.WaterReminderSettingsEntity;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -35,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,7 +44,20 @@ import java.util.stream.Collectors;
 public class WaterTrackingServiceImpl implements WaterTrackingService {
 
     private static final String WATER_REMINDER_TYPE = "water_reminder";
-    private static final String WATER_REMINDER_MESSAGE = "Time to drink water.";
+    private static final List<ReminderCopy> WATER_REMINDER_COPY_EN = List.of(
+            new ReminderCopy("Tiny sip, big win", "Your water bottle called. It misses you."),
+            new ReminderCopy("Hydration check-in", "A few sips now, future you says thanks."),
+            new ReminderCopy("Plot twist: you need water", "Coffee has a sidekick. It is called water."),
+            new ReminderCopy("Sip happens", "Take a quick water break. You have earned it."),
+            new ReminderCopy("Keep the good stuff flowing", "A little hydration goes a long way.")
+    );
+    private static final List<ReminderCopy> WATER_REMINDER_COPY_TR = List.of(
+            new ReminderCopy("Bir yudum, büyük fark", "Su şişen seni özledi. Birkaç yuduma ne dersin?"),
+            new ReminderCopy("Su molası zamanı", "Şimdi birkaç yudum al; gelecekteki sen teşekkür edecek."),
+            new ReminderCopy("Su içmeyi unutma", "Kahvenin en iyi eşlikçisi bir bardak sudur."),
+            new ReminderCopy("Kısa bir su molası", "Biraz su içip güne kaldığın yerden devam et."),
+            new ReminderCopy("İyi alışkanlık devam etsin", "Biraz su içmek bile büyük fark yaratır.")
+    );
     private static final int MIN_REMINDER_INTERVAL_MINUTES = 30;
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MAX_DAILY_TOTAL_ML = 6000;
@@ -214,14 +229,23 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
                 .filter(settings -> subscriptionService.hasFeatureAccess(
                         settings.getUser().getEmail(), SubscriptionFeature.WATER_TRACKING))
                 .filter(this::isDue)
+                .filter(this::isHydrationGoalPending)
                 .toList();
 
         dueSettings.forEach(settings -> {
             LocalDateTime userNow = userTimeZoneSupport.now(settings.getUser());
+            ReminderCopy copy = randomCopy(reminderCopyFor(settings.getUser().getPreferredLanguage()));
             NotificationEntity notification = new NotificationEntity();
             notification.setUser(settings.getUser());
             notification.setType(WATER_REMINDER_TYPE);
-            notification.setMessage(WATER_REMINDER_MESSAGE);
+            notification.setTitle(copy.title());
+            notification.setMessage(copy.message());
+            notification.setSeverity("INFO");
+            notification.setSource("WATER_REMINDER");
+            notification.setTargetType("WATER_TRACKING");
+            notification.setTargetRoute("water");
+            notification.setPrimaryAction("QUICK_ADD_WATER");
+            notification.setActionAmountMl(250);
             notification.setIsRead(false);
             notification.setCreatedAt(userNow);
             NotificationEntity saved = notificationRepository.save(notification);
@@ -231,6 +255,16 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         waterReminderSettingsRepository.saveAll(dueSettings);
         return dueSettings.size();
     }
+
+    private ReminderCopy randomCopy(List<ReminderCopy> options) {
+        return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private List<ReminderCopy> reminderCopyFor(PreferredLanguage language) {
+        return language == PreferredLanguage.TR ? WATER_REMINDER_COPY_TR : WATER_REMINDER_COPY_EN;
+    }
+
+    private record ReminderCopy(String title, String message) {}
 
     private void assertWaterTrackingAccess(String email) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.WATER_TRACKING);
@@ -294,6 +328,16 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         }
         return settings.getLastReminderAt() == null
                 || !settings.getLastReminderAt().plusMinutes(settings.getIntervalMinutes()).isAfter(now);
+    }
+
+    private boolean isHydrationGoalPending(WaterReminderSettingsEntity settings) {
+        UserEntity user = settings.getUser();
+        LocalDate today = userTimeZoneSupport.today(user);
+        Long totalMl = waterLogRepository.sumAmountMlByUserAndLogDate(user, today);
+        int targetMl = settings.getDailyTargetMl() != null && settings.getDailyTargetMl() > 0
+                ? settings.getDailyTargetMl()
+                : waterTrackingProperties.getDefaultDailyTargetMl();
+        return totalMl == null || totalMl < targetMl;
     }
 
     private void validateRange(LocalDate startDate, LocalDate endDate) {

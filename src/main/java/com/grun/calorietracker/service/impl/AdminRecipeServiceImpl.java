@@ -20,6 +20,7 @@ import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeIngredientDto;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.RecipeImportCandidateEntity;
 import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
@@ -28,6 +29,7 @@ import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
@@ -36,15 +38,18 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
+import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminRecipeService;
 import com.grun.calorietracker.service.RecipeService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -52,6 +57,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Collections;
@@ -64,6 +70,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminRecipeServiceImpl implements AdminRecipeService {
 
     private final RecipeRepository recipeRepository;
@@ -72,6 +79,8 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
     private final FoodItemRepository foodItemRepository;
     private final RecipeService recipeService;
     private final AdminAuditService adminAuditService;
+    private final NotificationRepository notificationRepository;
+    private final PushDeliveryService pushDeliveryService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -184,6 +193,14 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             throw new IllegalArgumentException("Recipe review request must not be empty.");
         }
         RecipeEntity recipe = findRecipe(id);
+        boolean userPublicationPending = recipe.getVisibility() == RecipeVisibility.COMMUNITY_PENDING;
+        String reviewNote = trimToNull(request.getReviewNote());
+        if (userPublicationPending
+                && request.getVerificationStatus() == VerificationStatus.REJECTED
+                && reviewNote == null) {
+            throw new IllegalArgumentException("A rejection reason is required for a user-submitted recipe.");
+        }
+
         Map<String, Object> before = auditState(recipe);
         boolean changed = false;
         if (request.getVerificationStatus() != null
@@ -219,17 +236,22 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         if (request.getImageStatus() != null && !Objects.equals(recipe.getImageStatus(), request.getImageStatus())) {
             recipe.setImageStatus(request.getImageStatus());
             recipe.setImageReviewedBy(adminEmail);
-            recipe.setImageReviewedAt(java.time.LocalDateTime.now());
+            recipe.setImageReviewedAt(LocalDateTime.now());
             changed = true;
         }
-        if (request.getReviewNote() != null && !request.getReviewNote().isBlank()
+        if (reviewNote != null
                 && request.getImageStatus() != null
                 && request.getImageStatus() != ImageStatus.APPROVED) {
-            recipe.setImageReviewNote(request.getReviewNote().trim());
+            recipe.setImageReviewNote(reviewNote);
             changed = true;
         }
         if (request.getCookingSteps() != null) {
             replaceCookingSteps(recipe, request.getCookingSteps());
+            changed = true;
+        }
+        if (recipe.getVerificationStatus() == VerificationStatus.REJECTED
+                && recipe.getVisibility() != RecipeVisibility.PRIVATE) {
+            recipe.setVisibility(RecipeVisibility.PRIVATE);
             changed = true;
         }
         if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
@@ -239,8 +261,8 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         if (changed) {
             recipe = recipeRepository.save(recipe);
             Map<String, Object> after = auditState(recipe);
-            if (request.getReviewNote() != null && !request.getReviewNote().isBlank()) {
-                after.put("reviewNote", request.getReviewNote().trim());
+            if (reviewNote != null) {
+                after.put("reviewNote", reviewNote);
             }
             adminAuditService.record(
                     adminEmail,
@@ -251,11 +273,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                     after,
                     null
             );
+            notifyRecipeOwnerAboutReviewDecision(recipe, userPublicationPending, reviewNote);
         }
         return toDto(recipe);
     }
-
-
     @Override
     @Transactional
     public AdminRecipeImportResultDto importRecipeCandidates(AdminRecipeImportBatchRequestDto request, String adminEmail) {
@@ -400,6 +421,60 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 candidate.getReviewNote()
         );
         return toImportDto(candidate);
+    }
+    private void notifyRecipeOwnerAboutReviewDecision(
+            RecipeEntity recipe,
+            boolean userPublicationPending,
+            String reviewNote) {
+        if (!userPublicationPending || recipe.getOwnerUser() == null) {
+            return;
+        }
+
+        String type;
+        String severity;
+        if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
+                && recipe.getVerificationStatus() == VerificationStatus.VERIFIED) {
+            type = "recipe_review_approved";
+            severity = "INFO";
+        } else if (recipe.getVerificationStatus() == VerificationStatus.REJECTED) {
+            type = "recipe_review_rejected";
+            severity = "WARNING";
+        } else {
+            return;
+        }
+
+        NotificationEntity notification = new NotificationEntity();
+        notification.setUser(recipe.getOwnerUser());
+        notification.setType(type);
+        boolean approved = "recipe_review_approved".equals(type);
+        boolean turkish = recipe.getOwnerUser().getPreferredLanguage() == PreferredLanguage.TR;
+        notification.setTitle(approved
+                ? (turkish ? "Tarifin yayında!" : "Your recipe is live!")
+                : (turkish ? "Birkaç düzenleme gerekiyor" : "A few tweaks needed"));
+        String message = approved
+                ? (turkish
+                    ? "\"%s\" tarifin onaylandı ve yayınlandı.".formatted(recipe.getName())
+                    : "Your recipe \"%s\" was approved and published.".formatted(recipe.getName()))
+                : (turkish
+                    ? "\"%s\" tarifin onaylanmadı.".formatted(recipe.getName())
+                    : "Your recipe \"%s\" was not approved.".formatted(recipe.getName()));
+        notification.setNote(approved ? null : reviewNote);
+        notification.setPrimaryAction(approved ? "VIEW_RECIPE" : "EDIT_RECIPE");
+        notification.setSeverity(severity);
+        notification.setSource("RECIPE_REVIEW");
+        notification.setTargetType("RECIPE");
+        notification.setTargetId(String.valueOf(recipe.getId()));
+        notification.setTargetRoute("recipes");
+        notification.setMessage(message);
+        notification.setIsRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        NotificationEntity saved = notificationRepository.save(notification);
+        try {
+            pushDeliveryService.deliver(saved);
+        } catch (RuntimeException ex) {
+            log.warn("recipe_review_push_delivery_failed recipeId={} notificationId={} reason={}",
+                    recipe.getId(), saved.getId(), ex.getMessage());
+        }
     }
     private boolean hasInitialReviewState(AdminRecipeCreateRequestDto request) {
         return request.getVerificationStatus() != null

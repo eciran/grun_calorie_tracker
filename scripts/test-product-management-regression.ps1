@@ -16,6 +16,8 @@ $productTests = @(
     "FoodProductImportPerformanceIntegrationTest",
     "FoodProductImportPostgresPerformanceIntegrationTest",
     "FoodProductEvidenceServiceImplTest",
+    "FoodProductContributionServiceImplTest",
+    "FoodProductContributionControllerTest",
     "FoodProductQualityIssueTrackerTest",
     "FoodProductReviewServiceImplTest",
     "OpenFoodFactsServiceImplTest",
@@ -36,6 +38,10 @@ try {
     & powershell -ExecutionPolicy Bypass -File .\scripts\test-tr-internet-capacity-contract.ps1
     if ($LASTEXITCODE -ne 0) {
         throw "TR internet capacity contract failed."
+    }
+    & powershell -ExecutionPolicy Bypass -File .\scripts\test-tr-market-evidence-assessment.ps1
+    if ($LASTEXITCODE -ne 0) {
+        throw "TR market evidence assessment contract failed."
     }
 
     & powershell -ExecutionPolicy Bypass -File .\scripts\generate-generic-food-manifest-queries.ps1 -Check

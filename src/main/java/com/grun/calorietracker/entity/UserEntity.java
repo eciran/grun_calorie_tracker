@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.CountryCode;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UnitPreference;
@@ -7,6 +8,7 @@ import com.grun.calorietracker.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -29,6 +31,9 @@ public class UserEntity {
 
     private Integer age;
 
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
     private String gender;
 
     private Double height;
@@ -44,6 +49,10 @@ public class UserEntity {
 
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "country_code", length = 2)
+    private CountryCode countryCode;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "preferred_language", nullable = false)
@@ -103,5 +112,8 @@ public class UserEntity {
 
     @Column(name = "weekly_reports_enabled", nullable = false)
     private Boolean weeklyReportsEnabled = true;
+
+    @Column(name = "marketing_notifications_enabled", nullable = false)
+    private Boolean marketingNotificationsEnabled = false;
 
 }

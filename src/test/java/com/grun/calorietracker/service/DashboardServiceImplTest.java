@@ -187,7 +187,8 @@ class DashboardServiceImplTest {
 
         DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
 
-        assertEquals(1400.0, result.getRemainingCalories());
+        assertEquals(1100.0, result.getRemainingCalories());
+        assertEquals(false, result.getExerciseCaloriesAddedToBudget());
         assertEquals(800.0, result.getNetCalories());
         assertEquals(50.0, result.getCalorieProgressPercent());
         assertEquals(70.0, result.getRemainingProtein());

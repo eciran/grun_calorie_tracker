@@ -4,23 +4,28 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiRecipeDraftConfirmRequestDto;
+import com.grun.calorietracker.dto.AiMealDraftRejectRequestDto;
 import com.grun.calorietracker.dto.AiRecipeIngredientSuggestionDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.dto.RecipeNutritionDto;
+import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
+import com.grun.calorietracker.dto.UserNutritionPreferenceDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
@@ -28,16 +33,24 @@ import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiRecipeDraftService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.UserNutritionPreferenceService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiIdempotencySupport;
+import com.grun.calorietracker.service.support.AiUxContractFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -53,19 +66,26 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
     private final RecipeService recipeService;
+    private final UserNutritionPreferenceService nutritionPreferenceService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
 
     @Override
-    @Transactional
-    public AiRecipeDraftResponseDto createRecipeDraft(String email, AiRecipeDraftRequestDto request) {
+    public AiRecipeDraftResponseDto createRecipeDraft(
+            String email, String idempotencyKey, AiRecipeDraftRequestDto request) {
         if (request == null) {
             throw new IllegalArgumentException("AI recipe draft request is required.");
         }
         providerConfigurationValidator.validateConfiguredForDraft();
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_RECIPE_GENERATION);
         UserEntity user = getUser(email);
+        applyPersistentNutritionPreferences(email, request);
         request.setUserContext(toUserContext(user));
+        String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
+        AiRecipeDraftResponseDto previous = existingDraft(user, key);
+        if (previous != null) {
+            return previous;
+        }
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
@@ -73,16 +93,41 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
         history.setPromptVersion(properties.getPromptVersion());
+        history.setStatus(AiRequestStatus.PROCESSING);
+        history.setIdempotencyKey(key);
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
 
+        try {
+            AiRequestHistoryEntity reserved = aiRequestHistoryRepository.save(history);
+            if (reserved != null) {
+                history = reserved;
+            }
+        } catch (DataIntegrityViolationException ex) {
+            AiRecipeDraftResponseDto concurrent = existingDraft(user, key);
+            if (concurrent != null) {
+                return concurrent;
+            }
+            throw new RequestConflictException(
+                    "An AI recipe-draft request with this key is already processing.");
+        }
+
         int creditCost = subscriptionService.resolveAiCreditCost(email, SubscriptionFeature.AI_RECIPE_GENERATION);
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+        boolean charged = false;
         try {
-            AiRecipeDraftResponseDto response = normalize(activeProvider().createRecipeDraft(request), user);
+            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            charged = true;
+            AiRecipeDraftResponseDto response = normalize(activeProvider().createRecipeDraft(request), user, request);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            response.setUx(AiUxContractFactory.success(
+                    AiRequestStatus.DRAFT_CREATED,
+                    true,
+                    creditCost,
+                    quota,
+                    user.getPreferredLanguage()
+            ));
             copyUsageMetadata(response, history);
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
@@ -94,10 +139,10 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
-            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(AiRequestType.AI_RECIPE_GENERATION, true)));
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(AiRequestType.AI_RECIPE_GENERATION, true, creditCost, !refunded, user.getPreferredLanguage())));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -129,7 +174,67 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         return recipe;
     }
 
-    private AiRecipeDraftResponseDto normalize(AiRecipeDraftResponseDto response, UserEntity user) {
+    @Override
+    @Transactional
+    public void rejectRecipeDraft(String email, Long requestId, AiMealDraftRejectRequestDto request) {
+        UserEntity user = getUser(email);
+        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
+                .orElseThrow(() -> new IllegalArgumentException("AI recipe draft was not found."));
+        if (history.getRequestType() != AiRequestType.AI_RECIPE_GENERATION) {
+            throw new IllegalArgumentException("AI request is not a recipe draft.");
+        }
+        if (history.getStatus() != AiRequestStatus.DRAFT_CREATED) {
+            throw new IllegalArgumentException("AI recipe draft is not open for rejection.");
+        }
+        history.setStatus(AiRequestStatus.REJECTED);
+        if (request != null) {
+            history.setRejectionReason(request.getReason());
+            history.setRejectionFeedback(cleanFeedback(request.getFeedback()));
+        }
+        history.setRejectedAt(LocalDateTime.now());
+        aiRequestHistoryRepository.save(history);
+    }
+
+    private AiRecipeDraftResponseDto existingDraft(UserEntity user, String idempotencyKey) {
+        return aiRequestHistoryRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                        user, AiRequestType.AI_RECIPE_GENERATION, idempotencyKey)
+                .map(history -> AiIdempotencySupport.replayOrReject(
+                        history,
+                        stored -> readDraft(stored, user),
+                        "AI recipe-draft"
+                )).orElse(null);
+    }
+
+    private AiRecipeDraftResponseDto readDraft(AiRequestHistoryEntity history, UserEntity user) {
+        try {
+            AiRecipeDraftResponseDto draft = objectMapper.readValue(
+                    history.getOutputPayload(), AiRecipeDraftResponseDto.class);
+            draft.setRequestId(history.getId());
+            draft.setStatus(history.getStatus());
+            if (draft.getUx() == null) {
+                int consumed = history.getQuotaConsumedAmount() == null ? 0 : history.getQuotaConsumedAmount();
+                draft.setUx(AiUxContractFactory.history(
+                        history.getStatus(),
+                        true,
+                        consumed,
+                        Boolean.TRUE.equals(history.getQuotaConsumed()),
+                        user.getPreferredLanguage()
+                ));
+            }
+            return draft;
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Stored AI recipe draft is unavailable.");
+        }
+    }
+
+    private String cleanFeedback(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String cleaned = value.trim().replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ");
+        return cleaned.length() <= 1000 ? cleaned : cleaned.substring(0, 1000);
+    }
+    private AiRecipeDraftResponseDto normalize(AiRecipeDraftResponseDto response, UserEntity user, AiRecipeDraftRequestDto request) {
         if (response == null) {
             throw new IllegalArgumentException("AI recipe provider returned an empty response.");
         }
@@ -144,6 +249,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         validateSuggestedRecipe(response);
         validateEstimatedNutrition(response);
         normalizeSuggestedIngredientsAsSnapshot(response);
+        enrichSuggestedRecipeForReview(response, request);
         normalizeQuality(response);
         if (response.getWarnings() == null) {
             response.setWarnings(List.of());
@@ -151,6 +257,188 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         return response;
     }
 
+    private void enrichSuggestedRecipeForReview(AiRecipeDraftResponseDto response, AiRecipeDraftRequestDto request) {
+        RecipeRequestDto recipe = response.getSuggestedRecipe();
+        if (recipe.getSnapshotNutritionTotal() == null) {
+            recipe.setSnapshotNutritionTotal(response.getEstimatedNutritionTotal());
+        }
+        if ((recipe.getIngredients() == null || recipe.getIngredients().isEmpty())
+                && response.getSuggestedIngredients() != null
+                && !response.getSuggestedIngredients().isEmpty()) {
+            recipe.setIngredients(toSnapshotIngredientRequests(response.getSuggestedIngredients()));
+        }
+        recipe.setCategories(mergeRecipeCategories(recipe.getCategories(), request));
+        if (recipe.getAllergens() == null) {
+            recipe.setAllergens(new LinkedHashSet<>());
+        } else {
+            recipe.setAllergens(new LinkedHashSet<>(recipe.getAllergens()));
+        }
+    }
+
+    private List<RecipeIngredientRequestDto> toSnapshotIngredientRequests(List<AiRecipeIngredientSuggestionDto> suggestions) {
+        List<RecipeIngredientRequestDto> ingredients = new ArrayList<>();
+        for (AiRecipeIngredientSuggestionDto suggestion : suggestions) {
+            if (suggestion == null || suggestion.getName() == null || suggestion.getName().isBlank()
+                    || suggestion.getPortionSize() == null || suggestion.getPortionSize() <= 0) {
+                continue;
+            }
+            RecipeIngredientRequestDto ingredient = new RecipeIngredientRequestDto();
+            ingredient.setSnapshotFoodName(suggestion.getName().trim());
+            ingredient.setPortionSize(suggestion.getPortionSize());
+            ingredient.setPortionUnit(suggestion.getPortionUnit() == null ? FoodPortionUnit.GRAM : suggestion.getPortionUnit());
+            ingredients.add(ingredient);
+        }
+        return ingredients;
+    }
+
+    private Set<RecipeCategory> mergeRecipeCategories(Set<RecipeCategory> existing, AiRecipeDraftRequestDto request) {
+        LinkedHashSet<RecipeCategory> categories = existing == null ? new LinkedHashSet<>() : new LinkedHashSet<>(existing);
+        if (request != null) {
+            RecipeCategory mealCategory = mapMealTypeToCategory(request.getMealType());
+            if (mealCategory != null) {
+                categories.add(mealCategory);
+            }
+            if (request.getDietaryPreferences() != null) {
+                for (String preference : request.getDietaryPreferences()) {
+                    RecipeCategory category = mapDietaryPreferenceToCategory(preference);
+                    if (category != null) {
+                        categories.add(category);
+                    }
+                }
+            }
+            if (request.getExcludedIngredients() != null) {
+                for (String exclusion : request.getExcludedIngredients()) {
+                    RecipeCategory category = mapAvoidanceToCategory(exclusion);
+                    if (category != null) {
+                        categories.add(category);
+                    }
+                }
+            }
+        }
+        return categories;
+    }
+
+    private RecipeCategory mapMealTypeToCategory(String mealType) {
+        String normalized = normalizeKey(mealType);
+        return switch (normalized) {
+            case "BREAKFAST" -> RecipeCategory.BREAKFAST;
+            case "LUNCH" -> RecipeCategory.LUNCH;
+            case "DINNER" -> RecipeCategory.DINNER;
+            case "SNACK" -> RecipeCategory.SNACK;
+            default -> null;
+        };
+    }
+
+    private RecipeCategory mapDietaryPreferenceToCategory(String value) {
+        String normalized = normalizeKey(value);
+        return switch (normalized) {
+            case "VEGAN" -> RecipeCategory.VEGAN;
+            case "VEGETARIAN" -> RecipeCategory.VEGETARIAN;
+            case "HIGH_PROTEIN", "PROTEIN", "HIGHPROTEIN" -> RecipeCategory.HIGH_PROTEIN;
+            case "LOW_CARB", "LOWCARB", "KETO" -> RecipeCategory.LOW_CARB;
+            case "LOW_FAT", "LOWFAT" -> RecipeCategory.LOW_FAT;
+            case "LOW_CALORIE", "LOWCALORIE", "CALORIE_DEFICIT" -> RecipeCategory.LOW_CALORIE;
+            case "HIGH_FIBER", "HIGHFIBER" -> RecipeCategory.HIGH_FIBER;
+            case "GLUTEN_FREE", "GLUTENFREE" -> RecipeCategory.GLUTEN_FREE;
+            case "DAIRY_FREE", "DAIRYFREE" -> RecipeCategory.DAIRY_FREE;
+            case "MEDITERRANEAN" -> RecipeCategory.MEDITERRANEAN;
+            case "TURKISH" -> RecipeCategory.TURKISH;
+            default -> null;
+        };
+    }
+
+    private RecipeCategory mapAvoidanceToCategory(String value) {
+        String normalized = normalizeKey(value);
+        return switch (normalized) {
+            case "GLUTEN", "WHEAT" -> RecipeCategory.GLUTEN_FREE;
+            case "DAIRY", "MILK", "LACTOSE" -> RecipeCategory.DAIRY_FREE;
+            default -> null;
+        };
+    }
+
+    private String normalizeKey(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim()
+                .replace('-', '_')
+                .replace(' ', '_')
+                .toUpperCase(Locale.ROOT);
+    }
+    private void applyPersistentNutritionPreferences(
+            String email,
+            AiRecipeDraftRequestDto request
+    ) {
+        UserNutritionPreferenceDto persistent = nutritionPreferenceService.get(email);
+        if (persistent == null) {
+            return;
+        }
+        request.setDietaryPreferences(mergePreferences(
+                persistent.getDietaryPreferences(),
+                request.getDietaryPreferences(),
+                32
+        ));
+
+        List<String> mandatoryExclusions = new ArrayList<>();
+        if (persistent.getExcludedFoods() != null) {
+            mandatoryExclusions.addAll(persistent.getExcludedFoods());
+        }
+        if (persistent.getAllergens() != null) {
+            persistent.getAllergens().stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(Enum::name)
+                    .sorted()
+                    .forEach(mandatoryExclusions::add);
+        }
+        request.setExcludedIngredients(mergePreferences(
+                mandatoryExclusions,
+                request.getExcludedIngredients(),
+                60
+        ));
+    }
+
+    private List<String> mergePreferences(
+            List<String> persistent,
+            List<String> requestValues,
+            int maxItems
+    ) {
+        LinkedHashMap<String, String> unique = new LinkedHashMap<>();
+        addCleanPreferences(unique, persistent, maxItems);
+        addCleanPreferences(unique, requestValues, maxItems);
+        return new ArrayList<>(unique.values());
+    }
+
+    private void addCleanPreferences(
+            LinkedHashMap<String, String> target,
+            List<String> values,
+            int maxItems
+    ) {
+        if (values == null) {
+            return;
+        }
+        for (String value : values) {
+            if (value == null) {
+                continue;
+            }
+            String cleaned = value.trim()
+                    .replaceAll("[\\p{Cntrl}]", " ")
+                    .replaceAll("\\s+", " ");
+            if (cleaned.isBlank()) {
+                continue;
+            }
+            if (cleaned.length() > 80) {
+                throw new IllegalArgumentException(
+                        "Nutrition preference values cannot exceed 80 characters."
+                );
+            }
+            target.putIfAbsent(cleaned.toLowerCase(Locale.ROOT), cleaned);
+            if (target.size() > maxItems) {
+                throw new IllegalArgumentException(
+                        "Too many combined nutrition preference values."
+                );
+            }
+        }
+    }
     private void normalizeQuality(AiRecipeDraftResponseDto response) {
         response.setSchemaVersion("ai_response_v3");
         if (response.getReviewReasons() == null) {
@@ -286,11 +574,36 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         if (nutrition == null) {
             throw new IllegalArgumentException("AI recipe provider returned no " + label + " nutrition estimate.");
         }
-        if (nutrition.getCalories() == null || nutrition.getCalories() < 0
-                || nutrition.getProtein() == null || nutrition.getProtein() < 0
-                || nutrition.getCarbs() == null || nutrition.getCarbs() < 0
-                || nutrition.getFat() == null || nutrition.getFat() < 0) {
-            throw new IllegalArgumentException("AI recipe provider returned invalid " + label + " macro nutrition.");
+        validateNutritionValue(nutrition.getCalories(), label, "calories", true);
+        validateNutritionValue(nutrition.getProtein(), label, "protein", true);
+        validateNutritionValue(nutrition.getCarbs(), label, "carbohydrate", true);
+        validateNutritionValue(nutrition.getFat(), label, "fat", true);
+        validateNutritionValue(nutrition.getFiber(), label, "fiber", false);
+        validateNutritionValue(nutrition.getSugar(), label, "sugar", false);
+        validateNutritionValue(nutrition.getSaturatedFat(), label, "saturated fat", false);
+        validateNutritionValue(nutrition.getSodium(), label, "sodium", false);
+        validateNutritionValue(nutrition.getPotassium(), label, "potassium", false);
+        validateNutritionValue(nutrition.getCholesterol(), label, "cholesterol", false);
+        validateNutritionValue(nutrition.getCalcium(), label, "calcium", false);
+        validateNutritionValue(nutrition.getIron(), label, "iron", false);
+        validateNutritionValue(nutrition.getMagnesium(), label, "magnesium", false);
+        validateNutritionValue(nutrition.getZinc(), label, "zinc", false);
+        validateNutritionValue(nutrition.getVitaminA(), label, "vitamin A", false);
+        validateNutritionValue(nutrition.getVitaminC(), label, "vitamin C", false);
+        validateNutritionValue(nutrition.getVitaminD(), label, "vitamin D", false);
+        validateNutritionValue(nutrition.getVitaminE(), label, "vitamin E", false);
+        validateNutritionValue(nutrition.getVitaminB12(), label, "vitamin B12", false);
+    }
+
+    private void validateNutritionValue(Double value, String label, String field, boolean required) {
+        if (value == null) {
+            if (required) {
+                throw new IllegalArgumentException("AI recipe provider returned no " + label + " " + field + " estimate.");
+            }
+            return;
+        }
+        if (!Double.isFinite(value) || value < 0) {
+            throw new IllegalArgumentException("AI recipe provider returned invalid " + label + " " + field + " estimate.");
         }
     }
 
@@ -406,3 +719,4 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         }
     }
 }
+

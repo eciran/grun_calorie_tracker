@@ -70,8 +70,9 @@ class ProgressLogControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Dogrulama hatasi"))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Kilo zorunludur")));
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Dogrulama hatasi"));
     }
 
     @Test

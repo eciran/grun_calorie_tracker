@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -88,6 +89,31 @@ class RateLimitingFilterTest {
         assertEquals(429, secondResponse.getStatus());
     }
 
+    @Test
+    void accountLinkAuthorizationPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "accountLinkMaxRequestsPerMinute", 1);
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(post("/api/v1/account/link-authorizations"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/account/link-authorizations"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
+
+    @Test
+    void accountUnlinkPathUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "accountLinkMaxRequestsPerMinute", 1);
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(delete("/api/v1/account/linked-identities/GOOGLE"), new MockHttpServletResponse(), filterChain);
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(delete("/api/v1/account/linked-identities/GOOGLE"), secondResponse, filterChain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
     @Test
     void barcodeLookupPathIsRateLimited() throws Exception {
         RateLimitingFilter filter = buildFilter(1);
@@ -225,6 +251,12 @@ class RateLimitingFilterTest {
         return request;
     }
 
+    private MockHttpServletRequest delete(String uri) {
+        MockHttpServletRequest request = new MockHttpServletRequest("DELETE", uri);
+        request.setRemoteAddr("127.0.0.1");
+        return request;
+    }
+
     private MockHttpServletRequest get(String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);
         request.setRemoteAddr("127.0.0.1");
@@ -235,11 +267,19 @@ class RateLimitingFilterTest {
         return new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
+    private ResourceBundleMessageSource messageSource() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("messages");
+        source.setDefaultEncoding("UTF-8");
+        return source;
+    }
+
     private RateLimitingFilter buildFilter(int authMaxRequestsPerMinute) {
-        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper());
+        RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper(), messageSource());
         ReflectionTestUtils.setField(filter, "enabled", true);
         ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "passwordResetMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "accountLinkMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "trustedProxyCount", 0);

@@ -20,6 +20,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -40,15 +41,19 @@ public class AiInsightController {
     })
     public ResponseEntity<AiInsightResponseDto> daily(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody(required = false) @Valid AiInsightRequestDto request) {
-        return ResponseEntity.ok(aiInsightService.createDailyInsight(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiInsightService.createDailyInsight(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping("/weekly")
     @Operation(summary = "Generate weekly AI insight", description = "Creates an app-scoped coaching insight from backend daily summaries over a bounded range.")
     public ResponseEntity<AiInsightResponseDto> weekly(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody(required = false) @Valid AiInsightRequestDto request) {
-        return ResponseEntity.ok(aiInsightService.createWeeklyInsight(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiInsightService.createWeeklyInsight(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 }

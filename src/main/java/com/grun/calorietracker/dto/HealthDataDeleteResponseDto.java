@@ -15,6 +15,6 @@ public class HealthDataDeleteResponseDto {
     @Schema(description = "Provider whose data was deleted. Null when all providers were deleted.", example = "APPLE_HEALTH")
     private HealthProvider provider;
 
-    @Schema(description = "Number of deleted metric rows.", example = "120")
+    @Schema(description = "Number of deleted health metric and sleep session rows.", example = "120")
     private Long deletedMetricCount;
 }

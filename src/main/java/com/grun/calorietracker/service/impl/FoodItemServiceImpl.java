@@ -561,6 +561,7 @@ public class FoodItemServiceImpl implements FoodItemService {
 
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("qualityScore"), 0)));
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("usageCount"), 0L)));
+        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("searchSelectionCount"), 0L)));
         orders.add(criteriaBuilder.asc(root.get("name")));
         return orders;
     }

@@ -30,6 +30,17 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select history from AiRequestHistoryEntity history where history.id = :id")
     Optional<AiRequestHistoryEntity> findByIdForQuotaRefund(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select history from AiRequestHistoryEntity history
+            where history.status in :statuses
+              and history.completionNotifiedAt is null
+            order by history.createdAt asc
+            """)
+    List<AiRequestHistoryEntity> findPendingCompletionNotifications(
+            @Param("statuses") List<AiRequestStatus> statuses,
+            Pageable pageable);
     Page<AiRequestHistoryEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
     Page<AiRequestHistoryEntity> findByStatusOrderByCreatedAtDesc(AiRequestStatus status, Pageable pageable);
     Page<AiRequestHistoryEntity> findByRequestTypeOrderByCreatedAtDesc(AiRequestType requestType, Pageable pageable);
@@ -39,9 +50,19 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
             where history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED
               and history.quotaConsumed = true
               and coalesce(history.quotaConsumedAmount, 0) > coalesce(history.quotaRefundedAmount, 0)
+              and (history.quotaRefundDecision is null or history.quotaRefundDecision <> com.grun.calorietracker.enums.AiQuotaRefundDecision.REJECTED)
             order by history.createdAt desc
             """)
     Page<AiRequestHistoryEntity> findRefundableRejectedDrafts(Pageable pageable);
+    @Query("""
+            select count(history)
+            from AiRequestHistoryEntity history
+            where history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED
+              and history.quotaConsumed = true
+              and coalesce(history.quotaConsumedAmount, 0) > coalesce(history.quotaRefundedAmount, 0)
+              and (history.quotaRefundDecision is null or history.quotaRefundDecision <> com.grun.calorietracker.enums.AiQuotaRefundDecision.REJECTED)
+            """)
+    long countRefundableRejectedDrafts();
     long countByUser(UserEntity user);
     long countByCreatedAtAfter(LocalDateTime createdAt);
     long countByStatusAndCreatedAtAfter(AiRequestStatus status, LocalDateTime createdAt);

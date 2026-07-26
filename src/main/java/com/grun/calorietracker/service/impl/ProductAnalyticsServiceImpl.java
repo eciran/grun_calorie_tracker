@@ -30,6 +30,10 @@ public class ProductAnalyticsServiceImpl implements ProductAnalyticsService {
     @Override
     @Transactional
     public ProductAnalyticsEventDto recordEvent(String email, ProductAnalyticsEventRequestDto request) {
+        if (request.getEventType() != null
+                && request.getEventType().name().startsWith("ONBOARDING_")) {
+            throw new IllegalArgumentException("Onboarding events must use the privacy-safe onboarding event endpoint.");
+        }
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ProductAnalyticsEventEntity entity = new ProductAnalyticsEventEntity();

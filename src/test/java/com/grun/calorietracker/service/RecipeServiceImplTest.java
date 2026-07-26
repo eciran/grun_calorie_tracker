@@ -228,6 +228,23 @@ class RecipeServiceImplTest {
         assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
     }
     @Test
+    void updateRecipe_whenPublished_returnsToPrivateDraftUntilExplicitSubmission() {
+        RecipeEntity recipe = publicRecipeEntity();
+        UserEntity user = recipe.getOwnerUser();
+        RecipeRequestDto request = recipeRequest(400.0, 100.0, 4);
+        request.setName("Updated lentil soup");
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(product()));
+        when(recipeRepository.save(recipe)).thenReturn(recipe);
+
+        RecipeDto result = service.updateRecipe("user@test.com", 10L, request);
+
+        assertEquals(RecipeVisibility.PRIVATE, result.getVisibility());
+        assertEquals(VerificationStatus.RAW_IMPORTED, result.getVerificationStatus());
+    }
+
+    @Test
     void updateInteraction_savesFavoriteAndRating() {
         UserEntity user = user();
         RecipeEntity recipe = recipeEntity(user);

@@ -14,6 +14,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,23 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>, JpaSpecificationExecutor<FoodItemEntity> {
+    @Modifying
+    @Query("update FoodItemEntity f set f.searchSelectionCount = coalesce(f.searchSelectionCount, 0) + 1 where f.id = :id")
+    int incrementSearchSelectionCount(@Param("id") Long id);
+
+    @Query("""
+            select f
+            from FoodItemEntity f
+            where f.dataSource in :sources
+              and (f.lastExternalSyncAt is null or f.lastExternalSyncAt < :cutoff)
+            order by f.lastExternalSyncAt asc nulls first, f.id asc
+            """)
+    List<FoodItemEntity> findStaleExternalProducts(
+            @Param("sources") Collection<com.grun.calorietracker.enums.FoodDataSource> sources,
+            @Param("cutoff") LocalDateTime cutoff,
+            Pageable pageable
+    );
+
     Optional<FoodItemEntity> findByBarcode(String barcode);
     Optional<FoodItemEntity> findByNormalizedBarcode(String normalizedBarcode);
     Optional<FoodItemEntity> findBySourceKey(String sourceKey);

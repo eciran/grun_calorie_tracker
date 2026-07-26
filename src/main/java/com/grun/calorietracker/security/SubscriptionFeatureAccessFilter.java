@@ -6,7 +6,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,15 +13,29 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-@RequiredArgsConstructor
 public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
 
     private final SubscriptionService subscriptionService;
+    private final boolean enabled;
+
+    public SubscriptionFeatureAccessFilter(SubscriptionService subscriptionService) {
+        this(subscriptionService, true);
+    }
+
+    public SubscriptionFeatureAccessFilter(SubscriptionService subscriptionService, boolean enabled) {
+        this.subscriptionService = subscriptionService;
+        this.enabled = enabled;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        if (!enabled) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         SubscriptionFeature requiredFeature = resolveFeature(request.getMethod(), request.getRequestURI());
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
@@ -43,11 +56,15 @@ public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
     public static SubscriptionFeature resolveFeature(String method, String path) {
         if (HttpMethod.OPTIONS.matches(method) || path == null) return null;
         if (path.startsWith("/api/v1/water-logs")) return SubscriptionFeature.WATER_TRACKING;
+        if (path.startsWith("/api/v1/progress/analytics")) return SubscriptionFeature.ADVANCED_ANALYTICS;
         if (path.startsWith("/api/v1/progress")) return SubscriptionFeature.WEIGHT_PROGRESS;
         if (path.startsWith("/api/v1/exercise-logs")) return SubscriptionFeature.WORKOUT_LOGGING;
         if (path.startsWith("/api/v1/meal-templates")) return SubscriptionFeature.SAVED_MEAL_TEMPLATES;
         if (path.startsWith("/api/v1/health")) return SubscriptionFeature.HEALTH_INTEGRATION;
+        if (path.startsWith("/api/v1/sleep/providers")) return SubscriptionFeature.HEALTH_INTEGRATION;
+        if (path.startsWith("/api/v1/sleep/summary/weekly")) return SubscriptionFeature.ADVANCED_ANALYTICS;
         if (path.startsWith("/api/v1/fasting")) return SubscriptionFeature.FASTING_BASIC;
+        if (path.startsWith("/api/v1/meal-coach")) return SubscriptionFeature.NEXT_MEAL_SUGGESTIONS;
         if (path.startsWith("/api/v1/products/custom")) return SubscriptionFeature.CUSTOM_FOOD_LIBRARY;
         if (path.startsWith("/api/v1/food-logs/stats")) return SubscriptionFeature.ADVANCED_ANALYTICS;
         if (path.startsWith("/api/v1/food-logs")) {
@@ -56,6 +73,9 @@ public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
                     : SubscriptionFeature.MANUAL_FOOD_LOGGING;
         }
         if (path.startsWith("/api/v1/recipes/images")) return null;
+        if (path.matches("^/api/v1/recipes/\\d+/publish-request/?$")) {
+            return SubscriptionFeature.PUBLIC_RECIPE_LIBRARY;
+        }
         if (path.startsWith("/api/v1/recipes/public")) return SubscriptionFeature.PUBLIC_RECIPE_LIBRARY;
         if (path.startsWith("/api/v1/recipes")) return SubscriptionFeature.RECIPE_BUILDER;
         return null;

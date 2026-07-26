@@ -12,4 +12,5 @@ public class AiMealDraftConfirmResponseDto {
     private Long requestId;
     private AiRequestStatus status;
     private List<FoodLogsDto> createdLogs;
+    private boolean alreadyConfirmed;
 }

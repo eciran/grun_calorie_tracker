@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class SubscriptionFeatureAccessFilterTest {
@@ -31,10 +32,24 @@ class SubscriptionFeatureAccessFilterTest {
                 SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/water-logs"));
         assertEquals(SubscriptionFeature.WEIGHT_PROGRESS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress"));
+        assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
+                SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress/analytics"));
         assertEquals(SubscriptionFeature.WORKOUT_LOGGING,
                 SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/exercise-logs"));
+        assertEquals(SubscriptionFeature.HEALTH_INTEGRATION,
+                SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/sleep/providers/APPLE_HEALTH/sessions"));
+        assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
+                SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/sleep/summary/weekly"));
+        assertEquals(SubscriptionFeature.NEXT_MEAL_SUGGESTIONS,
+                SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/meal-coach/next"));
+        assertEquals(null,
+                SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/sleep/sessions"));
         assertEquals(SubscriptionFeature.PUBLIC_RECIPE_LIBRARY,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/recipes/public"));
+        assertEquals(SubscriptionFeature.PUBLIC_RECIPE_LIBRARY,
+                SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/recipes/42/publish-request"));
+        assertEquals(SubscriptionFeature.RECIPE_BUILDER,
+                SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/recipes"));
         assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/food-logs/stats"));
         assertEquals(SubscriptionFeature.MANUAL_FOOD_LOGGING,
@@ -77,5 +92,19 @@ class SubscriptionFeatureAccessFilterTest {
         filter.doFilter(request, response, chain);
 
         verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void doFilter_whenDisabled_continuesWithoutCheckingEntitlements() throws Exception {
+        SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        FilterChain chain = mock(FilterChain.class);
+        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService, false);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/progress");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, chain);
+
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(subscriptionService);
     }
 }

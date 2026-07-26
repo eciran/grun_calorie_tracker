@@ -58,8 +58,10 @@ public class AiMealDraftController {
     })
     public ResponseEntity<AiMealDraftResponseDto> createVoiceDraft(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AiVoiceFoodDraftRequestDto request) {
-        return ResponseEntity.ok(aiMealDraftService.createVoiceFoodDraft(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiMealDraftService.createVoiceFoodDraft(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping("/photo")
@@ -77,8 +79,10 @@ public class AiMealDraftController {
     })
     public ResponseEntity<AiMealDraftResponseDto> createPhotoDraft(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AiPhotoMealDraftRequestDto request) {
-        return ResponseEntity.ok(aiMealDraftService.createPhotoMealDraft(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiMealDraftService.createPhotoMealDraft(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping(value = "/photo-references", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -116,6 +120,17 @@ public class AiMealDraftController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(aiPhotoReferenceService.loadReference(token));
+    }
+
+    @GetMapping("/{requestId}")
+    @Operation(
+            summary = "Load an AI meal draft",
+            description = "Returns the original draft result together with its current DRAFT_CREATED, CONFIRMED, or REJECTED state."
+    )
+    public ResponseEntity<AiMealDraftResponseDto> getDraft(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "AI meal draft request id.", example = "10") @PathVariable Long requestId) {
+        return ResponseEntity.ok(aiMealDraftService.getDraft(userDetails.getUsername(), requestId));
     }
 
     @PostMapping("/{requestId}/confirm")

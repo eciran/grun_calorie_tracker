@@ -9,6 +9,13 @@ export type DashboardSummary = {
   needsReviewProducts?: number;
   rejectedProducts?: number;
   reviewQueueProducts?: number;
+  pendingRecipeApprovals?: number;
+  pendingRecipeImportCandidates?: number;
+  openRecipeReports?: number;
+  openProductCorrectionSuggestions?: number;
+  openProductQualitySuggestions?: number;
+  refundableAiRequests?: number;
+  totalAdminApprovalItems?: number;
   activePlusSubscriptions?: number;
   activeProSubscriptions?: number;
   canceledSubscriptions?: number;
@@ -464,6 +471,7 @@ export type SubscriptionFeatureAccess = {
   savedMealTemplates?: boolean;
   recipeBuilder?: boolean;
   publicRecipeLibrary?: boolean;
+  nextMealSuggestions?: boolean;
   advancedMacroTargets?: boolean;
   micronutrientDetails?: boolean;
   dataExport?: boolean;
@@ -595,8 +603,41 @@ export type AuditEntry = {
   createdAt?: string;
 };
 
+export type NotificationCampaign = {
+  id?: number;
+  name?: string;
+  title?: string;
+  message?: string;
+  category?: "SYSTEM" | "MARKETING";
+  channel?: "IN_APP" | "PUSH" | "IN_APP_AND_PUSH";
+  status?: "DRAFT" | "SCHEDULED" | "PROCESSING" | "COMPLETED" | "CANCELLED" | "FAILED";
+  targetRoute?: string;
+  targetPlan?: string;
+  targetRegion?: string;
+  targetLanguage?: string;
+  scheduledAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  estimatedAudience?: number;
+  processedCount?: number;
+  inAppCount?: number;
+  pushSentCount?: number;
+  pushSkippedCount?: number;
+  pushFailedCount?: number;
+  failureMessage?: string;
+};
+
+export type NotificationCampaignPreview = {
+  campaignId?: number;
+  estimatedAudience?: number;
+  marketingConsentRequired?: boolean;
+};
 export type Notification = {
   id?: number;
+  title?: string;
   message?: string;
   type?: string;
   severity?: string;
@@ -634,8 +675,43 @@ export type AiMealDraft = {
   quotaRefundReason?: string;
   quotaRefundedBy?: string;
   quotaRefundedAt?: string;
+  quotaRefundDecision?: "PENDING" | "APPROVED" | "REJECTED";
+  quotaRefundDecisionReason?: string;
+  quotaRefundDecidedBy?: string;
+  quotaRefundDecidedAt?: string;
 };
 
+export type AiRequestInspection = {
+  requestId?: number;
+  userId?: number;
+  userEmail?: string;
+  requestType?: string;
+  provider?: string;
+  model?: string;
+  promptVersion?: string;
+  status?: string;
+  latencyMs?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  estimatedCost?: number;
+  costCurrency?: string;
+  quotaConsumed?: boolean;
+  quotaConsumedAmount?: number;
+  quotaRefundedAmount?: number;
+  rejectionReason?: string;
+  rejectionFeedback?: string;
+  quotaRefundDecision?: string;
+  quotaRefundDecisionReason?: string;
+  createdAt?: string;
+  confirmedAt?: string;
+  rejectedAt?: string;
+  requestContext?: unknown;
+  result?: unknown;
+  confirmation?: unknown;
+  correctionSummary?: string;
+  failureSummary?: string;
+};
 export type AiMonitoringSummary = {
   generatedAt?: string;
   windowStart?: string;
@@ -689,6 +765,10 @@ export type AiQuotaRefundResponse = {
   quotaRefundReason?: string;
   quotaRefundedBy?: string;
   quotaRefundedAt?: string;
+  quotaRefundDecision?: "PENDING" | "APPROVED" | "REJECTED";
+  quotaRefundDecisionReason?: string;
+  quotaRefundDecidedBy?: string;
+  quotaRefundDecidedAt?: string;
   subscription?: SubscriptionDto;
 };
 export type RetentionPolicy = {
@@ -815,8 +895,31 @@ export type AdminBrevoSenderList = {
   statusMessage?: string;
   senders?: AdminBrevoSender[];
 };
-
-
-
-
-
+export type FoodProductContribution = {
+  id?: number;
+  submittedByUserId?: number;
+  barcode?: string;
+  productName?: string;
+  brand?: string;
+  marketRegion?: string;
+  calories?: number;
+  protein?: number;
+  fat?: number;
+  carbs?: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
+  servingSizeGrams?: number;
+  servingUnit?: string;
+  evidenceUrl?: string;
+  evidenceContentType?: string;
+  evidenceSizeBytes?: number;
+  evidenceChecksum?: string;
+  evidenceRetrievedAt?: string;
+  commercialUseAllowed?: boolean;
+  persistentStorageAllowed?: boolean;
+  status?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewNote?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+};

@@ -35,6 +35,7 @@ public class AiWorkoutPlanDraftResponseDto implements AiUsageMetadataCarrier {
     private Double confidence;
     private Integer qualityScore;
     private String estimatedUncertainty;
+    private AiUxContractDto ux;
     private List<String> reviewReasons = new ArrayList<>();
     @Schema(description = "Exact number of AI credits charged by the backend for this request.", example = "4")
     private Integer quotaConsumedAmount;

@@ -32,7 +32,13 @@ openfoodfacts:
   base-url: https://world.openfoodfacts.org
 
 grun:
+  ai:
+    completion-notifications:
+      enabled: false
+  notifications:
+    campaign-dispatch-enabled: false
   security:
+    subscription-feature-filter-enabled: false
     login:
       max-failed-attempts: 5
       lock-minutes: 15

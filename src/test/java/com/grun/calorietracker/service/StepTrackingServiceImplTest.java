@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -111,6 +112,9 @@ class StepTrackingServiceImplTest {
         StepGoalRequestDto request = new StepGoalRequestDto();
         request.setTargetSteps(12000);
         request.setReminderEnabled(true);
+        request.setReminderIntervalMinutes(90);
+        request.setReminderStartTime(LocalTime.of(8, 0));
+        request.setReminderEndTime(LocalTime.of(20, 0));
         when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
         when(stepGoalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(stepGoalRepository.save(any(StepGoalEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -119,6 +123,63 @@ class StepTrackingServiceImplTest {
 
         assertEquals(12000, result.getTargetSteps());
         assertEquals(true, result.getReminderEnabled());
+        assertEquals(90, result.getReminderIntervalMinutes());
+        assertEquals(LocalTime.of(8, 0), result.getReminderStartTime());
+        assertEquals(LocalTime.of(20, 0), result.getReminderEndTime());
+    }
+
+    @Test
+    void createDueReminderNotifications_whenIntervalElapsed_sendsAnotherReminder() {
+        UserEntity user = user();
+        user.setPushNotificationsEnabled(true);
+        user.setStepRemindersEnabled(true);
+        StepGoalEntity goal = goal(user, 10000);
+        goal.setReminderEnabled(true);
+        goal.setReminderIntervalMinutes(120);
+        goal.setReminderStartTime(LocalTime.of(9, 0));
+        goal.setReminderEndTime(LocalTime.of(21, 0));
+        goal.setLastReminderAt(LocalDateTime.of(2026, 7, 25, 10, 0));
+        LocalDateTime now = LocalDateTime.of(2026, 7, 25, 12, 0);
+
+        when(stepGoalRepository.findByReminderEnabledTrue()).thenReturn(List.of(goal));
+        when(stepGoalRepository.findByUser(user)).thenReturn(Optional.of(goal));
+        when(userTimeZoneSupport.now(user)).thenReturn(now);
+        when(deviceDataRepository.findByUserAndRecordedAtGreaterThanEqualAndRecordedAtLessThanOrderByRecordedAtAsc(
+                user, now.toLocalDate().atStartOfDay(), now.toLocalDate().plusDays(1).atStartOfDay()
+        )).thenReturn(List.of(metric(5000, HealthProvider.MANUAL, now.minusHours(1))));
+
+        int created = service.createDueReminderNotifications();
+
+        assertEquals(1, created);
+        assertEquals(now, goal.getLastReminderAt());
+        verify(notificationRepository).save(any());
+        verify(pushDeliveryService).deliver(any());
+    }
+
+    @Test
+    void createDueReminderNotifications_whenDailyGoalReached_doesNotSendReminder() {
+        UserEntity user = user();
+        user.setPushNotificationsEnabled(true);
+        user.setStepRemindersEnabled(true);
+        StepGoalEntity goal = goal(user, 10000);
+        goal.setReminderEnabled(true);
+        goal.setReminderIntervalMinutes(60);
+        goal.setReminderStartTime(LocalTime.of(9, 0));
+        goal.setReminderEndTime(LocalTime.of(21, 0));
+        LocalDateTime now = LocalDateTime.of(2026, 7, 25, 15, 0);
+
+        when(stepGoalRepository.findByReminderEnabledTrue()).thenReturn(List.of(goal));
+        when(stepGoalRepository.findByUser(user)).thenReturn(Optional.of(goal));
+        when(userTimeZoneSupport.now(user)).thenReturn(now);
+        when(deviceDataRepository.findByUserAndRecordedAtGreaterThanEqualAndRecordedAtLessThanOrderByRecordedAtAsc(
+                user, now.toLocalDate().atStartOfDay(), now.toLocalDate().plusDays(1).atStartOfDay()
+        )).thenReturn(List.of(metric(10000, HealthProvider.MANUAL, now.minusMinutes(15))));
+
+        int created = service.createDueReminderNotifications();
+
+        assertEquals(0, created);
+        verify(notificationRepository, never()).save(any());
+        verify(pushDeliveryService, never()).deliver(any());
     }
 
     @Test

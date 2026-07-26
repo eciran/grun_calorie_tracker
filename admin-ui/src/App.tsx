@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearTokens,
   formatRequestError,
@@ -24,6 +24,7 @@ import {
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AiMealDraft,
+  AiRequestInspection,
   AiMonitoringSummary,
   AiCreditPricingPolicy,
   AiQuotaRefundResponse,
@@ -31,6 +32,7 @@ import {
   DashboardSummary,
   FeatureMatrixItem,
   FoodProduct,
+  FoodProductContribution,
   FoodCanonicalDuplicateGroup,
   FoodCanonicalDuplicateGroupPage,
   FoodSearchAlias,
@@ -45,6 +47,8 @@ import {
   AdminRecipeImportCandidate,
   AdminRecipeImportResult,
   Notification,
+  NotificationCampaign,
+  NotificationCampaignPreview,
   RevenueCatChart,
   RevenueCatConfigStatus,
   RevenueCatMonitoringCharts,
@@ -73,6 +77,7 @@ type SectionKey =
   | "foodRegions"
   | "foodQuality"
   | "products"
+  | "productContributions"
   | "productDuplicates"
   | "productImages"
   | "productNutrition"
@@ -94,6 +99,7 @@ type SectionKey =
   | "retentionPolicies"
   | "settings"
   | "notifications"
+  | "notificationCampaigns"
   | "pushDelivery"
   | "tracking"
   | "trackingWater"
@@ -138,6 +144,7 @@ const FEATURE_ORDER = [
   "SAVED_MEAL_TEMPLATES",
   "RECIPE_BUILDER",
   "PUBLIC_RECIPE_LIBRARY",
+  "NEXT_MEAL_SUGGESTIONS",
   "ADVANCED_MACRO_TARGETS",
   "MICRONUTRIENT_DETAILS",
   "DATA_EXPORT",
@@ -221,6 +228,7 @@ const sections: SectionMeta[] = [
   { key: "foodRegions", label: "Regions", hint: "Market groups", icon: "R" },
   { key: "foodQuality", label: "Quality Rules", hint: "Catalog checks", icon: "Q" },
   { key: "products", label: "Product Review", hint: "Catalog quality", icon: "P" },
+  { key: "productContributions", label: "Label Contributions", hint: "User evidence", icon: "L" },
   { key: "productDuplicates", label: "Canonical Duplicates", hint: "Generic identity decisions", icon: "D" },
   { key: "productImages", label: "Image Review", hint: "Product media", icon: "I" },
   { key: "productNutrition", label: "Nutrition Review", hint: "Macro quality", icon: "N" },
@@ -242,6 +250,7 @@ const sections: SectionMeta[] = [
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
   { key: "retentionPolicies", label: "Retention Policies", hint: "Legal data rules", icon: "R" },
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
+  { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
   { key: "pushDelivery", label: "Push Delivery", hint: "Device tokens", icon: "P" },
   { key: "tracking", label: "Tracking", hint: "Usage analytics", icon: "T" },
   { key: "trackingWater", label: "Water", hint: "Hydration usage", icon: "W" },
@@ -291,6 +300,7 @@ const navigation: NavigationItem[] = [
     ...navSection("notifications"),
     children: [
       { key: "notifications", label: "Admin inbox", hint: "Operational alerts", icon: "N" },
+      navSection("notificationCampaigns"),
       navSection("mail"),
       navSection("pushDelivery")
     ]
@@ -317,9 +327,9 @@ const navigation: NavigationItem[] = [
 const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
   [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
-  [navSection("products"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
+  [navSection("products"), navSection("productContributions"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
-  [navSection("notifications"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
+  [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
   [navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
@@ -631,6 +641,7 @@ export default function App() {
           {active === "foodRegions" && <FoodOpsView mode="regions" onError={setError} />}
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
+          {active === "productContributions" && <FoodContributionReviewView onError={setError} />}
           {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
           {active === "productImages" && <ProductReviewView mode="images" onError={setError} />}
           {active === "productNutrition" && <ProductReviewView mode="nutrition" onError={setError} />}
@@ -651,6 +662,7 @@ export default function App() {
           {active === "settings" && <GlobalSettingsView />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
+          {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} />}
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
@@ -832,6 +844,21 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
   const paidUserPercent = percent(activeSubscriptions, data?.totalUsers);
   const failedEvents = data?.failedSubscriptionProviderEvents ?? 0;
   const reviewQueue = data?.reviewQueueProducts ?? 0;
+  const pendingRecipeApprovals = data?.pendingRecipeApprovals ?? 0;
+  const pendingRecipeImportCandidates = data?.pendingRecipeImportCandidates ?? 0;
+  const openRecipeReports = data?.openRecipeReports ?? 0;
+  const openProductCorrectionSuggestions = data?.openProductCorrectionSuggestions ?? 0;
+  const openProductQualitySuggestions = data?.openProductQualitySuggestions ?? 0;
+  const refundableAiRequests = data?.refundableAiRequests ?? 0;
+  const totalAdminApprovalItems = data?.totalAdminApprovalItems ?? (
+    reviewQueue
+    + pendingRecipeApprovals
+    + pendingRecipeImportCandidates
+    + openRecipeReports
+    + openProductCorrectionSuggestions
+    + openProductQualitySuggestions
+    + refundableAiRequests
+  );
   const exhaustedAiQuota = data?.aiQuotaExhaustedSubscriptions ?? 0;
   const aiRequests7d = data?.aiRequestsLast7Days ?? 0;
   const aiConfirmed7d = data?.aiConfirmedLast7Days ?? 0;
@@ -850,7 +877,58 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
     ["Platform state", healthLevel, failedEvents > 0 ? `${failedEvents} failed provider event(s)` : "No failed provider events"],
     ["Users", data?.totalUsers, `${formatValue(activeSubscriptions)} paid / ${paidUserPercent}% paid ratio`],
     ["Catalog readiness", `${catalogReadyPercent}%`, `${formatValue(data?.verifiedProducts)} verified of ${formatValue(data?.totalProducts)}`],
-    ["Review queue", reviewQueue, `${formatValue(data?.needsReviewProducts)} data review / ${formatValue(data?.rawImportedProducts)} raw imports`]
+    ["Approval inbox", totalAdminApprovalItems, `${formatValue(pendingRecipeApprovals)} recipe / ${formatValue(reviewQueue)} product review`]
+  ];
+  const approvalCards: OperationCardItem[] = [
+    {
+      title: "Recipe approvals",
+      value: pendingRecipeApprovals,
+      detail: pendingRecipeApprovals > 0 ? "User recipes are waiting for publication review." : "No user recipe publication request is waiting.",
+      tone: pendingRecipeApprovals > 0 ? "warn" : "good",
+      target: "recipes"
+    },
+    {
+      title: "Recipe import candidates",
+      value: pendingRecipeImportCandidates,
+      detail: pendingRecipeImportCandidates > 0 ? "Imported recipe candidates still need an admin decision." : "No pending recipe import candidate.",
+      tone: pendingRecipeImportCandidates > 0 ? "warn" : "good",
+      target: "recipes"
+    },
+    {
+      title: "Product review",
+      value: reviewQueue,
+      detail: reviewQueue > 0 ? "Products are waiting for data, image, or nutrition approval." : "No product review pressure reported.",
+      tone: reviewQueue > 0 ? "warn" : "good",
+      target: "products"
+    },
+    {
+      title: "Food corrections",
+      value: openProductCorrectionSuggestions,
+      detail: openProductCorrectionSuggestions > 0 ? "Users submitted corrections that still need review." : "No open user food correction suggestion.",
+      tone: openProductCorrectionSuggestions > 0 ? "warn" : "good",
+      target: "products"
+    },
+    {
+      title: "Recipe reports",
+      value: openRecipeReports,
+      detail: openRecipeReports > 0 ? "Public recipes have unresolved user reports." : "No open recipe report.",
+      tone: openRecipeReports > 0 ? "warn" : "good",
+      target: "recipes"
+    },
+    {
+      title: "Quality suggestions",
+      value: openProductQualitySuggestions,
+      detail: openProductQualitySuggestions > 0 ? "Catalog quality suggestions await an admin decision." : "No open catalog quality suggestion.",
+      tone: openProductQualitySuggestions > 0 ? "warn" : "good",
+      target: "foodQuality"
+    },
+    {
+      title: "AI quota refunds",
+      value: refundableAiRequests,
+      detail: refundableAiRequests > 0 ? "Rejected AI requests still have refundable quota." : "No refundable AI rejection is waiting.",
+      tone: refundableAiRequests > 0 ? "warn" : "good",
+      target: "ai"
+    }
   ];
   const operationCards: OperationCardItem[] = [
     {
@@ -866,13 +944,6 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
       detail: failedEvents > 0 ? "Failed payment/provider events need retry or config review." : "No failed payment/provider events.",
       tone: failedEvents > 0 ? "danger" : "good",
       target: "subscriptionEvents"
-    },
-    {
-      title: "Catalog review",
-      value: reviewQueue,
-      detail: reviewQueue > 0 ? "Products are waiting for data, image, or nutrition approval." : "No product review pressure reported.",
-      tone: reviewQueue > 100 ? "warn" : "good",
-      target: "products"
     },
     {
       title: "AI quality",
@@ -906,6 +977,11 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
           <MetricCard key={String(label)} label={String(label)} value={formatValue(value)} hint={String(hint)} />
         ))}
       </div>
+      <Panel title="Approval inbox">
+        <div className="operation-card-grid">
+          {approvalCards.map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
+        </div>
+      </Panel>
       <Panel title="Operations queue">
         <div className="operation-card-grid">
           {operationCards.map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
@@ -928,10 +1004,10 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
         <Panel title="Immediate attention">
           <PriorityList
             items={[
-              ["Failed payment/provider events", failedEvents],
-              ["Products waiting for review", reviewQueue],
-              ["AI quota exhausted users", exhaustedAiQuota],
-              ["Provider events last 24h", data?.subscriptionProviderEventsLast24Hours ?? 0]
+              ["All approval items", totalAdminApprovalItems],
+              ["Recipe publication requests", pendingRecipeApprovals],
+              ["User food corrections", openProductCorrectionSuggestions],
+              ["Refundable AI rejections", refundableAiRequests]
             ]}
           />
         </Panel>
@@ -1090,7 +1166,7 @@ function CanonicalDuplicateWorkspace({ onError }: { onError: (message: string | 
               <div className="canonical-candidate-title">
                 <div>
                   <h3>{productName(product)}</h3>
-                  <span>{product.dataSource ?? "Unknown source"} · {product.sourceKey ?? `Product #${product.id}`}</span>
+                  <span>{product.dataSource ?? "Unknown source"} / {product.sourceKey ?? `Product #${product.id}`}</span>
                 </div>
                 <div className="badge-stack">
                   {selected && <Badge value="CURRENT PRIMARY" tone="good" />}
@@ -1103,7 +1179,7 @@ function CanonicalDuplicateWorkspace({ onError }: { onError: (message: string | 
                 <div><dt>Quality</dt><dd>{formatValue(product.qualityScore)} / 100</dd></div>
                 <div><dt>Usage</dt><dd>{formatValue(product.usageCount)}</dd></div>
                 <div><dt>Calories</dt><dd>{formatValue(product.calories)} kcal</dd></div>
-                <div><dt>Macros</dt><dd>P {formatValue(product.protein)} · C {formatValue(product.carbs)} · F {formatValue(product.fat)}</dd></div>
+                <div><dt>Macros</dt><dd>P {formatValue(product.protein)} / C {formatValue(product.carbs)} / F {formatValue(product.fat)}</dd></div>
               </dl>
               <div className={`canonical-eligibility ${assessment.primaryEligible ? "good" : "blocked"}`}>
                 <strong>{assessment.primaryEligible ? "Eligible for primary" : "Selection blocked"}</strong>
@@ -1538,6 +1614,211 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
 }
 
 
+function FoodContributionReviewView({ onError }: { onError: (message: string | null) => void }) {
+  const [status, setStatus] = useState("PENDING_REVIEW");
+  const [marketRegion, setMarketRegion] = useState("TR");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [selected, setSelected] = useState<FoodProductContribution | null>(null);
+  const [evidenceObjectUrl, setEvidenceObjectUrl] = useState<string | null>(null);
+  const [evidenceState, setEvidenceState] = useState<LoadState>("idle");
+  const [reviewNote, setReviewNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const query = new URLSearchParams({ page: String(page), size: String(pageSize) });
+  if (status) query.set("status", status);
+  if (marketRegion) query.set("marketRegion", marketRegion);
+  const { data, state, reload } = useEndpoint<PageResponse<FoodProductContribution>>(
+    `/api/v1/admin/products/contributions?${query.toString()}`,
+    onError
+  );
+  const rows = data?.content ?? [];
+
+  useEffect(() => {
+    setPage(0);
+  }, [status, marketRegion, pageSize]);
+
+  useEffect(() => () => {
+    if (evidenceObjectUrl) URL.revokeObjectURL(evidenceObjectUrl);
+  }, [evidenceObjectUrl]);
+
+  async function openContribution(item: FoodProductContribution) {
+    setSelected(item);
+    setReviewNote(item.reviewNote ?? "");
+    setEvidenceState("loading");
+    onError(null);
+    try {
+      const blob = await requestBlob(`/api/v1/admin/products/contributions/${item.id}/evidence`);
+      setEvidenceObjectUrl(URL.createObjectURL(blob));
+      setEvidenceState("ready");
+    } catch (error) {
+      setEvidenceState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  function closeContribution() {
+    setSelected(null);
+    setReviewNote("");
+    setEvidenceObjectUrl(null);
+    setEvidenceState("idle");
+  }
+
+  async function review(decision: "APPROVED" | "REJECTED") {
+    if (!selected?.id) return;
+    if (decision === "REJECTED" && !reviewNote.trim()) {
+      onError("A rejection note is required.");
+      return;
+    }
+    setSaving(true);
+    onError(null);
+    try {
+      await request<FoodProductContribution>(`/api/v1/admin/products/contributions/${selected.id}/review`, {
+        method: "PATCH",
+        body: {
+          decision,
+          reviewNote: reviewNote.trim() || "Label and nutrition evidence reviewed from admin panel."
+        }
+      });
+      closeContribution();
+      await reload();
+      setNotice(decision === "APPROVED" ? "Contribution approved." : "Contribution rejected.");
+      window.setTimeout(() => setNotice(null), 2500);
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function exportLedger() {
+    onError(null);
+    try {
+      const blob = await requestBlob("/api/v1/admin/products/contributions/evidence-ledger.tsv", { timeoutMs: 60000 });
+      downloadBlob(blob, `tr-user-label-evidence-${new Date().toISOString().slice(0, 10)}.tsv`);
+    } catch (error) {
+      onError(formatRequestError(error));
+    }
+  }
+
+  return (
+    <div className="stack contribution-review-workspace">
+      <SectionToolbar title="User label contribution review" state={state} onReload={reload}>
+        <button className="ghost-button" type="button" onClick={exportLedger}>Export approved evidence</button>
+      </SectionToolbar>
+      {notice && <div className="success-banner compact-success">{notice}</div>}
+      <div className="review-workspace-summary">
+        <MetricCard label="Matching contributions" value={formatValue(data?.totalElements ?? rows.length)} hint="Current review filter" />
+        <MetricCard label="Pending on page" value={formatValue(rows.filter((item) => item.status === "PENDING_REVIEW").length)} hint="Awaiting decision" />
+        <MetricCard label="Approved on page" value={formatValue(rows.filter((item) => item.status === "APPROVED").length)} hint="Eligible for S9 export" />
+        <MetricCard label="Private evidence" value={formatValue(rows.filter((item) => item.evidenceContentType).length)} hint="Stored label objects" />
+      </div>
+      <Panel title="Review filters">
+        <div className="review-filter-grid contribution-filter-grid">
+          <label>
+            Decision status
+            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+              <option value="">All</option>
+              <option value="PENDING_REVIEW">Pending review</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </label>
+          <label>
+            Market region
+            <select value={marketRegion} onChange={(event) => setMarketRegion(event.target.value)}>
+              <option value="">All</option>
+              {MARKET_REGIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+        </div>
+      </Panel>
+      <DataTable
+        columns={["Product", "Evidence", "Nutrition / 100 g", "Consent", "Status"]}
+        rows={rows.map((item) => [
+          <div className="table-stack"><strong>{item.productName ?? "Unnamed product"}</strong><span>{item.brand ?? "-"}</span><small>{item.barcode ?? "-"} · {item.marketRegion ?? "-"}</small></div>,
+          <div className="table-stack"><span>{item.evidenceContentType ?? "Private object"}</span><small>{formatContributionBytes(item.evidenceSizeBytes)} · {formatDate(item.evidenceRetrievedAt)}</small></div>,
+          <div className="table-stack"><span>{formatValue(item.calories)} kcal</span><small>P {formatValue(item.protein)} · C {formatValue(item.carbs)} · F {formatValue(item.fat)}</small></div>,
+          <div className="table-stack"><span>{item.commercialUseAllowed ? "Commercial use" : "Missing commercial consent"}</span><small>{item.persistentStorageAllowed ? "Persistent storage" : "Storage not allowed"}</small></div>,
+          <div className="badge-stack"><Badge value={item.status} tone={contributionStatusTone(item.status)} /><small>{formatDate(item.createdAt)}</small></div>
+        ])}
+        rowData={rows}
+        onRowClick={openContribution}
+        empty="No label contributions match this filter."
+      />
+      <PaginationControls
+        page={data?.page ?? page}
+        pageSize={data?.size ?? pageSize}
+        totalElements={data?.totalElements ?? rows.length}
+        totalPages={data?.totalPages ?? 1}
+        first={Boolean(data?.first)}
+        last={Boolean(data?.last)}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
+      {selected && (
+        <div className="modal-backdrop" role="presentation" onClick={closeContribution}>
+          <div className="modal-card contribution-review-modal" role="dialog" aria-modal="true" aria-label="Review food label contribution" onClick={(event) => event.stopPropagation()}>
+            <header className="modal-header">
+              <div><span>PRIVATE LABEL EVIDENCE</span><h2>{selected.productName ?? "Product contribution"}</h2><p>{selected.brand ?? "-"} · {selected.barcode ?? "-"}</p></div>
+              <button className="modal-icon-close" type="button" onClick={closeContribution} aria-label="Close contribution review">x</button>
+            </header>
+            <div className="contribution-review-body">
+              <div className="contribution-evidence-panel">
+                {evidenceState === "loading" && <div className="evidence-placeholder">Loading private evidence…</div>}
+                {evidenceState === "error" && <div className="evidence-placeholder error">Evidence could not be loaded.</div>}
+                {evidenceObjectUrl && <img src={evidenceObjectUrl} alt={`Submitted label for ${selected.productName ?? "product"}`} />}
+                <small>Private object · no public URL · {formatContributionBytes(selected.evidenceSizeBytes)}</small>
+              </div>
+              <div className="contribution-review-details">
+                <div className="contribution-detail-grid">
+                  <DetailItem label="Market" value={selected.marketRegion} />
+                  <DetailItem label="Submitted by" value={`User #${formatValue(selected.submittedByUserId)}`} />
+                  <DetailItem label="Calories" value={`${formatValue(selected.calories)} kcal`} />
+                  <DetailItem label="Protein" value={`${formatValue(selected.protein)} g`} />
+                  <DetailItem label="Carbohydrate" value={`${formatValue(selected.carbs)} g`} />
+                  <DetailItem label="Fat" value={`${formatValue(selected.fat)} g`} />
+                  <DetailItem label="Serving" value={selected.servingSizeGrams ? `${formatValue(selected.servingSizeGrams)} ${selected.servingUnit ?? "g"}` : "Not supplied"} />
+                  <DetailItem label="Submitted" value={formatDate(selected.createdAt)} />
+                </div>
+                <div className="contribution-consent-row">
+                  <Badge value={selected.commercialUseAllowed ? "Commercial use allowed" : "Commercial consent missing"} tone={selected.commercialUseAllowed ? "good" : "danger"} />
+                  <Badge value={selected.persistentStorageAllowed ? "Storage allowed" : "Storage consent missing"} tone={selected.persistentStorageAllowed ? "good" : "danger"} />
+                </div>
+                <div className="contribution-checksum"><span>SHA-256</span><code>{selected.evidenceChecksum ?? "-"}</code></div>
+                <label>
+                  Review note
+                  <textarea maxLength={1000} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Record the evidence decision and any correction needed" />
+                </label>
+              </div>
+            </div>
+            <div className="modal-actions padded-actions">
+              <button className="ghost-button" type="button" onClick={closeContribution}>Cancel</button>
+              {selected.status === "PENDING_REVIEW" && <>
+                <button className="ghost-button danger-button" type="button" disabled={saving || !reviewNote.trim()} onClick={() => review("REJECTED")}>Reject</button>
+                <button className="primary-button" type="button" disabled={saving || evidenceState !== "ready"} onClick={() => review("APPROVED")}>Approve evidence</button>
+              </>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function contributionStatusTone(status?: string): "good" | "warn" | "danger" | "neutral" {
+  if (status === "APPROVED") return "good";
+  if (status === "REJECTED") return "danger";
+  if (status === "PENDING_REVIEW") return "warn";
+  return "neutral";
+}
+
+function formatContributionBytes(value?: number): string {
+  if (value === undefined || value === null) return "Size unavailable";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
 type AdminRecipeIngredientForm = {
   foodItemId: string;
   productSearchQuery: string;
@@ -2674,14 +2955,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                   <button className="ghost-button" type="button" onClick={addDraftCookingStep}>Add step</button>
                 </Panel>
                 <EditableDetail label="Review note">
-                  <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Optional internal moderation note" />
+                  <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Required for rejection; optional for approval" />
                 </EditableDetail>
               </div>
             </div>
             <footer className="modal-actions">
               <button className="ghost-button" onClick={closeRecipe} type="button">Cancel</button>
               <button
-                className="ghost-button"
+                className="ghost-button danger-text"
                 disabled={saving}
                 onClick={() => {
                   setDraftStatus("REJECTED");
@@ -2692,7 +2973,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                 }}
                 type="button"
               >
-                Mark rejected
+                Prepare rejection
               </button>
               <button
                 className="ghost-button"
@@ -3044,6 +3325,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [subscriptionActionState, setSubscriptionActionState] = useState<LoadState>("idle");
   const [subscriptionResult, setSubscriptionResult] = useState<SubscriptionDto | null>(null);
+  const [matrixApplyConfirmationOpen, setMatrixApplyConfirmationOpen] = useState(false);
   const [accessPreviewUserId, setAccessPreviewUserId] = useState<string>("");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [userPickerOpen, setUserPickerOpen] = useState(false);
@@ -3085,7 +3367,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const enabledTotal = features.filter((item) => item.enabled).length;
   const warningCount = (revenueCat?.missingRequiredConfig?.length ?? 0) + (revenueCat?.warnings?.length ?? 0);
   const selectedUserId = accessPreviewUserId ? Number(accessPreviewUserId) : null;
-  const quotaAudits = (subscriptionAudits?.content ?? []).filter((audit) => ["SUBSCRIPTION_UPDATE", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT"].includes(audit.actionType ?? ""));
+  const quotaAudits = (subscriptionAudits?.content ?? []).filter((audit) => ["SUBSCRIPTION_UPDATE", "SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT"].includes(audit.actionType ?? ""));
 
 
   const title = {
@@ -3116,14 +3398,21 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   }
   function updateSubscriptionForm(key: keyof typeof subscriptionForm, value: string | boolean) {
     if (key === "planType" && typeof value === "string") {
-      setSubscriptionForm((current) => ({
-        ...current,
-        planType: value,
-        billingPeriod: value === "FREE" ? "NONE" : current.billingPeriod === "NONE" ? "MONTHLY" : current.billingPeriod,
-        aiMonthlyQuota: String(defaultAiQuota(value)),
-        aiUsedThisPeriod: value === "FREE" ? "0" : current.aiUsedThisPeriod,
-        autoRenew: value !== "FREE"
-      }));
+      setSubscriptionForm((current) => {
+        const nextBillingPeriod = value === "FREE" ? "NONE" : current.billingPeriod === "NONE" ? "MONTHLY" : current.billingPeriod;
+        const expiredEndDate = isPastIsoDate(current.endDate);
+        const nextStartDate = value !== "FREE" && expiredEndDate ? todayIsoDate() : current.startDate;
+        return {
+          ...current,
+          planType: value,
+          billingPeriod: nextBillingPeriod,
+          startDate: nextStartDate,
+          endDate: value === "FREE" ? "" : expiredEndDate ? subscriptionPeriodEndDate(nextStartDate, nextBillingPeriod) : current.endDate,
+          aiMonthlyQuota: String(defaultAiQuota(value)),
+          aiUsedThisPeriod: value === "FREE" ? "0" : current.aiUsedThisPeriod,
+          autoRenew: value !== "FREE"
+        };
+      });
       return;
     }
     setSubscriptionForm((current) => ({ ...current, [key]: value }));
@@ -3214,6 +3503,10 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
       onError("Select a user before updating subscription.");
       return;
     }
+    if (isActivePaidSubscriptionWithExpiredEndDate(subscriptionForm)) {
+      onError("Active PLUS/PRO subscriptions must end today or later. Select a new end date before applying.");
+      return;
+    }
     setSubscriptionActionState("loading");
     onError(null);
     try {
@@ -3281,6 +3574,25 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
       await refreshSelectedAccess(String(selectedUserId));
       await reloadSubscriptionAudits();
       setSubscriptionActionState("ready");
+    } catch (err) {
+      setSubscriptionActionState("error");
+      onError(formatRequestError(err));
+    }
+  }
+  async function applyCurrentFeatureMatrixNow() {
+    if (!selectedUserId) {
+      onError("Select a user before applying the current feature matrix.");
+      return;
+    }
+    setSubscriptionActionState("loading");
+    onError(null);
+    try {
+      const response = await request<SubscriptionFeatureAccess>(`/api/v1/admin/subscriptions/users/${selectedUserId}/features/apply-current-matrix`, { method: "POST" });
+      setAccessPreview(response);
+      setAccessPreviewState("ready");
+      await reloadSubscriptionAudits();
+      setSubscriptionActionState("ready");
+      setMatrixApplyConfirmationOpen(false);
     } catch (err) {
       setSubscriptionActionState("error");
       onError(formatRequestError(err));
@@ -3544,7 +3856,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
             </label>
             <label>
               End date
-              <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
+              <DatePickerButton label="End date" min={subscriptionEndDateMinimum(subscriptionForm)} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
             </label>
             <label className="checkbox-field">
               <input checked={subscriptionForm.autoRenew} onChange={(event) => updateSubscriptionForm("autoRenew", event.target.checked)} type="checkbox" />
@@ -3558,6 +3870,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
           <div className="admin-subscription-actions">
             <button className="primary-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={applySubscriptionUpdate} type="button">Apply subscription</button>
             <button className="ghost-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={resetSelectedAiQuota} type="button">Reset used quota</button>
+            <button className="ghost-button matrix-apply-button" disabled={!selectedUserId || subscriptionActionState === "loading"} onClick={() => setMatrixApplyConfirmationOpen(true)} type="button">Apply matrix now</button>
           </div>
         </Panel>
         </div>
@@ -3713,7 +4026,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
               </label>
               <label>
                 End date
-                <DatePickerButton label="End date" min={subscriptionForm.startDate || undefined} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
+                <DatePickerButton label="End date" min={subscriptionEndDateMinimum(subscriptionForm)} value={subscriptionForm.endDate} onChange={(value) => updateSubscriptionForm("endDate", value)} />
               </label>
               <label>
                 Provider
@@ -3850,7 +4163,15 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
           </div>
         </Panel>
       )}
-    </div>
+      {matrixApplyConfirmationOpen && <ConfirmDialog
+        title="Apply current feature matrix?"
+        message={`This replaces the active entitlement snapshot for ${selectedPreviewUser?.email ?? selectedPreviewUser?.name ?? `user #${selectedUserId}`}. Features removed from the matrix may become unavailable immediately. The action will be recorded in audit history.`}
+        confirmLabel="Apply matrix"
+        danger
+        busy={subscriptionActionState === "loading"}
+        onCancel={() => setMatrixApplyConfirmationOpen(false)}
+        onConfirm={applyCurrentFeatureMatrixNow}
+      />}    </div>
   );
 }
 
@@ -3940,7 +4261,10 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [refundState, setRefundState] = useState<LoadState>("idle");
   const [smokeResult, setSmokeResult] = useState<string | null>(null);
   const [refundDraft, setRefundDraft] = useState<{ item: AiMealDraft; amount: string; reason: string } | null>(null);
+  const [refundRejectDraft, setRefundRejectDraft] = useState<{ item: AiMealDraft; reason: string } | null>(null);
   const [refundResult, setRefundResult] = useState<AiQuotaRefundResponse | null>(null);
+  const [inspection, setInspection] = useState<AiRequestInspection | null>(null);
+  const [inspectionState, setInspectionState] = useState<LoadState>("idle");
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
   const summaryPath = `/api/v1/admin/ai/requests/summary?windowHours=${summaryWindowHours}`;
   const { data, state, reload } = useEndpoint<PageResponse<AiMealDraft>>(path, onError);
@@ -3975,6 +4299,19 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     }
   }
 
+  async function inspectAiRequest(item: AiMealDraft) {
+    const requestId = aiRequestId(item);
+    if (!requestId) return;
+    setInspectionState("loading");
+    try {
+      const result = await request<AiRequestInspection>(`/api/v1/admin/ai/meal-drafts/${requestId}/inspection`);
+      setInspection(result);
+      setInspectionState("ready");
+    } catch (error) {
+      setInspectionState("error");
+      onError(formatRequestError(error));
+    }
+  }
   async function refundSelectedAiQuota(event: FormEvent) {
     event.preventDefault();
     if (!refundDraft) return;
@@ -4005,6 +4342,33 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     }
   }
 
+  async function rejectSelectedAiQuotaRefund(event: FormEvent) {
+    event.preventDefault();
+    if (!refundRejectDraft) return;
+    const requestId = aiRequestId(refundRejectDraft.item);
+    const reason = refundRejectDraft.reason.trim();
+    if (!requestId || !reason) {
+      onError("A reason is required to reject the refund request.");
+      return;
+    }
+    setRefundState("loading");
+    try {
+      const result = await request<AiQuotaRefundResponse>(`/api/v1/admin/ai/meal-drafts/${requestId}/quota-refund/reject`, {
+        method: "POST",
+        body: { reason }
+      });
+      setRefundResult(result);
+      setRefundRejectDraft(null);
+      setRefundState("ready");
+      await reload();
+      await reloadSummary();
+    } catch (error) {
+      setRefundState("error");
+      onError(formatRequestError(error));
+      await reload();
+      await reloadSummary();
+    }
+  }
 
   return (
     <div className="stack">
@@ -4091,13 +4455,16 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           </label>
         </div>
       </Panel>
-      {refundResult && <Panel title="Last quota refund result">
+      {refundResult && <Panel title="Last quota refund decision">
         <div className="ai-refund-result-grid">
           <DetailItem label="Request" value={refundResult.requestId} />
           <DetailItem label="Refunded now" value={refundResult.refundedNow} />
           <DetailItem label="Total refunded" value={refundResult.quotaRefundedAmount} />
           <DetailItem label="Refunded by" value={refundResult.quotaRefundedBy} />
-          <DetailItem label="Refunded at" value={formatDate(refundResult.quotaRefundedAt)} />
+          <DetailItem label="Decision" value={shortFeature(refundResult.quotaRefundDecision)} />
+          <DetailItem label="Decision reason" value={refundResult.quotaRefundDecisionReason} />
+          <DetailItem label="Decided by" value={refundResult.quotaRefundDecidedBy ?? refundResult.quotaRefundedBy} />
+          <DetailItem label="Decided at" value={formatDate(refundResult.quotaRefundDecidedAt ?? refundResult.quotaRefundedAt)} />
           <DetailItem label="Subscription remaining" value={refundResult.subscription?.aiRemainingThisPeriod} />
         </div>
       </Panel>}
@@ -4119,8 +4486,15 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
             formatAiCost(item),
             `${formatValue(item.quotaConsumedAmount ?? item.quotaConsumed ?? 0)} used / ${formatValue(item.quotaRefundedAmount ?? item.quotaRefunded ?? 0)} refunded / ${formatValue(refundableAmount)} refundable`,
             <div className="ai-feedback-cell"><strong>{shortFeature(item.rejectionReason)}</strong><small>{item.rejectionFeedback ?? "-"}</small></div>,
-            <div className="ai-feedback-cell"><strong>{item.quotaRefundedBy ?? "-"}</strong><small>{item.quotaRefundedAt ? `${formatDate(item.quotaRefundedAt)} | ${item.quotaRefundReason ?? ""}` : "No refund recorded"}</small></div>,
-            <button className="ghost-button" type="button" disabled={!canRefund || refundState === "loading"} onClick={() => setRefundDraft({ item, amount: String(Math.max(1, refundableAmount)), reason: "" })}>Refund quota</button>
+            <div className="ai-feedback-cell">
+              <strong>{shortFeature(item.quotaRefundDecision ?? (item.quotaRefundedAt ? "APPROVED" : "PENDING"))}</strong>
+              <small>{item.quotaRefundDecisionReason ?? item.quotaRefundReason ?? "Awaiting admin decision"}</small>
+            </div>,
+            <div className="ai-refund-row-actions">
+              <button className="ghost-button" type="button" disabled={inspectionState === "loading"} onClick={() => void inspectAiRequest(item)}>Inspect</button>
+              <button className="ghost-button" type="button" disabled={!canRefund || refundState === "loading"} onClick={() => setRefundDraft({ item, amount: String(Math.max(1, refundableAmount)), reason: "" })}>Refund</button>
+              <button className="ghost-button danger-button" type="button" disabled={!canRefund || refundState === "loading"} onClick={() => setRefundRejectDraft({ item, reason: "" })}>Reject</button>
+            </div>
           ];
         })}
         empty="No AI requests returned."
@@ -4135,17 +4509,217 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
+      {inspection && <AiRequestInspectionModal inspection={inspection} onClose={() => setInspection(null)} />}
       {refundDraft && <AiQuotaRefundModal
         draft={refundDraft}
         busy={refundState === "loading"}
         onChange={setRefundDraft}
         onClose={() => setRefundDraft(null)}
         onSubmit={refundSelectedAiQuota}
+      />}      {refundRejectDraft && <AiQuotaRefundRejectModal
+        draft={refundRejectDraft}
+        busy={refundState === "loading"}
+        onChange={setRefundRejectDraft}
+        onClose={() => setRefundRejectDraft(null)}
+        onSubmit={rejectSelectedAiQuotaRefund}
       />}
     </div>
   );
 }
 
+function AiRequestInspectionModal({ inspection, onClose }: { inspection: AiRequestInspection; onClose: () => void }) {
+  const resultRecord = inspectionRecord(inspection.result);
+  const detectedItems = inspectionObjectArray(resultRecord.items);
+  const ingredients = inspectionObjectArray(resultRecord.ingredients);
+  const suggestedIngredients = inspectionObjectArray(resultRecord.suggestedIngredients);
+  const visibleIngredients = detectedItems.length ? detectedItems : ingredients.length ? ingredients : suggestedIngredients;
+  const ingredientTitle = detectedItems.length ? "Detected ingredients" : ingredients.length ? "Ingredients" : "Suggested ingredients";
+  const perServingNutrition = inspectionRecord(resultRecord.estimatedNutritionPerServing);
+  const extractedResultKeys = new Set(["items", "ingredients", "suggestedIngredients", "estimatedNutritionPerServing", "estimatedNutritionTotal"]);
+  const resultOverview = Object.fromEntries(Object.entries(resultRecord).filter(([key]) => !extractedResultKeys.has(key)));
+  const diagnostics = [
+    ["User rejection", shortFeature(inspection.rejectionReason)],
+    ["User feedback", inspection.rejectionFeedback],
+    ["Refund decision", shortFeature(inspection.quotaRefundDecision)],
+    ["Decision reason", inspection.quotaRefundDecisionReason],
+    ["Correction summary", inspection.correctionSummary],
+    ["Failure summary", inspection.failureSummary]
+  ].filter(([, value]) => meaningfulInspectionValue(value));
+
+  return (
+    <div className="modal-backdrop ai-inspection-backdrop" role="dialog" aria-modal="true" aria-labelledby="ai-inspection-title" onClick={onClose}>
+      <section className="modal-card ai-inspection-modal" onClick={(event) => event.stopPropagation()}>
+        <header className="modal-header ai-inspection-header">
+          <div>
+            <span>AI REQUEST</span>
+            <h2 id="ai-inspection-title">Request #{inspection.requestId ?? "-"}</h2>
+            <p>{inspection.userEmail ?? `User #${formatValue(inspection.userId)}`}</p>
+          </div>
+          <div className="ai-inspection-header-actions">
+            <span className="ai-inspection-readonly">Read only</span>
+            <button className="modal-icon-close" type="button" onClick={onClose} aria-label="Close AI request inspection">x</button>
+          </div>
+        </header>
+        <div className="ai-inspection-body">
+          <div className="ai-inspection-summary">
+            <DetailItem label="Type" value={humanizeAiRequestType(inspection.requestType)} />
+            <DetailItem label="Status" value={shortFeature(inspection.status)} />
+            <DetailItem label="Provider" value={`${inspection.provider ?? "-"} / ${inspection.model ?? "-"}`} />
+            <DetailItem label="Created" value={formatDate(inspection.createdAt)} />
+            <DetailItem label="Performance" value={inspection.latencyMs ? `${formatValue(inspection.latencyMs)} ms / ${formatValue(inspection.totalTokens)} tokens` : `${formatValue(inspection.totalTokens)} tokens`} />
+            <DetailItem label="Quota" value={`${formatValue(inspection.quotaConsumedAmount)} used / ${formatValue(inspection.quotaRefundedAmount)} refunded`} />
+          </div>
+          <div className="ai-inspection-grid">
+            <InspectionSection title="Request context" data={inspection.requestContext} omitKeys={["requestType"]} compact />
+            <InspectionSection title="AI result" data={resultOverview} omitKeys={["requestId", "requestType", "provider", "model", "status", "schemaVersion"]} />
+            {visibleIngredients.length > 0 && <MealIngredientInspection title={ingredientTitle} items={visibleIngredients} />}
+            {Object.keys(perServingNutrition).length > 0 && <NutritionPerServingInspection nutrition={perServingNutrition} />}
+            <InspectionSection title="Confirmation" data={inspection.confirmation} />
+            {diagnostics.length > 0 && (
+              <section className="ai-inspection-section ai-inspection-diagnostics">
+                <div className="ai-inspection-section-heading"><h3>Review and diagnostics</h3></div>
+                <div className="ai-inspection-review-list">
+                  {diagnostics.map(([label, value]) => (
+                    <div className="ai-inspection-diagnostic" key={String(label)}>
+                      <span>{label}</span>
+                      <InspectionValue value={parseInspectionText(value)} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+        <footer className="modal-actions padded-actions"><button className="primary-button" type="button" onClick={onClose}>Close</button></footer>
+      </section>
+    </div>
+  );
+}
+
+function MealIngredientInspection({ title, items }: { title: string; items: Array<Record<string, unknown>> }) {
+  return (
+    <section className="ai-inspection-section ai-inspection-ingredients">
+      <div className="ai-inspection-section-heading"><h3>{title}</h3><span>{items.length} item{items.length === 1 ? "" : "s"}</span></div>
+      <div className="ai-inspection-ingredient-list">
+        {items.map((item, index) => {
+          const nutrition = inspectionRecord(item.estimatedNutrition);
+          const macros = {
+            calories: item.estimatedCalories ?? nutrition.calories,
+            protein: item.estimatedProtein ?? nutrition.protein,
+            carbs: item.estimatedCarbs ?? nutrition.carbs,
+            fat: item.estimatedFat ?? nutrition.fat
+          };
+          const hasMacros = Object.values(macros).some(meaningfulInspectionValue);
+          return (
+            <article className={`ai-inspection-ingredient${hasMacros ? "" : " no-macros"}`} key={`${String(item.name ?? "item")}-${index}`}>
+              <div className="ai-inspection-ingredient-main">
+                <div><span>Ingredient {index + 1}</span><strong>{String(item.name ?? "Unnamed ingredient")}</strong></div>
+                <div className="ai-inspection-portion"><strong>{formatInspectionScalar(item.quantity ?? item.portionSize)}</strong><span>{String(item.unit ?? item.portionUnit ?? "")}</span></div>
+                {meaningfulInspectionValue(item.confidence) && <div className="ai-inspection-confidence"><span>Confidence</span><strong>{Math.round(Number(item.confidence) * 100)}%</strong></div>}
+              </div>
+              {hasMacros && <div className="ai-inspection-macros">
+                <MacroValue label="Calories" value={macros.calories} unit="kcal" />
+                <MacroValue label="Protein" value={macros.protein} unit="g" />
+                <MacroValue label="Carbs" value={macros.carbs} unit="g" />
+                <MacroValue label="Fat" value={macros.fat} unit="g" />
+              </div>}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function NutritionPerServingInspection({ nutrition }: { nutrition: Record<string, unknown> }) {
+  const units: Record<string, string> = {
+    calories: "kcal", protein: "g", carbs: "g", fat: "g", fiber: "g", sugar: "g", saturatedFat: "g",
+    sodium: "mg", potassium: "mg", cholesterol: "mg", calcium: "mg", iron: "mg", magnesium: "mg", zinc: "mg",
+    vitaminA: "mcg", vitaminB12: "mcg", vitaminC: "mg", vitaminD: "mcg", vitaminE: "mg"
+  };
+  const entries = Object.entries(nutrition).filter(([, value]) => meaningfulInspectionValue(value));
+  if (!entries.length) return null;
+  return (
+    <section className="ai-inspection-section ai-inspection-nutrition-serving">
+      <div className="ai-inspection-section-heading"><h3>Estimated nutrition per serving</h3></div>
+      <div className="ai-inspection-nutrition-grid">
+        {entries.map(([key, value]) => <MacroValue key={key} label={inspectionLabel(key)} value={value} unit={units[key] ?? ""} />)}
+      </div>
+    </section>
+  );
+}
+
+function inspectionObjectArray(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.map(inspectionRecord).filter((item) => Object.keys(item).length > 0) : [];
+}
+function MacroValue({ label, value, unit }: { label: string; value: unknown; unit: string }) {
+  const available = meaningfulInspectionValue(value);
+  return <div className={available ? "" : "unavailable"}><span>{label}</span><strong>{available ? `${formatInspectionScalar(value)} ${unit}` : "Not available"}</strong></div>;
+}
+
+function inspectionRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+function InspectionSection({ title, data, omitKeys = [], featured = false, compact = false }: { title: string; data?: unknown; omitKeys?: string[]; featured?: boolean; compact?: boolean }) {
+  const normalized = filterInspectionData(data, new Set(omitKeys));
+  if (!meaningfulInspectionValue(normalized)) return null;
+  return (
+    <section className={`ai-inspection-section${featured ? " ai-inspection-featured" : ""}${compact ? " ai-inspection-compact" : ""}`}>
+      <div className="ai-inspection-section-heading"><h3>{title}</h3></div>
+      <div className="ai-inspection-content"><InspectionValue value={normalized} /></div>
+    </section>
+  );
+}
+
+function InspectionValue({ value, label }: { value: unknown; label?: string }) {
+  if (!meaningfulInspectionValue(value)) return null;
+  if (Array.isArray(value)) {
+    const primitive = value.every((item) => item === null || ["string", "number", "boolean"].includes(typeof item));
+    if (primitive) return <ul className="ai-inspection-list">{value.map((item, index) => <li key={index}>{formatInspectionScalar(item)}</li>)}</ul>;
+    return <div className="ai-inspection-item-list">{value.map((item, index) => <div className="ai-inspection-item" key={index}><span className="ai-inspection-item-index">{label ? `${label} ${index + 1}` : `Item ${index + 1}`}</span><InspectionValue value={item} /></div>)}</div>;
+  }
+  if (typeof value === "object" && value !== null) {
+    return <div className="ai-inspection-facts">{Object.entries(value as Record<string, unknown>).filter(([, item]) => meaningfulInspectionValue(item)).map(([key, item]) => (
+      <div className={typeof item === "object" && item !== null ? "ai-inspection-fact wide" : "ai-inspection-fact"} key={key}>
+        <span>{inspectionLabel(key)}</span>
+        <InspectionValue value={item} label={inspectionLabel(key)} />
+      </div>
+    ))}</div>;
+  }
+  return <strong className="ai-inspection-scalar">{formatInspectionScalar(value)}</strong>;
+}
+
+function filterInspectionData(value: unknown, omitted: Set<string>): unknown {
+  if (Array.isArray(value)) return value.map((item) => filterInspectionData(item, new Set())).filter(meaningfulInspectionValue);
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([key, item]) => !omitted.has(key) && meaningfulInspectionValue(item))
+    .map(([key, item]) => [key, filterInspectionData(item, new Set())]));
+}
+
+function meaningfulInspectionValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === "" || value === "-") return false;
+  if (Array.isArray(value)) return value.some(meaningfulInspectionValue);
+  if (typeof value === "object") return Object.values(value as Record<string, unknown>).some(meaningfulInspectionValue);
+  return true;
+}
+
+function formatInspectionScalar(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return String(value ?? "-");
+}
+
+function inspectionLabel(value: string): string {
+  return value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function parseInspectionText(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+  try { return JSON.parse(trimmed); } catch { return value; }
+}
 function AiQuotaRefundModal({
   busy,
   draft,
@@ -4204,6 +4778,57 @@ function AiQuotaRefundModal({
         <div className="modal-actions padded-actions ai-refund-actions">
           <button className="ghost-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-button" type="submit" disabled={busy || invalid}>Refund quota</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+function AiQuotaRefundRejectModal({
+  busy,
+  draft,
+  onChange,
+  onClose,
+  onSubmit
+}: {
+  busy: boolean;
+  draft: { item: AiMealDraft; reason: string };
+  onChange: (draft: { item: AiMealDraft; reason: string }) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  const item = draft.item;
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <form className="modal-card compact ai-refund-modal" onSubmit={onSubmit} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span>AI QUOTA REFUND DECISION</span>
+            <h2>Reject request #{aiRequestId(item) ?? "-"}</h2>
+            <p>{item.userEmail ?? `User #${formatValue(item.userId)}`}</p>
+          </div>
+          <button className="modal-icon-close" type="button" onClick={onClose} aria-label="Close refund rejection modal">x</button>
+        </div>
+        <div className="modal-body ai-refund-body">
+          <div className="ai-refund-user-rejection">
+            <span>User rejection</span>
+            <strong>{shortFeature(item.rejectionReason) || "No reason selected"}</strong>
+            <p>{item.rejectionFeedback || "No user feedback submitted."}</p>
+          </div>
+          <label className="ai-refund-reason-field">
+            Reason shown to the user
+            <textarea
+              autoFocus
+              maxLength={500}
+              value={draft.reason}
+              onChange={(event) => onChange({ ...draft, reason: event.target.value })}
+              placeholder="Explain why quota cannot be refunded"
+              required
+            />
+          </label>
+        </div>
+        <div className="modal-actions padded-actions ai-refund-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button danger-button" type="submit" disabled={busy || !draft.reason.trim()}>Reject refund</button>
         </div>
       </form>
     </div>
@@ -6128,6 +6753,371 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
   );
 }
 
+function NotificationCampaignsView({ onError }: { onError: (message: string | null) => void }) {
+  const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "" };
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [draft, setDraft] = useState(emptyDraft);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [preview, setPreview] = useState<NotificationCampaignPreview | null>(null);
+  const audiencePreviewRequest = useRef(0);
+  const [actionState, setActionState] = useState<LoadState>("idle");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmSchedule, setConfirmSchedule] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [historyPreview, setHistoryPreview] = useState<{ campaign: NotificationCampaign; preview: NotificationCampaignPreview } | null>(null);
+  const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
+  if (statusFilter) params.set("status", statusFilter);
+  const { data, state, reload } = useEndpoint<PageResponse<NotificationCampaign>>("/api/v1/admin/notification-campaigns?" + params.toString(), onError);
+  const rows = data?.content ?? [];
+  const active = rows.filter((item) => item.status === "SCHEDULED" || item.status === "PROCESSING").length;
+  const delivered = rows.reduce((sum, item) => sum + (item.processedCount ?? 0), 0);
+  const pushFailures = rows.reduce((sum, item) => sum + (item.pushFailedCount ?? 0), 0);
+
+  function resetDraft() {
+    setDraft(emptyDraft);
+    setSelectedId(null);
+    setScheduledAt("");
+    setPreview(null);
+    setNotice(null);
+  }
+
+  function campaignPayload(source = draft) {
+    return {
+      ...source,
+      targetRoute: source.targetRoute || null,
+      targetPlan: source.targetPlan || null,
+      targetRegion: source.targetRegion || null,
+      targetLanguage: source.targetLanguage || null
+    };
+  }
+
+  async function updateAudienceFilter(field: "targetPlan" | "targetRegion" | "targetLanguage", value: string) {
+    const nextDraft = { ...draft, [field]: value };
+    setDraft(nextDraft);
+    setPreview(null);
+    if (!selectedId) {
+      setNotice("Save the draft before calculating its filtered audience.");
+      return;
+    }
+    const requestId = ++audiencePreviewRequest.current;
+    setActionState("loading");
+    try {
+      await request<NotificationCampaign>("/api/v1/admin/notification-campaigns/" + selectedId, {
+        method: "PUT",
+        body: campaignPayload(nextDraft)
+      });
+      const result = await request<NotificationCampaignPreview>("/api/v1/admin/notification-campaigns/" + selectedId + "/preview", { method: "POST" });
+      if (requestId !== audiencePreviewRequest.current) return;
+      setPreview(result);
+      setNotice("Estimated audience updated for the current filters.");
+      setActionState("ready");
+      await reload();
+    } catch (error) {
+      if (requestId !== audiencePreviewRequest.current) return;
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+  function campaignDateTimeValue(date: Date) {
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return toDateInputValue(date) + "T" + hours + ":" + minutes;
+  }
+
+  function setDeliveryOffset(minutes: number) {
+    const next = new Date(Date.now() + minutes * 60_000);
+    next.setSeconds(0, 0);
+    setScheduledAt(campaignDateTimeValue(next));
+  }
+
+  function setDeliveryDate(value: string) {
+    const currentTime = scheduledAt.slice(11, 16);
+    const fallback = new Date(Date.now() + 15 * 60_000);
+    const time = currentTime || String(fallback.getHours()).padStart(2, "0") + ":" + String(fallback.getMinutes()).padStart(2, "0");
+    setScheduledAt(value + "T" + time);
+  }
+
+  function setDeliveryTime(value: string) {
+    if (!value) {
+      setScheduledAt("");
+      return;
+    }
+    const date = scheduledAt.slice(0, 10) || toDateInputValue(new Date());
+    setScheduledAt(date + "T" + value);
+  }
+  function editCampaign(item: NotificationCampaign) {
+    if (item.status !== "DRAFT" || !item.id) return;
+    setSelectedId(item.id);
+    setDraft({
+      name: item.name ?? "",
+      title: item.title ?? "",
+      message: item.message ?? "",
+      category: item.category ?? "SYSTEM",
+      channel: item.channel ?? "IN_APP_AND_PUSH",
+      targetRoute: item.targetRoute ?? "",
+      targetPlan: item.targetPlan ?? "",
+      targetRegion: item.targetRegion ?? "",
+      targetLanguage: item.targetLanguage ?? ""
+    });
+    setPreview(null);
+    setNotice(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function saveDraft(event: FormEvent) {
+    event.preventDefault();
+    setActionState("loading");
+    setNotice(null);
+    try {
+      const payload = campaignPayload();
+      const saved = await request<NotificationCampaign>(
+        selectedId ? "/api/v1/admin/notification-campaigns/" + selectedId : "/api/v1/admin/notification-campaigns",
+        { method: selectedId ? "PUT" : "POST", body: payload }
+      );
+      setSelectedId(saved.id ?? selectedId);
+      setNotice("Campaign draft saved. Delivery is not queued until Schedule delivery is confirmed.");
+      setActionState("ready");
+      await reload();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function previewAudience() {
+    if (!selectedId) {
+      setNotice("Save the draft before previewing its audience.");
+      return;
+    }
+    setActionState("loading");
+    try {
+      await request<NotificationCampaign>("/api/v1/admin/notification-campaigns/" + selectedId, {
+        method: "PUT",
+        body: campaignPayload()
+      });
+      const result = await request<NotificationCampaignPreview>("/api/v1/admin/notification-campaigns/" + selectedId + "/preview", { method: "POST" });
+      setPreview(result);
+      setNotice("Audience preview refreshed from the current filters.");
+      setActionState("ready");
+      await reload();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function openHistoryPreview(item: NotificationCampaign) {
+    if (!item.id) return;
+    setActionState("loading");
+    try {
+      const result = await request<NotificationCampaignPreview>("/api/v1/admin/notification-campaigns/" + item.id + "/preview", { method: "POST" });
+      setHistoryPreview({ campaign: item, preview: result });
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function scheduleCampaign() {
+    if (!selectedId) return;
+    setActionState("loading");
+    try {
+      await request<NotificationCampaign>("/api/v1/admin/notification-campaigns/" + selectedId + "/schedule", {
+        method: "POST",
+        body: { scheduledAt: scheduledAt ? scheduledAt + ":00" : null }
+      });
+      setConfirmSchedule(false);
+      setActionState("ready");
+      await reload();
+      resetDraft();
+    } catch (error) {
+      setConfirmSchedule(false);
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function cancelCampaign(item: NotificationCampaign) {
+    if (!item.id) return;
+    setActionState("loading");
+    try {
+      await request<NotificationCampaign>("/api/v1/admin/notification-campaigns/" + item.id + "/cancel", { method: "POST" });
+      setNotice("Campaign cancelled. Already processed recipients are not duplicated or removed.");
+      setActionState("ready");
+      await reload();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  return (
+    <div className="stack notification-campaign-page">
+      <SectionToolbar title="Notification campaigns" state={combineStates([state, actionState])} onReload={reload}>
+        <button className="ghost-button" type="button" onClick={resetDraft}>New draft</button>
+      </SectionToolbar>
+      {notice && <div className="form-notice">{notice}</div>}
+      <div className="metric-grid compact-grid">
+        <MetricCard label="Campaigns" value={formatValue(data?.totalElements ?? rows.length)} hint="Draft and historical campaigns" />
+        <MetricCard label="Active delivery" value={formatValue(active)} hint="Scheduled or processing" />
+        <MetricCard label="Recipients processed" value={formatValue(delivered)} hint="Idempotent recipient records" />
+        <MetricCard label="Push failures" value={formatValue(pushFailures)} hint="Provider delivery failures" />
+      </div>
+
+      <form className="panel campaign-composer" onSubmit={saveDraft}>
+        <div className="campaign-composer-header">
+          <div><p className="eyebrow">Controlled broadcast</p><h3>{selectedId ? "Edit draft #" + selectedId : "Create campaign draft"}</h3></div>
+          <button className="icon-button campaign-guide-button" type="button" aria-label="Open campaign management guide" title="Campaign management guide" onClick={() => setGuideOpen(true)}>i</button>
+        </div>
+        <div className="campaign-form-grid">
+          <label className="span-2">Internal campaign name<input required maxLength={160} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="July service update" /></label>
+          <label>Category<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}><option value="SYSTEM">System information</option><option value="MARKETING">Marketing / promotion</option></select></label>
+          <label>Channel<select value={draft.channel} onChange={(event) => setDraft({ ...draft, channel: event.target.value })}><option value="IN_APP">In-app only</option><option value="PUSH">Push only</option><option value="IN_APP_AND_PUSH">In-app and push</option></select></label>
+          <label className="span-2">User-facing title<input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Planned maintenance" /></label>
+          <label className="span-2">Target route<input maxLength={255} value={draft.targetRoute} onChange={(event) => setDraft({ ...draft, targetRoute: event.target.value })} placeholder="/settings/subscription" /></label>
+          <label className="span-4">Message<textarea required maxLength={1000} value={draft.message} onChange={(event) => setDraft({ ...draft, message: event.target.value })} placeholder="Write the concise user-facing message." /></label>
+        </div>
+        <div className="campaign-audience-strip">
+          <label className="campaign-audience-filter">Plan<select value={draft.targetPlan} onChange={(event) => void updateAudienceFilter("targetPlan", event.target.value)}><option value="">All plans</option>{PLAN_ORDER.map((plan) => <option value={plan} key={plan}>{plan}</option>)}</select></label>
+          <label className="campaign-audience-filter">Region<select value={draft.targetRegion} onChange={(event) => void updateAudienceFilter("targetRegion", event.target.value)}><option value="">All regions</option>{MARKET_REGIONS.map((region) => <option value={region} key={region}>{region}</option>)}</select></label>
+          <label className="campaign-audience-filter">Language<select value={draft.targetLanguage} onChange={(event) => void updateAudienceFilter("targetLanguage", event.target.value)}><option value="">All languages</option>{PREFERRED_LANGUAGES.map((language) => <option value={language} key={language}>{language}</option>)}</select></label>
+          <div className="campaign-delivery-control">
+            <span className="campaign-field-label">Delivery time</span>
+            <div className="campaign-delivery-fields">
+              <DatePickerButton label="Delivery date" min={toDateInputValue(new Date())} value={scheduledAt.slice(0, 10)} onChange={setDeliveryDate} />
+              <label className="campaign-time-control"><span>Time</span><input aria-label="Delivery time" type="time" value={scheduledAt.slice(11, 16)} onChange={(event) => setDeliveryTime(event.target.value)} /></label>
+            </div>
+            <div className="campaign-quick-times" aria-label="Quick delivery time">
+              <button type="button" onClick={() => setDeliveryOffset(5)}>In 5 min</button>
+              <button type="button" onClick={() => setDeliveryOffset(15)}>In 15 min</button>
+              {scheduledAt && <button type="button" onClick={() => setScheduledAt("")}>Clear</button>}
+            </div>
+            <small className="campaign-delivery-help">Saving only keeps the draft. Use Schedule delivery after saving to queue this message.</small>
+          </div>
+        </div>
+        {draft.category === "MARKETING" && <div className="form-notice warning">Marketing campaigns only include users who explicitly enabled marketing notifications.</div>}
+        {preview && <div className="campaign-preview-result"><div><small>Estimated audience</small><strong>{formatValue(preview.estimatedAudience)}</strong></div><div><small>Consent policy</small><strong>{preview.marketingConsentRequired ? "Marketing opt-in required" : "Active users"}</strong></div></div>}
+        <div className="inline-actions campaign-actions">
+          <button className="primary-button" disabled={actionState === "loading"} type="submit">Save draft</button>
+          <button className="ghost-button" disabled={!selectedId || actionState === "loading"} type="button" onClick={() => void previewAudience()}>Preview audience</button>
+          <button className="ghost-button" disabled={!selectedId || actionState === "loading"} type="button" onClick={() => setConfirmSchedule(true)}>{scheduledAt ? "Schedule delivery" : "Send now"}</button>
+        </div>
+      </form>
+
+      <Panel title="Campaign history">
+        <div className="review-filter-grid campaign-filter-row">
+          <label>Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }}><option value="">All statuses</option>{["DRAFT", "SCHEDULED", "PROCESSING", "COMPLETED", "CANCELLED", "FAILED"].map((status) => <option value={status} key={status}>{status}</option>)}</select></label>
+        </div>
+        <DataTable
+          columns={["Campaign", "Audience", "Channel", "Status", "Delivery", "Scheduled", "Actions"]}
+          rows={rows.map((item) => [
+            <div className="table-stack"><strong>{item.name ?? "-"}</strong><small>{item.title ?? "-"}</small></div>,
+            <div className="table-stack"><strong>{formatValue(item.estimatedAudience)}</strong><small>{[item.targetPlan, item.targetRegion, item.targetLanguage].filter(Boolean).join(" / ") || "All active users"}</small></div>,
+            <div className="badge-stack"><Badge value={item.category} tone={item.category === "MARKETING" ? "warn" : "neutral"} /><Badge value={item.channel} /></div>,
+            <Badge value={item.status} tone={item.status === "COMPLETED" ? "good" : item.status === "FAILED" ? "danger" : item.status === "PROCESSING" ? "warn" : "neutral"} />,
+            <div className="table-stack"><strong>{formatValue(item.processedCount)} processed</strong><small>{formatValue(item.pushSentCount)} push / {formatValue(item.pushFailedCount)} failed</small></div>,
+            formatDate(item.scheduledAt ?? item.createdAt),
+            <div className="inline-actions">
+              {item.status === "DRAFT" && <button className="ghost-button" type="button" onClick={() => editCampaign(item)}>Edit</button>}
+              {item.id && <button className="ghost-button" type="button" onClick={() => void openHistoryPreview(item)}>Preview</button>}
+              {(item.status === "SCHEDULED" || item.status === "PROCESSING") && <button className="ghost-button danger-text" type="button" onClick={() => void cancelCampaign(item)}>Cancel</button>}
+            </div>
+          ])}
+          empty="No notification campaigns returned."
+        />
+        <PaginationControls page={data?.page ?? page} pageSize={data?.size ?? pageSize} totalElements={data?.totalElements ?? rows.length} totalPages={data?.totalPages ?? 1} first={Boolean(data?.first)} last={Boolean(data?.last)} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+      </Panel>
+      {confirmSchedule && <ConfirmDialog title={scheduledAt ? "Schedule this campaign?" : "Send this campaign now?"} message={"This will target approximately " + formatValue(preview?.estimatedAudience) + " eligible users. Backend audience and consent rules will be enforced."} confirmLabel={scheduledAt ? "Schedule campaign" : "Queue delivery"} danger busy={actionState === "loading"} onCancel={() => setConfirmSchedule(false)} onConfirm={() => void scheduleCampaign()} />}
+      {guideOpen && <NotificationCampaignGuideModal onClose={() => setGuideOpen(false)} />}
+      {historyPreview && <NotificationCampaignPreviewModal campaign={historyPreview.campaign} preview={historyPreview.preview} onClose={() => setHistoryPreview(null)} />}
+    </div>
+  );
+}
+function NotificationCampaignPreviewModal({
+  campaign,
+  preview,
+  onClose
+}: {
+  campaign: NotificationCampaign;
+  preview: NotificationCampaignPreview;
+  onClose: () => void;
+}) {
+  const audience = [campaign.targetPlan, campaign.targetRegion, campaign.targetLanguage].filter(Boolean);
+  return (
+    <div className="modal-backdrop campaign-preview-backdrop" role="presentation" onClick={onClose}>
+      <section className="modal-card campaign-history-modal" role="dialog" aria-modal="true" aria-labelledby="campaign-preview-title" onClick={(event) => event.stopPropagation()}>
+        <header className="modal-header">
+          <div>
+            <p className="eyebrow">Campaign preview</p>
+            <h2 id="campaign-preview-title">{campaign.name ?? "Notification campaign"}</h2>
+            <span>{campaign.title ?? "-"}</span>
+          </div>
+          <button className="icon-button" onClick={onClose} type="button" aria-label="Close campaign preview">x</button>
+        </header>
+        <div className="campaign-history-body">
+          <div className="campaign-history-summary">
+            <div><small>Estimated audience</small><strong>{formatValue(preview.estimatedAudience)}</strong></div>
+            <div><small>Status</small><Badge value={campaign.status} tone={campaign.status === "COMPLETED" ? "good" : campaign.status === "FAILED" ? "danger" : "neutral"} /></div>
+            <div><small>Category</small><Badge value={campaign.category} tone={campaign.category === "MARKETING" ? "warn" : "neutral"} /></div>
+            <div><small>Channel</small><Badge value={campaign.channel} /></div>
+          </div>
+          <section className="campaign-history-section">
+            <h3>Audience and consent</h3>
+            <div className="campaign-history-facts">
+              <div><small>Plan</small><strong>{campaign.targetPlan || "All plans"}</strong></div>
+              <div><small>Region</small><strong>{campaign.targetRegion || "All regions"}</strong></div>
+              <div><small>Language</small><strong>{campaign.targetLanguage || "All languages"}</strong></div>
+              <div><small>Consent</small><strong>{preview.marketingConsentRequired ? "Marketing opt-in required" : "Active eligible users"}</strong></div>
+            </div>
+            {!audience.length && <p className="campaign-history-hint">No audience filters were set for this campaign.</p>}
+          </section>
+          <section className="campaign-history-section">
+            <h3>User-facing content</h3>
+            <div className="campaign-message-preview"><strong>{campaign.title ?? "-"}</strong><p>{campaign.message ?? "-"}</p><small>Route: {campaign.targetRoute || "No destination route"}</small></div>
+          </section>
+          <section className="campaign-history-section">
+            <h3>Delivery result</h3>
+            <div className="campaign-history-facts">
+              <div><small>Processed</small><strong>{formatValue(campaign.processedCount)}</strong></div>
+              <div><small>In-app</small><strong>{formatValue(campaign.inAppCount)}</strong></div>
+              <div><small>Push sent</small><strong>{formatValue(campaign.pushSentCount)}</strong></div>
+              <div><small>Push failed</small><strong>{formatValue(campaign.pushFailedCount)}</strong></div>
+              <div><small>Scheduled</small><strong>{formatDate(campaign.scheduledAt)}</strong></div>
+              <div><small>Completed</small><strong>{formatDate(campaign.completedAt)}</strong></div>
+            </div>
+            {campaign.failureMessage && <div className="form-notice warning">{campaign.failureMessage}</div>}
+          </section>
+        </div>
+        <div className="modal-actions"><button className="primary-button" type="button" onClick={onClose}>Close preview</button></div>
+      </section>
+    </div>
+  );
+}
+function NotificationCampaignGuideModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-backdrop campaign-guide-backdrop" role="presentation" onClick={onClose}>
+      <section className="modal-card campaign-guide-modal" role="dialog" aria-modal="true" aria-labelledby="campaign-guide-title" onClick={(event) => event.stopPropagation()}>
+        <header className="modal-header">
+          <div><p className="eyebrow">Notification operations</p><h2 id="campaign-guide-title">Campaign management guide</h2><span>Prepare, verify, and deliver announcements without bypassing consent controls.</span></div>
+          <button className="icon-button" onClick={onClose} type="button" aria-label="Close campaign guide">x</button>
+        </header>
+        <div className="campaign-guide-body">
+          <div className="campaign-guide-step"><strong>1. Choose the category</strong><p>Use System for service, security, or account information. Use Marketing only for promotions; recipients must have explicitly enabled marketing notifications.</p></div>
+          <div className="campaign-guide-step"><strong>2. Select the channel</strong><p>In-app stores the message in the notification centre. Push contacts registered devices. Combined delivery uses both while still respecting push preferences.</p></div>
+          <div className="campaign-guide-step"><strong>3. Limit the audience</strong><p>Plan, region, and language filters are optional. Empty filters target all eligible active users. Admin accounts, disabled accounts, and locked accounts are excluded.</p></div>
+          <div className="campaign-guide-step"><strong>4. Save and preview</strong><p>Save the campaign as a draft, then preview the audience before delivery. The preview is an estimate; backend eligibility rules are evaluated again during processing.</p></div>
+          <div className="campaign-guide-step"><strong>5. Send or schedule</strong><p>Leave delivery time empty to queue immediately, or choose a future time. Delivery runs in batches and records each recipient to prevent duplicate sends.</p></div>
+          <div className="campaign-guide-note"><strong>Before confirming</strong><span>Check the user-facing title, message, destination route, consent category, estimated audience, and delivery time. Cancellation stops remaining batches but does not retract messages already delivered.</span></div>
+        </div>
+        <div className="modal-actions"><button className="primary-button" type="button" onClick={onClose}>Understood</button></div>
+      </section>
+    </div>
+  );
+}
 function NotificationsView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey, context?: Omit<AdminTargetContext, "section">) => void }) {
   const [typeFilter, setTypeFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
@@ -6924,7 +7914,7 @@ function ProductReviewModal({
   }
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="product-modal" role="dialog" aria-modal="true" aria-label="Product review detail" onClick={(event) => event.stopPropagation()}>
+      <section className="product-modal product-review-modal" role="dialog" aria-modal="true" aria-label="Product review detail" onClick={(event) => event.stopPropagation()}>
         <header className="modal-header">
           <div>
             <p className="eyebrow">Product review</p>
@@ -6937,9 +7927,9 @@ function ProductReviewModal({
           <div className="product-image-frame">
             {image ? <img alt={productName(item)} src={image} /> : <span>No image</span>}
           </div>
-            <div className="product-detail-stack">
-            <div className="detail-grid editable">
+          <div className="product-detail-stack">
             <ProductQualityWorkbench product={item} onError={onError} />
+            <div className="detail-grid editable">
               <EditableDetail label="Product name">
                 <input value={draft.productName} onChange={(event) => updateDraft("productName", event.target.value)} />
               </EditableDetail>
@@ -7189,7 +8179,13 @@ const SAFE_SERVING_PRODUCT_FIELDS = new Set(["servingSizeGrams", "servingUnit"])
 function canApplyWorkbenchSuggestion(item: ProductQualitySuggestion) {
   if (!item.suggestedValue) return false;
   const suggestionType = item.suggestionType ?? "";
-  if (["NAME_CLEANUP", "DISPLAY_NAME", "LOCALIZATION", "SEARCH_ALIAS"].includes(suggestionType)) return true;
+  if (["NAME_CLEANUP", "DISPLAY_NAME"].includes(suggestionType)) return true;
+  if (suggestionType === "LOCALIZATION") {
+    return /^localizations\.(EN|TR)\.(displayName|shortDisplayName)$/.test(item.fieldName ?? "");
+  }
+  if (suggestionType === "SEARCH_ALIAS") {
+    return /^searchAliases\.(EN|TR)$/.test(item.fieldName ?? "");
+  }
   if (SAFE_NUTRITION_SUGGESTION_TYPES.has(suggestionType)) {
     return SAFE_NUTRITION_PRODUCT_FIELDS.has(item.fieldName ?? "");
   }
@@ -7767,14 +8763,17 @@ function ConfirmDialog({
 }) {
   return (
     <div className="modal-backdrop confirm-backdrop" role="presentation" onClick={onCancel}>
-      <section className="confirm-dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
-        <div>
-          <p className="eyebrow">{danger ? "Confirmation required" : "Confirm action"}</p>
-          <h2>{title}</h2>
-          <p>{message}</p>
+      <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+        <div className="confirm-dialog-content">
+          <div className={`confirm-dialog-icon ${danger ? "danger" : "neutral"}`} aria-hidden="true">{danger ? "!" : "i"}</div>
+          <div className="confirm-dialog-copy">
+            <p className="eyebrow">{danger ? "Confirmation required" : "Confirm action"}</p>
+            <h2>{title}</h2>
+            <p>{message}</p>
+          </div>
         </div>
         <div className="modal-actions">
-          <button className="ghost-button" disabled={busy} onClick={onCancel} type="button">Cancel</button>
+          <button autoFocus className="ghost-button" disabled={busy} onClick={onCancel} type="button">Cancel</button>
           <button className={danger ? "primary-button danger-button" : "primary-button"} disabled={busy} onClick={onConfirm} type="button">
             {busy ? "Saving..." : confirmLabel}
           </button>
@@ -7993,6 +8992,7 @@ function humanizeSubscriptionAuditAction(action?: string): string {
     case "SUBSCRIPTION_UPDATE": return "Subscription update";
     case "AI_QUOTA_RESET": return "AI quota reset";
     case "AI_QUOTA_ADDON_GRANT": return "AI quota grant";
+    case "SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY": return "Matrix applied now";
     default: return action ? humanize(action.toLowerCase()) : "-";
   }
 }
@@ -8011,6 +9011,10 @@ function subscriptionAuditChangeLines(audit: AuditEntry): string[] {
     }
     if (after.aiAddonQuotaExpiresAt) lines.push("Valid until: " + formatDate(after.aiAddonQuotaExpiresAt));
     return lines;
+  }
+
+  if (audit.actionType === "SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY") {
+    return ["Current feature matrix applied to active user snapshot"];
   }
 
   if (audit.actionType === "AI_QUOTA_RESET") {
@@ -8213,6 +9217,8 @@ function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: s
       return Boolean(access.recipeBuilder);
     case "PUBLIC_RECIPE_LIBRARY":
       return Boolean(access.publicRecipeLibrary);
+    case "NEXT_MEAL_SUGGESTIONS":
+      return Boolean(access.nextMealSuggestions);
     case "ADVANCED_MACRO_TARGETS":
       return Boolean(access.advancedMacroTargets);
     case "MICRONUTRIENT_DETAILS":
@@ -8283,6 +9289,8 @@ function humanizeFeature(value?: string): string {
       return "Recipe Builder";
     case "PUBLIC_RECIPE_LIBRARY":
       return "Public Recipe Library";
+    case "NEXT_MEAL_SUGGESTIONS":
+      return "Next Meal Suggestions";
     case "ADVANCED_MACRO_TARGETS":
       return "Advanced Macro Targets";
     case "MICRONUTRIENT_DETAILS":
@@ -8331,6 +9339,8 @@ function featureDescription(value?: string): string {
       return "Create and manage user recipes.";
     case "PUBLIC_RECIPE_LIBRARY":
       return "Browse the curated public recipe catalogue.";
+    case "NEXT_MEAL_SUGGESTIONS":
+      return "Home-screen meal targets with matched recipe suggestions and AI recipe prefill.";
     case "ADVANCED_MACRO_TARGETS":
       return "Flexible macro targets and meal-level planning.";
     case "MICRONUTRIENT_DETAILS":
@@ -8381,6 +9391,35 @@ function parsePositiveInt(value: string): number {
 }
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isPastIsoDate(value?: string): boolean {
+  return Boolean(value && value < todayIsoDate());
+}
+
+function subscriptionPeriodEndDate(startDate: string, billingPeriod: string): string {
+  const [year, month, day] = startDate.split("-").map(Number);
+  const monthOffset = billingPeriod === "YEARLY" ? 12 : 1;
+  const targetMonthIndex = month - 1 + monthOffset;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const targetMonth = targetMonthIndex % 12;
+  const targetMonthLastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const result = new Date(Date.UTC(targetYear, targetMonth, Math.min(day, targetMonthLastDay)));
+  result.setUTCDate(result.getUTCDate() - 1);
+  return result.toISOString().slice(0, 10);
+}
+
+function isActivePaidSubscriptionWithExpiredEndDate(form: { planType: string; status: string; endDate: string }): boolean {
+  return form.planType !== "FREE"
+    && (form.status === "ACTIVE" || form.status === "TRIALING")
+    && isPastIsoDate(form.endDate);
+}
+
+function subscriptionEndDateMinimum(form: { planType: string; status: string; startDate: string }): string | undefined {
+  if (form.planType !== "FREE" && (form.status === "ACTIVE" || form.status === "TRIALING")) {
+    return form.startDate > todayIsoDate() ? form.startDate : todayIsoDate();
+  }
+  return form.startDate || undefined;
 }
 
 function listPreview(values?: string[]): string {
@@ -8730,7 +9769,9 @@ function aiRequestId(item: AiMealDraft): number | undefined {
 function canRefundAiRequest(item: AiMealDraft): boolean {
   return item.status === "REJECTED"
     && Boolean(item.quotaConsumed)
-    && safeNumber(item.refundableAmount) > 0;
+    && safeNumber(item.refundableAmount) > 0
+    && item.quotaRefundDecision !== "APPROVED"
+    && item.quotaRefundDecision !== "REJECTED";
 }
 function formatAiCost(item: AiMealDraft): string {
   if (typeof item.estimatedCost !== "number") return "-";

@@ -60,6 +60,9 @@ class NotificationServiceImplTest {
         assertEquals("subscription", result.getContent().get(0).getType());
         assertEquals("CRITICAL", result.getContent().get(0).getSeverity());
         assertEquals("SUBSCRIPTION_PROVIDER_EVENT", result.getContent().get(0).getTargetType());
+        assertEquals("Review the change before continuing.", result.getContent().get(0).getNote());
+        assertEquals("VIEW_DETAILS", result.getContent().get(0).getPrimaryAction());
+        assertEquals(250, result.getContent().get(0).getActionAmountMl());
     }
 
     @Test
@@ -100,6 +103,9 @@ class NotificationServiceImplTest {
         notification.setId(id);
         notification.setUser(user);
         notification.setMessage("Feature changed");
+        notification.setNote("Review the change before continuing.");
+        notification.setPrimaryAction("VIEW_DETAILS");
+        notification.setActionAmountMl(250);
         notification.setType(type);
         notification.setIsRead(read);
         notification.setSeverity("CRITICAL");

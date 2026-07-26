@@ -2,13 +2,16 @@ package com.grun.calorietracker.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
+import com.grun.calorietracker.dto.AdminAiRequestInspectionDto;
 import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
+import com.grun.calorietracker.dto.AdminAiQuotaRefundRejectRequestDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundResponseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.AiRequestStatus;
+import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import com.grun.calorietracker.service.AdminAiMealDraftService;
 import com.grun.calorietracker.service.AdminAuditService;
 import org.junit.jupiter.api.Test;
@@ -130,6 +133,36 @@ class AdminAiMealDraftControllerTest {
     }
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void inspectRequest_whenAdmin_returnsCuratedPayloadAndAuditsRead() throws Exception {
+        AdminAiRequestInspectionDto response = new AdminAiRequestInspectionDto();
+        response.setRequestId(10L);
+        response.setRequestType(com.grun.calorietracker.enums.AiRequestType.AI_NUTRITION_PLAN);
+        response.setStatus(AiRequestStatus.DRAFT_CREATED);
+        response.setRequestContext(objectMapper.readTree("{\"dayCount\":7,\"mealsPerDay\":6}"));
+        response.setResult(objectMapper.readTree("{\"summary\":\"Curated result\"}"));
+        response.setConfirmation(objectMapper.createObjectNode());
+        when(adminAiMealDraftService.inspectRequest(10L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/ai/meal-drafts/10/inspection"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestId").value(10))
+                .andExpect(jsonPath("$.requestContext.dayCount").value(7))
+                .andExpect(jsonPath("$.result.summary").value("Curated result"))
+                .andExpect(jsonPath("$.inputPayload").doesNotExist())
+                .andExpect(jsonPath("$.outputPayload").doesNotExist());
+
+        verify(adminAuditService).record(
+                eq("admin@test.com"),
+                eq(AdminAuditActionType.AI_REQUEST_INSPECT),
+                eq(AdminAuditTargetType.AI_REQUEST),
+                eq("10"),
+                eq(null),
+                any(java.util.Map.class),
+                any()
+        );
+    }
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void refundQuota_whenAdmin_returnsRefundResultAndAudits() throws Exception {
         AdminAiQuotaRefundRequestDto request = new AdminAiQuotaRefundRequestDto();
         request.setAmount(1);
@@ -173,6 +206,39 @@ class AdminAiMealDraftControllerTest {
         );
     }
 
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void rejectQuotaRefund_whenAdmin_returnsDecisionAndAudits() throws Exception {
+        AdminAiQuotaRefundRejectRequestDto request = new AdminAiQuotaRefundRejectRequestDto();
+        request.setReason("The result was usable.");
+
+        AdminAiQuotaRefundResponseDto response = new AdminAiQuotaRefundResponseDto();
+        response.setRequestId(10L);
+        response.setQuotaRefundDecision(AiQuotaRefundDecision.REJECTED);
+        response.setQuotaRefundDecisionReason("The result was usable.");
+
+        when(adminAiMealDraftService.rejectQuotaRefund(
+                eq("admin@test.com"), eq(10L), any(AdminAiQuotaRefundRejectRequestDto.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/ai/meal-drafts/10/quota-refund/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestId").value(10))
+                .andExpect(jsonPath("$.quotaRefundDecision").value("REJECTED"))
+                .andExpect(jsonPath("$.quotaRefundDecisionReason").value("The result was usable."));
+
+        verify(adminAuditService).record(
+                eq("admin@test.com"),
+                eq(AdminAuditActionType.AI_QUOTA_REFUND),
+                eq(AdminAuditTargetType.AI_REQUEST),
+                eq("10"),
+                eq(null),
+                any(AdminAiQuotaRefundResponseDto.class),
+                any()
+        );
+    }
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
     void refundQuota_whenNotAdmin_returnsForbidden() throws Exception {

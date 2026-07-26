@@ -35,6 +35,9 @@ public class NotificationPreferenceDto {
     @Schema(description = "Whether weekly progress report notifications are enabled.", example = "true")
     private Boolean weeklyReportsEnabled;
 
+    @Schema(description = "Whether promotional and marketing notifications are allowed.", example = "false")
+    private Boolean marketingNotificationsEnabled;
+
     public NotificationPreferenceDto(Boolean pushNotificationsEnabled, Boolean mealRemindersEnabled, Boolean hydrationRemindersEnabled) {
         this.pushNotificationsEnabled = pushNotificationsEnabled;
         this.mealRemindersEnabled = mealRemindersEnabled;

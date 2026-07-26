@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.repository.AppliedPromoRepository;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.BodyMeasurementRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -24,6 +25,7 @@ import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.OnboardingDraftRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.ProductAnalyticsEventRepository;
 import com.grun.calorietracker.repository.ProductCorrectionSuggestionRepository;
@@ -34,11 +36,14 @@ import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
+import com.grun.calorietracker.repository.SleepGoalRepository;
+import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserAchievementRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserPushTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserFitnessPreferenceRepository;
 import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
@@ -65,6 +70,7 @@ class AccountGdprServiceImplTest {
     @Mock private FoodLogsRepository foodLogsRepository;
     @Mock private ExerciseLogRepository exerciseLogRepository;
     @Mock private ProgressLogRepository progressLogRepository;
+    @Mock private BodyMeasurementRepository bodyMeasurementRepository;
     @Mock private NotificationRepository notificationRepository;
     @Mock private FederatedIdentityRepository federatedIdentityRepository;
     @Mock private MealTemplateRepository mealTemplateRepository;
@@ -98,6 +104,10 @@ class AccountGdprServiceImplTest {
     @Mock private ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
     @Mock private ProductAnalyticsEventRepository productAnalyticsEventRepository;
     @Mock private UserNutritionPreferenceRepository userNutritionPreferenceRepository;
+    @Mock private UserFitnessPreferenceRepository userFitnessPreferenceRepository;
+    @Mock private OnboardingDraftRepository onboardingDraftRepository;
+    @Mock private SleepGoalRepository sleepGoalRepository;
+    @Mock private SleepSessionRepository sleepSessionRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     private AccountGdprServiceImpl service;
@@ -111,6 +121,7 @@ class AccountGdprServiceImplTest {
                 foodLogsRepository,
                 exerciseLogRepository,
                 progressLogRepository,
+                bodyMeasurementRepository,
                 notificationRepository,
                 federatedIdentityRepository,
                 mealTemplateRepository,
@@ -144,6 +155,10 @@ class AccountGdprServiceImplTest {
                 productCorrectionSuggestionRepository,
                 productAnalyticsEventRepository,
                 userNutritionPreferenceRepository,
+                userFitnessPreferenceRepository,
+                onboardingDraftRepository,
+                sleepGoalRepository,
+                sleepSessionRepository,
                 passwordEncoder
         );
 
@@ -153,6 +168,8 @@ class AccountGdprServiceImplTest {
         user.setName("User");
         user.setPassword("encoded-current");
         user.setPreferredLanguage(PreferredLanguage.EN);
+        user.setBirthDate(java.time.LocalDate.of(1994, 6, 18));
+        user.setCountryCode(com.grun.calorietracker.enums.CountryCode.IE);
         user.setEmailVerified(true);
         user.setPasswordSet(true);
     }
@@ -214,9 +231,20 @@ class AccountGdprServiceImplTest {
         preference.setDietaryPreferences(java.util.List.of("High protein"));
         when(userNutritionPreferenceRepository.findByUser(user)).thenReturn(Optional.of(preference));
 
+        com.grun.calorietracker.entity.UserFitnessPreferenceEntity fitnessPreference =
+                new com.grun.calorietracker.entity.UserFitnessPreferenceEntity();
+        fitnessPreference.setUser(user);
+        fitnessPreference.setWeeklyWorkoutFrequency(
+                com.grun.calorietracker.enums.WeeklyWorkoutFrequency.THREE_TO_FOUR);
+        fitnessPreference.setUpdatedAt(java.time.LocalDateTime.of(2026, 7, 24, 10, 0));
+        when(userFitnessPreferenceRepository.findByUser(user)).thenReturn(Optional.of(fitnessPreference));
         GdprDataExportDto dto = service.exportMyData("user@grun.app");
 
         assertEquals("user@grun.app", dto.getEmail());
+        assertEquals(java.time.LocalDate.of(1994, 6, 18), dto.getBirthDate());
+        assertEquals(com.grun.calorietracker.enums.CountryCode.IE, dto.getCountryCode());
+        assertEquals(com.grun.calorietracker.enums.WeeklyWorkoutFrequency.THREE_TO_FOUR,
+                dto.getFitnessPreferences().getWeeklyWorkoutFrequency());
         assertEquals(11L, dto.getFoodLogCount());
         assertEquals(2L, dto.getConsentCount());
         assertEquals(6L, dto.getAiRequestCount());
@@ -260,6 +288,9 @@ class AccountGdprServiceImplTest {
         verify(productCorrectionSuggestionRepository).deleteByUser(user);
         verify(productAnalyticsEventRepository).deleteByUser(user);
         verify(userNutritionPreferenceRepository).deleteByUser(user);
+        verify(userFitnessPreferenceRepository).deleteByUser(user);
+        verify(sleepSessionRepository).deleteByUser(user);
+        verify(sleepGoalRepository).deleteByUser(user);
         verify(subscriptionProviderEventRepository).anonymizeUserReferences(user, "deleted-user:10", "{}");
         verify(aiRequestHistoryRepository).deleteByUser(user);
         verify(subscriptionRepository).deleteByUser(user);

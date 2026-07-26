@@ -15,6 +15,7 @@ import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.service.FailedBarcodeScanService;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.FoodServingOptionService;
+import com.grun.calorietracker.service.FoodSearchTelemetryService;
 import com.grun.calorietracker.service.ProductCorrectionSuggestionService;
 import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.UserService;
@@ -48,6 +49,7 @@ public class FoodItemController {
     private final ProductCorrectionSuggestionService productCorrectionSuggestionService;
     private final UserProductLibraryService userProductLibraryService;
     private final UserService userService;
+    private final FoodSearchTelemetryService foodSearchTelemetryService;
 
 
     @GetMapping("/search")
@@ -93,8 +95,23 @@ public class FoodItemController {
         criteria.setPreferredLanguage(resolveSearchLanguage(language, acceptLanguage, userDetails));
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
+        products.setSearchRequestId(foodSearchTelemetryService.recordSearch(criteria, products));
 
         return ResponseEntity.ok(products);
+    }
+
+    @PostMapping("/search/{searchRequestId}/selection")
+    @Operation(summary = "Report selected search result", description = "Records an anonymous search-result selection for relevance measurement. Each search accepts one selection.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Selection recorded."),
+            @ApiResponse(responseCode = "400", description = "Rank is invalid or this search already has a selection."),
+            @ApiResponse(responseCode = "404", description = "Search event or food product was not found.")
+    })
+    public ResponseEntity<Void> recordSearchSelection(
+            @PathVariable String searchRequestId,
+            @RequestBody @Valid com.grun.calorietracker.dto.FoodSearchSelectionRequestDto request) {
+        foodSearchTelemetryService.recordSelection(searchRequestId, request.foodItemId(), request.rank());
+        return ResponseEntity.noContent().build();
     }
 
     private MarketRegion resolveSearchRegion(MarketRegion requestedRegion, UserDetails userDetails) {

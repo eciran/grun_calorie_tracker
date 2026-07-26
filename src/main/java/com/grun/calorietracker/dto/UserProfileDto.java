@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.CountryCode;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UnitPreference;
@@ -10,12 +11,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "User profile data returned to the mobile client.")
+@Deprecated(forRemoval = false)
+@Schema(description = "Legacy aggregate user profile. New client APIs use split profile contracts.", deprecated = true)
 public class UserProfileDto {
     @Schema(description = "User id.", example = "1")
     private Long id;
@@ -28,6 +32,9 @@ public class UserProfileDto {
 
     @Schema(description = "User age in years.", example = "32")
     private Integer age;
+
+    @Schema(description = "User date of birth used to derive age.", example = "1994-06-18")
+    private LocalDate birthDate;
 
     @Schema(description = "User gender value used by body composition calculations.", example = "MALE")
     private String gender;
@@ -61,6 +68,9 @@ public class UserProfileDto {
 
     @Schema(description = "User's selected market region for localized food search.", example = "UK_IE")
     private MarketRegion marketRegion;
+
+    @Schema(description = "User's ISO country code.", example = "IE")
+    private CountryCode countryCode;
 
     @Schema(description = "User's selected application language. Food region remains independent from language.", example = "EN")
     private PreferredLanguage preferredLanguage;

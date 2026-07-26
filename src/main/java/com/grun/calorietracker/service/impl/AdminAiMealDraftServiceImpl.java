@@ -2,15 +2,19 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AdminAiRequestReviewDto;
+import com.grun.calorietracker.dto.AdminAiRequestInspectionDto;
 import com.grun.calorietracker.dto.AdminAiMonitoringSummaryDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundRequestDto;
+import com.grun.calorietracker.dto.AdminAiQuotaRefundRejectRequestDto;
 import com.grun.calorietracker.dto.AdminAiQuotaRefundResponseDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.enums.AiRequestStatus;
+import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.service.AdminAiMealDraftService;
@@ -35,6 +39,7 @@ import java.util.Map;
 public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
 
     private static final String AI_QUOTA_REFUND_APPROVED_TYPE = "ai_quota_refund_approved";
+    private static final String AI_QUOTA_REFUND_REJECTED_TYPE = "ai_quota_refund_rejected";
     private static final String AI_REFUND_SOURCE = "AI_QUOTA_REFUND";
 
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
@@ -42,6 +47,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
     private final NotificationRepository notificationRepository;
     private final PushDeliveryService pushDeliveryService;
     private final AiProperties aiProperties;
+    private final AdminAiRequestPayloadSanitizer payloadSanitizer;
 
     @Override
     @Transactional(readOnly = true)
@@ -59,6 +65,44 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
             requests = aiRequestHistoryRepository.findAllByOrderByCreatedAtDesc(pageable);
         }
         return requests.map(this::toReviewDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminAiRequestInspectionDto inspectRequest(Long requestId) {
+        AiRequestHistoryEntity entity = aiRequestHistoryRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("AI request was not found."));
+        AdminAiRequestInspectionDto dto = new AdminAiRequestInspectionDto();
+        dto.setRequestId(entity.getId());
+        dto.setUserId(entity.getUser() == null ? null : entity.getUser().getId());
+        dto.setUserEmail(entity.getUser() == null ? null : entity.getUser().getEmail());
+        dto.setRequestType(entity.getRequestType());
+        dto.setProvider(entity.getProvider());
+        dto.setModel(entity.getModel());
+        dto.setPromptVersion(entity.getPromptVersion());
+        dto.setStatus(entity.getStatus());
+        dto.setLatencyMs(entity.getLatencyMs());
+        dto.setPromptTokens(entity.getPromptTokens());
+        dto.setCompletionTokens(entity.getCompletionTokens());
+        dto.setTotalTokens(entity.getTotalTokens());
+        dto.setEstimatedCost(entity.getEstimatedCost());
+        dto.setCostCurrency(entity.getCostCurrency());
+        dto.setQuotaConsumed(entity.getQuotaConsumed());
+        dto.setQuotaConsumedAmount(safeInt(entity.getQuotaConsumedAmount()));
+        dto.setQuotaRefundedAmount(safeInt(entity.getQuotaRefundedAmount()));
+        dto.setRejectionReason(entity.getRejectionReason());
+        dto.setRejectionFeedback(payloadSanitizer.sanitizeText(entity.getRejectionFeedback()));
+        dto.setQuotaRefundDecision(resolveRefundDecision(entity));
+        dto.setQuotaRefundDecisionReason(payloadSanitizer.sanitizeText(entity.getQuotaRefundDecisionReason()));
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setConfirmedAt(entity.getConfirmedAt());
+        dto.setRejectedAt(entity.getRejectedAt());
+        dto.setRequestContext(payloadSanitizer.sanitizeInput(entity.getInputPayload()));
+        dto.setResult(payloadSanitizer.sanitizeOutput(entity.getOutputPayload(), entity.getRequestType()));
+        dto.setConfirmation(payloadSanitizer.sanitizeConfirmation(entity.getConfirmationPayload()));
+        dto.setCorrectionSummary(payloadSanitizer.sanitizeText(entity.getCorrectionSummary()));
+        dto.setFailureSummary(payloadSanitizer.sanitizeText(entity.getErrorMessage()));
+        return dto;
     }
     @Override
     @Transactional(readOnly = true)
@@ -172,26 +216,19 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
     @Override
     @Transactional
     public AdminAiQuotaRefundResponseDto refundQuota(String adminEmail, Long requestId, AdminAiQuotaRefundRequestDto request) {
-        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdForQuotaRefund(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("AI request was not found."));
-        if (!Boolean.TRUE.equals(history.getQuotaConsumed())) {
-            throw new IllegalArgumentException("AI request did not consume quota.");
+        AiRequestHistoryEntity history = findRefundableHistory(requestId);
+        if (history.getQuotaRefundDecision() == AiQuotaRefundDecision.REJECTED) {
+            throw new IllegalArgumentException("AI quota refund request was already rejected.");
         }
-        if (history.getStatus() != AiRequestStatus.REJECTED) {
-            throw new IllegalArgumentException("AI quota can be refunded only for rejected drafts.");
-        }
-        int consumed = safeInt(history.getQuotaConsumedAmount());
+
         int refunded = safeInt(history.getQuotaRefundedAmount());
-        int refundable = consumed - refunded;
+        int refundable = safeInt(history.getQuotaConsumedAmount()) - refunded;
         int amount = request.getAmount() == null ? 0 : request.getAmount();
         if (amount <= 0) {
             throw new IllegalArgumentException("AI quota refund amount must be greater than zero.");
         }
         if (amount > refundable) {
             throw new IllegalArgumentException("AI quota refund amount exceeds refundable quota for this request.");
-        }
-        if (history.getUser() == null || history.getUser().getId() == null) {
-            throw new IllegalArgumentException("AI request user is missing.");
         }
 
         SubscriptionDto subscription = subscriptionService.refundConsumedAiQuota(history.getUser().getId(), amount);
@@ -200,31 +237,109 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         history.setQuotaRefundReason(request.getReason().trim());
         history.setQuotaRefundedBy(adminEmail);
         history.setQuotaRefundedAt(now);
+        history.setQuotaRefundDecision(AiQuotaRefundDecision.APPROVED);
+        history.setQuotaRefundDecisionReason(request.getReason().trim());
+        history.setQuotaRefundDecidedBy(adminEmail);
+        history.setQuotaRefundDecidedAt(now);
         AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
-        notifyUserAboutQuotaRefund(saved, amount);
+        notifyUserAboutQuotaRefundDecision(
+                saved,
+                AI_QUOTA_REFUND_APPROVED_TYPE,
+                "INFO",
+                amount,
+                null
+        );
         return toDto(saved, amount, subscription);
     }
 
-    private void notifyUserAboutQuotaRefund(AiRequestHistoryEntity history, int amount) {
-        if (history.getUser() == null) {
-            return;
+    @Override
+    @Transactional
+    public AdminAiQuotaRefundResponseDto rejectQuotaRefund(
+            String adminEmail,
+            Long requestId,
+            AdminAiQuotaRefundRejectRequestDto request) {
+        AiRequestHistoryEntity history = findRefundableHistory(requestId);
+        if (safeInt(history.getQuotaRefundedAmount()) > 0
+                || history.getQuotaRefundDecision() == AiQuotaRefundDecision.APPROVED) {
+            throw new IllegalArgumentException("AI quota refund was already approved.");
         }
+        if (history.getQuotaRefundDecision() == AiQuotaRefundDecision.REJECTED) {
+            throw new IllegalArgumentException("AI quota refund request was already rejected.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String reason = request.getReason().trim();
+        history.setQuotaRefundDecision(AiQuotaRefundDecision.REJECTED);
+        history.setQuotaRefundDecisionReason(reason);
+        history.setQuotaRefundDecidedBy(adminEmail);
+        history.setQuotaRefundDecidedAt(now);
+        AiRequestHistoryEntity saved = aiRequestHistoryRepository.save(history);
+        notifyUserAboutQuotaRefundDecision(
+                saved,
+                AI_QUOTA_REFUND_REJECTED_TYPE,
+                "WARNING",
+                null,
+                reason
+        );
+        return toDto(saved, 0, null);
+    }
+
+    private AiRequestHistoryEntity findRefundableHistory(Long requestId) {
+        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdForQuotaRefund(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("AI request was not found."));
+        if (!Boolean.TRUE.equals(history.getQuotaConsumed())) {
+            throw new IllegalArgumentException("AI request did not consume quota.");
+        }
+        if (history.getStatus() != AiRequestStatus.REJECTED) {
+            throw new IllegalArgumentException("AI quota can be reviewed only for rejected drafts.");
+        }
+        if (history.getUser() == null || history.getUser().getId() == null) {
+            throw new IllegalArgumentException("AI request user is missing.");
+        }
+        if (safeInt(history.getQuotaConsumedAmount()) <= safeInt(history.getQuotaRefundedAmount())) {
+            throw new IllegalArgumentException("AI request has no refundable quota remaining.");
+        }
+        return history;
+    }
+
+    private void notifyUserAboutQuotaRefundDecision(
+            AiRequestHistoryEntity history,
+            String type,
+            String severity,
+            Integer refundedAmount,
+            String note) {
         NotificationEntity notification = new NotificationEntity();
         notification.setUser(history.getUser());
-        notification.setType(AI_QUOTA_REFUND_APPROVED_TYPE);
-        notification.setSeverity("INFO");
+        notification.setType(type);
+        boolean approved = AI_QUOTA_REFUND_APPROVED_TYPE.equals(type);
+        boolean turkish = history.getUser().getPreferredLanguage() == PreferredLanguage.TR;
+        notification.setTitle(approved
+                ? (turkish ? "Kredilerin geri yüklendi!" : "Your credits are back!")
+                : (turkish ? "İsteğinle ilgili bir güncelleme" : "An update on your request"));
+        String message = approved
+                ? (turkish
+                    ? "%d AI kredisi hesabına geri yüklendi.".formatted(refundedAmount)
+                    : "%d AI credit%s refunded to your account."
+                        .formatted(refundedAmount, refundedAmount == 1 ? "" : "s"))
+                : (turkish
+                    ? "AI kredi iadesi isteğin onaylanmadı."
+                    : "Your AI credit refund request was declined.");
+        notification.setNote(note);
+        notification.setPrimaryAction("VIEW_AI_CREDITS");
+        notification.setSeverity(severity);
         notification.setSource(AI_REFUND_SOURCE);
         notification.setTargetType("AI_REQUEST");
         notification.setTargetId(String.valueOf(history.getId()));
-        notification.setTargetRoute("ai");
-        notification.setMessage("%d AI credit%s refunded to your account.".formatted(amount, amount == 1 ? "" : "s"));
+        notification.setTargetRoute("ai-credits");
+        notification.setMessage(message);
         notification.setIsRead(false);
         notification.setCreatedAt(LocalDateTime.now());
         NotificationEntity saved = notificationRepository.save(notification);
         try {
             pushDeliveryService.deliver(saved);
         } catch (RuntimeException ex) {
-            log.warn("ai_quota_refund_push_delivery_failed requestId={} notificationId={} reason={}", history.getId(), saved.getId(), ex.getMessage());
+            log.warn("ai_quota_refund_push_delivery_failed requestId={} notificationId={} reason={}",
+                    history.getId(), saved.getId(), ex.getMessage());
         }
     }
     private AdminAiRequestReviewDto toReviewDto(AiRequestHistoryEntity entity) {
@@ -254,6 +369,10 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         dto.setQuotaRefundReason(entity.getQuotaRefundReason());
         dto.setQuotaRefundedBy(entity.getQuotaRefundedBy());
         dto.setQuotaRefundedAt(entity.getQuotaRefundedAt());
+        dto.setQuotaRefundDecision(resolveRefundDecision(entity));
+        dto.setQuotaRefundDecisionReason(entity.getQuotaRefundDecisionReason());
+        dto.setQuotaRefundDecidedBy(entity.getQuotaRefundDecidedBy());
+        dto.setQuotaRefundDecidedAt(entity.getQuotaRefundDecidedAt());
         return dto;
     }
 
@@ -268,10 +387,25 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         dto.setQuotaRefundReason(entity.getQuotaRefundReason());
         dto.setQuotaRefundedBy(entity.getQuotaRefundedBy());
         dto.setQuotaRefundedAt(entity.getQuotaRefundedAt());
+        dto.setQuotaRefundDecision(resolveRefundDecision(entity));
+        dto.setQuotaRefundDecisionReason(entity.getQuotaRefundDecisionReason());
+        dto.setQuotaRefundDecidedBy(entity.getQuotaRefundDecidedBy());
+        dto.setQuotaRefundDecidedAt(entity.getQuotaRefundDecidedAt());
         dto.setSubscription(subscription);
         return dto;
     }
 
+    private AiQuotaRefundDecision resolveRefundDecision(AiRequestHistoryEntity entity) {
+        if (entity.getQuotaRefundDecision() != null) {
+            return entity.getQuotaRefundDecision();
+        }
+        if (entity.getStatus() == AiRequestStatus.REJECTED
+                && Boolean.TRUE.equals(entity.getQuotaConsumed())
+                && safeInt(entity.getQuotaConsumedAmount()) > safeInt(entity.getQuotaRefundedAmount())) {
+            return AiQuotaRefundDecision.PENDING;
+        }
+        return null;
+    }
     private List<AdminAiMonitoringSummaryDto.OperationalAlert> operationalAlerts(
             long totalRequests,
             long failed,

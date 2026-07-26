@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.repository.AccountLinkAuthorizationRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
@@ -21,6 +22,7 @@ public class TokenCleanupServiceImpl {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final AccountLinkAuthorizationRepository accountLinkAuthorizationRepository;
 
     @Scheduled(fixedDelayString = "${grun.tokens.cleanup-interval-ms:3600000}")
     @Transactional
@@ -29,14 +31,17 @@ public class TokenCleanupServiceImpl {
         long refreshTokens = refreshTokenRepository.deleteByExpiresAtBefore(cutoff);
         long passwordResetTokens = passwordResetTokenRepository.deleteByExpiresAtBefore(cutoff);
         long emailVerificationTokens = emailVerificationTokenRepository.deleteByExpiresAtBefore(cutoff);
+        long accountLinkAuthorizations = accountLinkAuthorizationRepository.deleteByExpiresAtBefore(cutoff);
 
-        TokenCleanupResult result = new TokenCleanupResult(refreshTokens, passwordResetTokens, emailVerificationTokens);
+        TokenCleanupResult result = new TokenCleanupResult(
+                refreshTokens, passwordResetTokens, emailVerificationTokens, accountLinkAuthorizations);
         if (result.totalDeleted() > 0) {
             log.info(
-                    "expired_token_cleanup refreshTokens={} passwordResetTokens={} emailVerificationTokens={}",
+                    "expired_token_cleanup refreshTokens={} passwordResetTokens={} emailVerificationTokens={} accountLinkAuthorizations={}",
                     refreshTokens,
                     passwordResetTokens,
-                    emailVerificationTokens
+                    emailVerificationTokens,
+                    accountLinkAuthorizations
             );
         }
         return result;
@@ -44,10 +49,11 @@ public class TokenCleanupServiceImpl {
 
     public record TokenCleanupResult(long refreshTokens,
                                      long passwordResetTokens,
-                                     long emailVerificationTokens) {
+                                     long emailVerificationTokens,
+                                     long accountLinkAuthorizations) {
 
         public long totalDeleted() {
-            return refreshTokens + passwordResetTokens + emailVerificationTokens;
+            return refreshTokens + passwordResetTokens + emailVerificationTokens + accountLinkAuthorizations;
         }
     }
 }

@@ -7,6 +7,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RecipeImportCandidateRepository extends JpaRepository<RecipeImportCandidateEntity, Long> {
+    long countByStatus(RecipeImportCandidateStatus status);
+
     boolean existsByBatchIdAndSourceKey(String batchId, String sourceKey);
 
     Page<RecipeImportCandidateEntity> findByStatus(RecipeImportCandidateStatus status, Pageable pageable);

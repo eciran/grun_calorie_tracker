@@ -1,5 +1,6 @@
 package com.grun.calorietracker.exception;
 
+import com.grun.calorietracker.enums.AccountLinkErrorCode;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.StaticMessageSource;
@@ -49,8 +50,24 @@ class GlobalExceptionHandlerTest {
         );
 
         assertEquals(502, response.getStatusCode().value());
-        assertEquals("AI provider error", response.getBody().getError());
-        assertEquals("AI analysis could not be completed. Please try again with a different input.", response.getBody().getMessage());
+        assertEquals("Bad Gateway", response.getBody().getError());
+        assertEquals("AI_PROVIDER_ERROR", response.getBody().getCode());
+        assertEquals("AI provider error", response.getBody().getMessage());
+        assertEquals("request-1", response.getBody().getCorrelationId());
+    }
+    @Test
+    void handleAiProviderTimeout_returnsStableRetryableCode() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), true);
+        MockHttpServletRequest request = request();
+
+        var response = handler.handleAiProviderTimeoutException(
+                new AiProviderTimeoutException("private provider timeout detail"),
+                request
+        );
+
+        assertEquals(504, response.getStatusCode().value());
+        assertEquals("AI_TIMEOUT", response.getBody().getCode());
+        assertEquals("AI request timed out", response.getBody().getMessage());
         assertEquals("request-1", response.getBody().getCorrelationId());
     }
     @Test
@@ -61,7 +78,9 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleMaxUploadSizeExceededException(new MaxUploadSizeExceededException(1024), request);
 
         assertEquals(413, response.getStatusCode().value());
-        assertEquals("Uploaded file exceeds the maximum allowed size.", response.getBody().getMessage());
+        assertEquals("Payload Too Large", response.getBody().getError());
+        assertEquals("UPLOAD_TOO_LARGE", response.getBody().getCode());
+        assertEquals("Upload too large", response.getBody().getMessage());
     }
 
     @Test
@@ -72,8 +91,9 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleDataIntegrityViolationException(new DataIntegrityViolationException("duplicate key"), request);
 
         assertEquals(400, response.getStatusCode().value());
-        assertEquals("Request conflicts with existing data.", response.getBody().getMessage());
-        assertEquals("Invalid request", response.getBody().getError());
+        assertEquals("Bad Request", response.getBody().getError());
+        assertEquals("DATA_INTEGRITY_VIOLATION", response.getBody().getCode());
+        assertEquals("Invalid request", response.getBody().getMessage());
     }
 
     @Test
@@ -87,8 +107,39 @@ class GlobalExceptionHandlerTest {
         );
 
         assertEquals(409, response.getStatusCode().value());
-        assertEquals("Resource was updated by another request. Please reload and retry.", response.getBody().getMessage());
-        assertEquals("Concurrent update", response.getBody().getError());
+        assertEquals("Conflict", response.getBody().getError());
+        assertEquals("CONCURRENT_UPDATE", response.getBody().getCode());
+        assertEquals("Concurrent update", response.getBody().getMessage());
+    }
+
+    @Test
+    void handleAccountLinkException_preservesStableCodeAndStatus() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
+        MockHttpServletRequest request = request();
+
+        var response = handler.handleAccountLinkException(
+                new AccountLinkException(AccountLinkErrorCode.PROVIDER_IDENTITY_IN_USE,
+                        "Provider identity is already linked to another account."),
+                request
+        );
+
+        assertEquals(409, response.getStatusCode().value());
+        assertEquals("PROVIDER_IDENTITY_IN_USE", response.getBody().getCode());
+        assertEquals("request-1", response.getBody().getCorrelationId());
+    }
+    @Test
+    void handleInvalidCredentials_usesTurkishCopyAndStableCode() {
+        StaticMessageSource source = messageSource();
+        source.addMessage("error.invalid.credentials", Locale.forLanguageTag("tr"), "Gecersiz kimlik bilgileri");
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(source, false);
+        MockHttpServletRequest request = request();
+        request.addPreferredLocale(Locale.forLanguageTag("tr"));
+
+        var response = handler.handleInvalidCredentials(new InvalidCredentialsException("internal detail"), request);
+
+        assertEquals("INVALID_CREDENTIALS", response.getBody().getCode());
+        assertEquals("Unauthorized", response.getBody().getError());
+        assertEquals("Gecersiz kimlik bilgileri", response.getBody().getMessage());
     }
 
     private StaticMessageSource messageSource() {
@@ -98,6 +149,8 @@ class GlobalExceptionHandlerTest {
         messageSource.addMessage("error.data-integrity", Locale.ENGLISH, "Invalid request");
         messageSource.addMessage("error.concurrent-update", Locale.ENGLISH, "Concurrent update");
         messageSource.addMessage("error.ai-provider", Locale.ENGLISH, "AI provider error");
+        messageSource.addMessage("error.ai-timeout", Locale.ENGLISH, "AI request timed out");
+        messageSource.addMessage("error.invalid.credentials", Locale.ENGLISH, "Invalid credentials");
         return messageSource;
     }
 

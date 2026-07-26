@@ -3,16 +3,21 @@ package com.grun.calorietracker.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AccountPasswordRequestDto;
 import com.grun.calorietracker.dto.AccountPasswordResponseDto;
+import com.grun.calorietracker.dto.AccountLinkAuthorizationRequestDto;
+import com.grun.calorietracker.dto.AccountLinkAuthorizationResponseDto;
 import com.grun.calorietracker.dto.GdprDataExportDto;
 import com.grun.calorietracker.dto.GdprDeleteRequestDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.LinkGoogleRequestDto;
 import com.grun.calorietracker.dto.NotificationPreferenceDto;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.enums.AccountLinkPurpose;
+import com.grun.calorietracker.enums.AccountReauthenticationMethod;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
+import com.grun.calorietracker.service.AccountLinkAuthorizationService;
 import com.grun.calorietracker.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +54,9 @@ class AccountControllerTest {
     private AccountIdentityService accountIdentityService;
 
     @MockitoBean
+    private AccountLinkAuthorizationService accountLinkAuthorizationService;
+
+    @MockitoBean
     private AccountGdprService accountGdprService;
 
     @MockitoBean
@@ -68,13 +76,35 @@ class AccountControllerTest {
 
     @Test
     @WithMockUser(username = "user@grun.app")
+    void createLinkAuthorization_returnsOpaqueToken() throws Exception {
+        AccountLinkAuthorizationRequestDto request = new AccountLinkAuthorizationRequestDto();
+        request.setPurpose(AccountLinkPurpose.ACCOUNT_LINK);
+        request.setTargetProvider(AuthProvider.GOOGLE);
+        request.setMethod(AccountReauthenticationMethod.PASSWORD);
+        request.setCurrentPassword("CurrentPass1!");
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+        when(accountLinkAuthorizationService.createAuthorization("user@grun.app", request))
+                .thenReturn(new AccountLinkAuthorizationResponseDto(
+                        "opaque-token", AccountLinkPurpose.ACCOUNT_LINK, AuthProvider.GOOGLE, expiresAt));
+
+        mockMvc.perform(post("/api/v1/account/link-authorizations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authorizationToken").value("opaque-token"))
+                .andExpect(jsonPath("$.purpose").value("ACCOUNT_LINK"))
+                .andExpect(jsonPath("$.targetProvider").value("GOOGLE"));
+    }
+    @Test
+    @WithMockUser(username = "user@grun.app")
     void linkGoogle_returnsLinkedIdentity() throws Exception {
         LinkGoogleRequestDto request = new LinkGoogleRequestDto();
         request.setIdToken("google-token");
-        when(accountIdentityService.linkGoogle("user@grun.app", "google-token"))
+        when(accountIdentityService.linkGoogle("user@grun.app", "google-token", "opaque-token"))
                 .thenReturn(new LinkedIdentityDto(AuthProvider.GOOGLE, "google@grun.app", LocalDateTime.now()));
 
         mockMvc.perform(post("/api/v1/account/link/google")
+                        .header("X-Account-Link-Authorization", "opaque-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -99,7 +129,8 @@ class AccountControllerTest {
     @Test
     @WithMockUser(username = "user@grun.app")
     void unlinkProvider_returnsNoContent() throws Exception {
-        mockMvc.perform(delete("/api/v1/account/linked-identities/GOOGLE"))
+        mockMvc.perform(delete("/api/v1/account/linked-identities/GOOGLE")
+                        .header("X-Account-Link-Authorization", "opaque-token"))
                 .andExpect(status().isNoContent());
     }
 
@@ -136,62 +167,10 @@ class AccountControllerTest {
     @Test
     @WithMockUser(username = "user@grun.app")
     void exportMyData_returnsGdprSnapshot() throws Exception {
-        when(accountGdprService.exportMyData("user@grun.app"))
-                .thenReturn(new GdprDataExportDto(
-                        LocalDateTime.now(),
-                        "user@grun.app",
-                        "User",
-                        UserRole.STANDARD,
-                        null,
-                        PreferredLanguage.EN,
-                        "Europe/Dublin",
-                        true,
-                        null,
-                        null,
-                        null,
-                        1L,
-                        2L,
-                        3L,
-                        4L,
-                        1L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        0L,
-                        null,
-                        null,
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        null,
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of()
-                ));
+        GdprDataExportDto export = new GdprDataExportDto();
+        export.setEmail("user@grun.app");
+        export.setExerciseLogCount(2L);
+        when(accountGdprService.exportMyData("user@grun.app")).thenReturn(export);
 
         mockMvc.perform(get("/api/v1/account/gdpr/export"))
                 .andExpect(status().isOk())

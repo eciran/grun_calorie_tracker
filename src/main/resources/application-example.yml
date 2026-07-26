@@ -69,6 +69,16 @@ openfoodfacts:
 grun:
   errors:
     include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
+  food-contribution-storage:
+    provider: ${GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER:LOCAL}
+    max-upload-bytes: ${GRUN_FOOD_CONTRIBUTION_MAX_UPLOAD_BYTES:6291456}
+    allowed-content-types: ${GRUN_FOOD_CONTRIBUTION_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+    storage-directory: ${GRUN_FOOD_CONTRIBUTION_STORAGE_DIRECTORY:storage/food-contribution-evidence}
+    private-base-url: ${GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL:https://api.grun.app}
+    s3:
+      bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
+      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
+      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:product-contributions}
   recipe-media:
     image:
       max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
@@ -82,6 +92,7 @@ grun:
       storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
   security:
+    subscription-feature-filter-enabled: ${GRUN_SUBSCRIPTION_FEATURE_FILTER_ENABLED:true}
     login:
       max-failed-attempts: ${GRUN_SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}
       lock-minutes: ${GRUN_SECURITY_LOGIN_LOCK_MINUTES:15}
@@ -90,6 +101,9 @@ grun:
     provider: ${GRUN_AI_PROVIDER:DISABLED}
     model: ${GRUN_AI_MODEL:not-configured}
     max-history-limit: ${GRUN_AI_MAX_HISTORY_LIMIT:30}
+    completion-notifications:
+      enabled: ${GRUN_AI_COMPLETION_NOTIFICATIONS_ENABLED:true}
+      scan-interval-ms: ${GRUN_AI_COMPLETION_NOTIFICATIONS_SCAN_INTERVAL_MS:15000}
     safety:
       enabled: ${GRUN_AI_SAFETY_ENABLED:true}
       max-item-calories: ${GRUN_AI_SAFETY_MAX_ITEM_CALORIES:3000}
@@ -103,6 +117,8 @@ grun:
       cleanup-interval-ms: ${GRUN_AI_PHOTO_CLEANUP_INTERVAL_MS:3600000}
       storage-directory: ${GRUN_AI_PHOTO_STORAGE_DIRECTORY:storage/ai-meal-photos}
       public-base-url: ${GRUN_AI_PHOTO_PUBLIC_BASE_URL:https://api.grun.app}
+      alternative-snapshots-enabled: ${GRUN_AI_PHOTO_ALTERNATIVE_SNAPSHOTS_ENABLED:false}
+      max-alternative-snapshots: ${GRUN_AI_PHOTO_MAX_ALTERNATIVE_SNAPSHOTS:2}
     http-json:
       endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
       api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}
@@ -145,6 +161,15 @@ grun:
       ai-addon-validity-days:
         grun_ai_15_credits: 30
         grun_ai_50_credits: 30
+  product-search:
+    telemetry-cleanup-cron: ${GRUN_PRODUCT_SEARCH_TELEMETRY_CLEANUP_CRON:0 20 3 * * *}
+  product-catalog:
+    maintenance:
+      stale-days: ${GRUN_PRODUCT_CATALOG_STALE_DAYS:180}
+      batch-size: ${GRUN_PRODUCT_CATALOG_MAINTENANCE_BATCH_SIZE:500}
+      scheduled-quality-enabled: ${GRUN_PRODUCT_CATALOG_SCHEDULED_QUALITY_ENABLED:false}
+      stale-scan-cron: ${GRUN_PRODUCT_CATALOG_STALE_SCAN_CRON:0 10 2 * * *}
+      quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 40 2 * * *}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
     from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}
@@ -152,6 +177,12 @@ grun:
     brevo:
       api-key: ${GRUN_BREVO_API_KEY:}
       api-url: ${GRUN_BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
+  notifications:
+    campaign-dispatch-enabled: ${GRUN_NOTIFICATION_CAMPAIGN_DISPATCH_ENABLED:true}
+    campaign-dispatch-interval-ms: ${GRUN_NOTIFICATION_CAMPAIGN_DISPATCH_INTERVAL_MS:30000}
+  account-link:
+    authorization-ttl-seconds: ${GRUN_ACCOUNT_LINK_AUTHORIZATION_TTL_SECONDS:300}
+    provider-proof-max-age-seconds: ${GRUN_ACCOUNT_LINK_PROVIDER_PROOF_MAX_AGE_SECONDS:300}
   refresh-token:
     expiration-days: ${GRUN_REFRESH_TOKEN_EXPIRATION_DAYS:30}
   tokens:
@@ -163,6 +194,8 @@ grun:
       enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
     auth:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE:20}
+    account-link:
+      max-requests-per-minute: ${GRUN_RATE_LIMIT_ACCOUNT_LINK_MAX_REQUESTS_PER_MINUTE:5}
     password-reset:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_PASSWORD_RESET_MAX_REQUESTS_PER_MINUTE:5}
     email-verification-resend:

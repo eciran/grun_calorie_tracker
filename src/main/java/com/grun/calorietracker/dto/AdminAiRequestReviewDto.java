@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import lombok.Data;
+import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 
 import java.time.LocalDateTime;
 
@@ -33,4 +34,8 @@ public class AdminAiRequestReviewDto {
     private String quotaRefundReason;
     private String quotaRefundedBy;
     private LocalDateTime quotaRefundedAt;
+    private AiQuotaRefundDecision quotaRefundDecision;
+    private String quotaRefundDecisionReason;
+    private String quotaRefundDecidedBy;
+    private LocalDateTime quotaRefundDecidedAt;
 }

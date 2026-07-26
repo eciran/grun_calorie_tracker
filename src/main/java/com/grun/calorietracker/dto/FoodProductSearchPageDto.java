@@ -7,6 +7,9 @@ import java.util.List;
 @Schema(description = "Paginated product search response.")
 public class FoodProductSearchPageDto {
 
+    @Schema(description = "Anonymous identifier used to report which search result was selected.")
+    private String searchRequestId;
+
     @Schema(description = "Products in the current search page.")
     private List<FoodProductDto> content;
 
@@ -27,6 +30,14 @@ public class FoodProductSearchPageDto {
 
     @Schema(description = "Whether this is the last page.", example = "false")
     private Boolean last;
+
+    public String getSearchRequestId() {
+        return searchRequestId;
+    }
+
+    public void setSearchRequestId(String searchRequestId) {
+        this.searchRequestId = searchRequestId;
+    }
 
     public List<FoodProductDto> getContent() {
         return content;

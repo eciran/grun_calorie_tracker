@@ -424,6 +424,22 @@ class WaterTrackingServiceImplTest {
         verify(notificationRepository, never()).save(any(NotificationEntity.class));
     }
 
+    @Test
+    void createDueReminderNotifications_whenDailyGoalIsReached_doesNotCreateNotification() {
+        WaterReminderSettingsEntity settings = reminderSettings();
+        settings.setDailyTargetMl(2500);
+        settings.setLastReminderAt(LocalDateTime.now().minusMinutes(130));
+        when(waterReminderSettingsRepository.findByEnabledTrue()).thenReturn(List.of(settings));
+        when(waterLogRepository.sumAmountMlByUserAndLogDate(any(UserEntity.class), any(LocalDate.class)))
+                .thenReturn(2500L);
+
+        int created = service.createDueReminderNotifications();
+
+        assertEquals(0, created);
+        verify(notificationRepository, never()).save(any(NotificationEntity.class));
+        verify(pushDeliveryService, never()).deliver(any(NotificationEntity.class));
+    }
+
     private WaterLogEntity waterLog(Long id, Integer amountMl) {
         WaterLogEntity entity = new WaterLogEntity();
         entity.setId(id);

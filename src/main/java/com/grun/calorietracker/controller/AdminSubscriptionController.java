@@ -126,6 +126,38 @@ public class AdminSubscriptionController {
         return ResponseEntity.ok(subscriptionService.getUserFeatureAccessForAdmin(userId));
     }
 
+    @PostMapping("/users/{userId}/features/apply-current-matrix")
+    @Operation(
+            summary = "Apply current feature matrix to user now",
+            description = "Refreshes the selected user's active entitlement snapshot from the current plan feature matrix immediately. Use only after explicit admin confirmation because it can remove or grant access before renewal."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Current feature matrix applied to the user snapshot.",
+                    content = @Content(schema = @Schema(implementation = SubscriptionFeatureAccessDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "User or subscription could not be found.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<SubscriptionFeatureAccessDto> applyCurrentFeatureMatrixToUser(
+            @Parameter(description = "User id.", example = "1") @PathVariable Long userId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+        SubscriptionFeatureAccessDto before = subscriptionService.getUserFeatureAccessForAdmin(userId);
+        SubscriptionFeatureAccessDto response = subscriptionService.applyCurrentFeatureMatrixToUser(userId);
+        adminAuditService.record(
+                adminEmail(userDetails),
+                AdminAuditActionType.SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY,
+                AdminAuditTargetType.USER_SUBSCRIPTION,
+                userId.toString(),
+                before,
+                response,
+                correlationId(httpRequest)
+        );
+        return ResponseEntity.ok(response);
+    }
     @PostMapping("/users/{userId}/ai-quota/reset")
     @Operation(
             summary = "Reset a user's AI quota",

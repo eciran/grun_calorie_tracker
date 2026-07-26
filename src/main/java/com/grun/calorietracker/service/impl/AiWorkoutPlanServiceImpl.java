@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiWorkoutPlanConfirmRequestDto;
+import com.grun.calorietracker.dto.AiMealDraftRejectRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanCreditEstimateDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDayDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
@@ -26,6 +27,7 @@ import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.WorkoutPlanStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
@@ -37,8 +39,11 @@ import com.grun.calorietracker.service.AiWorkoutPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.AiCreditPricingService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiIdempotencySupport;
+import com.grun.calorietracker.service.support.AiUxContractFactory;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -90,8 +95,8 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     }
 
     @Override
-    @Transactional
-    public AiWorkoutPlanDraftResponseDto createDraft(String email, AiWorkoutPlanDraftRequestDto request) {
+    public AiWorkoutPlanDraftResponseDto createDraft(
+            String email, String idempotencyKey, AiWorkoutPlanDraftRequestDto request) {
         if (request == null) {
             throw new IllegalArgumentException("AI workout plan request is required.");
         }
@@ -100,6 +105,11 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         UserEntity user = getUser(email);
         request.setUserContext(toUserContext(user));
         request.setExerciseCatalogContext(toExerciseCatalogContext(request));
+        String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
+        AiWorkoutPlanDraftResponseDto previous = existingDraft(user, key);
+        if (previous != null) {
+            return previous;
+        }
 
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
@@ -107,21 +117,47 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
         history.setPromptVersion(properties.getPromptVersion());
+        history.setStatus(AiRequestStatus.PROCESSING);
+        history.setIdempotencyKey(key);
         history.setInputPayload(writeJson(toPrivacySafeInputPayload(request)));
         history.setCreatedAt(LocalDateTime.now());
         history.setQuotaConsumed(false);
+        history.setQuotaConsumedAmount(0);
+
+        try {
+            AiRequestHistoryEntity reserved = aiRequestHistoryRepository.save(history);
+            if (reserved != null) {
+                history = reserved;
+            }
+        } catch (DataIntegrityViolationException ex) {
+            AiWorkoutPlanDraftResponseDto concurrent = existingDraft(user, key);
+            if (concurrent != null) {
+                return concurrent;
+            }
+            throw new RequestConflictException(
+                    "An AI workout-plan request with this key is already processing.");
+        }
 
         int creditCost = aiCreditPricingService.estimateWorkout(
                 request.getDaysPerWeek(), request.getMinutesPerSession())
                 .getTotalCreditCost();
         long startedAt = System.nanoTime();
-        SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+        boolean charged = false;
         try {
+            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            charged = true;
             AiWorkoutPlanDraftResponseDto response = normalize(activeProvider().createWorkoutPlanDraft(request));
             response.setQuotaConsumedAmount(creditCost);
             response.setAiBaseRemainingThisPeriod(quota.getAiBaseRemainingThisPeriod());
             response.setAiAddonRemainingThisPeriod(quota.getAiAddonRemainingThisPeriod());
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
+            response.setUx(AiUxContractFactory.success(
+                    AiRequestStatus.DRAFT_CREATED,
+                    true,
+                    creditCost,
+                    quota,
+                    user.getPreferredLanguage()
+            ));
             copyUsageMetadata(response, history);
 
             history.setStatus(AiRequestStatus.DRAFT_CREATED);
@@ -133,10 +169,15 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
-            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(AiRequestType.AI_WORKOUT_PLAN, true)));
+            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(
+                    AiRequestType.AI_WORKOUT_PLAN,
+                    true,
+                    creditCost,
+                    !refunded,
+                    user.getPreferredLanguage())));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -196,7 +237,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
 
     @Override
     @Transactional
-    public void rejectDraft(String email, Long requestId) {
+    public void rejectDraft(String email, Long requestId, AiMealDraftRejectRequestDto request) {
         UserEntity user = getUser(email);
         AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
                 .orElseThrow(() -> new IllegalArgumentException("AI workout plan draft was not found."));
@@ -512,6 +553,39 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
                 && day.getEstimatedDurationMinutes() > 0);
     }
 
+    private AiWorkoutPlanDraftResponseDto existingDraft(UserEntity user, String idempotencyKey) {
+        return aiRequestHistoryRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                        user, AiRequestType.AI_WORKOUT_PLAN, idempotencyKey)
+                .map(history -> AiIdempotencySupport.replayOrReject(
+                        history,
+                        stored -> {
+                            AiWorkoutPlanDraftResponseDto draft = readPlan(stored.getOutputPayload());
+                            draft.setRequestId(stored.getId());
+                            draft.setStatus(stored.getStatus());
+                            if (draft.getUx() == null) {
+                                int consumed = stored.getQuotaConsumedAmount() == null
+                                        ? 0 : stored.getQuotaConsumedAmount();
+                                draft.setUx(AiUxContractFactory.history(
+                                        stored.getStatus(),
+                                        true,
+                                        consumed,
+                                        Boolean.TRUE.equals(stored.getQuotaConsumed()),
+                                        user.getPreferredLanguage()
+                                ));
+                            }
+                            return draft;
+                        },
+                        "AI workout-plan"
+                )).orElse(null);
+    }
+
+    private String cleanFeedback(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String cleaned = value.trim().replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ");
+        return cleaned.length() <= 1000 ? cleaned : cleaned.substring(0, 1000);
+    }
     private AiWorkoutPlanDraftResponseDto readPlan(String payload) {
         try {
             return objectMapper.readValue(payload, AiWorkoutPlanDraftResponseDto.class);

@@ -3,6 +3,7 @@ package com.grun.calorietracker.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Schema(description = "Standard API error response.")
 public class ApiErrorResponseDto {
@@ -15,6 +16,12 @@ public class ApiErrorResponseDto {
 
     @Schema(description = "Short error category.")
     private String error;
+
+    @Schema(description = "Stable machine-readable error code.")
+    private String code;
+
+    @Schema(description = "Safe public field validation errors.")
+    private List<FieldErrorDto> fieldErrors;
 
     @Schema(description = "Human-readable error detail.")
     private String message;
@@ -65,6 +72,22 @@ public class ApiErrorResponseDto {
         this.error = error;
     }
 
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public List<FieldErrorDto> getFieldErrors() {
+        return fieldErrors;
+    }
+
+    public void setFieldErrors(List<FieldErrorDto> fieldErrors) {
+        this.fieldErrors = fieldErrors;
+    }
+
     public String getMessage() {
         return message;
     }
@@ -88,4 +111,32 @@ public class ApiErrorResponseDto {
     public void setCorrelationId(String correlationId) {
         this.correlationId = correlationId;
     }
-}
+
+    public static class FieldErrorDto {
+        private String field;
+        private String code;
+
+        public FieldErrorDto() {
+        }
+
+        public FieldErrorDto(String field, String code) {
+            this.field = field;
+            this.code = code;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public void setField(String field) {
+            this.field = field;
+        }
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
+        }
+    }}

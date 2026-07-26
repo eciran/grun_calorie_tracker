@@ -16,6 +16,7 @@ import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.dto.RefreshTokenRequestDto;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.ApiErrorCode;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -94,13 +95,15 @@ public class AuthController {
             return ResponseEntity.ok(buildAuthResponse(existingUser, "Registration resumed. Continue onboarding."));
         }
 
-        return ResponseEntity.badRequest().body(new ApiErrorResponseDto(
+        ApiErrorResponseDto error = new ApiErrorResponseDto(
                 LocalDateTime.now(),
                 400,
-                "Validation error",
+                "Bad Request",
                 "Email already registered",
                 httpRequest.getRequestURI()
-        ));
+        );
+        error.setCode(ApiErrorCode.EMAIL_ALREADY_REGISTERED.name());
+        return ResponseEntity.badRequest().body(error);
     }
 
     private ResponseEntity<AuthResponse> createNewUserRegistration(AuthRequest request) {

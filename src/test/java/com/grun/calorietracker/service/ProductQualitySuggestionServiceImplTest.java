@@ -363,7 +363,7 @@ class ProductQualitySuggestionServiceImplTest {
                 org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "toAiValidationRequest", product);
 
         assertEquals("product_quality_context_v2", context.getSchemaVersion());
-        assertEquals("product_quality_prompt_v2", context.getPromptVersion());
+        assertEquals("product_quality_prompt_v3", context.getPromptVersion());
         assertEquals("Cooked White Rice", context.getDisplayName());
         assertEquals("Pismis Beyaz Pirinc", context.getLocalizations().get(0).getDisplayName());
         assertEquals("pirinc", context.getSearchAliases().get(0).getAlias());
@@ -393,6 +393,28 @@ class ProductQualitySuggestionServiceImplTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () ->
                 org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "validateAiResponse", response));
     }
+    @Test
+    void aiSuggestion_keepsAggregateLocalizationAsReviewOnly() {
+        FoodItemEntity product = product(1L, "Milk", 48.0);
+        com.grun.calorietracker.dto.AiProductQualityValidationResponseDto.AiProductQualityIssueDto issue =
+                new com.grun.calorietracker.dto.AiProductQualityValidationResponseDto.AiProductQualityIssueDto();
+        issue.setSuggestionType(ProductQualitySuggestionType.LOCALIZATION);
+        issue.setFieldName("localizations");
+        issue.setSuggestedValue("localized values");
+        issue.setReason("Localized names should be reviewed.");
+
+        ProductQualitySuggestionEntity suggestion = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                service,
+                "buildAiSuggestion",
+                product,
+                issue
+        );
+
+        assertEquals("localizations", suggestion.getFieldName());
+        assertEquals(null, suggestion.getSuggestedValue());
+        assertTrue(suggestion.getReason().contains("concrete field is required"));
+    }
+
     @Test
     void aiNutritionSuggestion_removesExactValueWithoutMatchingEvidence() {
         FoodItemEntity product = product(1L, "Milk", 48.0);

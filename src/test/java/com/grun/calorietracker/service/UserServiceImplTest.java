@@ -1,11 +1,17 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminUserStatusUpdateRequestDto;
+import com.grun.calorietracker.dto.AdminUserDto;
 import com.grun.calorietracker.dto.BodyFatResultDto;
 import com.grun.calorietracker.dto.NotificationPreferenceDto;
+import com.grun.calorietracker.dto.MyProfileUpdateRequestDto;
+import com.grun.calorietracker.dto.ProfileBodyUpdateRequestDto;
+import com.grun.calorietracker.dto.ProfilePreferencesUpdateRequestDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UnitPreference;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
@@ -62,6 +68,7 @@ class UserServiceImplTest {
                 jwtUtil,
                 refreshTokenService,
                 userTimeZoneSupport,
+                new com.grun.calorietracker.service.support.UserAgeSupport(),
                 5,
                 15
         );
@@ -91,7 +98,7 @@ class UserServiceImplTest {
         when(passwordEncoder.encode("rawpassword")).thenReturn("hashedPassword");
         when(userRepository.save(any(UserEntity.class))).thenReturn(testUser);
 
-        // Dönüş tipi UserEntity'den UserProfileDto'ya değişti.
+        // DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¶nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€¦Ã‚Â¸ tipi UserEntity'den UserProfileDto'ya deÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€¦Ã‚Â¸iÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€¦Ã‚Â¸ti.
         UserProfileDto savedUserDto = userService.registerUser(testUser);
 
         assertNotNull(savedUserDto);
@@ -311,7 +318,7 @@ class UserServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(userRepository.save(testUser)).thenReturn(testUser);
 
-        UserProfileDto result = userService.updateUserStatus(1L, request, "admin@example.com");
+        AdminUserDto result = userService.updateUserStatus(1L, request, "admin@example.com");
 
         assertEquals(false, result.getAccountEnabled());
         assertEquals(true, result.getAccountLocked());
@@ -331,4 +338,64 @@ class UserServiceImplTest {
                 () -> userService.updateUserStatus(1L, request, "test@example.com"));
         verify(userRepository, never()).save(any());
     }
-}
+
+    @Test
+    void getMyProfile_excludesAdminStateByTypeAndSplitsSections() {
+        testUser.setGender("MALE");
+        testUser.setBmi(23.15);
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+
+        var result = userService.getMyProfile("test@example.com");
+
+        assertEquals("test@example.com", result.getEmail());
+        assertEquals(75.0, result.getBody().getWeight());
+        assertEquals("Europe/Dublin", result.getPreferences().getTimeZone());
+        assertEquals(true, result.getSecurity().getEmailVerified());
+    }
+
+    @Test
+    void updateMyProfile_changesOnlyBasicIdentityField() {
+        MyProfileUpdateRequestDto request = new MyProfileUpdateRequestDto();
+        request.setName("  Updated User  ");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.save(testUser)).thenReturn(testUser);
+
+        var result = userService.updateMyProfile(request, "test@example.com");
+
+        assertEquals("Updated User", result.getName());
+        assertEquals(true, testUser.getAccountEnabled());
+        assertEquals(false, testUser.getAccountLocked());
+    }
+
+    @Test
+    void updateProfileBody_marksGoalRecalculationAndPreservesAdminState() {
+        ProfileBodyUpdateRequestDto request = new ProfileBodyUpdateRequestDto();
+        request.setWeight(80.0);
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.save(testUser)).thenReturn(testUser);
+
+        var result = userService.updateProfileBody(request, "test@example.com");
+
+        assertEquals(80.0, result.getBody().getWeight());
+        assertEquals(true, result.getGoalRecalculationRecommended());
+        assertEquals(true, testUser.getAccountEnabled());
+        assertEquals(false, testUser.getAccountLocked());
+    }
+
+    @Test
+    void updateProfilePreferences_updatesLocaleFieldsAndValidTimeZone() {
+        ProfilePreferencesUpdateRequestDto request = new ProfilePreferencesUpdateRequestDto();
+        request.setMarketRegion(MarketRegion.TR);
+        request.setPreferredLanguage(PreferredLanguage.TR);
+        request.setTimeZone("Europe/Istanbul");
+        request.setUnitPreference(UnitPreference.IMPERIAL);
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.save(testUser)).thenReturn(testUser);
+
+        var result = userService.updateProfilePreferences(request, "test@example.com");
+
+        assertEquals(MarketRegion.TR, result.getPreferences().getMarketRegion());
+        assertEquals(PreferredLanguage.TR, result.getPreferences().getPreferredLanguage());
+        assertEquals("Europe/Istanbul", result.getPreferences().getTimeZone());
+        assertEquals(UnitPreference.IMPERIAL, result.getPreferences().getUnitPreference());
+    }}

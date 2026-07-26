@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiWorkoutPlanConfirmRequestDto;
+import com.grun.calorietracker.dto.AiMealDraftRejectRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanCreditEstimateDto;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -62,8 +64,10 @@ public class AiWorkoutPlanController {
     })
     public ResponseEntity<AiWorkoutPlanDraftResponseDto> generateDraft(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AiWorkoutPlanDraftRequestDto request) {
-        return ResponseEntity.ok(aiWorkoutPlanService.createDraft(userDetails.getUsername(), request));
+        return ResponseEntity.ok(aiWorkoutPlanService.createDraft(
+                userDetails.getUsername(), idempotencyKey, request));
     }
 
     @PostMapping("/{requestId}/confirm")

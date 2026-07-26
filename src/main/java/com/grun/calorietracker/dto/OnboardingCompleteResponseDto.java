@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class OnboardingCompleteResponseDto {
 
     @Schema(description = "Updated user profile.")
-    private UserProfileDto profile;
+    private MyProfileDto profile;
 
     @Schema(description = "Saved user goal with backend-calculated calorie and macro targets.")
     private UserGoalDto goal;

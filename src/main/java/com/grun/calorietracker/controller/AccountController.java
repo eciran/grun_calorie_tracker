@@ -2,6 +2,8 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AccountPasswordRequestDto;
 import com.grun.calorietracker.dto.AccountPasswordResponseDto;
+import com.grun.calorietracker.dto.AccountLinkAuthorizationRequestDto;
+import com.grun.calorietracker.dto.AccountLinkAuthorizationResponseDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.GdprDataExportDto;
 import com.grun.calorietracker.dto.GdprDeleteRequestDto;
@@ -13,6 +15,7 @@ import com.grun.calorietracker.dto.NotificationPreferenceDto;
 import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
+import com.grun.calorietracker.service.AccountLinkAuthorizationService;
 import com.grun.calorietracker.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,6 +50,7 @@ import java.util.List;
 public class AccountController {
 
     private final AccountIdentityService accountIdentityService;
+    private final AccountLinkAuthorizationService accountLinkAuthorizationService;
     private final AccountGdprService accountGdprService;
     private final UserService userService;
 
@@ -63,6 +68,24 @@ public class AccountController {
         return ResponseEntity.ok(accountIdentityService.listLinkedIdentities(userDetails.getUsername()));
     }
 
+    @PostMapping("/link-authorizations")
+    @Operation(
+            summary = "Authorize a provider link or unlink operation",
+            description = "Reauthenticates the current user and returns a short-lived, single-use opaque authorization token. "
+                    + "The raw token is returned once; only its SHA-256 hash is stored."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Short-lived account authorization created."),
+            @ApiResponse(responseCode = "400", description = "INVALID_LINK_REQUEST.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "REAUTHENTICATION_FAILED.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "503", description = "PROVIDER_NOT_CONFIGURED.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<AccountLinkAuthorizationResponseDto> createLinkAuthorization(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody AccountLinkAuthorizationRequestDto request) {
+        return ResponseEntity.ok(accountLinkAuthorizationService.createAuthorization(
+                userDetails.getUsername(), request));
+    }
     @PostMapping("/link/google")
     @Operation(
             summary = "Link Google login",
@@ -75,8 +98,10 @@ public class AccountController {
     })
     public ResponseEntity<LinkedIdentityDto> linkGoogle(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader(value = "X-Account-Link-Authorization", required = false) String authorizationToken,
             @RequestBody @Valid LinkGoogleRequestDto request) {
-        return ResponseEntity.ok(accountIdentityService.linkGoogle(userDetails.getUsername(), request.getIdToken()));
+        return ResponseEntity.ok(accountIdentityService.linkGoogle(
+                userDetails.getUsername(), request.getIdToken(), authorizationToken));
     }
 
     @PostMapping("/link/apple")
@@ -91,8 +116,10 @@ public class AccountController {
     })
     public ResponseEntity<LinkedIdentityDto> linkApple(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader(value = "X-Account-Link-Authorization", required = false) String authorizationToken,
             @RequestBody @Valid LinkAppleRequestDto request) {
-        return ResponseEntity.ok(accountIdentityService.linkApple(userDetails.getUsername(), request.getIdToken(), request.getNonce()));
+        return ResponseEntity.ok(accountIdentityService.linkApple(
+                userDetails.getUsername(), request.getIdToken(), request.getNonce(), authorizationToken));
     }
 
     @DeleteMapping("/linked-identities/{provider}")
@@ -107,8 +134,9 @@ public class AccountController {
     })
     public ResponseEntity<Void> unlinkProvider(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader(value = "X-Account-Link-Authorization", required = false) String authorizationToken,
             @PathVariable AuthProvider provider) {
-        accountIdentityService.unlinkProvider(userDetails.getUsername(), provider);
+        accountIdentityService.unlinkProvider(userDetails.getUsername(), provider, authorizationToken);
         return ResponseEntity.noContent().build();
     }
 

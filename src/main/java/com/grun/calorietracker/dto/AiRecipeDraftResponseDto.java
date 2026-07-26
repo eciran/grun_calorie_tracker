@@ -34,6 +34,7 @@ public class AiRecipeDraftResponseDto implements AiUsageMetadataCarrier {
     private Double confidence;
     private Integer qualityScore;
     private String estimatedUncertainty;
+    private AiUxContractDto ux;
     private List<String> reviewReasons = new ArrayList<>();
     private Integer aiRemainingThisPeriod;
     private RecipeRequestDto suggestedRecipe;

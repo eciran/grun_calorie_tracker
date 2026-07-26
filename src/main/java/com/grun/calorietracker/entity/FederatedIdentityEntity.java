@@ -9,10 +9,16 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "federated_identities",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uq_federated_identity_provider_subject",
-                columnNames = {"provider", "provider_subject"}
-        )
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uq_federated_identity_provider_subject",
+                        columnNames = {"provider", "provider_subject"}
+                ),
+                @UniqueConstraint(
+                        name = "uq_federated_identity_user_provider",
+                        columnNames = {"user_id", "provider"}
+                )
+        }
 )
 @Data
 public class FederatedIdentityEntity {

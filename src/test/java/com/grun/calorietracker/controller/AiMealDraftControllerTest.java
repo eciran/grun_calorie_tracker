@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiMealDraftItemDto;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmResponseDto;
 import com.grun.calorietracker.dto.AiRequestHistoryDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
@@ -24,9 +25,12 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,9 +48,10 @@ class AiMealDraftControllerTest {
     @WithMockUser(username = "user@example.com", roles = "USER")
     void createVoiceDraft_returnsDraft() throws Exception {
         AiMealDraftResponseDto response = response(AiRequestType.VOICE_FOOD_LOG);
-        when(aiMealDraftService.createVoiceFoodDraft(eq("user@example.com"), any())).thenReturn(response);
+        when(aiMealDraftService.createVoiceFoodDraft(eq("user@example.com"), eq("voice-request-123"), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/ai/meal-drafts/voice")
+                        .header("Idempotency-Key", "voice-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -59,13 +64,17 @@ class AiMealDraftControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.requestType").value("VOICE_FOOD_LOG"))
                 .andExpect(jsonPath("$.provider").value("LOG"))
-                .andExpect(jsonPath("$.items[0].name").value("Chicken and rice"));
+                .andExpect(jsonPath("$.items[0].name").value("Chicken and rice"))
+                .andExpect(jsonPath("$.items[0].estimatedNutrition.sodium").value(180.0))
+                .andExpect(jsonPath("$.items[0].estimatedNutrition.vitaminB12").value(0.4))
+                .andExpect(jsonPath("$.items[0].nutritionEstimateNote").value("Estimated for the detected portion."));
     }
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void createPhotoDraft_requiresImageReference() throws Exception {
         mockMvc.perform(post("/api/v1/ai/meal-drafts/photo")
+                        .header("Idempotency-Key", "photo-request-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -73,6 +82,21 @@ class AiMealDraftControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void getDraft_returnsCurrentDecisionStatus() throws Exception {
+        AiMealDraftResponseDto response = response(AiRequestType.PHOTO_MEAL_LOG);
+        response.setRequestId(10L);
+        response.setStatus(AiRequestStatus.CONFIRMED);
+        when(aiMealDraftService.getDraft("user@example.com", 10L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/ai/meal-drafts/10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestId").value(10))
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.items[0].name").value("Chicken and rice"));
     }
 
     @Test
@@ -120,6 +144,28 @@ class AiMealDraftControllerTest {
 
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
+    void confirmDraft_whenMealTypeMissing_returnsSafeValidationCode() throws Exception {
+        mockMvc.perform(post("/api/v1/ai/meal-drafts/10/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "items": [
+                                    {
+                                      "foodItemId": 12,
+                                      "portionSize": 150,
+                                      "portionUnit": "GRAM",
+                                      "logDate": "2026-06-01T13:30:00"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("MEAL_TYPE_REQUIRED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("mealType"))
+                .andExpect(content().string(not(containsString("items[0].mealType"))));
+    }
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
     void rejectDraft_closesDraft() throws Exception {
         AiRequestHistoryDto response = new AiRequestHistoryDto();
         response.setId(10L);
@@ -148,6 +194,15 @@ class AiMealDraftControllerTest {
         item.setQuantity(100.0);
         item.setUnit("g");
         item.setEstimatedCalories(150.0);
+        item.setEstimatedProtein(10.0);
+        item.setEstimatedCarbs(15.0);
+        item.setEstimatedFat(5.0);
+        item.setEstimatedNutrition(new RecipeNutritionDto(
+                150.0, 10.0, 15.0, 5.0, 3.0, 4.0, 1.0,
+                180.0, 320.0, 15.0, 80.0, 1.5, 35.0, 1.0,
+                120.0, 12.0, 0.5, 1.2, 0.4
+        ));
+        item.setNutritionEstimateNote("Estimated for the detected portion.");
         item.setConfidence(0.7);
 
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();

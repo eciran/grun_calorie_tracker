@@ -9,7 +9,11 @@ import java.time.LocalDateTime;
 @Schema(description = "User notification entry.")
 public class NotificationDto {
     private Long id;
+    private String title;
     private String message;
+    private String note;
+    private String primaryAction;
+    private Integer actionAmountMl;
     private String type;
     private String severity;
     private String source;

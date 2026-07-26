@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AppStartupDto;
+import com.grun.calorietracker.dto.OnboardingStateDto;
 import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
@@ -9,7 +10,10 @@ import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.OnboardingStatus;
+import com.grun.calorietracker.enums.OnboardingStep;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.ProductAnalyticsEventType;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -26,6 +30,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AppStartupServiceImplTest {
@@ -45,6 +51,12 @@ class AppStartupServiceImplTest {
     @Mock
     private HealthIntegrationService healthIntegrationService;
 
+    @Mock
+    private OnboardingService onboardingService;
+
+    @Mock
+    private OnboardingAnalyticsService onboardingAnalyticsService;
+
     private AppStartupServiceImpl appStartupService;
 
     @BeforeEach
@@ -56,8 +68,12 @@ class AppStartupServiceImplTest {
                 federatedIdentityRepository,
                 subscriptionService,
                 healthIntegrationService,
-                new UserTimeZoneSupport()
+                new UserTimeZoneSupport(),
+                onboardingService,
+                onboardingAnalyticsService
         );
+        when(onboardingService.getState("user@example.com")).thenReturn(onboardingState());
+        when(userService.getMyProfile("user@example.com")).thenReturn(myProfile());
     }
 
     @Test
@@ -85,12 +101,13 @@ class AppStartupServiceImplTest {
         assertEquals(true, result.isPasswordSet());
         assertEquals(true, result.isDashboardReady());
         assertEquals("OPEN_DASHBOARD", result.getNextStep());
+        assertEquals(com.grun.calorietracker.enums.OnboardingStep.COMPLETE, result.getOnboardingState().getCurrentStep());
         assertEquals("user@example.com", result.getProfile().getEmail());
-        assertEquals(true, result.getProfile().getEmailVerified());
-        assertEquals(true, result.getProfile().getPasswordSet());
-        assertEquals(MarketRegion.UK_IE, result.getProfile().getMarketRegion());
-        assertEquals(PreferredLanguage.EN, result.getProfile().getPreferredLanguage());
-        assertEquals("Europe/Dublin", result.getProfile().getTimeZone());
+        assertEquals(true, result.getProfile().getSecurity().getEmailVerified());
+        assertEquals(true, result.getProfile().getSecurity().getPasswordSet());
+        assertEquals(MarketRegion.UK_IE, result.getProfile().getPreferences().getMarketRegion());
+        assertEquals(PreferredLanguage.EN, result.getProfile().getPreferences().getPreferredLanguage());
+        assertEquals("Europe/Dublin", result.getProfile().getPreferences().getTimeZone());
         assertEquals(1, result.getLinkedIdentities().size());
         assertEquals(AuthProvider.GOOGLE, result.getLinkedIdentities().get(0).provider());
         assertEquals(SubscriptionPlan.PLUS, result.getSubscription().getPlanType());
@@ -148,8 +165,74 @@ class AppStartupServiceImplTest {
         assertEquals(false, result.isEmailVerified());
         assertEquals(true, result.isDashboardReady());
         assertEquals("OPEN_DASHBOARD", result.getNextStep());
+        assertEquals(com.grun.calorietracker.enums.OnboardingStep.COMPLETE, result.getOnboardingState().getCurrentStep());
     }
 
+    @Test
+    void getStartupState_whenOnboardingIsInProgress_recordsResumeAnalytics() {
+        UserEntity user = completeUser();
+        OnboardingStateDto state = inProgressOnboardingState();
+
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
+        when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
+                .thenReturn(java.util.List.of());
+        when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(false);
+        when(onboardingService.getState("user@example.com")).thenReturn(state);
+
+        appStartupService.getStartupState("user@example.com");
+
+        verify(onboardingAnalyticsService).recordServerEvent(
+                "user@example.com",
+                ProductAnalyticsEventType.ONBOARDING_RESUMED,
+                OnboardingStep.GOAL
+        );
+    }
+
+    @Test
+    void getStartupState_whenAnalyticsFails_stillReturnsStartupState() {
+        UserEntity user = completeUser();
+        OnboardingStateDto state = inProgressOnboardingState();
+
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
+        when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@example.com"))
+                .thenReturn(java.util.List.of());
+        when(subscriptionService.getCurrentSubscription("user@example.com")).thenReturn(subscription());
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
+                .thenReturn(false);
+        when(onboardingService.getState("user@example.com")).thenReturn(state);
+        doThrow(new IllegalStateException("analytics unavailable"))
+                .when(onboardingAnalyticsService)
+                .recordServerEvent("user@example.com", ProductAnalyticsEventType.ONBOARDING_RESUMED, OnboardingStep.GOAL);
+
+        AppStartupDto result = appStartupService.getStartupState("user@example.com");
+
+        assertNotNull(result);
+        assertEquals(OnboardingStep.GOAL, result.getOnboardingState().getCurrentStep());
+    }
+
+    private com.grun.calorietracker.dto.MyProfileDto myProfile() {
+        return com.grun.calorietracker.dto.MyProfileDto.builder()
+                .id(1L)
+                .email("user@example.com")
+                .name("Demo User")
+                .body(com.grun.calorietracker.dto.ProfileBodyDto.builder()
+                        .age(32).gender("MALE").height(180.0).weight(82.0).bmi(25.3).bodyFat(19.2)
+                        .build())
+                .preferences(com.grun.calorietracker.dto.ProfilePreferencesDto.builder()
+                        .marketRegion(MarketRegion.UK_IE)
+                        .preferredLanguage(PreferredLanguage.EN)
+                        .timeZone("Europe/Dublin")
+                        .build())
+                .security(com.grun.calorietracker.dto.ProfileSecurityDto.builder()
+                        .emailVerified(true).passwordSet(true)
+                        .build())
+                .goalRecalculationRecommended(false)
+                .build();
+    }
     private UserEntity completeUser() {
         UserEntity user = new UserEntity();
         user.setId(1L);
@@ -189,6 +272,41 @@ class AppStartupServiceImplTest {
         goal.setGoalType(GoalType.LOSE_WEIGHT);
         goal.setActivityLevel(ActivityLevel.MODERATE);
         return goal;
+    }
+
+    private OnboardingStateDto onboardingState() {
+        return new OnboardingStateDto(
+                com.grun.calorietracker.enums.OnboardingStatus.COMPLETED,
+                com.grun.calorietracker.enums.OnboardingStep.COMPLETE,
+                java.util.List.of(
+                        com.grun.calorietracker.enums.OnboardingStep.PROFILE,
+                        com.grun.calorietracker.enums.OnboardingStep.PREFERENCES,
+                        com.grun.calorietracker.enums.OnboardingStep.GOAL
+                ),
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                java.time.LocalDateTime.now()
+        );
+    }
+    private OnboardingStateDto inProgressOnboardingState() {
+        return new OnboardingStateDto(
+                OnboardingStatus.IN_PROGRESS,
+                OnboardingStep.GOAL,
+                java.util.List.of(OnboardingStep.PROFILE, OnboardingStep.PREFERENCES),
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                java.time.LocalDateTime.now()
+        );
     }
 
     private com.grun.calorietracker.dto.SubscriptionDto subscription() {

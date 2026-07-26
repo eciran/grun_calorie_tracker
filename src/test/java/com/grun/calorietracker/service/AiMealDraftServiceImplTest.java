@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.AiProperties;
+import com.grun.calorietracker.dto.AiMealDraftAlternativeCandidateDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmItemRequestDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmRequestDto;
 import com.grun.calorietracker.dto.AiMealDraftConfirmResponseDto;
@@ -11,6 +12,7 @@ import com.grun.calorietracker.dto.AiMealDraftResponseDto;
 import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
+import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
@@ -43,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -127,10 +130,10 @@ class AiMealDraftServiceImplTest {
         verify(subscriptionService).consumeAiQuota("user@example.com", 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
-        verify(historyRepository).save(captor.capture());
+        verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestType.VOICE_FOOD_LOG, captor.getValue().getRequestType());
         assertEquals(AiProvider.LOG, captor.getValue().getProvider());
-        assertEquals("ai-prompt-v1", captor.getValue().getPromptVersion());
+        assertEquals("ai-prompt-v2", captor.getValue().getPromptVersion());
         assertEquals(AiRequestStatus.DRAFT_CREATED, captor.getValue().getStatus());
         assertEquals(true, captor.getValue().getQuotaConsumed());
         assertFalse(captor.getValue().getInputPayload().contains("I ate chicken and rice"));
@@ -178,7 +181,7 @@ class AiMealDraftServiceImplTest {
         verify(subscriptionService).refundConsumedAiQuota(1L, 1);
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
-        verify(historyRepository).save(captor.capture());
+        verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
         assertEquals(false, captor.getValue().getQuotaConsumed());
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getLatencyMs());
@@ -203,7 +206,7 @@ class AiMealDraftServiceImplTest {
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(providerClient, org.mockito.Mockito.never()).createVoiceFoodDraft(any());
-        verify(historyRepository, org.mockito.Mockito.never()).save(any());
+        verify(historyRepository, times(2)).save(any());
     }
 
     @Test
@@ -227,6 +230,26 @@ class AiMealDraftServiceImplTest {
                 () -> service.createPhotoMealDraft("user@example.com", request));
 
         verifyNoInteractions(providerClient, subscriptionService, historyRepository);
+    }
+
+    @Test
+    void getDraft_returnsOriginalResultWithCurrentDecisionStatus() throws com.fasterxml.jackson.core.JsonProcessingException {
+        AiRequestHistoryEntity history = new AiRequestHistoryEntity();
+        history.setId(10L);
+        history.setUser(user);
+        history.setRequestType(AiRequestType.PHOTO_MEAL_LOG);
+        history.setStatus(AiRequestStatus.REJECTED);
+        history.setOutputPayload(new ObjectMapper().findAndRegisterModules().writeValueAsString(providerResponse()));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(historyRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(history));
+
+        AiMealDraftResponseDto result = service.getDraft("user@example.com", 10L);
+
+        assertEquals(10L, result.getRequestId());
+        assertEquals(AiRequestType.PHOTO_MEAL_LOG, result.getRequestType());
+        assertEquals(AiRequestStatus.REJECTED, result.getStatus());
+        assertEquals(1, result.getItems().size());
     }
 
     @Test
@@ -296,7 +319,7 @@ class AiMealDraftServiceImplTest {
     }
 
     @Test
-    void confirmDraft_whenItemHasNoCatalogMatch_writesAiEstimateFoodLog() {
+    void confirmDraft_whenItemHasNoCatalogMatch_usesAndScalesOriginalCompleteNutritionSnapshot() throws Exception {
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setId(10L);
         history.setUser(user);
@@ -307,6 +330,19 @@ class AiMealDraftServiceImplTest {
         history.setQuotaConsumed(true);
         history.setCreatedAt(LocalDateTime.now());
 
+        AiMealDraftItemDto originalItem = new AiMealDraftItemDto();
+        originalItem.setName("ham and cheese sandwich");
+        originalItem.setQuantity(1.0);
+        originalItem.setUnit("serving");
+        originalItem.setEstimatedNutrition(new RecipeNutritionDto(
+                350.0, 20.0, 30.0, 16.0, 3.5, 4.0, 7.0,
+                820.0, 410.0, 55.0, 260.0, 2.4, 35.0, 2.1,
+                180.0, 3.0, 0.8, 1.5, 0.9
+        ));
+        AiMealDraftResponseDto originalDraft = new AiMealDraftResponseDto();
+        originalDraft.setItems(List.of(originalItem));
+        history.setOutputPayload(new ObjectMapper().findAndRegisterModules().writeValueAsString(originalDraft));
+
         AiMealDraftConfirmItemRequestDto item = new AiMealDraftConfirmItemRequestDto();
         item.setEstimatedFoodName("ham and cheese sandwich");
         item.setEstimatedCalories(350.0);
@@ -314,7 +350,7 @@ class AiMealDraftServiceImplTest {
         item.setEstimatedCarbs(30.0);
         item.setEstimatedFat(16.0);
         item.setConfidence(0.72);
-        item.setPortionSize(1.0);
+        item.setPortionSize(2.0);
         item.setPortionUnit(FoodPortionUnit.SERVING);
         item.setMealType("LUNCH");
         item.setLogDate(LocalDateTime.of(2026, 7, 3, 13, 0));
@@ -339,14 +375,91 @@ class AiMealDraftServiceImplTest {
         ArgumentCaptor<FoodLogsDto> logCaptor = ArgumentCaptor.forClass(FoodLogsDto.class);
         verify(foodLogsService).addAiEstimateFoodLog(logCaptor.capture(), org.mockito.Mockito.eq("user@example.com"));
         assertEquals("Ham and Cheese Sandwich", logCaptor.getValue().getDisplayName());
-        assertEquals(350.0, logCaptor.getValue().getSnapshotCalories());
-        assertEquals(20.0, logCaptor.getValue().getSnapshotProtein());
-        assertEquals(30.0, logCaptor.getValue().getSnapshotCarbs());
-        assertEquals(16.0, logCaptor.getValue().getSnapshotFat());
+        assertEquals(700.0, logCaptor.getValue().getSnapshotCalories());
+        assertEquals(40.0, logCaptor.getValue().getSnapshotProtein());
+        assertEquals(60.0, logCaptor.getValue().getSnapshotCarbs());
+        assertEquals(32.0, logCaptor.getValue().getSnapshotFat());
+        assertEquals(7.0, logCaptor.getValue().getSnapshotFiber());
+        assertEquals(1640.0, logCaptor.getValue().getSnapshotSodium());
+        assertEquals(820.0, logCaptor.getValue().getSnapshotPotassium());
+        assertEquals(520.0, logCaptor.getValue().getSnapshotCalcium());
+        assertEquals(6.0, logCaptor.getValue().getSnapshotVitaminC());
+        assertEquals(1.8, logCaptor.getValue().getSnapshotVitaminB12());
         assertEquals(10L, logCaptor.getValue().getAiRequestId());
         assertEquals(0.72, logCaptor.getValue().getAiConfidence());
         assertEquals(FoodLogSource.AI_PHOTO, logCaptor.getValue().getSource());
         verify(foodLogsService, org.mockito.Mockito.never()).addFoodLog(any(), org.mockito.Mockito.anyString());
+    }
+    @Test
+    void confirmDraft_whenAlternativeSelected_usesBackendSnapshotAndScalesEditedPortion() throws Exception {
+        AiRequestHistoryEntity history = new AiRequestHistoryEntity();
+        history.setId(10L);
+        history.setUser(user);
+        history.setRequestType(AiRequestType.PHOTO_MEAL_LOG);
+        history.setProvider(AiProvider.OPENAI);
+        history.setModel("gpt-5.4");
+        history.setStatus(AiRequestStatus.DRAFT_CREATED);
+        history.setQuotaConsumed(true);
+        history.setCreatedAt(LocalDateTime.now());
+
+        AiMealDraftAlternativeCandidateDto alternative = new AiMealDraftAlternativeCandidateDto();
+        alternative.setName("Chicken Thigh");
+        alternative.setQuantity(2.0);
+        alternative.setUnit("PIECE");
+        alternative.setDetectedPieceCount(2);
+        alternative.setEstimatedTotalWeightGrams(260.0);
+        alternative.setConfidence(0.62);
+        alternative.setMateriallyDifferent(true);
+        alternative.setEstimatedNutrition(new RecipeNutritionDto(
+                540.0, 65.0, 1.0, 30.0, 0.0, 0.0, 8.0,
+                460.0, 620.0, 250.0, 30.0, 2.5, 60.0, 4.0,
+                25.0, 0.0, 0.3, 1.5, 1.1));
+
+        AiMealDraftItemDto originalItem = new AiMealDraftItemDto();
+        originalItem.setName("Chicken Breast");
+        originalItem.setQuantity(2.0);
+        originalItem.setUnit("PIECE");
+        originalItem.setAlternativeCandidates(List.of(alternative));
+        AiMealDraftResponseDto originalDraft = new AiMealDraftResponseDto();
+        originalDraft.setItems(List.of(originalItem));
+        history.setOutputPayload(new ObjectMapper().findAndRegisterModules().writeValueAsString(originalDraft));
+
+        AiMealDraftConfirmItemRequestDto item = new AiMealDraftConfirmItemRequestDto();
+        item.setSourceItemIndex(0);
+        item.setAlternativeCandidateIndex(0);
+        item.setEstimatedFoodName("Chicken Thigh");
+        item.setPortionSize(1.0);
+        item.setPortionUnit(FoodPortionUnit.PIECE);
+        item.setMealType("DINNER");
+        item.setLogDate(LocalDateTime.of(2026, 7, 21, 19, 0));
+        item.setConfidence(0.99);
+        item.setEstimatedNutrition(new RecipeNutritionDto(
+                999.0, 999.0, 999.0, 999.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0));
+        AiMealDraftConfirmRequestDto request = new AiMealDraftConfirmRequestDto();
+        request.setItems(List.of(item));
+
+        FoodLogsDto created = new FoodLogsDto();
+        created.setId(101L);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(historyRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(history));
+        when(foodLogsService.addAiEstimateFoodLog(any(FoodLogsDto.class), org.mockito.Mockito.eq("user@example.com")))
+                .thenReturn(created);
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirmDraft("user@example.com", 10L, request);
+
+        ArgumentCaptor<FoodLogsDto> logCaptor = ArgumentCaptor.forClass(FoodLogsDto.class);
+        verify(foodLogsService).addAiEstimateFoodLog(logCaptor.capture(), org.mockito.Mockito.eq("user@example.com"));
+        FoodLogsDto saved = logCaptor.getValue();
+        assertEquals("Chicken Thigh", saved.getDisplayName());
+        assertEquals(270.0, saved.getSnapshotCalories());
+        assertEquals(32.5, saved.getSnapshotProtein());
+        assertEquals(15.0, saved.getSnapshotFat());
+        assertEquals(130.0, saved.getNormalizedPortionGrams());
+        assertEquals(0.62, saved.getAiConfidence());
+        assertEquals(FoodLogSource.AI_PHOTO, saved.getSource());
     }
     @Test
     void rejectDraft_withFeedback_closesDraftAndStoresReason() {
@@ -419,6 +532,15 @@ class AiMealDraftServiceImplTest {
         item.setName("Chicken and rice");
         item.setQuantity(100.0);
         item.setUnit("g");
+        item.setEstimatedCalories(180.0);
+        item.setEstimatedProtein(12.0);
+        item.setEstimatedCarbs(22.0);
+        item.setEstimatedFat(5.0);
+        item.setEstimatedNutrition(new RecipeNutritionDto(
+                180.0, 12.0, 22.0, 5.0, 3.0, 4.0, 1.0,
+                210.0, 330.0, 20.0, 75.0, 1.8, 40.0, 1.2,
+                140.0, 10.0, 0.6, 1.4, 0.5
+        ));
         item.setConfidence(0.9);
 
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();

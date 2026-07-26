@@ -31,12 +31,15 @@ class ProgressLogServiceImplTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private BodyMeasurementService bodyMeasurementService;
+
     private ProgressLogServiceImpl progressLogService;
     private UserEntity user;
 
     @BeforeEach
     void setUp() {
-        progressLogService = new ProgressLogServiceImpl(progressLogRepository, userService, new ProgressLogMapper());
+        progressLogService = new ProgressLogServiceImpl(progressLogRepository, userService, new ProgressLogMapper(), bodyMeasurementService);
         user = new UserEntity();
         user.setId(9L);
         user.setEmail("progress@grun.app");
@@ -62,6 +65,8 @@ class ProgressLogServiceImplTest {
         assertEquals(79.5, result.getWeight());
         assertEquals(LocalDate.of(2026, 5, 20).atTime(7, 30), result.getLogDate());
         assertEquals("Morning measurement", entity.getNote());
+        verify(bodyMeasurementService).syncWeightFromProgress(
+                4L, 79.5, LocalDate.of(2026, 5, 20).atTime(7, 30), "progress@grun.app");
     }
 
     @Test
@@ -99,6 +104,7 @@ class ProgressLogServiceImplTest {
         progressLogService.deleteLog(4L, "progress@grun.app");
 
         verify(progressLogRepository).delete(entity);
+        verify(bodyMeasurementService).deleteWeightFromProgress(4L, "progress@grun.app");
     }
 
     private ProgressLogEntity ownedEntity() {

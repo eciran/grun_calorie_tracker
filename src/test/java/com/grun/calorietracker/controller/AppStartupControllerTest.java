@@ -4,7 +4,10 @@ import com.grun.calorietracker.dto.AppStartupDto;
 import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.UserGoalDto;
-import com.grun.calorietracker.dto.UserProfileDto;
+import com.grun.calorietracker.dto.MyProfileDto;
+import com.grun.calorietracker.dto.ProfileBodyDto;
+import com.grun.calorietracker.dto.ProfilePreferencesDto;
+import com.grun.calorietracker.dto.ProfileSecurityDto;
 import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionPlan;
@@ -37,16 +40,13 @@ class AppStartupControllerTest {
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void getStartupState_returnsAuthenticatedUserStartupState() throws Exception {
-        UserProfileDto profile = UserProfileDto.builder()
+        MyProfileDto profile = MyProfileDto.builder()
                 .id(1L)
                 .email("user@example.com")
                 .name("Demo User")
-                .age(32)
-                .gender("MALE")
-                .height(180.0)
-                .weight(82.0)
-                .emailVerified(true)
-                .passwordSet(false)
+                .body(ProfileBodyDto.builder().age(32).gender("MALE").height(180.0).weight(82.0).build())
+                .preferences(ProfilePreferencesDto.builder().build())
+                .security(ProfileSecurityDto.builder().emailVerified(true).passwordSet(false).build())
                 .build();
         UserGoalDto goal = new UserGoalDto();
         goal.setId(10L);
@@ -89,8 +89,8 @@ class AppStartupControllerTest {
                 .andExpect(jsonPath("$.onboardingCompleted").value(true))
                 .andExpect(jsonPath("$.emailVerified").value(true))
                 .andExpect(jsonPath("$.passwordSet").value(false))
-                .andExpect(jsonPath("$.profile.emailVerified").value(true))
-                .andExpect(jsonPath("$.profile.passwordSet").value(false))
+                .andExpect(jsonPath("$.profile.security.emailVerified").value(true))
+                .andExpect(jsonPath("$.profile.security.passwordSet").value(false))
                 .andExpect(jsonPath("$.linkedIdentities[0].provider").value("GOOGLE"))
                 .andExpect(jsonPath("$.subscription.planType").value("PLUS"))
                 .andExpect(jsonPath("$.subscription.aiRemainingThisPeriod").value(10))

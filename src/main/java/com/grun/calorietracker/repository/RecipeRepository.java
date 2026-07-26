@@ -3,6 +3,7 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.RecipeVisibility;
+import com.grun.calorietracker.enums.VerificationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -33,6 +34,11 @@ public interface RecipeRepository extends JpaRepository<RecipeEntity, Long>, Jpa
     Optional<RecipeEntity> findByIdAndOwnerUserAndArchivedFalse(Long id, UserEntity ownerUser);
 
     List<RecipeEntity> findByVisibilityAndArchivedFalseOrderByUpdatedAtDesc(RecipeVisibility visibility);
+
+    long countByVisibilityAndVerificationStatusAndArchivedFalse(
+            RecipeVisibility visibility,
+            VerificationStatus verificationStatus
+    );
 
     @Query("""
             SELECT r

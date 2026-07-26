@@ -5,6 +5,8 @@ import com.grun.calorietracker.dto.AdminAiQuotaGrantRequestDto;
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
+import com.grun.calorietracker.enums.AdminAuditActionType;
+import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
@@ -131,6 +133,35 @@ class AdminSubscriptionControllerTest {
 
     @Test
     @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void applyCurrentFeatureMatrixToUser_whenAdmin_returnsUpdatedAccessAndAudits() throws Exception {
+        SubscriptionFeatureAccessDto before = new SubscriptionFeatureAccessDto();
+        before.setPlanType(SubscriptionPlan.PLUS);
+        before.setWaterTracking(false);
+        SubscriptionFeatureAccessDto response = new SubscriptionFeatureAccessDto();
+        response.setPlanType(SubscriptionPlan.PLUS);
+        response.setWaterTracking(true);
+
+        when(subscriptionService.getUserFeatureAccessForAdmin(1L)).thenReturn(before);
+        when(subscriptionService.applyCurrentFeatureMatrixToUser(1L)).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/subscriptions/users/1/features/apply-current-matrix"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planType").value("PLUS"))
+                .andExpect(jsonPath("$.waterTracking").value(true));
+
+        verify(subscriptionService).applyCurrentFeatureMatrixToUser(1L);
+        verify(adminAuditService).record(
+                eq("admin@test.com"),
+                eq(AdminAuditActionType.SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY),
+                eq(AdminAuditTargetType.USER_SUBSCRIPTION),
+                eq("1"),
+                eq(before),
+                eq(response),
+                any()
+        );
+    }
+    @Test
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void resetUserAiQuota_whenAdmin_returnsResetQuotaState() throws Exception {
         SubscriptionDto response = new SubscriptionDto();
         response.setPlanType(SubscriptionPlan.PLUS);
@@ -215,6 +246,8 @@ class AdminSubscriptionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation error"));
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Validation error"));
     }
 }

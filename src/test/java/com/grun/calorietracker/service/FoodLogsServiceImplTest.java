@@ -147,6 +147,12 @@ class FoodLogsServiceImplTest {
         dto.setSnapshotProtein(20.0);
         dto.setSnapshotCarbs(30.0);
         dto.setSnapshotFat(16.0);
+        dto.setSnapshotFiber(3.5);
+        dto.setSnapshotSodium(820.0);
+        dto.setSnapshotPotassium(410.0);
+        dto.setSnapshotCalcium(260.0);
+        dto.setSnapshotVitaminC(3.0);
+        dto.setSnapshotVitaminB12(0.9);
         dto.setMealType("lunch");
         dto.setLogDate(LocalDateTime.of(2026, 7, 3, 13, 0));
         dto.setAiRequestId(77L);
@@ -171,6 +177,12 @@ class FoodLogsServiceImplTest {
         assertEquals(20.0, result.getSnapshotProtein());
         assertEquals(30.0, result.getSnapshotCarbs());
         assertEquals(16.0, result.getSnapshotFat());
+        assertEquals(3.5, result.getSnapshotFiber());
+        assertEquals(820.0, result.getSnapshotSodium());
+        assertEquals(410.0, result.getSnapshotPotassium());
+        assertEquals(260.0, result.getSnapshotCalcium());
+        assertEquals(3.0, result.getSnapshotVitaminC());
+        assertEquals(0.9, result.getSnapshotVitaminB12());
         assertEquals(77L, result.getAiRequestId());
         assertEquals(0.72, result.getAiConfidence());
         assertEquals(FoodLogSource.AI_PHOTO, result.getSource());
@@ -181,6 +193,25 @@ class FoodLogsServiceImplTest {
                         && entity.getSnapshotCalories().equals(350.0)
         ));
         verifyNoInteractions(foodItemRepository);
+    }
+
+    @Test
+    void addAiEstimateFoodLog_whenMicronutrientIsNegative_rejectsRequest() {
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setDisplayName("Estimated meal");
+        dto.setPortionSize(1.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setSnapshotCalories(300.0);
+        dto.setSnapshotProtein(20.0);
+        dto.setSnapshotCarbs(30.0);
+        dto.setSnapshotFat(10.0);
+        dto.setSnapshotSodium(-1.0);
+        dto.setMealType("LUNCH");
+        dto.setLogDate(LocalDateTime.now());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> foodLogsService.addAiEstimateFoodLog(dto, "test@test.com"));
+        verify(foodLogsRepository, never()).save(any());
     }
 
     @Test
@@ -400,6 +431,79 @@ class FoodLogsServiceImplTest {
         assertEquals("SNACK", result.getMealType());
         verify(foodItemRepository, never()).findById(any());
     }
+    @Test
+    void updateFoodLog_whenSnapshotOnlyLogChangesMeal_keepsSnapshotWithoutFoodItem() {
+        FoodLogsEntity existing = new FoodLogsEntity();
+        existing.setId(22L);
+        existing.setUser(user);
+        existing.setFoodItem(null);
+        existing.setDisplayName("AI estimated meal");
+        existing.setEstimated(true);
+        existing.setPortionSize(250.0);
+        existing.setPortionUnit(FoodPortionUnit.GRAM);
+        existing.setNormalizedPortionGrams(250.0);
+        existing.setSnapshotCalories(420.0);
+        existing.setSnapshotProtein(28.0);
+        existing.setSnapshotCarbs(36.0);
+        existing.setSnapshotFat(18.0);
+        existing.setMealType("LUNCH");
+        existing.setLogDate(LocalDateTime.of(2026, 7, 20, 12, 0));
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setPortionSize(250.0);
+        dto.setPortionUnit(FoodPortionUnit.GRAM);
+        dto.setMealType("dinner");
+        dto.setLogDate(existing.getLogDate());
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(22L, user)).thenReturn(Optional.of(existing));
+        when(foodLogsRepository.save(existing)).thenReturn(existing);
+
+        FoodLogsDto result = foodLogsService.updateFoodLog(22L, dto, "test@test.com");
+
+        assertNull(result.getFoodItemId());
+        assertEquals("AI estimated meal", result.getFoodName());
+        assertEquals("DINNER", result.getMealType());
+        assertEquals(420.0, result.getSnapshotCalories());
+        assertEquals(28.0, result.getSnapshotProtein());
+        verify(foodItemRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateFoodLog_whenSnapshotOnlyPortionChanges_scalesNutritionSnapshot() {
+        FoodLogsEntity existing = new FoodLogsEntity();
+        existing.setId(23L);
+        existing.setUser(user);
+        existing.setDisplayName("AI estimated meal");
+        existing.setEstimated(true);
+        existing.setPortionSize(200.0);
+        existing.setPortionUnit(FoodPortionUnit.GRAM);
+        existing.setNormalizedPortionGrams(200.0);
+        existing.setSnapshotCalories(300.0);
+        existing.setSnapshotProtein(20.0);
+        existing.setSnapshotCarbs(30.0);
+        existing.setSnapshotFat(10.0);
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setPortionSize(100.0);
+        dto.setPortionUnit(FoodPortionUnit.GRAM);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.of(2026, 7, 20, 15, 0));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(23L, user)).thenReturn(Optional.of(existing));
+        when(foodLogsRepository.save(existing)).thenReturn(existing);
+
+        FoodLogsDto result = foodLogsService.updateFoodLog(23L, dto, "test@test.com");
+
+        assertEquals(100.0, result.getNormalizedPortionGrams());
+        assertEquals(150.0, result.getSnapshotCalories());
+        assertEquals(10.0, result.getSnapshotProtein());
+        assertEquals(15.0, result.getSnapshotCarbs());
+        assertEquals(5.0, result.getSnapshotFat());
+        assertEquals("SNACK", result.getMealType());
+    }
+
     @Test
     void copyMeal_clonesSourceLogsToTargetDate() {
         FoodLogsEntity source = new FoodLogsEntity();

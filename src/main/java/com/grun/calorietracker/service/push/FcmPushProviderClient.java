@@ -63,12 +63,16 @@ public class FcmPushProviderClient implements PushProviderClient {
                 "message", Map.of(
                         "token", token.getTokenValue(),
                         "notification", Map.of(
-                                "title", "GRun",
+                                "title", resolveTitle(notification),
                                 "body", notification.getMessage()
                         ),
                         "data", Map.of(
                                 "notificationId", String.valueOf(notification.getId()),
-                                "type", notification.getType() == null ? "" : notification.getType()
+                                "type", valueOrEmpty(notification.getType()),
+                                "targetRoute", valueOrEmpty(notification.getTargetRoute()),
+                                "targetId", valueOrEmpty(notification.getTargetId()),
+                                "primaryAction", valueOrEmpty(notification.getPrimaryAction()),
+                                "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()
                         )
                 )
         );
@@ -87,6 +91,14 @@ public class FcmPushProviderClient implements PushProviderClient {
             log.warn("fcm_push_failed tokenId={} notificationId={} reason={}", token.getId(), notification.getId(), ex.getMessage());
             return PushProviderSendResult.failed(ex.getMessage());
         }
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String resolveTitle(NotificationEntity notification) {
+        return isBlank(notification.getTitle()) ? "GRun" : notification.getTitle();
     }
 
     private boolean isBlank(String value) {
