@@ -11,11 +11,20 @@ import java.util.Locale;
 @Configuration
 public class LocaleConfig {
 
+    public static final Locale ENGLISH = Locale.ENGLISH;
+    public static final Locale TURKISH = Locale.forLanguageTag("tr");
+
     @Bean
     public LocaleResolver localeResolver() {
         AcceptHeaderLocaleResolver resolver = new AcceptHeaderLocaleResolver();
         resolver.setDefaultLocale(Locale.ENGLISH);
         resolver.setSupportedLocales(List.of(Locale.ENGLISH, Locale.forLanguageTag("tr")));
         return resolver;
+    }
+
+    public static Locale resolveSupportedLocale(Locale requested) {
+        return requested != null && TURKISH.getLanguage().equalsIgnoreCase(requested.getLanguage())
+                ? TURKISH
+                : ENGLISH;
     }
 }

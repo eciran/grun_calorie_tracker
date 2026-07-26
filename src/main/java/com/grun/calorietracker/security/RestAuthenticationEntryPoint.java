@@ -1,10 +1,13 @@
 package com.grun.calorietracker.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.config.LocaleConfig;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.enums.ApiErrorCode;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
@@ -18,9 +21,11 @@ import java.time.LocalDateTime;
 public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private final ObjectMapper objectMapper;
+    private final MessageSource messageSource;
 
-    public RestAuthenticationEntryPoint(ObjectMapper objectMapper) {
+    public RestAuthenticationEntryPoint(ObjectMapper objectMapper, MessageSource messageSource) {
         this.objectMapper = objectMapper;
+        this.messageSource = messageSource;
     }
 
     @Override
@@ -37,6 +42,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 request.getRequestURI(),
                 correlationId(request)
         );
+        body.setCode(ApiErrorCode.INVALID_CREDENTIALS.name());
         objectMapper.writeValue(response.getWriter(), body);
     }
 

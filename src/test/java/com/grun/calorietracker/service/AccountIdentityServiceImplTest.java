@@ -5,19 +5,25 @@ import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.VerifiedGoogleIdentityDto;
 import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AccountLinkErrorCode;
+import com.grun.calorietracker.enums.AccountSecurityEventType;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.exception.AccountLinkException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AccountIdentityServiceImpl;
+import com.grun.calorietracker.service.impl.AccountIdentityTransactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,84 +38,86 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AccountIdentityServiceImplTest {
 
-    @Mock
-    private UserRepository userRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private FederatedIdentityRepository federatedIdentityRepository;
+    @Mock private GoogleIdTokenVerifierService googleVerifier;
+    @Mock private AppleIdTokenVerifierService appleVerifier;
+    @Mock private PasswordEncoder passwordEncoder;
+    @Mock private RefreshTokenService refreshTokenService;
+    @Mock private AccountIdentityTransactionService transactionService;
+    @Mock private AccountSecurityAuditService auditService;
 
-    @Mock
-    private FederatedIdentityRepository federatedIdentityRepository;
-
-    @Mock
-    private GoogleIdTokenVerifierService googleIdTokenVerifierService;
-
-    @Mock
-    private AppleIdTokenVerifierService appleIdTokenVerifierService;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private RefreshTokenService refreshTokenService;
-
-    private AccountIdentityServiceImpl accountIdentityService;
+    private AccountIdentityServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        accountIdentityService = new AccountIdentityServiceImpl(
+        service = new AccountIdentityServiceImpl(
                 userRepository,
                 federatedIdentityRepository,
-                googleIdTokenVerifierService,
-                appleIdTokenVerifierService,
+                googleVerifier,
+                appleVerifier,
                 passwordEncoder,
-                refreshTokenService
+                refreshTokenService,
+                transactionService,
+                auditService
         );
+        ReflectionTestUtils.setField(service, "providerProofMaxAgeSeconds", 300L);
     }
 
     @Test
     void listLinkedIdentities_returnsProviderDtos() {
-        FederatedIdentityEntity identity = identity(user(1L, "user@grun.app"), AuthProvider.GOOGLE, "google@grun.app");
+        FederatedIdentityEntity identity = identity(user(1L, "user@grun.app"), AuthProvider.GOOGLE);
         when(federatedIdentityRepository.findByUserEmailOrderByCreatedAtAsc("user@grun.app"))
                 .thenReturn(List.of(identity));
 
-        List<LinkedIdentityDto> result = accountIdentityService.listLinkedIdentities("user@grun.app");
+        List<LinkedIdentityDto> result = service.listLinkedIdentities("user@grun.app");
 
         assertEquals(1, result.size());
         assertEquals(AuthProvider.GOOGLE, result.get(0).provider());
-        assertEquals("google@grun.app", result.get(0).providerEmail());
     }
 
     @Test
-    void linkGoogle_whenIdentityIsUnused_linksToCurrentUser() {
+    void linkGoogle_withFreshProof_delegatesToLockedTransactionAndAuditsSuccess() {
         UserEntity user = user(1L, "user@grun.app");
-        when(googleIdTokenVerifierService.verify("google-token"))
-                .thenReturn(new VerifiedGoogleIdentityDto("google-sub", "google@grun.app", "Google User", true));
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
-        when(federatedIdentityRepository.findByProviderAndProviderSubject(AuthProvider.GOOGLE, "google-sub"))
-                .thenReturn(Optional.empty());
-        when(federatedIdentityRepository.save(any(FederatedIdentityEntity.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        VerifiedGoogleIdentityDto verified = new VerifiedGoogleIdentityDto(
+                "google-sub", "google@grun.app", "Google User", true, Instant.now());
+        LinkedIdentityDto linked = new LinkedIdentityDto(AuthProvider.GOOGLE, "google@grun.app", LocalDateTime.now());
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(googleVerifier.verify("google-token")).thenReturn(verified);
+        when(transactionService.link(user.getEmail(), AuthProvider.GOOGLE,
+                "google-sub", "google@grun.app", "opaque-token")).thenReturn(linked);
 
-        accountIdentityService.linkGoogle("user@grun.app", "google-token");
+        LinkedIdentityDto result = service.linkGoogle(user.getEmail(), "google-token", "opaque-token");
 
-        ArgumentCaptor<FederatedIdentityEntity> captor = ArgumentCaptor.forClass(FederatedIdentityEntity.class);
-        verify(federatedIdentityRepository).save(captor.capture());
-        assertEquals(user, captor.getValue().getUser());
-        assertEquals(AuthProvider.GOOGLE, captor.getValue().getProvider());
-        assertEquals("google-sub", captor.getValue().getProviderSubject());
+        assertEquals(linked, result);
+        verify(auditService).record(user.getId(), AccountSecurityEventType.ACCOUNT_LINK_SUCCEEDED,
+                AuthProvider.GOOGLE, "SUCCESS");
     }
 
     @Test
-    void linkGoogle_whenIdentityBelongsToAnotherUser_rejectsLink() {
-        UserEntity currentUser = user(1L, "user@grun.app");
-        UserEntity otherUser = user(2L, "other@grun.app");
-        when(googleIdTokenVerifierService.verify("google-token"))
-                .thenReturn(new VerifiedGoogleIdentityDto("google-sub", "google@grun.app", "Google User", true));
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(currentUser));
-        when(federatedIdentityRepository.findByProviderAndProviderSubject(AuthProvider.GOOGLE, "google-sub"))
-                .thenReturn(Optional.of(identity(otherUser, AuthProvider.GOOGLE, "google@grun.app")));
+    void linkGoogle_withStaleProof_rejectsBeforeTransaction() {
+        UserEntity user = user(1L, "user@grun.app");
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(googleVerifier.verify("google-token")).thenReturn(new VerifiedGoogleIdentityDto(
+                "google-sub", "google@grun.app", "Google User", true, Instant.now().minusSeconds(600)));
 
-        assertThrows(IllegalArgumentException.class,
-                () -> accountIdentityService.linkGoogle("user@grun.app", "google-token"));
-        verify(federatedIdentityRepository, never()).save(any(FederatedIdentityEntity.class));
+        AccountLinkException exception = assertThrows(AccountLinkException.class,
+                () -> service.linkGoogle(user.getEmail(), "google-token", "opaque-token"));
+
+        assertEquals(AccountLinkErrorCode.REAUTHENTICATION_FAILED, exception.getCode());
+        verify(transactionService, never()).link(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void unlinkProvider_delegatesAuthorizationAndAuditsSuccess() {
+        UserEntity user = user(1L, "user@grun.app");
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+
+        service.unlinkProvider(user.getEmail(), AuthProvider.APPLE, "opaque-token");
+
+        verify(transactionService).unlink(user.getEmail(), AuthProvider.APPLE, "opaque-token");
+        verify(auditService).record(user.getId(), AccountSecurityEventType.ACCOUNT_PROVIDER_UNLINKED,
+                AuthProvider.APPLE, "SUCCESS");
     }
 
     @Test
@@ -118,59 +126,14 @@ class AccountIdentityServiceImplTest {
         user.setPasswordSet(false);
         AccountPasswordRequestDto request = new AccountPasswordRequestDto();
         request.setNewPassword("NewStrongPass1!");
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
-        when(passwordEncoder.encode("NewStrongPass1!")).thenReturn("encoded");
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode(request.getNewPassword())).thenReturn("encoded");
 
-        accountIdentityService.updatePassword("user@grun.app", request);
+        service.updatePassword(user.getEmail(), request);
 
         assertEquals("encoded", user.getPassword());
         assertTrue(user.getPasswordSet());
         verify(refreshTokenService).revokeAllForUser(user);
-    }
-
-    @Test
-    void unlinkProvider_whenPasswordExists_allowsRemovingOnlyProvider() {
-        UserEntity user = user(1L, "user@grun.app");
-        user.setPasswordSet(true);
-        FederatedIdentityEntity identity = identity(user, AuthProvider.GOOGLE, "google@grun.app");
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
-        when(federatedIdentityRepository.findByUserEmailAndProvider("user@grun.app", AuthProvider.GOOGLE))
-                .thenReturn(Optional.of(identity));
-        when(federatedIdentityRepository.countByUserEmail("user@grun.app")).thenReturn(1L);
-
-        accountIdentityService.unlinkProvider("user@grun.app", AuthProvider.GOOGLE);
-
-        verify(federatedIdentityRepository).delete(identity);
-    }
-
-    @Test
-    void unlinkProvider_whenNoPasswordAndOnlyProvider_rejectsRemoval() {
-        UserEntity user = user(1L, "user@grun.app");
-        user.setPasswordSet(false);
-        FederatedIdentityEntity identity = identity(user, AuthProvider.APPLE, "relay@apple.test");
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
-        when(federatedIdentityRepository.findByUserEmailAndProvider("user@grun.app", AuthProvider.APPLE))
-                .thenReturn(Optional.of(identity));
-        when(federatedIdentityRepository.countByUserEmail("user@grun.app")).thenReturn(1L);
-
-        assertThrows(IllegalArgumentException.class,
-                () -> accountIdentityService.unlinkProvider("user@grun.app", AuthProvider.APPLE));
-        verify(federatedIdentityRepository, never()).delete(any(FederatedIdentityEntity.class));
-    }
-
-    @Test
-    void unlinkProvider_whenNoPasswordButMultipleProviders_allowsRemoval() {
-        UserEntity user = user(1L, "user@grun.app");
-        user.setPasswordSet(false);
-        FederatedIdentityEntity identity = identity(user, AuthProvider.GOOGLE, "google@grun.app");
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
-        when(federatedIdentityRepository.findByUserEmailAndProvider("user@grun.app", AuthProvider.GOOGLE))
-                .thenReturn(Optional.of(identity));
-        when(federatedIdentityRepository.countByUserEmail("user@grun.app")).thenReturn(2L);
-
-        accountIdentityService.unlinkProvider("user@grun.app", AuthProvider.GOOGLE);
-
-        verify(federatedIdentityRepository).delete(identity);
     }
 
     @Test
@@ -181,11 +144,11 @@ class AccountIdentityServiceImplTest {
         AccountPasswordRequestDto request = new AccountPasswordRequestDto();
         request.setCurrentPassword("wrong");
         request.setNewPassword("NewStrongPass1!");
-        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "old-encoded")).thenReturn(false);
 
         assertThrows(InvalidCredentialsException.class,
-                () -> accountIdentityService.updatePassword("user@grun.app", request));
+                () -> service.updatePassword(user.getEmail(), request));
         verify(userRepository, never()).save(any(UserEntity.class));
     }
 
@@ -196,13 +159,13 @@ class AccountIdentityServiceImplTest {
         return user;
     }
 
-    private FederatedIdentityEntity identity(UserEntity user, AuthProvider provider, String providerEmail) {
+    private FederatedIdentityEntity identity(UserEntity user, AuthProvider provider) {
         FederatedIdentityEntity identity = new FederatedIdentityEntity();
         identity.setUser(user);
         identity.setProvider(provider);
         identity.setProviderSubject(provider + "-sub");
-        identity.setProviderEmail(providerEmail);
-        identity.setCreatedAt(java.time.LocalDateTime.now());
+        identity.setProviderEmail(provider.name().toLowerCase() + "@grun.app");
+        identity.setCreatedAt(LocalDateTime.now());
         return identity;
     }
 }

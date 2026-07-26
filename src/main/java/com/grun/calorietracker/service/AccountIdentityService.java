@@ -10,11 +10,11 @@ import java.util.List;
 public interface AccountIdentityService {
     List<LinkedIdentityDto> listLinkedIdentities(String userEmail);
 
-    LinkedIdentityDto linkGoogle(String userEmail, String idToken);
+    LinkedIdentityDto linkGoogle(String userEmail, String idToken, String authorizationToken);
 
-    LinkedIdentityDto linkApple(String userEmail, String idToken, String nonce);
+    LinkedIdentityDto linkApple(String userEmail, String idToken, String nonce, String authorizationToken);
 
-    void unlinkProvider(String userEmail, AuthProvider provider);
+    void unlinkProvider(String userEmail, AuthProvider provider, String authorizationToken);
 
     AccountPasswordResponseDto updatePassword(String userEmail, AccountPasswordRequestDto request);
 }

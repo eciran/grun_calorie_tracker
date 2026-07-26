@@ -67,7 +67,8 @@ public class NimbusAppleIdTokenVerifierService implements AppleIdTokenVerifierSe
         return new VerifiedAppleIdentityDto(
                 subject,
                 trimToNull(jwt.getClaimAsString("email")),
-                emailVerified(jwt.getClaim("email_verified"))
+                emailVerified(jwt.getClaim("email_verified")),
+                jwt.getIssuedAt()
         );
     }
 

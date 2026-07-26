@@ -1,6 +1,8 @@
 package com.grun.calorietracker.exception;
 
+import com.grun.calorietracker.config.LocaleConfig;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.enums.ApiErrorCode;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -54,11 +56,12 @@ public class GlobalExceptionHandler {
         ApiErrorResponseDto body = new ApiErrorResponseDto(
                 LocalDateTime.now(),
                 status.value(),
+                status.getReasonPhrase(),
                 resolveMessage(errorCode, fallbackError, request),
-                message,
                 request.getRequestURI(),
                 correlationId(request)
         );
+        body.setCode(ApiErrorCode.fromMessageKey(errorCode).name());
         return ResponseEntity.status(status).body(body);
     }
 
@@ -68,7 +71,7 @@ public class GlobalExceptionHandler {
     }
 
     private String resolveMessage(String code, String fallback, HttpServletRequest request) {
-        return messageSource.getMessage(code, null, fallback, RequestContextUtils.getLocale(request));
+        return messageSource.getMessage(code, null, fallback, LocaleConfig.resolveSupportedLocale(RequestContextUtils.getLocale(request)));
     }
     private boolean isAiMealDraftConfirmRequest(HttpServletRequest request) {
         String path = request.getRequestURI();
@@ -176,6 +179,13 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, "error.invalid.credentials", "Invalid credentials", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(AccountLinkException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAccountLinkException(
+            AccountLinkException ex,
+            HttpServletRequest request
+    ) {
+        return buildDomainResponse(ex.getCode().status(), ex.getCode().name(), ex.getMessage(), List.of(), request);
+    }
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiErrorResponseDto> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED, "error.invalid.credentials", "Invalid credentials", ex.getMessage(), request);
@@ -251,6 +261,22 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, "error.method-not-allowed", "Method not allowed", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(AiProviderTimeoutException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAiProviderTimeoutException(
+            AiProviderTimeoutException ex, HttpServletRequest request) {
+        log.warn(
+                "AI provider timeout correlationId={} path={}",
+                correlationId(request),
+                request.getRequestURI()
+        );
+        return buildResponse(
+                HttpStatus.GATEWAY_TIMEOUT,
+                "error.ai-timeout",
+                "AI request timed out",
+                "AI analysis took too long. Your credit was not charged; retry when ready.",
+                request
+        );
+    }
     @ExceptionHandler(AiProviderException.class)
     public ResponseEntity<ApiErrorResponseDto> handleAiProviderException(AiProviderException ex, HttpServletRequest request) {
         log.warn(
@@ -396,8 +422,16 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 ex
         );
-        String message = includeInternalDetails ? ex.getMessage() : "Unexpected error. Please contact support with the correlation id.";
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "error.unexpected", "Unexpected error", message, request);
+        ResponseEntity<ApiErrorResponseDto> response = buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "error.unexpected",
+                "Unexpected error",
+                null,
+                request);
+        if (includeInternalDetails && response.getBody() != null) {
+            response.getBody().setMessage(ex.getMessage());
+        }
+        return response;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -417,10 +451,17 @@ public class GlobalExceptionHandler {
             );
         }
 
-        String field = Objects.requireNonNull(ex.getFieldError()).getField();
-        String message = Objects.requireNonNull(ex.getBindingResult().getFieldError()).getDefaultMessage();
-        String fullMessage = field + ": " + message;
-
-        return buildResponse(HttpStatus.BAD_REQUEST, "error.validation", "Validation error", fullMessage, request);
+        List<ApiErrorResponseDto.FieldErrorDto> fieldErrors = ex.getFieldErrors().stream()
+                .map(error -> new ApiErrorResponseDto.FieldErrorDto(
+                        safeFieldName(error.getField()),
+                        publicFieldErrorCode(error)))
+                .toList();
+        return buildDomainResponse(
+                HttpStatus.BAD_REQUEST,
+                ApiErrorCode.VALIDATION_ERROR.name(),
+                resolveMessage("error.validation", "Validation error", request),
+                fieldErrors,
+                request
+        );
     }
 }

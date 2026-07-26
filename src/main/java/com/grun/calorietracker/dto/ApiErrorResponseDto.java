@@ -43,7 +43,6 @@ public class ApiErrorResponseDto {
         this.timestamp = timestamp;
         this.status = status;
         this.error = error;
-        this.code = error;
         this.message = message;
         this.path = path;
         this.correlationId = correlationId;

@@ -110,7 +110,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private boolean isSessionAllowed(UserEntity user) {
         return user != null
-                && Boolean.TRUE.equals(user.getEmailVerified())
                 && !Boolean.FALSE.equals(user.getAccountEnabled())
                 && !Boolean.TRUE.equals(user.getAccountLocked())
                 && (user.getLoginLockedUntil() == null || !user.getLoginLockedUntil().isAfter(LocalDateTime.now()));

@@ -15,6 +15,10 @@ public interface FederatedIdentityRepository extends JpaRepository<FederatedIden
 
     Optional<FederatedIdentityEntity> findByUserEmailAndProvider(String email, AuthProvider provider);
 
+    Optional<FederatedIdentityEntity> findByUserIdAndProvider(Long userId, AuthProvider provider);
+
+    boolean existsByUserIdAndProvider(Long userId, AuthProvider provider);
+
     long countByUserEmail(String email);
     long countByUser(UserEntity user);
 

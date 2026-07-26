@@ -91,6 +91,25 @@ class RefreshTokenServiceImplTest {
     }
 
     @Test
+    void refreshAccessToken_whenEmailUnverified_keepsSessionActive() {
+        user.setEmailVerified(false);
+        RefreshTokenEntity existing = new RefreshTokenEntity();
+        existing.setUser(user);
+        existing.setExpiresAt(LocalDateTime.now().plusDays(1));
+
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(existing));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(jwtUtil.generateToken("user@example.com")).thenReturn("access-token");
+        when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
+
+        AuthResponse response = refreshTokenService.refreshAccessToken("raw-refresh-token");
+
+        assertThat(response.getToken()).isEqualTo("access-token");
+        assertThat(response.getRefreshToken()).isNotBlank();
+        assertThat(existing.getUsedAt()).isNotNull();
+    }
+    @Test
     void refreshAccessToken_whenExpired_marksUsedAndThrows() {
         RefreshTokenEntity existing = new RefreshTokenEntity();
         existing.setUser(user);

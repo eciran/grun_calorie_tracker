@@ -1,13 +1,16 @@
 package com.grun.calorietracker.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.grun.calorietracker.config.LocaleConfig;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.enums.ApiErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -31,6 +34,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             "/api/v1/auth/refresh"
     );
 
+    private static final String ACCOUNT_LINK_AUTHORIZATION_PATH = "/api/v1/account/link-authorizations";
+    private static final String ACCOUNT_LINK_GOOGLE_PATH = "/api/v1/account/link/google";
+    private static final String ACCOUNT_LINK_APPLE_PATH = "/api/v1/account/link/apple";
+    private static final String ACCOUNT_LINKED_IDENTITIES_PATH_PREFIX = "/api/v1/account/linked-identities/";
     private static final String PRODUCT_BARCODE_PATH_PREFIX = "/api/v1/products/barcode/";
     private static final Set<String> AI_DRAFT_PATHS = Set.of(
             "/api/v1/ai/meal-drafts/voice",
@@ -43,6 +50,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final RequestRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
+    private final MessageSource messageSource;
 
     @Value("${grun.rate-limit.enabled:true}")
     private boolean enabled;
@@ -55,6 +63,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Value("${grun.rate-limit.email-verification-resend.max-requests-per-minute:5}")
     private int emailVerificationResendMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.account-link.max-requests-per-minute:5}")
+    private int accountLinkMaxRequestsPerMinute;
 
     @Value("${grun.rate-limit.ai-draft.max-requests-per-minute:10}")
     private int aiDraftMaxRequestsPerMinute;
@@ -86,6 +97,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if ("POST".equalsIgnoreCase(request.getMethod()) && PROTECTED_AUTH_PATHS.contains(request.getRequestURI())) {
             return true;
         }
+        if (isAccountLinkRequest(request)) {
+            return true;
+        }
         if ("POST".equalsIgnoreCase(request.getMethod()) && isAiGenerationPath(request.getRequestURI())) {
             return true;
         }
@@ -93,6 +107,16 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 && request.getRequestURI().startsWith(PRODUCT_BARCODE_PATH_PREFIX);
     }
 
+    private boolean isAccountLinkRequest(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if ("POST".equalsIgnoreCase(request.getMethod())) {
+            return ACCOUNT_LINK_AUTHORIZATION_PATH.equals(path)
+                    || ACCOUNT_LINK_GOOGLE_PATH.equals(path)
+                    || ACCOUNT_LINK_APPLE_PATH.equals(path);
+        }
+        return "DELETE".equalsIgnoreCase(request.getMethod())
+                && path.startsWith(ACCOUNT_LINKED_IDENTITIES_PATH_PREFIX);
+    }
     private boolean isAiGenerationPath(String path) {
         return AI_DRAFT_PATHS.contains(path)
                 || (path.startsWith("/api/v1/meal-plans/")
@@ -129,6 +153,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if (EMAIL_VERIFICATION_RESEND_PATH.equals(path)) {
             return emailVerificationResendMaxRequestsPerMinute;
         }
+        if (isAccountLinkRequest(request)) {
+            return accountLinkMaxRequestsPerMinute;
+        }
         if (isAiGenerationPath(path)) {
             return aiDraftMaxRequestsPerMinute;
         }
@@ -146,6 +173,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 request.getRequestURI(),
                 correlationId(request)
         );
+        body.setCode(ApiErrorCode.RATE_LIMIT_EXCEEDED.name());
         objectMapper.writeValue(response.getWriter(), body);
     }
 

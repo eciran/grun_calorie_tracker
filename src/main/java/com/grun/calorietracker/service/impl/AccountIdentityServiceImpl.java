@@ -7,21 +7,27 @@ import com.grun.calorietracker.dto.VerifiedAppleIdentityDto;
 import com.grun.calorietracker.dto.VerifiedGoogleIdentityDto;
 import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AccountLinkErrorCode;
+import com.grun.calorietracker.enums.AccountSecurityEventType;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.exception.AccountLinkException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AccountIdentityService;
+import com.grun.calorietracker.service.AccountSecurityAuditService;
 import com.grun.calorietracker.service.AppleIdTokenVerifierService;
 import com.grun.calorietracker.service.GoogleIdTokenVerifierService;
 import com.grun.calorietracker.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -30,10 +36,15 @@ public class AccountIdentityServiceImpl implements AccountIdentityService {
 
     private final UserRepository userRepository;
     private final FederatedIdentityRepository federatedIdentityRepository;
-    private final GoogleIdTokenVerifierService googleIdTokenVerifierService;
-    private final AppleIdTokenVerifierService appleIdTokenVerifierService;
+    private final GoogleIdTokenVerifierService googleVerifier;
+    private final AppleIdTokenVerifierService appleVerifier;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final AccountIdentityTransactionService transactionService;
+    private final AccountSecurityAuditService auditService;
+
+    @Value("${grun.account-link.provider-proof-max-age-seconds:300}")
+    private long providerProofMaxAgeSeconds;
 
     @Override
     @Transactional(readOnly = true)
@@ -45,34 +56,75 @@ public class AccountIdentityServiceImpl implements AccountIdentityService {
     }
 
     @Override
-    @Transactional
-    public LinkedIdentityDto linkGoogle(String userEmail, String idToken) {
-        VerifiedGoogleIdentityDto identity = googleIdTokenVerifierService.verify(idToken);
-        return linkIdentity(userEmail, AuthProvider.GOOGLE, identity.subject(), identity.email());
-    }
-
-    @Override
-    @Transactional
-    public LinkedIdentityDto linkApple(String userEmail, String idToken, String nonce) {
-        VerifiedAppleIdentityDto identity = appleIdTokenVerifierService.verify(idToken, nonce);
-        return linkIdentity(userEmail, AuthProvider.APPLE, identity.subject(), identity.email());
-    }
-
-    @Override
-    @Transactional
-    public void unlinkProvider(String userEmail, AuthProvider provider) {
+    public LinkedIdentityDto linkGoogle(String userEmail, String idToken, String authorizationToken) {
         UserEntity user = findUser(userEmail);
-        FederatedIdentityEntity identity = federatedIdentityRepository
-                .findByUserEmailAndProvider(userEmail, provider)
-                .orElseThrow(() -> new IllegalArgumentException("Provider identity is not linked to this account"));
-
-        long linkedProviderCount = federatedIdentityRepository.countByUserEmail(userEmail);
-        boolean hasPasswordLogin = Boolean.TRUE.equals(user.getPasswordSet());
-        if (!hasPasswordLogin && linkedProviderCount <= 1) {
-            throw new IllegalArgumentException("Cannot unlink the last available sign-in method");
+        try {
+            VerifiedGoogleIdentityDto identity = googleVerifier.verify(idToken);
+            requireFresh(identity.issuedAt());
+            LinkedIdentityDto linkedIdentity = transactionService.link(userEmail, AuthProvider.GOOGLE,
+                    identity.subject(), identity.email(), authorizationToken);
+            auditService.record(user.getId(), AccountSecurityEventType.ACCOUNT_LINK_SUCCEEDED,
+                    AuthProvider.GOOGLE, "SUCCESS");
+            return linkedIdentity;
+        } catch (AccountLinkException exception) {
+            recordRejected(user, AuthProvider.GOOGLE, exception);
+            throw exception;
+        } catch (InvalidCredentialsException exception) {
+            AccountLinkException mapped = failure(AccountLinkErrorCode.REAUTHENTICATION_FAILED,
+                    "Google identity token is invalid.");
+            recordRejected(user, AuthProvider.GOOGLE, mapped);
+            throw mapped;
+        } catch (IllegalArgumentException exception) {
+            AccountLinkException mapped = failure(AccountLinkErrorCode.PROVIDER_NOT_CONFIGURED,
+                    "Google provider is not configured.");
+            recordRejected(user, AuthProvider.GOOGLE, mapped);
+            throw mapped;
         }
+    }
 
-        federatedIdentityRepository.delete(identity);
+    @Override
+    public LinkedIdentityDto linkApple(
+            String userEmail,
+            String idToken,
+            String nonce,
+            String authorizationToken
+    ) {
+        UserEntity user = findUser(userEmail);
+        try {
+            VerifiedAppleIdentityDto identity = appleVerifier.verify(idToken, nonce);
+            requireFresh(identity.issuedAt());
+            LinkedIdentityDto linkedIdentity = transactionService.link(userEmail, AuthProvider.APPLE,
+                    identity.subject(), identity.email(), authorizationToken);
+            auditService.record(user.getId(), AccountSecurityEventType.ACCOUNT_LINK_SUCCEEDED,
+                    AuthProvider.APPLE, "SUCCESS");
+            return linkedIdentity;
+        } catch (AccountLinkException exception) {
+            recordRejected(user, AuthProvider.APPLE, exception);
+            throw exception;
+        } catch (InvalidCredentialsException exception) {
+            AccountLinkException mapped = failure(AccountLinkErrorCode.REAUTHENTICATION_FAILED,
+                    "Apple identity token or nonce is invalid.");
+            recordRejected(user, AuthProvider.APPLE, mapped);
+            throw mapped;
+        } catch (IllegalArgumentException exception) {
+            AccountLinkException mapped = failure(AccountLinkErrorCode.PROVIDER_NOT_CONFIGURED,
+                    "Apple provider is not configured.");
+            recordRejected(user, AuthProvider.APPLE, mapped);
+            throw mapped;
+        }
+    }
+
+    @Override
+    public void unlinkProvider(String userEmail, AuthProvider provider, String authorizationToken) {
+        UserEntity user = findUser(userEmail);
+        try {
+            transactionService.unlink(userEmail, provider, authorizationToken);
+            auditService.record(user.getId(), AccountSecurityEventType.ACCOUNT_PROVIDER_UNLINKED,
+                    provider, "SUCCESS");
+        } catch (AccountLinkException exception) {
+            recordRejected(user, provider, exception);
+            throw exception;
+        }
     }
 
     @Override
@@ -94,26 +146,17 @@ public class AccountIdentityServiceImpl implements AccountIdentityService {
         return new AccountPasswordResponseDto("Password updated successfully.");
     }
 
-    private LinkedIdentityDto linkIdentity(String userEmail, AuthProvider provider, String subject, String providerEmail) {
-        UserEntity currentUser = findUser(userEmail);
-        FederatedIdentityEntity identity = federatedIdentityRepository
-                .findByProviderAndProviderSubject(provider, subject)
-                .orElse(null);
-
-        if (identity != null) {
-            if (identity.getUser().getId().equals(currentUser.getId())) {
-                return toDto(identity);
-            }
-            throw new IllegalArgumentException("Provider identity is already linked to another account");
+    private void requireFresh(Instant issuedAt) {
+        Instant now = Instant.now();
+        Instant oldestAllowed = now.minus(providerProofMaxAgeSeconds, ChronoUnit.SECONDS);
+        if (issuedAt == null || issuedAt.isBefore(oldestAllowed) || issuedAt.isAfter(now.plusSeconds(30))) {
+            throw failure(AccountLinkErrorCode.REAUTHENTICATION_FAILED,
+                    "Provider identity token is not recent.");
         }
-
-        FederatedIdentityEntity newIdentity = new FederatedIdentityEntity();
-        newIdentity.setUser(currentUser);
-        newIdentity.setProvider(provider);
-        newIdentity.setProviderSubject(subject);
-        newIdentity.setProviderEmail(providerEmail);
-        newIdentity.setCreatedAt(LocalDateTime.now());
-        return toDto(federatedIdentityRepository.save(newIdentity));
+    }
+    private void recordRejected(UserEntity user, AuthProvider provider, AccountLinkException exception) {
+        auditService.record(user.getId(), AccountSecurityEventType.ACCOUNT_LINK_REJECTED,
+                provider, exception.getCode().name());
     }
 
     private UserEntity findUser(String userEmail) {
@@ -122,10 +165,10 @@ public class AccountIdentityServiceImpl implements AccountIdentityService {
     }
 
     private LinkedIdentityDto toDto(FederatedIdentityEntity identity) {
-        return new LinkedIdentityDto(
-                identity.getProvider(),
-                identity.getProviderEmail(),
-                identity.getCreatedAt()
-        );
+        return new LinkedIdentityDto(identity.getProvider(), identity.getProviderEmail(), identity.getCreatedAt());
+    }
+
+    private AccountLinkException failure(AccountLinkErrorCode code, String message) {
+        return new AccountLinkException(code, message);
     }
 }

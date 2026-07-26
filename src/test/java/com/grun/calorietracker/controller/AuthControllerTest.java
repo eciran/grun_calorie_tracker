@@ -165,7 +165,8 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Validation error"))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_REGISTERED"))
                 .andExpect(jsonPath("$.message").value("Email already registered"))
                 .andExpect(jsonPath("$.path").value("/api/v1/auth/register"));
     }
@@ -189,8 +190,11 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Dogrulama hatasi"))
-                .andExpect(jsonPath("$.message").value("email: Email gecerli bir email adresi olmalidir"))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Dogrulama hatasi"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("email"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("INVALID"))
                 .andExpect(jsonPath("$.path").value("/api/v1/auth/register"));
     }
 
