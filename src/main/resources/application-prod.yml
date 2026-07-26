@@ -155,6 +155,8 @@ grun:
     trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
       enabled: true
+    account-link:
+      max-requests-per-minute: ${GRUN_RATE_LIMIT_ACCOUNT_LINK_MAX_REQUESTS_PER_MINUTE:5}
   revenuecat:
     strict-product-mapping: true
     api:

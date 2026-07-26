@@ -3,7 +3,9 @@ param(
     [string]$AdminToken = "",
     [string]$EnvPath = ".env",
     [switch]$SkipEnvLoad,
-    [switch]$Production
+    [switch]$Production,
+    [switch]$RunOnboardingTests,
+    [switch]$RequireOnboardingEvents
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,6 +60,24 @@ function Invoke-AdminGet([string]$Path, [string]$Token) {
 
 Write-Host "=== Production Gate Check ==="
 Write-Host "Base URL: $BaseUrl"
+
+$onboardingTestsFailed = $false
+if ($RunOnboardingTests) {
+    Write-Host ""
+    Write-Host "[Onboarding automated tests]"
+    Push-Location $projectRoot
+    try {
+        & .\mvnw.cmd "-Dtest=AuthControllerTest,FederatedAuthServiceImplTest,LocaleConfigTest,LocalizationContractTest,UserGoalServiceImplTest,OnboardingServiceImplTest,OnboardingControllerTest,OnboardingAnalyticsServiceImplTest,AdminOnboardingAnalyticsServiceImplTest,AdminOnboardingAnalyticsControllerTest,ProductAnalyticsOnboardingPrivacyTest,MobileApiContractTest" test
+        if ($LASTEXITCODE -ne 0) {
+            $onboardingTestsFailed = $true
+            Write-Host "- onboarding test suite: FAIL"
+        } else {
+            Write-Host "- onboarding test suite: OK"
+        }
+    } finally {
+        Pop-Location
+    }
+}
 
 $secretChecks = @(
     (Check-Env "JWT_SECRET"),
@@ -130,6 +150,19 @@ if ([string]::IsNullOrWhiteSpace($AdminToken)) {
     }
 
     try {
+        $onboarding = Invoke-AdminGet -Path "/api/v1/admin/onboarding/analytics?hours=168" -Token $AdminToken
+        $onboardingTotal = [int64]$onboarding.started + [int64]$onboarding.stepViewed + [int64]$onboarding.stepCompleted + [int64]$onboarding.stepFailed + [int64]$onboarding.resumed + [int64]$onboarding.previewed + [int64]$onboarding.completed + [int64]$onboarding.abandoned
+        Write-Host "- /admin/onboarding/analytics: OK"
+        Write-Host ("  started={0}, resumed={1}, previewed={2}, completed={3}, abandoned={4}, totalEvents={5}" -f $onboarding.started, $onboarding.resumed, $onboarding.previewed, $onboarding.completed, $onboarding.abandoned, $onboardingTotal)
+        if ($RequireOnboardingEvents -and $onboardingTotal -eq 0) {
+            $apiFailures += "No onboarding funnel events were found in the last 168 hours"
+        }
+    } catch {
+        Write-Host "- /admin/onboarding/analytics: FAIL"
+        Write-Host ("  " + $_.Exception.Message)
+        $apiFailures += "Onboarding analytics endpoint failed"
+    }
+    try {
         $config = Invoke-AdminGet -Path "/api/v1/admin/revenuecat/config" -Token $AdminToken
         Write-Host "- /admin/revenuecat/config: OK"
         Write-Host ("  productionReady={0}, strictProductMapping={1}, webhookConfigured={2}" -f $config.productionReady, $config.strictProductMapping, $config.webhookAuthorizationConfigured)
@@ -156,6 +189,10 @@ if ([string]::IsNullOrWhiteSpace($AdminToken)) {
 }
 
 Write-Host ""
+if ($onboardingTestsFailed) {
+    Write-Host "Gate result: FAIL (onboarding automated tests failed)"
+    exit 1
+}
 if ($failedSecrets.Count -gt 0) {
     Write-Host "Gate result: FAIL (missing required environment values)"
     exit 1
