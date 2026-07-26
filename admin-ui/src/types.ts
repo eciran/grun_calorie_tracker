@@ -474,6 +474,7 @@ export type SubscriptionFeatureAccess = {
   nextMealSuggestions?: boolean;
   advancedMacroTargets?: boolean;
   micronutrientDetails?: boolean;
+  micronutrientAnalytics?: boolean;
   dataExport?: boolean;
   fastingBasic?: boolean;
   fastingAdvanced?: boolean;

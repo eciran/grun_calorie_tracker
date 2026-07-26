@@ -157,6 +157,7 @@ const FEATURE_ORDER = [
   "NEXT_MEAL_SUGGESTIONS",
   "ADVANCED_MACRO_TARGETS",
   "MICRONUTRIENT_DETAILS",
+  "MICRONUTRIENT_ANALYTICS",
   "DATA_EXPORT",
   "FASTING_BASIC",
   "FASTING_ADVANCED",
@@ -9116,6 +9117,8 @@ function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: s
       return Boolean(access.advancedMacroTargets);
     case "MICRONUTRIENT_DETAILS":
       return Boolean(access.micronutrientDetails);
+    case "MICRONUTRIENT_ANALYTICS":
+      return Boolean(access.micronutrientAnalytics);
     case "DATA_EXPORT":
       return Boolean(access.dataExport);
     case "FASTING_BASIC":
@@ -9188,6 +9191,8 @@ function humanizeFeature(value?: string): string {
       return "Advanced Macro Targets";
     case "MICRONUTRIENT_DETAILS":
       return "Micronutrient Details";
+    case "MICRONUTRIENT_ANALYTICS":
+      return "Micronutrient Analytics";
     case "DATA_EXPORT":
       return "Data Export";
     case "FASTING_BASIC":
@@ -9238,6 +9243,8 @@ function featureDescription(value?: string): string {
       return "Flexible macro targets and meal-level planning.";
     case "MICRONUTRIENT_DETAILS":
       return "Detailed vitamins and minerals in nutrition views.";
+    case "MICRONUTRIENT_ANALYTICS":
+      return "Advanced micronutrient trends, coverage, and period comparisons.";
     case "DATA_EXPORT":
       return "Export personal tracking data for portability.";
     case "FASTING_BASIC":

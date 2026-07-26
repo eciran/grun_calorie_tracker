@@ -184,6 +184,8 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getRecipeBuilder());
         assertEquals(true, result.getPublicRecipeLibrary());
         assertEquals(false, result.getAdvancedAnalytics());
+        assertEquals(true, result.getMicronutrientDetails());
+        assertEquals(false, result.getMicronutrientAnalytics());
         assertEquals(true, result.getAdFree());
         assertEquals(true, result.getCustomFoodLibrary());
         assertEquals(3, result.getAiInsightsCreditCost());
@@ -202,6 +204,8 @@ class SubscriptionServiceImplTest {
 
         assertEquals(SubscriptionPlan.PRO, result.getPlanType());
         assertEquals(true, result.getAdvancedAnalytics());
+        assertEquals(true, result.getMicronutrientDetails());
+        assertEquals(true, result.getMicronutrientAnalytics());
     }
 
     @Test
