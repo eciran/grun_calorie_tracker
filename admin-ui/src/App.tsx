@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import {
   clearTokens,
@@ -51,7 +51,6 @@ import {
   FeatureMatrixItem,
   GrowthFunnelStep,
   GrowthKpi,
-  GrowthTrendPoint,
   FoodProduct,
   FoodProductContribution,
   FoodCanonicalDuplicateGroup,
@@ -94,6 +93,10 @@ import {
   Panel,
   SectionToolbar
 } from "./AdminPrimitives";
+
+const GrowthTrendChart = lazy(() => import("./GrowthTrendChart").then((module) => ({ default: module.GrowthTrendChart })));
+const OnboardingFunnelChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.OnboardingFunnelChart })));
+const FeatureAdoptionChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.FeatureAdoptionChart })));
 
 type SectionKey =
   | "dashboard"
@@ -996,33 +999,6 @@ function GrowthKpiCard({ kpi, onOpen }: { kpi: GrowthKpi; onOpen: () => void }) 
   );
 }
 
-function GrowthTrendChart({ points }: { points: GrowthTrendPoint[] }) {
-  const maximum = Math.max(1, ...points.flatMap((point) => [point.registrations, point.activeUsers]));
-  const labelEvery = Math.max(1, Math.ceil(points.length / 6));
-  return (
-    <div className="growth-chart" role="img" aria-label="Daily registrations and active users">
-      <div className="growth-chart-legend">
-        <span><i className="registration" />Registrations</span>
-        <span><i className="activity" />Active users</span>
-      </div>
-      <div
-        className="growth-chart-plot"
-        style={{ "--growth-columns": points.length } as CSSProperties}
-      >
-        {points.map((point, index) => (
-          <div className="growth-chart-day" key={point.date} title={`${point.date}: ${point.registrations} registrations, ${point.activeUsers} active`}>
-            <div className="growth-chart-bars">
-              <i className="registration" style={{ height: `${(point.registrations / maximum) * 100}%` }} />
-              <i className="activity" style={{ height: `${(point.activeUsers / maximum) * 100}%` }} />
-            </div>
-            <span>{index % labelEvery === 0 || index === points.length - 1 ? point.date.slice(5) : ""}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function GrowthFunnel({ steps, onOpen }: { steps: GrowthFunnelStep[]; onOpen: (step: GrowthFunnelStep) => void }) {
   return (
     <div className="growth-funnel">
@@ -1228,7 +1204,11 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
       </div>
       <div className="growth-primary-grid">
         <Panel title="Registration and activity trend" description="Daily values use the same Europe/Dublin reporting boundary as the KPI totals.">
-          {growth?.daily?.length ? <GrowthTrendChart points={growth.daily} /> : <EmptyState title="No trend data" message="No timestamped registrations or activity were returned for this period." />}
+          {growth?.daily?.length ? (
+            <Suspense fallback={<div className="admin-chart-loading">Loading chart...</div>}>
+              <GrowthTrendChart points={growth.daily} />
+            </Suspense>
+          ) : <EmptyState title="No trend data" message="No timestamped registrations or activity were returned for this period." />}
         </Panel>
         <Panel title="Activation funnel" description="Privacy-safe cohort counts; partial stages are labelled explicitly.">
           {growth?.funnel?.length
@@ -8209,6 +8189,16 @@ function EngagementAnalyticsView({ onError }: { onError: (message: string | null
   const search = data?.search;
   const food = data?.foodLogging;
   const barcode = data?.barcode;
+  const onboardingFunnelItems = [
+    { label: "Started", value: onboarding?.started ?? 0 },
+    { label: "Previewed", value: onboarding?.previewed ?? 0 },
+    { label: "Completed", value: onboarding?.completed ?? 0 }
+  ];
+  const featureAdoptionItems = (data?.featureAdoption ?? []).map((item) => ({
+    events: item.events ?? 0,
+    label: humanizeFeature(item.feature),
+    users: item.uniqueUsers ?? 0
+  }));
 
   return (
     <div className="stack engagement-analytics">
@@ -8257,15 +8247,14 @@ function EngagementAnalyticsView({ onError }: { onError: (message: string | null
 
       <div className="ops-grid engagement-flow-grid">
         <Panel title="Onboarding funnel">
-          <MiniBarChart label="Funnel events" items={[
-            ["Started", onboarding?.started ?? 0],
-            ["Step viewed", onboarding?.stepViewed ?? 0],
-            ["Step complete", onboarding?.stepCompleted ?? 0],
-            ["Previewed", onboarding?.previewed ?? 0],
-            ["Completed", onboarding?.completed ?? 0],
-            ["Abandoned", onboarding?.abandoned ?? 0]
-          ]} />
+          {onboardingFunnelItems.some((item) => item.value > 0) ? (
+            <Suspense fallback={<div className="admin-chart-loading">Loading funnel...</div>}>
+              <OnboardingFunnelChart items={onboardingFunnelItems} />
+            </Suspense>
+          ) : <EmptyState title="No onboarding activity" message="No onboarding journey event was recorded for this scope." />}
           <div className="engagement-inline-metrics">
+            <span>Step views <strong>{formatValue(onboarding?.stepViewed)}</strong></span>
+            <span>Steps completed <strong>{formatValue(onboarding?.stepCompleted)}</strong></span>
             <span>Step failures <strong>{formatValue(onboarding?.stepFailed)}</strong></span>
             <span>Resumed <strong>{formatValue(onboarding?.resumed)}</strong></span>
             <span>Avg. completion <strong>{formatDurationMs(onboarding?.averageCompletionDurationMs)}</strong></span>
@@ -8284,6 +8273,11 @@ function EngagementAnalyticsView({ onError }: { onError: (message: string | null
       </div>
 
       <Panel title="Feature adoption">
+        {featureAdoptionItems.some((item) => item.events > 0 || item.users > 0) ? (
+          <Suspense fallback={<div className="admin-chart-loading">Loading adoption chart...</div>}>
+            <FeatureAdoptionChart items={featureAdoptionItems} />
+          </Suspense>
+        ) : <EmptyState title="No adoption activity" message="No feature usage was recorded for this scope." />}
         <DataTable
           columns={["Feature", "Events", "Users", "Repeat events", "Avg. duration"]}
           rows={(data?.featureAdoption ?? []).map((item) => [

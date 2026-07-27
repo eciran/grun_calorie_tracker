@@ -33,23 +33,32 @@ const activeSections = new Set([...app.matchAll(/active === "([A-Za-z0-9]+)"/g)]
 const navigableSections = new Set([...app.matchAll(/navSection\("([A-Za-z0-9]+)"\)/g)].map((match) => match[1]));
 for (const section of navigableSections) {
   assert.ok(activeSections.has(section), `Navigable section ${section} must render a view.`);
-}const sectionDefinitions = app.match(/const sections: SectionMeta\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+}
+const sectionDefinitions = app.match(/const sections: SectionMeta\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
 const definedSections = new Set([...sectionDefinitions.matchAll(/key: "([A-Za-z0-9]+)"/g)].map((match) => match[1]));
 for (const section of definedSections) {
   assert.ok(activeSections.has(section), `Deep-linkable section ${section} must render a view.`);
 }
 
 const assets = fs.readdirSync(new URL("../src/main/resources/static/admin-ui/assets/", root));
-const jsAsset = assets.find((name) => name.endsWith(".js"));
+const jsAssets = assets.filter((name) => name.endsWith(".js"));
 const cssAsset = assets.find((name) => name.endsWith(".css"));
-assert.ok(jsAsset && cssAsset, "Production admin assets must be built before the release gate.");
-const jsBytes = fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${jsAsset}`, root)).size;
+const indexHtml = read("../src/main/resources/static/admin-ui/index.html");
+const entryAsset = indexHtml.match(/assets\/(index-[^"]+\.js)/)?.[1];
+assert.ok(entryAsset && cssAsset, "Production admin entry assets must be built before the release gate.");
+const jsBytes = fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${entryAsset}`, root)).size;
 const cssBytes = fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${cssAsset}`, root)).size;
-assert.ok(jsBytes <= 650_000, `Admin JS budget exceeded: ${jsBytes} bytes (limit 650000).`);
+const totalJsBytes = jsAssets.reduce(
+  (total, asset) => total + fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${asset}`, root)).size,
+  0
+);
+assert.ok(jsBytes <= 650_000, `Admin entry JS budget exceeded: ${jsBytes} bytes (limit 650000).`);
+assert.ok(jsAssets.every((asset) => fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${asset}`, root)).size <= 650_000), "Every lazy JS chunk must remain below 650000 bytes.");
+assert.ok(totalJsBytes <= 1_300_000, `Total admin JS budget exceeded: ${totalJsBytes} bytes (limit 1300000).`);
 assert.ok(cssBytes <= 160_000, `Admin CSS budget exceeded: ${cssBytes} bytes (limit 160000).`);
 
 for (const heading of ["Operator Runbook", "Role Walkthroughs", "Incident Playbook", "Glossary", "Known Production Dependencies"]) {
   assert.match(runbook, new RegExp(`## ${heading}`), `${heading} must be documented.`);
 }
 
-console.log(`Production readiness checks passed. JS ${jsBytes} bytes; CSS ${cssBytes} bytes.`);
+console.log(`Production readiness checks passed. Entry JS ${jsBytes} bytes; total JS ${totalJsBytes} bytes; CSS ${cssBytes} bytes.`);

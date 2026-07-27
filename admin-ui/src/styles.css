@@ -8135,80 +8135,30 @@ label {
   min-width: 0;
 }
 
-.growth-chart {
-  display: grid;
-  gap: 10px;
-}
-
-.growth-chart-legend {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 14px;
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.growth-chart-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.growth-chart-legend i {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-}
-
-.growth-chart-legend .registration,
-.growth-chart-bars .registration {
-  background: var(--primary);
-}
-
-.growth-chart-legend .activity,
-.growth-chart-bars .activity {
-  background: var(--success);
-}
-
-.growth-chart-plot {
-  display: grid;
-  grid-template-columns: repeat(var(--growth-columns, 1), minmax(2px, 1fr));
-  align-items: end;
-  gap: clamp(1px, 0.25vw, 5px);
-  height: 210px;
-  padding: 8px 4px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.growth-chart-day {
-  display: grid;
-  grid-template-rows: 180px 20px;
-  align-items: end;
+.growth-echart {
+  width: 100%;
+  height: 250px;
   min-width: 0;
 }
 
-.growth-chart-bars {
-  display: flex;
-  align-items: end;
-  justify-content: center;
-  gap: 2px;
-  height: 100%;
-}
-
-.growth-chart-bars i {
-  display: block;
-  width: min(9px, 44%);
-  min-height: 0;
-  border-radius: 3px 3px 0 0;
-}
-
-.growth-chart-day > span {
-  overflow: visible;
+.admin-chart-loading {
+  display: grid;
+  place-items: center;
+  height: 250px;
   color: var(--muted);
-  font-size: 0.62rem;
-  text-align: center;
-  white-space: nowrap;
+  font-size: 0.78rem;
+}
+.engagement-funnel-chart {
+  width: 100%;
+  height: 280px;
+  min-width: 0;
+}
+
+.feature-adoption-chart {
+  width: 100%;
+  height: 320px;
+  min-width: 0;
+  margin-bottom: 12px;
 }
 
 .growth-funnel {
@@ -8324,6 +8274,10 @@ label {
   }
 }
 
+.engagement-analytics > * {
+  min-width: 0;
+}
+
 .engagement-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -8346,6 +8300,11 @@ label {
 .engagement-lower-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
+}
+
+.engagement-flow-grid > .panel,
+.engagement-lower-grid > .panel {
+  min-width: 0;
 }
 
 .engagement-inline-metrics {
