@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.AdminCatalogImportJobDto;
 import com.grun.calorietracker.dto.AdminCatalogSummaryDto;
+import com.grun.calorietracker.dto.AdminCatalogQualityAnalyticsDto;
 import com.grun.calorietracker.dto.CatalogReviewAssignmentRequestDto;
 import com.grun.calorietracker.dto.ExerciseItemDto;
 import com.grun.calorietracker.dto.ExerciseItemPageDto;
@@ -16,12 +17,14 @@ import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ExerciseDifficulty;
 import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
+import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.ExerciseItemMapper;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.ProductQualityScanRunRepository;
+import com.grun.calorietracker.repository.ProductQualitySuggestionRepository;
 import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.service.AdminAuditService;
@@ -37,7 +40,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.sql.Date;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -55,6 +60,7 @@ public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperations
     private final RecipeRepository recipeRepository;
     private final ExerciseItemRepository exerciseItemRepository;
     private final ProductQualityScanRunRepository scanRunRepository;
+    private final ProductQualitySuggestionRepository qualitySuggestionRepository;
     private final RecipeImportCandidateRepository recipeImportCandidateRepository;
     private final ExerciseItemMapper exerciseItemMapper;
     private final ExerciseItemService exerciseItemService;
@@ -102,6 +108,48 @@ public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperations
                         exerciseItemRepository.countByReviewDueAtBefore(now)
                 ),
                 sources
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminCatalogQualityAnalyticsDto qualityAnalytics(int windowDays) {
+        int boundedWindow = Math.max(7, Math.min(windowDays, 90));
+        LocalDateTime from = LocalDate.now().minusDays(boundedWindow - 1L).atStartOfDay();
+
+        List<AdminCatalogQualityAnalyticsDto.CountMetric> verificationStatuses =
+                foodItemRepository.summarizeVerificationStatuses().stream()
+                        .map(row -> new AdminCatalogQualityAnalyticsDto.CountMetric(
+                                row[0] == null ? "UNSPECIFIED" : String.valueOf(row[0]),
+                                ((Number) row[1]).longValue()
+                        ))
+                        .toList();
+        List<AdminCatalogQualityAnalyticsDto.CountMetric> openIssueTypes =
+                qualitySuggestionRepository.summarizeTypesByStatus(ProductQualitySuggestionStatus.OPEN).stream()
+                        .map(row -> new AdminCatalogQualityAnalyticsDto.CountMetric(
+                                String.valueOf(row[0]),
+                                ((Number) row[1]).longValue()
+                        ))
+                        .toList();
+        List<AdminCatalogQualityAnalyticsDto.ScanTrendPoint> scanTrend =
+                scanRunRepository.summarizeDailySince(from).stream()
+                        .map(row -> new AdminCatalogQualityAnalyticsDto.ScanTrendPoint(
+                                toLocalDate(row[0]),
+                                ((Number) row[1]).longValue(),
+                                ((Number) row[2]).longValue(),
+                                ((Number) row[3]).longValue(),
+                                ((Number) row[4]).longValue()
+                        ))
+                        .toList();
+
+        return new AdminCatalogQualityAnalyticsDto(
+                boundedWindow,
+                foodItemRepository.count(),
+                foodItemRepository.countQualityValidatedProducts(),
+                foodItemRepository.averageQualityScore(),
+                verificationStatuses,
+                openIssueTypes,
+                scanTrend
         );
     }
 
@@ -274,6 +322,12 @@ public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperations
         adminAuditService.record(adminEmail, AdminAuditActionType.CATALOG_REVIEW_ASSIGNMENT,
                 AdminAuditTargetType.CATALOG_REVIEW_ITEM, normalizedType + ":" + itemId,
                 oldValue, newValue, MDC.get("correlationId"));
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate date) return date;
+        if (value instanceof Date date) return date.toLocalDate();
+        return LocalDate.parse(String.valueOf(value));
     }
 
     private Specification<ExerciseItemEntity> exerciseSpecification(String query,

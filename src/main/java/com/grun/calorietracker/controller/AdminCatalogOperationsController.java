@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminCatalogImportJobDto;
 import com.grun.calorietracker.dto.AdminCatalogSummaryDto;
+import com.grun.calorietracker.dto.AdminCatalogQualityAnalyticsDto;
 import com.grun.calorietracker.dto.CatalogReviewAssignmentRequestDto;
 import com.grun.calorietracker.dto.ExerciseItemDto;
 import com.grun.calorietracker.dto.ExerciseItemPageDto;
@@ -45,6 +46,13 @@ public class AdminCatalogOperationsController {
     @Operation(summary = "Get catalog operations summary")
     public ResponseEntity<AdminCatalogSummaryDto> summary() {
         return ResponseEntity.ok(service.summary());
+    }
+
+    @GetMapping("/quality-analytics")
+    @Operation(summary = "Get aggregate food catalog quality analytics")
+    public ResponseEntity<AdminCatalogQualityAnalyticsDto> qualityAnalytics(
+            @RequestParam(defaultValue = "30") @Min(7) @Max(90) int windowDays) {
+        return ResponseEntity.ok(service.qualityAnalytics(windowDays));
     }
 
     @GetMapping("/import-jobs")

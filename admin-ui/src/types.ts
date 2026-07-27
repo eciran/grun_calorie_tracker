@@ -1275,6 +1275,22 @@ export type AdminCatalogSummary = {
   sources?: Array<{ source?: string; itemCount?: number; staleCount?: number; missingLicenseCount?: number }>;
 };
 
+export type AdminCatalogQualityAnalytics = {
+  windowDays?: number;
+  totalProducts?: number;
+  validatedProducts?: number;
+  averageQualityScore?: number;
+  verificationStatuses?: Array<{ name?: string; count?: number }>;
+  openIssueTypes?: Array<{ name?: string; count?: number }>;
+  scanTrend?: Array<{
+    date?: string;
+    scannedProducts?: number;
+    createdSuggestions?: number;
+    validatedProducts?: number;
+    failedRuns?: number;
+  }>;
+};
+
 export type AdminCatalogImportJob = {
   jobKey?: string; catalogType?: string; source?: string; triggerType?: string; region?: string;
   status?: string; processedItems?: number; issueItems?: number; licenseEvidence?: string;

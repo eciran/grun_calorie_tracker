@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminCatalogImportJobDto;
 import com.grun.calorietracker.dto.AdminCatalogSummaryDto;
+import com.grun.calorietracker.dto.AdminCatalogQualityAnalyticsDto;
 import com.grun.calorietracker.dto.CatalogReviewAssignmentRequestDto;
 import com.grun.calorietracker.dto.ExerciseItemDto;
 import com.grun.calorietracker.dto.ExerciseItemPageDto;
@@ -13,6 +14,8 @@ import java.util.List;
 
 public interface AdminCatalogOperationsService {
     AdminCatalogSummaryDto summary();
+
+    AdminCatalogQualityAnalyticsDto qualityAnalytics(int windowDays);
 
     List<AdminCatalogImportJobDto> recentImportJobs();
 

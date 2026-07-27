@@ -15,6 +15,7 @@ import {
 import {
   AdminCatalogImportJob,
   AdminCatalogSummary,
+  AdminCatalogQualityAnalytics,
   ExerciseCatalogItem,
   ExerciseCatalogPage,
   AdminCustomer360,
@@ -105,6 +106,9 @@ const AiEconomicsChart = lazy(() => import("./AiOperationsCharts").then((module)
 const CampaignDeliveryChart = lazy(() => import("./CampaignOperationsCharts").then((module) => ({ default: module.CampaignDeliveryChart })));
 const CampaignEngagementFunnel = lazy(() => import("./CampaignOperationsCharts").then((module) => ({ default: module.CampaignEngagementFunnel })));
 const CampaignStatusChart = lazy(() => import("./CampaignOperationsCharts").then((module) => ({ default: module.CampaignStatusChart })));
+const CatalogVerificationChart = lazy(() => import("./CatalogQualityCharts").then((module) => ({ default: module.CatalogVerificationChart })));
+const CatalogIssueChart = lazy(() => import("./CatalogQualityCharts").then((module) => ({ default: module.CatalogIssueChart })));
+const CatalogScanTrendChart = lazy(() => import("./CatalogQualityCharts").then((module) => ({ default: module.CatalogScanTrendChart })));
 
 type SectionKey =
   | "dashboard"
@@ -6644,13 +6648,14 @@ type FoodOpsMode = "overview" | "imports" | "regions" | "quality";
 function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: string | null) => void }) {
   const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<DashboardSummary>("/api/v1/admin/dashboard/summary", onError);
   const { data: products, state: productState, reload: reloadProducts } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?verificationStatus=RAW_IMPORTED&page=0&size=100", onError);
+  const [qualityWindowDays, setQualityWindowDays] = useState(30);
   const [suggestionStatus, setSuggestionStatus] = useState("OPEN");
   const [suggestionPage, setSuggestionPage] = useState(0);
   const [suggestionPageSize, setSuggestionPageSize] = useState(25);
   const [scanRegion, setScanRegion] = useState("");
   const [scanLimit, setScanLimit] = useState("250");
   const [forceRescan, setForceRescan] = useState(false);
-  const [qualityActionState, setQualityActionState] = useState<LoadState>("idle");
+  const [qualityActionState, setQualityActionState] = useState<LoadState>("ready");
   const [scanResult, setScanResult] = useState<ProductQualitySuggestionScanResult | null>(null);
   const [selectedScanRunDetail, setSelectedScanRunDetail] = useState<ProductQualityScanRunDetail | null>(null);
   const [aiValidationResult, setAiValidationResult] = useState<AdminProductQualityAiValidationResult | null>(null);
@@ -6659,9 +6664,10 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
   const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, page: suggestionPage, size: suggestionPageSize });
   const { data: suggestions, state: suggestionState, reload: reloadSuggestions } = useEndpoint<ProductQualitySuggestionPage>(suggestionPath, onError);
   const { data: scanRuns, state: scanRunState, reload: reloadScanRuns } = useEndpoint<ProductQualityScanRunPage>("/api/v1/admin/products/quality-suggestions/scan-runs?page=0&size=5", onError);
+  const { data: qualityAnalytics, state: qualityAnalyticsState, reload: reloadQualityAnalytics } = useEndpoint<AdminCatalogQualityAnalytics>(`/api/v1/admin/catalog/quality-analytics?windowDays=${qualityWindowDays}`, onError);
   const { data: aiSettings, state: aiSettingsState, reload: reloadAiSettings } = useEndpoint<ProductQualityAiSettings>("/api/v1/admin/products/quality-suggestions/ai-settings", onError);
   const [aiSettingsForm, setAiSettingsForm] = useState({ enabled: true, maxProductsPerRun: "25", dailyProductLimit: "250", monthlyProductLimit: "2000", forceRescanAllowed: true, adminNote: "" });
-  const [aiSettingsSaveState, setAiSettingsSaveState] = useState<LoadState>("idle");
+  const [aiSettingsSaveState, setAiSettingsSaveState] = useState<LoadState>("ready");
   const rows = products?.content ?? [];
   const suggestionRows = suggestions?.content ?? [];
   const scanRunRows = scanRuns?.content ?? [];
@@ -6695,6 +6701,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
     void reloadProducts();
     void reloadSuggestions();
     void reloadScanRuns();
+    void reloadQualityAnalytics();
     void reloadAiSettings();
   }
 
@@ -6808,7 +6815,7 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, scanRunState, aiSettingsState, qualityActionState, aiSettingsSaveState])} onReload={reloadAll} />
+      <SectionToolbar title={title} state={combineStates([summaryState, productState, suggestionState, scanRunState, qualityAnalyticsState, aiSettingsState, qualityActionState, aiSettingsSaveState])} onReload={reloadAll} />
       {mode === "overview" && <div className="food-ops-hero">
         <div>
           <p className="eyebrow">Local catalog first</p>
@@ -6838,10 +6845,41 @@ function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: 
         <DistributionPanel title="Catalog type sample" items={byCatalogType} />
       </div>}
       {mode === "regions" && <DistributionPanel title="Region sample" items={byRegion} />}
-      {mode === "quality" && <div className="ops-grid">
-        <DistributionPanel title="Image status sample" items={byImageStatus} />
-        <DistributionPanel title="Catalog type sample" items={byCatalogType} />
-      </div>}
+      {mode === "quality" && <>
+        <div className="catalog-quality-summary">
+          <div>
+            <span>Quality coverage</span>
+            <strong>{percent(qualityAnalytics?.validatedProducts, qualityAnalytics?.totalProducts)}%</strong>
+            <small>{formatValue(qualityAnalytics?.validatedProducts)} of {formatValue(qualityAnalytics?.totalProducts)} products validated</small>
+          </div>
+          <div>
+            <span>Average quality score</span>
+            <strong>{qualityAnalytics?.averageQualityScore == null ? "-" : Number(qualityAnalytics.averageQualityScore).toFixed(1)}</strong>
+            <small>Across products with a recorded score</small>
+          </div>
+          <label>
+            Analytics window
+            <select value={qualityWindowDays} onChange={(event) => setQualityWindowDays(Number(event.target.value))}>
+              <option value={7}>7 days</option>
+              <option value={30}>30 days</option>
+              <option value={90}>90 days</option>
+            </select>
+          </label>
+        </div>
+        <Suspense fallback={<AsyncState state="loading" hasData={false} loadingMessage="Loading catalog quality charts..." emptyMessage="Catalog quality analytics are unavailable." />}>
+          <div className="catalog-quality-chart-grid">
+            <Panel title="Catalog verification" description="All catalog products grouped by current verification state." className="catalog-quality-chart-panel">
+              {qualityAnalytics && <CatalogVerificationChart analytics={qualityAnalytics} />}
+            </Panel>
+            <Panel title="Open issue concentration" description="Top unresolved quality issue types requiring admin attention." className="catalog-quality-chart-panel">
+              {qualityAnalytics && <CatalogIssueChart analytics={qualityAnalytics} />}
+            </Panel>
+            <Panel title="Scan productivity" description="Products scanned, validated, and routed to review in the selected window." className="catalog-quality-chart-panel catalog-quality-trend-panel">
+              {qualityAnalytics && <CatalogScanTrendChart analytics={qualityAnalytics} />}
+            </Panel>
+          </div>
+        </Suspense>
+      </>}
       {mode === "imports" && <Panel title="Import pipeline controls to add next">
         <div className="roadmap-strip">
           <span>Bulk import job status</span>

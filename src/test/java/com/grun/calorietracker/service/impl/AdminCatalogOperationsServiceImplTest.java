@@ -7,10 +7,12 @@ import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
+import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.mapper.ExerciseItemMapper;
 import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.ProductQualityScanRunRepository;
+import com.grun.calorietracker.repository.ProductQualitySuggestionRepository;
 import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.service.AdminAuditService;
@@ -22,7 +24,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.sql.Date;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +47,7 @@ class AdminCatalogOperationsServiceImplTest {
     @Mock private RecipeRepository recipeRepository;
     @Mock private ExerciseItemRepository exerciseItemRepository;
     @Mock private ProductQualityScanRunRepository scanRunRepository;
+    @Mock private ProductQualitySuggestionRepository qualitySuggestionRepository;
     @Mock private RecipeImportCandidateRepository recipeImportCandidateRepository;
     @Mock private ExerciseItemMapper exerciseItemMapper;
     @Mock private ExerciseItemService exerciseItemService;
@@ -53,9 +59,35 @@ class AdminCatalogOperationsServiceImplTest {
     void setUp() {
         service = new AdminCatalogOperationsServiceImpl(
                 foodItemRepository, recipeRepository, exerciseItemRepository,
-                scanRunRepository, recipeImportCandidateRepository,
+                scanRunRepository, qualitySuggestionRepository, recipeImportCandidateRepository,
                 exerciseItemMapper, exerciseItemService, adminAuditService
         );
+    }
+
+    @Test
+    void qualityAnalyticsReturnsOnlyBoundedAggregateMetrics() {
+        when(foodItemRepository.count()).thenReturn(120L);
+        when(foodItemRepository.countQualityValidatedProducts()).thenReturn(75L);
+        when(foodItemRepository.averageQualityScore()).thenReturn(82.5);
+        when(foodItemRepository.summarizeVerificationStatuses()).thenReturn(List.of(
+                new Object[]{"VERIFIED", 75L},
+                new Object[]{"NEEDS_REVIEW", 45L}
+        ));
+        when(qualitySuggestionRepository.summarizeTypesByStatus(ProductQualitySuggestionStatus.OPEN))
+                .thenReturn(List.<Object[]>of(new Object[]{"MISSING_MICRO_DATA", 12L}));
+        when(scanRunRepository.summarizeDailySince(any())).thenReturn(List.<Object[]>of(
+                new Object[]{Date.valueOf(LocalDate.of(2026, 7, 26)), 30L, 8L, 22L, 1L}
+        ));
+
+        var result = service.qualityAnalytics(120);
+
+        assertEquals(90, result.windowDays());
+        assertEquals(120L, result.totalProducts());
+        assertEquals(75L, result.validatedProducts());
+        assertEquals(82.5, result.averageQualityScore());
+        assertEquals("MISSING_MICRO_DATA", result.openIssueTypes().get(0).name());
+        assertEquals(LocalDate.of(2026, 7, 26), result.scanTrend().get(0).date());
+        verify(qualitySuggestionRepository).summarizeTypesByStatus(ProductQualitySuggestionStatus.OPEN);
     }
 
     @Test

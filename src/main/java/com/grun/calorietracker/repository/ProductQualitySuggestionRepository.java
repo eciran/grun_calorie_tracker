@@ -18,6 +18,15 @@ public interface ProductQualitySuggestionRepository extends JpaRepository<Produc
 
     long countByStatus(ProductQualitySuggestionStatus status);
 
+    @Query("""
+            SELECT s.suggestionType, COUNT(s)
+            FROM ProductQualitySuggestionEntity s
+            WHERE s.status = :status
+            GROUP BY s.suggestionType
+            ORDER BY COUNT(s) DESC
+            """)
+    List<Object[]> summarizeTypesByStatus(@Param("status") ProductQualitySuggestionStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM ProductQualitySuggestionEntity s WHERE s.id = :id")
     Optional<ProductQualitySuggestionEntity> findForUpdateById(@Param("id") Long id);

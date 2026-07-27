@@ -55,6 +55,28 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     List<FoodItemEntity> findByVerificationStatusAndImageStatus(VerificationStatus verificationStatus, ImageStatus imageStatus);
     List<FoodItemEntity> findByVerificationStatusAndImageStatus(VerificationStatus verificationStatus, ImageStatus imageStatus, Sort sort);
     long countByVerificationStatus(VerificationStatus verificationStatus);
+
+    @Query("""
+            SELECT f.verificationStatus, COUNT(f)
+            FROM FoodItemEntity f
+            GROUP BY f.verificationStatus
+            ORDER BY COUNT(f) DESC
+            """)
+    List<Object[]> summarizeVerificationStatuses();
+
+    @Query("""
+            SELECT COUNT(f)
+            FROM FoodItemEntity f
+            WHERE f.qualityValidatedAt IS NOT NULL
+            """)
+    long countQualityValidatedProducts();
+
+    @Query("""
+            SELECT AVG(f.qualityScore)
+            FROM FoodItemEntity f
+            WHERE f.qualityScore IS NOT NULL
+            """)
+    Double averageQualityScore();
     List<FoodItemEntity> findByCreatedByUserAndIsCustomTrueOrderByNameAsc(
             com.grun.calorietracker.entity.UserEntity user,
             Pageable pageable
