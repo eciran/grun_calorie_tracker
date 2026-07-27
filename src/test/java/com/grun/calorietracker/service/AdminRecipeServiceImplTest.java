@@ -4,11 +4,13 @@ import com.grun.calorietracker.dto.AdminRecipeDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
@@ -23,10 +25,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
@@ -228,6 +232,35 @@ class AdminRecipeServiceImplTest {
                 IllegalArgumentException.class,
                 () -> service.updateRecipeReview(12L, request, "admin@grun.local")
         );
+    }
+
+    @Test
+    void getRecipe_withSnapshotIngredient_returnsAdminDtoWithoutCatalogLink() {
+        RecipeEntity recipe = new RecipeEntity();
+        recipe.setId(21L);
+        recipe.setName("AI snapshot recipe");
+        recipe.setArchived(false);
+
+        RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
+        ingredient.setRecipe(recipe);
+        ingredient.setSnapshotFoodName("Lean steak");
+        ingredient.setSnapshotCalories(190.0);
+        ingredient.setSnapshotProtein(26.0);
+        ingredient.setPortionSize(150.0);
+        ingredient.setPortionUnit(FoodPortionUnit.GRAM);
+        ingredient.setNormalizedPortionGrams(150.0);
+        recipe.setIngredients(List.of(ingredient));
+
+        when(recipeRepository.findById(21L)).thenReturn(Optional.of(recipe));
+
+        AdminRecipeDto result = service.getRecipe(21L);
+
+        assertEquals(1, result.getIngredients().size());
+        assertNull(result.getIngredients().get(0).getFoodItemId());
+        assertEquals("Lean steak", result.getIngredients().get(0).getFoodName());
+        assertEquals(true, result.getIngredients().get(0).getSnapshotIngredient());
+        assertEquals(190.0, result.getIngredients().get(0).getSnapshotCalories());
+        assertEquals(26.0, result.getIngredients().get(0).getSnapshotProtein());
     }
 
     private UserEntity owner() {

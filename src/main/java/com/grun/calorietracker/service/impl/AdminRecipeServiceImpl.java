@@ -866,11 +866,36 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
     }
     private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
-        dto.setFoodItemId(ingredient.getFoodItem().getId());
-        dto.setFoodName(ingredient.getFoodItem().getName());
+        if (ingredient.getFoodItem() != null) {
+            dto.setFoodItemId(ingredient.getFoodItem().getId());
+            dto.setFoodName(ingredient.getFoodItem().getName());
+            dto.setSnapshotIngredient(false);
+        } else {
+            dto.setFoodName(ingredient.getSnapshotFoodName());
+            dto.setSnapshotIngredient(true);
+        }
         dto.setPortionSize(ingredient.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(ingredient.getPortionUnit()));
         dto.setNormalizedPortionGrams(ingredient.getNormalizedPortionGrams());
+        dto.setSnapshotCalories(ingredient.getSnapshotCalories());
+        dto.setSnapshotProtein(ingredient.getSnapshotProtein());
+        dto.setSnapshotCarbs(ingredient.getSnapshotCarbs());
+        dto.setSnapshotFat(ingredient.getSnapshotFat());
+        dto.setSnapshotFiber(ingredient.getSnapshotFiber());
+        dto.setSnapshotSugar(ingredient.getSnapshotSugar());
+        dto.setSnapshotSaturatedFat(ingredient.getSnapshotSaturatedFat());
+        dto.setSnapshotSodium(ingredient.getSnapshotSodium());
+        dto.setSnapshotPotassium(ingredient.getSnapshotPotassium());
+        dto.setSnapshotCholesterol(ingredient.getSnapshotCholesterol());
+        dto.setSnapshotCalcium(ingredient.getSnapshotCalcium());
+        dto.setSnapshotIron(ingredient.getSnapshotIron());
+        dto.setSnapshotMagnesium(ingredient.getSnapshotMagnesium());
+        dto.setSnapshotZinc(ingredient.getSnapshotZinc());
+        dto.setSnapshotVitaminA(ingredient.getSnapshotVitaminA());
+        dto.setSnapshotVitaminC(ingredient.getSnapshotVitaminC());
+        dto.setSnapshotVitaminD(ingredient.getSnapshotVitaminD());
+        dto.setSnapshotVitaminE(ingredient.getSnapshotVitaminE());
+        dto.setSnapshotVitaminB12(ingredient.getSnapshotVitaminB12());
         return dto;
     }
 
