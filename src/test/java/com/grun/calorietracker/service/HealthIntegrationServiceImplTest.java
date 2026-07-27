@@ -20,6 +20,7 @@ import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.HealthIntegrationServiceImpl;
+import com.grun.calorietracker.service.support.HealthDailyEnergyResolver;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,8 @@ class HealthIntegrationServiceImplTest {
                 exerciseProviderActivityMappingRepository,
                 exerciseLogsService,
                 subscriptionService,
-                new UserTimeZoneSupport()
+                new UserTimeZoneSupport(),
+                new HealthDailyEnergyResolver()
         );
 
         user = new UserEntity();
@@ -162,6 +164,62 @@ class HealthIntegrationServiceImplTest {
     }
 
     @Test
+    void syncMetric_persistsExplicitEnergyComponents() {
+        HealthConnectionEntity connection = new HealthConnectionEntity();
+        connection.setUser(user);
+        connection.setProvider(HealthProvider.HEALTH_CONNECT);
+        connection.setStatus(HealthConnectionStatus.CONNECTED);
+        when(healthConnectionRepository.findByUserAndProvider(user, HealthProvider.HEALTH_CONNECT))
+                .thenReturn(Optional.of(connection));
+        when(deviceDataRepository.findByUserAndProviderAndExternalId(user, HealthProvider.HEALTH_CONNECT, "energy-1"))
+                .thenReturn(Optional.empty());
+        when(deviceDataRepository.save(any(DeviceDataEntity.class))).thenAnswer(invocation -> {
+            DeviceDataEntity entity = invocation.getArgument(0);
+            entity.setId(31L);
+            return entity;
+        });
+
+        HealthMetricSyncRequestDto request = new HealthMetricSyncRequestDto();
+        request.setExternalId("energy-1");
+        request.setActiveEnergyCalories(420.0);
+        request.setRestingEnergyCalories(1650.0);
+        request.setTotalEnergyCalories(2070.0);
+        request.setRecordedAt(LocalDateTime.of(2026, 7, 27, 23, 59));
+
+        service.syncMetric("user@example.com", HealthProvider.HEALTH_CONNECT, request);
+
+        verify(deviceDataRepository).save(argThat(metric ->
+                metric.getCaloriesBurned().equals(420.0)
+                        && metric.getActiveEnergyCalories().equals(420.0)
+                        && metric.getRestingEnergyCalories().equals(1650.0)
+                        && metric.getTotalEnergyCalories().equals(2070.0)
+        ));
+    }
+
+    @Test
+    void syncMetric_rejectsTotalLowerThanEnergyComponent() {
+        HealthConnectionEntity connection = new HealthConnectionEntity();
+        connection.setUser(user);
+        connection.setProvider(HealthProvider.APPLE_HEALTH);
+        connection.setStatus(HealthConnectionStatus.CONNECTED);
+        when(healthConnectionRepository.findByUserAndProvider(user, HealthProvider.APPLE_HEALTH))
+                .thenReturn(Optional.of(connection));
+        when(deviceDataRepository.findByUserAndProviderAndExternalId(user, HealthProvider.APPLE_HEALTH, "invalid-energy"))
+                .thenReturn(Optional.empty());
+
+        HealthMetricSyncRequestDto request = new HealthMetricSyncRequestDto();
+        request.setExternalId("invalid-energy");
+        request.setActiveEnergyCalories(500.0);
+        request.setTotalEnergyCalories(400.0);
+        request.setRecordedAt(LocalDateTime.of(2026, 7, 27, 23, 59));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.syncMetric("user@example.com", HealthProvider.APPLE_HEALTH, request));
+
+        assertEquals("Total energy calories cannot be lower than active energy calories.", exception.getMessage());
+        verify(deviceDataRepository, never()).save(any());
+    }
+    @Test
     void syncMetric_whenExternalIdMissing_upsertsByProviderAndRecordedAt() {
         HealthConnectionEntity connection = new HealthConnectionEntity();
         connection.setUser(user);
@@ -201,12 +259,16 @@ class HealthIntegrationServiceImplTest {
 
         DeviceDataEntity first = new DeviceDataEntity();
         first.setSteps(1000);
+        first.setProvider(HealthProvider.APPLE_HEALTH);
+        first.setRecordedAt(LocalDateTime.of(2026, 5, 26, 8, 0));
         first.setCaloriesBurned(50.5);
         first.setDistanceMeters(800.0);
         first.setSleepHours(2.0);
         first.setHeartRate(70);
         DeviceDataEntity second = new DeviceDataEntity();
         second.setSteps(2000);
+        second.setProvider(HealthProvider.APPLE_HEALTH);
+        second.setRecordedAt(LocalDateTime.of(2026, 5, 26, 12, 0));
         second.setCaloriesBurned(100.0);
         second.setDistanceMeters(1500.0);
         second.setSleepHours(5.5);
@@ -367,12 +429,16 @@ class HealthIntegrationServiceImplTest {
 
         DeviceDataEntity dayOne = new DeviceDataEntity();
         dayOne.setSteps(1000);
+        dayOne.setProvider(HealthProvider.APPLE_HEALTH);
+        dayOne.setRecordedAt(LocalDateTime.of(2026, 5, 26, 8, 0));
         dayOne.setCaloriesBurned(100.0);
         dayOne.setDistanceMeters(500.0);
         dayOne.setSleepHours(7.0);
         dayOne.setHeartRate(70);
         DeviceDataEntity dayTwo = new DeviceDataEntity();
         dayTwo.setSteps(2000);
+        dayTwo.setProvider(HealthProvider.APPLE_HEALTH);
+        dayTwo.setRecordedAt(LocalDateTime.of(2026, 5, 27, 8, 0));
         dayTwo.setCaloriesBurned(150.0);
         dayTwo.setDistanceMeters(700.0);
         dayTwo.setSleepHours(8.0);

@@ -24,6 +24,18 @@ public class HealthDailySummaryDto {
     @Schema(description = "Total active calories burned from health providers.", example = "410.0")
     private Double totalCaloriesBurned;
 
+    @Schema(description = "Canonical active energy for the day, without combining multiple providers.", example = "410.0")
+    private Double activeEnergyCalories;
+
+    @Schema(description = "Canonical resting energy for the day, without combining multiple providers.", example = "1640.0")
+    private Double restingEnergyCalories;
+
+    @Schema(description = "Canonical total expenditure for the day. Null when provider data cannot establish a total.", example = "2050.0")
+    private Double totalEnergyCalories;
+
+    @Schema(description = "Provider selected as the canonical daily energy source.")
+    private HealthProvider energyProvider;
+
     @Schema(description = "Total distance in meters from health providers.", example = "6200.0")
     private Double totalDistanceMeters;
 

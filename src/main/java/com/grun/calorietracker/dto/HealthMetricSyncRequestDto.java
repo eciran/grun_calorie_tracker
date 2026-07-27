@@ -33,6 +33,18 @@ public class HealthMetricSyncRequestDto {
     private Double caloriesBurned;
 
     @PositiveOrZero
+    @Schema(description = "Active energy burned for the interval. Preferred over the legacy caloriesBurned field.", example = "420.5")
+    private Double activeEnergyCalories;
+
+    @PositiveOrZero
+    @Schema(description = "Resting or basal energy burned for the interval.", example = "1650.0")
+    private Double restingEnergyCalories;
+
+    @PositiveOrZero
+    @Schema(description = "Provider-calculated total energy expenditure for the interval.", example = "2070.5")
+    private Double totalEnergyCalories;
+
+    @PositiveOrZero
     @Schema(description = "Distance in meters for the interval.", example = "5200.0")
     private Double distanceMeters;
 

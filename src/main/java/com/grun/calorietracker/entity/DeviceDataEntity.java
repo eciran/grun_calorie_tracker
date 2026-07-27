@@ -31,6 +31,12 @@ public class DeviceDataEntity {
 
     private Double caloriesBurned;
 
+    private Double activeEnergyCalories;
+
+    private Double restingEnergyCalories;
+
+    private Double totalEnergyCalories;
+
     private Double distanceMeters;
 
     private LocalDateTime recordedAt;

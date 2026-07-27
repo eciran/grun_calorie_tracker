@@ -29,6 +29,8 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.support.HealthDailyEnergyResolver;
+import com.grun.calorietracker.service.support.HealthDailyEnergySnapshot;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -54,6 +56,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     private final ExerciseLogsService exerciseLogsService;
     private final SubscriptionService subscriptionService;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final HealthDailyEnergyResolver healthDailyEnergyResolver;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,7 +87,16 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
                 .map(HealthConnectionEntity::getProvider)
                 .toList());
         dto.setTotalSteps(metrics.stream().map(DeviceDataEntity::getSteps).filter(Objects::nonNull).mapToInt(Integer::intValue).sum());
-        dto.setTotalCaloriesBurned(round(metrics.stream().map(DeviceDataEntity::getCaloriesBurned).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum()));
+        HealthDailyEnergySnapshot energy = healthDailyEnergyResolver
+                .resolve(metrics, summaryDate, summaryDate)
+                .stream()
+                .findFirst()
+                .orElse(null);
+        dto.setTotalCaloriesBurned(energy == null ? 0.0 : zeroWhenNull(energy.activeEnergyCalories()));
+        dto.setActiveEnergyCalories(energy == null ? null : energy.activeEnergyCalories());
+        dto.setRestingEnergyCalories(energy == null ? null : energy.restingEnergyCalories());
+        dto.setTotalEnergyCalories(energy == null ? null : energy.totalEnergyCalories());
+        dto.setEnergyProvider(energy == null ? null : energy.provider());
         dto.setTotalDistanceMeters(round(metrics.stream().map(DeviceDataEntity::getDistanceMeters).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum()));
         dto.setTotalSleepHours(round(metrics.stream().map(DeviceDataEntity::getSleepHours).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum()));
         dto.setAverageHeartRate(round(metrics.stream().map(DeviceDataEntity::getHeartRate).filter(Objects::nonNull).mapToInt(Integer::intValue).average().orElse(0.0)));
@@ -183,6 +195,10 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         if (request.getRecordedAt() == null) {
             throw new IllegalArgumentException("Health metric recordedAt is required.");
         }
+        Double activeEnergy = request.getActiveEnergyCalories() != null
+                ? request.getActiveEnergyCalories()
+                : request.getCaloriesBurned();
+        validateEnergyMetric(activeEnergy, request.getRestingEnergyCalories(), request.getTotalEnergyCalories());
 
         UserEntity user = getUser(email);
         HealthConnectionEntity connection = ensureConnected(user, provider);
@@ -202,7 +218,10 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         metric.setSteps(request.getSteps());
         metric.setHeartRate(request.getHeartRate());
         metric.setSleepHours(request.getSleepHours());
-        metric.setCaloriesBurned(request.getCaloriesBurned());
+        metric.setCaloriesBurned(activeEnergy);
+        metric.setActiveEnergyCalories(activeEnergy);
+        metric.setRestingEnergyCalories(request.getRestingEnergyCalories());
+        metric.setTotalEnergyCalories(request.getTotalEnergyCalories());
         metric.setDistanceMeters(request.getDistanceMeters());
         metric.setRecordedAt(request.getRecordedAt());
 
@@ -341,9 +360,27 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
                 || request.getHeartRate() != null
                 || request.getSleepHours() != null
                 || request.getCaloriesBurned() != null
+                || request.getActiveEnergyCalories() != null
+                || request.getRestingEnergyCalories() != null
+                || request.getTotalEnergyCalories() != null
                 || request.getDistanceMeters() != null;
     }
 
+    private void validateEnergyMetric(Double active, Double resting, Double total) {
+        if (total == null) {
+            return;
+        }
+        if (active != null && total < active) {
+            throw new IllegalArgumentException("Total energy calories cannot be lower than active energy calories.");
+        }
+        if (resting != null && total < resting) {
+            throw new IllegalArgumentException("Total energy calories cannot be lower than resting energy calories.");
+        }
+    }
+
+    private Double zeroWhenNull(Double value) {
+        return value == null ? 0.0 : value;
+    }
     private HealthConnectionDto toDto(HealthConnectionEntity entity) {
         HealthConnectionDto dto = new HealthConnectionDto();
         dto.setId(entity.getId());
