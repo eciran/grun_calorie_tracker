@@ -27,6 +27,15 @@ public interface RecipeUserInteractionRepository extends JpaRepository<RecipeUse
 
     long countByRecipeAndRatingIsNotNull(RecipeEntity recipe);
 
+    long countBySavedTrue();
+
+    long countByFavoriteTrue();
+
+    long countByRatingIsNotNull();
+
+    @Query("SELECT AVG(interaction.rating) FROM RecipeUserInteractionEntity interaction WHERE interaction.rating IS NOT NULL")
+    Double averageRating();
+
     @Query("SELECT AVG(interaction.rating) FROM RecipeUserInteractionEntity interaction WHERE interaction.recipe = :recipe AND interaction.rating IS NOT NULL")
     Double averageRating(@Param("recipe") RecipeEntity recipe);
 

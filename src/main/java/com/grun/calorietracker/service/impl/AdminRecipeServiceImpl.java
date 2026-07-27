@@ -12,6 +12,7 @@ import com.grun.calorietracker.dto.AdminRecipeImportIngredientUpdateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeImportResultDto;
 import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
+import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.dto.RecipeDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
@@ -57,6 +58,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -82,6 +84,96 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
     private final NotificationRepository notificationRepository;
     private final PushDeliveryService pushDeliveryService;
     private final ObjectMapper objectMapper;
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminRecipeOperationsAnalyticsDto getOperationsAnalytics(int windowDays) {
+        List<VerificationStatus> pendingStatuses = List.of(
+                VerificationStatus.RAW_IMPORTED,
+                VerificationStatus.NEEDS_REVIEW
+        );
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime twoDaysAgo = now.minusDays(2);
+        LocalDateTime sevenDaysAgo = now.minusDays(7);
+        LocalDateTime thirtyDaysAgo = now.minusDays(30);
+        LocalDate firstDate = now.toLocalDate().minusDays(windowDays - 1L);
+
+        long activeRecipes = recipeRepository.countByArchivedFalse();
+        long archivedRecipes = recipeRepository.countByArchivedTrue();
+        long pendingReview = recipeRepository.countByArchivedFalseAndVerificationStatusIn(pendingStatuses);
+        List<AdminRecipeOperationsAnalyticsDto.CountMetric> pendingAgeBands = List.of(
+                new AdminRecipeOperationsAnalyticsDto.CountMetric(
+                        "0_2_DAYS",
+                        recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtGreaterThanEqual(
+                                pendingStatuses,
+                                twoDaysAgo
+                        )
+                ),
+                new AdminRecipeOperationsAnalyticsDto.CountMetric(
+                        "3_7_DAYS",
+                        recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                                pendingStatuses,
+                                sevenDaysAgo,
+                                twoDaysAgo
+                        )
+                ),
+                new AdminRecipeOperationsAnalyticsDto.CountMetric(
+                        "8_30_DAYS",
+                        recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                                pendingStatuses,
+                                thirtyDaysAgo,
+                                sevenDaysAgo
+                        )
+                ),
+                new AdminRecipeOperationsAnalyticsDto.CountMetric(
+                        "31_PLUS_DAYS",
+                        recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtLessThan(
+                                pendingStatuses,
+                                thirtyDaysAgo
+                        )
+                )
+        );
+
+        Map<LocalDate, Long> createdByDate = new LinkedHashMap<>();
+        for (LocalDate date = firstDate; !date.isAfter(now.toLocalDate()); date = date.plusDays(1)) {
+            createdByDate.put(date, 0L);
+        }
+        for (Object[] row : recipeRepository.countCreatedRecipesByDate(firstDate.atStartOfDay())) {
+            LocalDate date = toLocalDate(row[0]);
+            if (date != null && createdByDate.containsKey(date)) {
+                createdByDate.put(date, numberValue(row[1]));
+            }
+        }
+        List<AdminRecipeOperationsAnalyticsDto.SubmissionTrendPoint> submissionTrend = createdByDate.entrySet().stream()
+                .map(entry -> new AdminRecipeOperationsAnalyticsDto.SubmissionTrendPoint(entry.getKey(), entry.getValue()))
+                .toList();
+
+        return new AdminRecipeOperationsAnalyticsDto(
+                windowDays,
+                activeRecipes + archivedRecipes,
+                activeRecipes,
+                pendingReview,
+                recipeRepository.countByVisibilityAndVerificationStatusAndArchivedFalse(
+                        RecipeVisibility.PUBLIC_ADMIN,
+                        VerificationStatus.VERIFIED
+                ),
+                recipeRepository.countByVerificationStatusAndArchivedFalse(VerificationStatus.REJECTED),
+                archivedRecipes,
+                recipeRepository.countOverdueReviewRecipes(pendingStatuses, now),
+                recipeRepository.countUnassignedReviewRecipes(pendingStatuses),
+                toCountMetrics(recipeRepository.countByVerificationStatus()),
+                toCountMetrics(recipeRepository.countActiveByVisibility()),
+                pendingAgeBands,
+                toCountMetrics(recipeImportCandidateRepository.countByStatusGrouped()),
+                new AdminRecipeOperationsAnalyticsDto.EngagementMetric(
+                        recipeUserInteractionRepository.countBySavedTrue(),
+                        recipeUserInteractionRepository.countByFavoriteTrue(),
+                        recipeUserInteractionRepository.countByRatingIsNotNull(),
+                        recipeUserInteractionRepository.averageRating()
+                ),
+                submissionTrend
+        );
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -741,6 +833,33 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             recipe.getCookingSteps().add(entity);
         }
     }
+    private List<AdminRecipeOperationsAnalyticsDto.CountMetric> toCountMetrics(List<Object[]> rows) {
+        if (rows == null) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(row -> new AdminRecipeOperationsAnalyticsDto.CountMetric(
+                        row[0] == null ? "UNSPECIFIED" : row[0].toString(),
+                        numberValue(row[1])
+                ))
+                .sorted((left, right) -> Long.compare(right.count(), left.count()))
+                .toList();
+    }
+
+    private long numberValue(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof java.sql.Date sqlDate) {
+            return sqlDate.toLocalDate();
+        }
+        return value == null ? null : LocalDate.parse(value.toString());
+    }
+
     private Specification<RecipeEntity> buildSpecification(String query,
                                                            VerificationStatus verificationStatus,
                                                            RecipeVisibility visibility,

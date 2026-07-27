@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.AdminRecipeImportCandidatePageDto;
 import com.grun.calorietracker.dto.AdminRecipeImportResultDto;
 import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
+import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -19,6 +20,8 @@ import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 
 public interface AdminRecipeService {
+    AdminRecipeOperationsAnalyticsDto getOperationsAnalytics(int windowDays);
+
     AdminRecipePageDto listRecipes(String query,
                                    VerificationStatus verificationStatus,
                                    RecipeVisibility visibility,

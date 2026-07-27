@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.AdminRecipeImportIngredientUpdateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeImportResultDto;
 import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
+import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -53,6 +54,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRecipeController {
 
     private final AdminRecipeService adminRecipeService;
+
+    @GetMapping("/analytics")
+    @Operation(
+            summary = "Get recipe operations analytics",
+            description = "Returns privacy-safe aggregate recipe moderation, import, engagement, and submission metrics."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Recipe operations analytics returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<AdminRecipeOperationsAnalyticsDto> getOperationsAnalytics(
+            @Parameter(description = "Reporting window in days.", example = "30")
+            @RequestParam(defaultValue = "30") @Min(7) @Max(90) int windowDays) {
+        return ResponseEntity.ok(adminRecipeService.getOperationsAnalytics(windowDays));
+    }
 
     @GetMapping
     @Operation(

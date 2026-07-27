@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface RecipeImportCandidateRepository extends JpaRepository<RecipeImportCandidateEntity, Long> {
     long countByStatus(RecipeImportCandidateStatus status);
@@ -20,4 +21,11 @@ public interface RecipeImportCandidateRepository extends JpaRepository<RecipeImp
     Page<RecipeImportCandidateEntity> findByStatusAndBatchIdContainingIgnoreCase(RecipeImportCandidateStatus status, String batchId, Pageable pageable);
 
     List<RecipeImportCandidateEntity> findTop100ByOrderByCreatedAtDesc();
+
+    @Query("""
+            select candidate.status, count(candidate)
+            from RecipeImportCandidateEntity candidate
+            group by candidate.status
+            """)
+    List<Object[]> countByStatusGrouped();
 }

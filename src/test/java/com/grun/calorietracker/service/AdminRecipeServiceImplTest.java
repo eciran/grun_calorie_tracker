@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminRecipeDto;
+import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
@@ -16,6 +17,7 @@ import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.impl.AdminRecipeServiceImpl;
@@ -25,6 +27,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -46,6 +50,8 @@ class AdminRecipeServiceImplTest {
     @Mock
     private RecipeUserInteractionRepository recipeUserInteractionRepository;
     @Mock
+    private RecipeImportCandidateRepository recipeImportCandidateRepository;
+    @Mock
     private AdminAuditService adminAuditService;
     @Mock
     private NotificationRepository notificationRepository;
@@ -53,6 +59,51 @@ class AdminRecipeServiceImplTest {
     private PushDeliveryService pushDeliveryService;
     @InjectMocks
     private AdminRecipeServiceImpl service;
+
+    @Test
+    void getOperationsAnalytics_returnsAggregatePrivacySafeMetrics() {
+        when(recipeRepository.countByArchivedFalse()).thenReturn(12L);
+        when(recipeRepository.countByArchivedTrue()).thenReturn(3L);
+        when(recipeRepository.countByArchivedFalseAndVerificationStatusIn(any())).thenReturn(5L);
+        when(recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtGreaterThanEqual(any(), any(LocalDateTime.class))).thenReturn(2L);
+        when(recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(any(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(1L, 1L);
+        when(recipeRepository.countByArchivedFalseAndVerificationStatusInAndCreatedAtLessThan(any(), any(LocalDateTime.class))).thenReturn(1L);
+        when(recipeRepository.countOverdueReviewRecipes(any(), any(LocalDateTime.class))).thenReturn(2L);
+        when(recipeRepository.countUnassignedReviewRecipes(any())).thenReturn(4L);
+        when(recipeRepository.countByVisibilityAndVerificationStatusAndArchivedFalse(RecipeVisibility.PUBLIC_ADMIN, VerificationStatus.VERIFIED)).thenReturn(6L);
+        when(recipeRepository.countByVerificationStatusAndArchivedFalse(VerificationStatus.REJECTED)).thenReturn(1L);
+        when(recipeRepository.countByVerificationStatus()).thenReturn(List.<Object[]>of(
+                new Object[]{VerificationStatus.NEEDS_REVIEW, 5L},
+                new Object[]{VerificationStatus.VERIFIED, 6L}
+        ));
+        when(recipeRepository.countActiveByVisibility()).thenReturn(List.<Object[]>of(
+                new Object[]{RecipeVisibility.PRIVATE, 6L},
+                new Object[]{RecipeVisibility.PUBLIC_ADMIN, 6L}
+        ));
+        when(recipeRepository.countCreatedRecipesByDate(any(LocalDateTime.class))).thenReturn(List.<Object[]>of(
+                new Object[]{java.sql.Date.valueOf(LocalDate.now()), 2L}
+        ));
+        when(recipeImportCandidateRepository.countByStatusGrouped()).thenReturn(List.<Object[]>of(
+                new Object[]{"PENDING", 3L},
+                new Object[]{"APPROVED", 7L}
+        ));
+        when(recipeUserInteractionRepository.countBySavedTrue()).thenReturn(10L);
+        when(recipeUserInteractionRepository.countByFavoriteTrue()).thenReturn(4L);
+        when(recipeUserInteractionRepository.countByRatingIsNotNull()).thenReturn(8L);
+        when(recipeUserInteractionRepository.averageRating()).thenReturn(4.25);
+
+        AdminRecipeOperationsAnalyticsDto result = service.getOperationsAnalytics(30);
+
+        assertEquals(15L, result.totalRecipes());
+        assertEquals(5L, result.pendingReview());
+        assertEquals(2L, result.overdueReview());
+        assertEquals(4L, result.unassignedReview());
+        assertEquals(10L, result.engagement().saved());
+        assertEquals(4.25, result.engagement().averageRating());
+        assertEquals(30, result.submissionTrend().size());
+        assertEquals(2L, result.submissionTrend().get(result.submissionTrend().size() - 1).createdRecipes());
+    }
 
     @Test
     void updateRecipeReview_updatesStateRecordsAuditAndNotifiesOwner() {

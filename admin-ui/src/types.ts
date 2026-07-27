@@ -435,6 +435,24 @@ export type RecipeIngredient = {
   normalizedPortionGrams?: number;
 };
 
+export type AdminRecipeOperationsAnalytics = {
+  windowDays?: number;
+  totalRecipes?: number;
+  activeRecipes?: number;
+  pendingReview?: number;
+  publicVerified?: number;
+  rejected?: number;
+  archived?: number;
+  overdueReview?: number;
+  unassignedReview?: number;
+  verificationStatuses?: Array<{ name?: string; count?: number }>;
+  visibilityStatuses?: Array<{ name?: string; count?: number }>;
+  pendingAgeBands?: Array<{ name?: string; count?: number }>;
+  importStatuses?: Array<{ name?: string; count?: number }>;
+  engagement?: { saved?: number; favorite?: number; rated?: number; averageRating?: number };
+  submissionTrend?: Array<{ date?: string; createdRecipes?: number }>;
+};
+
 export type AdminRecipe = {
   id?: number;
   ownerUserId?: number;

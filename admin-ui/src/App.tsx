@@ -65,6 +65,7 @@ import {
   ProductQualitySuggestionScanResult,
   ProductQualityAiSettings,
   AdminRecipe,
+  AdminRecipeOperationsAnalytics,
   AdminRecipeImportCandidate,
   AdminRecipeImportResult,
   Notification,
@@ -109,6 +110,10 @@ const CampaignStatusChart = lazy(() => import("./CampaignOperationsCharts").then
 const CatalogVerificationChart = lazy(() => import("./CatalogQualityCharts").then((module) => ({ default: module.CatalogVerificationChart })));
 const CatalogIssueChart = lazy(() => import("./CatalogQualityCharts").then((module) => ({ default: module.CatalogIssueChart })));
 const CatalogScanTrendChart = lazy(() => import("./CatalogQualityCharts").then((module) => ({ default: module.CatalogScanTrendChart })));
+const RecipeModerationChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeModerationChart })));
+const RecipeBacklogChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeBacklogChart })));
+const RecipeImportPipelineChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeImportPipelineChart })));
+const RecipeSubmissionTrendChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeSubmissionTrendChart })));
 
 type SectionKey =
   | "dashboard"
@@ -2177,6 +2182,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [importIngredientSearchResults, setImportIngredientSearchResults] = useState<FoodProduct[]>([]);
   const [importIngredientSearchState, setImportIngredientSearchState] = useState<LoadState>("idle");
   const [recipeFiltersOpen, setRecipeFiltersOpen] = useState(false);
+  const [recipeAnalyticsWindowDays, setRecipeAnalyticsWindowDays] = useState(30);
   const [recipeImportStateOpen, setRecipeImportStateOpen] = useState(false);
   const [recipeImportSourceOpen, setRecipeImportSourceOpen] = useState(false);
   const [activeIngredientSearchIndex, setActiveIngredientSearchIndex] = useState<number | null>(null);
@@ -2196,6 +2202,11 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     size: pageSize
   });
   const { data, state, reload } = useEndpoint<PageResponse<AdminRecipe>>(path, onError);
+  const {
+    data: recipeAnalytics,
+    state: recipeAnalyticsState,
+    reload: reloadRecipeAnalytics
+  } = useEndpoint<AdminRecipeOperationsAnalytics>(`/api/v1/admin/recipes/analytics?windowDays=${recipeAnalyticsWindowDays}`, onError);
   const importPath = buildRecipeImportPath({
     status: importStatus,
     batchId: importBatchId,
@@ -2206,14 +2217,6 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const importRows = importData?.content ?? [];
   const rows = data?.content ?? [];
   const activeFilterCount = [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource].filter(Boolean).length;
-  const pendingCount = rows.filter((recipe) => recipe.verificationStatus === "RAW_IMPORTED" || recipe.verificationStatus === "NEEDS_REVIEW").length;
-  const archivedCount = rows.filter((recipe) => recipe.archived).length;
-  const savedTotal = rows.reduce((sum, recipe) => sum + (recipe.savedCount ?? 0), 0);
-  const favoriteTotal = rows.reduce((sum, recipe) => sum + (recipe.favoriteCount ?? 0), 0);
-  const ratedRows = rows.filter((recipe) => (recipe.ratingCount ?? 0) > 0);
-  const averageRating = ratedRows.length
-    ? ratedRows.reduce((sum, recipe) => sum + (recipe.averageRating ?? 0), 0) / ratedRows.length
-    : 0;
 
   useEffect(() => {
     setPage(0);
@@ -2579,22 +2582,55 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
 
   return (
     <div className="stack">
-      <SectionToolbar title="Recipe operations" state={state} onReload={reload}>
+      <SectionToolbar title="Recipe operations" state={state} onReload={() => { reload(); reloadRecipeAnalytics(); }}>
         <button className="ghost-button" onClick={() => setShowImportPanel((value) => !value)} type="button">{showImportPanel ? "Close import" : "Import JSON"}</button>
         <button className="ghost-button" onClick={() => setShowCreateRecipe((value) => !value)} type="button">{showCreateRecipe ? "Close create" : "Create recipe"}</button>
         <button className="ghost-button" onClick={resetFilters} type="button">Reset filters</button>
       </SectionToolbar>
       {savedNotice && <div className="success-banner compact-success">{savedNotice}</div>}
 
-      <div className="review-workspace-summary">
-        <MetricCard label="Returned recipes" value={formatValue(data?.totalElements ?? rows.length)} hint="Matching current filters" />
-        <MetricCard label="Pending review" value={formatValue(pendingCount)} hint="Current page only" />
-        <MetricCard label="Saved / favorite" value={`${formatValue(savedTotal)} / ${formatValue(favoriteTotal)}`} hint="Current page engagement" />
-        <MetricCard label="Avg rating" value={averageRating ? averageRating.toFixed(1) : "-"} hint={`${formatValue(ratedRows.length)} rated recipes on page`} />
-        <MetricCard label="Archived / filters" value={`${formatValue(archivedCount)} / ${formatValue(activeFilterCount)}`} hint="Current page state" />
+      <div className="review-workspace-summary recipe-operations-metrics">
+        <MetricCard label="Total recipes" value={formatValue(recipeAnalytics?.totalRecipes)} hint={`${formatValue(recipeAnalytics?.activeRecipes)} active`} />
+        <MetricCard label="Pending review" value={formatValue(recipeAnalytics?.pendingReview)} hint={`${formatValue(recipeAnalytics?.unassignedReview)} unassigned`} />
+        <MetricCard label="Public verified" value={formatValue(recipeAnalytics?.publicVerified)} hint="Published and trusted" />
+        <MetricCard label="Overdue review" value={formatValue(recipeAnalytics?.overdueReview)} hint="Past assigned due date" />
+        <MetricCard label="Saved / favorite" value={`${formatValue(recipeAnalytics?.engagement?.saved)} / ${formatValue(recipeAnalytics?.engagement?.favorite)}`} hint="All-time aggregate engagement" />
+        <MetricCard label="Average rating" value={recipeAnalytics?.engagement?.averageRating == null ? "-" : recipeAnalytics.engagement.averageRating.toFixed(1)} hint={`${formatValue(recipeAnalytics?.engagement?.rated)} ratings`} />
       </div>
 
-
+      <div className="recipe-operations-analytics-head">
+        <div>
+          <strong>Recipe operations analytics</strong>
+          <span>Aggregate moderation, import, engagement, and submission signals. {formatValue(activeFilterCount)} active list filter{activeFilterCount === 1 ? "" : "s"}.</span>
+        </div>
+        <label>
+          Analytics window
+          <select value={recipeAnalyticsWindowDays} onChange={(event) => setRecipeAnalyticsWindowDays(Number(event.target.value))}>
+            <option value={7}>7 days</option>
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+          </select>
+        </label>
+      </div>
+      <AsyncState state={recipeAnalyticsState} hasData={Boolean(recipeAnalytics)} loadingMessage="Loading recipe operations analytics..." emptyMessage="Recipe operations analytics are unavailable." />
+      {recipeAnalytics && (
+        <Suspense fallback={<AsyncState state="loading" hasData={false} loadingMessage="Loading recipe charts..." emptyMessage="Recipe charts are unavailable." />}>
+          <div className="recipe-operations-chart-grid">
+            <Panel title="Moderation state" description="All recipes grouped by current verification state." className="recipe-operations-chart-panel">
+              <RecipeModerationChart analytics={recipeAnalytics} />
+            </Panel>
+            <Panel title="Review queue age" description="Pending recipes grouped by time waiting for admin review." className="recipe-operations-chart-panel">
+              <RecipeBacklogChart analytics={recipeAnalytics} />
+            </Panel>
+            <Panel title="Import pipeline" description="All JSON import candidates grouped by current processing state." className="recipe-operations-chart-panel">
+              <RecipeImportPipelineChart analytics={recipeAnalytics} />
+            </Panel>
+            <Panel title="Recipe submissions" description={`Created recipes across the last ${recipeAnalytics.windowDays ?? recipeAnalyticsWindowDays} days.`} className="recipe-operations-chart-panel recipe-submission-trend-panel">
+              <RecipeSubmissionTrendChart analytics={recipeAnalytics} />
+            </Panel>
+          </div>
+        </Suspense>
+      )}
 
       {showImportPanel && (
         <Panel title="Import recipe JSON">
