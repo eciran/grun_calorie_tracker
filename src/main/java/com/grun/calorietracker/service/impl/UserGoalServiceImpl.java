@@ -12,6 +12,8 @@ import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.UserGoalService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.support.ProfileEnergyEstimate;
+import com.grun.calorietracker.service.support.ProfileEnergyExpenditureCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class UserGoalServiceImpl implements UserGoalService {
 
     private final GoalRepository userGoalRepository;
     private final UserService userService;
+    private final ProfileEnergyExpenditureCalculator profileEnergyCalculator;
 
     @Override
     public UserGoalDto saveUserGoal(GoalCalculationRequestDto goalData, String email) {
@@ -84,7 +87,7 @@ public class UserGoalServiceImpl implements UserGoalService {
         return calculateGoal(goalData, calculationProfile);
     }
 
-    private static UserGoalDto buildCalculatedGoalDto(GoalCalculationRequestDto goalData, UserEntity user) {
+    private UserGoalDto buildCalculatedGoalDto(GoalCalculationRequestDto goalData, UserEntity user) {
         GoalCalculationResponse calculation = calculateGoal(goalData, user);
 
         UserGoalDto calculatedGoal = new UserGoalDto();
@@ -100,12 +103,13 @@ public class UserGoalServiceImpl implements UserGoalService {
         return calculatedGoal;
     }
 
-    private static GoalCalculationResponse calculateGoal(GoalCalculationRequestDto goalData, UserEntity user) {
+    private GoalCalculationResponse calculateGoal(GoalCalculationRequestDto goalData, UserEntity user) {
         validateRequiredInputs(goalData, user);
         validateGoalDirection(goalData, user.getWeight());
 
-        BmrResult bmr = calculateBmr(user);
-        int maintenanceCalories = (int) Math.round(bmr.value() * goalData.getActivityLevel().getMultiplier());
+        ProfileEnergyEstimate energy = profileEnergyCalculator.calculate(user, goalData.getActivityLevel())
+                .orElseThrow(() -> new IllegalArgumentException("Complete profile metrics are required for energy calculation."));
+        int maintenanceCalories = (int) Math.round(energy.totalDailyEnergyCalories());
         RateResult rate = resolveSafeWeeklyRate(goalData, user.getWeight());
         int calorieAdjustment = (int) Math.round((rate.effectiveRateKg() * KCAL_PER_KG) / 7.0);
         int minimumCalories = "MALE".equalsIgnoreCase(user.getGender())
@@ -121,8 +125,8 @@ public class UserGoalServiceImpl implements UserGoalService {
         );
 
         GoalCalculationResponse response = calculateMacros(goalCalories, goalData.getGoalType());
-        response.setFormula(bmr.formula());
-        response.setBmr(roundTwoDecimals(bmr.value()));
+        response.setFormula(energy.formula());
+        response.setBmr(roundTwoDecimals(energy.restingEnergyCalories()));
         response.setMaintenanceCalories(maintenanceCalories);
         response.setRequestedWeeklyRateKg(goalData.getWeeklyWeightChangeTargetKg());
         int appliedCalorieAdjustment = goalCalories - maintenanceCalories;
@@ -147,19 +151,6 @@ public class UserGoalServiceImpl implements UserGoalService {
         int remainingCaloriesForCarbs = goalCalories - (proteinGrams * 4) - (fatGrams * 9);
         int carbGrams = remainingCaloriesForCarbs > 0 ? (int) Math.round(remainingCaloriesForCarbs / 4.0) : 0;
         return new GoalCalculationResponse(goalCalories, proteinGrams, fatGrams, carbGrams);
-    }
-
-    private static BmrResult calculateBmr(UserEntity user) {
-        if (user.getBodyFatPercentage() != null && user.getBodyFatPercentage() > 0) {
-            double leanBodyMassKg = user.getWeight() * (1 - (user.getBodyFatPercentage() / 100.0));
-            return new BmrResult(370 + (21.6 * leanBodyMassKg), "KATCH_MCARDLE");
-        }
-        double sexOffset = "MALE".equalsIgnoreCase(user.getGender()) ? 5 : -161;
-        double bmr = (10 * user.getWeight())
-                + (6.25 * user.getHeight())
-                - (5 * user.getAge())
-                + sexOffset;
-        return new BmrResult(bmr, "MIFFLIN_ST_JEOR");
     }
 
     private static RateResult resolveSafeWeeklyRate(GoalCalculationRequestDto goalData, double currentWeightKg) {
@@ -301,9 +292,6 @@ public class UserGoalServiceImpl implements UserGoalService {
         }
         Optional<UserGoalEntity> existingGoal = userGoalRepository.findByUser(user);
         existingGoal.ifPresent(userGoalRepository::delete);
-    }
-
-    private record BmrResult(double value, String formula) {
     }
 
     private record RateResult(double effectiveRateKg, boolean adjusted, String warning) {

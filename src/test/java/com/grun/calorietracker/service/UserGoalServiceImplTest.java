@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.impl.UserGoalServiceImpl;
+import com.grun.calorietracker.service.support.ProfileEnergyExpenditureCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +40,7 @@ class UserGoalServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        userGoalService = new UserGoalServiceImpl(goalRepository, userService);
+        userGoalService = new UserGoalServiceImpl(goalRepository, userService, new ProfileEnergyExpenditureCalculator());
     }
 
     @Test
