@@ -80,11 +80,13 @@ class SubscriptionServiceImplTest {
         user.setId(1L);
         user.setEmail("user@example.com");
         lenient().when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(any(), any())).thenReturn(Optional.empty());
+        lenient().when(subscriptionPlanFeatureRepository.findByPlanTypeOrderByFeatureAsc(any())).thenReturn(emptyList());
         lenient().when(aiCreditPricingService.fixedCost(any())).thenReturn(1);
         lenient().when(userSubscriptionEntitlementRepository.findBySubscription(any())).thenReturn(emptyList());
         lenient().when(userSubscriptionEntitlementRepository.countBySubscription(any())).thenReturn(0L);
         lenient().when(userSubscriptionEntitlementRepository.existsActiveFeature(anyLong(), any(), any(), any())).thenReturn(false);
         lenient().when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(anyLong(), any(), any())).thenReturn(false);
+        lenient().when(userSubscriptionEntitlementRepository.findActiveFeaturesForSubscription(anyLong(), any(), any())).thenReturn(emptyList());
         lenient().when(userSubscriptionEntitlementRepository.findActiveEntitlementsForPlanFeature(any(), any(), any())).thenReturn(emptyList());
     }
 
@@ -275,12 +277,34 @@ class SubscriptionServiceImplTest {
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
-        when(userSubscriptionEntitlementRepository.countBySubscription(entity)).thenReturn(1L);
-        when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any())).thenReturn(true);
-        when(userSubscriptionEntitlementRepository.existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), eq(SubscriptionPlan.PLUS), any()))
-                .thenReturn(false);
+        when(userSubscriptionEntitlementRepository.findActiveFeaturesForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any()))
+                .thenReturn(List.of(SubscriptionFeature.WATER_TRACKING));
 
         assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
+    }
+
+    @Test
+    void getFeatureAccess_resolvesSnapshotWithOneBulkQuery() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        entity.setId(7L);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(userSubscriptionEntitlementRepository.findActiveFeaturesForSubscription(
+                eq(7L), eq(SubscriptionPlan.PLUS), any()))
+                .thenReturn(List.of(SubscriptionFeature.HEALTH_INTEGRATION));
+
+        var result = service.getFeatureAccess("user@example.com");
+
+        assertEquals(true, result.getHealthIntegration());
+        assertEquals(false, result.getWaterTracking());
+        verify(userSubscriptionEntitlementRepository)
+                .findActiveFeaturesForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any());
+        verify(userSubscriptionEntitlementRepository, never())
+                .existsActiveEntitlementForSubscription(anyLong(), any(), any());
+        verify(userSubscriptionEntitlementRepository, never())
+                .existsActiveFeature(anyLong(), any(), any(), any());
+        verify(subscriptionPlanFeatureRepository, never()).findByPlanTypeOrderByFeatureAsc(any());
     }
 
     @Test
@@ -321,12 +345,10 @@ class SubscriptionServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
         when(userSubscriptionEntitlementRepository.findBySubscription(entity)).thenReturn(List.of(oldEntitlement));
-        when(subscriptionPlanFeatureRepository.findByPlanTypeAndFeature(SubscriptionPlan.PLUS, SubscriptionFeature.WATER_TRACKING))
-                .thenReturn(Optional.of(planFeature(SubscriptionPlan.PLUS, SubscriptionFeature.WATER_TRACKING, true)));
-        when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any()))
-                .thenReturn(true);
-        when(userSubscriptionEntitlementRepository.existsActiveFeature(eq(7L), eq(SubscriptionFeature.WATER_TRACKING), eq(SubscriptionPlan.PLUS), any()))
-                .thenReturn(true);
+        when(subscriptionPlanFeatureRepository.findByPlanTypeOrderByFeatureAsc(SubscriptionPlan.PLUS))
+                .thenReturn(List.of(planFeature(SubscriptionPlan.PLUS, SubscriptionFeature.WATER_TRACKING, true)));
+        when(userSubscriptionEntitlementRepository.findActiveFeaturesForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any()))
+                .thenReturn(List.of(SubscriptionFeature.WATER_TRACKING));
 
         var result = service.applyCurrentFeatureMatrixToUser(1L);
 
@@ -708,13 +730,11 @@ class SubscriptionServiceImplTest {
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
-        when(userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any())).thenReturn(false);
-
         var result = service.getFeatureAccess("user@example.com");
 
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getNextMealSuggestions());
-        verify(userSubscriptionEntitlementRepository, never()).existsActiveFeature(eq(7L), eq(SubscriptionFeature.HEALTH_INTEGRATION), eq(SubscriptionPlan.PLUS), any());
+        verify(subscriptionPlanFeatureRepository).findByPlanTypeOrderByFeatureAsc(SubscriptionPlan.PLUS);
     }
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {
         java.time.LocalDate today = java.time.LocalDate.now();

@@ -38,8 +38,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -463,6 +465,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private SubscriptionFeatureAccessDto toFeatureAccess(SubscriptionDto subscription, SubscriptionEntity entity) {
         boolean active = Boolean.TRUE.equals(subscription.getActiveEntitlement());
+        FeatureAccessResolution resolution = resolveFeatureAccess(subscription, entity);
         SubscriptionFeatureAccessDto dto = new SubscriptionFeatureAccessDto();
         dto.setPlanType(subscription.getPlanType());
         dto.setActiveEntitlement(active);
@@ -473,44 +476,44 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             }
         }
         dto.setAiCreditCosts(aiCreditCosts);
-        dto.setBarcodeScanner(featureAllowed(subscription, entity, SubscriptionFeature.BARCODE_SCANNER));
-        dto.setManualFoodLogging(featureAllowed(subscription, entity, SubscriptionFeature.MANUAL_FOOD_LOGGING));
-        dto.setFoodDiary(featureAllowed(subscription, entity, SubscriptionFeature.FOOD_DIARY));
-        dto.setWeightProgress(featureAllowed(subscription, entity, SubscriptionFeature.WEIGHT_PROGRESS));
-        dto.setWaterTracking(featureAllowed(subscription, entity, SubscriptionFeature.WATER_TRACKING));
-        dto.setWorkoutLogging(featureAllowed(subscription, entity, SubscriptionFeature.WORKOUT_LOGGING));
-        dto.setSavedMealTemplates(featureAllowed(subscription, entity, SubscriptionFeature.SAVED_MEAL_TEMPLATES));
-        dto.setRecipeBuilder(featureAllowed(subscription, entity, SubscriptionFeature.RECIPE_BUILDER));
-        dto.setPublicRecipeLibrary(featureAllowed(subscription, entity, SubscriptionFeature.PUBLIC_RECIPE_LIBRARY));
-        dto.setNextMealSuggestions(featureAllowed(subscription, entity, SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
-        dto.setAdvancedMacroTargets(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_MACRO_TARGETS));
-        dto.setMicronutrientDetails(featureAllowed(subscription, entity, SubscriptionFeature.MICRONUTRIENT_DETAILS));
-        dto.setMicronutrientAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.MICRONUTRIENT_ANALYTICS));
-        dto.setDataExport(featureAllowed(subscription, entity, SubscriptionFeature.DATA_EXPORT));
-        dto.setFastingBasic(featureAllowed(subscription, entity, SubscriptionFeature.FASTING_BASIC));
-        dto.setFastingAdvanced(featureAllowed(subscription, entity, SubscriptionFeature.FASTING_ADVANCED));
-        dto.setAiMealDrafts(featureAllowed(subscription, entity, SubscriptionFeature.AI_MEAL_DRAFTS)
+        dto.setBarcodeScanner(featureAllowed(subscription, resolution, SubscriptionFeature.BARCODE_SCANNER));
+        dto.setManualFoodLogging(featureAllowed(subscription, resolution, SubscriptionFeature.MANUAL_FOOD_LOGGING));
+        dto.setFoodDiary(featureAllowed(subscription, resolution, SubscriptionFeature.FOOD_DIARY));
+        dto.setWeightProgress(featureAllowed(subscription, resolution, SubscriptionFeature.WEIGHT_PROGRESS));
+        dto.setWaterTracking(featureAllowed(subscription, resolution, SubscriptionFeature.WATER_TRACKING));
+        dto.setWorkoutLogging(featureAllowed(subscription, resolution, SubscriptionFeature.WORKOUT_LOGGING));
+        dto.setSavedMealTemplates(featureAllowed(subscription, resolution, SubscriptionFeature.SAVED_MEAL_TEMPLATES));
+        dto.setRecipeBuilder(featureAllowed(subscription, resolution, SubscriptionFeature.RECIPE_BUILDER));
+        dto.setPublicRecipeLibrary(featureAllowed(subscription, resolution, SubscriptionFeature.PUBLIC_RECIPE_LIBRARY));
+        dto.setNextMealSuggestions(featureAllowed(subscription, resolution, SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
+        dto.setAdvancedMacroTargets(featureAllowed(subscription, resolution, SubscriptionFeature.ADVANCED_MACRO_TARGETS));
+        dto.setMicronutrientDetails(featureAllowed(subscription, resolution, SubscriptionFeature.MICRONUTRIENT_DETAILS));
+        dto.setMicronutrientAnalytics(featureAllowed(subscription, resolution, SubscriptionFeature.MICRONUTRIENT_ANALYTICS));
+        dto.setDataExport(featureAllowed(subscription, resolution, SubscriptionFeature.DATA_EXPORT));
+        dto.setFastingBasic(featureAllowed(subscription, resolution, SubscriptionFeature.FASTING_BASIC));
+        dto.setFastingAdvanced(featureAllowed(subscription, resolution, SubscriptionFeature.FASTING_ADVANCED));
+        dto.setAiMealDrafts(featureAllowed(subscription, resolution, SubscriptionFeature.AI_MEAL_DRAFTS)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiMealDraftsCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_MEAL_DRAFTS));
-        dto.setAiWorkoutPlanner(featureAllowed(subscription, entity, SubscriptionFeature.AI_WORKOUT_PLANNER)
+        dto.setAiWorkoutPlanner(featureAllowed(subscription, resolution, SubscriptionFeature.AI_WORKOUT_PLANNER)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiWorkoutPlannerCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_WORKOUT_PLANNER));
-        dto.setAiRecipeGeneration(featureAllowed(subscription, entity, SubscriptionFeature.AI_RECIPE_GENERATION)
+        dto.setAiRecipeGeneration(featureAllowed(subscription, resolution, SubscriptionFeature.AI_RECIPE_GENERATION)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiRecipeGenerationCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_RECIPE_GENERATION));
-        dto.setAiMealPreparationGuide(featureAllowed(subscription, entity, SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE)
+        dto.setAiMealPreparationGuide(featureAllowed(subscription, resolution, SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiMealPreparationGuideCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE));
-        dto.setAiNutritionPlan(featureAllowed(subscription, entity, SubscriptionFeature.AI_NUTRITION_PLAN)
+        dto.setAiNutritionPlan(featureAllowed(subscription, resolution, SubscriptionFeature.AI_NUTRITION_PLAN)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiNutritionPlanBaseCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_NUTRITION_PLAN));
-        dto.setAiInsights(featureAllowed(subscription, entity, SubscriptionFeature.AI_INSIGHTS)
+        dto.setAiInsights(featureAllowed(subscription, resolution, SubscriptionFeature.AI_INSIGHTS)
                 && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
         dto.setAiInsightsCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_INSIGHTS));
-        dto.setHealthIntegration(featureAllowed(subscription, entity, SubscriptionFeature.HEALTH_INTEGRATION));
-        dto.setAdvancedAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_ANALYTICS));
-        dto.setAdFree(featureAllowed(subscription, entity, SubscriptionFeature.AD_FREE));
-        dto.setCustomFoodLibrary(featureAllowed(subscription, entity, SubscriptionFeature.CUSTOM_FOOD_LIBRARY));
+        dto.setHealthIntegration(featureAllowed(subscription, resolution, SubscriptionFeature.HEALTH_INTEGRATION));
+        dto.setAdvancedAnalytics(featureAllowed(subscription, resolution, SubscriptionFeature.ADVANCED_ANALYTICS));
+        dto.setAdFree(featureAllowed(subscription, resolution, SubscriptionFeature.AD_FREE));
+        dto.setCustomFoodLibrary(featureAllowed(subscription, resolution, SubscriptionFeature.CUSTOM_FOOD_LIBRARY));
         dto.setAiMonthlyQuota(subscription.getAiMonthlyQuota());
         dto.setAiAddonQuota(subscription.getAiAddonQuota());
         dto.setAiUsedThisPeriod(subscription.getAiUsedThisPeriod());
@@ -521,7 +524,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return dto;
     }
 
-    private boolean featureAllowed(SubscriptionDto subscription, SubscriptionEntity entity, SubscriptionFeature feature) {
+    private FeatureAccessResolution resolveFeatureAccess(SubscriptionDto subscription, SubscriptionEntity entity) {
+        if (entity != null && entity.getId() != null) {
+            Set<SubscriptionFeature> snapshotFeatures = EnumSet.noneOf(SubscriptionFeature.class);
+            snapshotFeatures.addAll(userSubscriptionEntitlementRepository.findActiveFeaturesForSubscription(
+                    entity.getId(), subscription.getPlanType(), LocalDate.now()));
+            if (!snapshotFeatures.isEmpty()) {
+                return new FeatureAccessResolution(true, snapshotFeatures, Map.of());
+            }
+        }
+
+        EnumMap<SubscriptionFeature, Boolean> planFeatures = new EnumMap<>(SubscriptionFeature.class);
+        subscriptionPlanFeatureRepository.findByPlanTypeOrderByFeatureAsc(subscription.getPlanType())
+                .forEach(item -> planFeatures.put(item.getFeature(), Boolean.TRUE.equals(item.getEnabled())));
+        return new FeatureAccessResolution(false, Set.of(), planFeatures);
+    }
+
+    private boolean featureAllowed(SubscriptionDto subscription,
+                                   FeatureAccessResolution resolution,
+                                   SubscriptionFeature feature) {
         if (!Boolean.TRUE.equals(subscription.getActiveEntitlement())) {
             return false;
         }
@@ -531,13 +552,18 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (subscription.getPlanType() == SubscriptionPlan.FREE && isAiFeature(feature)) {
             return false;
         }
-        if (entity != null && entity.getId() != null) {
-            LocalDate today = LocalDate.now();
-            if (userSubscriptionEntitlementRepository.existsActiveEntitlementForSubscription(entity.getId(), subscription.getPlanType(), today)) {
-                return userSubscriptionEntitlementRepository.existsActiveFeature(entity.getId(), feature, subscription.getPlanType(), today);
-            }
+        if (resolution.snapshotAvailable()) {
+            return resolution.snapshotFeatures().contains(feature);
         }
-        return isPlanFeatureEnabled(subscription.getPlanType(), feature);
+        return resolution.planFeatures().getOrDefault(
+                feature,
+                defaultPlanFeatureEnabled(subscription.getPlanType(), feature)
+        );
+    }
+
+    private record FeatureAccessResolution(boolean snapshotAvailable,
+                                           Set<SubscriptionFeature> snapshotFeatures,
+                                           Map<SubscriptionFeature, Boolean> planFeatures) {
     }
 
     private int resolvePlanCreditCost(SubscriptionPlan planType, SubscriptionFeature feature) {

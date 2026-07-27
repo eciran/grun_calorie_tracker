@@ -44,6 +44,20 @@ public interface UserSubscriptionEntitlementRepository extends JpaRepository<Use
     boolean existsActiveEntitlementForSubscription(@Param("subscriptionId") Long subscriptionId,
                                                    @Param("planType") SubscriptionPlan planType,
                                                    @Param("date") LocalDate date);
+
+    @Query("""
+            select e.feature
+            from UserSubscriptionEntitlementEntity e
+            where e.subscription.id = :subscriptionId
+              and e.sourcePlan = :planType
+              and e.enabled = true
+              and e.validFrom <= :date
+              and (e.validUntil is null or e.validUntil >= :date)
+            """)
+    List<SubscriptionFeature> findActiveFeaturesForSubscription(@Param("subscriptionId") Long subscriptionId,
+                                                                @Param("planType") SubscriptionPlan planType,
+                                                                @Param("date") LocalDate date);
+
     long deleteByUser(UserEntity user);
 
     @Query("""
