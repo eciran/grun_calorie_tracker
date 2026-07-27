@@ -32,7 +32,7 @@ class AdminAuditControllerTest {
     private AdminAuditService adminAuditService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_AUDIT_READ"})
     void listAudits_whenAdmin_returnsAuditEntries() throws Exception {
         AdminActionAuditDto audit = new AdminActionAuditDto();
         audit.setId(1L);

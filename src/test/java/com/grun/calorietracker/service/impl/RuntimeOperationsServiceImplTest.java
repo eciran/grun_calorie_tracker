@@ -54,6 +54,22 @@ class RuntimeOperationsServiceImplTest {
         service.initializeCache();
     }
 
+
+    @Test
+    void keepsMaintenanceDisabledWhenPolicySeedIsMissing() {
+        RuntimeOperationsPolicyRepository emptyPolicyRepository = mock(RuntimeOperationsPolicyRepository.class);
+        when(emptyPolicyRepository.findById(1L)).thenReturn(Optional.empty());
+        RuntimeOperationsServiceImpl uninitializedService = new RuntimeOperationsServiceImpl(
+                emptyPolicyRepository, recordRepository, new RuntimeApiMetricsService(),
+                new ObjectMapper().findAndRegisterModules(),
+                mock(UserRepository.class), mock(SubscriptionRepository.class));
+
+        uninitializedService.initializeCache();
+
+        assertFalse(uninitializedService.maintenanceEnabled());
+        assertEquals("Scheduled maintenance is in progress. Please try again shortly.",
+                uninitializedService.maintenanceMessage());
+    }
     @Test
     void updatesTypedPolicyAndRetainsRollbackSnapshot() {
         AdminRuntimeOperationsPolicyUpdateRequestDto request = updateRequest();

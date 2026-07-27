@@ -167,12 +167,23 @@ public class RuntimeOperationsServiceImpl implements RuntimeOperationsService {
 
     @Override
     public boolean maintenanceEnabled() {
-        return Boolean.TRUE.equals(currentPolicy().getMaintenanceEnabled());
+        AdminRuntimeOperationsPolicyDto policy = cachedPolicy;
+        if (policy != null) {
+            return Boolean.TRUE.equals(policy.getMaintenanceEnabled());
+        }
+        return policyRepository.findById(POLICY_ID)
+                .map(this::toDto)
+                .map(AdminRuntimeOperationsPolicyDto::getMaintenanceEnabled)
+                .orElse(false);
     }
 
     @Override
     public String maintenanceMessage() {
-        return currentPolicy().getMaintenanceMessage();
+        AdminRuntimeOperationsPolicyDto policy = cachedPolicy;
+        if (policy != null && policy.getMaintenanceMessage() != null) {
+            return policy.getMaintenanceMessage();
+        }
+        return "Scheduled maintenance is in progress. Please try again shortly.";
     }
 
     @Override

@@ -99,7 +99,6 @@ type SectionKey =
   | "dashboard"
   | "integrations"
   | "integrationProviders"
-  | "revenueCat"
   | "revenueCatProduction"
   | "revenueCatSandbox"
   | "mail"
@@ -254,7 +253,6 @@ const sections: SectionMeta[] = [
   { key: "dashboard", label: "Dashboard", hint: "Operational overview", icon: "D" },
   { key: "integrations", label: "Integrations", hint: "Provider status", icon: "I" },
   { key: "integrationProviders", label: "Providers", hint: "External services", icon: "P" },
-  { key: "revenueCat", label: "RevenueCat", hint: "Subscription analytics", icon: "R", logo: "./revenuecat.svg" },
   { key: "revenueCatProduction", label: "Production", hint: "Live API metrics", icon: "P" },
   { key: "revenueCatSandbox", label: "Sandbox", hint: "Webhook test data", icon: "S" },
   { key: "mail", label: "Mail Ops", hint: "Brevo delivery", icon: "M" },
@@ -308,6 +306,20 @@ const sectionByKey = sections.reduce((accumulator, section) => {
   accumulator[section.key] = section;
   return accumulator;
 }, {} as Record<SectionKey, SectionMeta>);
+
+function sectionFromHash(): SectionKey {
+  const candidate = window.location.hash.replace(/^#\/?/, "") as SectionKey;
+  return candidate && sectionByKey[candidate] ? candidate : "dashboard";
+}
+
+function setSectionHash(section: SectionKey) {
+  const next = `#/${section}`;
+  if (window.location.hash !== next) window.history.pushState(null, "", next);
+}
+
+function replaceSectionHash(section: SectionKey) {
+  window.history.replaceState(null, "", `#/${section}`);
+}
 
 function navSection(key: SectionKey): SectionMeta {
   return sectionByKey[key];
@@ -393,7 +405,7 @@ function permissionForSection(section: SectionKey): string {
   if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps"].includes(section)) return "GROWTH_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
   if (section === "audits") return "AUDIT_READ";
-  if (["integrations", "integrationProviders", "revenueCat", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
+  if (["integrations", "integrationProviders", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
   return "DASHBOARD_READ";
 }
 
@@ -563,26 +575,48 @@ const PRODUCT_VITAMIN_FIELDS: Array<{ key: ProductReviewNumberField; label: stri
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(getToken()));
-  const [active, setActive] = useState<SectionKey>("dashboard");
+  const [active, setActive] = useState<SectionKey>(() => sectionFromHash());
   const [error, setError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
   const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
   const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
   const [accessProfile, setAccessProfile] = useState<AdminAccessProfile | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
 
   function navigateToSection(section: SectionKey) {
     setError(null);
     setTargetContext(null);
     setActive(section);
+    setSectionHash(section);
   }
 
   function navigateToTarget(section: SectionKey, context?: Omit<AdminTargetContext, "section">) {
     setError(null);
     setTargetContext(context ? { ...context, section } : null);
     setActive(section);
+    setSectionHash(section);
   }
 
+  useEffect(() => {
+    const syncFromLocation = () => setActive(sectionFromHash());
+    window.addEventListener("hashchange", syncFromLocation);
+    window.addEventListener("popstate", syncFromLocation);
+    return () => {
+      window.removeEventListener("hashchange", syncFromLocation);
+      window.removeEventListener("popstate", syncFromLocation);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!accessProfile) return;
+    if (!canViewSection(accessProfile, active)) {
+      setActive("dashboard");
+      replaceSectionHash("dashboard");
+      return;
+    }
+    mainRef.current?.focus();
+  }, [accessProfile, active]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_KEY, theme);
@@ -623,6 +657,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#admin-main">Skip to main content</a>
       <aside className="sidebar">
         <div className="brand">
           <img className="brand-symbol" src="./grun/grun-app-icon.svg" alt="" aria-hidden="true" />
@@ -631,7 +666,7 @@ export default function App() {
             <span>Operations</span>
           </div>
         </div>
-        <nav className="nav-list">
+        <nav className="nav-list" aria-label="Admin sections">
           {visibleNavigation.map((section) => (
             <div className="nav-group" key={`${section.key}-${section.label}`}>
               <button
@@ -646,6 +681,7 @@ export default function App() {
                 }}
                 type="button"
                 title={section.hint}
+                aria-expanded={section.children ? openNavGroup === section.key : undefined}
               >
                 <NavIcon section={section} />
                 <span>
@@ -666,6 +702,7 @@ export default function App() {
                       }}
                       type="button"
                       title={child.hint}
+                      aria-current={child.key === active ? "page" : undefined}
                     >
                       <span>
                         <strong>{child.label}</strong>
@@ -690,7 +727,7 @@ export default function App() {
         </button>
       </aside>
 
-      <main className="main-panel">
+      <main className="main-panel" id="admin-main" ref={mainRef} tabIndex={-1}>
         <header className="topbar">
           <div>
             <p className="eyebrow">Admin workspace</p>
@@ -704,7 +741,7 @@ export default function App() {
           </div>
         </header>
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
         <SectionTabs active={active} onSelect={navigateToSection} accessProfile={accessProfile} />
         <section className="content-surface">
           {active === "dashboard" && <DashboardView onError={setError} onNavigate={navigateToSection} />}
@@ -768,7 +805,7 @@ function SectionTabs({ active, onSelect, accessProfile }: { active: SectionKey; 
   if (!tabs || tabs.length <= 1) return null;
 
   return (
-    <div className="section-tabs" aria-label="Section navigation">
+    <div className="section-tabs" aria-label="Section navigation" role="tablist">
       {tabs.map((tab) => (
         <button
           className={tab.key === active ? "active" : ""}
@@ -776,6 +813,8 @@ function SectionTabs({ active, onSelect, accessProfile }: { active: SectionKey; 
           onClick={() => onSelect(tab.key)}
           title={tab.hint}
           type="button"
+          role="tab"
+          aria-selected={tab.key === active}
         >
           <strong>{tab.label}</strong>
           <span>{tab.hint}</span>
@@ -866,7 +905,7 @@ function NavIcon({ compact = false, section }: { compact?: boolean; section: Sec
       "nav-icon",
       "logo-icon",
       compact ? "compact" : "",
-      section.key === "revenueCat" ? "revenuecat-logo" : ""
+      section.key === "revenueCatProduction" ? "revenuecat-logo" : ""
     ].filter(Boolean).join(" ");
     return (
       <span className={logoClassName}>

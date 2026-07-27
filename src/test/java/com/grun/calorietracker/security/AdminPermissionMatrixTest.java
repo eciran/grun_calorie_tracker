@@ -67,6 +67,48 @@ class AdminPermissionMatrixTest {
 
         assertEquals(200, response.getStatus());
     }
+
+    @Test
+    void technicalAdminCanManageRuntimeOperations() throws Exception {
+        authenticate(UserRole.ADMIN_TECHNICAL);
+
+        assertEquals(200, execute("PUT", "/api/v1/admin/system/operations/policy").getStatus());
+        assertEquals(200, execute("POST", "/api/v1/admin/system/operations/records/9/retry").getStatus());
+    }
+
+    @Test
+    void growthAdminCannotReadTechnicalOrFinancePayloads() throws Exception {
+        authenticate(UserRole.ADMIN_GROWTH);
+
+        assertEquals(403, execute("GET", "/api/v1/admin/system/operations/api-metrics").getStatus());
+        assertEquals(403, execute("GET", "/api/v1/admin/subscriptions/provider-events").getStatus());
+        assertEquals(200, execute("POST", "/api/v1/admin/notification-campaigns").getStatus());
+    }
+
+    @Test
+    void catalogAdminCannotReadUsersOrAuditLogs() throws Exception {
+        authenticate(UserRole.ADMIN_CATALOG);
+
+        assertEquals(403, execute("GET", "/api/v1/admin/users").getStatus());
+        assertEquals(403, execute("GET", "/api/v1/admin/audits").getStatus());
+        assertEquals(200, execute("GET", "/api/v1/admin/products/reviews").getStatus());
+    }
+
+    @Test
+    void readOnlyAdminCanReadButCannotMutateRuntimePolicy() throws Exception {
+        authenticate(UserRole.ADMIN_READ_ONLY);
+
+        assertEquals(200, execute("GET", "/api/v1/admin/system/operations/policy").getStatus());
+        assertEquals(403, execute("PUT", "/api/v1/admin/system/operations/policy").getStatus());
+    }
+
+    @Test
+    void supportCannotAccessAdminTeamManagement() throws Exception {
+        authenticate(UserRole.ADMIN_SUPPORT);
+
+        assertEquals(403, execute("GET", "/api/v1/admin/security/admins").getStatus());
+        assertEquals(403, execute("PATCH", "/api/v1/admin/security/admins/4").getStatus());
+    }
     private void authenticate(UserRole role) {
         List<SimpleGrantedAuthority> authorities = AdminPermissionMatrix.permissionsFor(role).stream()
                 .map(AdminPermissionMatrix::authority)
