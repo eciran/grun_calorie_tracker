@@ -50,6 +50,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         List<Long> ids = foodLogsRepository.findRecentAvailableFoodItemIds(
                 user.getId(),
                 VerificationStatus.REJECTED.name(),
+                user.getRecentProductsClearedAt(),
                 PageRequest.of(0, normalizeLimit(limit))
         );
         Map<Long, FoodItemEntity> productsById = new LinkedHashMap<>();
@@ -59,6 +60,14 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
                 .filter(product -> product != null)
                 .map(FoodItemMapper::mapEntityToDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public void clearRecentProducts(String email) {
+        UserEntity user = getUser(email);
+        user.setRecentProductsClearedAt(java.time.LocalDateTime.now());
+        userRepository.save(user);
     }
 
     @Override

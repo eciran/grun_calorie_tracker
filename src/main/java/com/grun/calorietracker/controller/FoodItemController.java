@@ -238,6 +238,21 @@ public class FoodItemController {
         return ResponseEntity.ok(userProductLibraryService.getRecentProducts(userDetails.getUsername(), limit));
     }
 
+    @DeleteMapping("/recent")
+    @Operation(
+            summary = "Clear recently logged products",
+            description = "Clears the authenticated user's recent-product suggestions without deleting food diary history."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Recent products cleared."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
+    })
+    public ResponseEntity<Void> clearRecentProducts(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        userProductLibraryService.clearRecentProducts(userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/favorites")
     @Operation(summary = "List favorite products", description = "Returns the authenticated user's available favorite food products.")
     @ApiResponses({

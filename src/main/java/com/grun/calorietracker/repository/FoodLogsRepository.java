@@ -64,12 +64,17 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
             JOIN food_items fi ON fi.id = f.food_id
             WHERE f.user_id = :userId
               AND (fi.verification_status IS NULL OR fi.verification_status <> :rejectedStatus)
+              AND (
+                    CAST(:clearedAt AS TIMESTAMP) IS NULL
+                    OR f.created_at > CAST(:clearedAt AS TIMESTAMP)
+                  )
             GROUP BY f.food_id
             ORDER BY MAX(f.log_date) DESC, f.food_id DESC
             """, nativeQuery = true)
     List<Long> findRecentAvailableFoodItemIds(
             @Param("userId") Long userId,
             @Param("rejectedStatus") String rejectedStatus,
+            @Param("clearedAt") LocalDateTime clearedAt,
             Pageable pageable
     );
 

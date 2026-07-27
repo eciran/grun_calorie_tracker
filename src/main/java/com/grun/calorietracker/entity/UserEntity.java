@@ -138,6 +138,9 @@ public class UserEntity {
     @Column(name = "last_active_at")
     private Instant lastActiveAt;
 
+    @Column(name = "recent_products_cleared_at")
+    private LocalDateTime recentProductsClearedAt;
+
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();

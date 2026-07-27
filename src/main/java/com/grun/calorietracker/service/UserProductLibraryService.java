@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface UserProductLibraryService {
     List<FoodProductDto> getRecentProducts(String email, int limit);
+    void clearRecentProducts(String email);
     List<FoodProductDto> getFavoriteProducts(String email, int page, int size);
     FoodProductDto addFavoriteProduct(String email, Long productId);
     void removeFavoriteProduct(String email, Long productId);

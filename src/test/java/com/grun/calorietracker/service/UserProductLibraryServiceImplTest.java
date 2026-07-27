@@ -53,16 +53,30 @@ class UserProductLibraryServiceImplTest {
     @Test
     void getRecentProducts_preservesRecentLogOrder() {
         UserEntity user = user();
+        LocalDateTime clearedAt = LocalDateTime.now().minusHours(1);
+        user.setRecentProductsClearedAt(clearedAt);
         FoodItemEntity first = product(8L, "Latest");
         FoodItemEntity second = product(3L, "Earlier");
         when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
-        when(foodLogsRepository.findRecentAvailableFoodItemIds(eq(1L), eq("REJECTED"), any(Pageable.class)))
+        when(foodLogsRepository.findRecentAvailableFoodItemIds(eq(1L), eq("REJECTED"), eq(clearedAt), any(Pageable.class)))
                 .thenReturn(List.of(8L, 3L));
         when(foodItemRepository.findAllById(List.of(8L, 3L))).thenReturn(List.of(second, first));
 
         List<FoodProductDto> result = service.getRecentProducts("user@test.com", 10);
 
         assertEquals(List.of("Latest", "Earlier"), result.stream().map(FoodProductDto::getProductName).toList());
+    }
+
+    @Test
+    void clearRecentProducts_setsMarkerWithoutDeletingDiaryHistory() {
+        UserEntity user = user();
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+
+        service.clearRecentProducts("user@test.com");
+
+        org.junit.jupiter.api.Assertions.assertNotNull(user.getRecentProductsClearedAt());
+        verify(userRepository).save(user);
+        verify(foodLogsRepository, never()).delete(any());
     }
 
     @Test
