@@ -5221,6 +5221,39 @@ label {
   color: var(--inverse-text);
 }
 
+.ai-operations-view > * {
+  min-width: 0;
+}
+
+.ai-analytics-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ai-analytics-chart-grid > .panel {
+  min-width: 0;
+}
+
+.ai-economics-chart-panel {
+  grid-column: 1 / -1;
+}
+
+.ai-outcome-echart,
+.ai-latency-echart,
+.ai-economics-echart {
+  width: 100%;
+  min-width: 0;
+  height: 320px;
+}
+
+.ai-economics-echart {
+  height: 300px;
+}
+
+.ai-operations-chart-loading {
+  height: 320px;
+}
 .ai-monitoring-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8848,6 +8881,19 @@ label {
 @media (max-width: 1180px) {
   .runtime-metric-grid,
   .runtime-policy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 980px) {
+  .ai-operations-view > * {
+  min-width: 0;
+}
+
+.ai-analytics-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-economics-chart-panel {
+    grid-column: auto;
+  }
 }
 @media (max-width: 760px) {
   .runtime-metric-grid,

@@ -98,6 +98,9 @@ const GrowthTrendChart = lazy(() => import("./GrowthTrendChart").then((module) =
 const OnboardingFunnelChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.OnboardingFunnelChart })));
 const FeatureAdoptionChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.FeatureAdoptionChart })));
 const RevenueCatEChart = lazy(() => import("./RevenueCatEChart").then((module) => ({ default: module.RevenueCatEChart })));
+const AiOutcomeChart = lazy(() => import("./AiOperationsCharts").then((module) => ({ default: module.AiOutcomeChart })));
+const AiLatencyChart = lazy(() => import("./AiOperationsCharts").then((module) => ({ default: module.AiLatencyChart })));
+const AiEconomicsChart = lazy(() => import("./AiOperationsCharts").then((module) => ({ default: module.AiEconomicsChart })));
 
 type SectionKey =
   | "dashboard"
@@ -4703,6 +4706,12 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AiMonitoringSummary>(summaryPath, onError);
   const { data: policy, state: policyState, reload: reloadPolicy } = useEndpoint<AiOperationsPolicy>(policyPath, onError);
   const rows = data?.content ?? [];
+  const hasAiOutcomes = (summary?.requestStatuses ?? []).some((item) => Number(item.requestCount ?? 0) > 0);
+  const hasAiLatency = [summary?.latencyP50Ms, summary?.latencyP95Ms, summary?.latencyP99Ms].some((value) => Number(value ?? 0) > 0);
+  const hasAiEconomics = new Set([
+    ...Object.keys(summary?.estimatedCostByCurrency ?? {}),
+    ...Object.keys(summary?.subscriptionRevenueByCurrency ?? {})
+  ]).size > 0;
   const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
   useEffect(() => {
     if (!policy) return;
@@ -4873,7 +4882,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   }
 
   return (
-    <div className="stack">
+    <div className="stack ai-operations-view">
       <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, policyState, policyActionState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
@@ -4907,6 +4916,30 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           <MetricCard label="AI cost / revenue" value={formatRatioBreakdown(summary?.costToRevenueRatioByCurrency)} hint="Only matching currencies are compared" />
         </div>
       </Panel>
+
+      <div className="ai-analytics-chart-grid">
+        <Panel title="Request outcomes" description="Controlled AI request results grouped by feature. Exact values remain available in the status table.">
+          {summary && hasAiOutcomes ? (
+            <Suspense fallback={<div className="admin-chart-loading ai-operations-chart-loading">Loading outcome chart...</div>}>
+              <AiOutcomeChart summary={summary} />
+            </Suspense>
+          ) : <EmptyState title="No AI request activity" message="No request outcome was recorded for this monitoring window." />}
+        </Panel>
+        <Panel title="Provider latency" description={`Percentiles for completed provider calls. ${formatValue(summary?.timeoutCount)} timeout failure(s) in this window.`}>
+          {summary && hasAiLatency ? (
+            <Suspense fallback={<div className="admin-chart-loading ai-operations-chart-loading">Loading latency chart...</div>}>
+              <AiLatencyChart summary={summary} />
+            </Suspense>
+          ) : <EmptyState title="No latency samples" message="No usable provider latency sample was returned for this window." />}
+        </Panel>
+        <Panel className="ai-economics-chart-panel" title="AI cost and subscription revenue" description="Each currency is shown independently. The browser never combines currencies into one total.">
+          {summary && hasAiEconomics ? (
+            <Suspense fallback={<div className="admin-chart-loading ai-operations-chart-loading">Loading economics chart...</div>}>
+              <AiEconomicsChart summary={summary} />
+            </Suspense>
+          ) : <EmptyState title="No comparable economics" message="No currency-specific AI cost or processed subscription revenue was returned." />}
+        </Panel>
+      </div>
 
       {(summary?.alerts ?? []).length > 0 && <Panel title="Operational alerts">
         <div className="operations-alert-list">
