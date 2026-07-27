@@ -27,6 +27,10 @@ public class EnergyBalanceAnalyticsProperties {
     private double energyPerKgCoefficient = 7700.0;
 
     @DecimalMin("0.0")
+    @DecimalMax("0.5")
+    private double weightModelUncertaintyPercent = 0.15;
+
+    @DecimalMin("0.0")
     private double balancedAbsoluteToleranceKcal = 100.0;
 
     @DecimalMin("0.0")

@@ -80,6 +80,9 @@ public class EnergyBalancePolicy {
         return properties.getEnergyPerKgCoefficient();
     }
 
+    public double weightModelUncertaintyPercent() {
+        return properties.getWeightModelUncertaintyPercent();
+    }
     public int minimumWeightModelDays() {
         return properties.getMinimumWeightModelDays();
     }

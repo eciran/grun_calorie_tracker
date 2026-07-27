@@ -84,6 +84,7 @@ class EnergyBalancePolicyTest {
     void weightModelParameters_areExplicitAndVersioned() {
         assertEquals("STATIC_ENERGY_DENSITY_V1", policy.weightModelCode());
         assertEquals(7700.0, policy.energyPerKgCoefficient());
+        assertEquals(0.15, policy.weightModelUncertaintyPercent());
         assertEquals(4, policy.minimumWeightModelDays());
     }
 }
