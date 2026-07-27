@@ -34,6 +34,8 @@ class SubscriptionFeatureAccessFilterTest {
         assertEquals(SubscriptionFeature.WEIGHT_PROGRESS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress"));
         assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
+                SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress/energy-balance"));
+        assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress/analytics"));
         assertNull(SubscriptionFeatureAccessFilter.resolveFeature(
                 "GET", "/api/v1/progress/analytics/basic"));

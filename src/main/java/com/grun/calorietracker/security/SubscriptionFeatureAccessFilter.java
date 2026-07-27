@@ -56,6 +56,7 @@ public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
     public static SubscriptionFeature resolveFeature(String method, String path) {
         if (HttpMethod.OPTIONS.matches(method) || path == null) return null;
         if (path.startsWith("/api/v1/water-logs")) return SubscriptionFeature.WATER_TRACKING;
+        if (path.startsWith("/api/v1/progress/energy-balance")) return SubscriptionFeature.ADVANCED_ANALYTICS;
         if (path.startsWith("/api/v1/progress/analytics/basic")) return null;
         if (path.startsWith("/api/v1/progress/analytics")) return SubscriptionFeature.ADVANCED_ANALYTICS;
         if (path.startsWith("/api/v1/progress")) return SubscriptionFeature.WEIGHT_PROGRESS;
