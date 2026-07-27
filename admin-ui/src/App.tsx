@@ -97,6 +97,7 @@ import {
 const GrowthTrendChart = lazy(() => import("./GrowthTrendChart").then((module) => ({ default: module.GrowthTrendChart })));
 const OnboardingFunnelChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.OnboardingFunnelChart })));
 const FeatureAdoptionChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.FeatureAdoptionChart })));
+const RevenueCatEChart = lazy(() => import("./RevenueCatEChart").then((module) => ({ default: module.RevenueCatEChart })));
 
 type SectionKey =
   | "dashboard"
@@ -6072,35 +6073,9 @@ function RevenueCatAnalyticsChart({ chart }: { chart: RevenueCatChart }) {
   const isMoney = isRevenueCatMoneyChart(chart.chartName);
   const summary = revenueCatChartSummary(chart);
   const maxValue = summary.max;
-  const minValue = summary.min;
   const latest = summary.latest;
   const delta = summary.delta;
   const average = summary.average;
-  const hasTimeAxis = points.some((point) => isDateLike(point.date));
-  const width = 960;
-  const height = 340;
-  const top = 28;
-  const right = 34;
-  const bottom = 48;
-  const left = 76;
-  const innerWidth = width - left - right;
-  const innerHeight = height - top - bottom;
-  const range = Math.max(maxValue - minValue, 1);
-  const plotted = points.map((point, index, list) => {
-    const x = left + (list.length <= 1 ? 0 : (index / (list.length - 1)) * innerWidth);
-    const y = top + innerHeight - ((Number(point.value ?? 0) - minValue) / range) * innerHeight;
-    return { ...point, x, y };
-  });
-  const linePath = plotted.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
-  const areaPath = plotted.length
-    ? `${linePath} L ${plotted[plotted.length - 1].x.toFixed(2)} ${top + innerHeight} L ${plotted[0].x.toFixed(2)} ${top + innerHeight} Z`
-    : "";
-  const yTicks = [1, 0.75, 0.5, 0.25, 0];
-  const xTicks = plotted.filter((_, index, list) => {
-    if (list.length <= 2) return true;
-    const step = Math.max(1, Math.floor((list.length - 1) / 4));
-    return index === 0 || index === list.length - 1 || index % step === 0;
-  });
 
   return (
     <article className="revenuecat-chart-card">
@@ -6112,22 +6087,10 @@ function RevenueCatAnalyticsChart({ chart }: { chart: RevenueCatChart }) {
         <Badge value={chart.environment === "sandbox" ? "Sandbox" : "Production"} tone={chart.environment === "sandbox" ? "neutral" : "good"} />
       </div>
       <div className="revenuecat-chart-summary">
-        <div>
-          <span>Latest</span>
-          <strong>{formatRevenueCatChartValue(latest, chart.currency, isMoney)}</strong>
-        </div>
-        <div>
-          <span>Change</span>
-          <strong className={delta >= 0 ? "positive" : "negative"}>{delta >= 0 ? "+" : ""}{formatRevenueCatChartValue(delta, chart.currency, isMoney)}</strong>
-        </div>
-        <div>
-          <span>Average</span>
-          <strong>{formatRevenueCatChartValue(average, chart.currency, isMoney)}</strong>
-        </div>
-        <div>
-          <span>High</span>
-          <strong>{formatRevenueCatChartValue(maxValue, chart.currency, isMoney)}</strong>
-        </div>
+        <div><span>Latest</span><strong>{formatRevenueCatChartValue(latest, chart.currency, isMoney)}</strong></div>
+        <div><span>Change</span><strong className={delta >= 0 ? "positive" : "negative"}>{delta >= 0 ? "+" : ""}{formatRevenueCatChartValue(delta, chart.currency, isMoney)}</strong></div>
+        <div><span>Average</span><strong>{formatRevenueCatChartValue(average, chart.currency, isMoney)}</strong></div>
+        <div><span>High</span><strong>{formatRevenueCatChartValue(maxValue, chart.currency, isMoney)}</strong></div>
       </div>
       {!points.length ? (
         <div className="revenuecat-chart-empty">
@@ -6135,47 +6098,10 @@ function RevenueCatAnalyticsChart({ chart }: { chart: RevenueCatChart }) {
           <span>{formatMonitoringStatus(chart.statusMessage)}</span>
           <small>RevenueCat API configuration is checked, but this metric did not return drawable time-series data.</small>
         </div>
-      ) : !hasTimeAxis ? (
-        <div className="revenuecat-category-chart">
-          {points.map((point) => {
-            const value = Number(point.value ?? 0);
-            const widthPercent = maxValue <= 0 ? 0 : Math.max(3, (value / maxValue) * 100);
-            return (
-              <div className="category-chart-row" key={point.date}>
-                <span>{point.date ?? "-"}</span>
-                <div><i style={{ width: `${widthPercent}%` }} /></div>
-                <strong>{formatRevenueCatChartValue(value, chart.currency, isMoney)}</strong>
-              </div>
-            );
-          })}
-        </div>
       ) : (
-        <div className="revenuecat-line-chart">
-          <svg aria-label={`${chart.label ?? chart.chartName ?? "RevenueCat"} chart`} role="img" viewBox={`0 0 ${width} ${height}`}>
-            {yTicks.map((tick) => {
-              const y = top + innerHeight - tick * innerHeight;
-              const value = minValue + range * tick;
-              return (
-                <g key={tick}>
-                  <line className="chart-grid-line" x1={left} x2={width - right} y1={y} y2={y} />
-                  <text className="chart-axis-label" x={left - 12} y={y + 4}>{formatRevenueCatChartValue(value, chart.currency, isMoney)}</text>
-                </g>
-              );
-            })}
-            {areaPath && <path className="chart-area-path" d={areaPath} />}
-            {linePath && <path className="chart-line-path" d={linePath} />}
-            {plotted.map((point, index) => (
-              <circle className="chart-point" cx={point.x} cy={point.y} key={`${point.date ?? index}-${point.value ?? 0}`} r={index === plotted.length - 1 ? "4.5" : "2.5"}>
-                <title>{`${formatChartDate(point.date)}: ${formatRevenueCatChartValue(Number(point.value ?? 0), chart.currency, isMoney)}`}</title>
-              </circle>
-            ))}
-            {xTicks.map((point, index) => (
-              <text className={`chart-x-label ${index === xTicks.length - 1 ? "end" : ""}`} key={`${point.date}-${point.x}`} x={point.x} y={height - 12}>
-                {formatChartDate(point.date)}
-              </text>
-            ))}
-          </svg>
-        </div>
+        <Suspense fallback={<div className="admin-chart-loading revenuecat-chart-loading">Loading commercial chart...</div>}>
+          <RevenueCatEChart chart={{ ...chart, points }} />
+        </Suspense>
       )}
     </article>
   );

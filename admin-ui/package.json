@@ -11,8 +11,9 @@
     "test:foundation": "node scripts/test-admin-foundation.mjs",
     "test:growth-dashboard": "node scripts/test-growth-dashboard.mjs",
     "test:customer-360": "node scripts/test-customer-360.mjs",
-    "test:production": "npm run test:foundation && npm run test:growth-dashboard && npm run test:engagement-charts && npm run test:customer-360 && npm run test:quality-workbench && node scripts/test-production-readiness.mjs",
-    "test:engagement-charts": "node scripts/test-engagement-charts.mjs"
+    "test:production": "npm run test:foundation && npm run test:growth-dashboard && npm run test:engagement-charts && npm run test:commercial-charts && npm run test:customer-360 && npm run test:quality-workbench && node scripts/test-production-readiness.mjs",
+    "test:engagement-charts": "node scripts/test-engagement-charts.mjs",
+    "test:commercial-charts": "node scripts/test-commercial-charts.mjs"
   },
   "dependencies": {
     "echarts": "^6.1.0",

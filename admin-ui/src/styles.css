@@ -3097,6 +3097,12 @@ label {
   gap: 16px;
 }
 
+.revenuecat-chart-heading > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .revenuecat-metric-card span,
 .revenuecat-chart-card span {
   color: var(--muted);
@@ -3150,56 +3156,23 @@ label {
   color: var(--danger);
 }
 
-.revenuecat-line-chart {
-  position: relative;
-  min-height: 320px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--primary) 7%, transparent), transparent 42%),
-    var(--surface-container);
+.revenuecat-chart-workspace,
+.revenuecat-chart-card {
+  min-width: 0;
 }
 
-.revenuecat-line-chart svg {
-  display: block;
+.revenuecat-echart {
   width: 100%;
-  min-height: 320px;
+  height: 340px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--surface-container);
 }
 
-.chart-grid-line {
-  stroke: color-mix(in srgb, var(--muted) 28%, transparent);
-  stroke-dasharray: 2 4;
-  stroke-width: 1;
-}
-
-.chart-axis-label,
-.chart-x-label {
-  fill: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.chart-x-label.end {
-  text-anchor: end;
-}
-
-.chart-area-path {
-  fill: color-mix(in srgb, var(--primary) 22%, transparent);
-}
-
-.chart-line-path {
-  fill: none;
-  stroke: var(--primary);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 4;
-}
-
-.chart-point {
-  fill: var(--surface);
-  stroke: var(--primary);
-  stroke-width: 2;
+.revenuecat-chart-loading {
+  height: 340px;
+  border: 1px solid var(--line);
+  background: var(--surface-container);
 }
 
 .revenuecat-chart-empty {
@@ -3230,45 +3203,6 @@ label {
   color: var(--muted);
 }
 
-.revenuecat-category-chart {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface-container);
-}
-
-.category-chart-row {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr) 90px;
-  align-items: center;
-  gap: 12px;
-}
-
-.category-chart-row > span {
-  color: var(--muted);
-  text-transform: capitalize;
-}
-
-.category-chart-row > div {
-  height: 12px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--line) 70%, transparent);
-}
-
-.category-chart-row i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
-}
-
-.category-chart-row strong {
-  color: var(--text);
-  text-align: right;
-}
 
 .mail-events-hero h2 {
   max-width: 780px;
