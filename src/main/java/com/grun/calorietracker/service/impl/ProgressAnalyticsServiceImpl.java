@@ -53,7 +53,26 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
     ) {
         validateRange(startDate, endDate);
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.ADVANCED_ANALYTICS);
+        return buildAnalytics(email, startDate, endDate, comparePrevious);
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ProgressBasicAnalyticsDto getBasicAnalytics(
+            String email,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        validateRange(startDate, endDate);
+        return ProgressBasicAnalyticsDto.from(buildAnalytics(email, startDate, endDate, false));
+    }
+
+    private ProgressAnalyticsDto buildAnalytics(
+            String email,
+            LocalDate startDate,
+            LocalDate endDate,
+            boolean comparePrevious
+    ) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ZoneId userZone = resolveUserZone(user.getTimeZone());
@@ -508,14 +527,30 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
             day.minutes += value(log.getDurationMinutes());
             day.sessions++;
         }
+        WaterRangeSummaryDto water = subscriptionService.hasFeatureAccess(email, SubscriptionFeature.WATER_TRACKING)
+                ? waterTrackingService.getRangeSummary(email, start, end)
+                : emptyWaterRange(start, end);
         return new PeriodData(
                 foodByDate,
                 exerciseByDate,
                 exerciseLogs,
                 stepTrackingService.getRangeSummary(email, start, end),
-                waterTrackingService.getRangeSummary(email, start, end),
+                water,
                 fastingTrackingService.getRangeSummary(email, start, end)
         );
+    }
+
+    private WaterRangeSummaryDto emptyWaterRange(LocalDate start, LocalDate end) {
+        WaterRangeSummaryDto summary = new WaterRangeSummaryDto();
+        summary.setStartDate(start);
+        summary.setEndDate(end);
+        summary.setTotalMl(0);
+        summary.setAverageMl(null);
+        summary.setBestMl(0);
+        summary.setTargetHitDays(0);
+        summary.setDayCount(Math.toIntExact(ChronoUnit.DAYS.between(start, end) + 1));
+        summary.setDays(List.of());
+        return summary;
     }
 
     private ProgressAnalyticsDto.Nutrition buildNutrition(

@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.SleepSessionEntity;
 import com.grun.calorietracker.entity.BodyMeasurementEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.BodyMeasurementRepository;
@@ -24,8 +25,10 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class ProgressAnalyticsServiceImplTest {
@@ -66,6 +69,8 @@ class ProgressAnalyticsServiceImplTest {
         user.setEmail("analytics@grun.app");
         user.setWeight(90.0);
         user.setTimeZone("Europe/Dublin");
+        lenient().when(subscriptionService.hasFeatureAccess(anyString(), eq(SubscriptionFeature.WATER_TRACKING)))
+                .thenReturn(true);
 
         goal = new UserGoalDto();
         goal.setTargetWeight(80.0);
