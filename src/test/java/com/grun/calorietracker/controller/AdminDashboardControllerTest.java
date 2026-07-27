@@ -1,7 +1,12 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminDashboardGrowthDto;
 import com.grun.calorietracker.dto.AdminDashboardSummaryDto;
+import com.grun.calorietracker.dto.AdminGrowthFunnelStepDto;
+import com.grun.calorietracker.dto.AdminGrowthKpiDto;
+import com.grun.calorietracker.dto.AdminGrowthTrendPointDto;
 import com.grun.calorietracker.service.AdminDashboardService;
+import com.grun.calorietracker.service.AdminGrowthAnalyticsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -10,6 +15,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import static org.mockito.Mockito.when;
@@ -26,6 +34,9 @@ class AdminDashboardControllerTest {
 
     @MockBean
     private AdminDashboardService adminDashboardService;
+
+    @MockBean
+    private AdminGrowthAnalyticsService growthAnalyticsService;
 
     @Test
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
@@ -90,6 +101,48 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.aiRejectedLast7Days").value(12))
                 .andExpect(jsonPath("$.aiFailedLast7Days").value(3))
                 .andExpect(jsonPath("$.aiRejectionReasonsLast7Days.WRONG_PORTION").value(7));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    void getGrowth_whenAdmin_returnsPrivacySafeDecisionMetrics() throws Exception {
+        LocalDate from = LocalDate.of(2026, 7, 20);
+        LocalDate to = LocalDate.of(2026, 7, 26);
+        when(growthAnalyticsService.getGrowth(from, to, "Europe/Dublin")).thenReturn(
+                new AdminDashboardGrowthDto(
+                        from,
+                        to,
+                        LocalDate.of(2026, 7, 13),
+                        LocalDate.of(2026, 7, 19),
+                        "Europe/Dublin",
+                        Instant.parse("2026-07-26T12:00:00Z"),
+                        7,
+                        4,
+                        80.0,
+                        List.of(new AdminGrowthKpiDto(
+                                "NEW_USERS", "New users", 8, "COUNT", 4.0, 100.0,
+                                true, "COMPLETE", "Registrations inside the selected period.", "users"
+                        )),
+                        List.of(new AdminGrowthTrendPointDto(to, 2, 7)),
+                        List.of(new AdminGrowthFunnelStepDto(
+                                "REGISTERED", "Registered", 8, 100.0, "COMPLETE", "users"
+                        )),
+                        Map.of("FREE", 6L, "PLUS", 2L),
+                        Map.of("UK_IE", 8L),
+                        Map.of("EN", 8L)
+                )
+        );
+
+        mockMvc.perform(get("/api/v1/admin/dashboard/growth")
+                        .param("from", "2026-07-20")
+                        .param("to", "2026-07-26"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rangeDays").value(7))
+                .andExpect(jsonPath("$.kpis[0].key").value("NEW_USERS"))
+                .andExpect(jsonPath("$.daily[0].activeUsers").value(7))
+                .andExpect(jsonPath("$.planDistribution.PLUS").value(2))
+                .andExpect(jsonPath("$.users").doesNotExist())
+                .andExpect(jsonPath("$.email").doesNotExist());
     }
 
     @Test

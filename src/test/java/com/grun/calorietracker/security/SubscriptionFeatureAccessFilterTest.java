@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,6 +35,8 @@ class SubscriptionFeatureAccessFilterTest {
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress"));
         assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/progress/analytics"));
+        assertNull(SubscriptionFeatureAccessFilter.resolveFeature(
+                "GET", "/api/v1/progress/analytics/basic"));
         assertEquals(SubscriptionFeature.WORKOUT_LOGGING,
                 SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/exercise-logs"));
         assertEquals(SubscriptionFeature.HEALTH_INTEGRATION,

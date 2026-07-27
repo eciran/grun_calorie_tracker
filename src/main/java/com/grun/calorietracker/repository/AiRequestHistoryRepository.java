@@ -66,6 +66,7 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     long countByUser(UserEntity user);
     long countByCreatedAtAfter(LocalDateTime createdAt);
     long countByStatusAndCreatedAtAfter(AiRequestStatus status, LocalDateTime createdAt);
+    long countByStatusAndErrorMessageContainingIgnoreCaseAndCreatedAtAfter(AiRequestStatus status, String errorMessage, LocalDateTime createdAt);
     long countByRejectionReasonAndRejectedAtAfter(AiDraftRejectReason rejectionReason, LocalDateTime rejectedAt);
     @Query("""
             select history.rejectionReason, count(history)
@@ -108,6 +109,34 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
             order by history.requestType, history.status
             """)
     List<Object[]> summarizeByRequestTypeStatusAfter(@Param("createdAfter") LocalDateTime createdAfter);
+    @Query("select coalesce(sum(history.totalTokens), 0) from AiRequestHistoryEntity history where history.createdAt >= :createdAfter")
+    long sumTotalTokensAfter(@Param("createdAfter") LocalDateTime createdAfter);
+
+    @Query("select coalesce(sum(history.estimatedCost), 0) from AiRequestHistoryEntity history where history.createdAt >= :createdAfter and upper(coalesce(history.costCurrency, 'UNSPECIFIED')) = upper(:currency)")
+    double sumEstimatedCostAfter(@Param("createdAfter") LocalDateTime createdAfter,
+                                 @Param("currency") String currency);
+
+    @Query("select history.latencyMs from AiRequestHistoryEntity history where history.createdAt >= :createdAfter and history.latencyMs is not null order by history.latencyMs")
+    List<Long> findLatencySamplesAfter(@Param("createdAfter") LocalDateTime createdAfter, Pageable pageable);
+
+    @Query("""
+            select history.requestType,
+                   subscription.planType,
+                   history.user.marketRegion,
+                   history.user.preferredLanguage,
+                   history.costCurrency,
+                   count(history),
+                   sum(case when history.status = com.grun.calorietracker.enums.AiRequestStatus.FAILED then 1 else 0 end),
+                   sum(case when history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED then 1 else 0 end),
+                   coalesce(sum(history.estimatedCost), 0)
+            from AiRequestHistoryEntity history
+            left join SubscriptionEntity subscription on subscription.user = history.user
+            where history.createdAt >= :createdAfter
+            group by history.requestType, subscription.planType, history.user.marketRegion,
+                     history.user.preferredLanguage, history.costCurrency
+            order by count(history) desc
+            """)
+    List<Object[]> summarizeOperationsSegmentsAfter(@Param("createdAfter") LocalDateTime createdAfter);
     void deleteByUser(UserEntity user);
 }
 

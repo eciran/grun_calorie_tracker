@@ -1,0 +1,20 @@
+package com.grun.calorietracker.enums;
+
+public enum AdminPermission {
+    DASHBOARD_READ,
+    USERS_READ,
+    USERS_MANAGE,
+    CATALOG_READ,
+    CATALOG_MANAGE,
+    GROWTH_READ,
+    GROWTH_MANAGE,
+    FINANCE_READ,
+    FINANCE_MANAGE,
+    TECHNICAL_READ,
+    TECHNICAL_MANAGE,
+    COMPLIANCE_READ,
+    COMPLIANCE_MANAGE,
+    AUDIT_READ,
+    ADMIN_TEAM_READ,
+    ADMIN_TEAM_MANAGE
+}

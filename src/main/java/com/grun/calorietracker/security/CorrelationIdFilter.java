@@ -1,5 +1,8 @@
 package com.grun.calorietracker.security;
 
+import com.grun.calorietracker.service.RuntimeApiMetricsService;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +27,16 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     public static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
     public static final String CORRELATION_ID_ATTRIBUTE = "correlationId";
     private static final String MDC_KEY = "correlationId";
+    private final RuntimeApiMetricsService runtimeApiMetricsService;
+
+    public CorrelationIdFilter() {
+        this.runtimeApiMetricsService = null;
+    }
+
+    @Autowired
+    public CorrelationIdFilter(RuntimeApiMetricsService runtimeApiMetricsService) {
+        this.runtimeApiMetricsService = runtimeApiMetricsService;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -60,6 +73,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         }
 
         long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
+        if (runtimeApiMetricsService != null) {
+            runtimeApiMetricsService.record(durationMs, response.getStatus());
+        }
         log.info(
                 "http_request method={} path={} status={} durationMs={}",
                 request.getMethod(),

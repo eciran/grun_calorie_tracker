@@ -2,10 +2,12 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.NotificationCampaignEntity;
+import com.grun.calorietracker.entity.NotificationCampaignRecipientEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.*;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
+import com.grun.calorietracker.repository.NotificationCampaignRecipientRepository;
 import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AdminAuditService;
@@ -27,6 +29,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminNotificationCampaignServiceImpl implements AdminNotificationCampaignService {
     private final NotificationCampaignRepository campaignRepository;
+    private final NotificationCampaignRecipientRepository recipientRepository;
     private final UserRepository userRepository;
     private final AdminAuditService adminAuditService;
 
@@ -53,6 +56,34 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
     @Transactional(readOnly = true)
     public AdminNotificationCampaignDto get(Long id) {
         return toDto(requireCampaign(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminNotificationCampaignRecipientPageDto recipients(
+            Long id, NotificationCampaignRecipientStatus status, int page, int size) {
+        requireCampaign(id);
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100),
+                Sort.by(Sort.Direction.DESC, "processedAt"));
+        var result = status == null
+                ? recipientRepository.findByCampaignId(id, pageable)
+                : recipientRepository.findByCampaignIdAndStatus(id, status, pageable);
+        var rows = result.getContent().stream().map(recipient ->
+                new AdminNotificationCampaignRecipientDto(
+                        recipient.getId(),
+                        maskEmail(recipient.getUser().getEmail()),
+                        recipient.getStatus(),
+                        recipient.getPushSent(),
+                        recipient.getPushFailed(),
+                        recipient.getSuppressionReason(),
+                        recipient.getProcessedAt(),
+                        recipient.getOpenedAt(),
+                        recipient.getClickedAt(),
+                        recipient.getDismissedAt(),
+                        recipient.getConvertedAt()
+                )).toList();
+        return new AdminNotificationCampaignRecipientPageDto(rows, result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages(), result.isFirst(), result.isLast());
     }
 
     @Override
@@ -134,7 +165,7 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
             ArrayList<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("accountEnabled")));
             predicates.add(cb.isFalse(root.get("accountLocked")));
-            predicates.add(cb.notEqual(root.get("role"), UserRole.ADMIN));
+            predicates.add(root.get("role").in(UserRole.STANDARD, UserRole.PRO));
             predicates.add(cb.greaterThan(root.get("id"), afterUserId));
             if (campaign.getCategory() == NotificationCampaignCategory.MARKETING) {
                 predicates.add(cb.isTrue(root.get("marketingNotificationsEnabled")));
@@ -144,6 +175,19 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
             }
             if (campaign.getTargetLanguage() != null) {
                 predicates.add(cb.equal(root.get("preferredLanguage"), campaign.getTargetLanguage()));
+            }
+            if (campaign.getCategory() == NotificationCampaignCategory.MARKETING && query != null) {
+                Subquery<Long> recentDeliveries = query.subquery(Long.class);
+                Root<NotificationCampaignRecipientEntity> recipient = recentDeliveries.from(NotificationCampaignRecipientEntity.class);
+                recentDeliveries.select(cb.count(recipient));
+                recentDeliveries.where(
+                        cb.equal(recipient.get("user").get("id"), root.get("id")),
+                        cb.equal(recipient.get("campaign").get("category"), NotificationCampaignCategory.MARKETING),
+                        cb.notEqual(recipient.get("status"), NotificationCampaignRecipientStatus.SUPPRESSED),
+                        cb.greaterThanOrEqualTo(recipient.get("createdAt"),
+                                LocalDateTime.now().minusHours(campaign.getFrequencyCapHours()))
+                );
+                predicates.add(cb.lt(recentDeliveries, campaign.getFrequencyCapMax().longValue()));
             }
             if (campaign.getTargetPlan() != null && query != null) {
                 Subquery<Long> matchingPlan = query.subquery(Long.class);
@@ -181,6 +225,8 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
         entity.setTargetPlan(request.getTargetPlan());
         entity.setTargetRegion(request.getTargetRegion());
         entity.setTargetLanguage(request.getTargetLanguage());
+        entity.setFrequencyCapHours(request.getFrequencyCapHours() == null ? 24 : request.getFrequencyCapHours());
+        entity.setFrequencyCapMax(request.getFrequencyCapMax() == null ? 3 : request.getFrequencyCapMax());
     }
 
     private void requireDraft(NotificationCampaignEntity entity) {
@@ -192,6 +238,16 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
     private NotificationCampaignEntity requireCampaign(Long id) {
         return campaignRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification campaign not found"));
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return "user";
+        }
+        int separator = email.indexOf('@');
+        String local = email.substring(0, separator);
+        String masked = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 2) + "***";
+        return masked + email.substring(separator);
     }
 
     private String trimToNull(String value) {
@@ -232,6 +288,13 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
         dto.setPushSentCount(entity.getPushSentCount());
         dto.setPushSkippedCount(entity.getPushSkippedCount());
         dto.setPushFailedCount(entity.getPushFailedCount());
+        dto.setOpenedCount(entity.getOpenedCount());
+        dto.setClickedCount(entity.getClickedCount());
+        dto.setDismissedCount(entity.getDismissedCount());
+        dto.setConvertedCount(entity.getConvertedCount());
+        dto.setSuppressedCount(entity.getSuppressedCount());
+        dto.setFrequencyCapHours(entity.getFrequencyCapHours());
+        dto.setFrequencyCapMax(entity.getFrequencyCapMax());
         dto.setFailureMessage(entity.getFailureMessage());
         return dto;
     }

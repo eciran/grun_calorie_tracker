@@ -20,6 +20,7 @@ import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.service.DashboardService;
 import com.grun.calorietracker.service.HealthIntegrationService;
+import com.grun.calorietracker.service.MicronutrientReferenceService;
 import com.grun.calorietracker.service.StepTrackingService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
@@ -51,12 +52,18 @@ public class DashboardServiceImpl implements DashboardService {
     private final HealthIntegrationService healthIntegrationService;
     private final StepTrackingService stepTrackingService;
     private final SubscriptionService subscriptionService;
+    private final MicronutrientReferenceService micronutrientReferenceService;
 
     @Override
     @Transactional(readOnly = true)
     public DailySummaryDto getDailySummary(String email, LocalDate date) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+
+        boolean micronutrientDetailsAllowed = subscriptionService.hasFeatureAccess(
+                email,
+                SubscriptionFeature.MICRONUTRIENT_DETAILS
+        );
 
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = date.plusDays(1).atStartOfDay();
@@ -98,7 +105,7 @@ public class DashboardServiceImpl implements DashboardService {
                         start,
                         end
                 ).stream()
-                .map(this::toFoodLogDto)
+                .map(entity -> toFoodLogDto(entity, micronutrientDetailsAllowed))
                 .toList();
         List<ExerciseLogsDto> exerciseLogs = exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                         user,
@@ -131,15 +138,25 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setProteinProgressPercent(percent(consumedProtein, targetProtein));
         dto.setFatProgressPercent(percent(consumedFat, targetFat));
         dto.setCarbsProgressPercent(percent(consumedCarbs, targetCarbs));
-        dto.setConsumedMicros(consumedMicros);
-        MicronutrientTotalsDto targetMicros = defaultTargetMicros();
-        dto.setTargetMicros(targetMicros);
-        dto.setRemainingMicros(calculateRemainingMicros(consumedMicros, targetMicros));
+        dto.setMicronutrientDetailsAvailable(micronutrientDetailsAllowed);
         dto.setProteinTargetHit(targetProtein > 0 && consumedProtein >= targetProtein);
-        dto.setFiberTargetHit(consumedMicros != null && consumedMicros.getFiber() != null && consumedMicros.getFiber() >= 25.0);
-        dto.setSugarWarning(consumedMicros != null && consumedMicros.getSugar() != null && consumedMicros.getSugar() > 50.0);
-        dto.setSodiumWarning(consumedMicros != null && consumedMicros.getSodium() != null && consumedMicros.getSodium() > 2300.0);
-        dto.setNutritionQualityScore(calculateNutritionQualityScore(dto));
+        if (micronutrientDetailsAllowed) {
+            dto.setConsumedMicros(consumedMicros);
+            dto.setMicronutrientDataQuality(micronutrientReferenceService.assessDataQuality(consumedMicros, user.getAge()));
+            MicronutrientTotalsDto targetMicros = micronutrientReferenceService.resolveTargets(user.getAge());
+            dto.setTargetMicros(targetMicros);
+            dto.setRemainingMicros(micronutrientReferenceService.calculateRemaining(consumedMicros, targetMicros));
+            if (targetMicros != null) {
+                dto.setFiberTargetHit(consumedMicros != null && consumedMicros.getFiber() != null
+                        ? consumedMicros.getFiber() >= targetMicros.getFiber()
+                        : null);
+                dto.setSugarWarning(null);
+                dto.setSodiumWarning(consumedMicros != null && consumedMicros.getSodium() != null
+                        ? consumedMicros.getSodium() > targetMicros.getSodium()
+                        : null);
+                dto.setNutritionQualityScore(calculateNutritionQualityScore(dto));
+            }
+        }
         dto.setMealMacroDistribution(calculateMealMacroDistribution(foodLogs, consumedCalories));
 
         dto.setCurrentWeight(currentWeight);
@@ -202,7 +219,7 @@ public class DashboardServiceImpl implements DashboardService {
         return value == null ? null : LocalDate.parse(value.toString());
     }
 
-    private FoodLogsDto toFoodLogDto(FoodLogsEntity entity) {
+    private FoodLogsDto toFoodLogDto(FoodLogsEntity entity, boolean includeMicronutrients) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(entity.getId());
         if (entity.getFoodItem() != null) {
@@ -222,21 +239,23 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setSnapshotProtein(entity.getSnapshotProtein());
         dto.setSnapshotCarbs(entity.getSnapshotCarbs());
         dto.setSnapshotFat(entity.getSnapshotFat());
-        dto.setSnapshotFiber(entity.getSnapshotFiber());
-        dto.setSnapshotSugar(entity.getSnapshotSugar());
-        dto.setSnapshotSaturatedFat(entity.getSnapshotSaturatedFat());
-        dto.setSnapshotSodium(entity.getSnapshotSodium());
-        dto.setSnapshotPotassium(entity.getSnapshotPotassium());
-        dto.setSnapshotCholesterol(entity.getSnapshotCholesterol());
-        dto.setSnapshotCalcium(entity.getSnapshotCalcium());
-        dto.setSnapshotIron(entity.getSnapshotIron());
-        dto.setSnapshotMagnesium(entity.getSnapshotMagnesium());
-        dto.setSnapshotZinc(entity.getSnapshotZinc());
-        dto.setSnapshotVitaminA(entity.getSnapshotVitaminA());
-        dto.setSnapshotVitaminC(entity.getSnapshotVitaminC());
-        dto.setSnapshotVitaminD(entity.getSnapshotVitaminD());
-        dto.setSnapshotVitaminE(entity.getSnapshotVitaminE());
-        dto.setSnapshotVitaminB12(entity.getSnapshotVitaminB12());
+        if (includeMicronutrients) {
+            dto.setSnapshotFiber(entity.getSnapshotFiber());
+            dto.setSnapshotSugar(entity.getSnapshotSugar());
+            dto.setSnapshotSaturatedFat(entity.getSnapshotSaturatedFat());
+            dto.setSnapshotSodium(entity.getSnapshotSodium());
+            dto.setSnapshotPotassium(entity.getSnapshotPotassium());
+            dto.setSnapshotCholesterol(entity.getSnapshotCholesterol());
+            dto.setSnapshotCalcium(entity.getSnapshotCalcium());
+            dto.setSnapshotIron(entity.getSnapshotIron());
+            dto.setSnapshotMagnesium(entity.getSnapshotMagnesium());
+            dto.setSnapshotZinc(entity.getSnapshotZinc());
+            dto.setSnapshotVitaminA(entity.getSnapshotVitaminA());
+            dto.setSnapshotVitaminC(entity.getSnapshotVitaminC());
+            dto.setSnapshotVitaminD(entity.getSnapshotVitaminD());
+            dto.setSnapshotVitaminE(entity.getSnapshotVitaminE());
+            dto.setSnapshotVitaminB12(entity.getSnapshotVitaminB12());
+        }
         dto.setSource(entity.getSource());
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
@@ -354,65 +373,28 @@ public class DashboardServiceImpl implements DashboardService {
                 && user.getWeight() != null;
     }
 
-    private MicronutrientTotalsDto defaultTargetMicros() {
-        MicronutrientTotalsDto target = new MicronutrientTotalsDto();
-        target.setFiber(25.0);
-        target.setSugar(50.0);
-        target.setSaturatedFat(20.0);
-        target.setSodium(2300.0);
-        target.setPotassium(3500.0);
-        target.setCholesterol(300.0);
-        target.setCalcium(1000.0);
-        target.setIron(14.0);
-        target.setMagnesium(375.0);
-        target.setZinc(10.0);
-        target.setVitaminA(800.0);
-        target.setVitaminC(80.0);
-        target.setVitaminD(5.0);
-        target.setVitaminE(12.0);
-        target.setVitaminB12(2.5);
-        return target;
-    }
-
-    private MicronutrientTotalsDto calculateRemainingMicros(MicronutrientTotalsDto consumed, MicronutrientTotalsDto target) {
-        MicronutrientTotalsDto remaining = new MicronutrientTotalsDto();
-        remaining.setFiber(round(target.getFiber() - micro(consumed == null ? null : consumed.getFiber())));
-        remaining.setSugar(round(target.getSugar() - micro(consumed == null ? null : consumed.getSugar())));
-        remaining.setSaturatedFat(round(target.getSaturatedFat() - micro(consumed == null ? null : consumed.getSaturatedFat())));
-        remaining.setSodium(round(target.getSodium() - micro(consumed == null ? null : consumed.getSodium())));
-        remaining.setPotassium(round(target.getPotassium() - micro(consumed == null ? null : consumed.getPotassium())));
-        remaining.setCholesterol(round(target.getCholesterol() - micro(consumed == null ? null : consumed.getCholesterol())));
-        remaining.setCalcium(round(target.getCalcium() - micro(consumed == null ? null : consumed.getCalcium())));
-        remaining.setIron(round(target.getIron() - micro(consumed == null ? null : consumed.getIron())));
-        remaining.setMagnesium(round(target.getMagnesium() - micro(consumed == null ? null : consumed.getMagnesium())));
-        remaining.setZinc(round(target.getZinc() - micro(consumed == null ? null : consumed.getZinc())));
-        remaining.setVitaminA(round(target.getVitaminA() - micro(consumed == null ? null : consumed.getVitaminA())));
-        remaining.setVitaminC(round(target.getVitaminC() - micro(consumed == null ? null : consumed.getVitaminC())));
-        remaining.setVitaminD(round(target.getVitaminD() - micro(consumed == null ? null : consumed.getVitaminD())));
-        remaining.setVitaminE(round(target.getVitaminE() - micro(consumed == null ? null : consumed.getVitaminE())));
-        remaining.setVitaminB12(round(target.getVitaminB12() - micro(consumed == null ? null : consumed.getVitaminB12())));
-        return remaining;
-    }
-
-    private double micro(Double value) {
-        return value == null ? 0.0 : value;
-    }
-
     private Integer calculateNutritionQualityScore(DailySummaryDto dto) {
-        int score = 0;
-        if (Boolean.TRUE.equals(dto.getProteinTargetHit())) {
-            score += 25;
+        int achieved = 0;
+        int evaluated = 0;
+        if (dto.getTargetProtein() != null && dto.getTargetProtein() > 0) {
+            evaluated++;
+            if (Boolean.TRUE.equals(dto.getProteinTargetHit())) {
+                achieved++;
+            }
         }
-        if (Boolean.TRUE.equals(dto.getFiberTargetHit())) {
-            score += 25;
+        if (dto.getFiberTargetHit() != null) {
+            evaluated++;
+            if (Boolean.TRUE.equals(dto.getFiberTargetHit())) {
+                achieved++;
+            }
         }
-        if (!Boolean.TRUE.equals(dto.getSugarWarning())) {
-            score += 25;
+        if (dto.getSodiumWarning() != null) {
+            evaluated++;
+            if (!Boolean.TRUE.equals(dto.getSodiumWarning())) {
+                achieved++;
+            }
         }
-        if (!Boolean.TRUE.equals(dto.getSodiumWarning())) {
-            score += 25;
-        }
-        return score;
+        return evaluated == 0 ? null : (int) Math.round(achieved * 100.0 / evaluated);
     }
 
     private List<MealMacroDistributionDto> calculateMealMacroDistribution(List<FoodLogsDto> foodLogs, Double totalCalories) {

@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.ProgressAnalyticsDto;
+import com.grun.calorietracker.dto.ProgressBasicAnalyticsDto;
 import com.grun.calorietracker.service.ProgressAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,6 +31,25 @@ import java.time.LocalDate;
 public class ProgressAnalyticsController {
 
     private final ProgressAnalyticsService progressAnalyticsService;
+
+    @GetMapping("/basic")
+    @Operation(
+            summary = "Get basic period progress analytics",
+            description = "Returns plan-independent nutrition, activity, habit and coverage summaries for an inclusive date range. Advanced projections, comparisons and relationship insights are excluded."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Basic progress analytics returned."),
+            @ApiResponse(responseCode = "400", description = "Date range is invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<ProgressBasicAnalyticsDto> getBasicAnalytics(
+            @RequestParam LocalDate start,
+            @RequestParam LocalDate end,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(progressAnalyticsService.getBasicAnalytics(
+                userDetails.getUsername(), start, end));
+    }
 
     @GetMapping
     @Operation(

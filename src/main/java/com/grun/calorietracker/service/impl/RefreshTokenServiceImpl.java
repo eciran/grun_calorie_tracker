@@ -3,11 +3,14 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.AuthResponse;
 import com.grun.calorietracker.entity.RefreshTokenEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.UserActivitySource;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.RefreshTokenService;
+import com.grun.calorietracker.service.UserActivityService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,7 @@ import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -28,6 +32,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
+    private final UserActivityService userActivityService;
 
     @Value("${grun.refresh-token.expiration-days:30}")
     private long expirationDays;
@@ -78,6 +83,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         }
         String newRefreshToken = createRefreshToken(managedUser);
         String accessToken = jwtUtil.generateToken(managedUser.getEmail());
+        recordActivitySafely(managedUser.getEmail());
 
         return new AuthResponse(accessToken, newRefreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Token refreshed successfully");
     }
@@ -99,6 +105,14 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         LocalDateTime now = LocalDateTime.now();
         refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user)
                 .forEach(token -> token.setRevokedAt(now));
+    }
+
+    private void recordActivitySafely(String email) {
+        try {
+            userActivityService.recordActivity(email, UserActivitySource.TOKEN_REFRESH);
+        } catch (RuntimeException exception) {
+            log.warn("Refresh token activity could not be recorded", exception);
+        }
     }
 
     private RefreshTokenEntity handlePotentialTokenReuse(String tokenHash) {

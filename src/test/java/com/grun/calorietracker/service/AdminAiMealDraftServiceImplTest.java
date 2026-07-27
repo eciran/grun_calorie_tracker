@@ -17,6 +17,7 @@ import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.service.impl.AdminAiMealDraftServiceImpl;
 import com.grun.calorietracker.service.impl.AdminAiRequestPayloadSanitizer;
 import org.junit.jupiter.api.Test;
@@ -41,10 +42,11 @@ class AdminAiMealDraftServiceImplTest {
     private final AiRequestHistoryRepository historyRepository = mock(AiRequestHistoryRepository.class);
     private final SubscriptionService subscriptionService = mock(SubscriptionService.class);
     private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
+    private final SubscriptionProviderEventRepository providerEventRepository = mock(SubscriptionProviderEventRepository.class);
     private final PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
     private final AiProperties aiProperties = new AiProperties();
     private final AdminAiRequestPayloadSanitizer payloadSanitizer = new AdminAiRequestPayloadSanitizer(new ObjectMapper());
-    private final AdminAiMealDraftServiceImpl service = new AdminAiMealDraftServiceImpl(historyRepository, subscriptionService, notificationRepository, pushDeliveryService, aiProperties, payloadSanitizer);
+    private final AdminAiMealDraftServiceImpl service = new AdminAiMealDraftServiceImpl(historyRepository, subscriptionService, notificationRepository, providerEventRepository, pushDeliveryService, aiProperties, payloadSanitizer);
 
     @Test
     void listRequests_whenRefundableOnly_returnsReviewMetadata() {

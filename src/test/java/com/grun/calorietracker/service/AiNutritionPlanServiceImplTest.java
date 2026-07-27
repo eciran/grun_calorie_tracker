@@ -70,7 +70,10 @@ class AiNutritionPlanServiceImplTest {
                 properties, List.of(provider), historyRepository, userRepository,
                 goalRepository, mealPlanRepository, workoutPlanRepository, mealPlanService,
                 subscriptionService, aiCreditPricingService, nutritionPreferenceService, objectMapper,
-                new AiProviderConfigurationValidatorImpl(properties));
+                new AiProviderConfigurationValidatorImpl(
+                        properties,
+                        mock(AiOperationsPolicyService.class)
+                ));
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("user@example.com");

@@ -57,6 +57,9 @@ class AppStartupServiceImplTest {
     @Mock
     private OnboardingAnalyticsService onboardingAnalyticsService;
 
+    @Mock
+    private UserActivityService userActivityService;
+
     private AppStartupServiceImpl appStartupService;
 
     @BeforeEach
@@ -70,7 +73,8 @@ class AppStartupServiceImplTest {
                 healthIntegrationService,
                 new UserTimeZoneSupport(),
                 onboardingService,
-                onboardingAnalyticsService
+                onboardingAnalyticsService,
+                userActivityService
         );
         when(onboardingService.getState("user@example.com")).thenReturn(onboardingState());
         when(userService.getMyProfile("user@example.com")).thenReturn(myProfile());

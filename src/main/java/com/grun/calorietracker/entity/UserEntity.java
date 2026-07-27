@@ -8,6 +8,7 @@ import com.grun.calorietracker.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -47,6 +48,12 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @Column(name = "admin_mfa_enabled", nullable = false)
+    private Boolean adminMfaEnabled = false;
+
+    @Column(name = "admin_role_updated_at")
+    private Instant adminRoleUpdatedAt;
+
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
 
@@ -67,6 +74,9 @@ public class UserEntity {
 
     @Column(name = "email_verified", nullable = false)
     private Boolean emailVerified = true;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
 
     @Column(name = "password_set", nullable = false)
     private Boolean passwordSet = true;
@@ -115,5 +125,36 @@ public class UserEntity {
 
     @Column(name = "marketing_notifications_enabled", nullable = false)
     private Boolean marketingNotificationsEnabled = false;
+
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
+    @Column(name = "last_active_at")
+    private Instant lastActiveAt;
+
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (Boolean.TRUE.equals(emailVerified) && emailVerifiedAt == null) {
+            emailVerifiedAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
 
 }

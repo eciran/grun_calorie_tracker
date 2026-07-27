@@ -10,6 +10,7 @@ import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.OnboardingStatus;
 import com.grun.calorietracker.enums.ProductAnalyticsEventType;
 import com.grun.calorietracker.enums.SubscriptionFeature;
+import com.grun.calorietracker.enums.UserActivitySource;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -19,6 +20,7 @@ import com.grun.calorietracker.service.HealthIntegrationService;
 import com.grun.calorietracker.service.OnboardingAnalyticsService;
 import com.grun.calorietracker.service.OnboardingService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.UserActivityService;
 import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
@@ -44,12 +46,14 @@ public class AppStartupServiceImpl implements AppStartupService {
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final OnboardingService onboardingService;
     private final OnboardingAnalyticsService onboardingAnalyticsService;
+    private final UserActivityService userActivityService;
 
     @Override
     @Transactional(readOnly = true)
     public AppStartupDto getStartupState(String email) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        recordActivitySafely(email);
 
         Optional<UserGoalEntity> goalOpt = goalRepository.findByUser(user);
         boolean profileComplete = isProfileComplete(user);
@@ -77,6 +81,14 @@ public class AppStartupServiceImpl implements AppStartupService {
                 .dashboardReady(dashboardReady)
                 .nextStep(resolveNextStep(onboardingCompleted))
                 .build();
+    }
+
+    private void recordActivitySafely(String email) {
+        try {
+            userActivityService.recordActivity(email, UserActivitySource.APP_STARTUP);
+        } catch (RuntimeException exception) {
+            log.warn("User startup activity could not be recorded", exception);
+        }
     }
 
     private void recordOnboardingEntrySafely(String email, OnboardingStateDto onboardingState) {

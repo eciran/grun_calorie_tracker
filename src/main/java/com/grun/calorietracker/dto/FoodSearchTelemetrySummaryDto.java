@@ -1,5 +1,7 @@
 package com.grun.calorietracker.dto;
 
+import java.util.List;
+
 public record FoodSearchTelemetrySummaryDto(
         int windowHours,
         long searches,
@@ -7,6 +9,8 @@ public record FoodSearchTelemetrySummaryDto(
         long selectedSearches,
         long noSelectionSearches,
         double zeroResultRate,
-        double selectionRate
+        double selectionRate,
+        List<ZeroResultQuery> topZeroResultQueries
 ) {
+    public record ZeroResultQuery(String query, long searches) {}
 }

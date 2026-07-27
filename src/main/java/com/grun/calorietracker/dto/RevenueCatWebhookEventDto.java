@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 import java.util.List;
 
 @Data
@@ -53,6 +55,14 @@ public class RevenueCatWebhookEventDto {
 
         private String store;
         private String environment;
+
+        @JsonProperty("presented_offering_id")
+        private String presentedOfferingId;
+
+        @JsonProperty("price_in_purchased_currency")
+        private BigDecimal priceInPurchasedCurrency;
+
+        private String currency;
 
         @JsonProperty("cancel_reason")
         private String cancelReason;

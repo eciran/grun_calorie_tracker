@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.VerifiedGoogleIdentityDto;
 import com.grun.calorietracker.entity.FederatedIdentityEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AuthProvider;
+import com.grun.calorietracker.enums.UserActivitySource;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -15,16 +16,20 @@ import com.grun.calorietracker.service.FederatedAuthService;
 import com.grun.calorietracker.service.AppleIdTokenVerifierService;
 import com.grun.calorietracker.service.GoogleIdTokenVerifierService;
 import com.grun.calorietracker.service.RefreshTokenService;
+import com.grun.calorietracker.service.UserActivityService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FederatedAuthServiceImpl implements FederatedAuthService {
 
     private final GoogleIdTokenVerifierService googleIdTokenVerifierService;
@@ -34,6 +39,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
+    private final UserActivityService userActivityService;
 
     @Override
     @Transactional
@@ -63,6 +69,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
         if (!isSessionAllowed(user)) {
             throw new InvalidCredentialsException("Account is disabled or locked");
         }
+        recordLoginSafely(user.getEmail());
         return new AuthResponse(
                 jwtUtil.generateToken(user.getEmail()),
                 refreshTokenService.createRefreshToken(user),
@@ -70,6 +77,14 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
                 jwtUtil.getExpirationSeconds(),
                 message
         );
+    }
+
+    private void recordLoginSafely(String email) {
+        try {
+            userActivityService.recordLogin(email, UserActivitySource.FEDERATED_LOGIN);
+        } catch (RuntimeException exception) {
+            log.warn("Federated login activity could not be recorded", exception);
+        }
     }
 
     private UserEntity linkIdentity(AuthProvider provider,
@@ -105,6 +120,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
     private UserEntity verifyExistingProviderEmail(UserEntity user, boolean emailVerified) {
         if (!Boolean.TRUE.equals(user.getEmailVerified())) {
             user.setEmailVerified(emailVerified);
+            user.setEmailVerifiedAt(Instant.now());
             return userRepository.save(user);
         }
         return user;
@@ -115,6 +131,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
         user.setEmail(email);
         user.setName(name);
         user.setEmailVerified(emailVerified);
+        user.setEmailVerifiedAt(Instant.now());
         user.setRole(UserRole.STANDARD);
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setPasswordSet(false);

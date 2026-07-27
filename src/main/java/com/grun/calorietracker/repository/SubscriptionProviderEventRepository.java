@@ -21,6 +21,38 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
     long countByReceivedAtAfter(LocalDateTime receivedAt);
     List<SubscriptionProviderEventEntity> findByUserOrderByReceivedAtDesc(UserEntity user);
 
+    @Query("""
+            select count(event) from SubscriptionProviderEventEntity event
+            where event.productId = :productId
+              and (:offeringId is null or event.presentedOfferingId = :offeringId)
+              and (:store is null or event.store = :store)
+              and event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+            """)
+    long countPromoMappingObservations(@Param("productId") String productId,
+                                       @Param("offeringId") String offeringId,
+                                       @Param("store") String store);
+
+    @Query("""
+            select max(event.processedAt) from SubscriptionProviderEventEntity event
+            where event.productId = :productId
+              and (:offeringId is null or event.presentedOfferingId = :offeringId)
+              and (:store is null or event.store = :store)
+              and event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+            """)
+    LocalDateTime lastPromoMappingObservation(@Param("productId") String productId,
+                                               @Param("offeringId") String offeringId,
+                                               @Param("store") String store);
+
+    @Query("""
+            select event.purchaseCurrency, coalesce(sum(event.priceAmountMinor), 0)
+            from SubscriptionProviderEventEntity event
+            where event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+              and event.processedAt >= :processedAfter
+              and event.purchaseCurrency is not null
+              and event.priceAmountMinor is not null
+            group by event.purchaseCurrency
+            """)
+    List<Object[]> summarizeRevenueByCurrencyAfter(@Param("processedAfter") LocalDateTime processedAfter);
     @Modifying
     @Query("""
             update SubscriptionProviderEventEntity event

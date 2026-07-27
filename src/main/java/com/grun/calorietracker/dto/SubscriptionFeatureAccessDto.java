@@ -26,6 +26,7 @@ public class SubscriptionFeatureAccessDto {
     private Boolean nextMealSuggestions;
     private Boolean advancedMacroTargets;
     private Boolean micronutrientDetails;
+    private Boolean micronutrientAnalytics;
     private Boolean dataExport;
     private Boolean fastingBasic;
     private Boolean fastingAdvanced;

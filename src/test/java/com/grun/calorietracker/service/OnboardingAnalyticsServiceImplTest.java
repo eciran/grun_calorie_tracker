@@ -57,9 +57,10 @@ class OnboardingAnalyticsServiceImplTest {
         verify(eventRepository).save(captor.capture());
         ProductAnalyticsEventEntity event = captor.getValue();
         assertEquals(ProductAnalyticsEventType.ONBOARDING_STEP_VIEWED, event.getEventType());
+        assertEquals(1, event.getEventVersion());
         assertEquals("mobile_onboarding", event.getSurface());
         assertEquals("UK_IE", event.getMarketRegion());
-        assertEquals("ONBOARDING_STEP", event.getTargetType());
+        assertEquals("ONBOARDING_STEP:NUTRITION", event.getTargetType());
         assertNull(event.getTargetId());
         assertNull(event.getMetadataJson());
     }

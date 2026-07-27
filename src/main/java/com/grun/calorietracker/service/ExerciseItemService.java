@@ -12,8 +12,7 @@ public interface ExerciseItemService {
                                     String primaryMuscleGroup,
                                     String equipment,
                                     ExerciseDifficulty difficulty,
-                                    Boolean active,
-                                    int page,
+                                   int page,
                                     int size);
     ExerciseItemDto getItem(Long id);
     ExerciseItemDto addItem(ExerciseItemDto dto);

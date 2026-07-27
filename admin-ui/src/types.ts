@@ -30,6 +30,52 @@ export type DashboardSummary = {
   aiRejectionReasonsLast7Days?: Record<string, number>;
 };
 
+export type GrowthKpi = {
+  key: string;
+  label: string;
+  value: number;
+  unit: "COUNT" | "PERCENT";
+  previousValue?: number | null;
+  changePercent?: number | null;
+  comparisonAvailable: boolean;
+  dataStatus: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+  detail: string;
+  targetSection?: string;
+};
+
+export type GrowthTrendPoint = {
+  date: string;
+  registrations: number;
+  activeUsers: number;
+};
+
+export type GrowthFunnelStep = {
+  key: string;
+  label: string;
+  users: number;
+  conversionFromRegistrationPercent: number;
+  dataStatus: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+  targetSection?: string;
+};
+
+export type DashboardGrowth = {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  timeZone: string;
+  generatedAt: string;
+  rangeDays: number;
+  legacyUsersWithoutRegistrationDate: number;
+  registrationCoveragePercent: number;
+  kpis: GrowthKpi[];
+  daily: GrowthTrendPoint[];
+  funnel: GrowthFunnelStep[];
+  planDistribution: Record<string, number>;
+  regionDistribution: Record<string, number>;
+  languageDistribution: Record<string, number>;
+};
+
 export type SystemHealth = Record<string, unknown>;
 
 export type UserProfile = {
@@ -52,6 +98,48 @@ export type UserProfile = {
   accountEnabled?: boolean;
   accountLocked?: boolean;
   statusReason?: string;
+  createdAt?: string;
+  emailVerifiedAt?: string;
+  lastLoginAt?: string;
+  lastActiveAt?: string;
+};
+
+export type AdminUserSupportNote = {
+  id?: number;
+  note?: string;
+  tags?: string[];
+  createdBy?: string;
+  createdAt?: string;
+};
+
+export type AdminCustomer360 = {
+  profile: UserProfile;
+  subscription: {
+    plan?: string; status?: string; billingPeriod?: string; startDate?: string; endDate?: string;
+    autoRenew?: boolean; aiMonthlyQuota?: number; aiUsedThisPeriod?: number;
+    aiAddonRemaining?: number; aiAddonExpiresAt?: string; activeFeatures?: string[];
+  };
+  ai: {
+    totalRequests?: number; lastRequestAt?: string; recentStatusCounts?: Record<string, number>;
+    recentRequestTypeCounts?: Record<string, number>; recentSampleSize?: number;
+  };
+  notifications: {
+    total?: number; unread?: number;
+    recent?: Array<{ id?: number; type?: string; severity?: string; source?: string; read?: boolean; createdAt?: string }>;
+  };
+  security: {
+    activeSessions?: number;
+    recentEvents?: Array<{ id?: number; eventType?: string; provider?: string; resultCode?: string; createdAt?: string }>;
+  };
+  consent: {
+    total?: number;
+    recent?: Array<{ id?: number; consentType?: string; version?: string; status?: string; source?: string; createdAt?: string }>;
+  };
+  activity: {
+    foodLogCount?: number; lastFoodLogAt?: string; productEventCount?: number;
+    recentProductEvents?: Array<{ id?: number; eventType?: string; surface?: string; createdAt?: string }>;
+  };
+  supportNotes?: AdminUserSupportNote[];
 };
 
 export type AdminAchievementDefinition = {
@@ -474,6 +562,7 @@ export type SubscriptionFeatureAccess = {
   nextMealSuggestions?: boolean;
   advancedMacroTargets?: boolean;
   micronutrientDetails?: boolean;
+  micronutrientAnalytics?: boolean;
   dataExport?: boolean;
   fastingBasic?: boolean;
   fastingAdvanced?: boolean;
@@ -627,7 +716,28 @@ export type NotificationCampaign = {
   pushSentCount?: number;
   pushSkippedCount?: number;
   pushFailedCount?: number;
+  openedCount?: number;
+  clickedCount?: number;
+  dismissedCount?: number;
+  convertedCount?: number;
+  suppressedCount?: number;
+  frequencyCapHours?: number;
+  frequencyCapMax?: number;
   failureMessage?: string;
+};
+
+export type NotificationCampaignRecipient = {
+  id?: number;
+  userReference?: string;
+  status?: "CREATED" | "DELIVERED" | "SUPPRESSED" | "FAILED";
+  pushSent?: number;
+  pushFailed?: number;
+  suppressionReason?: string;
+  processedAt?: string;
+  openedAt?: string;
+  clickedAt?: string;
+  dismissedAt?: string;
+  convertedAt?: string;
 };
 
 export type NotificationCampaignPreview = {
@@ -722,16 +832,53 @@ export type AiMonitoringSummary = {
   rejected?: number;
   failed?: number;
   failureRate?: number;
+  rejectionRate?: number;
+  successRate?: number;
+  timeoutCount?: number;
+  latencyP50Ms?: number;
+  latencyP95Ms?: number;
+  latencyP99Ms?: number;
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
   quotaConsumedAmount?: number;
   quotaRefundedAmount?: number;
   estimatedCostByCurrency?: Record<string, number>;
+  subscriptionRevenueByCurrency?: Record<string, number>;
+  costToRevenueRatioByCurrency?: Record<string, number>;
   providerModels?: AiProviderModelMetric[];
   requestStatuses?: AiRequestStatusMetric[];
+  segments?: AiOperationsSegmentMetric[];
+  attentionRequired?: boolean;
+  alerts?: { code?: string; severity?: string; message?: string; requestType?: string; currency?: string }[];
 };
 
+export type AiOperationsPolicy = {
+  version?: number;
+  circuitOpen?: boolean;
+  failureRateThreshold?: number;
+  rejectionRateThreshold?: number;
+  maxTokensPer24Hours?: number;
+  maxCostPer24Hours?: number;
+  costCurrency?: string;
+  activeModel?: string;
+  activePromptVersion?: string;
+  rollbackAvailable?: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
+export type AiOperationsSegmentMetric = {
+  requestType?: string;
+  plan?: string;
+  region?: string;
+  language?: string;
+  costCurrency?: string;
+  requestCount?: number;
+  failedCount?: number;
+  rejectedCount?: number;
+  estimatedCost?: number;
+};
 export type AiProviderModelMetric = {
   provider?: string;
   model?: string;
@@ -845,6 +992,65 @@ export type AdminPushMonitoring = {
   oneSignalConfigured?: boolean;
 };
 
+export type AdminEngagementMetric = {
+  started?: number;
+  completed?: number;
+  firstCompletions?: number;
+  failed?: number;
+  uniqueUsers?: number;
+  completionRate?: number;
+  averageDurationMs?: number;
+};
+
+export type AdminEngagementAnalytics = {
+  eventContractVersion?: number;
+  hours?: number;
+  since?: string;
+  generatedAt?: string;
+  filters?: { region?: string; language?: string; plan?: string };
+  onboarding?: {
+    started?: number;
+    stepViewed?: number;
+    stepCompleted?: number;
+    stepFailed?: number;
+    resumed?: number;
+    previewed?: number;
+    completed?: number;
+    abandoned?: number;
+    completionRate?: number;
+    failureRate?: number;
+  rejectionRate?: number;
+  successRate?: number;
+  timeoutCount?: number;
+  latencyP50Ms?: number;
+  latencyP95Ms?: number;
+  latencyP99Ms?: number;
+    averageCompletionDurationMs?: number;
+  };
+  search?: {
+    searches?: number;
+    zeroResultSearches?: number;
+    selectedSearches?: number;
+    noSelectionSearches?: number;
+    zeroResultRate?: number;
+    selectionRate?: number;
+    planFilterApplied?: boolean;
+    topZeroResultQueries?: Array<{ query?: string; searches?: number }>;
+  };
+  foodLogging?: AdminEngagementMetric;
+  barcode?: AdminEngagementMetric;
+  featureAdoption?: Array<{
+    feature?: string;
+    events?: number;
+    uniqueUsers?: number;
+    repeatEvents?: number;
+    averageDurationMs?: number;
+  }>;
+  regionComparison?: Array<{ segment?: string; events?: number; uniqueUsers?: number }>;
+  languageComparison?: Array<{ segment?: string; events?: number; uniqueUsers?: number }>;
+  planComparison?: Array<{ segment?: string; events?: number; uniqueUsers?: number }>;
+};
+
 export type AdminTrackingModuleSummary = {
   module?: string;
   recordsLastRange?: number;
@@ -922,4 +1128,203 @@ export type FoodProductContribution = {
   reviewNote?: string;
   reviewedAt?: string;
   createdAt?: string;
+};
+export type AdminPromotion = {
+  id?: number;
+  version?: number;
+  code?: string;
+  name?: string;
+  description?: string;
+  discountPercent?: number;
+  status?: "DRAFT" | "ACTIVE" | "DEACTIVATED" | "EXPIRED";
+  promoType?: "CAMPAIGN" | "INTRO_OFFER" | "WIN_BACK" | "SUPPORT_GRANT";
+  active?: boolean;
+  startAt?: string;
+  endAt?: string;
+  targetPlan?: "FREE" | "PLUS" | "PRO";
+  targetProductId?: string;
+  targetStore?: "ALL" | "REVENUECAT" | "APPLE_APP_STORE" | "GOOGLE_PLAY";
+  targetRegion?: "GLOBAL" | "TR" | "UK_IE" | "EU";
+  currency?: string;
+  eligibilityRule?: string;
+  perUserLimit?: number;
+  globalLimit?: number;
+  usedCount?: number;
+  campaignKey?: string;
+  providerOfferId?: string;
+  providerProductId?: string;
+  providerMappingReady?: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  deactivatedReason?: string;
+};
+
+export type AdminPromotionPage = {
+  content?: AdminPromotion[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
+};
+
+export type AdminPromotionPreview = {
+  promoId?: number;
+  estimatedAudience?: number;
+  providerMappingReady?: boolean;
+  activationReady?: boolean;
+  validationIssues?: string[];
+};
+
+export type AdminPromotionMetrics = {
+  activePromos?: number;
+  totalRedemptions?: number;
+  convertedRedemptions?: number;
+  rejectedRedemptions?: number;
+  uniqueUsers?: number;
+  revenueByCurrency?: Array<{ currency?: string; amountMinor?: number }>;
+  conversionRate?: number;
+rejectionRate?: number;
+  duplicateAttempts?: number;
+  limitRejections?: number;
+  abuseSignals?: number;
+};
+
+export type AdminPromotionReconciliation = {
+  promoId?: number; store?: string; mappingReady?: boolean; providerOfferId?: string; providerProductId?: string;
+  observedProviderEvents?: number; lastObservedAt?: string; providerRoute?: string; issues?: string[]; entitlementGuardrail?: string;
+};
+
+export type AdminPromotionRedemption = {
+  id?: number; promoId?: number; promoCode?: string; userId?: number; maskedUserEmail?: string;
+  status?: "RESERVED" | "PROVIDER_VERIFIED" | "CONVERTED" | "REJECTED";
+  providerEventReference?: string; amountMinor?: number; currency?: string; rejectionReason?: string;
+  duplicateHits?: number; appliedAt?: string; convertedAt?: string; lastDuplicateAt?: string;
+};
+
+export type AdminPromotionRedemptionPage = {
+  content?: AdminPromotionRedemption[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
+};
+
+export type AdminAccessProfile = {
+  userId?: number;
+  email?: string;
+  role?: string;
+  permissions?: string[];
+  mfaRequired?: boolean;
+  mfaEnabled?: boolean;
+};
+
+export type AdminTeamMember = {
+  id?: number;
+  name?: string;
+  email?: string;
+  role?: string;
+  enabled?: boolean;
+  locked?: boolean;
+  mfaEnabled?: boolean;
+  activeSessions?: number;
+  lastActiveAt?: string;
+  roleUpdatedAt?: string;
+};
+
+export type AdminTeamPage = {
+  content?: AdminTeamMember[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
+};
+export type CatalogTypeSummary = {
+  total?: number; approved?: number; pendingReview?: number; missingMedia?: number;
+  staleSource?: number; overdueReview?: number;
+};
+
+export type AdminCatalogSummary = {
+  food?: CatalogTypeSummary;
+  recipes?: CatalogTypeSummary;
+  exercises?: CatalogTypeSummary;
+  sources?: Array<{ source?: string; itemCount?: number; staleCount?: number; missingLicenseCount?: number }>;
+};
+
+export type AdminCatalogImportJob = {
+  jobKey?: string; catalogType?: string; source?: string; triggerType?: string; region?: string;
+  status?: string; processedItems?: number; issueItems?: number; licenseEvidence?: string;
+  retryable?: boolean; failureDetail?: string; startedAt?: string; completedAt?: string;
+};
+
+export type ExerciseCatalogItem = {
+  id?: number; name?: string; metCode?: string; caloriesPerMinute?: number; description?: string;
+  iconUrl?: string; primaryMuscleGroup?: string; secondaryMuscleGroups?: string; equipment?: string;
+  difficulty?: string; instructions?: string; safetyNotes?: string; thumbnailUrl?: string; videoUrl?: string;
+  animationUrl?: string; defaultMeasurementType?: string; allowedMeasurementTypes?: string[];
+  aiEligible?: boolean; active?: boolean; techniqueReviewStatus?: string; techniqueReviewNote?: string;
+  techniqueReviewedBy?: string; techniqueReviewedAt?: string; sourceName?: string; sourceUrl?: string;
+  licenseName?: string; licenseUrl?: string; sourceLastRefreshedAt?: string; reviewAssignee?: string;
+  reviewDueAt?: string; reviewClaimedAt?: string;
+};
+
+export type ExerciseCatalogPage = {
+  content?: ExerciseCatalogItem[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
+};
+
+export type RuntimeOperationsPolicy = {
+  version: number;
+  maintenanceEnabled: boolean;
+  maintenanceMessage: string;
+  releaseVersion: string;
+  deploymentEnvironment: string;
+  minimumIosVersion: string;
+  minimumAndroidVersion: string;
+  rolloutFeature: string;
+  rolloutEnabled: boolean;
+  rolloutPlan?: string | null;
+  rolloutRegion?: string | null;
+  rolloutSegment: string;
+  rolloutPercentage: number;
+  apiLatencyWarningMs: number;
+  apiErrorRateThreshold: number;
+  escalationTarget?: string | null;
+  rollbackAvailable: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
+export type RuntimeApiMetrics = {
+  requests: number;
+  errors: number;
+  errorRate: number;
+  latencyP50Ms: number;
+  latencyP95Ms: number;
+  latencyP99Ms: number;
+  rateLimited: number;
+  authenticationFailures: number;
+  authorizationFailures: number;
+  latencyThresholdBreached: boolean;
+  errorRateThresholdBreached: boolean;
+  windowStartedAt?: string;
+};
+
+export type RuntimeOperationRecord = {
+  id: number;
+  recordType: string;
+  status: string;
+  operationKey: string;
+  title: string;
+  summary: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  nextRunAt?: string | null;
+  retryable: boolean;
+  retryCount: number;
+  parentRecordId?: number | null;
+  createdBy: string;
+  createdAt: string;
 };

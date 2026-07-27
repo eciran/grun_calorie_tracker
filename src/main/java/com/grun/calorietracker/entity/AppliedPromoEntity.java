@@ -1,9 +1,8 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.PromoRedemptionStatus;
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -13,18 +12,43 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AppliedPromoEntity {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    @ManyToOne
-    @JoinColumn(name = "promo_code_id")
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "promo_code_id", nullable = false)
     private PromoCodeEntity promoCode;
 
+    @Column(nullable = false)
     private LocalDateTime appliedAt;
+
+    @Column(nullable = false, unique = true, length = 120)
+    private String idempotencyKey;
+
+    @Column(length = 160)
+    private String providerEventId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24)
+    private PromoRedemptionStatus status;
+
+    private Long amountMinor;
+
+    @Column(length = 3)
+    private String currency;
+
+    @Column(length = 500)
+    private String rejectionReason;
+
+    private LocalDateTime convertedAt;
+
+    @Column(nullable = false)
+    private int duplicateHits;
+
+    private LocalDateTime lastDuplicateAt;
 }

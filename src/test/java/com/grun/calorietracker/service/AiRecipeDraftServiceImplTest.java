@@ -78,7 +78,10 @@ class AiRecipeDraftServiceImplTest {
                 recipeService,
                 nutritionPreferenceService,
                 new ObjectMapper().findAndRegisterModules(),
-                new AiProviderConfigurationValidatorImpl(properties)
+                new AiProviderConfigurationValidatorImpl(
+                        properties,
+                        mock(AiOperationsPolicyService.class)
+                )
         );
         user = new UserEntity();
         user.setId(1L);

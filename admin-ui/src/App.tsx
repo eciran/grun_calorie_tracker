@@ -1,4 +1,5 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import {
   clearTokens,
   formatRequestError,
@@ -12,10 +13,22 @@ import {
   subscribeUnauthorized
 } from "./api";
 import {
+  AdminCatalogImportJob,
+  AdminCatalogSummary,
+  ExerciseCatalogItem,
+  ExerciseCatalogPage,
+  AdminCustomer360,
   AdminBrevoSender,
   AdminBrevoSenderList,
   AdminMailMonitoring,
   AdminPushMonitoring,
+  AdminEngagementAnalytics,
+  AdminPromotion,
+  AdminPromotionMetrics,
+  AdminPromotionPage,
+  AdminPromotionPreview,
+  AdminPromotionReconciliation,
+  AdminPromotionRedemptionPage,
   AdminTrackingModuleSummary,
   AdminTrackingSummary,
   AdminProductQualityWorkbench,
@@ -23,14 +36,22 @@ import {
   AdminProductQualityAiValidationResult,
   AdminAchievementDefinition,
   AdminAchievementMetrics,
+  AdminAccessProfile,
+  AdminTeamMember,
+  AdminTeamPage,
   AiMealDraft,
   AiRequestInspection,
   AiMonitoringSummary,
+  AiOperationsPolicy,
   AiCreditPricingPolicy,
   AiQuotaRefundResponse,
   AuditEntry,
+  DashboardGrowth,
   DashboardSummary,
   FeatureMatrixItem,
+  GrowthFunnelStep,
+  GrowthKpi,
+  GrowthTrendPoint,
   FoodProduct,
   FoodProductContribution,
   FoodCanonicalDuplicateGroup,
@@ -49,6 +70,7 @@ import {
   Notification,
   NotificationCampaign,
   NotificationCampaignPreview,
+  NotificationCampaignRecipient,
   RevenueCatChart,
   RevenueCatConfigStatus,
   RevenueCatMonitoringCharts,
@@ -61,12 +83,22 @@ import {
   SystemHealth,
   UserProfile
 } from "./types";
+import {
+  AsyncState,
+  CollapsiblePanel,
+  DataTable,
+  EmptyState,
+  LoadState,
+  MetricCard,
+  PaginationControls,
+  Panel,
+  SectionToolbar
+} from "./AdminPrimitives";
 
 type SectionKey =
   | "dashboard"
   | "integrations"
   | "integrationProviders"
-  | "revenueCat"
   | "revenueCatProduction"
   | "revenueCatSandbox"
   | "mail"
@@ -76,6 +108,8 @@ type SectionKey =
   | "foodImports"
   | "foodRegions"
   | "foodQuality"
+  | "catalogExercises"
+  | "catalogSources"
   | "products"
   | "productContributions"
   | "productDuplicates"
@@ -94,6 +128,7 @@ type SectionKey =
   | "subscriptionAccess"
   | "subscriptionAiQuotas"
   | "subscriptionEvents"
+  | "promotions"
   | "ai"
   | "audits"
   | "retentionPolicies"
@@ -101,6 +136,7 @@ type SectionKey =
   | "notifications"
   | "notificationCampaigns"
   | "pushDelivery"
+  | "engagement"
   | "tracking"
   | "trackingWater"
   | "trackingFasting"
@@ -111,7 +147,6 @@ type SectionKey =
   | "systemProviders"
   | "systemProduction";
 
-type LoadState = "idle" | "loading" | "ready" | "error";
 type RevenueCatRange = "7d" | "28d" | "90d" | "custom";
 type ThemeMode = "light" | "dark";
 type SectionMeta = { key: SectionKey; label: string; hint: string; icon: string; logo?: string };
@@ -147,6 +182,7 @@ const FEATURE_ORDER = [
   "NEXT_MEAL_SUGGESTIONS",
   "ADVANCED_MACRO_TARGETS",
   "MICRONUTRIENT_DETAILS",
+  "MICRONUTRIENT_ANALYTICS",
   "DATA_EXPORT",
   "FASTING_BASIC",
   "FASTING_ADVANCED",
@@ -217,7 +253,6 @@ const sections: SectionMeta[] = [
   { key: "dashboard", label: "Dashboard", hint: "Operational overview", icon: "D" },
   { key: "integrations", label: "Integrations", hint: "Provider status", icon: "I" },
   { key: "integrationProviders", label: "Providers", hint: "External services", icon: "P" },
-  { key: "revenueCat", label: "RevenueCat", hint: "Subscription analytics", icon: "R", logo: "./revenuecat.svg" },
   { key: "revenueCatProduction", label: "Production", hint: "Live API metrics", icon: "P" },
   { key: "revenueCatSandbox", label: "Sandbox", hint: "Webhook test data", icon: "S" },
   { key: "mail", label: "Mail Ops", hint: "Brevo delivery", icon: "M" },
@@ -227,6 +262,8 @@ const sections: SectionMeta[] = [
   { key: "foodImports", label: "Import Jobs", hint: "Bulk data flow", icon: "I" },
   { key: "foodRegions", label: "Regions", hint: "Market groups", icon: "R" },
   { key: "foodQuality", label: "Quality Rules", hint: "Catalog checks", icon: "Q" },
+  { key: "catalogExercises", label: "Exercise Library", hint: "Technique and media", icon: "E" },
+  { key: "catalogSources", label: "Sources & Jobs", hint: "Coverage and evidence", icon: "S" },
   { key: "products", label: "Product Review", hint: "Catalog quality", icon: "P" },
   { key: "productContributions", label: "Label Contributions", hint: "User evidence", icon: "L" },
   { key: "productDuplicates", label: "Canonical Duplicates", hint: "Generic identity decisions", icon: "D" },
@@ -245,6 +282,7 @@ const sections: SectionMeta[] = [
   { key: "subscriptionAccess", label: "User Access", hint: "Resolved rights", icon: "U" },
   { key: "subscriptionAiQuotas", label: "AI Quotas", hint: "Credits", icon: "Q" },
   { key: "subscriptionEvents", label: "Provider Events", hint: "Webhook audit", icon: "E" },
+  { key: "promotions", label: "Promotions", hint: "Offers and conversion", icon: "%" },
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
   { key: "settings", label: "Settings", hint: "App config", icon: "G" },
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
@@ -252,6 +290,7 @@ const sections: SectionMeta[] = [
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
   { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
   { key: "pushDelivery", label: "Push Delivery", hint: "Device tokens", icon: "P" },
+  { key: "engagement", label: "Product Analytics", hint: "Funnels and adoption", icon: "P" },
   { key: "tracking", label: "Tracking", hint: "Usage analytics", icon: "T" },
   { key: "trackingWater", label: "Water", hint: "Hydration usage", icon: "W" },
   { key: "trackingFasting", label: "Fasting", hint: "Session usage", icon: "F" },
@@ -267,6 +306,20 @@ const sectionByKey = sections.reduce((accumulator, section) => {
   accumulator[section.key] = section;
   return accumulator;
 }, {} as Record<SectionKey, SectionMeta>);
+
+function sectionFromHash(): SectionKey {
+  const candidate = window.location.hash.replace(/^#\/?/, "") as SectionKey;
+  return candidate && sectionByKey[candidate] ? candidate : "dashboard";
+}
+
+function setSectionHash(section: SectionKey) {
+  const next = `#/${section}`;
+  if (window.location.hash !== next) window.history.pushState(null, "", next);
+}
+
+function replaceSectionHash(section: SectionKey) {
+  window.history.replaceState(null, "", `#/${section}`);
+}
 
 function navSection(key: SectionKey): SectionMeta {
   return sectionByKey[key];
@@ -285,14 +338,17 @@ const navigation: NavigationItem[] = [
     children: [
       { key: "foodOps", label: "Catalog ops", hint: "Import and region health", icon: "F" },
       navSection("products"),
-      navSection("recipes")
+      navSection("recipes"),
+      navSection("catalogExercises"),
+      navSection("catalogSources")
     ]
   },
   {
     ...navSection("subscriptions"),
     children: [
       { key: "subscriptions", label: "Plans & entitlements", hint: "Plan rules and user access", icon: "S" },
-      navSection("subscriptionEvents")
+      navSection("subscriptionEvents"),
+      navSection("promotions")
     ]
   },
   navSection("ai"),
@@ -312,7 +368,10 @@ const navigation: NavigationItem[] = [
       { key: "revenueCatProduction", label: "RevenueCat", hint: "Subscription provider monitoring", icon: "R", logo: "./revenuecat.svg" }
     ]
   },
-  navSection("tracking"),
+  {
+    ...navSection("engagement"),
+    children: [navSection("engagement"), navSection("tracking")]
+  },
   {
     ...navSection("system"),
     children: [
@@ -326,19 +385,40 @@ const navigation: NavigationItem[] = [
 
 const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
-  [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality")],
+  [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality"), navSection("catalogExercises"), navSection("catalogSources")],
   [navSection("products"), navSection("productContributions"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
-  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents")],
+  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
   [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
-  [navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
+  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
 ];
 
 function tabsForSection(active: SectionKey): SectionMeta[] | undefined {
   return sectionTabGroups.find((group) => group.some((item) => item.key === active));
 }
-const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
+function permissionForSection(section: SectionKey): string {
+  if (section === "admins") return "ADMIN_TEAM_READ";
+  if (section === "users" || section === "userVerification") return "USERS_READ";
+  if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSources", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
+  if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
+  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps"].includes(section)) return "GROWTH_READ";
+  if (section === "retentionPolicies") return "COMPLIANCE_READ";
+  if (section === "audits") return "AUDIT_READ";
+  if (["integrations", "integrationProviders", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
+  return "DASHBOARD_READ";
+}
+
+function canViewSection(profile: AdminAccessProfile | null, section: SectionKey): boolean {
+  if (!profile) return section === "dashboard";
+  return Boolean(profile.permissions?.includes(permissionForSection(section)));
+}
+
+function filterNavigationByAccess(items: NavigationItem[], profile: AdminAccessProfile | null): NavigationItem[] {
+  return items
+    .map((item) => ({ ...item, children: item.children?.filter((child) => canViewSection(profile, child.key)) }))
+    .filter((item) => canViewSection(profile, item.key) || Boolean(item.children?.length));
+}const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
 const VERIFICATION_STATUSES = ["RAW_IMPORTED", "NEEDS_REVIEW", "VERIFIED", "REJECTED"];
 const IMAGE_STATUSES = ["RAW", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
 const IMAGE_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_UPLOAD", "USER_UPLOAD", "BRAND_OFFICIAL", "AI_GENERATED"];
@@ -391,20 +471,18 @@ const QUALITY_ISSUES = [
   "UNSUPPORTED_REGION"
 ];
 const AUDIT_ACTION_TYPES = [
-  "SUBSCRIPTION_FEATURE_UPDATE",
-  "RECIPE_REVIEW_UPDATE",
-  "SUBSCRIPTION_USER_PLAN_UPDATE",
-  "SUBSCRIPTION_AI_QUOTA_RESET",
-  "SUBSCRIPTION_AI_ADDON_GRANT",
-  "FOOD_PRODUCT_REVIEW_UPDATE",
-  "REVENUECAT_MAPPING_VALIDATION"
+  "SUBSCRIPTION_UPDATE", "AI_QUOTA_RESET", "AI_QUOTA_ADDON_GRANT", "AI_QUOTA_REFUND",
+  "AI_REQUEST_INSPECT", "AI_CREDIT_PRICING_UPDATE", "SUBSCRIPTION_FEATURE_UPDATE",
+  "SUBSCRIPTION_ENTITLEMENT_MATRIX_APPLY", "RETENTION_POLICY_UPDATE", "RECIPE_CREATE",
+  "RECIPE_REVIEW_UPDATE", "USER_STATUS_UPDATE", "USER_SUPPORT_NOTE_CREATE", "USER_SESSION_REVOKE",
+  "PRODUCT_QUALITY_AI_SETTINGS_UPDATE", "NOTIFICATION_CAMPAIGN_CREATE", "NOTIFICATION_CAMPAIGN_UPDATE",
+  "NOTIFICATION_CAMPAIGN_SCHEDULE", "NOTIFICATION_CAMPAIGN_CANCEL", "PROMO_CREATE", "PROMO_UPDATE",
+  "PROMO_ACTIVATE", "PROMO_DEACTIVATE", "PROMO_RECONCILE", "PROMO_REDEMPTION_RECORD",
+  "ADMIN_ROLE_UPDATE", "ADMIN_STATUS_UPDATE", "ADMIN_MFA_STATUS_UPDATE"
 ];
 const AUDIT_TARGET_TYPES = [
-  "SUBSCRIPTION_FEATURE",
-  "USER_SUBSCRIPTION",
-  "FOOD_PRODUCT",
-  "RECIPE",
-  "REVENUECAT_MAPPING"
+  "USER_SUBSCRIPTION", "AI_REQUEST", "AI_CREDIT_PRICING", "SUBSCRIPTION_FEATURE", "RETENTION_POLICY",
+  "RECIPE", "USER_ACCOUNT", "PRODUCT_QUALITY_AI_SETTINGS", "NOTIFICATION_CAMPAIGN", "PROMOTION", "ADMIN_ACCOUNT"
 ];
 
 type ProductReviewDraft = {
@@ -497,29 +575,62 @@ const PRODUCT_VITAMIN_FIELDS: Array<{ key: ProductReviewNumberField; label: stri
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(getToken()));
-  const [active, setActive] = useState<SectionKey>("dashboard");
+  const [active, setActive] = useState<SectionKey>(() => sectionFromHash());
   const [error, setError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
   const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
   const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
+  const [accessProfile, setAccessProfile] = useState<AdminAccessProfile | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
 
   function navigateToSection(section: SectionKey) {
     setError(null);
     setTargetContext(null);
     setActive(section);
+    setSectionHash(section);
   }
 
   function navigateToTarget(section: SectionKey, context?: Omit<AdminTargetContext, "section">) {
     setError(null);
     setTargetContext(context ? { ...context, section } : null);
     setActive(section);
+    setSectionHash(section);
   }
 
+  useEffect(() => {
+    const syncFromLocation = () => setActive(sectionFromHash());
+    window.addEventListener("hashchange", syncFromLocation);
+    window.addEventListener("popstate", syncFromLocation);
+    return () => {
+      window.removeEventListener("hashchange", syncFromLocation);
+      window.removeEventListener("popstate", syncFromLocation);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!accessProfile) return;
+    if (!canViewSection(accessProfile, active)) {
+      setActive("dashboard");
+      replaceSectionHash("dashboard");
+      return;
+    }
+    mainRef.current?.focus();
+  }, [accessProfile, active]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!authenticated) {
+      setAccessProfile(null);
+      return;
+    }
+    request<AdminAccessProfile>("/api/v1/admin/security/me")
+      .then(setAccessProfile)
+      .catch((failure) => setError(formatRequestError(failure)));
+  }, [authenticated]);
 
   useEffect(() => {
     return subscribeUnauthorized(() => {
@@ -542,9 +653,11 @@ export default function App() {
   }
 
   const activeMeta = sections.find((section) => section.key === active) ?? sections[0];
+  const visibleNavigation = filterNavigationByAccess(navigation, accessProfile);
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#admin-main">Skip to main content</a>
       <aside className="sidebar">
         <div className="brand">
           <img className="brand-symbol" src="./grun/grun-app-icon.svg" alt="" aria-hidden="true" />
@@ -553,8 +666,8 @@ export default function App() {
             <span>Operations</span>
           </div>
         </div>
-        <nav className="nav-list">
-          {navigation.map((section) => (
+        <nav className="nav-list" aria-label="Admin sections">
+          {visibleNavigation.map((section) => (
             <div className="nav-group" key={`${section.key}-${section.label}`}>
               <button
                 className={isNavItemActive(section, active) ? "nav-item active" : "nav-item"}
@@ -568,6 +681,7 @@ export default function App() {
                 }}
                 type="button"
                 title={section.hint}
+                aria-expanded={section.children ? openNavGroup === section.key : undefined}
               >
                 <NavIcon section={section} />
                 <span>
@@ -588,6 +702,7 @@ export default function App() {
                       }}
                       type="button"
                       title={child.hint}
+                      aria-current={child.key === active ? "page" : undefined}
                     >
                       <span>
                         <strong>{child.label}</strong>
@@ -612,7 +727,7 @@ export default function App() {
         </button>
       </aside>
 
-      <main className="main-panel">
+      <main className="main-panel" id="admin-main" ref={mainRef} tabIndex={-1}>
         <header className="topbar">
           <div>
             <p className="eyebrow">Admin workspace</p>
@@ -620,13 +735,14 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+            <span className="status-pill">{accessProfile?.role ? humanizeFeature(accessProfile.role) : "Loading access"}</span>
             <span className="status-pill">API v1</span>
             <span className="status-pill live">Live backend</span>
           </div>
         </header>
 
-        {error && <div className="error-banner">{error}</div>}
-        <SectionTabs active={active} onSelect={navigateToSection} />
+        {error && <div className="error-banner" role="alert">{error}</div>}
+        <SectionTabs active={active} onSelect={navigateToSection} accessProfile={accessProfile} />
         <section className="content-surface">
           {active === "dashboard" && <DashboardView onError={setError} onNavigate={navigateToSection} />}
           {active === "integrations" && <IntegrationsView mode="overview" onError={setError} />}
@@ -640,6 +756,8 @@ export default function App() {
           {active === "foodImports" && <FoodOpsView mode="imports" onError={setError} />}
           {active === "foodRegions" && <FoodOpsView mode="regions" onError={setError} />}
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
+          {active === "catalogExercises" && <CatalogOperationsView mode="exercises" onError={setError} />}
+          {active === "catalogSources" && <CatalogOperationsView mode="sources" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
           {active === "productContributions" && <FoodContributionReviewView onError={setError} />}
           {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
@@ -648,9 +766,9 @@ export default function App() {
           {active === "productRejected" && <ProductReviewView mode="rejected" onError={setError} />}
           {active === "recipes" && <RecipeAdminView onError={setError} />}
           {active === "achievements" && <AchievementAdminView onError={setError} />}
-          {active === "users" && <UsersView mode="users" onError={setError} />}
-          {active === "admins" && <UsersView mode="admins" onError={setError} />}
-          {active === "userVerification" && <UsersView mode="verification" onError={setError} />}
+          {active === "users" && <UsersView mode="users" onError={setError} onNavigate={navigateToSection} />}
+          {active === "admins" && <AdminSecurityView accessProfile={accessProfile} onError={setError} />}
+          {active === "userVerification" && <UsersView mode="verification" onError={setError} onNavigate={navigateToSection} />}
           {active === "subscriptions" && <SubscriptionsView mode="overview" onError={setError} />}
           {active === "subscriptionFeatures" && <SubscriptionsView mode="features" onError={setError} />}
           {active === "subscriptionMapping" && <SubscriptionsView mode="mapping" onError={setError} />}
@@ -658,13 +776,15 @@ export default function App() {
           {active === "subscriptionAccess" && <SubscriptionsView mode="access" onError={setError} />}
           {active === "subscriptionAiQuotas" && <SubscriptionsView mode="aiQuotas" onError={setError} />}
           {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
+          {active === "promotions" && <PromotionsView onError={setError} />}
           {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
-          {active === "settings" && <GlobalSettingsView />}
+          {active === "settings" && <RuntimeOperationsView onError={setError} />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
           {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} />}
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
+          {active === "engagement" && <EngagementAnalyticsView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
           {active === "trackingFasting" && <TrackingMonitoringView mode="fasting" onError={setError} />}
@@ -673,19 +793,19 @@ export default function App() {
           {active === "systemRuntime" && <SystemHealthView mode="runtime" onError={setError} />}
           {active === "systemDatabase" && <SystemHealthView mode="database" onError={setError} />}
           {active === "systemProviders" && <SystemHealthView mode="providers" onError={setError} />}
-          {active === "systemProduction" && <SystemHealthView mode="production" onError={setError} />}
+          {active === "systemProduction" && <RuntimeOperationsView onError={setError} />}
         </section>
       </main>
     </div>
   );
 }
 
-function SectionTabs({ active, onSelect }: { active: SectionKey; onSelect: (section: SectionKey) => void }) {
-  const tabs = tabsForSection(active);
+function SectionTabs({ active, onSelect, accessProfile }: { active: SectionKey; onSelect: (section: SectionKey) => void; accessProfile: AdminAccessProfile | null }) {
+  const tabs = tabsForSection(active)?.filter((tab) => canViewSection(accessProfile, tab.key));
   if (!tabs || tabs.length <= 1) return null;
 
   return (
-    <div className="section-tabs" aria-label="Section navigation">
+    <div className="section-tabs" aria-label="Section navigation" role="tablist">
       {tabs.map((tab) => (
         <button
           className={tab.key === active ? "active" : ""}
@@ -693,6 +813,8 @@ function SectionTabs({ active, onSelect }: { active: SectionKey; onSelect: (sect
           onClick={() => onSelect(tab.key)}
           title={tab.hint}
           type="button"
+          role="tab"
+          aria-selected={tab.key === active}
         >
           <strong>{tab.label}</strong>
           <span>{tab.hint}</span>
@@ -783,7 +905,7 @@ function NavIcon({ compact = false, section }: { compact?: boolean; section: Sec
       "nav-icon",
       "logo-icon",
       compact ? "compact" : "",
-      section.key === "revenueCat" ? "revenuecat-logo" : ""
+      section.key === "revenueCatProduction" ? "revenuecat-logo" : ""
     ].filter(Boolean).join(" ");
     return (
       <span className={logoClassName}>
@@ -835,8 +957,113 @@ function OperationCard({ item, onNavigate }: { item: OperationCardItem; onNaviga
     </button>
   );
 }
+function dublinDateRange(rangeDays: number) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Dublin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const to = `${values.year}-${values.month}-${values.day}`;
+  const fromDate = new Date(`${to}T00:00:00Z`);
+  fromDate.setUTCDate(fromDate.getUTCDate() - (rangeDays - 1));
+  return { from: fromDate.toISOString().slice(0, 10), to };
+}
+
+function growthMetricValue(kpi: GrowthKpi) {
+  return kpi.unit === "PERCENT" ? `${kpi.value.toFixed(1)}%` : formatValue(kpi.value);
+}
+
+function GrowthKpiCard({ kpi, onOpen }: { kpi: GrowthKpi; onOpen: () => void }) {
+  const change = kpi.changePercent;
+  const trendTone = change == null ? "neutral" : change > 0 ? "positive" : change < 0 ? "negative" : "neutral";
+  const comparison = !kpi.comparisonAvailable
+    ? "Current snapshot"
+    : change == null
+      ? `Previous: ${kpi.previousValue ?? 0}`
+      : `${change > 0 ? "+" : ""}${change.toFixed(1)}% vs previous`;
+  return (
+    <button className="growth-kpi-card" onClick={onOpen} type="button">
+      <span>{kpi.label}</span>
+      <strong>{growthMetricValue(kpi)}</strong>
+      <small className={trendTone}>{comparison}</small>
+      <footer>
+        <i className={kpi.dataStatus.toLowerCase()}>{kpi.dataStatus === "PARTIAL" ? "Partial data" : "Tracked"}</i>
+        <span>Open</span>
+      </footer>
+    </button>
+  );
+}
+
+function GrowthTrendChart({ points }: { points: GrowthTrendPoint[] }) {
+  const maximum = Math.max(1, ...points.flatMap((point) => [point.registrations, point.activeUsers]));
+  const labelEvery = Math.max(1, Math.ceil(points.length / 6));
+  return (
+    <div className="growth-chart" role="img" aria-label="Daily registrations and active users">
+      <div className="growth-chart-legend">
+        <span><i className="registration" />Registrations</span>
+        <span><i className="activity" />Active users</span>
+      </div>
+      <div
+        className="growth-chart-plot"
+        style={{ "--growth-columns": points.length } as CSSProperties}
+      >
+        {points.map((point, index) => (
+          <div className="growth-chart-day" key={point.date} title={`${point.date}: ${point.registrations} registrations, ${point.activeUsers} active`}>
+            <div className="growth-chart-bars">
+              <i className="registration" style={{ height: `${(point.registrations / maximum) * 100}%` }} />
+              <i className="activity" style={{ height: `${(point.activeUsers / maximum) * 100}%` }} />
+            </div>
+            <span>{index % labelEvery === 0 || index === points.length - 1 ? point.date.slice(5) : ""}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GrowthFunnel({ steps, onOpen }: { steps: GrowthFunnelStep[]; onOpen: (step: GrowthFunnelStep) => void }) {
+  return (
+    <div className="growth-funnel">
+      {steps.map((step) => (
+        <button key={step.key} onClick={() => onOpen(step)} type="button">
+          <div>
+            <span>{step.label}</span>
+            <strong>{formatValue(step.users)}</strong>
+          </div>
+          <div className="growth-funnel-track">
+            <i style={{ width: `${Math.min(100, Math.max(0, step.conversionFromRegistrationPercent))}%` }} />
+          </div>
+          <small>{step.conversionFromRegistrationPercent.toFixed(1)}% of registrations{step.dataStatus === "PARTIAL" ? " · partial" : ""}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GrowthDistribution({ values, empty }: { values: Record<string, number>; empty: string }) {
+  const entries = Object.entries(values).sort((left, right) => right[1] - left[1]);
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  if (!entries.length) return <span className="empty-inline">{empty}</span>;
+  return (
+    <div className="growth-distribution">
+      {entries.map(([label, value]) => (
+        <div key={label}>
+          <header><span>{shortFeature(label)}</span><strong>{formatValue(value)}</strong></header>
+          <div><i style={{ width: `${percent(value, total)}%` }} /></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DashboardView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
+  const [growthRange, setGrowthRange] = useState<7 | 30 | 90>(30);
+  const growthDates = useMemo(() => dublinDateRange(growthRange), [growthRange]);
+  const growthPath = `/api/v1/admin/dashboard/growth?from=${growthDates.from}&to=${growthDates.to}&timeZone=Europe%2FDublin`;
   const { data, state, reload } = useEndpoint<DashboardSummary>("/api/v1/admin/dashboard/summary", onError);
+  const { data: growth, state: growthState, reload: reloadGrowth } = useEndpoint<DashboardGrowth>(growthPath, onError);
   const { data: unreadNotifications, state: unreadNotificationState, reload: reloadUnreadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&page=0&size=5", onError);
   const { data: criticalNotifications, state: criticalNotificationState, reload: reloadCriticalNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&severity=CRITICAL&page=0&size=5", onError);
   const activeSubscriptions = (data?.activePlusSubscriptions ?? 0) + (data?.activeProSubscriptions ?? 0);
@@ -971,7 +1198,49 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
 
   return (
     <div className="stack">
-      <SectionToolbar title="Admin command summary" state={combineStates([state, unreadNotificationState, criticalNotificationState])} onReload={() => { void reload(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }} />
+      <SectionToolbar
+        title="Executive overview"
+        description="Growth, activation, and operational pressure in one decision-ready view."
+        state={combineStates([state, growthState, unreadNotificationState, criticalNotificationState])}
+        onReload={() => { void reload(); void reloadGrowth(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }}
+      >
+        <div className="segmented-control dashboard-range" aria-label="Growth reporting range">
+          {([7, 30, 90] as const).map((days) => (
+            <button className={growthRange === days ? "active" : ""} key={days} onClick={() => setGrowthRange(days)} type="button">
+              {days} days
+            </button>
+          ))}
+        </div>
+      </SectionToolbar>
+      <div className="growth-coverage-strip">
+        <span><strong>{growth?.from ?? growthDates.from}</strong> to <strong>{growth?.to ?? growthDates.to}</strong></span>
+        <span>{growth?.registrationCoveragePercent.toFixed(1) ?? "0.0"}% registration history coverage</span>
+        {(growth?.legacyUsersWithoutRegistrationDate ?? 0) > 0 && <span className="partial">{formatValue(growth?.legacyUsersWithoutRegistrationDate)} legacy timestamp(s) unknown</span>}
+      </div>
+      <div className="growth-kpi-grid">
+        {(growth?.kpis ?? []).map((kpi) => (
+          <GrowthKpiCard
+            key={kpi.key}
+            kpi={kpi}
+            onOpen={() => kpi.targetSection && onNavigate(kpi.targetSection as SectionKey)}
+          />
+        ))}
+      </div>
+      <div className="growth-primary-grid">
+        <Panel title="Registration and activity trend" description="Daily values use the same Europe/Dublin reporting boundary as the KPI totals.">
+          {growth?.daily?.length ? <GrowthTrendChart points={growth.daily} /> : <EmptyState title="No trend data" message="No timestamped registrations or activity were returned for this period." />}
+        </Panel>
+        <Panel title="Activation funnel" description="Privacy-safe cohort counts; partial stages are labelled explicitly.">
+          {growth?.funnel?.length
+            ? <GrowthFunnel steps={growth.funnel} onOpen={(step) => step.targetSection && onNavigate(step.targetSection as SectionKey)} />
+            : <EmptyState title="No funnel data" message="No registered cohort exists for this period." />}
+        </Panel>
+      </div>
+      <div className="growth-breakdown-grid">
+        <Panel title="Plan mix"><GrowthDistribution values={growth?.planDistribution ?? {}} empty="No plan data for this cohort." /></Panel>
+        <Panel title="Region mix"><GrowthDistribution values={growth?.regionDistribution ?? {}} empty="No region data for this cohort." /></Panel>
+        <Panel title="Language mix"><GrowthDistribution values={growth?.languageDistribution ?? {}} empty="No language data for this cohort." /></Panel>
+      </div>
       <div className="metric-grid">
         {headlineCards.map(([label, value, hint]) => (
           <MetricCard key={String(label)} label={String(label)} value={formatValue(value)} hint={String(hint)} />
@@ -3228,27 +3497,159 @@ function AchievementAdminView({ onError }: { onError: (message: string | null) =
   );
 }
 
+function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const path = `/api/v1/admin/security/team?page=${page}&size=${pageSize}`;
+  const { data, state, reload } = useEndpoint<AdminTeamPage>(path, onError);
+  const [selected, setSelected] = useState<AdminTeamMember | null>(null);
+  const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", enabled: true, mfaEnabled: false, reason: "" });
+  const [saving, setSaving] = useState(false);
+  const canManage = Boolean(accessProfile?.permissions?.includes("ADMIN_TEAM_MANAGE"));
+  const [grant, setGrant] = useState({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
+  const members = data?.content ?? [];
+
+  function selectMember(member: AdminTeamMember) {
+    setSelected(member);
+    setDraft({
+      role: member.role ?? "ADMIN_READ_ONLY",
+      enabled: member.enabled !== false,
+      mfaEnabled: Boolean(member.mfaEnabled),
+      reason: ""
+    });
+  }
+
+  async function saveMember(event: FormEvent) {
+    event.preventDefault();
+    if (!selected?.id || !canManage) return;
+    setSaving(true);
+    try {
+      await request<AdminTeamMember>(`/api/v1/admin/security/team/${selected.id}`, {
+        method: "PATCH",
+        body: { ...draft, reason: draft.reason.trim() }
+      });
+      setSelected(null);
+      await reload();
+    } catch (failure) {
+      onError(formatRequestError(failure));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function grantAccess(event: FormEvent) {
+    event.preventDefault();
+    if (!canManage) return;
+    setSaving(true);
+    try {
+      await request<AdminTeamMember>("/api/v1/admin/security/team/grant", { method: "POST", body: { ...grant, email: grant.email.trim(), reason: grant.reason.trim() } });
+      setGrant({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
+      await reload();
+    } catch (failure) {
+      onError(formatRequestError(failure));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return <div className="stack">
+    <SectionToolbar title="Admin security and access" description="Backend-enforced roles, current permissions, MFA readiness, and active sessions." state={state} onReload={reload} />
+    <div className="user-summary-grid">
+      <MetricCard label="Your role" value={humanizeFeature(accessProfile?.role)} hint={`${accessProfile?.permissions?.length ?? 0} backend permissions`} />
+      <MetricCard label="Team members" value={formatValue(data?.totalElements ?? 0)} hint="Paginated admin accounts" />
+      <MetricCard label="MFA policy" value={accessProfile?.mfaRequired ? "Required" : "Prepared"} hint={accessProfile?.mfaEnabled ? "Your MFA is enabled" : "Your MFA is not enrolled"} />
+    </div>
+    {canManage && <Panel title="Grant admin access">
+      <form className="admin-security-grant" onSubmit={grantAccess}>
+        <label>Existing verified account email<input type="email" required value={grant.email} onChange={(event) => setGrant((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
+        <label>Initial role<select value={grant.role} onChange={(event) => setGrant((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+        <label>Required audit reason<input required maxLength={500} value={grant.reason} onChange={(event) => setGrant((current) => ({ ...current, reason: event.target.value }))} placeholder="Why access is required" /></label>
+        <label className="toggle-field"><input type="checkbox" checked={grant.mfaEnabled} onChange={(event) => setGrant((current) => ({ ...current, mfaEnabled: event.target.checked }))} />MFA enrollment verified</label>
+        <button className="primary-button" disabled={saving || !grant.email.trim() || !grant.reason.trim()} type="submit">Grant access</button>
+      </form>
+    </Panel>}    <Panel title="Role boundaries">
+      <div className="security-role-grid">
+        <div><strong>Support</strong><span>User support only; no pricing, promotions, secrets, or system changes.</span></div>
+        <div><strong>Catalog</strong><span>Food, recipe, exercise, and review operations.</span></div>
+        <div><strong>Growth</strong><span>Campaigns, notifications, engagement, and analytics.</span></div>
+        <div><strong>Finance</strong><span>Subscriptions, quota, provider events, and commercial audit.</span></div>
+        <div><strong>Technical Ops</strong><span>Runtime, integrations, mail, push, and AI operations.</span></div>
+        <div><strong>Read-only</strong><span>Broad inspection access with every write blocked by backend.</span></div>
+      </div>
+    </Panel>
+    <DataTable
+      columns={["Admin", "Role", "Access", "MFA", "Sessions", "Last active"]}
+      rows={members.map((member) => [
+        <div className="entity-cell"><strong>{member.name ?? "Admin"}</strong><small>{member.email ?? "-"}</small></div>,
+        <Badge value={member.role} />,
+        <Badge value={member.enabled === false ? "Disabled" : member.locked ? "Locked" : "Enabled"} tone={member.enabled === false || member.locked ? "danger" : "good"} />,
+        <Badge value={member.mfaEnabled ? "Enabled" : "Not enrolled"} tone={member.mfaEnabled ? "good" : "warn"} />,
+        formatValue(member.activeSessions),
+        formatDate(member.lastActiveAt)
+      ])}
+      rowData={members}
+      onRowClick={canManage ? selectMember : undefined}
+      empty="No admin team members returned."
+    />
+    <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1, data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+    {selected && <Panel title={`Manage ${selected.email ?? "admin"}`}>
+      <form className="admin-security-form" onSubmit={saveMember}>
+        <label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+        <label className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
+        <label className="toggle-field"><input type="checkbox" checked={draft.mfaEnabled} onChange={(event) => setDraft((current) => ({ ...current, mfaEnabled: event.target.checked }))} />MFA enrollment verified</label>
+        <label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain this access change." /></label>
+        <div className="form-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="submit">{saving ? "Saving..." : "Apply access change"}</button></div>
+      </form>
+    </Panel>}
+  </div>;
+}
 type UsersMode = "users" | "admins" | "verification";
 
-function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: string | null) => void }) {
-  const { data, state, reload } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [statusActionState, setStatusActionState] = useState<LoadState>("idle");
+function UsersView({
+  mode,
+  onError,
+  onNavigate
+}: {
+  mode: UsersMode;
+  onError: (message: string | null) => void;
+  onNavigate: (section: SectionKey) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [accountState, setAccountState] = useState("ANY");
+  const [plan, setPlan] = useState("");
+  const [region, setRegion] = useState("");
+  const [language, setLanguage] = useState("");
+  const [verification, setVerification] = useState("");
+  const [activity, setActivity] = useState("");
   const [userPage, setUserPage] = useState(0);
   const [userPageSize, setUserPageSize] = useState(25);
-  const users = data ?? [];
-  const adminUsers = users.filter((user) => user.role === "ADMIN");
-  const standardUsers = users.filter((user) => user.role !== "ADMIN");
-  const unverifiedUsers = users.filter((user) => !user.emailVerified);
-  const visibleUsers = mode === "admins" ? adminUsers : mode === "verification" ? unverifiedUsers : standardUsers;
-  const userTotalPages = Math.max(1, Math.ceil(visibleUsers.length / userPageSize));
-  const safeUserPage = Math.min(userPage, userTotalPages - 1);
-  const pagedUsers = visibleUsers.slice(safeUserPage * userPageSize, safeUserPage * userPageSize + userPageSize);
+  const path = useMemo(() => {
+    const params = new URLSearchParams({
+      role: mode === "admins" ? "ADMIN" : "STANDARD",
+      page: String(userPage),
+      size: String(userPageSize)
+    });
+    if (mode === "verification") params.set("emailVerified", "false");
+    else if (verification) params.set("emailVerified", verification);
+    if (appliedSearch) params.set("search", appliedSearch);
+    if (accountState === "ENABLED") params.set("accountEnabled", "true");
+    if (accountState === "DISABLED") params.set("accountEnabled", "false");
+    if (accountState === "LOCKED") params.set("accountLocked", "true");
+    if (plan) params.set("plan", plan);
+    if (region) params.set("region", region);
+    if (language) params.set("language", language);
+    if (activity) params.set("activity", activity);
+    return `/api/v1/admin/users?${params.toString()}`;
+  }, [mode, userPage, userPageSize, appliedSearch, accountState, plan, region, language, verification, activity]);
+  const { data, state, reload } = useEndpoint<PageResponse<UserProfile>>(path, onError);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [statusActionState, setStatusActionState] = useState<LoadState>("idle");
+  const users = data?.content ?? [];
   const title = mode === "admins" ? "Admin accounts" : mode === "verification" ? "Email verification queue" : "App users";
 
   useEffect(() => {
     setUserPage(0);
-  }, [mode, userPageSize, visibleUsers.length]);
+  }, [mode, userPageSize, accountState, plan, region, language, verification, activity, appliedSearch]);
 
   async function updateSelectedUserStatus(payload: { accountEnabled: boolean; accountLocked: boolean; reason: string }) {
     if (!selectedUser?.id) return;
@@ -3256,7 +3657,7 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
     try {
       const updated = await request<UserProfile>(`/api/v1/admin/users/${selectedUser.id}/status`, {
         method: "PATCH",
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, confirmed: true })
       });
       setSelectedUser(updated);
       await reload();
@@ -3269,15 +3670,47 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={state} onReload={reload} />
+      <SectionToolbar
+        title={title}
+        description="Review account access, verification, region, and profile readiness. Select a row for controlled account actions."
+        state={state}
+        onReload={reload}
+      />
+      <form className="user-filter-panel" onSubmit={(event) => {
+        event.preventDefault();
+        setUserPage(0);
+        setAppliedSearch(search.trim());
+      }}>
+        <label className="user-filter-search">Search<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Email, name, or user id" /></label>
+        <label>Account<select value={accountState} onChange={(event) => setAccountState(event.target.value)}><option value="ANY">Any state</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option><option value="LOCKED">Locked</option></select></label>
+        <label>Plan<select value={plan} onChange={(event) => setPlan(event.target.value)}><option value="">All plans</option><option value="FREE">Free</option><option value="PLUS">Plus</option><option value="PRO">Pro</option></select></label>
+        <label>Region<select value={region} onChange={(event) => setRegion(event.target.value)}><option value="">All regions</option><option value="TR">TR</option><option value="UK_IE">UK / IE</option><option value="GLOBAL">Global</option></select></label>
+        <label>Language<select value={language} onChange={(event) => setLanguage(event.target.value)}><option value="">All languages</option><option value="EN">English</option><option value="TR">Turkish</option></select></label>
+        {mode !== "verification" && <label>Verification<select value={verification} onChange={(event) => setVerification(event.target.value)}><option value="">Any</option><option value="true">Verified</option><option value="false">Unverified</option></select></label>}
+        <label>Activity<select value={activity} onChange={(event) => setActivity(event.target.value)}><option value="">Any activity</option><option value="ACTIVE_30_DAYS">Active in 30 days</option><option value="INACTIVE_30_DAYS">Inactive 30+ days</option><option value="NEVER_ACTIVE">Never active</option></select></label>
+        <div className="user-filter-actions">
+          <button className="primary-button" type="submit">Search</button>
+          <button className="ghost-button" type="button" onClick={() => {
+            setSearch(""); setAppliedSearch(""); setAccountState("ANY"); setPlan("");
+            setRegion(""); setLanguage(""); setVerification(""); setActivity(""); setUserPage(0);
+          }}>Clear</button>
+        </div>
+      </form>
       <div className="user-summary-grid">
-        <MetricCard label="Standard users" value={formatValue(standardUsers.length)} hint="Non-admin accounts" />
-        <MetricCard label="Admin users" value={formatValue(adminUsers.length)} hint="Privileged accounts" />
-        <MetricCard label="Unverified" value={formatValue(unverifiedUsers.length)} hint="Email verification pending" />
+        <MetricCard label="Matching users" value={formatValue(data?.totalElements ?? 0)} hint="Server-filtered result" />
+        <MetricCard label="Current page" value={formatValue((data?.page ?? 0) + 1)} hint={`${users.length} records loaded`} />
+        <MetricCard label="Page size" value={formatValue(data?.size ?? userPageSize)} hint="No full-list download" />
       </div>
-      <DataTable
-        columns={["User", "Role", "Status", "Region", "Language", "Email", "Profile"]}
-        rows={pagedUsers.map((user) => [
+      <AsyncState
+        state={state}
+        hasData={users.length > 0}
+        loadingMessage="Loading user accounts..."
+        emptyMessage="No user accounts were returned."
+      />
+      {(data || state === "ready") && <DataTable
+        caption={`${title} table`}
+        columns={["User", "Role", "Status", "Region", "Language", "Created", "Last active"]}
+        rows={users.map((user) => [
           <UserCell user={user} />,
           <Badge value={user.role ?? "-"} />,
           <div className="badge-stack">
@@ -3289,27 +3722,36 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
           </div>,
           formatValue(user.marketRegion),
           formatValue(user.preferredLanguage),
-          formatValue(user.email),
-          `${formatValue(user.age)} yrs | ${formatValue(user.height)} cm / ${formatValue(user.weight)} kg`
+          formatDate(user.createdAt),
+          formatDate(user.lastActiveAt)
         ])}
-        rowData={pagedUsers}
+        rowData={users}
+        rowKeys={users.map((user) => user.id ?? user.email ?? "unknown-user")}
         onRowClick={setSelectedUser}
         empty={mode === "admins" ? "No admin users found." : mode === "verification" ? "No unverified users found." : "No standard users found."}
-      />
-      <PaginationControls
-        page={safeUserPage}
+      />}
+      {(data || state === "ready") && <PaginationControls
+        page={data?.page ?? userPage}
         pageSize={userPageSize}
-        totalElements={visibleUsers.length}
-        totalPages={userTotalPages}
-        first={safeUserPage <= 0}
-        last={safeUserPage >= userTotalPages - 1}
+        totalElements={data?.totalElements ?? 0}
+        totalPages={Math.max(1, data?.totalPages ?? 1)}
+        first={data?.first ?? userPage <= 0}
+        last={data?.last ?? true}
         onPageChange={setUserPage}
         onPageSizeChange={(size) => {
           setUserPageSize(size);
           setUserPage(0);
         }}
-      />
-      {selectedUser && <UserDetailsModal user={selectedUser} statusState={statusActionState} onClose={() => setSelectedUser(null)} onStatusUpdate={updateSelectedUserStatus} />}
+      />}
+      {selectedUser && <UserDetailsModal
+        user={selectedUser}
+        statusState={statusActionState}
+        onClose={() => setSelectedUser(null)}
+        onNavigate={onNavigate}
+        onStatusUpdate={updateSelectedUserStatus}
+        onReloadUsers={reload}
+        onError={onError}
+      />}
     </div>
   );
 }
@@ -3317,9 +3759,15 @@ function UsersView({ mode, onError }: { mode: UsersMode; onError: (message: stri
 type SubscriptionMode = "overview" | "features" | "mapping" | "entitlements" | "access" | "aiQuotas";
 
 function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError: (message: string | null) => void }) {
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const subscriptionUserPath = useMemo(() => {
+    const params = new URLSearchParams({ role: "STANDARD", page: "0", size: "25" });
+    if (userSearchQuery.trim()) params.set("search", userSearchQuery.trim());
+    return `/api/v1/admin/users?${params.toString()}`;
+  }, [userSearchQuery]);
   const { data, state, reload } = useEndpoint<FeatureMatrixItem[]>("/api/v1/admin/subscriptions/features", onError);
   const { data: pricingData, state: pricingState, reload: reloadPricing } = useEndpoint<AiCreditPricingPolicy[]>("/api/v1/admin/ai-credit-pricing", onError);
-  const { data: users, state: usersState } = useEndpoint<UserProfile[]>("/api/v1/admin/users/userList", onError);
+  const { data: users, state: usersState } = useEndpoint<PageResponse<UserProfile>>(subscriptionUserPath, onError);
   const { data: revenueCat, state: revenueCatState, reload: reloadRevenueCat } = useEndpoint<RevenueCatConfigStatus>("/api/v1/admin/revenuecat/config", onError);
   const { data: subscriptionAudits, state: subscriptionAuditState, reload: reloadSubscriptionAudits } = useEndpoint<PageResponse<AuditEntry>>(buildAuditPath({ actionType: "", targetType: "USER_SUBSCRIPTION", page: 0, size: 20 }), onError);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -3327,7 +3775,6 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [subscriptionResult, setSubscriptionResult] = useState<SubscriptionDto | null>(null);
   const [matrixApplyConfirmationOpen, setMatrixApplyConfirmationOpen] = useState(false);
   const [accessPreviewUserId, setAccessPreviewUserId] = useState<string>("");
-  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [previewUserAutoSelected, setPreviewUserAutoSelected] = useState(false);
   const [accessPreview, setAccessPreview] = useState<SubscriptionFeatureAccess | null>(null);
@@ -3347,7 +3794,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const [addonForm, setAddonForm] = useState({ amount: "15", validityDays: "30", note: "Admin credit adjustment" });
   const features = data ?? [];
   const pricingPolicies = pricingData ?? [];
-  const previewUsers = users ?? [];
+  const previewUsers = users?.content ?? [];
   const selectedPreviewUser = previewUsers.find((user) => String(user.id) === accessPreviewUserId);
   const selectedPreviewLabel = selectedPreviewUser ? userOptionLabel(selectedPreviewUser).toLowerCase() : "";
   const previewSearchQuery = userSearchQuery.trim().toLowerCase();
@@ -4257,6 +4704,9 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [summaryWindowHours, setSummaryWindowHours] = useState(24);
+  const [policyActionState, setPolicyActionState] = useState<LoadState>("idle");
+  const [rollbackConfirmationOpen, setRollbackConfirmationOpen] = useState(false);
+  const [policyDraft, setPolicyDraft] = useState({ circuitOpen: false, failureRateThreshold: "0.20", rejectionRateThreshold: "0.40", maxTokensPer24Hours: "1000000", maxCostPer24Hours: "20", costCurrency: "USD", activeModel: "", activePromptVersion: "", reason: "" });
   const [smokeState, setSmokeState] = useState<LoadState>("idle");
   const [refundState, setRefundState] = useState<LoadState>("idle");
   const [smokeResult, setSmokeResult] = useState<string | null>(null);
@@ -4267,10 +4717,26 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [inspectionState, setInspectionState] = useState<LoadState>("idle");
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
   const summaryPath = `/api/v1/admin/ai/requests/summary?windowHours=${summaryWindowHours}`;
+  const policyPath = "/api/v1/admin/ai/monitoring/policy";
   const { data, state, reload } = useEndpoint<PageResponse<AiMealDraft>>(path, onError);
   const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AiMonitoringSummary>(summaryPath, onError);
+  const { data: policy, state: policyState, reload: reloadPolicy } = useEndpoint<AiOperationsPolicy>(policyPath, onError);
   const rows = data?.content ?? [];
   const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
+  useEffect(() => {
+    if (!policy) return;
+    setPolicyDraft({
+      circuitOpen: Boolean(policy.circuitOpen),
+      failureRateThreshold: String(policy.failureRateThreshold ?? 0.2),
+      rejectionRateThreshold: String(policy.rejectionRateThreshold ?? 0.4),
+      maxTokensPer24Hours: String(policy.maxTokensPer24Hours ?? 1000000),
+      maxCostPer24Hours: String(policy.maxCostPer24Hours ?? 20),
+      costCurrency: policy.costCurrency ?? "USD",
+      activeModel: policy.activeModel ?? "",
+      activePromptVersion: policy.activePromptVersion ?? "",
+      reason: ""
+    });
+  }, [policy]);
 
   useEffect(() => {
     if (targetContext?.targetType !== "AI_REQUEST" || !targetContext.targetId) return;
@@ -4286,6 +4752,61 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     setPage(0);
   }
 
+  async function saveOperationsPolicy(event: FormEvent) {
+    event.preventDefault();
+    if (policy?.version == null || policyDraft.reason.trim().length < 8) {
+      onError("A reason of at least 8 characters is required.");
+      return;
+    }
+    setPolicyActionState("loading");
+    try {
+      await request<AiOperationsPolicy>(policyPath, {
+        method: "PUT",
+        body: {
+          version: policy.version,
+          circuitOpen: policyDraft.circuitOpen,
+          failureRateThreshold: Number(policyDraft.failureRateThreshold),
+          rejectionRateThreshold: Number(policyDraft.rejectionRateThreshold),
+          maxTokensPer24Hours: Number(policyDraft.maxTokensPer24Hours),
+          maxCostPer24Hours: Number(policyDraft.maxCostPer24Hours),
+          costCurrency: policyDraft.costCurrency.trim().toUpperCase(),
+          activeModel: policyDraft.activeModel.trim(),
+          activePromptVersion: policyDraft.activePromptVersion.trim(),
+          reason: policyDraft.reason.trim()
+        }
+      });
+      setPolicyActionState("ready");
+      await reloadPolicy();
+      await reloadSummary();
+    } catch (error) {
+      setPolicyActionState("error");
+      onError(formatRequestError(error));
+      await reloadPolicy();
+    }
+  }
+
+  async function rollbackOperationsDeployment() {
+    if (policy?.version == null || policyDraft.reason.trim().length < 8) {
+      onError("Enter an operational reason before rollback.");
+      return;
+    }
+    setPolicyActionState("loading");
+    try {
+      await request<AiOperationsPolicy>(`${policyPath}/rollback`, {
+        method: "POST",
+        body: { version: policy.version, reason: policyDraft.reason.trim() }
+      });
+      setRollbackConfirmationOpen(false);
+      setPolicyActionState("ready");
+      await reloadPolicy();
+      await reloadSummary();
+    } catch (error) {
+      setRollbackConfirmationOpen(false);
+      setPolicyActionState("error");
+      onError(formatRequestError(error));
+      await reloadPolicy();
+    }
+  }
   async function runProviderSmoke() {
     setSmokeState("loading");
     setSmokeResult(null);
@@ -4372,7 +4893,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
 
   return (
     <div className="stack">
-      <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
+      <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, policyState, policyActionState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
       </SectionToolbar>
@@ -4399,7 +4920,39 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           <MetricCard label="Quota consumed" value={formatValue(summary?.quotaConsumedAmount)} hint={`${formatValue(summary?.quotaRefundedAmount)} refunded`} />
           <MetricCard label="Tokens" value={formatValue(summary?.totalTokens)} hint={`${formatValue(summary?.promptTokens)} input / ${formatValue(summary?.completionTokens)} output`} />
           <MetricCard label="Estimated cost" value={formatCurrencyBreakdown(summary?.estimatedCostByCurrency)} hint="Costs are separated by currency" />
+          <MetricCard label="Latency p50 / p95 / p99" value={`${formatValue(summary?.latencyP50Ms)} / ${formatValue(summary?.latencyP95Ms)} / ${formatValue(summary?.latencyP99Ms)} ms`} hint={`${formatValue(summary?.timeoutCount)} timeout failures`} />
+          <MetricCard label="Success / rejection" value={`${formatFailureRate(summary?.successRate)} / ${formatFailureRate(summary?.rejectionRate)}`} hint="Reviewable output and user rejection rates" />
+          <MetricCard label="Subscription revenue" value={formatCurrencyBreakdown(summary?.subscriptionRevenueByCurrency)} hint="Processed store revenue in the same window" />
+          <MetricCard label="AI cost / revenue" value={formatRatioBreakdown(summary?.costToRevenueRatioByCurrency)} hint="Only matching currencies are compared" />
         </div>
+      </Panel>
+
+      {(summary?.alerts ?? []).length > 0 && <Panel title="Operational alerts">
+        <div className="operations-alert-list">
+          {(summary?.alerts ?? []).map((alert) => <div className={`operations-alert ${alert.severity === "CRITICAL" ? "critical" : "warning"}`} key={`${alert.code}-${alert.requestType ?? "all"}-${alert.currency ?? "all"}`}>
+            <Badge value={alert.severity ?? "WARNING"} tone={alert.severity === "CRITICAL" ? "danger" : "warn"} />
+            <div><strong>{shortFeature(alert.code)}</strong><small>{alert.message}{alert.requestType ? ` | ${humanizeAiRequestType(alert.requestType)}` : ""}{alert.currency ? ` | ${alert.currency}` : ""}</small></div>
+          </div>)}
+        </div>
+      </Panel>}
+
+      <Panel title="AI reliability policy">
+        <form className="campaign-form-grid ai-operations-policy-form" onSubmit={saveOperationsPolicy}>
+          <label className="inline-check"><input checked={policyDraft.circuitOpen} onChange={(event) => setPolicyDraft((current) => ({ ...current, circuitOpen: event.target.checked }))} type="checkbox" />Circuit breaker open</label>
+          <label>Failure alert threshold<input min="0.01" max="1" step="0.01" type="number" value={policyDraft.failureRateThreshold} onChange={(event) => setPolicyDraft((current) => ({ ...current, failureRateThreshold: event.target.value }))} /></label>
+          <label>Rejection alert threshold<input min="0.01" max="1" step="0.01" type="number" value={policyDraft.rejectionRateThreshold} onChange={(event) => setPolicyDraft((current) => ({ ...current, rejectionRateThreshold: event.target.value }))} /></label>
+          <label>24h token budget<input min="1000" type="number" value={policyDraft.maxTokensPer24Hours} onChange={(event) => setPolicyDraft((current) => ({ ...current, maxTokensPer24Hours: event.target.value }))} /></label>
+          <label>24h cost budget<input min="0.01" step="0.01" type="number" value={policyDraft.maxCostPer24Hours} onChange={(event) => setPolicyDraft((current) => ({ ...current, maxCostPer24Hours: event.target.value }))} /></label>
+          <label>Currency<input maxLength={12} value={policyDraft.costCurrency} onChange={(event) => setPolicyDraft((current) => ({ ...current, costCurrency: event.target.value.toUpperCase() }))} /></label>
+          <label>Active model<input value={policyDraft.activeModel} onChange={(event) => setPolicyDraft((current) => ({ ...current, activeModel: event.target.value }))} /></label>
+          <label>Prompt version<input value={policyDraft.activePromptVersion} onChange={(event) => setPolicyDraft((current) => ({ ...current, activePromptVersion: event.target.value }))} /></label>
+          <label className="span-4">Admin reason<textarea placeholder="Why this reliability or deployment policy is changing" value={policyDraft.reason} onChange={(event) => setPolicyDraft((current) => ({ ...current, reason: event.target.value }))} /></label>
+          <div className="span-4 modal-actions inline-actions">
+            <small>Version {formatValue(policy?.version)} | Updated {formatDate(policy?.updatedAt)} by {policy?.updatedBy ?? "-"}</small>
+            <button className="ghost-button danger-button" disabled={!policy?.rollbackAvailable || policyActionState === "loading"} onClick={() => setRollbackConfirmationOpen(true)} type="button">Rollback deployment</button>
+            <button className="primary-button" disabled={policyActionState === "loading"} type="submit">Save policy</button>
+          </div>
+        </form>
       </Panel>
 
       <div className="ai-monitoring-grid">
@@ -4432,6 +4985,18 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           />
         </Panel>
       </div>
+
+      <Panel title="Feature and audience economics">
+        <DataTable
+          columns={["Feature", "Plan", "Region", "Language", "Requests", "Failed", "Rejected", "Cost"]}
+          rows={(summary?.segments ?? []).map((item) => [
+            humanizeAiRequestType(item.requestType), shortFeature(item.plan), shortFeature(item.region), shortFeature(item.language),
+            formatValue(item.requestCount), formatValue(item.failedCount), formatValue(item.rejectedCount),
+            formatAiCostAmount(item.estimatedCost, item.costCurrency)
+          ])}
+          empty="No segmented AI economics returned for this window."
+        />
+      </Panel>
 
       <Panel title="Request filters">
         <div className="review-filter-grid ai-review-filter-grid">
@@ -4510,6 +5075,15 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
         onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
       />
       {inspection && <AiRequestInspectionModal inspection={inspection} onClose={() => setInspection(null)} />}
+      {rollbackConfirmationOpen && <ConfirmDialog
+        title="Rollback AI deployment?"
+        message={`This will restore the previous model and prompt version. The circuit breaker and budget limits remain unchanged. Reason: ${policyDraft.reason || "missing"}`}
+        confirmLabel="Rollback deployment"
+        danger
+        busy={policyActionState === "loading"}
+        onCancel={() => setRollbackConfirmationOpen(false)}
+        onConfirm={() => void rollbackOperationsDeployment()}
+      />}
       {refundDraft && <AiQuotaRefundModal
         draft={refundDraft}
         busy={refundState === "loading"}
@@ -5913,6 +6487,215 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
   );
 }
 
+type CatalogOperationsMode = "exercises" | "sources";
+
+const EMPTY_EXERCISE: ExerciseCatalogItem = {
+  name: "", metCode: "", caloriesPerMinute: 1, description: "", primaryMuscleGroup: "",
+  secondaryMuscleGroups: "", equipment: "", difficulty: "BEGINNER", instructions: "", safetyNotes: "",
+  thumbnailUrl: "", videoUrl: "", animationUrl: "", defaultMeasurementType: "DURATION",
+  allowedMeasurementTypes: ["DURATION"], aiEligible: false, active: true, sourceName: "", sourceUrl: "",
+  licenseName: "", licenseUrl: ""
+};
+
+function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode; onError: (message: string | null) => void }) {
+  const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [selected, setSelected] = useState<ExerciseCatalogItem | null>(null);
+  const [draft, setDraft] = useState<ExerciseCatalogItem>(EMPTY_EXERCISE);
+  const [reviewNote, setReviewNote] = useState("");
+  const [assignment, setAssignment] = useState({ assignee: "", dueAt: "", reason: "" });
+  const [actionState, setActionState] = useState<LoadState>("ready");
+  const exercisePath = useMemo(() => {
+    const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
+    if (appliedQuery) params.set("q", appliedQuery);
+    if (reviewStatus) params.set("reviewStatus", reviewStatus);
+    if (activeFilter) params.set("active", activeFilter);
+    return `/api/v1/admin/catalog/exercises?${params}`;
+  }, [page, pageSize, appliedQuery, reviewStatus, activeFilter]);
+  const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AdminCatalogSummary>("/api/v1/admin/catalog/summary", onError);
+  const { data: importJobs, state: importState, reload: reloadImports } = useEndpoint<AdminCatalogImportJob[]>("/api/v1/admin/catalog/import-jobs", onError);
+  const { data: exercises, state: exerciseState, reload: reloadExercises } = useEndpoint<ExerciseCatalogPage>(exercisePath, onError);
+  const exerciseRows = exercises?.content ?? [];
+
+  function openExercise(item?: ExerciseCatalogItem) {
+    const next = item ? { ...item } : { ...EMPTY_EXERCISE };
+    setSelected(item ?? {});
+    setDraft(next);
+    setReviewNote(item?.techniqueReviewNote ?? "");
+    setAssignment({ assignee: item?.reviewAssignee ?? "", dueAt: item?.reviewDueAt?.slice(0, 16) ?? "", reason: "" });
+  }
+
+  async function saveExercise(event: FormEvent) {
+    event.preventDefault();
+    setActionState("loading");
+    try {
+      const payload = {
+        ...draft,
+        caloriesPerMinute: Number(draft.caloriesPerMinute),
+        allowedMeasurementTypes: draft.allowedMeasurementTypes?.length ? draft.allowedMeasurementTypes : ["DURATION"],
+        sourceLastRefreshedAt: draft.sourceName ? new Date().toISOString().slice(0, 19) : null
+      };
+      await request<ExerciseCatalogItem>(draft.id ? `/api/v1/admin/catalog/exercises/${draft.id}` : "/api/v1/admin/catalog/exercises", {
+        method: draft.id ? "PUT" : "POST",
+        body: payload
+      });
+      setSelected(null);
+      await Promise.all([reloadExercises(), reloadSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function reviewExercise(status: string) {
+    if (!draft.id || !reviewNote.trim()) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/catalog/exercises/${draft.id}/review`, { method: "PATCH", body: { status, note: reviewNote.trim() } });
+      setSelected(null);
+      await Promise.all([reloadExercises(), reloadSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function assignExerciseReview() {
+    if (!draft.id || !assignment.dueAt || !assignment.reason.trim()) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/catalog/review-items/EXERCISE/${draft.id}/assignment`, {
+        method: "PATCH",
+        body: { assignee: assignment.assignee.trim() || null, dueAt: `${assignment.dueAt}:00`, reason: assignment.reason.trim() }
+      });
+      setSelected(null);
+      await Promise.all([reloadExercises(), reloadSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const combinedState = combineStates([summaryState, importState, exerciseState, actionState]);
+  return <div className="stack catalog-operations-view">
+    <SectionToolbar
+      title={mode === "exercises" ? "Exercise library operations" : "Catalog sources and jobs"}
+      description={mode === "exercises" ? "Moderate technique, safety, media, source evidence, ownership, and active state." : "Cross-catalog coverage, source freshness, licensing evidence, and recent pipeline runs."}
+      state={combinedState}
+      onReload={() => { void reloadSummary(); void reloadImports(); void reloadExercises(); }}
+    />
+    {mode === "sources" && <>
+      <div className="catalog-domain-grid">
+        {(["food", "recipes", "exercises"] as const).map((key) => {
+          const item = summary?.[key];
+          return <article key={key} className="catalog-domain-card">
+            <header><strong>{humanizeFeature(key)}</strong><Badge value={`${formatValue(item?.approved)} approved`} tone="good" /></header>
+            <div><span>Total</span><strong>{formatValue(item?.total)}</strong></div>
+            <div><span>Pending review</span><strong>{formatValue(item?.pendingReview)}</strong></div>
+            <div><span>Missing media</span><strong>{formatValue(item?.missingMedia)}</strong></div>
+            <div><span>Stale source</span><strong>{formatValue(item?.staleSource)}</strong></div>
+            <div><span>Overdue SLA</span><strong>{formatValue(item?.overdueReview)}</strong></div>
+          </article>;
+        })}
+      </div>
+      <Panel title="Food source coverage" description="Server-side aggregate; no product payload is loaded into the browser.">
+        <DataTable columns={["Source", "Items", "Stale", "License gaps"]} rows={(summary?.sources ?? []).map((item) => [<strong>{humanizeFeature(item.source)}</strong>, formatValue(item.itemCount), formatValue(item.staleCount), formatValue(item.missingLicenseCount)])} empty="No catalog source metrics returned." />
+      </Panel>
+      <Panel title="Recent catalog pipeline jobs" description="Recipe import batches and food quality runs share one operational ledger.">
+        <DataTable columns={["Job", "Catalog", "Source", "Trigger", "Region", "Processed", "Issues", "Evidence", "Status", "Window"]} rows={(importJobs ?? []).map((item) => [
+          <div className="entity-cell"><strong>{item.jobKey ?? "-"}</strong><small>{item.failureDetail ?? "No failure detail"}</small></div>,
+          <Badge value={item.catalogType} />,
+          item.source ?? "-", item.triggerType ?? "-", item.region ?? "All", formatValue(item.processedItems), formatValue(item.issueItems),
+          item.licenseEvidence ?? "Missing", <Badge value={item.status} tone={item.status === "FAILED" ? "danger" : item.status === "PENDING" ? "warn" : "good"} />,
+          <div className="entity-cell"><strong>{formatDate(item.startedAt)}</strong><small>{formatDate(item.completedAt)}</small></div>
+        ])} empty="No catalog import or validation jobs returned." />
+      </Panel>
+    </>}
+    {mode === "exercises" && <>
+      <Panel title="Exercise moderation queue">
+        <form className="catalog-exercise-filter" onSubmit={(event) => { event.preventDefault(); setPage(0); setAppliedQuery(query.trim()); }}>
+          <label>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, MET code, muscle" /></label>
+          <label>Review status<select value={reviewStatus} onChange={(event) => { setReviewStatus(event.target.value); setPage(0); }}><option value="">All statuses</option>{["PENDING", "IN_REVIEW", "APPROVED", "REJECTED"].map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Active state<select value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value); setPage(0); }}><option value="">All items</option><option value="true">Active</option><option value="false">Inactive</option></select></label>
+          <button className="ghost-button" type="submit">Apply</button>
+          <button className="primary-button" type="button" onClick={() => openExercise()}>New exercise</button>
+        </form>
+        <DataTable
+          columns={["Exercise", "Technique", "Muscles", "Media", "Source", "Owner / SLA", "State"]}
+          rows={exerciseRows.map((item) => [
+            <div className="entity-cell"><strong>{item.name ?? "-"}</strong><small>{item.metCode ?? "-"} | {formatValue(item.caloriesPerMinute)} kcal/min</small></div>,
+            <Badge value={item.techniqueReviewStatus ?? "PENDING"} tone={item.techniqueReviewStatus === "APPROVED" ? "good" : item.techniqueReviewStatus === "REJECTED" ? "danger" : "warn"} />,
+            <div className="entity-cell"><strong>{item.primaryMuscleGroup ?? "-"}</strong><small>{item.equipment ?? "No equipment"}</small></div>,
+            <Badge value={item.videoUrl || item.animationUrl || item.thumbnailUrl ? "Available" : "Missing"} tone={item.videoUrl || item.animationUrl || item.thumbnailUrl ? "good" : "warn"} />,
+            <div className="entity-cell"><strong>{item.sourceName ?? "Missing"}</strong><small>{item.licenseName ?? "No license evidence"}</small></div>,
+            <div className="entity-cell"><strong>{item.reviewAssignee ?? "Unassigned"}</strong><small>{formatDate(item.reviewDueAt)}</small></div>,
+            <div className="badge-stack"><Badge value={item.active === false ? "Inactive" : "Active"} tone={item.active === false ? "neutral" : "good"} /><Badge value={item.aiEligible ? "AI eligible" : "AI blocked"} /></div>
+          ])}
+          rowData={exerciseRows}
+          onRowClick={openExercise}
+          empty="No exercise catalog items match the filters."
+        />
+        <PaginationControls page={exercises?.page ?? page} pageSize={exercises?.size ?? pageSize} totalElements={exercises?.totalElements ?? 0} totalPages={Math.max(1, exercises?.totalPages ?? 1)} first={exercises?.first ?? page === 0} last={exercises?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+      </Panel>
+      {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
+        <form className="modal-card catalog-exercise-modal" onSubmit={saveExercise} onClick={(event) => event.stopPropagation()}>
+          <header className="modal-header"><div><span>EXERCISE CATALOG</span><h2>{draft.id ? draft.name : "New exercise"}</h2><p>Catalog edits remain pending until technique review is approved.</p></div><button className="modal-icon-close" type="button" onClick={() => setSelected(null)}>x</button></header>
+          <div className="modal-body catalog-exercise-body">
+            <details className="catalog-collapsible" open><summary>Core catalog data</summary>
+              <div className="catalog-exercise-form-grid">
+                <label>Name<input required value={draft.name ?? ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+                <label>MET code<input required value={draft.metCode ?? ""} onChange={(event) => setDraft({ ...draft, metCode: event.target.value.toUpperCase() })} /></label>
+                <label>Calories / minute<input required min="0.01" step="0.01" type="number" value={draft.caloriesPerMinute ?? 1} onChange={(event) => setDraft({ ...draft, caloriesPerMinute: Number(event.target.value) })} /></label>
+                <label>Difficulty<select value={draft.difficulty ?? "BEGINNER"} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value })}>{["BEGINNER", "INTERMEDIATE", "ADVANCED"].map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label>Primary muscle<input value={draft.primaryMuscleGroup ?? ""} onChange={(event) => setDraft({ ...draft, primaryMuscleGroup: event.target.value })} /></label>
+                <label>Equipment<input value={draft.equipment ?? ""} onChange={(event) => setDraft({ ...draft, equipment: event.target.value })} /></label>
+                <label className="wide-field">Description<textarea rows={2} value={draft.description ?? ""} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+                <label className="wide-field">Instructions<textarea rows={4} value={draft.instructions ?? ""} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /></label>
+                <label className="wide-field">Safety notes<textarea rows={3} value={draft.safetyNotes ?? ""} onChange={(event) => setDraft({ ...draft, safetyNotes: event.target.value })} /></label>
+                <label className="toggle-field"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} />Active in catalog</label>
+                <label className="toggle-field"><input type="checkbox" checked={draft.aiEligible === true} onChange={(event) => setDraft({ ...draft, aiEligible: event.target.checked })} />AI workout eligible</label>
+              </div>
+            </details>
+            <details className="catalog-collapsible"><summary>Media and source evidence</summary>
+              <div className="catalog-exercise-form-grid">
+                <label>Thumbnail URL<input value={draft.thumbnailUrl ?? ""} onChange={(event) => setDraft({ ...draft, thumbnailUrl: event.target.value })} /></label>
+                <label>Video URL<input value={draft.videoUrl ?? ""} onChange={(event) => setDraft({ ...draft, videoUrl: event.target.value })} /></label>
+                <label>Animation URL<input value={draft.animationUrl ?? ""} onChange={(event) => setDraft({ ...draft, animationUrl: event.target.value })} /></label>
+                <label>Source name<input value={draft.sourceName ?? ""} onChange={(event) => setDraft({ ...draft, sourceName: event.target.value })} /></label>
+                <label>Source URL<input value={draft.sourceUrl ?? ""} onChange={(event) => setDraft({ ...draft, sourceUrl: event.target.value })} /></label>
+                <label>License name<input value={draft.licenseName ?? ""} onChange={(event) => setDraft({ ...draft, licenseName: event.target.value })} /></label>
+                <label className="wide-field">License URL<input value={draft.licenseUrl ?? ""} onChange={(event) => setDraft({ ...draft, licenseUrl: event.target.value })} /></label>
+              </div>
+            </details>
+            {draft.id && <details className="catalog-collapsible" open><summary>Review ownership and SLA</summary>
+              <div className="catalog-review-grid">
+                <label>Assignee email<input type="email" value={assignment.assignee} onChange={(event) => setAssignment({ ...assignment, assignee: event.target.value })} placeholder="catalog@grun.app" /></label>
+                <label>Due at<input type="datetime-local" value={assignment.dueAt} onChange={(event) => setAssignment({ ...assignment, dueAt: event.target.value })} /></label>
+                <label>Assignment reason<input value={assignment.reason} onChange={(event) => setAssignment({ ...assignment, reason: event.target.value })} /></label>
+                <button className="ghost-button" type="button" disabled={!assignment.dueAt || !assignment.reason.trim() || actionState === "loading"} onClick={assignExerciseReview}>Assign review</button>
+              </div>
+            </details>}
+            {draft.id && <details className="catalog-collapsible" open><summary>Technique decision</summary>
+              <div className="catalog-technique-review">
+                <div><Badge value={draft.techniqueReviewStatus ?? "PENDING"} tone={draft.techniqueReviewStatus === "APPROVED" ? "good" : "warn"} /><small>{draft.techniqueReviewedBy ? `Last reviewed by ${draft.techniqueReviewedBy}` : "No completed review"}</small></div>
+                <label>Required review note<textarea rows={3} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Technique, safety, and media evidence checked." /></label>
+                <div className="inline-actions"><button className="ghost-button danger-text" type="button" disabled={!reviewNote.trim()} onClick={() => void reviewExercise("REJECTED")}>Reject</button><button className="primary-button" type="button" disabled={!reviewNote.trim()} onClick={() => void reviewExercise("APPROVED")}>Approve technique</button></div>
+              </div>
+            </details>}
+          </div>
+          <footer className="modal-actions padded-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={actionState === "loading"} type="submit">{draft.id ? "Save catalog item" : "Create pending item"}</button></footer>
+        </form>
+      </div>}
+    </>}
+  </div>;
+}
 type FoodOpsMode = "overview" | "imports" | "regions" | "quality";
 
 function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (message: string | null) => void }) {
@@ -6695,11 +7478,23 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
     setPage(0);
   }, [actionType, targetType, pageSize]);
 
+  async function exportAudits() {
+    try {
+      const params = new URLSearchParams();
+      if (actionType) params.set("actionType", actionType);
+      if (targetType) params.set("targetType", targetType);
+      const blob = await requestBlob(`/api/v1/admin/audits/export?${params.toString()}`, { timeoutMs: 60000 });
+      downloadBlob(blob, `grun-admin-audits-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (failure) {
+      onError(formatRequestError(failure));
+    }
+  }
 
   return (
     <div className="stack">
       <SectionToolbar title="Admin action audits" state={state} onReload={reload}>
         <button className="ghost-button" onClick={() => { setActionType(""); setTargetType(""); }} type="button">Clear filters</button>
+        <button className="ghost-button" onClick={exportAudits} type="button">Export CSV</button>
       </SectionToolbar>
       <div className="audit-summary-grid">
         <MetricCard label="Returned entries" value={formatValue(data?.totalElements ?? rows.length)} hint="Matching current audit filters" />
@@ -6754,7 +7549,7 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
 }
 
 function NotificationCampaignsView({ onError }: { onError: (message: string | null) => void }) {
-  const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "" };
+  const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "", frequencyCapHours: 24, frequencyCapMax: 3 };
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -6860,7 +7655,9 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
       targetRoute: item.targetRoute ?? "",
       targetPlan: item.targetPlan ?? "",
       targetRegion: item.targetRegion ?? "",
-      targetLanguage: item.targetLanguage ?? ""
+      targetLanguage: item.targetLanguage ?? "",
+      frequencyCapHours: item.frequencyCapHours ?? 24,
+      frequencyCapMax: item.frequencyCapMax ?? 3
     });
     setPreview(null);
     setNotice(null);
@@ -6980,6 +7777,9 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
           <label className="span-2">User-facing title<input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Planned maintenance" /></label>
           <label className="span-2">Target route<input maxLength={255} value={draft.targetRoute} onChange={(event) => setDraft({ ...draft, targetRoute: event.target.value })} placeholder="/settings/subscription" /></label>
           <label className="span-4">Message<textarea required maxLength={1000} value={draft.message} onChange={(event) => setDraft({ ...draft, message: event.target.value })} placeholder="Write the concise user-facing message." /></label>
+          <label>Pressure window (hours)<input type="number" min={1} max={168} value={draft.frequencyCapHours} onChange={(event) => setDraft({ ...draft, frequencyCapHours: Number(event.target.value) })} /></label>
+          <label>Maximum marketing messages<input type="number" min={1} max={20} value={draft.frequencyCapMax} onChange={(event) => setDraft({ ...draft, frequencyCapMax: Number(event.target.value) })} /></label>
+          <div className="campaign-pressure-note span-2"><strong>Contact pressure</strong><span>System notices bypass this cap. Marketing recipients above the limit are suppressed and remain visible in delivery diagnostics.</span></div>
         </div>
         <div className="campaign-audience-strip">
           <label className="campaign-audience-filter">Plan<select value={draft.targetPlan} onChange={(event) => void updateAudienceFilter("targetPlan", event.target.value)}><option value="">All plans</option>{PLAN_ORDER.map((plan) => <option value={plan} key={plan}>{plan}</option>)}</select></label>
@@ -7086,17 +7886,57 @@ function NotificationCampaignPreviewModal({
               <div><small>In-app</small><strong>{formatValue(campaign.inAppCount)}</strong></div>
               <div><small>Push sent</small><strong>{formatValue(campaign.pushSentCount)}</strong></div>
               <div><small>Push failed</small><strong>{formatValue(campaign.pushFailedCount)}</strong></div>
+              <div><small>Suppressed</small><strong>{formatValue(campaign.suppressedCount)}</strong></div>
+              <div><small>Opened</small><strong>{formatValue(campaign.openedCount)}</strong></div>
+              <div><small>Clicked</small><strong>{formatValue(campaign.clickedCount)}</strong></div>
+              <div><small>Dismissed</small><strong>{formatValue(campaign.dismissedCount)}</strong></div>
+              <div><small>Converted</small><strong>{formatValue(campaign.convertedCount)}</strong></div>
+              <div><small>Pressure cap</small><strong>{campaign.frequencyCapMax ?? 3} / {campaign.frequencyCapHours ?? 24}h</strong></div>
               <div><small>Scheduled</small><strong>{formatDate(campaign.scheduledAt)}</strong></div>
               <div><small>Completed</small><strong>{formatDate(campaign.completedAt)}</strong></div>
             </div>
             {campaign.failureMessage && <div className="form-notice warning">{campaign.failureMessage}</div>}
           </section>
+          {campaign.id && <CampaignRecipientLedger campaignId={campaign.id} />}
         </div>
         <div className="modal-actions"><button className="primary-button" type="button" onClick={onClose}>Close preview</button></div>
       </section>
     </div>
   );
 }
+function CampaignRecipientLedger({ campaignId }: { campaignId: number }) {
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(0);
+  const params = new URLSearchParams({ page: String(page), size: "10" });
+  if (status) params.set("status", status);
+  const { data, state, reload } = useEndpoint<PageResponse<NotificationCampaignRecipient>>(
+    "/api/v1/admin/notification-campaigns/" + campaignId + "/recipients?" + params.toString(),
+    () => undefined
+  );
+  return (
+    <section className="campaign-history-section campaign-recipient-ledger">
+      <div className="campaign-ledger-heading">
+        <div><h3>Delivery and engagement</h3><p>Privacy-safe recipient references; no full profile or message payload is exposed.</p></div>
+        <label>Status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }}>
+          <option value="">All</option><option value="DELIVERED">Delivered</option><option value="SUPPRESSED">Suppressed</option><option value="FAILED">Failed</option>
+        </select></label>
+      </div>
+      <DataTable
+        columns={["Recipient", "Delivery", "Engagement", "Processed"]}
+        rows={(data?.content ?? []).map((row) => [
+          row.userReference ?? "user",
+          <div className="table-stack"><Badge value={row.status} tone={row.status === "FAILED" ? "danger" : row.status === "SUPPRESSED" ? "warn" : "good"} /><small>{row.suppressionReason || ((row.pushSent ?? 0) + " push sent")}</small></div>,
+          <div className="campaign-engagement-badges"><span className={row.openedAt ? "is-active" : ""}>Open</span><span className={row.clickedAt ? "is-active" : ""}>Click</span><span className={row.convertedAt ? "is-active" : ""}>Convert</span><span className={row.dismissedAt ? "is-dismissed" : ""}>Dismiss</span></div>,
+          formatDate(row.processedAt)
+        ])}
+        empty={state === "loading" ? "Loading delivery diagnostics..." : "No recipient rows match this filter."}
+      />
+      <PaginationControls page={data?.page ?? page} pageSize={data?.size ?? 10} totalElements={data?.totalElements ?? 0} totalPages={data?.totalPages ?? 1} first={Boolean(data?.first)} last={Boolean(data?.last)} onPageChange={setPage} onPageSizeChange={() => {}} />
+      {state === "error" && <button className="ghost-button" type="button" onClick={() => void reload()}>Retry diagnostics</button>}
+    </section>
+  );
+}
+
 function NotificationCampaignGuideModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop campaign-guide-backdrop" role="presentation" onClick={onClose}>
@@ -7352,6 +8192,139 @@ function PushDeliveryView({ onError }: { onError: (message: string | null) => vo
   );
 }
 
+function EngagementAnalyticsView({ onError }: { onError: (message: string | null) => void }) {
+  const [hours, setHours] = useState(168);
+  const [region, setRegion] = useState("");
+  const [language, setLanguage] = useState("");
+  const [plan, setPlan] = useState("");
+  const path = useMemo(() => {
+    const params = new URLSearchParams({ hours: String(hours) });
+    if (region) params.set("region", region);
+    if (language) params.set("language", language);
+    if (plan) params.set("plan", plan);
+    return `/api/v1/admin/engagement/analytics?${params.toString()}`;
+  }, [hours, region, language, plan]);
+  const { data, state, reload } = useEndpoint<AdminEngagementAnalytics>(path, onError);
+  const onboarding = data?.onboarding;
+  const search = data?.search;
+  const food = data?.foodLogging;
+  const barcode = data?.barcode;
+
+  return (
+    <div className="stack engagement-analytics">
+      <SectionToolbar title="Product engagement" state={state} onReload={reload}>
+        <span className="status-pill">Contract v{formatValue(data?.eventContractVersion ?? 1)}</span>
+      </SectionToolbar>
+
+      <Panel title="Analysis scope">
+        <div className="engagement-filter-grid">
+          <label>Window
+            <select value={hours} onChange={(event) => setHours(Number(event.target.value))}>
+              <option value={24}>24 hours</option>
+              <option value={168}>7 days</option>
+              <option value={720}>30 days</option>
+              <option value={2160}>90 days</option>
+            </select>
+          </label>
+          <label>Region
+            <select value={region} onChange={(event) => setRegion(event.target.value)}>
+              <option value="">All regions</option>
+              {MARKET_REGIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>Language
+            <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+              <option value="">All languages</option>
+              {PREFERRED_LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>Current plan
+            <select value={plan} onChange={(event) => setPlan(event.target.value)}>
+              <option value="">All plans</option>
+              {PLAN_ORDER.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="field-hint">Filters apply on the backend. Search telemetry remains anonymous, so plan only filters authenticated product events.</p>
+      </Panel>
+
+      <div className="review-workspace-summary">
+        <MetricCard label="Onboarding completion" value={`${formatValue(onboarding?.completionRate)}%`} hint={`${formatValue(onboarding?.completed)} completed / ${formatValue(onboarding?.started)} started`} />
+        <MetricCard label="Search selection" value={`${formatValue(search?.selectionRate ? search.selectionRate * 100 : 0)}%`} hint={`${formatValue(search?.selectedSearches)} selected searches`} />
+        <MetricCard label="Zero-result rate" value={`${formatValue(search?.zeroResultRate ? search.zeroResultRate * 100 : 0)}%`} hint={`${formatValue(search?.zeroResultSearches)} searches need catalog attention`} />
+        <MetricCard label="Barcode completion" value={`${formatValue(barcode?.completionRate)}%`} hint={`${formatValue(barcode?.completed)} completed / ${formatValue(barcode?.failed)} failed`} />
+      </div>
+
+      <div className="ops-grid engagement-flow-grid">
+        <Panel title="Onboarding funnel">
+          <MiniBarChart label="Funnel events" items={[
+            ["Started", onboarding?.started ?? 0],
+            ["Step viewed", onboarding?.stepViewed ?? 0],
+            ["Step complete", onboarding?.stepCompleted ?? 0],
+            ["Previewed", onboarding?.previewed ?? 0],
+            ["Completed", onboarding?.completed ?? 0],
+            ["Abandoned", onboarding?.abandoned ?? 0]
+          ]} />
+          <div className="engagement-inline-metrics">
+            <span>Step failures <strong>{formatValue(onboarding?.stepFailed)}</strong></span>
+            <span>Resumed <strong>{formatValue(onboarding?.resumed)}</strong></span>
+            <span>Avg. completion <strong>{formatDurationMs(onboarding?.averageCompletionDurationMs)}</strong></span>
+          </div>
+        </Panel>
+        <Panel title="Core logging flows">
+          <DataTable
+            columns={["Flow", "Started", "Completed", "First completed", "Failed", "Users", "Rate", "Avg. duration"]}
+            rows={[
+              ["Food log", formatValue(food?.started), formatValue(food?.completed), formatValue(food?.firstCompletions), formatValue(food?.failed), formatValue(food?.uniqueUsers), `${formatValue(food?.completionRate)}%`, formatDurationMs(food?.averageDurationMs)],
+              ["Barcode", formatValue(barcode?.started), formatValue(barcode?.completed), "-", formatValue(barcode?.failed), formatValue(barcode?.uniqueUsers), `${formatValue(barcode?.completionRate)}%`, formatDurationMs(barcode?.averageDurationMs)]
+            ]}
+            empty="No flow analytics returned."
+          />
+        </Panel>
+      </div>
+
+      <Panel title="Feature adoption">
+        <DataTable
+          columns={["Feature", "Events", "Users", "Repeat events", "Avg. duration"]}
+          rows={(data?.featureAdoption ?? []).map((item) => [
+            humanizeFeature(item.feature), formatValue(item.events), formatValue(item.uniqueUsers),
+            formatValue(item.repeatEvents), formatDurationMs(item.averageDurationMs)
+          ])}
+          empty="No feature adoption events returned."
+        />
+      </Panel>
+
+      <div className="ops-grid engagement-lower-grid">
+        <Panel title="Zero-result searches">
+          <DataTable
+            columns={["Privacy-safe query", "Searches"]}
+            rows={(search?.topZeroResultQueries ?? []).map((item) => [item.query || "-", formatValue(item.searches)])}
+            empty="No zero-result query in this window."
+          />
+        </Panel>
+        <Panel title="Segment comparison">
+          <DataTable
+            columns={["Dimension", "Segment", "Events", "Users"]}
+            rows={[
+              ...(data?.regionComparison ?? []).map((item) => ["Region", item.segment || "-", formatValue(item.events), formatValue(item.uniqueUsers)]),
+              ...(data?.languageComparison ?? []).map((item) => ["Language", item.segment || "-", formatValue(item.events), formatValue(item.uniqueUsers)]),
+              ...(data?.planComparison ?? []).map((item) => ["Current plan", item.segment || "-", formatValue(item.events), formatValue(item.uniqueUsers)])
+            ]}
+            empty="No segment analytics returned."
+          />
+        </Panel>
+      </div>
+
+      <div className="roadmap-strip">
+        <span>Aggregates only: no prompt, note, or health detail</span>
+        <span>Feature events use a backend allowlist</span>
+        <span>Zero-result queries are redacted and retention-limited</span>
+        <span>Plan comparison reflects the current subscription state</span>
+      </div>
+    </div>
+  );
+}
+
 type TrackingMode = "overview" | "water" | "fasting" | "steps";
 
 function TrackingMonitoringView({ mode, onError }: { mode: TrackingMode; onError: (message: string | null) => void }) {
@@ -7526,7 +8499,18 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
 
   return (
     <div className="stack">
-      <SectionToolbar title={title} state={state} onReload={reload} />
+      <SectionToolbar
+        title={title}
+        description="Monitor runtime, database, provider, and production readiness signals from backend-owned health data."
+        state={state}
+        onReload={reload}
+      />
+      <AsyncState
+        state={state}
+        hasData={Boolean(data)}
+        loadingMessage="Loading system health..."
+        emptyMessage="No system health payload was returned."
+      />
       {data && mode === "overview" && (
         <>
           <div className="health-summary-grid">
@@ -7569,12 +8553,13 @@ function SystemHealthView({ mode, onError }: { mode: SystemHealthMode; onError: 
           </div>
         </Panel>
       )}
-      <div className="health-category-grid">
-        {visibleCategories.map((category) => (
-          <HealthCategoryCard key={category.title} category={category} />
-        ))}
-        {!visibleCategories.length && <EmptyState message="No system health payload returned." />}
-      </div>
+      {data && visibleCategories.length > 0 && (
+        <div className="health-category-grid">
+          {visibleCategories.map((category) => (
+            <HealthCategoryCard key={category.title} category={category} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -7734,144 +8719,6 @@ function useEndpoint<T>(path: string, onError: (message: string | null) => void)
   }, [stablePath, reloadToken]);
 
   return { data, state, reload: load };
-}
-
-function SectionToolbar({ title, state, onReload, children }: { title: string; state: LoadState; onReload: () => void; children?: ReactNode }) {
-  return (
-    <div className="section-toolbar">
-      <div>
-        <h2>{title}</h2>
-        <span className={`load-state ${state}`}>{state}</span>
-      </div>
-      <div className="toolbar-actions">
-        {children}
-        <button className="ghost-button" onClick={onReload} type="button">Refresh</button>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <article className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{hint}</small>
-    </article>
-  );
-}
-
-function Panel({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
-  return (
-    <article className={`panel ${className ?? ""}`.trim()}>
-      <h3>{title}</h3>
-      {children}
-    </article>
-  );
-}
-
-
-function CollapsiblePanel({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: ReactNode }) {
-  return (
-    <article className="panel collapsible-panel">
-      <button className="collapsible-panel-header" type="button" onClick={onToggle} aria-expanded={open}>
-        <h3>{title}</h3>
-        <span>{open ? "Hide" : "Show"}</span>
-      </button>
-      {open && <div className="collapsible-panel-body">{children}</div>}
-    </article>
-  );
-}
-function DataTable<T = unknown>({
-  columns,
-  rows,
-  empty,
-  rowData,
-  onRowClick
-}: {
-  columns: string[];
-  rows: ReactNode[][];
-  empty: string;
-  rowData?: T[];
-  onRowClick?: (row: T) => void;
-}) {
-  if (!rows.length) {
-    return <EmptyState message={empty} />;
-  }
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => <th key={column}>{column}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              className={onRowClick ? "clickable-row" : undefined}
-              key={index}
-              onClick={() => {
-                if (onRowClick && rowData?.[index]) {
-                  onRowClick(rowData[index]);
-                }
-              }}
-            >
-              {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PaginationControls({
-  page,
-  pageSize,
-  totalElements,
-  totalPages,
-  first,
-  last,
-  onPageChange,
-  onPageSizeChange
-}: {
-  page: number;
-  pageSize: number;
-  totalElements: number;
-  totalPages: number;
-  first: boolean;
-  last: boolean;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
-}) {
-  const safeTotalPages = Math.max(totalPages || 1, 1);
-  const from = totalElements === 0 ? 0 : page * pageSize + 1;
-  const to = Math.min((page + 1) * pageSize, totalElements);
-  return (
-    <div className="pagination-bar">
-      <div>
-        <strong>{formatValue(from)}-{formatValue(to)}</strong>
-        <span>of {formatValue(totalElements)} items</span>
-      </div>
-      <div className="pagination-actions">
-        <label>
-          Page size
-          <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </label>
-        <button className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(0)} type="button">First</button>
-        <button className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(Math.max(0, page - 1))} type="button">Previous</button>
-        <span className="page-indicator">Page {formatValue(page + 1)} / {formatValue(safeTotalPages)}</span>
-        <button className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(Math.min(safeTotalPages - 1, page + 1))} type="button">Next</button>
-        <button className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(safeTotalPages - 1)} type="button">Last</button>
-      </div>
-    </div>
-  );
 }
 
 function ProductCell({ item }: { item: FoodProduct }) {
@@ -8604,16 +9451,31 @@ function UserDetailsModal({
   user,
   statusState,
   onClose,
-  onStatusUpdate
+  onStatusUpdate,
+  onReloadUsers,
+  onNavigate,
+  onError
 }: {
   user: UserProfile;
   statusState: LoadState;
   onClose: () => void;
   onStatusUpdate: (payload: { accountEnabled: boolean; accountLocked: boolean; reason: string }) => Promise<void>;
+  onReloadUsers: () => Promise<void>;
+  onNavigate: (section: SectionKey) => void;
+  onError: (message: string | null) => void;
 }) {
+  const customerPath = `/api/v1/admin/users/${user.id}/customer-360`;
+  const { data: customer, state, reload } = useEndpoint<AdminCustomer360>(customerPath, onError);
+  const [tab, setTab] = useState<"account" | "subscription" | "ai" | "notifications" | "security" | "consent" | "activity" | "notes">("account");
   const [accountEnabled, setAccountEnabled] = useState(user.accountEnabled !== false);
   const [accountLocked, setAccountLocked] = useState(Boolean(user.accountLocked));
   const [reason, setReason] = useState("");
+  const [sessionReason, setSessionReason] = useState("");
+  const [note, setNote] = useState("");
+  const [tags, setTags] = useState("");
+  const [actionState, setActionState] = useState<LoadState>("idle");
+  const [confirmation, setConfirmation] = useState<"status" | "sessions" | null>(null);
+  const profile = customer?.profile ?? user;
 
   useEffect(() => {
     setAccountEnabled(user.accountEnabled !== false);
@@ -8621,90 +9483,145 @@ function UserDetailsModal({
     setReason("");
   }, [user.id, user.accountEnabled, user.accountLocked]);
 
+  async function confirmRiskAction() {
+    if (!user.id || !confirmation) return;
+    if (confirmation === "status") {
+      await onStatusUpdate({ accountEnabled, accountLocked, reason: reason.trim() });
+      setReason("");
+    } else {
+      setActionState("loading");
+      try {
+        await request(`/api/v1/admin/users/${user.id}/sessions/revoke`, {
+          method: "POST",
+          body: JSON.stringify({ reason: sessionReason.trim(), confirmed: true })
+        });
+        setSessionReason("");
+        setActionState("ready");
+      } catch (error) {
+        setActionState("error");
+        onError(formatRequestError(error));
+      }
+    }
+    setConfirmation(null);
+    await reload();
+    await onReloadUsers();
+  }
+
+  async function addSupportNote(event: FormEvent) {
+    event.preventDefault();
+    if (!user.id || !note.trim()) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/users/${user.id}/support-notes`, {
+        method: "POST",
+        body: JSON.stringify({
+          note: note.trim(),
+          tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+        })
+      });
+      setNote(""); setTags(""); setActionState("ready");
+      await reload();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const tabs = [
+    ["account", "Account"], ["subscription", "Subscription"], ["ai", "AI & refunds"],
+    ["notifications", "Notifications"], ["security", "Security"], ["consent", "Consent"],
+    ["activity", "Activity"], ["notes", "Support notes"]
+  ] as const;
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="user-modal" role="dialog" aria-modal="true" aria-label="User details" onClick={(event) => event.stopPropagation()}>
+      <section className="user-modal customer-360-modal" role="dialog" aria-modal="true" aria-label="Customer 360" onClick={(event) => event.stopPropagation()}>
         <header className="modal-header">
           <div>
-            <p className="eyebrow">Profile and account status</p>
-            <h2>{user.name ?? "Unnamed user"}</h2>
-            <span>{user.email ?? `ID ${user.id ?? "-"}`}</span>
+            <p className="eyebrow">Customer 360</p>
+            <h2>{profile.name ?? "Unnamed user"}</h2>
+            <span>{profile.email ?? `ID ${profile.id ?? "-"}`}</span>
           </div>
           <button className="icon-button" onClick={onClose} type="button" aria-label="Close">x</button>
         </header>
-        <div className="user-detail-layout">
-          <Panel title="Account">
-            <div className="readonly-grid">
-              <DetailItem label="ID" value={formatValue(user.id)} />
-              <DetailItem label="Email" value={user.email} />
-              <DetailItem label="Role" value={user.role} />
-              <DetailItem label="Account enabled" value={user.accountEnabled === false ? "No" : "Yes"} />
-              <DetailItem label="Account locked" value={user.accountLocked ? "Yes" : "No"} />
-              <DetailItem label="Email verified" value={user.emailVerified ? "Yes" : "No"} />
-              <DetailItem label="Password set" value={user.passwordSet ? "Yes" : "No"} />
-              <DetailItem label="Region" value={user.marketRegion} />
-              <DetailItem label="Language" value={user.preferredLanguage} />
-            </div>
-          </Panel>
-          <Panel title="Account status controls">
-            <form className="account-status-panel" onSubmit={(event) => {
-              event.preventDefault();
-              void onStatusUpdate({ accountEnabled, accountLocked, reason: reason.trim() });
-            }}>
-              <div className="account-status-summary">
-                <div>
-                  <span>Current state</span>
-                  <strong>{user.accountLocked ? "Locked" : user.accountEnabled === false ? "Disabled" : "Enabled"}</strong>
+        <nav className="customer-360-tabs" aria-label="Customer detail sections">
+          {tabs.map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)} type="button">{label}</button>)}
+        </nav>
+        <div className="customer-360-content">
+          <AsyncState state={state} hasData={Boolean(customer)} loadingMessage="Loading customer summary..." emptyMessage="Customer summary is unavailable." />
+          {customer && tab === "account" && <div className="customer-360-two-column">
+            <Panel title="Account summary">
+              <div className="readonly-grid">
+                <DetailItem label="ID" value={formatValue(profile.id)} />
+                <DetailItem label="Email" value={profile.email} />
+                <DetailItem label="Role" value={profile.role} />
+                <DetailItem label="Status" value={profile.accountLocked ? "Locked" : profile.accountEnabled === false ? "Disabled" : "Enabled"} />
+                <DetailItem label="Email verified" value={profile.emailVerified ? "Yes" : "No"} />
+                <DetailItem label="Password set" value={profile.passwordSet ? "Yes" : "No"} />
+                <DetailItem label="Region" value={profile.marketRegion} />
+                <DetailItem label="Language" value={profile.preferredLanguage} />
+                <DetailItem label="Created" value={formatDate(profile.createdAt)} />
+                <DetailItem label="Last active" value={formatDate(profile.lastActiveAt)} />
+              </div>
+            </Panel>
+            <Panel title="Controlled account action">
+              <form className="account-status-panel" onSubmit={(event) => {
+                event.preventDefault();
+                if (reason.trim()) setConfirmation("status");
+              }}>
+                <div className="account-status-toggles">
+                  <label className="status-toggle-card"><input checked={accountEnabled} onChange={(event) => setAccountEnabled(event.target.checked)} type="checkbox" /><span><strong>Allow sign in</strong><small>Disabled users cannot authenticate.</small></span></label>
+                  <label className="status-toggle-card danger"><input checked={accountLocked} onChange={(event) => setAccountLocked(event.target.checked)} type="checkbox" /><span><strong>Security lock</strong><small>Locked until an admin unlocks the account.</small></span></label>
                 </div>
-                <Badge value={user.accountLocked || user.accountEnabled === false ? "Restricted" : "Can sign in"} tone={user.accountLocked || user.accountEnabled === false ? "warn" : "good"} />
+                <label className="account-status-reason">Required audit reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Describe the support or security reason." maxLength={500} required /></label>
+                <div className="account-status-footer"><span>{reason.trim().length}/500</span><button className="primary-button" disabled={statusState === "loading" || !reason.trim()} type="submit">Review status change</button></div>
+              </form>
+            </Panel>
+          </div>}
+          {customer && tab === "subscription" && <div className="customer-360-two-column">
+            <Panel title="Subscription and entitlement">
+              <div className="readonly-grid">
+                <DetailItem label="Plan" value={customer.subscription.plan} /><DetailItem label="Status" value={customer.subscription.status} />
+                <DetailItem label="Billing" value={customer.subscription.billingPeriod} /><DetailItem label="Auto renew" value={customer.subscription.autoRenew ? "Yes" : "No"} />
+                <DetailItem label="Start" value={customer.subscription.startDate} /><DetailItem label="End" value={customer.subscription.endDate} />
+                <DetailItem label="Monthly AI" value={customer.subscription.aiMonthlyQuota} /><DetailItem label="Used" value={customer.subscription.aiUsedThisPeriod} />
+                <DetailItem label="Add-on remaining" value={customer.subscription.aiAddonRemaining} /><DetailItem label="Add-on expiry" value={customer.subscription.aiAddonExpiresAt} />
               </div>
-              <div className="account-status-toggles">
-                <label className="status-toggle-card">
-                  <input checked={accountEnabled} onChange={(event) => setAccountEnabled(event.target.checked)} type="checkbox" />
-                  <span>
-                    <strong>Allow sign in</strong>
-                    <small>Disabled users cannot authenticate.</small>
-                  </span>
-                </label>
-                <label className="status-toggle-card danger">
-                  <input checked={accountLocked} onChange={(event) => setAccountLocked(event.target.checked)} type="checkbox" />
-                  <span>
-                    <strong>Security lock</strong>
-                    <small>Locked users are blocked until unlocked by admin.</small>
-                  </span>
-                </label>
-              </div>
-              <label className="account-status-reason">
-                Admin reason
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Example: Temporary lock after suspicious activity." maxLength={500} />
-              </label>
-              <div className="account-status-footer">
-                <span>{reason.trim().length}/500 audit note characters</span>
-                <button className="primary-button" disabled={statusState === "loading"} type="submit">Apply status</button>
-              </div>
-            </form>
-          </Panel>
-          <Panel title="Body profile">
-            <div className="readonly-grid">
-              <DetailItem label="Age" value={formatValue(user.age)} />
-              <DetailItem label="Gender" value={user.gender} />
-              <DetailItem label="Height" value={user.height === undefined ? "-" : `${formatValue(user.height)} cm`} />
-              <DetailItem label="Weight" value={user.weight === undefined ? "-" : `${formatValue(user.weight)} kg`} />
-              <DetailItem label="BMI" value={formatValue(user.bmi)} />
-              <DetailItem label="Body fat" value={user.bodyFat === undefined ? "-" : `${formatValue(user.bodyFat)}%`} />
-            </div>
-          </Panel>
-          <Panel title="Goal recalculation">
-            <div className="readonly-grid">
-              <DetailItem label="Recommended" value={user.goalRecalculationRecommended ? "Yes" : "No"} />
-              <DetailItem label="Reason" value={user.goalRecalculationReason ?? "-"} />
-            </div>
-          </Panel>
+            </Panel>
+            <Panel title="Resolved features"><div className="customer-tag-list">{(customer.subscription.activeFeatures ?? []).map((feature) => <Badge key={feature} value={humanizeFeature(feature)} tone="good" />)}</div><button className="ghost-button" onClick={() => { onClose(); onNavigate("subscriptionAccess"); }} type="button">Open entitlement controls</button></Panel>
+          </div>}
+          {customer && tab === "ai" && <div className="customer-360-two-column">
+            <Panel title="AI support summary"><div className="readonly-grid"><DetailItem label="Total requests" value={customer.ai.totalRequests} /><DetailItem label="Last request" value={formatDate(customer.ai.lastRequestAt)} /><DetailItem label="Recent sample" value={customer.ai.recentSampleSize} /></div></Panel>
+            <Panel title="Recent outcome counts"><div className="customer-count-list">{Object.entries(customer.ai.recentStatusCounts ?? {}).map(([key, value]) => <div key={key}><span>{humanizeFeature(key)}</span><strong>{value}</strong></div>)}</div><button className="ghost-button" onClick={() => { onClose(); onNavigate("ai"); }} type="button">Open AI operations</button></Panel>
+            <Panel title="Recent request types"><div className="customer-count-list">{Object.entries(customer.ai.recentRequestTypeCounts ?? {}).map(([key, value]) => <div key={key}><span>{humanizeFeature(key)}</span><strong>{value}</strong></div>)}</div></Panel>
+          </div>}
+          {customer && tab === "notifications" && <Panel title={`Notifications (${customer.notifications.unread ?? 0} unread)`}><DataTable caption="Recent notification metadata" columns={["Type", "Severity", "Source", "State", "Created"]} rows={(customer.notifications.recent ?? []).map((item) => [item.type, <Badge value={item.severity} />, item.source, item.read ? "Read" : "Unread", formatDate(item.createdAt)])} empty="No notification metadata." /></Panel>}
+          {customer && tab === "security" && <div className="customer-360-two-column">
+            <Panel title="Active sessions"><div className="customer-risk-summary"><strong>{customer.security.activeSessions ?? 0}</strong><span>active refresh-token sessions</span></div><label>Required audit reason<textarea value={sessionReason} onChange={(event) => setSessionReason(event.target.value)} placeholder="Why must all sessions be revoked?" maxLength={500} /></label><button className="primary-button danger-button" disabled={!sessionReason.trim() || actionState === "loading" || (customer.security.activeSessions ?? 0) === 0} onClick={() => setConfirmation("sessions")} type="button">Review session revoke</button></Panel>
+            <Panel title="Recent security events"><DataTable caption="Security events" columns={["Event", "Provider", "Result", "Created"]} rows={(customer.security.recentEvents ?? []).map((item) => [humanizeFeature(item.eventType), item.provider, item.resultCode, formatDate(item.createdAt)])} empty="No security events." /></Panel>
+          </div>}
+          {customer && tab === "consent" && <Panel title={`Consent history (${customer.consent.total ?? 0})`}><DataTable caption="Consent history" columns={["Type", "Version", "Status", "Source", "Created"]} rows={(customer.consent.recent ?? []).map((item) => [humanizeFeature(item.consentType), item.version, <Badge value={item.status} />, item.source, formatDate(item.createdAt)])} empty="No consent records." /></Panel>}
+          {customer && tab === "activity" && <div className="customer-360-two-column"><Panel title="Recent activity summary"><div className="readonly-grid"><DetailItem label="Food logs" value={customer.activity.foodLogCount} /><DetailItem label="Last food log" value={formatDate(customer.activity.lastFoodLogAt)} /><DetailItem label="Product events" value={customer.activity.productEventCount} /></div></Panel><Panel title="Recent product activity"><DataTable caption="Recent product activity" columns={["Event", "Surface", "Created"]} rows={(customer.activity.recentProductEvents ?? []).map((item) => [humanizeFeature(item.eventType), item.surface, formatDate(item.createdAt)])} empty="No product activity." /></Panel></div>}
+          {customer && tab === "notes" && <div className="customer-360-two-column">
+            <Panel title="Add internal support note"><form className="customer-note-form" onSubmit={addSupportNote}><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} required /></label><label>Tags<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="BETA, BILLING, FOLLOW_UP" /></label><button className="primary-button" disabled={!note.trim() || actionState === "loading"} type="submit">Save note</button></form></Panel>
+            <Panel title="Support history"><div className="customer-note-list">{(customer.supportNotes ?? []).map((item) => <article key={item.id}><div><strong>{item.createdBy ?? "Admin"}</strong><span>{formatDate(item.createdAt)}</span></div><p>{item.note}</p><div className="customer-tag-list">{(item.tags ?? []).map((tag) => <Badge key={tag} value={tag} />)}</div></article>)}{!customer.supportNotes?.length && <EmptyState message="No internal support notes." />}</div></Panel>
+          </div>}
         </div>
+        <footer className="modal-actions"><button className="ghost-button" onClick={onClose} type="button">Close</button></footer>
+        {confirmation && <ConfirmDialog
+          title={confirmation === "status" ? "Apply account status change?" : "Revoke all active sessions?"}
+          message={confirmation === "status" ? `This changes sign-in access for ${profile.email}. The reason is stored in the audit trail.` : `This signs ${profile.email} out of every active session. The reason is stored in the audit trail.`}
+          confirmLabel={confirmation === "status" ? "Apply status" : "Revoke sessions"}
+          danger
+          busy={statusState === "loading" || actionState === "loading"}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => void confirmRiskAction()}
+        />}
       </section>
     </div>
   );
 }
+
 function AuditDetailsModal({ audit, onClose }: { audit: AuditEntry; onClose: () => void }) {
   const targetLabel = `${audit.targetType ?? "-"} #${audit.targetKey ?? audit.targetId ?? "-"}`;
   return (
@@ -8819,10 +9736,6 @@ function PriorityList({ items }: { items: Array<[string, string | number]> }) {
       ))}
     </div>
   );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return <div className="empty-state">{message}</div>;
 }
 
 function formatValue(value: unknown): string {
@@ -9223,6 +10136,8 @@ function accessFeatureValue(access: SubscriptionFeatureAccess | null, feature: s
       return Boolean(access.advancedMacroTargets);
     case "MICRONUTRIENT_DETAILS":
       return Boolean(access.micronutrientDetails);
+    case "MICRONUTRIENT_ANALYTICS":
+      return Boolean(access.micronutrientAnalytics);
     case "DATA_EXPORT":
       return Boolean(access.dataExport);
     case "FASTING_BASIC":
@@ -9295,6 +10210,8 @@ function humanizeFeature(value?: string): string {
       return "Advanced Macro Targets";
     case "MICRONUTRIENT_DETAILS":
       return "Micronutrient Details";
+    case "MICRONUTRIENT_ANALYTICS":
+      return "Micronutrient Analytics";
     case "DATA_EXPORT":
       return "Data Export";
     case "FASTING_BASIC":
@@ -9345,6 +10262,8 @@ function featureDescription(value?: string): string {
       return "Flexible macro targets and meal-level planning.";
     case "MICRONUTRIENT_DETAILS":
       return "Detailed vitamins and minerals in nutrition views.";
+    case "MICRONUTRIENT_ANALYTICS":
+      return "Advanced micronutrient trends, coverage, and period comparisons.";
     case "DATA_EXPORT":
       return "Export personal tracking data for portability.";
     case "FASTING_BASIC":
@@ -9757,6 +10676,11 @@ function formatCurrencyBreakdown(value?: Record<string, number>): string {
   return entries.map(([currency, amount]) => formatAiCostAmount(amount, currency)).join(" / ");
 }
 
+function formatRatioBreakdown(value?: Record<string, number>): string {
+  const entries = Object.entries(value ?? {}).filter(([, ratio]) => typeof ratio === "number" && Number.isFinite(ratio));
+  if (!entries.length) return "-";
+  return entries.map(([currency, ratio]) => `${currency} ${(ratio * 100).toFixed(1)}%`).join(" / ");
+}
 function formatAiCostAmount(amount?: number, currency?: string): string {
   if (typeof amount !== "number" || !Number.isFinite(amount)) return "-";
   return `${amount.toFixed(4)} ${currency ?? ""}`.trim();
@@ -9929,4 +10853,268 @@ function formatDurationMs(value?: number): string {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+type PromotionDraft = {
+  code: string; name: string; description: string; discountPercent: string;
+  promoType: string; targetStore: string; targetPlan: string; targetRegion: string;
+  targetProductId: string; currency: string; eligibilityRule: string;
+  perUserLimit: string; globalLimit: string; campaignKey: string;
+  providerOfferId: string; providerProductId: string; startAt: string; endAt: string;
+};
+
+const EMPTY_PROMOTION: PromotionDraft = {
+  code: "", name: "", description: "", discountPercent: "0", promoType: "CAMPAIGN",
+  targetStore: "ALL", targetPlan: "", targetRegion: "", targetProductId: "",
+  currency: "EUR", eligibilityRule: "ALL_USERS", perUserLimit: "1", globalLimit: "",
+  campaignKey: "", providerOfferId: "", providerProductId: "", startAt: "", endAt: ""
+};
+
+function PromotionsView({ onError }: { onError: (message: string | null) => void }) {
+  const [state, setState] = useState<LoadState>("idle");
+  const [pageData, setPageData] = useState<AdminPromotionPage>({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true });
+  const [metrics, setMetrics] = useState<AdminPromotionMetrics | null>(null);
+  const [redemptions, setRedemptions] = useState<AdminPromotionRedemptionPage>({ content: [], page: 0, size: 10, totalElements: 0, totalPages: 0, first: true, last: true });
+  const [redemptionPage, setRedemptionPage] = useState(0);
+  const [redemptionStatus, setRedemptionStatus] = useState("");
+  const [reconciliation, setReconciliation] = useState<AdminPromotionReconciliation | null>(null);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [type, setType] = useState("");
+  const [store, setStore] = useState("");
+  const [draft, setDraft] = useState<PromotionDraft>(EMPTY_PROMOTION);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<AdminPromotion | null>(null);
+  const [preview, setPreview] = useState<AdminPromotionPreview | null>(null);
+  const [deactivating, setDeactivating] = useState<AdminPromotion | null>(null);
+  const [deactivationReason, setDeactivationReason] = useState("");
+  const [actionState, setActionState] = useState<LoadState>("idle");
+
+  async function load() {
+    setState("loading");
+    onError(null);
+    try {
+      const params = new URLSearchParams({ page: String(page), size: String(size) });
+      if (appliedSearch) params.set("search", appliedSearch);
+      if (status) params.set("status", status);
+      if (type) params.set("type", type);
+      if (store) params.set("store", store);
+      const redemptionParams = new URLSearchParams({ page: String(redemptionPage), size: "10" });
+      if (redemptionStatus) redemptionParams.set("status", redemptionStatus);
+      const [promotions, summary, redemptionPageData] = await Promise.all([
+        request<AdminPromotionPage>(`/api/v1/admin/promotions?${params}`),
+        request<AdminPromotionMetrics>("/api/v1/admin/promotions/metrics"),
+        request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${redemptionParams}`)
+      ]);
+      setPageData(promotions);
+      setMetrics(summary);
+      setRedemptions(redemptionPageData);
+      setState("ready");
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  useEffect(() => { void load(); }, [page, size, appliedSearch, status, type, store, redemptionPage, redemptionStatus]);
+
+  function resetDraft() {
+    setDraft(EMPTY_PROMOTION);
+    setEditingId(null);
+  }
+
+  function editPromotion(item: AdminPromotion) {
+    if (item.status !== "DRAFT") return;
+    setEditingId(item.id ?? null);
+    setDraft({
+      code: item.code ?? "", name: item.name ?? "", description: item.description ?? "",
+      discountPercent: String(item.discountPercent ?? 0), promoType: item.promoType ?? "CAMPAIGN",
+      targetStore: item.targetStore ?? "ALL", targetPlan: item.targetPlan ?? "",
+      targetRegion: item.targetRegion ?? "", targetProductId: item.targetProductId ?? "",
+      currency: item.currency ?? "EUR", eligibilityRule: item.eligibilityRule ?? "",
+      perUserLimit: String(item.perUserLimit ?? 1), globalLimit: item.globalLimit == null ? "" : String(item.globalLimit),
+      campaignKey: item.campaignKey ?? "", providerOfferId: item.providerOfferId ?? "",
+      providerProductId: item.providerProductId ?? "", startAt: item.startAt?.slice(0, 16) ?? "",
+      endAt: item.endAt?.slice(0, 16) ?? ""
+    });
+  }
+
+  async function savePromotion(event: FormEvent) {
+    event.preventDefault();
+    setActionState("loading");
+    onError(null);
+    try {
+      const body = {
+        ...draft,
+        discountPercent: Number(draft.discountPercent),
+        perUserLimit: Number(draft.perUserLimit),
+        globalLimit: draft.globalLimit ? Number(draft.globalLimit) : null,
+        targetPlan: draft.targetPlan || null,
+        targetRegion: draft.targetRegion || null,
+        targetProductId: draft.targetProductId || null,
+        eligibilityRule: draft.eligibilityRule,
+        campaignKey: draft.campaignKey || null,
+        providerOfferId: draft.providerOfferId || null,
+        providerProductId: draft.providerProductId || null,
+        startAt: draft.startAt || null,
+        endAt: draft.endAt || null
+      };
+      await request<AdminPromotion>(editingId ? `/api/v1/admin/promotions/${editingId}` : "/api/v1/admin/promotions", {
+        method: editingId ? "PUT" : "POST", body
+      });
+      resetDraft();
+      setActionState("ready");
+      await load();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function openPreview(item: AdminPromotion) {
+    if (!item.id) return;
+    setSelected(item);
+    setPreview(null);
+    try {
+      setPreview(await request<AdminPromotionPreview>(`/api/v1/admin/promotions/${item.id}/preview`, { method: "POST" }));
+    } catch (error) {
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function runAction(path: string) {
+    setActionState("loading");
+    try {
+      await request(path, { method: "POST" });
+      setSelected(null);
+      setPreview(null);
+      setActionState("ready");
+      await load();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  async function reconcileSelected() {
+    if (!selected?.id) return;
+    setActionState("loading");
+    try {
+      setReconciliation(await request<AdminPromotionReconciliation>(`/api/v1/admin/promotions/${selected.id}/reconcile`, { method: "POST" }));
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+  async function deactivate(event: FormEvent) {
+    event.preventDefault();
+    if (!deactivating?.id) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/promotions/${deactivating.id}/deactivate`, { method: "POST", body: { reason: deactivationReason } });
+      setDeactivating(null);
+      setDeactivationReason("");
+      setActionState("ready");
+      await load();
+    } catch (error) {
+      setActionState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  const items = pageData.content ?? [];
+  const revenueLabel = (metrics?.revenueByCurrency ?? []).length
+    ? (metrics?.revenueByCurrency ?? []).map((item) => `${((item.amountMinor ?? 0) / 100).toFixed(2)} ${item.currency ?? ""}`).join(" ? ")
+    : "0.00";
+  return (
+    <div className="view-stack commercial-ops-view">
+      <SectionToolbar title="Commercial operations" description="Store-safe promotion lifecycle, targeting, provider mapping and conversion health." state={state} onReload={load} />
+
+      <div className="metrics-grid commercial-metrics">
+        <MetricCard label="Active promotions" value={formatValue(metrics?.activePromos)} hint="Currently enabled commercial rules" />
+        <MetricCard label="Redemptions" value={formatValue(metrics?.totalRedemptions)} hint={`${formatValue(metrics?.uniqueUsers)} unique users`} />
+        <MetricCard label="Conversion" value={`${formatValue(metrics?.conversionRate)}%`} hint={`${formatValue(metrics?.convertedRedemptions)} provider-confirmed`} />
+        <MetricCard label="Rejected" value={`${formatValue(metrics?.rejectionRate)}%`} hint="Provider or eligibility rejection rate" />
+        <MetricCard label="Converted revenue" value={revenueLabel} hint="Separated by provider currency" />
+        <MetricCard label="Abuse signals" value={formatValue(metrics?.abuseSignals)} hint={`${formatValue(metrics?.duplicateAttempts)} duplicate / ${formatValue(metrics?.limitRejections)} limit`} />
+      </div>
+
+      <div className="commercial-workspace-grid">
+        <Panel title={editingId ? "Edit draft promotion" : "Create promotion draft"} description="Activation is a separate, validated and audited action.">
+          <form className="commercial-form" onSubmit={savePromotion}>
+            <div className="commercial-form-grid">
+              <label>Code<input required maxLength={80} value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })} /></label>
+              <label>Name<input required maxLength={160} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+              <label>Offer type<select value={draft.promoType} onChange={(event) => setDraft({ ...draft, promoType: event.target.value })}><option>CAMPAIGN</option><option>INTRO_OFFER</option><option>WIN_BACK</option><option>SUPPORT_GRANT</option></select></label>
+              <label>Discount %<input required min="0" max="100" step="0.01" type="number" value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} /></label>
+              <label>Store<select value={draft.targetStore} onChange={(event) => setDraft({ ...draft, targetStore: event.target.value })}><option>ALL</option><option>REVENUECAT</option><option>APPLE_APP_STORE</option><option>GOOGLE_PLAY</option></select></label>
+              <label>Plan<select value={draft.targetPlan} onChange={(event) => setDraft({ ...draft, targetPlan: event.target.value })}><option value="">All plans</option><option>FREE</option><option>PLUS</option><option>PRO</option></select></label>
+              <label>Region<select value={draft.targetRegion} onChange={(event) => setDraft({ ...draft, targetRegion: event.target.value })}><option value="">All regions</option><option>GLOBAL</option><option>TR</option><option>UK_IE</option><option>EU</option></select></label>
+              <label>Currency<input required maxLength={3} value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} /></label>
+              <label>Per-user limit<input required min="1" type="number" value={draft.perUserLimit} onChange={(event) => setDraft({ ...draft, perUserLimit: event.target.value })} /></label>
+              <label>Global limit<input min="1" type="number" value={draft.globalLimit} onChange={(event) => setDraft({ ...draft, globalLimit: event.target.value })} placeholder="Unlimited" /></label>
+              <label>Start time<input type="datetime-local" value={draft.startAt} onChange={(event) => setDraft({ ...draft, startAt: event.target.value })} /></label>
+              <label>End time<input type="datetime-local" value={draft.endAt} onChange={(event) => setDraft({ ...draft, endAt: event.target.value })} /></label>
+              <label>Provider offer ID<input maxLength={160} value={draft.providerOfferId} onChange={(event) => setDraft({ ...draft, providerOfferId: event.target.value })} /></label>
+              <label>Provider product ID<input maxLength={160} value={draft.providerProductId} onChange={(event) => setDraft({ ...draft, providerProductId: event.target.value })} /></label>
+              <label>Campaign key<input maxLength={120} value={draft.campaignKey} onChange={(event) => setDraft({ ...draft, campaignKey: event.target.value })} /></label>
+              <label>Eligibility rule<select required value={draft.eligibilityRule} onChange={(event) => setDraft({ ...draft, eligibilityRule: event.target.value })}><option value="ALL_USERS">All users</option><option value="NO_PRIOR_PROMO_REDEMPTION">No prior promo</option><option value="FIRST_PAID_PURCHASE">First paid purchase</option><option value="LAPSED_SUBSCRIBER">Lapsed subscriber</option><option value="ADMIN_SUPPORT_ONLY">Admin support only</option></select></label>
+            </div>
+            <label>Description<textarea maxLength={600} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+            <div className="inline-actions commercial-form-actions"><button className="primary-button" disabled={actionState === "loading"} type="submit">{editingId ? "Save draft" : "Create draft"}</button>{editingId && <button className="ghost-button" onClick={resetDraft} type="button">Cancel edit</button>}</div>
+          </form>
+        </Panel>
+
+        <Panel title="Store guardrails" description="Commercial configuration cannot silently grant paid access.">
+          <div className="commercial-guardrails">
+            <div><strong>Provider truth</strong><span>Paid entitlement still requires a verified RevenueCat, App Store or Google Play event.</span></div>
+            <div><strong>Mapping check</strong><span>Store-targeted offers require both offer and product identifiers before activation.</span></div>
+            <div><strong>Immutable redemption key</strong><span>Provider redemptions use a unique idempotency key to block duplicate conversion credit.</span></div>
+            <div><strong>Lifecycle separation</strong><span>Intro, win-back, support grant and campaign offers stay distinguishable in reporting.</span></div>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Promotion inventory" description="Server-side paginated commercial rules and current lifecycle state.">
+        <form className="commercial-filter-grid" onSubmit={(event) => { event.preventDefault(); setPage(0); setAppliedSearch(search.trim()); }}>
+          <label>Search<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Code, name or campaign" /></label>
+          <label>Status<select value={status} onChange={(event) => { setPage(0); setStatus(event.target.value); }}><option value="">All statuses</option><option>DRAFT</option><option>ACTIVE</option><option>DEACTIVATED</option><option>EXPIRED</option></select></label>
+          <label>Type<select value={type} onChange={(event) => { setPage(0); setType(event.target.value); }}><option value="">All types</option><option>CAMPAIGN</option><option>INTRO_OFFER</option><option>WIN_BACK</option><option>SUPPORT_GRANT</option></select></label>
+          <label>Store<select value={store} onChange={(event) => { setPage(0); setStore(event.target.value); }}><option value="">All stores</option><option>ALL</option><option>REVENUECAT</option><option>APPLE_APP_STORE</option><option>GOOGLE_PLAY</option></select></label>
+          <button className="primary-button" type="submit">Apply</button>
+        </form>
+        <DataTable columns={["Promotion", "Type", "Target", "Window", "Usage", "Mapping", "Status", "Actions"]} empty="No promotions match these filters." rows={items.map((item) => [
+          <div className="table-stack"><strong>{item.name ?? "-"}</strong><small>{item.code ?? "-"} ? {formatValue(item.discountPercent)}%</small></div>,
+          humanizeFeature(item.promoType),
+          <div className="table-stack"><span>{item.targetPlan ?? "All plans"}</span><small>{item.targetStore ?? "ALL"} ? {item.targetRegion ?? "All regions"}</small></div>,
+          <div className="table-stack"><span>{formatDate(item.startAt)}</span><small>to {formatDate(item.endAt)}</small></div>,
+          `${formatValue(item.usedCount)} / ${item.globalLimit == null ? "?" : formatValue(item.globalLimit)}`,
+          <span className={`status-pill ${item.providerMappingReady ? "live" : ""}`}>{item.providerMappingReady ? "Ready" : "Missing"}</span>,
+          <span className={`status-pill ${item.status === "ACTIVE" ? "live" : ""}`}>{item.status ?? "-"}</span>,
+          <div className="inline-actions commercial-row-actions"><button className="ghost-button" onClick={() => void openPreview(item)} type="button">Inspect</button>{item.status === "DRAFT" && <button className="ghost-button" onClick={() => editPromotion(item)} type="button">Edit</button>}{item.status === "ACTIVE" && <button className="ghost-button danger-button" onClick={() => setDeactivating(item)} type="button">Deactivate</button>}</div>
+        ])} />
+        <PaginationControls page={pageData.page ?? page} pageSize={pageData.size ?? size} totalElements={pageData.totalElements ?? 0} totalPages={pageData.totalPages ?? 0} first={pageData.first ?? page === 0} last={pageData.last ?? true} onPageChange={setPage} onPageSizeChange={(value) => { setPage(0); setSize(value); }} />
+      </Panel>
+
+      <Panel title="Provider redemption ledger" description="Sanitized provider attribution, eligibility rejections and duplicate signals.">
+        <div className="commercial-ledger-toolbar"><label>Status<select value={redemptionStatus} onChange={(event) => { setRedemptionPage(0); setRedemptionStatus(event.target.value); }}><option value="">All statuses</option><option>CONVERTED</option><option>REJECTED</option><option>PROVIDER_VERIFIED</option><option>RESERVED</option></select></label></div>
+        <DataTable columns={["Promotion", "User", "Result", "Provider event", "Value", "Abuse", "Time"]} empty="No provider redemption records returned." rows={(redemptions.content ?? []).map((item) => [
+          item.promoCode ?? `#${item.promoId ?? "-"}`,
+          <div className="table-stack"><strong>{item.maskedUserEmail ?? "hidden"}</strong><small>User #{item.userId ?? "-"}</small></div>,
+          <div className="table-stack"><span className={`status-pill ${item.status === "CONVERTED" ? "live" : ""}`}>{item.status ?? "-"}</span><small>{item.rejectionReason ?? "Eligible"}</small></div>,
+          item.providerEventReference ?? "-",
+          item.amountMinor == null ? "-" : `${(item.amountMinor / 100).toFixed(2)} ${item.currency ?? ""}`,
+          <div className="table-stack"><strong>{formatValue(item.duplicateHits)}</strong><small>{item.lastDuplicateAt ? `Last ${formatDate(item.lastDuplicateAt)}` : "No duplicate"}</small></div>,
+          formatDate(item.convertedAt ?? item.appliedAt)
+        ])} />
+        <PaginationControls page={redemptions.page ?? redemptionPage} pageSize={redemptions.size ?? 10} totalElements={redemptions.totalElements ?? 0} totalPages={redemptions.totalPages ?? 0} first={redemptions.first ?? redemptionPage === 0} last={redemptions.last ?? true} onPageChange={setRedemptionPage} onPageSizeChange={() => undefined} />
+      </Panel>
+      {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="modal-card compact commercial-preview-modal" role="dialog" aria-modal="true" aria-label="Promotion validation" onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>COMMERCIAL VALIDATION</span><h2>{selected.name}</h2><p>{selected.code} ? {selected.promoType}</p></div><button className="modal-icon-close" onClick={() => setSelected(null)} type="button">x</button></header><div className="modal-body"><div className="commercial-preview-summary"><div><span>Estimated audience</span><strong>{formatValue(preview?.estimatedAudience)}</strong></div><div><span>Provider mapping</span><strong>{preview?.providerMappingReady ? "Ready" : "Incomplete"}</strong></div><div><span>Activation</span><strong>{preview?.activationReady ? "Ready" : "Blocked"}</strong></div></div><div className="commercial-validation-list">{preview?.validationIssues?.length ? preview.validationIssues.map((issue) => <p key={issue}>{issue}</p>) : <p className="success-note">No activation blockers detected.</p>}</div>{reconciliation && <div className="commercial-reconciliation"><strong>{reconciliation.providerRoute}</strong><span>{formatValue(reconciliation.observedProviderEvents)} processed provider event(s)</span><small>Last observed: {formatDate(reconciliation.lastObservedAt)}</small>{reconciliation.issues?.map((issue) => <p key={issue}>{issue}</p>)}</div>}<p className="commercial-entitlement-warning">Activating this promotion does not grant entitlement. Store/provider verification remains mandatory.</p></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => void reconcileSelected()} type="button">Reconcile mapping</button>{selected.status !== "ACTIVE" && <button className="primary-button" disabled={!preview?.activationReady || actionState === "loading"} onClick={() => selected.id && void runAction(`/api/v1/admin/promotions/${selected.id}/activate`)} type="button">Activate promotion</button>}</footer></section></div>}
+
+      {deactivating && <div className="modal-backdrop" role="presentation" onClick={() => setDeactivating(null)}><form className="modal-card compact commercial-deactivate-modal" onSubmit={deactivate} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>DEACTIVATE PROMOTION</span><h2>{deactivating.name}</h2></div><button className="modal-icon-close" onClick={() => setDeactivating(null)} type="button">x</button></header><div className="modal-body"><label>Required audit reason<textarea required maxLength={500} rows={4} value={deactivationReason} onChange={(event) => setDeactivationReason(event.target.value)} placeholder="Why must this promotion stop?" /></label></div><footer className="modal-actions padded-actions"><button className="ghost-button" onClick={() => setDeactivating(null)} type="button">Cancel</button><button className="primary-button danger-button" disabled={!deactivationReason.trim() || actionState === "loading"} type="submit">Deactivate</button></footer></form></div>}
+    </div>
+  );
 }

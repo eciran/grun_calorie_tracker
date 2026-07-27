@@ -24,6 +24,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
+import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.WorkoutPlanStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -471,7 +472,9 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         if (exercise.getExerciseItemId() != null) {
             ExerciseItemEntity item = exerciseItemRepository.findById(exercise.getExerciseItemId())
                     .orElseThrow(() -> new IllegalArgumentException("AI workout provider referenced an unknown exercise item."));
-            if (!Boolean.TRUE.equals(item.getActive()) || !Boolean.TRUE.equals(item.getAiEligible())) {
+            if (!Boolean.TRUE.equals(item.getActive())
+                    || !Boolean.TRUE.equals(item.getAiEligible())
+                    || item.getTechniqueReviewStatus() != ExerciseTechniqueReviewStatus.APPROVED) {
                 throw new IllegalArgumentException("AI workout provider referenced an inactive or non-AI exercise item.");
             }
             if (!allowedMeasurement(item, exercise.getMeasurementType())) {
@@ -627,6 +630,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         return exerciseItemRepository.findAll(PageRequest.of(0, 80)).getContent().stream()
                 .filter(item -> Boolean.TRUE.equals(item.getActive()))
                 .filter(item -> Boolean.TRUE.equals(item.getAiEligible()))
+                .filter(item -> item.getTechniqueReviewStatus() == ExerciseTechniqueReviewStatus.APPROVED)
                 .filter(item -> item.getId() == null || !excluded.contains(item.getId()))
                 .limit(30)
                 .map(this::toExerciseCatalogItem)

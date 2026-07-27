@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.*;
+import com.grun.calorietracker.enums.NotificationCampaignRecipientStatus;
 import com.grun.calorietracker.enums.NotificationCampaignStatus;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import com.grun.calorietracker.service.AdminNotificationCampaignService;
@@ -37,6 +38,16 @@ public class AdminNotificationCampaignController {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(campaignService.list(status, page, size));
+    }
+
+    @GetMapping("/{id}/recipients")
+    @Operation(summary = "List privacy-safe campaign delivery and engagement rows")
+    public ResponseEntity<AdminNotificationCampaignRecipientPageDto> recipients(
+            @PathVariable Long id,
+            @RequestParam(required = false) NotificationCampaignRecipientStatus status,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(campaignService.recipients(id, status, page, size));
     }
 
     @GetMapping("/{id}")

@@ -20,7 +20,7 @@ class AiProviderConfigurationValidatorImplTest {
         properties.setModel("log-draft-v1");
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
@@ -31,7 +31,7 @@ class AiProviderConfigurationValidatorImplTest {
         properties.setModel("not-configured");
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
@@ -40,7 +40,7 @@ class AiProviderConfigurationValidatorImplTest {
         properties.getHttpJson().setApiKey("");
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
@@ -49,14 +49,14 @@ class AiProviderConfigurationValidatorImplTest {
         properties.getHttpJson().setEndpoint("http://ai-provider.example.test");
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
     void validateConfiguredForDraft_whenHttpJsonConfigured_accepts() {
         AiProperties properties = httpJsonProperties();
 
-        assertDoesNotThrow(() -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+        assertDoesNotThrow(() -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
@@ -65,14 +65,14 @@ class AiProviderConfigurationValidatorImplTest {
         properties.getOpenai().setApiKey("");
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
     void validateConfiguredForDraft_whenOpenAiConfigured_accepts() {
         AiProperties properties = openAiProperties();
 
-        assertDoesNotThrow(() -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+        assertDoesNotThrow(() -> validator(properties).validateConfiguredForDraft());
     }
     @Test
     void validateConfiguredForDraft_whenPromptVersionMissing_throws() {
@@ -83,7 +83,7 @@ class AiProviderConfigurationValidatorImplTest {
         properties.setPromptVersion(" ");
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
 
     @Test
@@ -92,8 +92,12 @@ class AiProviderConfigurationValidatorImplTest {
         properties.getOpenai().setMaxRepairAttempts(2);
 
         assertThrows(IllegalArgumentException.class,
-                () -> new AiProviderConfigurationValidatorImpl(properties).validateConfiguredForDraft());
+                () -> validator(properties).validateConfiguredForDraft());
     }
+    private AiProviderConfigurationValidatorImpl validator(AiProperties properties) {
+        return new AiProviderConfigurationValidatorImpl(properties, org.mockito.Mockito.mock(AiOperationsPolicyService.class));
+    }
+
     private AiProperties httpJsonProperties() {
         AiProperties properties = new AiProperties();
         properties.setEnabled(true);

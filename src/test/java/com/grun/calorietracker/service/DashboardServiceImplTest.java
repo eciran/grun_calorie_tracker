@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -54,10 +55,12 @@ class DashboardServiceImplTest {
     private SubscriptionService subscriptionService;
 
     private DashboardServiceImpl dashboardService;
+    private MicronutrientReferenceService micronutrientReferenceService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        micronutrientReferenceService = new com.grun.calorietracker.service.impl.DefaultMicronutrientReferenceService();
         dashboardService = new DashboardServiceImpl(
                 userService,
                 goalRepository,
@@ -67,7 +70,8 @@ class DashboardServiceImplTest {
                 recipeLogRepository,
                 healthIntegrationService,
                 stepTrackingService,
-                subscriptionService
+                subscriptionService,
+                micronutrientReferenceService
         );
     }
 
@@ -128,9 +132,14 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());
         assertEquals(0, result.getCurrentLogStreakDays());
-        assertEquals(25.0, result.getTargetMicros().getFiber());
-        assertEquals(25.0, result.getRemainingMicros().getFiber());
-        assertEquals(2300.0, result.getTargetMicros().getSodium());
+        assertEquals(false, result.getMicronutrientDetailsAvailable());
+        assertNull(result.getConsumedMicros());
+        assertNull(result.getTargetMicros());
+        assertNull(result.getRemainingMicros());
+        assertNull(result.getNutritionQualityScore());
+        assertNull(result.getFiberTargetHit());
+        assertNull(result.getSugarWarning());
+        assertNull(result.getSodiumWarning());
         assertEquals(List.of(), result.getFoodLogs());
         assertEquals(List.of(), result.getExerciseLogs());
         assertEquals(false, result.getHealthSummary().getHasHealthData());
@@ -181,6 +190,8 @@ class DashboardServiceImplTest {
                 .thenReturn(new com.grun.calorietracker.dto.HealthDailySummaryDto());
         when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.HEALTH_INTEGRATION))
                 .thenReturn(true);
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.MICRONUTRIENT_DETAILS))
+                .thenReturn(true);
         com.grun.calorietracker.dto.StepDailySummaryDto stepSummary = new com.grun.calorietracker.dto.StepDailySummaryDto();
         stepSummary.setTotalSteps(5000);
         when(stepTrackingService.getDailySummary("user@example.com", date)).thenReturn(stepSummary);
@@ -203,7 +214,61 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());
         assertEquals(3, result.getCurrentLogStreakDays());
+        assertEquals(true, result.getMicronutrientDetailsAvailable());
         assertEquals(25.0, result.getTargetMicros().getFiber());
-        assertEquals(25.0, result.getRemainingMicros().getFiber());
+        assertNull(result.getRemainingMicros());
+        assertEquals("NONE", result.getMicronutrientDataQuality().getCoverageLevel());
+        assertEquals(true, result.getMicronutrientDataQuality().getTargetProfileApplicable());
+    }
+
+    @Test
+    void getDailySummary_withoutMicronutrientAccess_redactsNestedFoodLogMicronutrients() {
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        user.setEmail("user@example.com");
+        user.setWeight(82.0);
+        LocalDate date = LocalDate.of(2026, 5, 21);
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.plusDays(1).atStartOfDay();
+
+        com.grun.calorietracker.entity.FoodLogsEntity foodLog = new com.grun.calorietracker.entity.FoodLogsEntity();
+        foodLog.setId(10L);
+        foodLog.setUser(user);
+        foodLog.setDisplayName("Test food");
+        foodLog.setSnapshotCalories(100.0);
+        foodLog.setSnapshotProtein(5.0);
+        foodLog.setSnapshotCarbs(10.0);
+        foodLog.setSnapshotFat(2.0);
+        foodLog.setSnapshotFiber(3.0);
+        foodLog.setSnapshotSodium(500.0);
+        foodLog.setSnapshotVitaminC(20.0);
+        foodLog.setLogDate(start);
+
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.MICRONUTRIENT_DETAILS))
+                .thenReturn(false);
+        when(foodLogsRepository.getSummaryTotalsByUserAndDateBetween(1L, start, end))
+                .thenReturn(Collections.singletonList(new Object[]{
+                        100.0, 5.0, 10.0, 2.0, 3.0, 4.0, 1.0, 500.0, 200.0,
+                        0.0, 10.0, 1.0, 2.0, 1.0, 100.0, 20.0, 1.0, 2.0, 0.5
+                }));
+        when(recipeLogRepository.getSummaryTotalsByUserAndDateBetween(1L, start, end)).thenReturn(List.of());
+        when(exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(1L, start, end)).thenReturn(List.of());
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of(foodLog));
+        when(exerciseLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end))
+                .thenReturn(List.of());
+        when(foodLogsRepository.findDiaryEntryDates(1L, date.minusDays(29).atStartOfDay(), end)).thenReturn(List.of());
+        when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
+        when(progressLogRepository.findTopByUserOrderByLogDateDesc(user)).thenReturn(Optional.empty());
+
+        DailySummaryDto result = dashboardService.getDailySummary("user@example.com", date);
+
+        assertEquals(false, result.getMicronutrientDetailsAvailable());
+        assertNull(result.getConsumedMicros());
+        assertEquals(100.0, result.getFoodLogs().get(0).getSnapshotCalories());
+        assertNull(result.getFoodLogs().get(0).getSnapshotFiber());
+        assertNull(result.getFoodLogs().get(0).getSnapshotSodium());
+        assertNull(result.getFoodLogs().get(0).getSnapshotVitaminC());
     }
 }

@@ -15,9 +15,12 @@ import com.grun.calorietracker.dto.ProfilePreferencesUpdateRequestDto;
 import com.grun.calorietracker.dto.ProfileSecurityDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AdminUserActivityFilter;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.UserRole;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
@@ -25,8 +28,17 @@ public interface UserService {
     UserProfileDto registerUser(UserEntity user);
     Optional<UserEntity> findByEmail(String email);
 
-    List<AdminUserDto> getAllUsers();
-    AdminUserPageDto listUsersForAdmin(UserRole role, Boolean accountEnabled, Boolean accountLocked, int page, int size);
+    AdminUserPageDto listUsersForAdmin(String search,
+                                           UserRole role,
+                                           Boolean accountEnabled,
+                                           Boolean accountLocked,
+                                           SubscriptionPlan plan,
+                                           MarketRegion region,
+                                           PreferredLanguage language,
+                                           Boolean emailVerified,
+                                           AdminUserActivityFilter activity,
+                                           int page,
+                                           int size);
     Optional<AdminUserDto> getById(Long id);
     AdminUserDto updateUserStatus(Long userId, AdminUserStatusUpdateRequestDto request, String adminEmail);
 

@@ -17,6 +17,7 @@ import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.service.AdminAiMealDraftService;
 import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.SubscriptionService;
@@ -24,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final SubscriptionService subscriptionService;
     private final NotificationRepository notificationRepository;
+    private final SubscriptionProviderEventRepository subscriptionProviderEventRepository;
     private final PushDeliveryService pushDeliveryService;
     private final AiProperties aiProperties;
     private final AdminAiRequestPayloadSanitizer payloadSanitizer;
@@ -189,6 +192,36 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
             }
         }
 
+        List<Long> latencySamples = aiRequestHistoryRepository.findLatencySamplesAfter(
+                windowStart, PageRequest.of(0, 10_000));
+        if (latencySamples == null) latencySamples = List.of();
+        long timeoutCount = aiRequestHistoryRepository
+                .countByStatusAndErrorMessageContainingIgnoreCaseAndCreatedAtAfter(
+                        AiRequestStatus.FAILED, "timeout", windowStart);
+        Map<String, Double> revenueByCurrency = new LinkedHashMap<>();
+        List<Object[]> revenueRows = subscriptionProviderEventRepository.summarizeRevenueByCurrencyAfter(windowStart);
+        if (revenueRows == null) revenueRows = List.of();
+        for (Object[] row : revenueRows) {
+            if (row != null && row.length >= 2) {
+                revenueByCurrency.merge(stringValue(row[0], "UNSPECIFIED"), doubleValue(row[1]) / 100d, Double::sum);
+            }
+        }
+        Map<String, Double> costToRevenueRatio = new LinkedHashMap<>();
+        costByCurrency.forEach((currency, cost) -> {
+            Double revenue = revenueByCurrency.get(currency);
+            if (revenue != null && revenue > 0) costToRevenueRatio.put(currency, cost / revenue);
+        });
+        List<AdminAiMonitoringSummaryDto.OperationsSegmentMetric> segments = new ArrayList<>();
+        List<Object[]> segmentRows = aiRequestHistoryRepository.summarizeOperationsSegmentsAfter(windowStart);
+        if (segmentRows == null) segmentRows = List.of();
+        for (Object[] row : segmentRows) {
+            if (row == null || row.length < 9) continue;
+            segments.add(new AdminAiMonitoringSummaryDto.OperationsSegmentMetric(
+                    row[0] instanceof AiRequestType value ? value : null,
+                    stringValue(row[1], "FREE"), stringValue(row[2], "UNKNOWN"),
+                    stringValue(row[3], "UNKNOWN"), stringValue(row[4], "UNSPECIFIED"),
+                    longValue(row[5]), longValue(row[6]), longValue(row[7]), doubleValue(row[8])));
+        }
         AdminAiMonitoringSummaryDto summary = new AdminAiMonitoringSummaryDto();
         summary.setGeneratedAt(generatedAt);
         summary.setWindowStart(windowStart);
@@ -199,14 +232,23 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         summary.setRejected(rejected);
         summary.setFailed(failed);
         summary.setFailureRate(totalRequests == 0 ? 0 : (double) failed / totalRequests);
+        summary.setRejectionRate(totalRequests == 0 ? 0 : (double) rejected / totalRequests);
+        summary.setSuccessRate(totalRequests == 0 ? 0 : (double) (draftCreated + confirmed) / totalRequests);
+        summary.setTimeoutCount(timeoutCount);
+        summary.setLatencyP50Ms(percentile(latencySamples, 0.50));
+        summary.setLatencyP95Ms(percentile(latencySamples, 0.95));
+        summary.setLatencyP99Ms(percentile(latencySamples, 0.99));
         summary.setPromptTokens(promptTokens);
         summary.setCompletionTokens(completionTokens);
         summary.setTotalTokens(totalTokens);
         summary.setQuotaConsumedAmount(quotaConsumed);
         summary.setQuotaRefundedAmount(quotaRefunded);
         summary.setEstimatedCostByCurrency(costByCurrency);
+        summary.setSubscriptionRevenueByCurrency(revenueByCurrency);
+        summary.setCostToRevenueRatioByCurrency(costToRevenueRatio);
         summary.setProviderModels(providerMetrics);
         summary.setRequestStatuses(requestMetrics);
+        summary.setSegments(segments);
         List<AdminAiMonitoringSummaryDto.OperationalAlert> alerts = operationalAlerts(
                 totalRequests, failed, rejected, totalTokens, costByCurrency, requestMetrics);
         summary.setAttentionRequired(!alerts.isEmpty());
@@ -474,6 +516,11 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
                 code, severity, message, requestType, currency);
     }
 
+    private long percentile(List<Long> sortedValues, double percentile) {
+        if (sortedValues == null || sortedValues.isEmpty()) return 0;
+        int index = (int) Math.ceil(percentile * sortedValues.size()) - 1;
+        return sortedValues.get(Math.min(Math.max(index, 0), sortedValues.size() - 1));
+    }
     private long longValue(Object value) {
         return value instanceof Number number ? number.longValue() : 0L;
     }

@@ -1,7 +1,12 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.*;
+import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AdminUserActivityFilter;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
@@ -23,10 +28,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -116,20 +122,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AdminUserDto> getAllUsers() {
-        return userRepository.findAll(PageRequest.of(0, MAX_ADMIN_USER_PAGE_SIZE, Sort.by("id").descending()))
-                .getContent()
-                .stream()
-                .map(this::mapToAdminUserDto)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public AdminUserPageDto listUsersForAdmin(UserRole role, Boolean accountEnabled, Boolean accountLocked, int page, int size) {
+    public AdminUserPageDto listUsersForAdmin(String search,
+                                               UserRole role,
+                                               Boolean accountEnabled,
+                                               Boolean accountLocked,
+                                               SubscriptionPlan plan,
+                                               MarketRegion region,
+                                               PreferredLanguage language,
+                                               Boolean emailVerified,
+                                               AdminUserActivityFilter activity,
+                                               int page,
+                                               int size) {
         int safePage = Math.max(page, 0);
         int safeSize = size <= 0 ? DEFAULT_ADMIN_USER_PAGE_SIZE : Math.min(size, MAX_ADMIN_USER_PAGE_SIZE);
         Specification<UserEntity> specification = (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();
+        if (search != null && !search.isBlank()) {
+            String normalizedSearch = search.trim().toLowerCase();
+            specification = specification.and((root, query, criteriaBuilder) -> {
+                var emailMatch = criteriaBuilder.like(criteriaBuilder.lower(root.get("email")), "%" + normalizedSearch + "%");
+                var nameMatch = criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), "%" + normalizedSearch + "%");
+                if (normalizedSearch.chars().allMatch(Character::isDigit)) {
+                    return criteriaBuilder.or(emailMatch, nameMatch, criteriaBuilder.equal(root.get("id"), Long.valueOf(normalizedSearch)));
+                }
+                return criteriaBuilder.or(emailMatch, nameMatch);
+            });
+        }
         if (role != null) {
             specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("role"), role));
         }
@@ -138,6 +155,38 @@ public class UserServiceImpl implements UserService {
         }
         if (accountLocked != null) {
             specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("accountLocked"), accountLocked));
+        }
+        if (region != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("marketRegion"), region));
+        }
+        if (language != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("preferredLanguage"), language));
+        }
+        if (emailVerified != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("emailVerified"), emailVerified));
+        }
+        if (activity != null) {
+            Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);
+            specification = specification.and((root, query, criteriaBuilder) -> switch (activity) {
+                case ACTIVE_30_DAYS -> criteriaBuilder.greaterThanOrEqualTo(root.get("lastActiveAt"), cutoff);
+                case INACTIVE_30_DAYS -> criteriaBuilder.and(
+                        criteriaBuilder.isNotNull(root.get("lastActiveAt")),
+                        criteriaBuilder.lessThan(root.get("lastActiveAt"), cutoff)
+                );
+                case NEVER_ACTIVE -> criteriaBuilder.isNull(root.get("lastActiveAt"));
+            });
+        }
+        if (plan != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> {
+                var subquery = query.subquery(Long.class);
+                var subscription = subquery.from(SubscriptionEntity.class);
+                subquery.select(subscription.get("user").get("id"));
+                subquery.where(
+                        criteriaBuilder.equal(subscription.get("user").get("id"), root.get("id")),
+                        criteriaBuilder.equal(subscription.get("planType"), plan)
+                );
+                return criteriaBuilder.exists(subquery);
+            });
         }
 
         Page<UserEntity> users = userRepository.findAll(
@@ -559,6 +608,10 @@ public class UserServiceImpl implements UserService {
                 .countryCode(user.getCountryCode())
                 .preferredLanguage(user.getPreferredLanguage())
                 .timeZone(userTimeZoneSupport.normalizeOrDefault(user.getTimeZone()))
+                .createdAt(user.getCreatedAt())
+                .emailVerifiedAt(user.getEmailVerifiedAt())
+                .lastLoginAt(user.getLastLoginAt())
+                .lastActiveAt(user.getLastActiveAt())
                 .build();
     }
     private UserProfileDto mapToUserProfileDto(UserEntity user) {

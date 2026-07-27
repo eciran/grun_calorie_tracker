@@ -3,20 +3,25 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.security.AdminPermissionMatrix;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import org.springframework.security.core.userdetails.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
+
+    @Value("${grun.security.admin-mfa-required:false}")
+    private boolean adminMfaRequired;
 
     public UserDetailsServiceImpl(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -31,20 +36,34 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                Boolean.TRUE.equals(user.getAccountEnabled()),
+                Boolean.TRUE.equals(user.getAccountEnabled()) && isAdminMfaSatisfied(user),
                 true,
                 true,
                 !Boolean.TRUE.equals(user.getAccountLocked()) && !isTemporarilyLoginLocked(user),
-                AuthorityUtils.createAuthorityList("ROLE_" + user.getRole())
+                getAuthorities(user.getRole())
         );
+    }
+
+    private boolean isAdminMfaSatisfied(UserEntity user) {
+        return !user.getRole().isAdminRole()
+                || !adminMfaRequired
+                || Boolean.TRUE.equals(user.getAdminMfaEnabled());
     }
 
     private boolean isTemporarilyLoginLocked(UserEntity user) {
         return user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(LocalDateTime.now());
     }
 
-    private Collection<? extends GrantedAuthority> getAuthorities(UserRole role) {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    private List<GrantedAuthority> getAuthorities(UserRole role) {
+        List<String> authorities = new ArrayList<>();
+        authorities.add("ROLE_" + role.name());
+        if (role.isAdminRole()) {
+            authorities.add("ROLE_ADMIN");
+            AdminPermissionMatrix.permissionsFor(role).stream()
+                    .map(AdminPermissionMatrix::authority)
+                    .forEach(authorities::add);
+        }
+        return AuthorityUtils.createAuthorityList(authorities.toArray(String[]::new));
     }
 
 }

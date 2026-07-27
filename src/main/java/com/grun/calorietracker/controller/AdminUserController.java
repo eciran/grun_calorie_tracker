@@ -6,6 +6,10 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.AdminUserDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
+import com.grun.calorietracker.enums.AdminUserActivityFilter;
+import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import com.grun.calorietracker.service.AdminAuditService;
@@ -31,7 +35,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -49,20 +53,6 @@ public class AdminUserController {
         this.adminAuditService = adminAuditService;
     }
 
-    @GetMapping("/userList")
-    @Operation(
-            summary = "List users legacy endpoint",
-            description = "Returns the first page of user profiles for legacy admin clients. Use GET /api/v1/admin/users for paginated filtering."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "User profiles returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.", content = @Content)
-    })
-    public List<AdminUserDto> getAllUsers() {
-        return userService.getAllUsers();
-    }
-
     @GetMapping
     @Operation(
             summary = "List users with pagination",
@@ -77,12 +67,21 @@ public class AdminUserController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public AdminUserPageDto listUsers(
+            @Parameter(description = "Email, name, or exact numeric id search.") @RequestParam(required = false) String search,
             @Parameter(description = "Optional role filter.", example = "STANDARD") @RequestParam(required = false) UserRole role,
             @Parameter(description = "Optional enabled status filter.", example = "true") @RequestParam(required = false) Boolean accountEnabled,
             @Parameter(description = "Optional locked status filter.", example = "false") @RequestParam(required = false) Boolean accountLocked,
+            @Parameter(description = "Optional subscription plan filter.") @RequestParam(required = false) SubscriptionPlan plan,
+            @Parameter(description = "Optional market region filter.") @RequestParam(required = false) MarketRegion region,
+            @Parameter(description = "Optional language filter.") @RequestParam(required = false) PreferredLanguage language,
+            @Parameter(description = "Optional email verification filter.") @RequestParam(required = false) Boolean emailVerified,
+            @Parameter(description = "Optional 30-day activity state filter.") @RequestParam(required = false) AdminUserActivityFilter activity,
             @Parameter(description = "Zero-based page number.", example = "0") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25") @RequestParam(defaultValue = "50") int size) {
-        return userService.listUsersForAdmin(role, accountEnabled, accountLocked, page, size);
+        return userService.listUsersForAdmin(
+                search, role, accountEnabled, accountLocked, plan, region, language,
+                emailVerified, activity, page, size
+        );
     }
 
     @PatchMapping("/{userId}/status")
@@ -115,7 +114,7 @@ public class AdminUserController {
                 AdminAuditTargetType.USER_ACCOUNT,
                 userId.toString(),
                 before.orElse(null),
-                response,
+                Map.of("user", response, "reason", request.getReason().trim()),
                 correlationId(httpRequest)
         );
         return response;

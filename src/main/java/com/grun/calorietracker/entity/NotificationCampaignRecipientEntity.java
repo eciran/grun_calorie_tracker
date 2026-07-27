@@ -47,4 +47,11 @@ public class NotificationCampaignRecipientEntity {
     private LocalDateTime createdAt;
 
     private LocalDateTime processedAt;
+    private LocalDateTime openedAt;
+    private LocalDateTime clickedAt;
+    private LocalDateTime dismissedAt;
+    private LocalDateTime convertedAt;
+
+    @Column(length = 160)
+    private String suppressionReason;
 }

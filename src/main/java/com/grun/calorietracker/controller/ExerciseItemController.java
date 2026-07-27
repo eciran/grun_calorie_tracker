@@ -50,8 +50,6 @@ public class ExerciseItemController {
             @RequestParam(required = false) String equipment,
             @Parameter(description = "Optional difficulty filter.", example = "BEGINNER")
             @RequestParam(required = false) ExerciseDifficulty difficulty,
-            @Parameter(description = "Whether to return active or inactive catalog items.", example = "true")
-            @RequestParam(defaultValue = "true") Boolean active,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -61,7 +59,6 @@ public class ExerciseItemController {
                 primaryMuscleGroup,
                 equipment,
                 difficulty,
-                active,
                 page,
                 size
         ));
@@ -70,7 +67,7 @@ public class ExerciseItemController {
     @GetMapping("/{id}")
     @Operation(
             summary = "Get exercise item by id",
-            description = "Returns one active exercise catalog item. This endpoint is for exercise logging/detail use; public Technique Library screens must still use approved-only backend endpoints once technique status fields are available."
+            description = "Returns one active, technique-approved exercise catalog item for exercise logging and detail use."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exercise item returned."),
@@ -82,7 +79,7 @@ public class ExerciseItemController {
         return ResponseEntity.ok(exerciseItemService.getItem(id));
     }
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN_PERMISSION_CATALOG_MANAGE')")
     @Operation(
             summary = "Create an exercise item",
             description = "Adds a new exercise item to the catalog."
@@ -100,7 +97,7 @@ public class ExerciseItemController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN_PERMISSION_CATALOG_MANAGE')")
     @Operation(
             summary = "Update an exercise item",
             description = "Updates an existing exercise catalog item."
@@ -121,7 +118,7 @@ public class ExerciseItemController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN_PERMISSION_CATALOG_MANAGE')")
     @Operation(
             summary = "Delete an exercise item",
             description = "Deletes an exercise catalog item."

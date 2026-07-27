@@ -39,12 +39,15 @@ class RefreshTokenServiceImplTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private UserActivityService userActivityService;
+
     private RefreshTokenServiceImpl refreshTokenService;
     private UserEntity user;
 
     @BeforeEach
     void setUp() {
-        refreshTokenService = new RefreshTokenServiceImpl(refreshTokenRepository, userRepository, jwtUtil);
+        refreshTokenService = new RefreshTokenServiceImpl(refreshTokenRepository, userRepository, jwtUtil, userActivityService);
         ReflectionTestUtils.setField(refreshTokenService, "expirationDays", 30L);
 
         user = new UserEntity();

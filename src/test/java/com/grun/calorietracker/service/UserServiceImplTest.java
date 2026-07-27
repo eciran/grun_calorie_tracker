@@ -301,7 +301,9 @@ class UserServiceImplTest {
                     return new PageImpl<>(List.of(testUser), pageable, 1);
                 });
 
-        var result = userService.listUsersForAdmin(UserRole.STANDARD, true, false, -1, 500);
+        var result = userService.listUsersForAdmin(
+                null, UserRole.STANDARD, true, false, null, null, null, null, null, -1, 500
+        );
 
         assertEquals(1, result.getTotalElements());
         assertEquals(100, result.getSize());

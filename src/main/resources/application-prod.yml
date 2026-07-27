@@ -84,6 +84,7 @@ grun:
       storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
   security:
+    admin-mfa-required: ${GRUN_SECURITY_ADMIN_MFA_REQUIRED:false}
     swagger-public: false
     login:
       max-failed-attempts: ${GRUN_SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}

@@ -15,13 +15,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class ProductAnalyticsServiceImpl implements ProductAnalyticsService {
 
     private static final int MAX_METADATA_JSON_LENGTH = 4000;
+    private static final Set<String> ALLOWED_METADATA_KEYS = Set.of(
+            "resultCount", "source", "outcome", "variant", "reasonCode");
 
     private final UserRepository userRepository;
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
@@ -34,18 +38,25 @@ public class ProductAnalyticsServiceImpl implements ProductAnalyticsService {
                 && request.getEventType().name().startsWith("ONBOARDING_")) {
             throw new IllegalArgumentException("Onboarding events must use the privacy-safe onboarding event endpoint.");
         }
+        if (request.getEventType() == com.grun.calorietracker.enums.ProductAnalyticsEventType.FEATURE_USED
+                && request.getFeature() == null) {
+            throw new IllegalArgumentException("Feature is required for FEATURE_USED analytics events.");
+        }
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ProductAnalyticsEventEntity entity = new ProductAnalyticsEventEntity();
         entity.setUser(user);
         entity.setEventType(request.getEventType());
+        entity.setEventVersion(1);
         entity.setSurface(trimToNull(request.getSurface()));
         entity.setMarketRegion(user.getMarketRegion() == null ? null : user.getMarketRegion().name());
         entity.setLanguage(trimToNull(request.getLanguage()));
         entity.setStartedAt(request.getStartedAt());
         entity.setCompletedAt(request.getCompletedAt());
         entity.setDurationMs(resolveDurationMs(request));
-        entity.setTargetType(trimToNull(request.getTargetType()));
+        entity.setTargetType(request.getEventType() == com.grun.calorietracker.enums.ProductAnalyticsEventType.FEATURE_USED
+                ? request.getFeature().name()
+                : trimToNull(request.getTargetType()));
         entity.setTargetId(request.getTargetId());
         entity.setMetadataJson(writeSafeMetadata(request.getMetadata()));
         return toDto(productAnalyticsEventRepository.save(entity));
@@ -65,8 +76,18 @@ public class ProductAnalyticsServiceImpl implements ProductAnalyticsService {
         if (metadata == null || metadata.isEmpty()) {
             return null;
         }
+        Map<String, Object> safe = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (!ALLOWED_METADATA_KEYS.contains(key)) {
+                throw new IllegalArgumentException("Analytics metadata key is not allowed: " + key);
+            }
+            if (!(value instanceof String || value instanceof Number || value instanceof Boolean)) {
+                throw new IllegalArgumentException("Analytics metadata values must be scalar.");
+            }
+            safe.put(key, value);
+        });
         try {
-            String json = objectMapper.writeValueAsString(metadata);
+            String json = objectMapper.writeValueAsString(safe);
             if (json.length() > MAX_METADATA_JSON_LENGTH) {
                 throw new IllegalArgumentException("Analytics metadata is too large.");
             }

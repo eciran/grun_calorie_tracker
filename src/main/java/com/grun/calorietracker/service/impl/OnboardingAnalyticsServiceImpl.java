@@ -55,11 +55,12 @@ public class OnboardingAnalyticsServiceImpl implements OnboardingAnalyticsServic
         ProductAnalyticsEventEntity event = new ProductAnalyticsEventEntity();
         event.setUser(user);
         event.setEventType(eventType);
+        event.setEventVersion(1);
         event.setSurface(SURFACE);
         event.setMarketRegion(user.getMarketRegion() == null ? null : user.getMarketRegion().name());
         event.setLanguage(trimToNull(language));
         event.setDurationMs(durationMs);
-        event.setTargetType(step == null ? null : TARGET_TYPE);
+        event.setTargetType(step == null ? null : TARGET_TYPE + ":" + step.name());
         event.setTargetId(null);
         event.setMetadataJson(null);
         productAnalyticsEventRepository.save(event);

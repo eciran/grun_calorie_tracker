@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
+import com.grun.calorietracker.service.AiOperationsPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -11,9 +12,11 @@ import org.springframework.stereotype.Component;
 public class AiProviderConfigurationValidatorImpl implements AiProviderConfigurationValidator {
 
     private final AiProperties properties;
+    private final AiOperationsPolicyService operationsPolicyService;
 
     @Override
     public void validateConfiguredForDraft() {
+        operationsPolicyService.assertRequestAllowed();
         if (!properties.isEnabled() || properties.getProvider() == AiProvider.DISABLED) {
             throw new IllegalArgumentException("AI meal draft provider is disabled.");
         }

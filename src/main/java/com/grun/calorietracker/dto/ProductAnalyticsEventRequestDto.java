@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.ProductAnalyticsFeature;
 import com.grun.calorietracker.enums.ProductAnalyticsEventType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
@@ -16,6 +17,9 @@ public class ProductAnalyticsEventRequestDto {
     @NotNull(message = "Event type is required.")
     @Schema(description = "Type of product event.", example = "LOG_FLOW_COMPLETED", requiredMode = Schema.RequiredMode.REQUIRED)
     private ProductAnalyticsEventType eventType;
+
+    @Schema(description = "Required allowlisted feature when eventType is FEATURE_USED.", example = "WATER")
+    private ProductAnalyticsFeature feature;
 
     @Size(max = 120)
     @Schema(description = "Client surface or screen that emitted the event.", example = "food_diary_quick_log")

@@ -83,7 +83,10 @@ class AiMealDraftServiceImplTest {
                 subscriptionService,
                 foodLogsService,
                 new ObjectMapper().findAndRegisterModules(),
-                new AiProviderConfigurationValidatorImpl(properties),
+                new AiProviderConfigurationValidatorImpl(
+                        properties,
+                        mock(AiOperationsPolicyService.class)
+                ),
                 new AiMealDraftResponseValidatorImpl(),
                 new AiMealDraftSafetyServiceImpl(properties),
                 notificationRepository

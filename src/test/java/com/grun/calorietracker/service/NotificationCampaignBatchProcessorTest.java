@@ -84,6 +84,44 @@ class NotificationCampaignBatchProcessorTest {
     }
 
     @Test
+    void dispatchBatch_suppressesMarketingRecipientAboveFrequencyCap() {
+        NotificationCampaignEntity campaign = new NotificationCampaignEntity();
+        campaign.setId(8L);
+        campaign.setCategory(NotificationCampaignCategory.MARKETING);
+        campaign.setChannel(NotificationCampaignChannel.IN_APP_AND_PUSH);
+        campaign.setStatus(NotificationCampaignStatus.SCHEDULED);
+        campaign.setLastProcessedUserId(0L);
+        campaign.setProcessedCount(0L);
+        campaign.setInAppCount(0L);
+        campaign.setPushSentCount(0L);
+        campaign.setPushSkippedCount(0L);
+        campaign.setPushFailedCount(0L);
+        campaign.setSuppressedCount(0L);
+        campaign.setFrequencyCapHours(24);
+        campaign.setFrequencyCapMax(3);
+
+        UserEntity user = new UserEntity();
+        user.setId(15L);
+        Specification<UserEntity> specification = (root, query, cb) -> cb.conjunction();
+        when(campaignRepository.findByIdForUpdate(8L)).thenReturn(Optional.of(campaign));
+        when(campaignService.audienceSpecification(campaign, 0L)).thenReturn(specification);
+        when(userRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(user)));
+        when(recipientRepository.existsByCampaignIdAndUserId(8L, 15L)).thenReturn(false);
+        when(recipientRepository.countRecentMarketingDeliveries(eq(15L), any(LocalDateTime.class))).thenReturn(3L);
+
+        processor.dispatchBatch(8L);
+
+        assertEquals(1L, campaign.getSuppressedCount());
+        assertEquals(1L, campaign.getProcessedCount());
+        verify(recipientRepository).save(argThat(recipient ->
+                recipient.getStatus() == NotificationCampaignRecipientStatus.SUPPRESSED
+                        && "MARKETING_FREQUENCY_CAP".equals(recipient.getSuppressionReason())));
+        verify(notificationRepository, never()).save(any());
+        verify(pushDeliveryService, never()).deliver(any());
+    }
+
+    @Test
     void dispatchBatch_skipsExistingRecipient() {
         NotificationCampaignEntity campaign = new NotificationCampaignEntity();
         campaign.setId(7L);

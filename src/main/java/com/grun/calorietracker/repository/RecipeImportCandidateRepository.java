@@ -4,6 +4,8 @@ import com.grun.calorietracker.entity.RecipeImportCandidateEntity;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RecipeImportCandidateRepository extends JpaRepository<RecipeImportCandidateEntity, Long> {
@@ -16,4 +18,6 @@ public interface RecipeImportCandidateRepository extends JpaRepository<RecipeImp
     Page<RecipeImportCandidateEntity> findByBatchIdContainingIgnoreCase(String batchId, Pageable pageable);
 
     Page<RecipeImportCandidateEntity> findByStatusAndBatchIdContainingIgnoreCase(RecipeImportCandidateStatus status, String batchId, Pageable pageable);
+
+    List<RecipeImportCandidateEntity> findTop100ByOrderByCreatedAtDesc();
 }

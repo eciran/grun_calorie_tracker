@@ -54,16 +54,22 @@ public class DailySummaryDto {
     @Schema(description = "Consumed carbohydrates as percentage of target carbohydrates.", example = "53.85")
     private Double carbsProgressPercent;
 
-    @Schema(description = "Micronutrients consumed on the summary date. Null means no micronutrient data was available.")
+    @Schema(description = "Whether the current subscription can view dashboard micronutrient details.", example = "true")
+    private Boolean micronutrientDetailsAvailable;
+
+    @Schema(description = "Coverage and reference-profile metadata for the returned micronutrient data.")
+    private MicronutrientDataQualityDto micronutrientDataQuality;
+
+    @Schema(description = "Micronutrients consumed on the summary date. Null means access is unavailable or no micronutrient data was recorded.")
     private MicronutrientTotalsDto consumedMicros;
 
-    @Schema(description = "Default daily micronutrient targets used by the dashboard quality model.")
+    @Schema(description = "Backend-owned adult micronutrient reference targets. Null when the adult target profile is not applicable.")
     private MicronutrientTotalsDto targetMicros;
 
-    @Schema(description = "Remaining amount to reach default daily micronutrient targets. Values can be negative when intake is above target.")
+    @Schema(description = "Remaining amount for nutrients with both target and consumed values. Unknown consumption remains null and is never treated as zero.")
     private MicronutrientTotalsDto remainingMicros;
 
-    @Schema(description = "Simple nutrition quality score from 0 to 100 based on macro and selected micronutrient targets.")
+    @Schema(description = "Nutrition quality score from 0 to 100 using only available protein, fiber, and sodium indicators.")
     private Integer nutritionQualityScore;
 
     @Schema(description = "Whether protein target is reached on this summary date.", example = "true")

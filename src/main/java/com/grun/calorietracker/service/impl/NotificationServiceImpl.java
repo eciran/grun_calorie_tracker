@@ -3,10 +3,14 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.NotificationDto;
 import com.grun.calorietracker.dto.NotificationPageDto;
 import com.grun.calorietracker.dto.NotificationReadAllResponseDto;
+import com.grun.calorietracker.entity.NotificationCampaignRecipientEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.NotificationEngagementType;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
+import com.grun.calorietracker.repository.NotificationCampaignRecipientRepository;
+import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.NotificationService;
@@ -18,6 +22,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -25,6 +30,8 @@ import java.util.List;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final NotificationCampaignRecipientRepository recipientRepository;
+    private final NotificationCampaignRepository campaignRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -61,7 +68,23 @@ public class NotificationServiceImpl implements NotificationService {
         NotificationEntity notification = notificationRepository.findByIdAndUser(notificationId, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
         notification.setIsRead(true);
-        return toDto(notificationRepository.save(notification));
+        notification = notificationRepository.save(notification);
+        recordCampaignEngagement(notification, user, NotificationEngagementType.OPENED);
+        return toDto(notification);
+    }
+
+    @Override
+    @Transactional
+    public NotificationDto recordEngagement(String email, Long notificationId, NotificationEngagementType engagementType) {
+        UserEntity user = getUser(email);
+        NotificationEntity notification = notificationRepository.findByIdAndUser(notificationId, user)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+        if (engagementType == NotificationEngagementType.OPENED || engagementType == NotificationEngagementType.CLICKED) {
+            notification.setIsRead(true);
+            notificationRepository.save(notification);
+        }
+        recordCampaignEngagement(notification, user, engagementType);
+        return toDto(notification);
     }
 
     @Override
@@ -69,9 +92,54 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationReadAllResponseDto markAllAsRead(String email) {
         UserEntity user = getUser(email);
         List<NotificationEntity> unread = notificationRepository.findByUserAndIsRead(user, false);
-        unread.forEach(notification -> notification.setIsRead(true));
+        unread.forEach(notification -> {
+            notification.setIsRead(true);
+            recordCampaignEngagement(notification, user, NotificationEngagementType.OPENED);
+        });
         notificationRepository.saveAll(unread);
         return new NotificationReadAllResponseDto(unread.size());
+    }
+
+    private void recordCampaignEngagement(
+            NotificationEntity notification, UserEntity user, NotificationEngagementType engagementType) {
+        if (notification.getCampaign() == null) {
+            return;
+        }
+        NotificationCampaignRecipientEntity recipient = recipientRepository
+                .findByNotificationIdAndUserId(notification.getId(), user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign delivery record not found"));
+        LocalDateTime now = LocalDateTime.now();
+        switch (engagementType) {
+            case OPENED -> {
+                if (recipient.getOpenedAt() == null) {
+                    recipient.setOpenedAt(now);
+                    campaignRepository.incrementOpened(recipient.getCampaign().getId());
+                }
+            }
+            case CLICKED -> {
+                if (recipient.getOpenedAt() == null) {
+                    recipient.setOpenedAt(now);
+                    campaignRepository.incrementOpened(recipient.getCampaign().getId());
+                }
+                if (recipient.getClickedAt() == null) {
+                    recipient.setClickedAt(now);
+                    campaignRepository.incrementClicked(recipient.getCampaign().getId());
+                }
+            }
+            case DISMISSED -> {
+                if (recipient.getDismissedAt() == null) {
+                    recipient.setDismissedAt(now);
+                    campaignRepository.incrementDismissed(recipient.getCampaign().getId());
+                }
+            }
+            case CONVERTED -> {
+                if (recipient.getConvertedAt() == null) {
+                    recipient.setConvertedAt(now);
+                    campaignRepository.incrementConverted(recipient.getCampaign().getId());
+                }
+            }
+        }
+        recipientRepository.save(recipient);
     }
 
     private UserEntity getUser(String email) {

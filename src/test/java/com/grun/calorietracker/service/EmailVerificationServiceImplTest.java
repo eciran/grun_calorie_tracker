@@ -176,6 +176,7 @@ class EmailVerificationServiceImplTest {
 
         assertThat(response.getMessage()).isEqualTo("Email has been verified successfully.");
         assertThat(user.getEmailVerified()).isTrue();
+        assertThat(user.getEmailVerifiedAt()).isNotNull();
         assertThat(token.getUsedAt()).isNotNull();
         verify(userRepository).save(user);
         verify(emailVerificationTokenRepository).save(token);

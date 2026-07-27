@@ -116,6 +116,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             case NEXT_MEAL_SUGGESTIONS -> Boolean.TRUE.equals(access.getNextMealSuggestions());
             case ADVANCED_MACRO_TARGETS -> Boolean.TRUE.equals(access.getAdvancedMacroTargets());
             case MICRONUTRIENT_DETAILS -> Boolean.TRUE.equals(access.getMicronutrientDetails());
+            case MICRONUTRIENT_ANALYTICS -> Boolean.TRUE.equals(access.getMicronutrientAnalytics());
             case DATA_EXPORT -> Boolean.TRUE.equals(access.getDataExport());
             case FASTING_BASIC -> Boolean.TRUE.equals(access.getFastingBasic());
             case FASTING_ADVANCED -> Boolean.TRUE.equals(access.getFastingAdvanced());
@@ -483,6 +484,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setNextMealSuggestions(featureAllowed(subscription, entity, SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
         dto.setAdvancedMacroTargets(featureAllowed(subscription, entity, SubscriptionFeature.ADVANCED_MACRO_TARGETS));
         dto.setMicronutrientDetails(featureAllowed(subscription, entity, SubscriptionFeature.MICRONUTRIENT_DETAILS));
+        dto.setMicronutrientAnalytics(featureAllowed(subscription, entity, SubscriptionFeature.MICRONUTRIENT_ANALYTICS));
         dto.setDataExport(featureAllowed(subscription, entity, SubscriptionFeature.DATA_EXPORT));
         dto.setFastingBasic(featureAllowed(subscription, entity, SubscriptionFeature.FASTING_BASIC));
         dto.setFastingAdvanced(featureAllowed(subscription, entity, SubscriptionFeature.FASTING_ADVANCED));
@@ -548,7 +550,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
-        if (feature == SubscriptionFeature.ADVANCED_ANALYTICS) {
+        if (feature == SubscriptionFeature.ADVANCED_ANALYTICS
+                || feature == SubscriptionFeature.MICRONUTRIENT_ANALYTICS) {
             return planType == SubscriptionPlan.PRO;
         }
         if (feature == SubscriptionFeature.NEXT_MEAL_SUGGESTIONS) {
