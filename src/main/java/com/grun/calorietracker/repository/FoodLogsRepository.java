@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -23,6 +24,7 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
     long countByUser(UserEntity user);
     Optional<FoodLogsEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
     List<FoodLogsEntity> findByUserAndLogDateBetween(UserEntity user, LocalDateTime start, LocalDateTime end);
+    @EntityGraph(attributePaths = {"foodItem"})
     List<FoodLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
             UserEntity user,
             LocalDateTime start,
@@ -137,7 +139,8 @@ public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> 
     FROM food_logs f
     LEFT JOIN food_items fi ON f.food_id = fi.id
     WHERE f.user_id = :userId
-      AND f.log_date BETWEEN :start AND :end
+      AND f.log_date >= :start
+      AND f.log_date < :end
     GROUP BY CAST(f.log_date AS DATE)
     ORDER BY CAST(f.log_date AS DATE)
     """, nativeQuery = true)

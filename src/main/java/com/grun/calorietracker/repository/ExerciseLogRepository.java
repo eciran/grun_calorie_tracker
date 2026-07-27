@@ -4,6 +4,7 @@ import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,7 @@ public interface ExerciseLogRepository extends JpaRepository<ExerciseLogsEntity,
     List<ExerciseLogsEntity> findByUser(UserEntity user);
     long countByUser(UserEntity user);
     Optional<ExerciseLogsEntity> findTopByUserOrderByLogDateDesc(UserEntity user);
+    @EntityGraph(attributePaths = {"exerciseItem"})
     List<ExerciseLogsEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
             UserEntity user,
             LocalDateTime start,
