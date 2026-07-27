@@ -32,6 +32,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -93,7 +94,7 @@ class EnergyBalanceAnalyticsServiceImplTest {
                 user, start, endExclusive)).thenReturn(List.of());
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(healthDailyEnergyResolver.resolve(List.of(), startDate, endDate)).thenReturn(List.of());
-        when(expenditureResolver.resolve(startDate, endDate, List.of(), user, null))
+        when(expenditureResolver.resolve(eq(startDate), eq(endDate), eq(List.of()), anyMap(), eq(user), eq(null)))
                 .thenReturn(List.of(expenditure));
         when(bodyMeasurementRepository.findByUserAndRecordedAtGreaterThanEqualAndRecordedAtLessThanOrderByRecordedAtAsc(
                 user, start, endExclusive)).thenReturn(List.of());
@@ -132,7 +133,7 @@ class EnergyBalanceAnalyticsServiceImplTest {
                 user, start, endExclusive)).thenReturn(List.of());
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(healthDailyEnergyResolver.resolve(List.of(), day, day)).thenReturn(List.of());
-        when(expenditureResolver.resolve(day, day, List.of(), user, null)).thenReturn(List.of(unavailable));
+        when(expenditureResolver.resolve(eq(day), eq(day), eq(List.of()), anyMap(), eq(user), eq(null))).thenReturn(List.of(unavailable));
         when(bodyMeasurementRepository.findByUserAndRecordedAtGreaterThanEqualAndRecordedAtLessThanOrderByRecordedAtAsc(
                 user, start, endExclusive)).thenReturn(List.of());
         when(weightModelCalculator.calculate(day, day, null, 0, List.of())).thenReturn(weightModel);

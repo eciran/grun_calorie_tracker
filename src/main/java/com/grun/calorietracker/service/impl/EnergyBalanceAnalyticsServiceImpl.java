@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.repository.BodyMeasurementRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -15,6 +16,7 @@ import com.grun.calorietracker.service.EnergyBalanceAnalyticsService;
 import com.grun.calorietracker.service.support.DailyCalorieIntakeSnapshot;
 import com.grun.calorietracker.service.support.DailyEnergyExpenditureResolver;
 import com.grun.calorietracker.service.support.DailyEnergyExpenditureSnapshot;
+import com.grun.calorietracker.service.support.DailyLoggedActivitySnapshot;
 import com.grun.calorietracker.service.support.EnergyBalanceAnalyticsAssembler;
 import com.grun.calorietracker.service.support.EnergyBalanceRequestGuard;
 import com.grun.calorietracker.service.support.EnergyWeightModelCalculator;
@@ -27,6 +29,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,10 +66,16 @@ public class EnergyBalanceAnalyticsServiceImpl implements EnergyBalanceAnalytics
         ActivityLevel activityLevel = goalRepository.findByUser(context.user())
                 .map(goal -> goal.getActivityLevel())
                 .orElse(null);
+        List<ExerciseLogsEntity> exerciseLogs = exerciseLogRepository
+                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                        context.user(), start, endExclusive);
+        Map<LocalDate, DailyLoggedActivitySnapshot> loggedActivity = aggregateLoggedActivity(
+                exerciseLogs, healthMetrics);
         List<DailyEnergyExpenditureSnapshot> expenditureDays = expenditureResolver.resolve(
                 context.startDate(),
                 context.endDate(),
                 healthDailyEnergyResolver.resolve(healthMetrics, context.startDate(), context.endDate()),
+                loggedActivity,
                 context.user(),
                 activityLevel
         );
@@ -86,10 +95,6 @@ public class EnergyBalanceAnalyticsServiceImpl implements EnergyBalanceAnalytics
         List<FoodLogsEntity> foodLogs = foodLogsRepository
                 .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                         context.user(), start, endExclusive);
-        List<ExerciseLogsEntity> exerciseLogs = exerciseLogRepository
-                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
-                        context.user(), start, endExclusive);
-
         return assembler.assemble(
                 context.startDate(),
                 context.endDate(),
@@ -100,6 +105,57 @@ public class EnergyBalanceAnalyticsServiceImpl implements EnergyBalanceAnalytics
                 exerciseLogs,
                 weightModel
         );
+    }
+
+    private Map<LocalDate, DailyLoggedActivitySnapshot> aggregateLoggedActivity(
+            List<ExerciseLogsEntity> exerciseLogs,
+            List<DeviceDataEntity> deviceMetrics
+    ) {
+        Map<LocalDate, MutableActivityCalories> totals = new HashMap<>();
+        safe(exerciseLogs).stream()
+                .filter(log -> log != null
+                        && log.getLogDate() != null
+                        && isManual(log.getSource())
+                        && positive(log.getCaloriesBurned()))
+                .forEach(log -> totals.computeIfAbsent(
+                                log.getLogDate().toLocalDate(), ignored -> new MutableActivityCalories())
+                        .exercise += log.getCaloriesBurned());
+        safe(deviceMetrics).stream()
+                .filter(metric -> metric != null
+                        && metric.getRecordedAt() != null
+                        && metric.getProvider() == HealthProvider.MANUAL)
+                .map(metric -> Map.entry(metric.getRecordedAt().toLocalDate(), manualStepCalories(metric)))
+                .filter(entry -> entry.getValue() > 0.0)
+                .forEach(entry -> totals.computeIfAbsent(
+                                entry.getKey(), ignored -> new MutableActivityCalories())
+                        .steps += entry.getValue());
+        return totals.entrySet().stream().collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> new DailyLoggedActivitySnapshot(
+                        entry.getKey(),
+                        round(entry.getValue().exercise),
+                        round(entry.getValue().steps)
+                )
+        ));
+    }
+
+    private double manualStepCalories(DeviceDataEntity metric) {
+        Double value = metric.getActiveEnergyCalories() != null
+                ? metric.getActiveEnergyCalories()
+                : metric.getCaloriesBurned();
+        return positive(value) ? value : 0.0;
+    }
+
+    private boolean isManual(String source) {
+        return source == null || source.isBlank() || "MANUAL".equalsIgnoreCase(source.trim());
+    }
+
+    private boolean positive(Double value) {
+        return value != null && Double.isFinite(value) && value > 0.0;
+    }
+
+    private <T> List<T> safe(List<T> values) {
+        return values == null ? List.of() : values;
     }
 
     private List<DailyCalorieIntakeSnapshot> loadDailyIntake(
@@ -171,5 +227,10 @@ public class EnergyBalanceAnalyticsServiceImpl implements EnergyBalanceAnalytics
     }
 
     private record BalanceTotals(Double cumulativeBalanceCalories, int evaluatedDays) {
+    }
+
+    private static final class MutableActivityCalories {
+        private double exercise;
+        private double steps;
     }
 }

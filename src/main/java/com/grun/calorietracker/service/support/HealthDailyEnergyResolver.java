@@ -28,7 +28,10 @@ public class HealthDailyEnergyResolver {
 
         Map<String, DeviceDataEntity> deduplicated = new LinkedHashMap<>();
         for (DeviceDataEntity metric : metrics) {
-            if (metric == null || metric.getProvider() == null || metric.getRecordedAt() == null) {
+            if (metric == null
+                    || metric.getProvider() == null
+                    || metric.getProvider() == HealthProvider.MANUAL
+                    || metric.getRecordedAt() == null) {
                 continue;
             }
             LocalDate date = metric.getRecordedAt().toLocalDate();

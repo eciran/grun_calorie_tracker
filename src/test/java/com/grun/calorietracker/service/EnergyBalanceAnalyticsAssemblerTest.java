@@ -82,7 +82,7 @@ class EnergyBalanceAnalyticsAssemblerTest {
         assertEquals("Running", result.getBreakdown().getActivities().get(0).getCategory());
         assertEquals(50, result.getBreakdown().getActivities().get(0).getDurationMinutes());
         assertEquals(480.0, result.getBreakdown().getActivities().get(0).getTotalCalories());
-        assertFalse(result.getBreakdown().getActivities().get(0).getIncludedInExpenditure());
+        assertTrue(result.getBreakdown().getActivities().get(0).getIncludedInExpenditure());
     }
 
     @Test

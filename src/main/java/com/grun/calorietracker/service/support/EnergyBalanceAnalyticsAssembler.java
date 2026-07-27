@@ -135,7 +135,8 @@ public class EnergyBalanceAnalyticsAssembler {
         int expenditureDays = (int) points.stream().filter(point -> Boolean.TRUE.equals(point.getExpenditureAvailable())).count();
         int healthDays = (int) points.stream().filter(point -> isHealthSource(point.getExpenditureSource())).count();
         int profileDays = (int) points.stream()
-                .filter(point -> point.getExpenditureSource() == EnergyExpenditureSource.PROFILE_TDEE_ESTIMATE)
+                .filter(point -> point.getExpenditureSource() == EnergyExpenditureSource.PROFILE_TDEE_ESTIMATE
+                        || point.getExpenditureSource() == EnergyExpenditureSource.PROFILE_TDEE_PLUS_LOGGED_ACTIVITY)
                 .count();
         return EnergyBalanceAnalyticsDto.Coverage.builder()
                 .foodLoggedDays(foodDays)
@@ -203,7 +204,7 @@ public class EnergyBalanceAnalyticsAssembler {
                         .source(entry.getKey().source())
                         .totalCalories(round(sumNullable(entry.getValue().stream().map(ExerciseLogsEntity::getCaloriesBurned).toList())))
                         .durationMinutes(sumIntegers(entry.getValue().stream().map(ExerciseLogsEntity::getDurationMinutes).toList()))
-                        .includedInExpenditure(false)
+                        .includedInExpenditure(isManualSource(entry.getKey().source()))
                         .build())
                 .sorted(Comparator.comparing(EnergyBalanceAnalyticsDto.ActivityBreakdown::getCategory)
                         .thenComparing(EnergyBalanceAnalyticsDto.ActivityBreakdown::getSource))
@@ -274,7 +275,9 @@ public class EnergyBalanceAnalyticsAssembler {
     private boolean isHealthSource(EnergyExpenditureSource source) {
         return source == EnergyExpenditureSource.HEALTH_TOTAL_ENERGY
                 || source == EnergyExpenditureSource.HEALTH_RESTING_PLUS_ACTIVE
-                || source == EnergyExpenditureSource.HEALTH_ACTIVE_PLUS_PROFILE_RESTING;
+                || source == EnergyExpenditureSource.HEALTH_ACTIVE_PLUS_PROFILE_RESTING
+                || source == EnergyExpenditureSource.HEALTH_TOTAL_PLUS_LOGGED_ACTIVITY
+                || source == EnergyExpenditureSource.HEALTH_ACTIVE_PLUS_PROFILE_RESTING_AND_LOGGED_ACTIVITY;
     }
 
     private String canonicalMeal(String value) {
@@ -311,6 +314,10 @@ public class EnergyBalanceAnalyticsAssembler {
 
     private String normalizedSource(String value) {
         return value == null || value.isBlank() ? "UNKNOWN" : value.trim().toUpperCase();
+    }
+
+    private boolean isManualSource(String source) {
+        return "MANUAL".equalsIgnoreCase(source);
     }
 
     private Integer sumIntegers(List<Integer> values) {

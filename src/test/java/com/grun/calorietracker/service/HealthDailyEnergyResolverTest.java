@@ -53,6 +53,15 @@ class HealthDailyEnergyResolverTest {
     }
 
     @Test
+    void resolve_excludesManualStepsFromProviderEnergyCandidates() {
+        DeviceDataEntity manual = metric(HealthProvider.MANUAL, null, 120.0, null, null, 8);
+
+        var result = resolver.resolve(List.of(manual), date(), date());
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
     void resolve_usesLegacyCaloriesAsActiveEnergy() {
         DeviceDataEntity legacy = metric(HealthProvider.GOOGLE_FIT, "legacy", null, null, null, 8);
         legacy.setCaloriesBurned(315.0);

@@ -36,8 +36,8 @@ public class EnergyBalanceAnalyticsController {
             summary = "Get advanced energy balance analytics",
             description = "Returns a user-local daily energy series, coverage, meal and activity breakdowns, and a "
                     + "versioned modeled-versus-observed weight change for users with ADVANCED_ANALYTICS access. "
-                    + "Missing intake or expenditure remains null and is excluded from balance calculations. Exercise "
-                    + "logs are informational and are not added again to health/profile expenditure. The inclusive "
+                    + "Missing intake or expenditure remains null and is excluded from balance calculations. Provider "
+                    + "energy is combined with manual exercise and manual step calories without re-adding provider workouts. The inclusive "
                     + "date range is capped by the configured analytics limit."
     )
     @ApiResponses({
