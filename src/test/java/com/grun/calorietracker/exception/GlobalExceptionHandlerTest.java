@@ -1,5 +1,7 @@
 package com.grun.calorietracker.exception;
 
+import com.grun.calorietracker.enums.SubscriptionFeature;
+
 import com.grun.calorietracker.enums.AccountLinkErrorCode;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import org.junit.jupiter.api.Test;
@@ -142,6 +144,22 @@ class GlobalExceptionHandlerTest {
         assertEquals("Gecersiz kimlik bilgileri", response.getBody().getMessage());
     }
 
+    @Test
+    void handleSubscriptionFeatureAccessDenied_returnsStandardForbiddenBody() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
+        MockHttpServletRequest request = request();
+
+        var response = handler.handleSubscriptionFeatureAccessDenied(
+                new SubscriptionFeatureAccessDeniedException(SubscriptionFeature.ADVANCED_ANALYTICS),
+                request
+        );
+
+        assertEquals(403, response.getStatusCode().value());
+        assertEquals("Forbidden", response.getBody().getError());
+        assertEquals("SUBSCRIPTION_FEATURE_ACCESS_DENIED", response.getBody().getCode());
+        assertEquals("request-1", response.getBody().getCorrelationId());
+        assertEquals("/api/v1/test", response.getBody().getPath());
+    }
     private StaticMessageSource messageSource() {
         StaticMessageSource messageSource = new StaticMessageSource();
         messageSource.addMessage("error.unexpected", Locale.ENGLISH, "Unexpected error");

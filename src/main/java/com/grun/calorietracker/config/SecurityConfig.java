@@ -99,8 +99,9 @@ public class SecurityConfig {
     @Profile("!test")
     public SubscriptionFeatureAccessFilter subscriptionFeatureAccessFilter(
             SubscriptionService subscriptionService,
+            ObjectMapper objectMapper,
             @Value("${grun.security.subscription-feature-filter-enabled:true}") boolean featureFilterEnabled) {
-        return new SubscriptionFeatureAccessFilter(subscriptionService, featureFilterEnabled);
+        return new SubscriptionFeatureAccessFilter(subscriptionService, objectMapper, featureFilterEnabled);
     }
 
     @Bean

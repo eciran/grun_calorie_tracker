@@ -1,5 +1,6 @@
 package com.grun.calorietracker.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.service.SubscriptionService;
 import jakarta.servlet.FilterChain;
@@ -16,14 +17,20 @@ import java.io.IOException;
 public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
 
     private final SubscriptionService subscriptionService;
+    private final ObjectMapper objectMapper;
     private final boolean enabled;
 
-    public SubscriptionFeatureAccessFilter(SubscriptionService subscriptionService) {
-        this(subscriptionService, true);
+    public SubscriptionFeatureAccessFilter(SubscriptionService subscriptionService, ObjectMapper objectMapper) {
+        this(subscriptionService, objectMapper, true);
     }
 
-    public SubscriptionFeatureAccessFilter(SubscriptionService subscriptionService, boolean enabled) {
+    public SubscriptionFeatureAccessFilter(
+            SubscriptionService subscriptionService,
+            ObjectMapper objectMapper,
+            boolean enabled
+    ) {
         this.subscriptionService = subscriptionService;
+        this.objectMapper = objectMapper;
         this.enabled = enabled;
     }
 
@@ -45,8 +52,10 @@ public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
                 && !subscriptionService.hasFeatureAccess(authentication.getName(), requiredFeature)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
-            response.getWriter().write("{\"message\":\"Subscription feature access denied\",\"feature\":\""
-                    + requiredFeature.name() + "\"}");
+            objectMapper.writeValue(
+                    response.getOutputStream(),
+                    SubscriptionFeatureAccessDeniedResponseFactory.create(request)
+            );
             return;
         }
 

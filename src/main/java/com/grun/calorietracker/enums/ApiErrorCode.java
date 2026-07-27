@@ -6,6 +6,7 @@ public enum ApiErrorCode {
     USER_NOT_FOUND("error.user.not-found"),
     INVALID_CREDENTIALS("error.invalid.credentials"),
     ACCESS_DENIED("error.access.denied"),
+    SUBSCRIPTION_FEATURE_ACCESS_DENIED("error.subscription-feature-access-denied"),
     EMAIL_NOT_VERIFIED("error.email.not-verified"),
     PRODUCT_NOT_FOUND("error.product.not-found"),
     EXERCISE_LOG_NOT_FOUND("error.exercise-log.not-found"),

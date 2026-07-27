@@ -17,6 +17,7 @@ import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
+import com.grun.calorietracker.exception.SubscriptionFeatureAccessDeniedException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionPlanFeatureRepository;
@@ -127,7 +128,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     public void assertFeatureAccess(String email, SubscriptionFeature feature) {
         if (!hasFeatureAccess(email, feature)) {
-            throw new IllegalArgumentException("Subscription does not allow access to feature: " + feature);
+            throw new SubscriptionFeatureAccessDeniedException(feature);
         }
     }
 

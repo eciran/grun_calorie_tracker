@@ -1,5 +1,7 @@
 package com.grun.calorietracker.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.service.SubscriptionService;
 import jakarta.servlet.FilterChain;
@@ -67,9 +69,10 @@ class SubscriptionFeatureAccessFilterTest {
     void doFilter_whenResolvedAccessIsDenied_returnsForbiddenWithoutCallingController() throws Exception {
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
         FilterChain chain = mock(FilterChain.class);
-        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService);
+        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService, objectMapper());
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/water-logs");
         MockHttpServletResponse response = new MockHttpServletResponse();
+        request.setAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE, "feature-request-1");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("user@grun.app", "n/a", List.of()));
         when(subscriptionService.hasFeatureAccess("user@grun.app", SubscriptionFeature.WATER_TRACKING))
@@ -78,7 +81,10 @@ class SubscriptionFeatureAccessFilterTest {
         filter.doFilter(request, response, chain);
 
         assertEquals(403, response.getStatus());
-        assertEquals(true, response.getContentAsString().contains("WATER_TRACKING"));
+        var body = objectMapper().readTree(response.getContentAsString());
+        assertEquals("SUBSCRIPTION_FEATURE_ACCESS_DENIED", body.get("code").asText());
+        assertEquals("feature-request-1", body.get("correlationId").asText());
+        assertEquals("/api/v1/water-logs", body.get("path").asText());
         verify(chain, never()).doFilter(request, response);
     }
 
@@ -86,7 +92,7 @@ class SubscriptionFeatureAccessFilterTest {
     void doFilter_whenResolvedAccessIsAllowed_continuesRequest() throws Exception {
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
         FilterChain chain = mock(FilterChain.class);
-        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService);
+        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService, objectMapper());
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/progress");
         MockHttpServletResponse response = new MockHttpServletResponse();
         SecurityContextHolder.getContext().setAuthentication(
@@ -103,7 +109,7 @@ class SubscriptionFeatureAccessFilterTest {
     void doFilter_whenDisabled_continuesWithoutCheckingEntitlements() throws Exception {
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
         FilterChain chain = mock(FilterChain.class);
-        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService, false);
+        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService, objectMapper(), false);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/progress");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -111,5 +117,9 @@ class SubscriptionFeatureAccessFilterTest {
 
         verify(chain).doFilter(request, response);
         verifyNoInteractions(subscriptionService);
+    }
+
+    private ObjectMapper objectMapper() {
+        return new ObjectMapper().findAndRegisterModules();
     }
 }

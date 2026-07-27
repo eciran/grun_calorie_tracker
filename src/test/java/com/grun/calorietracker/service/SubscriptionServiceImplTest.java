@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.exception.SubscriptionFeatureAccessDeniedException;
+
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.entity.SubscriptionPlanFeatureEntity;
 import com.grun.calorietracker.dto.SubscriptionDto;
@@ -340,13 +342,13 @@ class SubscriptionServiceImplTest {
         assertEquals(true, waterSnapshotCreated);
     }
     @Test
-    void assertFeatureAccess_whenFeatureDenied_throwsIllegalArgumentException() {
+    void assertFeatureAccess_whenFeatureDenied_throwsSubscriptionAccessDenied() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(SubscriptionFeatureAccessDeniedException.class,
                 () -> service.assertFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
     }
 

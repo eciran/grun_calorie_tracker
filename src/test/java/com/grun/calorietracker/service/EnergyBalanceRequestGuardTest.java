@@ -3,6 +3,7 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.config.EnergyBalanceAnalyticsProperties;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.SubscriptionFeature;
+import com.grun.calorietracker.exception.SubscriptionFeatureAccessDeniedException;
 import com.grun.calorietracker.service.support.EnergyBalancePolicy;
 import com.grun.calorietracker.service.support.EnergyBalanceRequestGuard;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
@@ -64,11 +65,11 @@ class EnergyBalanceRequestGuardTest {
 
     @Test
     void validate_whenAccessDenied_doesNotLoadUserOrStartCalculation() {
-        doThrow(new IllegalArgumentException("Subscription does not allow access"))
+        doThrow(new SubscriptionFeatureAccessDeniedException(SubscriptionFeature.ADVANCED_ANALYTICS))
                 .when(subscriptionService)
                 .assertFeatureAccess("free@grun.app", SubscriptionFeature.ADVANCED_ANALYTICS);
 
-        assertThrows(IllegalArgumentException.class, () -> guard.validate(
+        assertThrows(SubscriptionFeatureAccessDeniedException.class, () -> guard.validate(
                 "free@grun.app",
                 LocalDate.of(2026, 7, 1),
                 LocalDate.of(2026, 7, 27)

@@ -4,6 +4,7 @@ import com.grun.calorietracker.config.LocaleConfig;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.enums.ApiErrorCode;
 import com.grun.calorietracker.security.CorrelationIdFilter;
+import com.grun.calorietracker.security.SubscriptionFeatureAccessDeniedResponseFactory;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -192,6 +193,14 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, "error.invalid.credentials", "Invalid credentials", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(SubscriptionFeatureAccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleSubscriptionFeatureAccessDenied(
+            SubscriptionFeatureAccessDeniedException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(SubscriptionFeatureAccessDeniedResponseFactory.create(request));
+    }
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponseDto> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.FORBIDDEN, "error.access.denied", "Access denied", ex.getMessage(), request);
