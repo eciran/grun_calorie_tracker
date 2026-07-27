@@ -19,6 +19,31 @@ public interface NotificationCampaignRepository extends JpaRepository<Notificati
     Page<NotificationCampaignEntity> findByStatus(NotificationCampaignStatus status, Pageable pageable);
 
     @Query("""
+            select count(c),
+                   coalesce(sum(c.estimatedAudience), 0),
+                   coalesce(sum(c.processedCount), 0),
+                   coalesce(sum(c.openedCount), 0),
+                   coalesce(sum(c.clickedCount), 0),
+                   coalesce(sum(c.dismissedCount), 0),
+                   coalesce(sum(c.convertedCount), 0),
+                   coalesce(sum(c.pushSentCount), 0),
+                   coalesce(sum(c.pushSkippedCount), 0),
+                   coalesce(sum(c.pushFailedCount), 0)
+            from NotificationCampaignEntity c
+            where c.createdAt >= :from
+            """)
+    List<Object[]> summarizeSince(@Param("from") LocalDateTime from);
+
+    @Query("""
+            select c.status, count(c)
+            from NotificationCampaignEntity c
+            where c.createdAt >= :from
+            group by c.status
+            order by c.status
+            """)
+    List<Object[]> countStatusesSince(@Param("from") LocalDateTime from);
+
+    @Query("""
             select c.id from NotificationCampaignEntity c
             where c.status in :statuses
               and c.scheduledAt <= :now

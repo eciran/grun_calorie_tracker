@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface NotificationCampaignRecipientRepository extends JpaRepository<NotificationCampaignRecipientEntity, Long> {
@@ -20,6 +21,15 @@ public interface NotificationCampaignRecipientRepository extends JpaRepository<N
             Long campaignId, NotificationCampaignRecipientStatus status, Pageable pageable);
 
     Optional<NotificationCampaignRecipientEntity> findByNotificationIdAndUserId(Long notificationId, Long userId);
+
+    @Query("""
+            select r.status, count(r)
+            from NotificationCampaignRecipientEntity r
+            where r.campaign.createdAt >= :from
+            group by r.status
+            order by r.status
+            """)
+    List<Object[]> countStatusesSince(@Param("from") LocalDateTime from);
 
     @Query("""
             select count(r) from NotificationCampaignRecipientEntity r

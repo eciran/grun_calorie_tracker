@@ -23,6 +23,8 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -52,6 +54,43 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
         return dto;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public AdminNotificationCampaignSummaryDto summary(int windowDays) {
+        int safeWindowDays = Math.min(Math.max(windowDays, 1), 90);
+        LocalDateTime to = LocalDateTime.now();
+        LocalDateTime from = to.minusDays(safeWindowDays);
+        List<Object[]> totalRows = campaignRepository.summarizeSince(from);
+        Object[] totals = totalRows.isEmpty() ? new Object[0] : totalRows.get(0);
+
+        Map<NotificationCampaignRecipientStatus, Long> recipientStatuses =
+                new EnumMap<>(NotificationCampaignRecipientStatus.class);
+        List<Object[]> recipientStatusRows = recipientRepository.countStatusesSince(from);
+        for (Object[] row : recipientStatusRows) {
+            recipientStatuses.put((NotificationCampaignRecipientStatus) row[0], number(row[1]));
+        }
+
+        return new AdminNotificationCampaignSummaryDto(
+                safeWindowDays,
+                from,
+                to,
+                number(totals, 0),
+                number(totals, 1),
+                number(totals, 2),
+                recipientStatuses.getOrDefault(NotificationCampaignRecipientStatus.DELIVERED, 0L),
+                recipientStatuses.getOrDefault(NotificationCampaignRecipientStatus.SUPPRESSED, 0L),
+                recipientStatuses.getOrDefault(NotificationCampaignRecipientStatus.FAILED, 0L),
+                number(totals, 3),
+                number(totals, 4),
+                number(totals, 5),
+                number(totals, 6),
+                number(totals, 7),
+                number(totals, 8),
+                number(totals, 9),
+                countMetrics(campaignRepository.countStatusesSince(from)),
+                countMetrics(recipientStatusRows)
+        );
+    }
     @Override
     @Transactional(readOnly = true)
     public AdminNotificationCampaignDto get(Long id) {
@@ -254,6 +293,21 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private List<AdminNotificationCampaignSummaryDto.CountMetric> countMetrics(List<Object[]> rows) {
+        return rows.stream()
+                .map(row -> new AdminNotificationCampaignSummaryDto.CountMetric(
+                        row[0] == null ? "UNKNOWN" : row[0].toString(),
+                        number(row[1])))
+                .toList();
+    }
+
+    private long number(Object[] values, int index) {
+        return values == null || values.length <= index ? 0L : number(values[index]);
+    }
+
+    private long number(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
     private Map<String, Object> auditValue(NotificationCampaignEntity entity) {
         return Map.of(
                 "name", entity.getName(),

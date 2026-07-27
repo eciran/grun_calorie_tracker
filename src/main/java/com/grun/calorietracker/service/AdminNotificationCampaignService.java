@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 
 public interface AdminNotificationCampaignService {
     AdminNotificationCampaignPageDto list(NotificationCampaignStatus status, int page, int size);
+    AdminNotificationCampaignSummaryDto summary(int windowDays);
     AdminNotificationCampaignDto get(Long id);
     AdminNotificationCampaignDto create(AdminNotificationCampaignRequestDto request, String adminEmail, String correlationId);
     AdminNotificationCampaignDto update(Long id, AdminNotificationCampaignRequestDto request, String adminEmail, String correlationId);

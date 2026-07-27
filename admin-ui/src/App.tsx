@@ -68,6 +68,7 @@ import {
   AdminRecipeImportResult,
   Notification,
   NotificationCampaign,
+  NotificationCampaignSummary,
   NotificationCampaignPreview,
   NotificationCampaignRecipient,
   RevenueCatChart,
@@ -101,6 +102,9 @@ const RevenueCatEChart = lazy(() => import("./RevenueCatEChart").then((module) =
 const AiOutcomeChart = lazy(() => import("./AiOperationsCharts").then((module) => ({ default: module.AiOutcomeChart })));
 const AiLatencyChart = lazy(() => import("./AiOperationsCharts").then((module) => ({ default: module.AiLatencyChart })));
 const AiEconomicsChart = lazy(() => import("./AiOperationsCharts").then((module) => ({ default: module.AiEconomicsChart })));
+const CampaignDeliveryChart = lazy(() => import("./CampaignOperationsCharts").then((module) => ({ default: module.CampaignDeliveryChart })));
+const CampaignEngagementFunnel = lazy(() => import("./CampaignOperationsCharts").then((module) => ({ default: module.CampaignEngagementFunnel })));
+const CampaignStatusChart = lazy(() => import("./CampaignOperationsCharts").then((module) => ({ default: module.CampaignStatusChart })));
 
 type SectionKey =
   | "dashboard"
@@ -7490,6 +7494,7 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
 function NotificationCampaignsView({ onError }: { onError: (message: string | null) => void }) {
   const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "", frequencyCapHours: 24, frequencyCapMax: 3 };
   const [statusFilter, setStatusFilter] = useState("");
+  const [campaignWindowDays, setCampaignWindowDays] = useState(31);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [draft, setDraft] = useState(emptyDraft);
@@ -7505,10 +7510,15 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
   const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
   if (statusFilter) params.set("status", statusFilter);
   const { data, state, reload } = useEndpoint<PageResponse<NotificationCampaign>>("/api/v1/admin/notification-campaigns?" + params.toString(), onError);
+  const summaryPath = "/api/v1/admin/notification-campaigns/summary?windowDays=" + campaignWindowDays;
+  const { data: campaignSummary, state: summaryState, reload: reloadSummary } = useEndpoint<NotificationCampaignSummary>(summaryPath, onError);
   const rows = data?.content ?? [];
-  const active = rows.filter((item) => item.status === "SCHEDULED" || item.status === "PROCESSING").length;
-  const delivered = rows.reduce((sum, item) => sum + (item.processedCount ?? 0), 0);
-  const pushFailures = rows.reduce((sum, item) => sum + (item.pushFailedCount ?? 0), 0);
+  const active = (campaignSummary?.campaignStatuses ?? []).filter((item) => item.name === "SCHEDULED" || item.name === "PROCESSING").reduce((sum, item) => sum + Number(item.count ?? 0), 0);
+  const hasDeliveryMetrics = [campaignSummary?.deliveredCount, campaignSummary?.suppressedCount, campaignSummary?.failedRecipientCount]
+    .some((value) => Number(value ?? 0) > 0);
+  const hasEngagementMetrics = [campaignSummary?.deliveredCount, campaignSummary?.openedCount, campaignSummary?.clickedCount, campaignSummary?.convertedCount]
+    .some((value) => Number(value ?? 0) > 0);
+  const hasCampaignStatuses = (campaignSummary?.campaignStatuses ?? []).some((item) => Number(item.count ?? 0) > 0);
 
   function resetDraft() {
     setDraft(emptyDraft);
@@ -7693,16 +7703,39 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
 
   return (
     <div className="stack notification-campaign-page">
-      <SectionToolbar title="Notification campaigns" state={combineStates([state, actionState])} onReload={reload}>
+      <SectionToolbar title="Notification campaigns" state={combineStates([state, summaryState, actionState === "idle" ? "ready" : actionState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetDraft}>New draft</button>
       </SectionToolbar>
       {notice && <div className="form-notice">{notice}</div>}
       <div className="metric-grid compact-grid">
-        <MetricCard label="Campaigns" value={formatValue(data?.totalElements ?? rows.length)} hint="Draft and historical campaigns" />
-        <MetricCard label="Active delivery" value={formatValue(active)} hint="Scheduled or processing" />
-        <MetricCard label="Recipients processed" value={formatValue(delivered)} hint="Idempotent recipient records" />
-        <MetricCard label="Push failures" value={formatValue(pushFailures)} hint="Provider delivery failures" />
+        <MetricCard label="Campaigns" value={formatValue(campaignSummary?.campaignCount)} hint={`${campaignWindowDays}-day aggregate`} />
+        <MetricCard label="Active delivery" value={formatValue(active)} hint={`${campaignWindowDays}-day aggregate`} />
+        <MetricCard label="Recipients processed" value={formatValue(campaignSummary?.processedCount)} hint="Privacy-safe aggregate" />
+        <MetricCard label="Push failures" value={formatValue(campaignSummary?.pushFailedCount)} hint="Provider delivery failures" />
       </div>
+
+      <Panel title="Campaign performance">
+        <div className="campaign-performance-toolbar">
+          <p>Aggregate delivery and engagement metrics. Recipient identities and message payloads are not included.</p>
+          <div className="segmented-control compact" role="group" aria-label="Campaign performance window">
+            {[7, 31, 90].map((days) => <button className={campaignWindowDays === days ? "active" : ""} key={days} type="button" onClick={() => setCampaignWindowDays(days)}>{days}d</button>)}
+          </div>
+        </div>
+        <div className="campaign-analytics-chart-grid">
+          <section className="campaign-chart-panel">
+            <header><div><h3>Delivery health</h3><p>Delivered, suppressed, and failed recipient outcomes.</p></div></header>
+            {summaryState === "loading" ? <div className="chart-loading">Loading delivery metrics...</div> : hasDeliveryMetrics && campaignSummary ? <Suspense fallback={<div className="chart-loading">Loading chart...</div>}><CampaignDeliveryChart summary={campaignSummary} /></Suspense> : <EmptyState title="No delivery data" message={`No recipient outcomes were recorded in the last ${campaignWindowDays} days.`} />}
+          </section>
+          <section className="campaign-chart-panel">
+            <header><div><h3>Engagement funnel</h3><p>From successful delivery through recorded conversion.</p></div></header>
+            {summaryState === "loading" ? <div className="chart-loading">Loading engagement metrics...</div> : hasEngagementMetrics && campaignSummary ? <Suspense fallback={<div className="chart-loading">Loading chart...</div>}><CampaignEngagementFunnel summary={campaignSummary} /></Suspense> : <EmptyState title="No engagement data" message={`No campaign engagement was recorded in the last ${campaignWindowDays} days.`} />}
+          </section>
+          <section className="campaign-chart-panel campaign-status-chart-panel">
+            <header><div><h3>Campaign lifecycle</h3><p>Campaign count grouped by controlled backend status.</p></div></header>
+            {summaryState === "loading" ? <div className="chart-loading">Loading campaign statuses...</div> : hasCampaignStatuses && campaignSummary ? <Suspense fallback={<div className="chart-loading">Loading chart...</div>}><CampaignStatusChart summary={campaignSummary} /></Suspense> : <EmptyState title="No campaign history" message={`No campaigns were created in the last ${campaignWindowDays} days.`} />}
+          </section>
+        </div>
+      </Panel>
 
       <form className="panel campaign-composer" onSubmit={saveDraft}>
         <div className="campaign-composer-header">

@@ -40,6 +40,12 @@ public class AdminNotificationCampaignController {
         return ResponseEntity.ok(campaignService.list(status, page, size));
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "Get privacy-safe notification campaign performance summary")
+    public ResponseEntity<AdminNotificationCampaignSummaryDto> summary(
+            @RequestParam(defaultValue = "31") @Min(1) @Max(90) int windowDays) {
+        return ResponseEntity.ok(campaignService.summary(windowDays));
+    }
     @GetMapping("/{id}/recipients")
     @Operation(summary = "List privacy-safe campaign delivery and engagement rows")
     public ResponseEntity<AdminNotificationCampaignRecipientPageDto> recipients(

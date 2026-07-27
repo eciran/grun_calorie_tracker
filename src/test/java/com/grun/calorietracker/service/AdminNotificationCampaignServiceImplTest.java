@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.AdminNotificationCampaignRequestDto;
 import com.grun.calorietracker.entity.NotificationCampaignEntity;
 import com.grun.calorietracker.enums.*;
 import com.grun.calorietracker.repository.NotificationCampaignRepository;
+import com.grun.calorietracker.repository.NotificationCampaignRecipientRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AdminNotificationCampaignServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +26,8 @@ import static org.mockito.Mockito.*;
 class AdminNotificationCampaignServiceImplTest {
     @Mock
     private NotificationCampaignRepository campaignRepository;
+    @Mock
+    private NotificationCampaignRecipientRepository recipientRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -78,6 +82,34 @@ class AdminNotificationCampaignServiceImplTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.update(11L, request(), "admin@grun.local", "cid-3"));
         verify(campaignRepository, never()).save(any());
+    }
+
+
+    @Test
+    void summary_returnsPrivacySafeAggregateMetrics() {
+        when(campaignRepository.summarizeSince(any(LocalDateTime.class))).thenReturn(List.<Object[]>of(new Object[]{
+                4L, 120L, 100L, 50L, 20L, 5L, 7L, 80L, 10L, 2L
+        }));
+        when(campaignRepository.countStatusesSince(any(LocalDateTime.class))).thenReturn(List.of(
+                new Object[]{NotificationCampaignStatus.COMPLETED, 3L},
+                new Object[]{NotificationCampaignStatus.FAILED, 1L}
+        ));
+        when(recipientRepository.countStatusesSince(any(LocalDateTime.class))).thenReturn(List.of(
+                new Object[]{NotificationCampaignRecipientStatus.DELIVERED, 90L},
+                new Object[]{NotificationCampaignRecipientStatus.SUPPRESSED, 8L},
+                new Object[]{NotificationCampaignRecipientStatus.FAILED, 2L}
+        ));
+
+        var result = service.summary(31);
+
+        assertEquals(31, result.getWindowDays());
+        assertEquals(4L, result.getCampaignCount());
+        assertEquals(90L, result.getDeliveredCount());
+        assertEquals(8L, result.getSuppressedCount());
+        assertEquals(2L, result.getFailedRecipientCount());
+        assertEquals(50L, result.getOpenedCount());
+        assertEquals(2, result.getCampaignStatuses().size());
+        assertEquals(3, result.getRecipientStatuses().size());
     }
 
     private AdminNotificationCampaignRequestDto request() {

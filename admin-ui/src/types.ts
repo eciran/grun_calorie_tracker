@@ -726,6 +726,28 @@ export type NotificationCampaign = {
   failureMessage?: string;
 };
 
+
+export type NotificationCampaignSummary = {
+  windowDays?: number;
+  from?: string;
+  to?: string;
+  campaignCount?: number;
+  estimatedAudience?: number;
+  processedCount?: number;
+  deliveredCount?: number;
+  suppressedCount?: number;
+  failedRecipientCount?: number;
+  openedCount?: number;
+  clickedCount?: number;
+  dismissedCount?: number;
+  convertedCount?: number;
+  pushSentCount?: number;
+  pushSkippedCount?: number;
+  pushFailedCount?: number;
+  campaignStatuses?: Array<{ name?: string; count?: number }>;
+  recipientStatuses?: Array<{ name?: string; count?: number }>;
+};
+
 export type NotificationCampaignRecipient = {
   id?: number;
   userReference?: string;
