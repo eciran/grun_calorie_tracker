@@ -15,6 +15,7 @@ import java.util.stream.IntStream;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -110,4 +111,77 @@ class UserAnalyticsCacheGatewayTest {
             executor.shutdownNow();
         }
     }
-}
+
+    @Test
+    void get_whenLoaderReturnsNull_doesNotCacheResult() {
+        var gateway = new UserAnalyticsCacheGateway(new ConcurrentMapCacheManager("analytics"), new SimpleMeterRegistry());
+        var loads = new AtomicInteger();
+
+        assertNull(gateway.get("analytics", "nullable-key", () -> {
+            loads.incrementAndGet();
+            return null;
+        }));
+        assertEquals("value", gateway.get("analytics", "nullable-key", () -> {
+            loads.incrementAndGet();
+            return "value";
+        }));
+
+        assertEquals(2, loads.get());
+    }
+
+    @Test
+    void get_afterFailedFlight_allowsSuccessfulRetry() {
+        var gateway = new UserAnalyticsCacheGateway(new ConcurrentMapCacheManager("analytics"), new SimpleMeterRegistry());
+        var loads = new AtomicInteger();
+
+        assertThrows(IllegalStateException.class, () -> gateway.get("analytics", "retry-key", () -> {
+            loads.incrementAndGet();
+            throw new IllegalStateException("temporary failure");
+        }));
+        assertEquals("recovered", gateway.get("analytics", "retry-key", () -> {
+            loads.incrementAndGet();
+            return "recovered";
+        }));
+
+        assertEquals(2, loads.get());
+    }
+
+    @Test
+    void get_whenConcurrentCacheReadsFail_coalescesFallbackComputation() throws Exception {
+        CacheManager manager = mock(CacheManager.class);
+        Cache cache = mock(Cache.class);
+        when(manager.getCache("analytics")).thenReturn(cache);
+        when(cache.get("outage-key")).thenThrow(new IllegalStateException("redis unavailable"));
+        var gateway = new UserAnalyticsCacheGateway(manager, new SimpleMeterRegistry());
+        var loads = new AtomicInteger();
+        int requestCount = 8;
+        var ready = new CountDownLatch(requestCount);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(requestCount);
+        try {
+            List<java.util.concurrent.Future<String>> futures = IntStream.range(0, requestCount)
+                    .mapToObj(index -> executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return gateway.get("analytics", "outage-key", () -> {
+                            loads.incrementAndGet();
+                            try {
+                                Thread.sleep(150);
+                            } catch (InterruptedException interrupted) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(interrupted);
+                            }
+                            return "fallback";
+                        });
+                    })).toList();
+
+            assertEquals(true, ready.await(2, TimeUnit.SECONDS));
+            start.countDown();
+            for (var future : futures) {
+                assertEquals("fallback", future.get(2, TimeUnit.SECONDS));
+            }
+            assertEquals(1, loads.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }}

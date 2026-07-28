@@ -97,7 +97,6 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
             boolean comparePrevious
     ) {
         validateRange(startDate, endDate);
-        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.MICRONUTRIENT_ANALYTICS);
 
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));

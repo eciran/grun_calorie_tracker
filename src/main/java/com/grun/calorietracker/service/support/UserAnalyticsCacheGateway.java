@@ -34,7 +34,7 @@ public class UserAnalyticsCacheGateway {
             cached = cache.get(key);
         } catch (RuntimeException cacheReadFailure) {
             recordCacheFailure(cacheName, "get", cacheReadFailure);
-            return compute(cacheName, loader);
+            return loadSingleFlight(cacheName, key, cache, loader);
         }
 
         if (cached != null) {

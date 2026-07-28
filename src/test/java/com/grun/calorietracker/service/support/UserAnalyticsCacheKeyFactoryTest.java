@@ -18,4 +18,17 @@ class UserAnalyticsCacheKeyFactoryTest {
         assertEquals("42:7:progress_advanced:2026-07-01:-:PLUS___PRO", key);
         assertFalse(key.contains("@"));
     }
-}
+
+    @Test
+    void key_separatesRangesComparisonFlagsUsersAndRevisions() {
+        var firstUser = new UserAnalyticsCacheIdentity(42L, 7L, "Europe/Dublin");
+        var secondUser = new UserAnalyticsCacheIdentity(43L, 7L, "Europe/Dublin");
+
+        String base = factory.key(firstUser, "progress", "2026-07-01", "2026-07-07", false);
+
+        assertFalse(base.equals(factory.key(firstUser, "progress", "2026-07-02", "2026-07-08", false)));
+        assertFalse(base.equals(factory.key(firstUser, "progress", "2026-07-01", "2026-07-07", true)));
+        assertFalse(base.equals(factory.key(secondUser, "progress", "2026-07-01", "2026-07-07", false)));
+        assertFalse(base.equals(factory.key(new UserAnalyticsCacheIdentity(42L, 8L, "Europe/Dublin"),
+                "progress", "2026-07-01", "2026-07-07", false)));
+    }}

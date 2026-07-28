@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -249,4 +250,22 @@ class MicronutrientAnalyticsServiceImplTest {
         return dto;
     }
 
-}
+
+    @Test
+    void getAnalytics_checksFeatureAccessOnEveryRequestEvenWhenGatewayReturnsCachedValue() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 7);
+        MicronutrientAnalyticsDto cached = org.mockito.Mockito.mock(MicronutrientAnalyticsDto.class);
+        org.mockito.Mockito.reset(analyticsCacheGateway);
+        org.mockito.Mockito.doReturn(cached).when(analyticsCacheGateway).get(
+                eq(com.grun.calorietracker.config.UserAnalyticsCacheNames.MICRONUTRIENTS),
+                org.mockito.ArgumentMatchers.nullable(String.class),
+                org.mockito.ArgumentMatchers.any()
+        );
+
+        assertEquals(cached, service.getAnalytics("micro@grun.app", start, end, false));
+        assertEquals(cached, service.getAnalytics("micro@grun.app", start, end, false));
+
+        verify(subscriptionService, times(2)).assertFeatureAccess(
+                "micro@grun.app", SubscriptionFeature.MICRONUTRIENT_ANALYTICS);
+    }}
