@@ -9457,7 +9457,11 @@ a:focus-visible {
 }
 .admin-mfa-panel { display: grid; gap: 14px; }
 .admin-mfa-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.admin-mfa-enroll, .admin-mfa-disable { display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: end; gap: 12px; }
+.admin-mfa-enroll { display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: end; gap: 12px; }
+.admin-mfa-disable { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(300px, 460px); align-items: center; gap: 20px; padding: 16px; border: 1px solid var(--danger-line, #e3b9bd); background: var(--danger-surface, #fff7f7); }
+.admin-mfa-disable-copy { display: grid; gap: 4px; }
+.admin-mfa-disable-controls { display: grid; grid-template-columns: minmax(190px, 1fr) auto; align-items: end; gap: 10px; }
+.admin-mfa-disable-controls .danger-button { white-space: nowrap; }
 .admin-mfa-setup { display: grid; grid-template-columns: minmax(260px, 360px) minmax(260px, 1fr); gap: 20px; padding: 18px; border: 1px solid var(--line); background: var(--surface-subtle); }
 .admin-mfa-qr { display: grid; grid-template-columns: 132px 1fr; align-items: center; gap: 16px; min-width: 0; }
 .admin-mfa-qr > div:last-child, .admin-mfa-verification { display: grid; gap: 8px; min-width: 0; }
@@ -9480,6 +9484,8 @@ a:focus-visible {
 .approval-decision-panel details pre { max-height: 240px; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 760px) {
   .admin-mfa-enroll, .admin-mfa-disable, .admin-mfa-setup { grid-template-columns: 1fr; align-items: stretch; }
+  .admin-mfa-disable-controls { grid-template-columns: 1fr; }
+  .admin-mfa-disable-controls .danger-button { justify-self: start; }
   .admin-mfa-qr { grid-template-columns: 112px minmax(0, 1fr); }
   .admin-mfa-qr-frame { width: 112px; }
   .admin-mfa-recovery > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }

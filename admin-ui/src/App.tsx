@@ -3614,8 +3614,11 @@ function AdminMfaEnrollmentPanel({ onError }: { onError: (message: string | null
         </div>
       </div>}
       {status?.enabled && <div className="admin-mfa-disable">
-        <label>Authenticator or recovery code<input autoComplete="one-time-code" maxLength={32} value={code} onChange={(event) => setCode(event.target.value)} /></label>
-        <button className="danger-button" disabled={busy || !code.trim()} type="button" onClick={disable}>Disable your MFA</button>
+        <div className="admin-mfa-disable-copy"><strong>Disable multi-factor authentication</strong><small>This reduces account security. Confirm with a current authenticator or recovery code.</small></div>
+        <div className="admin-mfa-disable-controls">
+          <label>Authenticator or recovery code<input autoComplete="one-time-code" maxLength={32} value={code} onChange={(event) => setCode(event.target.value)} /></label>
+          <button className="danger-button" disabled={busy || !code.trim()} type="button" onClick={disable}>Disable MFA</button>
+        </div>
       </div>}
       {recoveryCodes.length > 0 && <div className="admin-mfa-recovery"><strong>Save these one-time recovery codes now</strong><div>{recoveryCodes.map((item) => <code key={item}>{item}</code>)}</div><small>They are shown once and stored only as hashes.</small></div>}
       {state === "loading" && <span className="muted-text">Loading MFA status...</span>}
