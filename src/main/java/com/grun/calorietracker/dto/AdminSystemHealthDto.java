@@ -33,6 +33,24 @@ public class AdminSystemHealthDto {
     @Schema(description = "Database connection validation latency in milliseconds.", example = "12")
     private Long databaseLatencyMs;
 
+    @Schema(description = "Redis connectivity status when Redis-backed caching or rate limiting is enabled.", example = "UP")
+    private String redisStatus;
+
+    @Schema(description = "Redis PING latency in milliseconds, or null when Redis is not configured.", example = "4")
+    private Long redisLatencyMs;
+
+    @Schema(description = "Analytics cache hits since application start.", example = "1250")
+    private Long analyticsCacheHits;
+
+    @Schema(description = "Analytics cache misses since application start.", example = "310")
+    private Long analyticsCacheMisses;
+
+    @Schema(description = "Fail-open cache errors since application start.", example = "0")
+    private Long analyticsCacheErrors;
+
+    @Schema(description = "Analytics cache hit ratio between 0 and 1.", example = "0.8013")
+    private Double analyticsCacheHitRate;
+
     @Schema(description = "JVM uptime in milliseconds.", example = "3600000")
     private Long uptimeMs;
 

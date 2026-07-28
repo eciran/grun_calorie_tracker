@@ -13,8 +13,11 @@ import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.service.AdminSystemHealthService;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,19 +44,25 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     private final AiProperties aiProperties;
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
+    private final ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional(readOnly = true)
     public AdminSystemHealthDto getHealth() {
         DatabaseCheck databaseCheck = checkDatabase();
+        RedisCheck redisCheck = checkRedis();
+        CacheMetricsSnapshot cacheMetricsSnapshot = cacheMetricsSnapshot();
         RuntimeSnapshot runtimeSnapshot = runtimeSnapshot();
         RevenueCatSnapshot revenueCatSnapshot = revenueCatSnapshot();
         SubscriptionSnapshot subscriptionSnapshot = subscriptionSnapshot();
         AiSnapshot aiSnapshot = aiSnapshot();
         ProductAnalyticsSnapshot productAnalyticsSnapshot = productAnalyticsSnapshot();
         long systemAlertsLast24h = systemAlertsLast24h();
-        List<String> warnings = warnings(databaseCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, aiSnapshot, productAnalyticsSnapshot, systemAlertsLast24h);
-        String status = "UP".equals(databaseCheck.status()) && warnings.isEmpty() ? "UP" : "DEGRADED";
+        List<String> warnings = warnings(databaseCheck, redisCheck, runtimeSnapshot, revenueCatSnapshot, subscriptionSnapshot, aiSnapshot, productAnalyticsSnapshot, systemAlertsLast24h);
+        String status = "UP".equals(databaseCheck.status())
+                && !"DOWN".equals(redisCheck.status())
+                && warnings.isEmpty() ? "UP" : "DEGRADED";
 
         return new AdminSystemHealthDto(
                 status,
@@ -62,6 +71,12 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
                 activeProfiles(),
                 databaseCheck.status(),
                 databaseCheck.latencyMs(),
+                redisCheck.status(),
+                redisCheck.latencyMs(),
+                cacheMetricsSnapshot.hits(),
+                cacheMetricsSnapshot.misses(),
+                cacheMetricsSnapshot.errors(),
+                cacheMetricsSnapshot.hitRate(),
                 runtimeSnapshot.uptimeMs(),
                 runtimeSnapshot.availableProcessors(),
                 runtimeSnapshot.heapUsedMb(),
@@ -100,6 +115,45 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         } catch (Exception ex) {
             return new DatabaseCheck("DOWN", elapsedMs(startedAt));
         }
+    }
+
+    private RedisCheck checkRedis() {
+        if (!redisRequired()) {
+            return new RedisCheck("NOT_CONFIGURED", null);
+        }
+        long startedAt = System.nanoTime();
+        RedisConnectionFactory connectionFactory = redisConnectionFactoryProvider.getIfAvailable();
+        if (connectionFactory == null) {
+            return new RedisCheck("DOWN", elapsedMs(startedAt));
+        }
+        try (var connection = connectionFactory.getConnection()) {
+            String response = connection.ping();
+            return new RedisCheck("PONG".equalsIgnoreCase(response) ? "UP" : "DOWN", elapsedMs(startedAt));
+        } catch (Exception ex) {
+            return new RedisCheck("DOWN", elapsedMs(startedAt));
+        }
+    }
+
+    private boolean redisRequired() {
+        return "redis".equalsIgnoreCase(environment.getProperty("spring.cache.type", "simple"))
+                || Boolean.TRUE.equals(environment.getProperty("grun.rate-limit.redis.enabled", Boolean.class, false));
+    }
+
+    private CacheMetricsSnapshot cacheMetricsSnapshot() {
+        long hits = metricCount("grun.cache.requests", "result", "hit");
+        long misses = metricCount("grun.cache.requests", "result", "miss");
+        long errors = metricCount("grun.cache.errors", null, null);
+        long requests = hits + misses;
+        double hitRate = requests == 0 ? 0.0 : Math.round((hits / (double) requests) * 10_000.0) / 10_000.0;
+        return new CacheMetricsSnapshot(hits, misses, errors, hitRate);
+    }
+
+    private long metricCount(String metricName, String tagName, String tagValue) {
+        var search = meterRegistry.find(metricName);
+        if (tagName != null) {
+            search = search.tag(tagName, tagValue);
+        }
+        return Math.round(search.counters().stream().mapToDouble(counter -> counter.count()).sum());
     }
 
     private long elapsedMs(long startedAt) {
@@ -181,6 +235,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
 
     private List<String> warnings(
             DatabaseCheck databaseCheck,
+            RedisCheck redisCheck,
             RuntimeSnapshot runtimeSnapshot,
             RevenueCatSnapshot revenueCatSnapshot,
             SubscriptionSnapshot subscriptionSnapshot,
@@ -194,6 +249,12 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         }
         if (databaseCheck.latencyMs() > 500) {
             warnings.add("Database latency is above 500ms.");
+        }
+        if ("DOWN".equals(redisCheck.status())) {
+            warnings.add("Redis connectivity is down.");
+        }
+        if (redisCheck.latencyMs() != null && redisCheck.latencyMs() > 250) {
+            warnings.add("Redis latency is above 250ms.");
         }
         if (runtimeSnapshot.heapMaxMb() > 0 && runtimeSnapshot.heapUsedMb() * 100 / runtimeSnapshot.heapMaxMb() >= 85) {
             warnings.add("JVM heap usage is above 85%.");
@@ -232,6 +293,12 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
     }
 
     private record DatabaseCheck(String status, long latencyMs) {
+    }
+
+    private record RedisCheck(String status, Long latencyMs) {
+    }
+
+    private record CacheMetricsSnapshot(long hits, long misses, long errors, double hitRate) {
     }
 
     private record RuntimeSnapshot(long uptimeMs, int availableProcessors, long heapUsedMb, long heapMaxMb) {

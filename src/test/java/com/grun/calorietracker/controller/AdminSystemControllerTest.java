@@ -38,7 +38,7 @@ class AdminSystemControllerTest {
     private AiProviderSmokeService aiProviderSmokeService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ"})
     void getHealth_whenAdmin_returnsSystemHealth() throws Exception {
         AdminSystemHealthDto health = new AdminSystemHealthDto(
                 "UP",
@@ -47,6 +47,12 @@ class AdminSystemControllerTest {
                 List.of("prod"),
                 "UP",
                 11L,
+                "UP",
+                4L,
+                80L,
+                20L,
+                0L,
+                0.8,
                 60000L,
                 2,
                 128L,
@@ -84,6 +90,12 @@ class AdminSystemControllerTest {
                 .andExpect(jsonPath("$.appName").value("grun-calorie-tracker"))
                 .andExpect(jsonPath("$.databaseStatus").value("UP"))
                 .andExpect(jsonPath("$.databaseLatencyMs").value(11))
+                .andExpect(jsonPath("$.redisStatus").value("UP"))
+                .andExpect(jsonPath("$.redisLatencyMs").value(4))
+                .andExpect(jsonPath("$.analyticsCacheHits").value(80))
+                .andExpect(jsonPath("$.analyticsCacheMisses").value(20))
+                .andExpect(jsonPath("$.analyticsCacheErrors").value(0))
+                .andExpect(jsonPath("$.analyticsCacheHitRate").value(0.8))
                 .andExpect(jsonPath("$.revenueCatEventsLast24h").value(10))
                 .andExpect(jsonPath("$.failedRevenueCatEvents").value(0))
                 .andExpect(jsonPath("$.activeSubscriptions").value(4))
@@ -119,7 +131,7 @@ class AdminSystemControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_MANAGE"})
     void smokeAiProvider_whenAdmin_returnsSmokeResult() throws Exception {
         AiProviderSmokeResponseDto response = new AiProviderSmokeResponseDto();
         response.setProvider(AiProvider.LOG);

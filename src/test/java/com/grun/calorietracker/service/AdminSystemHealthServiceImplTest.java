@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.config.AiProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.grun.calorietracker.enums.AiDraftRejectReason;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.ProductAnalyticsEventType;
@@ -14,7 +15,10 @@ import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -37,12 +41,23 @@ class AdminSystemHealthServiceImplTest {
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
         AiRequestHistoryRepository aiRequestHistoryRepository = mock(AiRequestHistoryRepository.class);
         ProductAnalyticsEventRepository productAnalyticsEventRepository = mock(ProductAnalyticsEventRepository.class);
+        ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider = mock(ObjectProvider.class);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        RedisConnectionFactory redisConnectionFactory = mock(RedisConnectionFactory.class);
+        RedisConnection redisConnection = mock(RedisConnection.class);
         AiProperties aiProperties = aiProperties(false, AiProvider.DISABLED);
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.isValid(2)).thenReturn(true);
         when(environment.getProperty("spring.application.name", "grun-calorie-tracker")).thenReturn("grun-calorie-tracker");
         when(environment.getProperty("info.app.version", "unknown")).thenReturn("0.0.1-SNAPSHOT");
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("spring.cache.type", "simple")).thenReturn("redis");
+        when(redisConnectionFactoryProvider.getIfAvailable()).thenReturn(redisConnectionFactory);
+        when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
+        when(redisConnection.ping()).thenReturn("PONG");
+        meterRegistry.counter("grun.cache.requests", "cache", "progress", "result", "hit").increment(8);
+        meterRegistry.counter("grun.cache.requests", "cache", "progress", "result", "miss").increment(2);
+        meterRegistry.counter("grun.cache.errors", "cache", "progress", "operation", "get").increment();
         when(eventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)).thenReturn(0L);
         when(subscriptionRepository.countByStatus(SubscriptionStatus.ACTIVE)).thenReturn(4L);
         when(subscriptionRepository.countByStatus(SubscriptionStatus.TRIALING)).thenReturn(1L);
@@ -59,7 +74,7 @@ class AdminSystemHealthServiceImplTest {
         when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.QUICK_LOG_SUGGESTION_APPLIED), org.mockito.ArgumentMatchers.any())).thenReturn(7L);
         when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.SEARCH_STARTED), org.mockito.ArgumentMatchers.any())).thenReturn(20L);
 
-        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository, productAnalyticsEventRepository);
+        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository, productAnalyticsEventRepository, redisConnectionFactoryProvider, meterRegistry);
 
         var result = service.getHealth();
 
@@ -69,6 +84,12 @@ class AdminSystemHealthServiceImplTest {
         assertEquals("0.0.1-SNAPSHOT", result.getAppVersion());
         assertEquals("prod", result.getActiveProfiles().get(0));
         assertNotNull(result.getDatabaseLatencyMs());
+        assertEquals("UP", result.getRedisStatus());
+        assertNotNull(result.getRedisLatencyMs());
+        assertEquals(8L, result.getAnalyticsCacheHits());
+        assertEquals(2L, result.getAnalyticsCacheMisses());
+        assertEquals(1L, result.getAnalyticsCacheErrors());
+        assertEquals(0.8, result.getAnalyticsCacheHitRate());
         assertNotNull(result.getUptimeMs());
         assertNotNull(result.getHeapUsedMb());
         assertNotNull(result.getHeapMaxMb());
@@ -103,6 +124,8 @@ class AdminSystemHealthServiceImplTest {
         NotificationRepository notificationRepository = mock(NotificationRepository.class);
         AiRequestHistoryRepository aiRequestHistoryRepository = mock(AiRequestHistoryRepository.class);
         ProductAnalyticsEventRepository productAnalyticsEventRepository = mock(ProductAnalyticsEventRepository.class);
+        ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider = mock(ObjectProvider.class);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
         AiProperties aiProperties = aiProperties(true, AiProvider.LOG);
         when(dataSource.getConnection()).thenThrow(new SQLException("connection refused"));
         when(environment.getProperty("spring.application.name", "grun-calorie-tracker")).thenReturn("grun-calorie-tracker");
@@ -124,12 +147,13 @@ class AdminSystemHealthServiceImplTest {
         when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.QUICK_LOG_SUGGESTION_APPLIED), org.mockito.ArgumentMatchers.any())).thenReturn(2L);
         when(productAnalyticsEventRepository.countByEventTypeAndCreatedAtAfter(org.mockito.ArgumentMatchers.eq(ProductAnalyticsEventType.SEARCH_STARTED), org.mockito.ArgumentMatchers.any())).thenReturn(40L);
 
-        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository, productAnalyticsEventRepository);
+        AdminSystemHealthServiceImpl service = new AdminSystemHealthServiceImpl(dataSource, environment, eventRepository, subscriptionRepository, notificationRepository, aiProperties, aiRequestHistoryRepository, productAnalyticsEventRepository, redisConnectionFactoryProvider, meterRegistry);
 
         var result = service.getHealth();
 
         assertEquals("DEGRADED", result.getStatus());
         assertEquals("DOWN", result.getDatabaseStatus());
+        assertEquals("NOT_CONFIGURED", result.getRedisStatus());
         assertEquals("default", result.getActiveProfiles().get(0));
         assertEquals(2L, result.getFailedRevenueCatEvents());
         assertEquals(1L, result.getExhaustedAiQuotaSubscriptions());

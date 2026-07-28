@@ -98,6 +98,8 @@ if ($Production) {
         (Check-EnvEquals "GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING" "true"),
         (Check-EnvEquals "GRUN_RATE_LIMIT_ENABLED" "true"),
         (Check-EnvEquals "GRUN_RATE_LIMIT_REDIS_ENABLED" "true"),
+        (Check-EnvEquals "SPRING_CACHE_TYPE" "redis"),
+        (Check-EnvEquals "SPRING_DATA_REDIS_SSL_ENABLED" "true"),
         (Check-EnvEquals "GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS" "false"),
         (Check-Env "GRUN_AI_ENABLED"),
         (Check-Env "GRUN_AI_PROVIDER"),
@@ -127,12 +129,16 @@ if ([string]::IsNullOrWhiteSpace($AdminToken)) {
     try {
         $health = Invoke-AdminGet -Path "/api/v1/admin/system/health" -Token $AdminToken
         Write-Host "- /admin/system/health: OK"
-        Write-Host ("  status={0}, databaseStatus={1}, failedRevenueCatEvents={2}, systemAlertsLast24h={3}, aiEnabled={4}, aiProvider={5}" -f $health.status, $health.databaseStatus, $health.failedRevenueCatEvents, $health.systemAlertsLast24h, $health.aiEnabled, $health.aiProvider)
+        Write-Host ("  status={0}, databaseStatus={1}, redisStatus={2}, redisLatencyMs={3}, failedRevenueCatEvents={4}, systemAlertsLast24h={5}, aiEnabled={6}, aiProvider={7}" -f $health.status, $health.databaseStatus, $health.redisStatus, $health.redisLatencyMs, $health.failedRevenueCatEvents, $health.systemAlertsLast24h, $health.aiEnabled, $health.aiProvider)
+        Write-Host ("  cacheHits={0}, cacheMisses={1}, cacheErrors={2}, cacheHitRate={3}" -f $health.analyticsCacheHits, $health.analyticsCacheMisses, $health.analyticsCacheErrors, $health.analyticsCacheHitRate)
         if ($health.status -ne "UP") {
             $apiFailures += "Admin health status is $($health.status)"
         }
         if ($health.databaseStatus -ne "UP") {
             $apiFailures += "Database status is $($health.databaseStatus)"
+        }
+        if ($health.redisStatus -ne "UP") {
+            $apiFailures += "Redis status is $($health.redisStatus)"
         }
         if ([int64]$health.failedRevenueCatEvents -gt 0) {
             $apiFailures += "RevenueCat has failed provider events"

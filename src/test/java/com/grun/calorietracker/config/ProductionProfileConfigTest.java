@@ -24,6 +24,8 @@ class ProductionProfileConfigTest {
         assertEquals(false, valueAt(config, "grun.errors.include-internal-details"));
         assertEquals(true, valueAt(config, "grun.rate-limit.enabled"));
         assertEquals(true, valueAt(config, "grun.rate-limit.redis.enabled"));
+        assertEquals("${SPRING_DATA_REDIS_SSL_ENABLED:false}", valueAt(config, "spring.data.redis.ssl.enabled"));
+        assertEquals("${SPRING_DATA_REDIS_CLIENT_NAME:grun-api}", valueAt(config, "spring.data.redis.client-name"));
         assertEquals(true, valueAt(config, "grun.revenuecat.strict-product-mapping"));
         assertEquals(false, valueAt(config, "grun.local.admin.bootstrap-enabled"));
         assertEquals(false, valueAt(config, "grun.local.demo-seed.enabled"));

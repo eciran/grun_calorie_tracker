@@ -37,13 +37,15 @@ public class AdminAuthorizationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         AdminPermission required = AdminPermissionMatrix.requiredPermission(
                 request.getMethod(),
                 request.getRequestURI()
         );
-        boolean allowed = authentication != null
-                && authentication.isAuthenticated()
-                && authentication.getAuthorities().stream()
+        boolean allowed = authentication.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals(AdminPermissionMatrix.authority(required)));
         if (allowed) {
             filterChain.doFilter(request, response);
