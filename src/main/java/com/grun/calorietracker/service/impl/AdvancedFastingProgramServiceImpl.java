@@ -6,68 +6,380 @@ import com.grun.calorietracker.enums.*;
 import com.grun.calorietracker.exception.*;
 import com.grun.calorietracker.repository.*;
 import com.grun.calorietracker.service.AdvancedFastingProgramService;
-import com.grun.calorietracker.service.support.*;
+import com.grun.calorietracker.service.support.AiIdempotencySupport;
+import com.grun.calorietracker.service.support.FastingSafetyPolicy;
+import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.*;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Service @RequiredArgsConstructor
+@Service
+@RequiredArgsConstructor
 public class AdvancedFastingProgramServiceImpl implements AdvancedFastingProgramService {
- private final UserRepository userRepository;
- private final FastingProgramRepository programRepository;
- private final FastingProgramVersionRepository versionRepository;
- private final FastingProgramDayRuleRepository ruleRepository;
- private final UserTimeZoneSupport timeZoneSupport;
+    private static final String CREATE_OPERATION = "CREATE_PROGRAM";
+    private static final Duration IDEMPOTENCY_RETENTION = Duration.ofHours(24);
 
- @Override @Transactional public FastingProgramDto create(String email,FastingProgramRequestDto request){
-  UserEntity user=user(email); validate(request);
-  FastingProgramEntity p=new FastingProgramEntity(); p.setUser(user); applyMetadata(p,request); p.setStatus(FastingProgramStatus.DRAFT); p.setCurrentVersionNumber(1);
-  p=programRepository.save(p); createVersion(p,1,request.getRules()); return dto(p);
- }
- @Override @Transactional(readOnly=true) public List<FastingProgramDto> list(String email){ UserEntity u=user(email); return programRepository.findAllByUserIdOrderByCreatedAtDesc(u.getId()).stream().map(this::dto).toList(); }
- @Override @Transactional(readOnly=true) public FastingProgramDto get(String email,Long id){ return dto(owned(user(email),id)); }
- @Override @Transactional public FastingProgramDto update(String email,Long id,FastingProgramRequestDto request){
-  UserEntity u=user(email); validate(request); FastingProgramEntity p=owned(u,id);
-  if(p.getStatus()==FastingProgramStatus.ARCHIVED) throw new AdvancedFastingException(AdvancedFastingErrorCode.ARCHIVED_FASTING_PROGRAM,"Archived fasting programs cannot be updated.");
-  applyMetadata(p,request); int next=p.getCurrentVersionNumber()+1; createVersion(p,next,request.getRules()); p.setCurrentVersionNumber(next); return dto(programRepository.save(p));
- }
- @Override @Transactional(readOnly=true) public FastingProgramPreviewDto preview(String email,Long id,LocalDate startDate){
-  UserEntity u=user(email); FastingProgramEntity p=owned(u,id); LocalDate start=startDate==null?timeZoneSupport.today(u):startDate;
-  var version=currentVersion(p); Map<DayOfWeek,FastingProgramDayRuleEntity> rules=ruleRepository.findAllByProgramVersionIdOrderByDayOfWeek(version.getId()).stream().collect(Collectors.toMap(FastingProgramDayRuleEntity::getDayOfWeek,Function.identity()));
-  ZoneId zone=timeZoneSupport.zoneId(u); List<FastingProgramPreviewDto.PreviewDay> days=new ArrayList<>();
-  for(int i=0;i<7;i++){ LocalDate date=start.plusDays(i); var r=rules.get(date.getDayOfWeek()); ZonedDateTime at=null,end=null;
-   if(r.getRuleType()==FastingDayRuleType.FAST){ at=date.atTime(r.getPreferredStartTime()).atZone(zone); end=at.plusMinutes(r.getFastingMinutes()); }
-   days.add(new FastingProgramPreviewDto.PreviewDay(date,r.getRuleType(),at,end,r.getReducedCalorieTarget())); }
-  return new FastingProgramPreviewDto(p.getId(),version.getVersionNumber(),zone.getId(),start,List.copyOf(days));
- }
- @Override @Transactional public FastingProgramDto activate(String email,Long id){
-  UserEntity u=user(email); List<FastingProgramEntity> all=programRepository.findAllByUserIdForUpdate(u.getId()); FastingProgramEntity target=all.stream().filter(p->p.getId().equals(id)).findFirst().orElseThrow(()->new ResourceNotFoundException("Fasting program not found."));
-  if(target.getStatus()==FastingProgramStatus.ACTIVE) return dto(target);
-  if(target.getStatus()==FastingProgramStatus.ARCHIVED) throw new AdvancedFastingException(AdvancedFastingErrorCode.ARCHIVED_FASTING_PROGRAM,"Archived fasting programs cannot be activated.");
-  List<FastingProgramEntity> previous=all.stream().filter(p->p.getStatus()==FastingProgramStatus.ACTIVE).toList(); previous.forEach(p->p.setStatus(FastingProgramStatus.PAUSED)); programRepository.saveAll(previous); programRepository.flush(); target.setStatus(FastingProgramStatus.ACTIVE); if(target.getEffectiveFrom()==null) target.setEffectiveFrom(timeZoneSupport.today(u)); programRepository.save(target); return dto(target);
- }
- @Override @Transactional public FastingProgramDto pause(String email,Long id){ FastingProgramEntity p=owned(user(email),id); if(p.getStatus()==FastingProgramStatus.ARCHIVED) throw new AdvancedFastingException(AdvancedFastingErrorCode.ARCHIVED_FASTING_PROGRAM,"Archived fasting programs cannot be paused."); p.setStatus(FastingProgramStatus.PAUSED); return dto(programRepository.save(p)); }
- @Override @Transactional public FastingProgramDto archive(String email,Long id){ FastingProgramEntity p=owned(user(email),id); p.setStatus(FastingProgramStatus.ARCHIVED); return dto(programRepository.save(p)); }
+    private final UserRepository userRepository;
+    private final FastingProgramRepository programRepository;
+    private final FastingProgramVersionRepository versionRepository;
+    private final FastingProgramDayRuleRepository ruleRepository;
+    private final FastingProgramIdempotencyRepository idempotencyRepository;
+    private final UserTimeZoneSupport timeZoneSupport;
 
- private void applyMetadata(FastingProgramEntity p,FastingProgramRequestDto r){ if(r.getEffectiveFrom()!=null&&r.getEffectiveUntil()!=null&&r.getEffectiveUntil().isBefore(r.getEffectiveFrom())) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_PROGRAM_DATES,"effectiveUntil cannot be before effectiveFrom."); p.setName(r.getName().trim()); p.setEffectiveFrom(r.getEffectiveFrom()); p.setEffectiveUntil(r.getEffectiveUntil()); }
- private void validate(FastingProgramRequestDto request){
-  if(request.getRules()==null||request.getRules().size()!=7) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_WEEKLY_FASTING_RULES,"Exactly seven weekday rules are required.");
-  Set<DayOfWeek> days=request.getRules().stream().map(FastingDayRuleRequestDto::getDayOfWeek).collect(Collectors.toSet()); if(days.size()!=7) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_WEEKLY_FASTING_RULES,"Each weekday must be configured exactly once.");
-  List<DayOfWeek> reduced=new ArrayList<>();
-  for(var r:request.getRules()){
-   if(r.getRuleType()==FastingDayRuleType.FAST){ if(r.getFastingMinutes()==null||r.getPreferredStartTime()==null||r.getReducedCalorieTarget()!=null) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_DAY_RULE,"FAST rules require time and duration only."); if(r.getFastingMinutes()>FastingSafetyPolicy.MAX_CONTINUOUS_FASTING_HOURS*60) throw new FastingSafetyException(FastingSafetyErrorCode.FASTING_UNSAFE_DURATION,"Continuous fasting cannot exceed 24 hours."); }
-   else if(r.getRuleType()==FastingDayRuleType.REDUCED_CALORIE){ if(r.getReducedCalorieTarget()==null||r.getFastingMinutes()!=null||r.getPreferredStartTime()!=null) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_DAY_RULE,"REDUCED_CALORIE rules require a calorie target only."); reduced.add(r.getDayOfWeek()); }
-   else if(r.getFastingMinutes()!=null||r.getPreferredStartTime()!=null||r.getReducedCalorieTarget()!=null) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_DAY_RULE,"NORMAL and REST rules cannot contain fasting targets.");
-  }
-  if(!reduced.isEmpty()){ if(reduced.size()!=2) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FIVE_TWO_SCHEDULE,"A 5:2 program requires exactly two reduced-calorie days."); int a=reduced.get(0).getValue(),b=reduced.get(1).getValue(); if(Math.abs(a-b)==1||Math.abs(a-b)==6) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FIVE_TWO_SCHEDULE,"Reduced-calorie days must not be consecutive."); }
- }
- private void createVersion(FastingProgramEntity p,int number,List<FastingDayRuleRequestDto> requests){ FastingProgramVersionEntity v=new FastingProgramVersionEntity(); v.setProgram(p); v.setVersionNumber(number); v.setSafetyPolicyVersion(FastingSafetyPolicy.VERSION); v=versionRepository.save(v); for(var r:requests){ FastingProgramDayRuleEntity e=new FastingProgramDayRuleEntity(); e.setProgramVersion(v); e.setDayOfWeek(r.getDayOfWeek()); e.setRuleType(r.getRuleType()); e.setFastingMinutes(r.getFastingMinutes()); e.setPreferredStartTime(r.getPreferredStartTime()); e.setReducedCalorieTarget(r.getReducedCalorieTarget()); ruleRepository.save(e); } }
- private FastingProgramDto dto(FastingProgramEntity p){ var v=currentVersion(p); var rules=ruleRepository.findAllByProgramVersionIdOrderByDayOfWeek(v.getId()).stream().map(r->new FastingProgramDto.FastingDayRuleDto(r.getId(),r.getDayOfWeek(),r.getRuleType(),r.getFastingMinutes(),r.getPreferredStartTime(),r.getReducedCalorieTarget())).toList(); return new FastingProgramDto(p.getId(),p.getName(),p.getStatus(),p.getEffectiveFrom(),p.getEffectiveUntil(),v.getVersionNumber(),p.getVersion(),v.getSafetyPolicyVersion(),rules); }
- private FastingProgramVersionEntity currentVersion(FastingProgramEntity p){ return versionRepository.findByProgramIdAndVersionNumber(p.getId(),p.getCurrentVersionNumber()).orElseThrow(()->new IllegalStateException("Fasting program version is missing.")); }
- private FastingProgramEntity owned(UserEntity u,Long id){ return programRepository.findByIdAndUserId(id,u.getId()).orElseThrow(()->new ResourceNotFoundException("Fasting program not found.")); }
- private UserEntity user(String email){ return userRepository.findByEmail(email).orElseThrow(()->new InvalidCredentialsException("Invalid credential")); }
+    @Override
+    @Transactional
+    public FastingProgramCreateResult create(String email, String idempotencyKey, FastingProgramRequestDto request) {
+        String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
+        validate(request);
+        UserEntity user = userRepository.findByEmailForUpdate(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        String requestHash = requestHash(request);
+        LocalDateTime now = timeZoneSupport.now(user);
+
+        Optional<FastingProgramIdempotencyEntity> existing = idempotencyRepository
+                .findByUserIdAndOperationAndIdempotencyKey(user.getId(), CREATE_OPERATION, key);
+        if (existing.isPresent()) {
+            FastingProgramIdempotencyEntity record = existing.get();
+            if (record.getExpiresAt().isAfter(now)) {
+                if (!record.getRequestHash().equals(requestHash)) {
+                    throw new AdvancedFastingException(
+                            AdvancedFastingErrorCode.IDEMPOTENCY_KEY_REUSED,
+                            "Idempotency-Key was already used with a different fasting program payload.");
+                }
+                return new FastingProgramCreateResult(dto(record.getProgram()), true);
+            }
+            idempotencyRepository.delete(record);
+            idempotencyRepository.flush();
+        }
+
+        FastingProgramEntity program = new FastingProgramEntity();
+        program.setUser(user);
+        applyMetadata(program, request);
+        program.setStatus(FastingProgramStatus.DRAFT);
+        program.setCurrentVersionNumber(1);
+        program = programRepository.save(program);
+        createVersion(program, 1, request.getRules());
+
+        FastingProgramIdempotencyEntity record = new FastingProgramIdempotencyEntity();
+        record.setUser(user);
+        record.setOperation(CREATE_OPERATION);
+        record.setIdempotencyKey(key);
+        record.setRequestHash(requestHash);
+        record.setProgram(program);
+        record.setExpiresAt(now.plus(IDEMPOTENCY_RETENTION));
+        idempotencyRepository.save(record);
+        return new FastingProgramCreateResult(dto(program), false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FastingProgramDto> list(String email, List<String> statuses, boolean includeArchived) {
+        UserEntity user = user(email);
+        Set<FastingProgramStatus> requestedStatuses = parseStatuses(statuses);
+        return programRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .filter(program -> includeArchived || program.getStatus() != FastingProgramStatus.ARCHIVED)
+                .filter(program -> requestedStatuses.isEmpty() || requestedStatuses.contains(program.getStatus()))
+                .sorted(programListComparator())
+                .map(this::dto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FastingProgramDto get(String email, Long id) {
+        return dto(owned(user(email), id));
+    }
+
+    @Override
+    @Transactional
+    public FastingProgramDto update(String email, Long id, FastingProgramRequestDto request) {
+        UserEntity user = user(email);
+        validate(request);
+        FastingProgramEntity program = owned(user, id);
+        requireMutable(program, "updated");
+        applyMetadata(program, request);
+        int nextVersion = program.getCurrentVersionNumber() + 1;
+        createVersion(program, nextVersion, request.getRules());
+        program.setCurrentVersionNumber(nextVersion);
+        return dto(programRepository.save(program));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FastingProgramPreviewDto preview(String email, Long id, LocalDate startDate) {
+        UserEntity user = user(email);
+        FastingProgramEntity program = owned(user, id);
+        LocalDate start = startDate == null ? timeZoneSupport.today(user) : startDate;
+        FastingProgramVersionEntity version = currentVersion(program);
+        Map<DayOfWeek, FastingProgramDayRuleEntity> rules = ruleRepository
+                .findAllByProgramVersionIdOrderByDayOfWeek(version.getId()).stream()
+                .collect(Collectors.toMap(FastingProgramDayRuleEntity::getDayOfWeek, Function.identity()));
+        ZoneId zone = timeZoneSupport.zoneId(user);
+        List<FastingProgramPreviewDto.PreviewDay> days = new ArrayList<>();
+        for (int index = 0; index < 7; index++) {
+            LocalDate date = start.plusDays(index);
+            FastingProgramDayRuleEntity rule = rules.get(date.getDayOfWeek());
+            ZonedDateTime startAt = null;
+            ZonedDateTime endAt = null;
+            if (rule.getRuleType() == FastingDayRuleType.FAST) {
+                startAt = date.atTime(rule.getPreferredStartTime()).atZone(zone);
+                endAt = startAt.plusMinutes(rule.getFastingMinutes());
+            }
+            days.add(new FastingProgramPreviewDto.PreviewDay(
+                    date, rule.getRuleType(), startAt, endAt, rule.getReducedCalorieTarget()));
+        }
+        return new FastingProgramPreviewDto(
+                program.getId(), version.getVersionNumber(), zone.getId(), start, List.copyOf(days));
+    }
+
+    @Override
+    @Transactional
+    public FastingProgramDto activate(String email, Long id) {
+        UserEntity user = user(email);
+        List<FastingProgramEntity> programs = programRepository.findAllByUserIdForUpdate(user.getId());
+        FastingProgramEntity target = programs.stream()
+                .filter(program -> program.getId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Fasting program not found."));
+        if (target.getStatus() == FastingProgramStatus.ACTIVE) {
+            return dto(target);
+        }
+        requireMutable(target, "activated");
+        List<FastingProgramEntity> previous = programs.stream()
+                .filter(program -> program.getStatus() == FastingProgramStatus.ACTIVE)
+                .toList();
+        previous.forEach(program -> program.setStatus(FastingProgramStatus.PAUSED));
+        programRepository.saveAll(previous);
+        programRepository.flush();
+        target.setStatus(FastingProgramStatus.ACTIVE);
+        if (target.getEffectiveFrom() == null) {
+            target.setEffectiveFrom(timeZoneSupport.today(user));
+        }
+        return dto(programRepository.save(target));
+    }
+
+    @Override
+    @Transactional
+    public FastingProgramDto pause(String email, Long id) {
+        FastingProgramEntity program = owned(user(email), id);
+        if (program.getStatus() == FastingProgramStatus.PAUSED) {
+            return dto(program);
+        }
+        if (program.getStatus() == FastingProgramStatus.DRAFT) {
+            throw new AdvancedFastingException(
+                    AdvancedFastingErrorCode.INVALID_FASTING_PROGRAM_TRANSITION,
+                    "A draft fasting program cannot be paused.");
+        }
+        requireMutable(program, "paused");
+        program.setStatus(FastingProgramStatus.PAUSED);
+        return dto(programRepository.save(program));
+    }
+
+    @Override
+    @Transactional
+    public FastingProgramDto archive(String email, Long id) {
+        FastingProgramEntity program = owned(user(email), id);
+        if (program.getStatus() == FastingProgramStatus.ARCHIVED) {
+            return dto(program);
+        }
+        program.setStatus(FastingProgramStatus.ARCHIVED);
+        return dto(programRepository.save(program));
+    }
+
+    private void requireMutable(FastingProgramEntity program, String action) {
+        if (program.getStatus() == FastingProgramStatus.ARCHIVED) {
+            throw new AdvancedFastingException(
+                    AdvancedFastingErrorCode.ARCHIVED_FASTING_PROGRAM,
+                    "Archived fasting programs cannot be " + action + ".");
+        }
+    }
+
+    private Set<FastingProgramStatus> parseStatuses(List<String> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            return EnumSet.noneOf(FastingProgramStatus.class);
+        }
+        EnumSet<FastingProgramStatus> parsed = EnumSet.noneOf(FastingProgramStatus.class);
+        for (String value : statuses) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            for (String token : value.split(",")) {
+                try {
+                    parsed.add(FastingProgramStatus.valueOf(token.trim().toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException ex) {
+                    throw new AdvancedFastingException(
+                            AdvancedFastingErrorCode.INVALID_FASTING_PROGRAM_STATUS_FILTER,
+                            "Unsupported fasting program status filter.");
+                }
+            }
+        }
+        return parsed;
+    }
+
+    private Comparator<FastingProgramEntity> programListComparator() {
+        return Comparator.comparingInt((FastingProgramEntity program) -> statusRank(program.getStatus()))
+                .thenComparing(FastingProgramEntity::getUpdatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(FastingProgramEntity::getId, Comparator.nullsLast(Comparator.reverseOrder()));
+    }
+
+    private int statusRank(FastingProgramStatus status) {
+        return switch (status) {
+            case ACTIVE -> 0;
+            case DRAFT -> 1;
+            case PAUSED -> 2;
+            case ARCHIVED -> 3;
+        };
+    }
+
+    private String requestHash(FastingProgramRequestDto request) {
+        String rules = request.getRules().stream()
+                .sorted(Comparator.comparing(FastingDayRuleRequestDto::getDayOfWeek))
+                .map(rule -> String.join("|",
+                        rule.getDayOfWeek().name(),
+                        rule.getRuleType().name(),
+                        Objects.toString(rule.getFastingMinutes(), ""),
+                        Objects.toString(rule.getPreferredStartTime(), ""),
+                        Objects.toString(rule.getReducedCalorieTarget(), "")))
+                .collect(Collectors.joining(";"));
+        String canonical = request.getName().trim() + "\n"
+                + Objects.toString(request.getEffectiveFrom(), "") + "\n"
+                + Objects.toString(request.getEffectiveUntil(), "") + "\n"
+                + rules;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is unavailable.", ex);
+        }
+    }
+
+    private void applyMetadata(FastingProgramEntity program, FastingProgramRequestDto request) {
+        if (request.getEffectiveFrom() != null && request.getEffectiveUntil() != null
+                && request.getEffectiveUntil().isBefore(request.getEffectiveFrom())) {
+            throw new AdvancedFastingException(
+                    AdvancedFastingErrorCode.INVALID_FASTING_PROGRAM_DATES,
+                    "effectiveUntil cannot be before effectiveFrom.");
+        }
+        program.setName(request.getName().trim());
+        program.setEffectiveFrom(request.getEffectiveFrom());
+        program.setEffectiveUntil(request.getEffectiveUntil());
+    }
+
+    private void validate(FastingProgramRequestDto request) {
+        if (request.getRules() == null || request.getRules().size() != 7) {
+            throw new AdvancedFastingException(
+                    AdvancedFastingErrorCode.INVALID_WEEKLY_FASTING_RULES,
+                    "Exactly seven weekday rules are required.");
+        }
+        Set<DayOfWeek> days = request.getRules().stream()
+                .map(FastingDayRuleRequestDto::getDayOfWeek)
+                .collect(Collectors.toSet());
+        if (days.size() != 7) {
+            throw new AdvancedFastingException(
+                    AdvancedFastingErrorCode.INVALID_WEEKLY_FASTING_RULES,
+                    "Each weekday must be configured exactly once.");
+        }
+        List<DayOfWeek> reducedDays = new ArrayList<>();
+        for (FastingDayRuleRequestDto rule : request.getRules()) {
+            if (rule.getRuleType() == FastingDayRuleType.FAST) {
+                if (rule.getFastingMinutes() == null || rule.getPreferredStartTime() == null
+                        || rule.getReducedCalorieTarget() != null) {
+                    throw new AdvancedFastingException(
+                            AdvancedFastingErrorCode.INVALID_FASTING_DAY_RULE,
+                            "FAST rules require time and duration only.");
+                }
+                if (rule.getFastingMinutes() > FastingSafetyPolicy.MAX_CONTINUOUS_FASTING_HOURS * 60) {
+                    throw new FastingSafetyException(
+                            FastingSafetyErrorCode.FASTING_UNSAFE_DURATION,
+                            "Continuous fasting cannot exceed 24 hours.");
+                }
+            } else if (rule.getRuleType() == FastingDayRuleType.REDUCED_CALORIE) {
+                if (rule.getReducedCalorieTarget() == null || rule.getFastingMinutes() != null
+                        || rule.getPreferredStartTime() != null) {
+                    throw new AdvancedFastingException(
+                            AdvancedFastingErrorCode.INVALID_FASTING_DAY_RULE,
+                            "REDUCED_CALORIE rules require a calorie target only.");
+                }
+                reducedDays.add(rule.getDayOfWeek());
+            } else if (rule.getFastingMinutes() != null || rule.getPreferredStartTime() != null
+                    || rule.getReducedCalorieTarget() != null) {
+                throw new AdvancedFastingException(
+                        AdvancedFastingErrorCode.INVALID_FASTING_DAY_RULE,
+                        "NORMAL and REST rules cannot contain fasting targets.");
+            }
+        }
+        if (!reducedDays.isEmpty()) {
+            if (reducedDays.size() != 2) {
+                throw new AdvancedFastingException(
+                        AdvancedFastingErrorCode.INVALID_FIVE_TWO_SCHEDULE,
+                        "A 5:2 program requires exactly two reduced-calorie days.");
+            }
+            int first = reducedDays.get(0).getValue();
+            int second = reducedDays.get(1).getValue();
+            if (Math.abs(first - second) == 1 || Math.abs(first - second) == 6) {
+                throw new AdvancedFastingException(
+                        AdvancedFastingErrorCode.INVALID_FIVE_TWO_SCHEDULE,
+                        "Reduced-calorie days must not be consecutive.");
+            }
+        }
+    }
+
+    private void createVersion(FastingProgramEntity program, int number,
+                               List<FastingDayRuleRequestDto> requests) {
+        FastingProgramVersionEntity version = new FastingProgramVersionEntity();
+        version.setProgram(program);
+        version.setVersionNumber(number);
+        version.setSafetyPolicyVersion(FastingSafetyPolicy.VERSION);
+        version = versionRepository.save(version);
+        for (FastingDayRuleRequestDto request : requests) {
+            FastingProgramDayRuleEntity rule = new FastingProgramDayRuleEntity();
+            rule.setProgramVersion(version);
+            rule.setDayOfWeek(request.getDayOfWeek());
+            rule.setRuleType(request.getRuleType());
+            rule.setFastingMinutes(request.getFastingMinutes());
+            rule.setPreferredStartTime(request.getPreferredStartTime());
+            rule.setReducedCalorieTarget(request.getReducedCalorieTarget());
+            ruleRepository.save(rule);
+        }
+    }
+
+    private FastingProgramDto dto(FastingProgramEntity program) {
+        FastingProgramVersionEntity version = currentVersion(program);
+        List<FastingProgramDto.FastingDayRuleDto> rules = ruleRepository
+                .findAllByProgramVersionIdOrderByDayOfWeek(version.getId()).stream()
+                .map(rule -> new FastingProgramDto.FastingDayRuleDto(
+                        rule.getId(), rule.getDayOfWeek(), rule.getRuleType(), rule.getFastingMinutes(),
+                        rule.getPreferredStartTime(), rule.getReducedCalorieTarget()))
+                .toList();
+        return new FastingProgramDto(
+                program.getId(), program.getName(), program.getStatus(), program.getEffectiveFrom(),
+                program.getEffectiveUntil(), version.getVersionNumber(), program.getVersion(),
+                version.getSafetyPolicyVersion(), program.getCreatedAt(), program.getUpdatedAt(), rules);
+    }
+
+    private FastingProgramVersionEntity currentVersion(FastingProgramEntity program) {
+        return versionRepository.findByProgramIdAndVersionNumber(
+                        program.getId(), program.getCurrentVersionNumber())
+                .orElseThrow(() -> new IllegalStateException("Fasting program version is missing."));
+    }
+
+    private FastingProgramEntity owned(UserEntity user, Long id) {
+        return programRepository.findByIdAndUserId(id, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Fasting program not found."));
+    }
+
+    private UserEntity user(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+    }
 }
