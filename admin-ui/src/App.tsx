@@ -84,6 +84,8 @@ import {
   RevenueCatMonitoringCharts,
   RevenueCatMonitoringOverview,
   RetentionPolicy,
+  AdminGdprRequest,
+  AdminGdprRequestPage,
   SubscriptionDto,
   SubscriptionFeatureAccess,
   SubscriptionProviderEvent,
@@ -5718,6 +5720,15 @@ function RetentionPoliciesView({ onError }: { onError: (message: string | null) 
   const [draft, setDraft] = useState({ retentionDays: "", legalBasis: "", description: "", active: true });
   const [saveState, setSaveState] = useState<LoadState>("idle");
   const rows = data ?? [];
+  const [gdprStatus, setGdprStatus] = useState("");
+  const [gdprPage, setGdprPage] = useState(0);
+  const [gdprPageSize, setGdprPageSize] = useState(10);
+  const gdprQuery = new URLSearchParams({ page: String(gdprPage), size: String(gdprPageSize) });
+  if (gdprStatus) gdprQuery.set("status", gdprStatus);
+  const { data: gdprData, state: gdprState, reload: reloadGdpr } = useEndpoint<AdminGdprRequestPage>(
+    `/api/v1/admin/legal/gdpr-requests?${gdprQuery.toString()}`,
+    onError
+  );
 
   function editPolicy(policy: RetentionPolicy) {
     setSelected(policy);
@@ -5770,6 +5781,42 @@ function RetentionPoliciesView({ onError }: { onError: (message: string | null) 
         onRowClick={editPolicy}
         empty="No retention policies returned."
       />
+      <Panel title="GDPR request queue" description="Metadata-only export and deletion tracking. Export bodies and deleted account data are never exposed here.">
+        <div className="section-toolbar-actions">
+          <select value={gdprStatus} onChange={(event) => { setGdprStatus(event.target.value); setGdprPage(0); }}>
+            <option value="">All statuses</option>
+            <option value="IN_PROGRESS">In progress</option>
+            <option value="ESCALATED">Escalated</option>
+            <option value="FAILED">Failed</option>
+            <option value="COMPLETED">Completed</option>
+          </select>
+          <button className="ghost-button" type="button" onClick={reloadGdpr}>Refresh queue</button>
+          <span className="toolbar-state">{gdprState}</span>
+        </div>
+        <DataTable
+          columns={["Type", "Status", "Anonymous subject", "Requested", "SLA due", "Result", "Evidence"]}
+          rows={(gdprData?.content ?? []).map((item: AdminGdprRequest) => [
+            item.requestType,
+            <Badge value={item.status} tone={item.status === "COMPLETED" ? "good" : item.status === "FAILED" || item.status === "ESCALATED" ? "danger" : "warn"} />,
+            `${item.subjectReference.slice(0, 12)}...`,
+            formatDate(item.requestedAt),
+            formatDate(item.dueAt),
+            item.resultCode ?? item.failureSummary ?? "-",
+            item.evidenceReference ?? "-"
+          ])}
+          empty="No GDPR operation metadata returned."
+        />
+        <PaginationControls
+          page={gdprData?.page ?? gdprPage}
+          pageSize={gdprData?.size ?? gdprPageSize}
+          totalElements={gdprData?.totalElements ?? 0}
+          totalPages={gdprData?.totalPages ?? 1}
+          first={Boolean(gdprData?.first)}
+          last={Boolean(gdprData?.last)}
+          onPageChange={setGdprPage}
+          onPageSizeChange={(size: number) => { setGdprPageSize(size); setGdprPage(0); }}
+        />
+      </Panel>
       {selected && <Panel title={`Edit ${shortFeature(selected.policyKey)} retention`}>
         <form className="review-filter-grid" onSubmit={savePolicy}>
           <label>

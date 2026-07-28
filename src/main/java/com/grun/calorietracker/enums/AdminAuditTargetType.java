@@ -16,5 +16,6 @@ public enum AdminAuditTargetType {
     EXERCISE_ITEM,
     CATALOG_REVIEW_ITEM,
     RUNTIME_OPERATIONS,
-    ADMIN_APPROVAL
+    ADMIN_APPROVAL,
+    GDPR_REQUEST
 }

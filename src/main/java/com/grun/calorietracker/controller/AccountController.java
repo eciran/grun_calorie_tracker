@@ -14,6 +14,8 @@ import com.grun.calorietracker.dto.LinkedIdentityDto;
 import com.grun.calorietracker.dto.NotificationPreferenceDto;
 import com.grun.calorietracker.enums.AuthProvider;
 import com.grun.calorietracker.service.AccountGdprService;
+import com.grun.calorietracker.service.GdprRequestTrackingService;
+import com.grun.calorietracker.enums.GdprRequestType;
 import com.grun.calorietracker.service.AccountIdentityService;
 import com.grun.calorietracker.service.AccountLinkAuthorizationService;
 import com.grun.calorietracker.service.UserService;
@@ -52,6 +54,7 @@ public class AccountController {
     private final AccountIdentityService accountIdentityService;
     private final AccountLinkAuthorizationService accountLinkAuthorizationService;
     private final AccountGdprService accountGdprService;
+    private final GdprRequestTrackingService gdprRequestTrackingService;
     private final UserService userService;
 
     @GetMapping("/linked-identities")
@@ -196,7 +199,15 @@ public class AccountController {
     })
     public ResponseEntity<GdprDataExportDto> exportMyData(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(accountGdprService.exportMyData(userDetails.getUsername()));
+        Long requestId = gdprRequestTrackingService.begin(userDetails.getUsername(), GdprRequestType.EXPORT);
+        try {
+            GdprDataExportDto export = accountGdprService.exportMyData(userDetails.getUsername());
+            gdprRequestTrackingService.complete(requestId, "EXPORT_DELIVERED_INLINE");
+            return ResponseEntity.ok(export);
+        } catch (RuntimeException exception) {
+            gdprRequestTrackingService.fail(requestId, exception);
+            throw exception;
+        }
     }
 
     @DeleteMapping("/gdpr")
@@ -212,11 +223,18 @@ public class AccountController {
     public ResponseEntity<GdprDeleteResponseDto> anonymizeAndDelete(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid GdprDeleteRequestDto request) {
-        accountGdprService.anonymizeAndDeleteAccount(
-                userDetails.getUsername(),
-                request.getConfirmText(),
-                request.getCurrentPassword()
-        );
-        return ResponseEntity.ok(new GdprDeleteResponseDto("Account anonymized and deleted successfully."));
+        Long requestId = gdprRequestTrackingService.begin(userDetails.getUsername(), GdprRequestType.DELETE);
+        try {
+            accountGdprService.anonymizeAndDeleteAccount(
+                    userDetails.getUsername(),
+                    request.getConfirmText(),
+                    request.getCurrentPassword()
+            );
+            gdprRequestTrackingService.complete(requestId, "ACCOUNT_ANONYMIZED");
+            return ResponseEntity.ok(new GdprDeleteResponseDto("Account anonymized and deleted successfully."));
+        } catch (RuntimeException exception) {
+            gdprRequestTrackingService.fail(requestId, exception);
+            throw exception;
+        }
     }
 }

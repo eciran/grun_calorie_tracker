@@ -16,6 +16,7 @@ import com.grun.calorietracker.enums.AccountReauthenticationMethod;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.service.AccountGdprService;
+import com.grun.calorietracker.service.GdprRequestTrackingService;
 import com.grun.calorietracker.service.AccountIdentityService;
 import com.grun.calorietracker.service.AccountLinkAuthorizationService;
 import com.grun.calorietracker.service.UserService;
@@ -58,6 +59,9 @@ class AccountControllerTest {
 
     @MockitoBean
     private AccountGdprService accountGdprService;
+
+    @MockitoBean
+    private GdprRequestTrackingService gdprRequestTrackingService;
 
     @MockitoBean
     private UserService userService;

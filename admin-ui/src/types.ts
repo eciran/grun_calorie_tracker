@@ -1467,3 +1467,27 @@ export type SystemReliabilityAnalytics = {
   operations: SystemReliabilityOperationMetric[];
   operationTrend: SystemReliabilityOperationTrendPoint[];
 };
+export type AdminGdprRequest = {
+  id: number;
+  requestType: "EXPORT" | "DELETE";
+  status: "IN_PROGRESS" | "COMPLETED" | "FAILED" | "ESCALATED";
+  subjectReference: string;
+  requestedAt: string;
+  dueAt: string;
+  completedAt?: string | null;
+  assignedTo?: string | null;
+  resultCode?: string | null;
+  evidenceReference?: string | null;
+  failureSummary?: string | null;
+  escalatedAt?: string | null;
+};
+
+export type AdminGdprRequestPage = {
+  content: AdminGdprRequest[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+};
