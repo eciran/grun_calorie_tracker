@@ -26,6 +26,15 @@ public class NotificationPreferenceDto {
     @Schema(description = "Whether fasting reminder notifications are enabled.", example = "true")
     private Boolean fastingRemindersEnabled;
 
+    @Schema(description = "Whether local quiet hours are enabled. Set false to clear the configured window.", example = "true")
+    private Boolean quietHoursEnabled;
+
+    @Schema(description = "Optional local quiet-hours start. Both quiet-hour fields must be set or both cleared.", example = "22:00:00")
+    private java.time.LocalTime quietHoursStart;
+
+    @Schema(description = "Optional local quiet-hours end.", example = "07:00:00")
+    private java.time.LocalTime quietHoursEnd;
+
     @Schema(description = "Whether recipe suggestion notifications are enabled.", example = "true")
     private Boolean recipeSuggestionsEnabled;
 

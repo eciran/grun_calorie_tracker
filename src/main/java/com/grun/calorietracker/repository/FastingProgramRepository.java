@@ -13,6 +13,7 @@ public interface FastingProgramRepository extends JpaRepository<FastingProgramEn
     List<FastingProgramEntity> findAllByUserIdOrderByCreatedAtDesc(Long userId);
     Optional<FastingProgramEntity> findByIdAndUserId(Long id, Long userId);
     Optional<FastingProgramEntity> findFirstByUserIdAndStatus(Long userId, FastingProgramStatus status);
+    List<FastingProgramEntity> findAllByStatus(FastingProgramStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from FastingProgramEntity p where p.user.id = :userId order by p.id")
     List<FastingProgramEntity> findAllByUserIdForUpdate(@Param("userId") Long userId);

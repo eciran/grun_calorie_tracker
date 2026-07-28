@@ -123,6 +123,12 @@ public class UserEntity {
     @Column(name = "fasting_reminders_enabled", nullable = false)
     private Boolean fastingRemindersEnabled = true;
 
+    @Column(name = "notification_quiet_hours_start")
+    private java.time.LocalTime notificationQuietHoursStart;
+
+    @Column(name = "notification_quiet_hours_end")
+    private java.time.LocalTime notificationQuietHoursEnd;
+
     @Column(name = "recipe_suggestions_enabled", nullable = false)
     private Boolean recipeSuggestionsEnabled = true;
 
