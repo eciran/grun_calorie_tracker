@@ -1,12 +1,17 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { formatRequestError, PageResponse, request } from "./api";
 import { DataTable, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
 import {
   RuntimeApiMetrics,
   RuntimeOperationRecord,
-  RuntimeOperationsPolicy
+  RuntimeOperationsPolicy,
+  SystemReliabilityAnalytics
 } from "./types";
 
+const ApiReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.ApiReliabilityChart })));
+const InfrastructureReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.InfrastructureReliabilityChart })));
+const ProviderReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.ProviderReliabilityChart })));
+const OperationReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.OperationReliabilityChart })));
 const FEATURES = [
   "BARCODE_SCANNER", "MANUAL_FOOD_LOGGING", "FOOD_DIARY", "WEIGHT_PROGRESS",
   "WATER_TRACKING", "WORKOUT_LOGGING", "SAVED_MEAL_TEMPLATES", "RECIPE_BUILDER",
@@ -31,6 +36,8 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
   const [policy, setPolicy] = useState<RuntimeOperationsPolicy | null>(null);
   const [draft, setDraft] = useState<RuntimeOperationsPolicy | null>(null);
   const [metrics, setMetrics] = useState<RuntimeApiMetrics | null>(null);
+  const [reliability, setReliability] = useState<SystemReliabilityAnalytics | null>(null);
+  const [reliabilityWindowHours, setReliabilityWindowHours] = useState(24);
   const [records, setRecords] = useState<PageResponse<RuntimeOperationRecord> | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -55,14 +62,16 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
       const query = new URLSearchParams({ page: String(page), size: String(pageSize), sort: "createdAt,desc" });
       if (typeFilter) query.set("type", typeFilter);
       if (statusFilter) query.set("status", statusFilter);
-      const [nextPolicy, nextMetrics, nextRecords] = await Promise.all([
+      const [nextPolicy, nextMetrics, nextReliability, nextRecords] = await Promise.all([
         request<RuntimeOperationsPolicy>("/api/v1/admin/system/operations/policy"),
         request<RuntimeApiMetrics>("/api/v1/admin/system/operations/api-metrics"),
+        request<SystemReliabilityAnalytics>(`/api/v1/admin/system/operations/reliability-analytics?windowHours=${reliabilityWindowHours}`),
         request<PageResponse<RuntimeOperationRecord>>(`/api/v1/admin/system/operations/records?${query}`)
       ]);
       setPolicy(nextPolicy);
       setDraft(nextPolicy);
       setMetrics(nextMetrics);
+      setReliability(nextReliability);
       setRecords(nextRecords);
       setState("ready");
       onError(null);
@@ -72,7 +81,7 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
     }
   }
 
-  useEffect(() => { void load(); }, [page, pageSize, typeFilter, statusFilter]);
+  useEffect(() => { void load(); }, [page, pageSize, typeFilter, statusFilter, reliabilityWindowHours]);
 
   async function savePolicy() {
     if (!draft) return;
@@ -170,6 +179,29 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
         </div>
       )}
 
+      {reliability && (
+        <Panel title="System and provider reliability" description="Privacy-safe operational aggregates. API history covers the current process lifetime; provider and operation windows use persisted records.">
+          <div className="reliability-toolbar" role="group" aria-label="Reliability time window">
+            {[1, 24, 72, 168].map((hours) => (
+              <button className={reliabilityWindowHours === hours ? "active" : ""} key={hours} onClick={() => setReliabilityWindowHours(hours)} type="button">
+                {hours === 1 ? "1 hour" : hours === 24 ? "24 hours" : `${hours / 24} days`}
+              </button>
+            ))}
+            <span>Generated {formatDate(reliability.generatedAt)}</span>
+          </div>
+          <Suspense fallback={<div className="reliability-chart-loading">Loading reliability charts...</div>}>
+          <div className="reliability-chart-grid">
+            <div className="reliability-chart-card"><div><strong>API traffic and latency</strong><span>Hourly requests, server errors, and p95 latency.</span></div><ApiReliabilityChart analytics={reliability} /></div>
+            <div className="reliability-chart-card"><div><strong>Infrastructure signals</strong><span>Live database, Redis, heap, and cache measurements.</span></div><InfrastructureReliabilityChart analytics={reliability} /></div>
+            <div className="reliability-chart-card"><div><strong>Provider outcomes</strong><span>Aggregate delivery and processing results; ignored/skipped events are not failures.</span></div><ProviderReliabilityChart analytics={reliability} /></div>
+            <div className="reliability-chart-card"><div><strong>Operational outcomes</strong><span>Scheduled jobs, incidents, backups, restore drills, and dead letters.</span></div><OperationReliabilityChart analytics={reliability} /></div>
+          </div>
+          </Suspense>
+          <div className="reliability-status-strip">
+            {reliability.providers.map((provider) => <span key={provider.provider}><strong>{provider.provider}</strong>{provider.status}{provider.successRate == null ? "" : ` · ${provider.successRate.toFixed(1)}% success`}</span>)}
+          </div>
+        </Panel>
+      )}
       {draft && (
         <Panel title="Runtime policy" description="No provider secret or credential is stored in this policy. Every change is versioned and audited.">
           <div className={`runtime-maintenance-banner ${draft.maintenanceEnabled ? "active" : ""}`}>

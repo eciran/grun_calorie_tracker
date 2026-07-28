@@ -19,6 +19,7 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
     boolean existsByProviderAndProviderEventId(PaymentProvider provider, String providerEventId);
     long countByStatus(SubscriptionProviderEventStatus status);
     long countByReceivedAtAfter(LocalDateTime receivedAt);
+    long countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus status, LocalDateTime receivedAt);
     List<SubscriptionProviderEventEntity> findByUserOrderByReceivedAtDesc(UserEntity user);
 
     @Query("""

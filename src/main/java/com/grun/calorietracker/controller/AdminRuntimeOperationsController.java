@@ -6,12 +6,14 @@ import com.grun.calorietracker.dto.AdminRuntimeOperationRecordRequestDto;
 import com.grun.calorietracker.dto.AdminRuntimeOperationsPolicyDto;
 import com.grun.calorietracker.dto.AdminRuntimeOperationsPolicyUpdateRequestDto;
 import com.grun.calorietracker.dto.AdminRuntimePolicyRollbackRequestDto;
+import com.grun.calorietracker.dto.AdminSystemReliabilityAnalyticsDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.RuntimeOperationRecordType;
 import com.grun.calorietracker.enums.RuntimeOperationStatus;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import com.grun.calorietracker.service.AdminAuditService;
+import com.grun.calorietracker.service.AdminSystemReliabilityAnalyticsService;
 import com.grun.calorietracker.service.RuntimeOperationsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRuntimeOperationsController {
     private final RuntimeOperationsService runtimeOperationsService;
     private final AdminAuditService adminAuditService;
+    private final AdminSystemReliabilityAnalyticsService reliabilityAnalyticsService;
 
     @GetMapping("/policy")
     @PreAuthorize("hasAuthority('ADMIN_PERMISSION_TECHNICAL_READ')")
@@ -76,6 +79,12 @@ public class AdminRuntimeOperationsController {
         return ResponseEntity.ok(runtimeOperationsService.getApiMetrics());
     }
 
+    @GetMapping("/reliability-analytics")
+    @PreAuthorize("hasAuthority('ADMIN_PERMISSION_TECHNICAL_READ')")
+    public ResponseEntity<AdminSystemReliabilityAnalyticsDto> getReliabilityAnalytics(
+            @RequestParam(defaultValue = "24") int windowHours) {
+        return ResponseEntity.ok(reliabilityAnalyticsService.getAnalytics(windowHours));
+    }
     @GetMapping("/records")
     @PreAuthorize("hasAuthority('ADMIN_PERMISSION_TECHNICAL_READ')")
     public ResponseEntity<Page<AdminRuntimeOperationRecordDto>> getRecords(

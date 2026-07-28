@@ -7,6 +7,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 public interface RuntimeOperationRecordRepository extends JpaRepository<RuntimeOperationRecordEntity, Long> {
     Page<RuntimeOperationRecordEntity> findByRecordTypeAndStatus(
             RuntimeOperationRecordType recordType, RuntimeOperationStatus status, Pageable pageable);
@@ -14,4 +17,5 @@ public interface RuntimeOperationRecordRepository extends JpaRepository<RuntimeO
             RuntimeOperationRecordType recordType, Pageable pageable);
     Page<RuntimeOperationRecordEntity> findByStatus(
             RuntimeOperationStatus status, Pageable pageable);
+    List<RuntimeOperationRecordEntity> findByCreatedAtAfterOrderByCreatedAtAsc(LocalDateTime createdAt);
 }

@@ -25,4 +25,17 @@ class RuntimeApiMetricsServiceTest {
         assertTrue(result.latencyThresholdBreached());
         assertTrue(result.errorRateThresholdBreached());
     }
-}
+
+    @Test
+    void exposesOnlyRecordedHourlyTrendWithoutInventingHistory() {
+        RuntimeApiMetricsService service = new RuntimeApiMetricsService();
+        service.record(40, 200);
+        service.record(400, 500);
+
+        var trend = service.trend(24);
+
+        assertEquals(1, trend.size());
+        assertEquals(2, trend.get(0).requests());
+        assertEquals(1, trend.get(0).errors());
+        assertEquals(400, trend.get(0).latencyP95Ms());
+    }}

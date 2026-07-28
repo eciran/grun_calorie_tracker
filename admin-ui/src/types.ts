@@ -1398,3 +1398,53 @@ export type RuntimeOperationRecord = {
   createdBy: string;
   createdAt: string;
 };
+export type SystemReliabilityApiTrendPoint = {
+  bucket: string;
+  requests: number;
+  errors: number;
+  errorRate: number;
+  latencyP95Ms: number;
+};
+
+export type SystemReliabilityInfrastructureMetric = {
+  component: string;
+  status: string;
+  latencyMs?: number | null;
+  utilizationPercent?: number | null;
+};
+
+export type SystemReliabilityProviderMetric = {
+  provider: string;
+  status: string;
+  attempts: number;
+  successes: number;
+  failures: number;
+  successRate?: number | null;
+};
+
+export type SystemReliabilityOperationMetric = {
+  recordType: string;
+  total: number;
+  succeeded: number;
+  failed: number;
+  deadLetters: number;
+  open: number;
+};
+
+export type SystemReliabilityOperationTrendPoint = {
+  date: string;
+  succeeded: number;
+  failed: number;
+  deadLetters: number;
+};
+
+export type SystemReliabilityAnalytics = {
+  windowHours: number;
+  generatedAt: string;
+  apiWindowStartedAt: string;
+  apiTrend: SystemReliabilityApiTrendPoint[];
+  infrastructure: SystemReliabilityInfrastructureMetric[];
+  providers: SystemReliabilityProviderMetric[];
+  operations: SystemReliabilityOperationMetric[];
+  operationTrend: SystemReliabilityOperationTrendPoint[];
+};

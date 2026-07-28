@@ -3,6 +3,7 @@ import { BarChart, FunnelChart, LineChart } from "echarts/charts";
 import {
   AriaComponent,
   DataZoomComponent,
+  GraphicComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent
@@ -17,6 +18,7 @@ echarts.use([
   LineChart,
   AriaComponent,
   DataZoomComponent,
+  GraphicComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,
