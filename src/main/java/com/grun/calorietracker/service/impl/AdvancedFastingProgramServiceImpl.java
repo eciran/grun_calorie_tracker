@@ -32,6 +32,7 @@ public class AdvancedFastingProgramServiceImpl implements AdvancedFastingProgram
     private final FastingProgramVersionRepository versionRepository;
     private final FastingProgramDayRuleRepository ruleRepository;
     private final FastingProgramIdempotencyRepository idempotencyRepository;
+    private final FastingScheduleExceptionRepository exceptionRepository;
     private final UserTimeZoneSupport timeZoneSupport;
 
     @Override
@@ -122,19 +123,36 @@ public class AdvancedFastingProgramServiceImpl implements AdvancedFastingProgram
         Map<DayOfWeek, FastingProgramDayRuleEntity> rules = ruleRepository
                 .findAllByProgramVersionIdOrderByDayOfWeek(version.getId()).stream()
                 .collect(Collectors.toMap(FastingProgramDayRuleEntity::getDayOfWeek, Function.identity()));
+        LocalDate end = start.plusDays(6);
+        Map<LocalDate, FastingScheduleExceptionEntity> exceptions = new HashMap<>();
+        exceptionRepository.findByUserAndSourceDateBetween(user, start, end).stream().filter(item -> item.getProgram().getId().equals(program.getId())).forEach(item -> exceptions.put(item.getSourceDate(), item));
+        exceptionRepository.findByUserAndTargetDateBetween(user, start, end).stream().filter(item -> item.getProgram().getId().equals(program.getId())).forEach(item -> exceptions.put(item.getTargetDate(), item));
         ZoneId zone = timeZoneSupport.zoneId(user);
         List<FastingProgramPreviewDto.PreviewDay> days = new ArrayList<>();
         for (int index = 0; index < 7; index++) {
             LocalDate date = start.plusDays(index);
+            FastingScheduleExceptionEntity exception = exceptions.get(date);
             FastingProgramDayRuleEntity rule = rules.get(date.getDayOfWeek());
+            if (exception != null && exception.getExceptionType() == FastingScheduleExceptionType.MOVE_REDUCED_DAY) {
+                LocalDate effectiveRuleDate = date.equals(exception.getSourceDate()) ? exception.getTargetDate() : exception.getSourceDate();
+                rule = rules.get(effectiveRuleDate.getDayOfWeek());
+            }
             ZonedDateTime startAt = null;
             ZonedDateTime endAt = null;
             if (rule.getRuleType() == FastingDayRuleType.FAST) {
                 startAt = date.atTime(rule.getPreferredStartTime()).atZone(zone);
                 endAt = startAt.plusMinutes(rule.getFastingMinutes());
             }
+            if (exception != null) {
+                if (exception.getExceptionType() == FastingScheduleExceptionType.SKIP && date.equals(exception.getSourceDate())) {
+                    startAt = null; endAt = null;
+                } else if (exception.getExceptionType() == FastingScheduleExceptionType.MOVE_START_TIME && date.equals(exception.getSourceDate())) {
+                    startAt = date.atTime(exception.getMovedStartTime()).atZone(zone); endAt = startAt.plusMinutes(rule.getFastingMinutes());
+                }
+            }
             days.add(new FastingProgramPreviewDto.PreviewDay(
-                    date, rule.getRuleType(), startAt, endAt, rule.getReducedCalorieTarget()));
+                    date, rule.getRuleType(), startAt, endAt, rule.getReducedCalorieTarget(),
+                    exception == null ? null : exception.getExceptionType(), exception == null ? null : exception.getSourceDate()));
         }
         return new FastingProgramPreviewDto(
                 program.getId(), version.getVersionNumber(), zone.getId(), start, List.copyOf(days));

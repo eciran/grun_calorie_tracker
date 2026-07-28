@@ -27,4 +27,8 @@ public interface FastingReminderDeliveryRepository extends JpaRepository<Fasting
               )
             """)
     int suppressUndeliveredForUser(@Param("userId") Long userId, @Param("reason") String reason);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from FastingReminderDeliveryEntity delivery where delivery.occurrence.id = :occurrenceId and delivery.status in (com.grun.calorietracker.enums.FastingReminderDeliveryStatus.PENDING, com.grun.calorietracker.enums.FastingReminderDeliveryStatus.DEFERRED, com.grun.calorietracker.enums.FastingReminderDeliveryStatus.FAILED)")
+    int deleteUndeliveredForOccurrence(@Param("occurrenceId") Long occurrenceId);
 }

@@ -26,6 +26,8 @@ class AdvancedFastingReleaseContractTest {
                 .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
         assertThat(SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/fasting/advanced/reminder-settings"))
                 .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
+        assertThat(SubscriptionFeatureAccessFilter.resolveFeature("PUT", "/api/v1/fasting/advanced/occurrences/2026-08-01/exception"))
+                .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
         assertThat(SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/fasting/advanced/diary-conflicts/evaluate"))
                 .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
     }

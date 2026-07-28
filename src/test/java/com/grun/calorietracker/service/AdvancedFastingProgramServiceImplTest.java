@@ -24,13 +24,14 @@ class AdvancedFastingProgramServiceImplTest {
     private final FastingProgramVersionRepository versions = mock(FastingProgramVersionRepository.class);
     private final FastingProgramDayRuleRepository rules = mock(FastingProgramDayRuleRepository.class);
     private final FastingProgramIdempotencyRepository idempotency = mock(FastingProgramIdempotencyRepository.class);
+    private final FastingScheduleExceptionRepository exceptions = mock(FastingScheduleExceptionRepository.class);
     private final AdvancedFastingProgramServiceImpl service = new AdvancedFastingProgramServiceImpl(
-            users, programs, versions, rules, idempotency, new UserTimeZoneSupport());
+            users, programs, versions, rules, idempotency, exceptions, new UserTimeZoneSupport());
     private UserEntity user;
 
     @BeforeEach
     void setup() {
-        reset(users, programs, versions, rules, idempotency);
+        reset(users, programs, versions, rules, idempotency, exceptions);
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("u@g.app");
