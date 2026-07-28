@@ -35,4 +35,6 @@ public class RecipeLogDto {
     private Double snapshotVitaminD;
     private Double snapshotVitaminE;
     private Double snapshotVitaminB12;
+    @Schema(description = "Fasting window context calculated from the current program and session state.", accessMode = Schema.AccessMode.READ_ONLY)
+    private FastingDiaryContextDto fastingContext;
 }

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.dto.FastingDiaryContextDto;
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
@@ -27,6 +28,7 @@ import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
+import com.grun.calorietracker.service.support.FastingDiaryContextResolver;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
@@ -53,6 +55,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final UserRepository userRepository;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final FastingDiaryContextResolver fastingDiaryContextResolver;
 
     @Override
     @Transactional
@@ -140,12 +143,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 request.getSourceDate().plusDays(1).atStartOfDay()
         );
 
-        List<FoodLogsDto> copied = sourceLogs.stream()
+        List<FoodLogsEntity> copiedEntities = sourceLogs.stream()
                 .map(source -> copyLogToDate(source, request.getTargetDate(), user))
                 .map(foodLogsRepository::save)
                 .peek(saved -> { if (saved.getFoodItem() != null) { markFoodItemUsed(saved.getFoodItem()); } })
-                .map(this::toDto)
                 .toList();
+        List<FoodLogsDto> copied = toDtos(user, copiedEntities);
         if (!copied.isEmpty()) {
             analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
         }
@@ -203,20 +206,16 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                     PageRequest.of(normalizePage(page), normalizeHistoryPageSize(size))
             ).getContent();
         }
-        return logs.stream().map(this::toDto).collect(Collectors.toList());
+        return toDtos(user, logs);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<FoodLogsDto> getFoodLogsHistory(String email, LocalDateTime start, LocalDateTime end) {
         UserEntity user = getUser(email);
-        return foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
-                        user,
-                        start,
-                        end
-                ).stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        List<FoodLogsEntity> logs = foodLogsRepository
+                .findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(user, start, end);
+        return toDtos(user, logs);
     }
 
     @Override
@@ -366,10 +365,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private FoodLogMealSummaryDto toMealSummary(String mealType, List<FoodLogsEntity> logs, List<RecipeLogEntity> recipeLogs) {
         FoodLogMealSummaryDto dto = new FoodLogMealSummaryDto();
         dto.setMealType(mealType);
-        List<FoodLogsDto> foodLogDtos = logs.stream().map(this::toDto).toList();
+        List<FoodLogsDto> foodLogDtos = logs.isEmpty() ? List.of() : toDtos(logs.get(0).getUser(), logs);
         dto.setLogs(foodLogDtos);
         dto.setFoodLogs(foodLogDtos);
-        dto.setRecipeLogs(recipeLogs.stream().map(this::toRecipeLogDto).toList());
+        dto.setRecipeLogs(recipeLogs.isEmpty() ? List.of() : toRecipeLogDtos(recipeLogs.get(0).getUser(), recipeLogs));
         dto.setTotalCalories(round(sumNutrition(logs, FoodLogsEntity::getSnapshotCalories, FoodItemEntity::getCalories)
                 + sumRecipeNutrition(recipeLogs, RecipeLogEntity::getSnapshotCalories)));
         dto.setTotalProtein(round(sumNutrition(logs, FoodLogsEntity::getSnapshotProtein, FoodItemEntity::getProtein)
@@ -462,7 +461,13 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 .sum();
     }
 
-    private RecipeLogDto toRecipeLogDto(RecipeLogEntity log) {
+    private List<RecipeLogDto> toRecipeLogDtos(UserEntity user, List<RecipeLogEntity> logs) {
+        Map<LocalDateTime, FastingDiaryContextDto> contexts = fastingDiaryContextResolver.resolveAll(
+                user, logs.stream().map(RecipeLogEntity::getLogDate).toList());
+        return logs.stream().map(log -> toRecipeLogDto(log, contexts.get(log.getLogDate()))).toList();
+    }
+
+    private RecipeLogDto toRecipeLogDto(RecipeLogEntity log, FastingDiaryContextDto fastingContext) {
         RecipeLogDto dto = new RecipeLogDto();
         dto.setId(log.getId());
         dto.setRecipeId(log.getRecipe().getId());
@@ -784,7 +789,17 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return Math.min(size, 100);
     }
 
+    private List<FoodLogsDto> toDtos(UserEntity user, List<FoodLogsEntity> logs) {
+        Map<LocalDateTime, FastingDiaryContextDto> contexts = fastingDiaryContextResolver.resolveAll(
+                user, logs.stream().map(FoodLogsEntity::getLogDate).toList());
+        return logs.stream().map(log -> toDto(log, contexts.get(log.getLogDate()))).toList();
+    }
+
     private FoodLogsDto toDto(FoodLogsEntity entity) {
+        return toDto(entity, fastingDiaryContextResolver.resolve(entity.getUser(), entity.getLogDate()));
+    }
+
+    private FoodLogsDto toDto(FoodLogsEntity entity, FastingDiaryContextDto fastingContext) {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setId(entity.getId());
         if (entity.getFoodItem() != null) {

@@ -123,5 +123,8 @@ public class FoodLogsDto {
     @NotNull(message = "{validation.food-log.log-date.required}")
     @Schema(description = "Date and time when the food was logged.", example = "2026-05-11T08:30:00", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime logDate;
+
+    @Schema(description = "Fasting window context calculated from the current program and session state.", accessMode = Schema.AccessMode.READ_ONLY)
+    private FastingDiaryContextDto fastingContext;
 }
 

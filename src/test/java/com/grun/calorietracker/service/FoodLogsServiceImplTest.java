@@ -23,7 +23,9 @@ import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.impl.FoodLogsServiceImpl;
+import com.grun.calorietracker.service.support.FastingDiaryContextResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -56,6 +58,10 @@ class FoodLogsServiceImplTest {
     private FoodItemServingOptionRepository foodItemServingOptionRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private FastingDiaryContextResolver fastingDiaryContextResolver;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @InjectMocks
     private FoodLogsServiceImpl foodLogsService;
@@ -66,6 +72,8 @@ class FoodLogsServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        lenient().when(fastingDiaryContextResolver.resolve(any(), any())).thenReturn(com.grun.calorietracker.dto.FastingDiaryContextDto.outsideWindow());
+        lenient().when(fastingDiaryContextResolver.resolveAll(any(), any())).thenReturn(Collections.emptyMap());
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("test@test.com");

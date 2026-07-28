@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.dto.FastingDiaryContextDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.dto.RecipeLogRequestDto;
 import com.grun.calorietracker.entity.RecipeEntity;
@@ -13,12 +14,14 @@ import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeLogService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
+import com.grun.calorietracker.service.support.FastingDiaryContextResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
     private final RecipeRepository recipeRepository;
     private final RecipeLogRepository recipeLogRepository;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final FastingDiaryContextResolver fastingDiaryContextResolver;
 
     @Override
     @Transactional
@@ -205,6 +209,10 @@ public class RecipeLogServiceImpl implements RecipeLogService {
     }
 
     private RecipeLogDto toDto(RecipeLogEntity log) {
+        return toDto(log, fastingDiaryContextResolver.resolve(log.getUser(), log.getLogDate()));
+    }
+
+    private RecipeLogDto toDto(RecipeLogEntity log, FastingDiaryContextDto fastingContext) {
         RecipeLogDto dto = new RecipeLogDto();
         dto.setId(log.getId());
         dto.setRecipeId(log.getRecipe().getId());
@@ -233,6 +241,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         dto.setSnapshotVitaminD(log.getSnapshotVitaminD());
         dto.setSnapshotVitaminE(log.getSnapshotVitaminE());
         dto.setSnapshotVitaminB12(log.getSnapshotVitaminB12());
+        dto.setFastingContext(fastingContext == null ? FastingDiaryContextDto.outsideWindow() : fastingContext);
         return dto;
     }
 

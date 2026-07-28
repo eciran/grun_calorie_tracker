@@ -9,7 +9,9 @@ import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.impl.RecipeLogServiceImpl;
+import com.grun.calorietracker.service.support.FastingDiaryContextResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,6 +35,10 @@ class RecipeLogServiceImplTest {
     private RecipeRepository recipeRepository;
     @Mock
     private RecipeLogRepository recipeLogRepository;
+    @Mock
+    private FastingDiaryContextResolver fastingDiaryContextResolver;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     @InjectMocks
     private RecipeLogServiceImpl service;
 
