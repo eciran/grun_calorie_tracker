@@ -24,6 +24,8 @@ class AdvancedFastingReleaseContractTest {
                 .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
         assertThat(SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/fasting/advanced/analytics"))
                 .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
+        assertThat(SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/fasting/advanced/diary-conflicts/evaluate"))
+                .isEqualTo(SubscriptionFeature.FASTING_ADVANCED);
     }
 
     @Test

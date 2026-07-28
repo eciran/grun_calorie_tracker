@@ -6,6 +6,9 @@ import com.grun.calorietracker.enums.FastingSessionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +22,12 @@ import java.util.Optional;
 public interface FastingSessionRepository extends JpaRepository<FastingSessionEntity, Long> {
     Optional<FastingSessionEntity> findTopByUserAndStatusOrderByStartedAtDesc(UserEntity user, FastingSessionStatus status);
     Optional<FastingSessionEntity> findByIdAndUser(Long id, UserEntity user);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select session from FastingSessionEntity session where session.id = :id and session.user = :user")
+    Optional<FastingSessionEntity> findByIdAndUserForUpdate(
+            @Param("id") Long id,
+            @Param("user") UserEntity user);
     List<FastingSessionEntity> findByUserAndFastingDateOrderByStartedAtAsc(UserEntity user, LocalDate fastingDate);
     List<FastingSessionEntity> findByUserAndFastingDateBetweenOrderByFastingDateAscStartedAtAsc(
             UserEntity user,
