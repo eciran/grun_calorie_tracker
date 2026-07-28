@@ -1,5 +1,7 @@
 package com.grun.calorietracker.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,12 +31,17 @@ public class CacheConfig implements CachingConfigurer {
             @Value("${spring.cache.redis.time-to-live:10m}") Duration timeToLive,
             @Value("${spring.cache.redis.key-prefix:grun:local:}") String keyPrefix
     ) {
+        GenericJackson2JsonRedisSerializer valueSerializer = GenericJackson2JsonRedisSerializer.builder()
+                .objectMapper(new ObjectMapper().findAndRegisterModules())
+                .defaultTyping(true)
+                .build();
+
         return RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(timeToLive)
                 .disableCachingNullValues()
                 .prefixCacheNameWith(keyPrefix)
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(
-                        new GenericJackson2JsonRedisSerializer()
+                        valueSerializer
                 ));
     }
 
