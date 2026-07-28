@@ -30,4 +30,8 @@ public class AuthRequest {
     )
     @Schema(description = "Password with at least 8 characters, uppercase, lowercase, number, and special character.", example = "StrongPass1!")
     private String password;
+
+    @Size(max = 32)
+    @Schema(description = "Six-digit authenticator or recovery code required for MFA-enabled admin accounts.", example = "123456")
+    private String adminMfaCode;
 }

@@ -22,6 +22,7 @@ import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
+import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.FederatedAuthService;
 import com.grun.calorietracker.service.PasswordResetService;
@@ -62,6 +63,7 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final FederatedAuthService federatedAuthService;
     private final UserActivityService userActivityService;
+    private final AdminMfaService adminMfaService;
 
 
     @PostMapping("/register")
@@ -195,6 +197,7 @@ public class AuthController {
 
         UserEntity user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+        adminMfaService.verifyLogin(user, request.getAdminMfaCode());
         recordLoginSafely(user.getEmail());
 
         String token = jwtUtil.generateToken(user.getEmail());

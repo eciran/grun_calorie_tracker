@@ -54,6 +54,15 @@ public class UserEntity {
     @Column(name = "admin_role_updated_at")
     private Instant adminRoleUpdatedAt;
 
+    @Column(name = "admin_mfa_secret_encrypted", columnDefinition = "TEXT")
+    private String adminMfaSecretEncrypted;
+
+    @Column(name = "admin_mfa_enrollment_started_at")
+    private Instant adminMfaEnrollmentStartedAt;
+
+    @Column(name = "admin_mfa_verified_at")
+    private Instant adminMfaVerifiedAt;
+
     @Enumerated(EnumType.STRING)
     private MarketRegion marketRegion;
 

@@ -39,6 +39,23 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateAdminReauthenticationToken(String username) {
+        long expiresIn = 300_000L;
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("purpose", "ADMIN_REAUTH")
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiresIn))
+                .signWith(signKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean isAdminReauthenticationTokenValid(String token, String username) {
+        Claims claims = extractAllClaims(token);
+        return username.equals(claims.getSubject())
+                && "ADMIN_REAUTH".equals(claims.get("purpose", String.class))
+                && claims.getExpiration().after(new Date());
+    }
     public long getExpirationSeconds() {
         return expirationTime / 1000;
     }

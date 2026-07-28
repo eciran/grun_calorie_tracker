@@ -8,7 +8,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
 
 import org.springframework.security.core.userdetails.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -19,9 +18,6 @@ import java.util.List;
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
-
-    @Value("${grun.security.admin-mfa-required:false}")
-    private boolean adminMfaRequired;
 
     public UserDetailsServiceImpl(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -36,7 +32,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                Boolean.TRUE.equals(user.getAccountEnabled()) && isAdminMfaSatisfied(user),
+                Boolean.TRUE.equals(user.getAccountEnabled()),
                 true,
                 true,
                 !Boolean.TRUE.equals(user.getAccountLocked()) && !isTemporarilyLoginLocked(user),
@@ -44,11 +40,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         );
     }
 
-    private boolean isAdminMfaSatisfied(UserEntity user) {
-        return !user.getRole().isAdminRole()
-                || !adminMfaRequired
-                || Boolean.TRUE.equals(user.getAdminMfaEnabled());
-    }
 
     private boolean isTemporarilyLoginLocked(UserEntity user) {
         return user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(LocalDateTime.now());

@@ -99,7 +99,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         Map<String, Object> before = snapshotPublicAccount(target);
         target.setRole(request.role());
         target.setAccountEnabled(true);
-        target.setAdminMfaEnabled(request.mfaEnabled());
+        target.setAdminMfaEnabled(false);
         target.setAdminRoleUpdatedAt(Instant.now());
         UserEntity saved = userRepository.save(target);
         LocalDateTime now = LocalDateTime.now();
@@ -137,18 +137,15 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         Map<String, Object> before = snapshot(target);
         UserRole oldRole = target.getRole();
         boolean oldEnabled = Boolean.TRUE.equals(target.getAccountEnabled());
-        boolean oldMfa = Boolean.TRUE.equals(target.getAdminMfaEnabled());
         target.setRole(request.role());
         target.setAccountEnabled(request.enabled());
-        target.setAdminMfaEnabled(request.mfaEnabled());
         if (oldRole != request.role()) {
             target.setAdminRoleUpdatedAt(Instant.now());
         }
         UserEntity saved = userRepository.save(target);
 
         boolean securityChanged = oldRole != request.role()
-                || oldEnabled != request.enabled()
-                || oldMfa != request.mfaEnabled();
+                || oldEnabled != request.enabled();
         if (securityChanged) {
             LocalDateTime now = LocalDateTime.now();
             refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(saved)
@@ -159,9 +156,6 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         }
         if (oldEnabled != request.enabled()) {
             audit(actorEmail, AdminAuditActionType.ADMIN_STATUS_UPDATE, saved, before, request, correlationId);
-        }
-        if (oldMfa != request.mfaEnabled()) {
-            audit(actorEmail, AdminAuditActionType.ADMIN_MFA_STATUS_UPDATE, saved, before, request, correlationId);
         }
         return toDto(saved);
     }
