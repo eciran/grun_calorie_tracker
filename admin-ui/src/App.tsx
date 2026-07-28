@@ -39,6 +39,11 @@ import {
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AdminAccessProfile,
+  AdminApprovalPage,
+  AdminApprovalRequest,
+  AdminMfaEnrollment,
+  AdminMfaStatus,
+  AdminMfaVerification,
   AdminTeamMember,
   AdminTeamPage,
   AiMealDraft,
@@ -849,6 +854,12 @@ function SectionTabs({ active, onSelect, accessProfile }: { active: SectionKey; 
     </div>
   );
 }
+async function submitAdminApproval(actionType: string, targetKey: string, payload: unknown, reason: string) {
+  return request<AdminApprovalRequest>("/api/v1/admin/approvals", {
+    method: "POST",
+    body: { actionType, targetKey, payload, reason }
+  });
+}
 function isNavItemActive(section: NavigationItem, active: SectionKey): boolean {
   return section.key === active || Boolean(section.children?.some((child) => child.key === active));
 }
@@ -867,6 +878,8 @@ function LoginView({
   const [email, setEmail] = useState("admin@grun.local");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+  const [showMfa, setShowMfa] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(event: FormEvent) {
@@ -874,11 +887,13 @@ function LoginView({
     setBusy(true);
     setError(null);
     try {
-      const response = await login(email, password);
+      const response = await login(email, password, mfaCode);
       saveTokens(response);
       onLogin();
     } catch (err) {
-      setError(formatRequestError(err));
+      const message = formatRequestError(err);
+      if (message.toLowerCase().includes("mfa") || message.toLowerCase().includes("authenticator")) setShowMfa(true);
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -912,6 +927,7 @@ function LoginView({
           Password
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Admin password" />
         </label>
+        {showMfa && <label>Authenticator or recovery code<input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={32} placeholder="6-digit code" /></label>}
         {notice && <div className="form-notice">{notice}</div>}
         {error && <div className="form-error">{error}</div>}
         <button className="primary-button" disabled={busy || !email.trim() || !password} type="submit">
@@ -3531,6 +3547,115 @@ function AchievementAdminView({ onError }: { onError: (message: string | null) =
   );
 }
 
+function AdminMfaEnrollmentPanel({ onError }: { onError: (message: string | null) => void }) {
+  const { data: status, state, reload } = useEndpoint<AdminMfaStatus>("/api/v1/admin/security/mfa", onError);
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [enrollment, setEnrollment] = useState<AdminMfaEnrollment | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function begin(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      setEnrollment(await request<AdminMfaEnrollment>("/api/v1/admin/security/mfa/enrollment", { method: "POST", body: { currentPassword: password } }));
+      setPassword("");
+      setRecoveryCodes([]);
+      await reload();
+    } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
+  }
+
+  async function verify() {
+    setBusy(true);
+    try {
+      const result = await request<AdminMfaVerification>("/api/v1/admin/security/mfa/enrollment/verify", { method: "POST", body: { code } });
+      setRecoveryCodes(result.recoveryCodes ?? []);
+      setEnrollment(null);
+      setCode("");
+      await reload();
+    } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
+  }
+
+  async function disable() {
+    setBusy(true);
+    try {
+      await request<AdminMfaStatus>("/api/v1/admin/security/mfa/disable", { method: "POST", body: { code } });
+      setCode("");
+      setRecoveryCodes([]);
+      await reload();
+    } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
+  }
+
+  return <Panel title="Your multi-factor authentication">
+    <div className="admin-mfa-panel">
+      <div className="admin-mfa-status">
+        <Badge value={status?.enabled ? "Enrolled" : status?.enrollmentPending ? "Verification pending" : "Not enrolled"} tone={status?.enabled ? "good" : "warn"} />
+        <span>{status?.enabled ? `${status.recoveryCodesRemaining ?? 0} recovery codes remaining` : "Use an authenticator app before MFA enforcement is enabled."}</span>
+      </div>
+      {!status?.enabled && !enrollment && <form className="admin-mfa-enroll" onSubmit={begin}>
+        <label>Current password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        <button className="primary-button" disabled={busy || !password} type="submit">Start enrollment</button>
+      </form>}
+      {enrollment && <div className="admin-mfa-setup">
+        <div><strong>Authenticator secret</strong><code>{enrollment.secret}</code><small>Add this secret to Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.</small></div>
+        <label>Six-digit code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value)} /></label>
+        <button className="primary-button" disabled={busy || code.trim().length !== 6} type="button" onClick={verify}>Verify and enable</button>
+      </div>}
+      {status?.enabled && <div className="admin-mfa-disable">
+        <label>Authenticator or recovery code<input autoComplete="one-time-code" maxLength={32} value={code} onChange={(event) => setCode(event.target.value)} /></label>
+        <button className="danger-button" disabled={busy || !code.trim()} type="button" onClick={disable}>Disable your MFA</button>
+      </div>}
+      {recoveryCodes.length > 0 && <div className="admin-mfa-recovery"><strong>Save these one-time recovery codes now</strong><div>{recoveryCodes.map((item) => <code key={item}>{item}</code>)}</div><small>They are shown once and stored only as hashes.</small></div>}
+      {state === "loading" && <span className="muted-text">Loading MFA status...</span>}
+    </div>
+  </Panel>;
+}
+function AdminApprovalQueue({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
+  const [status, setStatus] = useState("PENDING");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [selected, setSelected] = useState<AdminApprovalRequest | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const path = `/api/v1/admin/approvals?status=${status}&page=${page}&size=${pageSize}`;
+  const { data, state, reload } = useEndpoint<AdminApprovalPage>(path, onError);
+  const canApprove = Boolean(accessProfile?.permissions?.includes("ADMIN_TEAM_MANAGE"));
+
+  async function decide(approve: boolean) {
+    if (!selected?.id || !mfaCode.trim() || !decisionReason.trim()) return;
+    setBusy(true);
+    try {
+      const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", { method: "POST", body: { code: mfaCode } });
+      if (!proof.token) throw new Error("MFA re-authentication token was not returned.");
+      await request(`/api/v1/admin/approvals/${selected.id}/${approve ? "approve" : "reject"}`, {
+        method: "POST",
+        headers: { "X-Admin-Reauth-Token": proof.token },
+        body: { reason: decisionReason.trim() }
+      });
+      setSelected(null); setDecisionReason(""); setMfaCode(""); await reload();
+    } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
+  }
+
+  const rows = data?.content ?? [];
+  return <Panel title="Critical action approval queue" description="A different MFA-verified owner approves each critical change. Requests expire after 24 hours.">
+    <div className="approval-queue-toolbar"><label>Status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }}>{["PENDING","APPROVED","REJECTED","EXPIRED","EXECUTION_FAILED"].map((item) => <option key={item}>{item}</option>)}</select></label><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh</button></div>
+    <DataTable columns={["Action", "Target", "Maker", "Status", "Expires"]} rows={rows.map((item) => [<div className="entity-cell"><strong>{humanizeFeature(item.actionType)}</strong><small>{item.requestReason}</small></div>, item.targetKey ?? "-", item.makerEmail ?? "-", <Badge value={item.status} tone={item.status === "APPROVED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />, formatDate(item.expiresAt)])} rowData={rows} onRowClick={setSelected} empty="No approval requests in this state." />
+    <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page===0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(0);}} />
+    {selected && <div className="approval-decision-panel">
+      <div><strong>{humanizeFeature(selected.actionType)}</strong><span>Target {selected.targetKey} · requested by {selected.makerEmail}</span><p>{selected.requestReason}</p></div>
+      <details><summary>Whitelisted change payload</summary><pre>{JSON.stringify(selected.payload ?? {}, null, 2)}</pre></details>
+      {selected.status === "PENDING" && canApprove && selected.makerEmail !== accessProfile?.email && <>
+        <label>Decision reason<textarea value={decisionReason} onChange={(event)=>setDecisionReason(event.target.value)} maxLength={500} /></label>
+        <label>Fresh authenticator or recovery code<input value={mfaCode} onChange={(event)=>setMfaCode(event.target.value)} maxLength={32} autoComplete="one-time-code" /></label>
+        <div className="form-actions"><button className="ghost-button" type="button" onClick={()=>setSelected(null)}>Close</button><button className="danger-button" disabled={busy || !decisionReason.trim() || !mfaCode.trim()} type="button" onClick={()=>void decide(false)}>Reject</button><button className="primary-button" disabled={busy || !decisionReason.trim() || !mfaCode.trim()} type="button" onClick={()=>void decide(true)}>Approve and execute</button></div>
+      </>}
+      {selected.makerEmail === accessProfile?.email && selected.status === "PENDING" && <div className="form-notice">You created this request. A different owner must decide it.</div>}
+    </div>}
+    {state === "loading" && <span className="muted-text">Loading approval queue...</span>}
+  </Panel>;
+}
 function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -3592,12 +3717,13 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
       <MetricCard label="Team members" value={formatValue(data?.totalElements ?? 0)} hint="Paginated admin accounts" />
       <MetricCard label="MFA policy" value={accessProfile?.mfaRequired ? "Required" : "Prepared"} hint={accessProfile?.mfaEnabled ? "Your MFA is enabled" : "Your MFA is not enrolled"} />
     </div>
+    <AdminMfaEnrollmentPanel onError={onError} />
+    <AdminApprovalQueue accessProfile={accessProfile} onError={onError} />
     {canManage && <Panel title="Grant admin access">
       <form className="admin-security-grant" onSubmit={grantAccess}>
         <label>Existing verified account email<input type="email" required value={grant.email} onChange={(event) => setGrant((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
         <label>Initial role<select value={grant.role} onChange={(event) => setGrant((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
         <label>Required audit reason<input required maxLength={500} value={grant.reason} onChange={(event) => setGrant((current) => ({ ...current, reason: event.target.value }))} placeholder="Why access is required" /></label>
-        <label className="toggle-field"><input type="checkbox" checked={grant.mfaEnabled} onChange={(event) => setGrant((current) => ({ ...current, mfaEnabled: event.target.checked }))} />MFA enrollment verified</label>
         <button className="primary-button" disabled={saving || !grant.email.trim() || !grant.reason.trim()} type="submit">Grant access</button>
       </form>
     </Panel>}    <Panel title="Role boundaries">
@@ -3629,7 +3755,6 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
       <form className="admin-security-form" onSubmit={saveMember}>
         <label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
         <label className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
-        <label className="toggle-field"><input type="checkbox" checked={draft.mfaEnabled} onChange={(event) => setDraft((current) => ({ ...current, mfaEnabled: event.target.checked }))} />MFA enrollment verified</label>
         <label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain this access change." /></label>
         <div className="form-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="submit">{saving ? "Saving..." : "Apply access change"}</button></div>
       </form>
@@ -4024,10 +4149,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setSubscriptionActionState("loading");
     onError(null);
     try {
-      const response = await request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${selectedUserId}/ai-quota/reset`, { method: "POST" });
-      setSubscriptionResult(response);
-      await refreshSelectedAccess(String(selectedUserId));
-      await reloadSubscriptionAudits();
+      await submitAdminApproval("AI_QUOTA_RESET", String(selectedUserId), {}, "AI quota reset requested from User Access");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4068,10 +4190,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setSubscriptionActionState("loading");
     onError(null);
     try {
-      const response = await request<SubscriptionFeatureAccess>(`/api/v1/admin/subscriptions/users/${selectedUserId}/features/apply-current-matrix`, { method: "POST" });
-      setAccessPreview(response);
-      setAccessPreviewState("ready");
-      await reloadSubscriptionAudits();
+      await submitAdminApproval("ENTITLEMENT_MATRIX_APPLY", String(selectedUserId), {}, "Apply current feature matrix before renewal");
       setSubscriptionActionState("ready");
       setMatrixApplyConfirmationOpen(false);
     } catch (err) {

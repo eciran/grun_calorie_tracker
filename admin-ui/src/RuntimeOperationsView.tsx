@@ -87,12 +87,10 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
     if (!draft) return;
     setActionState("loading");
     try {
-      const next = await request<RuntimeOperationsPolicy>("/api/v1/admin/system/operations/policy", {
-        method: "PUT",
-        body: { ...draft, reason }
+      await request("/api/v1/admin/approvals", {
+        method: "POST",
+        body: { actionType: "RUNTIME_POLICY_UPDATE", targetKey: "1", payload: { ...draft, reason }, reason }
       });
-      setPolicy(next);
-      setDraft(next);
       setReason("");
       setConfirmAction(null);
       onError(null);

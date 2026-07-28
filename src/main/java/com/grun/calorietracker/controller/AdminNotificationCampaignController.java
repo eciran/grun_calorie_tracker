@@ -89,6 +89,7 @@ public class AdminNotificationCampaignController {
 
     @PostMapping("/{id}/schedule")
     @Operation(summary = "Schedule or send notification campaign")
+    @PreAuthorize("denyAll()")
     public ResponseEntity<AdminNotificationCampaignDto> schedule(
             @PathVariable Long id,
             @RequestBody(required = false) AdminNotificationCampaignScheduleRequestDto request,

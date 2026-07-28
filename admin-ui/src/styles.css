@@ -9455,3 +9455,21 @@ a:focus-visible {
   max-width: 100%;
   overflow-x: auto;
 }
+.admin-mfa-panel { display: grid; gap: 14px; }
+.admin-mfa-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.admin-mfa-enroll, .admin-mfa-setup, .admin-mfa-disable { display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: end; gap: 12px; }
+.admin-mfa-setup > div { display: grid; gap: 6px; min-width: 0; }
+.admin-mfa-setup code { overflow-wrap: anywhere; padding: 10px; background: var(--surface-subtle); border: 1px solid var(--line); }
+.admin-mfa-recovery { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); background: var(--surface-subtle); }
+.admin-mfa-recovery > div { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 8px; }
+.admin-mfa-recovery code { padding: 8px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
+.approval-queue-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.approval-queue-toolbar label { width: min(260px, 100%); }
+.approval-decision-panel { display: grid; gap: 14px; margin-top: 14px; padding: 16px; border: 1px solid var(--line); background: var(--surface-subtle); }
+.approval-decision-panel > div:first-child { display: grid; gap: 5px; }
+.approval-decision-panel details pre { max-height: 240px; overflow: auto; padding: 12px; background: var(--surface); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .admin-mfa-enroll, .admin-mfa-setup, .admin-mfa-disable { grid-template-columns: 1fr; align-items: stretch; }
+  .admin-mfa-recovery > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .approval-queue-toolbar { align-items: stretch; flex-direction: column; }
+}

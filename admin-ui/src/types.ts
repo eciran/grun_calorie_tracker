@@ -1273,6 +1273,25 @@ export type AdminAccessProfile = {
   mfaEnabled?: boolean;
 };
 
+export type AdminApprovalRequest = {
+  id?: number; actionType?: string; status?: string; makerEmail?: string; checkerEmail?: string;
+  targetKey?: string; payload?: Record<string, unknown>; requestReason?: string; decisionReason?: string;
+  createdAt?: string; expiresAt?: string; decidedAt?: string;
+};
+export type AdminApprovalPage = {
+  content?: AdminApprovalRequest[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
+};
+export type AdminMfaStatus = {
+  enabled?: boolean;
+  enrollmentPending?: boolean;
+  recoveryCodesRemaining?: number;
+  verifiedAt?: string;
+};
+
+export type AdminMfaEnrollment = { secret?: string; otpauthUri?: string };
+export type AdminMfaVerification = { enabled?: boolean; recoveryCodes?: string[] };
+export type AdminReauthentication = { token?: string; expiresInSeconds?: number };
 export type AdminTeamMember = {
   id?: number;
   name?: string;

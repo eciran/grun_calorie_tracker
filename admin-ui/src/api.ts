@@ -63,11 +63,11 @@ export function formatRequestError(error: unknown): string {
   return "Request failed";
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
+export async function login(email: string, password: string, adminMfaCode?: string): Promise<LoginResponse> {
   return request<LoginResponse>("/api/v1/auth/login", {
     method: "POST",
     auth: false,
-    body: { email, password }
+    body: { email, password, adminMfaCode: adminMfaCode?.trim() || undefined }
   });
 }
 

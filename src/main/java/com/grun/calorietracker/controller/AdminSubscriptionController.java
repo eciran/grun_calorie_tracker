@@ -87,6 +87,7 @@ public class AdminSubscriptionController {
             @ApiResponse(responseCode = "404", description = "User could not be found.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
+    @PreAuthorize("denyAll()")
     public ResponseEntity<SubscriptionDto> updateUserSubscription(
             @Parameter(description = "User id.", example = "1") @PathVariable Long userId,
             @RequestBody @Valid AdminSubscriptionUpdateRequestDto request,
@@ -141,6 +142,7 @@ public class AdminSubscriptionController {
             @ApiResponse(responseCode = "404", description = "User or subscription could not be found.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
+    @PreAuthorize("denyAll()")
     public ResponseEntity<SubscriptionFeatureAccessDto> applyCurrentFeatureMatrixToUser(
             @Parameter(description = "User id.", example = "1") @PathVariable Long userId,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
@@ -173,6 +175,7 @@ public class AdminSubscriptionController {
             @ApiResponse(responseCode = "404", description = "User could not be found.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
+    @PreAuthorize("denyAll()")
     public ResponseEntity<SubscriptionDto> resetUserAiQuota(
             @Parameter(description = "User id.", example = "1") @PathVariable Long userId,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
@@ -208,6 +211,7 @@ public class AdminSubscriptionController {
             @ApiResponse(responseCode = "404", description = "User could not be found.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
+    @PreAuthorize("denyAll()")
     public ResponseEntity<SubscriptionDto> grantAiAddonQuota(
             @Parameter(description = "User id.", example = "1") @PathVariable Long userId,
             @RequestBody @Valid AdminAiQuotaGrantRequestDto request,
@@ -259,6 +263,7 @@ public class AdminSubscriptionController {
             @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
+    @PreAuthorize("denyAll()")
     public ResponseEntity<SubscriptionPlanFeatureDto> updatePlanFeature(
             @Parameter(description = "Subscription plan.", example = "PLUS") @PathVariable SubscriptionPlan planType,
             @Parameter(description = "Feature key.", example = "HEALTH_INTEGRATION") @PathVariable SubscriptionFeature feature,

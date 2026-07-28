@@ -50,7 +50,7 @@ public class AdminRuntimeOperationsController {
     }
 
     @PutMapping("/policy")
-    @PreAuthorize("hasAuthority('ADMIN_PERMISSION_TECHNICAL_MANAGE')")
+    @PreAuthorize("denyAll()")
     public ResponseEntity<AdminRuntimeOperationsPolicyDto> updatePolicy(
             @AuthenticationPrincipal UserDetails user,
             @RequestBody @Valid AdminRuntimeOperationsPolicyUpdateRequestDto request,
