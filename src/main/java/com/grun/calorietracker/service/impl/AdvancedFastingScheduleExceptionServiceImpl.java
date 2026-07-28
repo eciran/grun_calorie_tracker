@@ -174,7 +174,7 @@ public class AdvancedFastingScheduleExceptionServiceImpl implements AdvancedFast
     private boolean sameIsoWeek(LocalDate a, LocalDate b) { WeekFields iso = WeekFields.ISO; return a.get(iso.weekBasedYear()) == b.get(iso.weekBasedYear()) && a.get(iso.weekOfWeekBasedYear()) == b.get(iso.weekOfWeekBasedYear()); }
     private LocalDateTime rebase(LocalDateTime value, LocalDate date) { return value == null ? null : date.atTime(value.toLocalTime()); }
     private void invalid(String message) { throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_SCHEDULE_EXCEPTION, message); }
-    private UserEntity user(String email) { return userRepository.findByEmail(email).orElseThrow(() -> new InvalidCredentialsException("Invalid credential")); }
+    private UserEntity user(String email) { return userRepository.findByEmailForUpdate(email).orElseThrow(() -> new InvalidCredentialsException("Invalid credential")); }
     private String snapshot(FastingScheduleExceptionEntity e) { return e == null ? null : e.getExceptionType() + "|" + e.getSourceDate() + "|" + e.getTargetDate() + "|" + e.getMovedStartTime(); }
     private void audit(UserEntity user, FastingScheduleExceptionEntity e, String action, String oldValue, String newValue) { FastingScheduleExceptionAuditEntity a = new FastingScheduleExceptionAuditEntity(); a.setUser(user); a.setExceptionId(e.getId()); a.setSourceDate(e.getSourceDate()); a.setAction(action); a.setOldValue(oldValue); a.setNewValue(newValue); auditRepository.save(a); }
     private FastingScheduleExceptionDto dto(FastingScheduleExceptionEntity e) { return new FastingScheduleExceptionDto(e.getId(), e.getSourceDate(), e.getTargetDate(), e.getExceptionType(), e.getMovedStartTime(), e.getCreatedAt(), e.getUpdatedAt()); }

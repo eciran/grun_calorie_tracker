@@ -22,7 +22,7 @@ class AdvancedFastingReminderServiceImplTest {
  @Mock AdvancedFastingExecutionService execution; @Mock NotificationRepository notifications; @Mock PushDeliveryService push;
  AdvancedFastingReminderServiceImpl service; UserEntity user; FastingProgramOccurrenceEntity occurrence; LocalDateTime now;
  @BeforeEach void setup(){ MockitoAnnotations.openMocks(this); service=new AdvancedFastingReminderServiceImpl(programs,occurrences,deliveries,settings,users,execution,notifications,push,new UserTimeZoneSupport());
-  user=new UserEntity(); user.setId(1L); user.setEmail("user@grun.app"); user.setTimeZone("Europe/Dublin"); user.setPushNotificationsEnabled(true); user.setFastingRemindersEnabled(true);
+  user=new UserEntity(); user.setId(1L); user.setEmail("user@grun.app"); user.setTimeZone("Europe/Dublin"); user.setPushNotificationsEnabled(true); user.setFastingRemindersEnabled(true); user.setPreferredLanguage(PreferredLanguage.EN);
   FastingProgramEntity program=new FastingProgramEntity(); program.setId(2L); program.setUser(user); FastingProgramVersionEntity version=new FastingProgramVersionEntity(); version.setId(3L); version.setVersionNumber(4); version.setProgram(program);
   occurrence=new FastingProgramOccurrenceEntity(); occurrence.setId(5L); occurrence.setUser(user); occurrence.setProgram(program); occurrence.setProgramVersion(version); occurrence.setOccurrenceDate(LocalDate.of(2026,7,28)); occurrence.setRuleType(FastingDayRuleType.FAST); occurrence.setStatus(FastingOccurrenceStatus.PLANNED);
   now=LocalDateTime.of(2026,7,28,19,30); occurrence.setPlannedStartAt(now.plusMinutes(30)); occurrence.setPlannedEndAt(now.plusHours(16).plusMinutes(30)); }
@@ -38,6 +38,17 @@ class AdvancedFastingReminderServiceImplTest {
   AdvancedFastingReminderSettingsDto request=settingsDto(); request.setEnabled(false);
   AdvancedFastingReminderSettingsDto result=service.updateSettings(user.getEmail(),request);
   assertFalse(result.getEnabled()); verify(deliveries).suppressUndeliveredForUser(user.getId(),"Advanced fasting reminders disabled");
+ }
+ @Test void turkishUserReceivesLocalizedReminderCopy(){
+  user.setPreferredLanguage(PreferredLanguage.TR);
+  when(deliveries.findByOccurrenceKey(key())).thenReturn(Optional.empty());
+  when(deliveries.save(any())).thenAnswer(i->i.getArgument(0));
+  when(notifications.save(any())).thenAnswer(i->i.getArgument(0));
+  when(push.deliver(any())).thenReturn(new PushDeliveryResultDto(1,1,0,0));
+  assertEquals(1,service.dispatchDue(occurrence,now));
+  ArgumentCaptor<NotificationEntity> notification=ArgumentCaptor.forClass(NotificationEntity.class);
+  verify(notifications).save(notification.capture());
+  assertEquals("Oruç penceren yaklaşıyor",notification.getValue().getTitle());
  }
  @Test void disabledPreStartEventDoesNotCreateDelivery(){
   AdvancedFastingReminderSettingsEntity preference=new AdvancedFastingReminderSettingsEntity(); preference.setUser(user); preference.setPreStartEnabled(false); preference.setStartEnabled(false); preference.setMissedPlanEnabled(false);

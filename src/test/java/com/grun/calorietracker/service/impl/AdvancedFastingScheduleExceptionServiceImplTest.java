@@ -35,7 +35,7 @@ class AdvancedFastingScheduleExceptionServiceImplTest {
         FastingProgramVersionEntity version = new FastingProgramVersionEntity(); version.setId(3L); version.setProgram(program); version.setVersionNumber(1);
         FastingProgramDayRuleEntity rule = new FastingProgramDayRuleEntity(); rule.setId(4L); rule.setProgramVersion(version); rule.setDayOfWeek(date.getDayOfWeek()); rule.setRuleType(FastingDayRuleType.FAST); rule.setFastingMinutes(960); rule.setPreferredStartTime(LocalTime.of(19, 0));
         occurrence = new FastingProgramOccurrenceEntity(); occurrence.setId(5L); occurrence.setUser(user); occurrence.setProgram(program); occurrence.setProgramVersion(version); occurrence.setDayRule(rule); occurrence.setOccurrenceDate(date); occurrence.setRuleType(FastingDayRuleType.FAST); occurrence.setStatus(FastingOccurrenceStatus.PLANNED); occurrence.setAdherenceStatus(FastingAdherenceStatus.PENDING); occurrence.setPlannedFastingMinutes(960); occurrence.setPlannedStartAt(date.atTime(19,0)); occurrence.setPlannedEndAt(date.plusDays(1).atTime(11,0));
-        when(users.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(users.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
         when(occurrences.findByUserAndOccurrenceDate(user, date)).thenReturn(Optional.of(occurrence));
         when(exceptions.findByUserAndSourceDateForUpdate(user, date)).thenReturn(Optional.empty());
         when(exceptions.save(any())).thenAnswer(inv -> { FastingScheduleExceptionEntity e=inv.getArgument(0); e.setId(10L); return e; });
@@ -48,6 +48,7 @@ class AdvancedFastingScheduleExceptionServiceImplTest {
         assertEquals(FastingScheduleExceptionType.SKIP, result.type());
         assertEquals(FastingOccurrenceStatus.SKIPPED, occurrence.getStatus());
         assertEquals(FastingAdherenceStatus.NOT_APPLICABLE, occurrence.getAdherenceStatus());
+        verify(users).findByEmailForUpdate(user.getEmail());
         verify(audits).save(any(FastingScheduleExceptionAuditEntity.class));
         verify(cache).bump(user.getId(), AnalyticsMutationSource.FASTING);
     }
