@@ -13,6 +13,7 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
@@ -25,6 +26,7 @@ import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodLogsService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
@@ -50,6 +52,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private final RecipeLogRepository recipeLogRepository;
     private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final UserRepository userRepository;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @Override
     @Transactional
@@ -80,6 +83,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         markFoodItemUsed(foodItem);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
         return toDto(saved);
     }
 
@@ -120,7 +124,9 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
         entity.setSource(resolveSource(dto.getSource(), FoodLogSource.AI_ESTIMATE));
-        return toDto(foodLogsRepository.save(entity));
+        FoodLogsEntity saved = foodLogsRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        return toDto(saved);
     }
     @Override
     @Transactional
@@ -134,12 +140,16 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 request.getSourceDate().plusDays(1).atStartOfDay()
         );
 
-        return sourceLogs.stream()
+        List<FoodLogsDto> copied = sourceLogs.stream()
                 .map(source -> copyLogToDate(source, request.getTargetDate(), user))
                 .map(foodLogsRepository::save)
                 .peek(saved -> { if (saved.getFoodItem() != null) { markFoodItemUsed(saved.getFoodItem()); } })
                 .map(this::toDto)
                 .toList();
+        if (!copied.isEmpty()) {
+            analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        }
+        return copied;
     }
 
     @Override
@@ -170,7 +180,9 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setLogDate(dto.getLogDate());
         entity.setSource(resolveSource(dto.getSource(), entity.getSource()));
 
-        return toDto(foodLogsRepository.save(entity));
+        FoodLogsEntity saved = foodLogsRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        return toDto(saved);
     }
 
     @Override
@@ -286,7 +298,9 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setLogDate(request.getLogDate());
         entity.setSource(FoodLogSource.QUICK_ADD);
 
-        return toDto(foodLogsRepository.save(entity));
+        FoodLogsEntity saved = foodLogsRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        return toDto(saved);
     }
 
     @Override
@@ -299,11 +313,13 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     @Override
+    @Transactional
     public void deleteFoodLog(Long id, String email) {
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
         foodLogsRepository.delete(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
     }
 
     @Override

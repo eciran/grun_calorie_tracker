@@ -31,13 +31,14 @@ class BodyMeasurementServiceImplTest {
     @Mock private BodyMeasurementRepository repository;
     @Mock private UserRepository userRepository;
     @Mock private UserService userService;
+    @Mock private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     private BodyMeasurementServiceImpl service;
     private UserEntity user;
 
     @BeforeEach
     void setUp() {
-        service = new BodyMeasurementServiceImpl(repository, userRepository, userService);
+        service = new BodyMeasurementServiceImpl(repository, userRepository, userService, analyticsCacheRevisionService);
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("progress@grun.app");

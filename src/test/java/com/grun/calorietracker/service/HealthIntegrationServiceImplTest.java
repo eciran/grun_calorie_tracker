@@ -43,6 +43,9 @@ class HealthIntegrationServiceImplTest {
     private ExerciseProviderActivityMappingRepository exerciseProviderActivityMappingRepository;
     private ExerciseLogsService exerciseLogsService;
     private SubscriptionService subscriptionService;
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private com.grun.calorietracker.service.support.UserAnalyticsCacheGateway analyticsCacheGateway;
+    private com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
     private HealthIntegrationServiceImpl service;
     private UserEntity user;
 
@@ -55,6 +58,9 @@ class HealthIntegrationServiceImplTest {
         exerciseProviderActivityMappingRepository = mock(ExerciseProviderActivityMappingRepository.class);
         exerciseLogsService = mock(ExerciseLogsService.class);
         subscriptionService = mock(SubscriptionService.class);
+        analyticsCacheRevisionService = mock(UserAnalyticsCacheRevisionService.class);
+        analyticsCacheGateway = mock(com.grun.calorietracker.service.support.UserAnalyticsCacheGateway.class);
+        analyticsCacheKeyFactory = mock(com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory.class);
         service = new HealthIntegrationServiceImpl(
                 userRepository,
                 healthConnectionRepository,
@@ -62,10 +68,22 @@ class HealthIntegrationServiceImplTest {
                 sleepSessionRepository,
                 exerciseProviderActivityMappingRepository,
                 exerciseLogsService,
+                analyticsCacheRevisionService,
                 subscriptionService,
                 new UserTimeZoneSupport(),
                 new HealthDailyEnergyResolver()
+        ,
+                analyticsCacheGateway,
+                analyticsCacheKeyFactory
         );
+        org.mockito.Mockito.lenient().when(analyticsCacheRevisionService.requireIdentity(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(new com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity(1L, 0L, "Europe/Dublin"));
+        org.mockito.Mockito.lenient().when(analyticsCacheKeyFactory.key(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.<Object[]>any()))
+                .thenReturn("test-key");
+        org.mockito.Mockito.lenient().doAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(2)).get())
+                .when(analyticsCacheGateway).get(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.nullable(String.class), org.mockito.ArgumentMatchers.any());
 
         user = new UserEntity();
         user.setId(1L);

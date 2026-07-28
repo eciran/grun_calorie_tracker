@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.*;
 import com.grun.calorietracker.enums.*;
@@ -7,8 +8,11 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.*;
 import com.grun.calorietracker.service.SleepTrackingService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -33,6 +37,9 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
     private final HealthConnectionRepository healthConnectionRepository;
     private final SubscriptionService subscriptionService;
     private final UserTimeZoneSupport timeZoneSupport;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional
@@ -48,7 +55,9 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
                 user, HealthProvider.MANUAL, start, end)) {
             throw new IllegalArgumentException("An identical manual sleep session already exists");
         }
-        return save(user, HealthProvider.MANUAL, null, request, new SleepSessionEntity());
+        SleepSessionDto result = save(user, HealthProvider.MANUAL, null, request, new SleepSessionEntity());
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.SLEEP);
+        return result;
     }
 
     @Override
@@ -72,12 +81,21 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
         SleepSessionDto result = save(user, provider, externalId, request, entity);
         connection.setLastSyncAt(LocalDateTime.now());
         healthConnectionRepository.save(connection);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.SLEEP);
         return result;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<SleepSessionDto> list(String email, LocalDate startDate, LocalDate endDate) {
+        UserEntity user = requireUser(email);
+        validateRange(user, startDate, endDate);
+        return cached(email, UserAnalyticsCacheNames.SLEEP_SESSIONS, "sessions",
+                () -> buildCachedSessions(email, startDate, endDate),
+                startDate, endDate, user.getTimeZone());
+    }
+
+    private List<SleepSessionDto> buildCachedSessions(String email, LocalDate startDate, LocalDate endDate) {
         UserEntity user = requireUser(email);
         validateRange(user, startDate, endDate);
         return sessionRepository.findByUserAndSleepDateBetweenOrderByStartedAtAsc(user, startDate, endDate)
@@ -94,6 +112,7 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
             throw new AccessDeniedException("Provider sleep sessions must be removed through provider data deletion");
         }
         sessionRepository.delete(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.SLEEP);
     }
 
     @Override
@@ -121,12 +140,21 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
         entity.setPreferredBedtime(request.getPreferredBedtime());
         entity.setPreferredWakeTime(request.getPreferredWakeTime());
         entity.setUpdatedAt(now);
-        return toGoalDto(goalRepository.save(entity));
+        SleepGoalEntity saved = goalRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.SLEEP);
+        return toGoalDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public SleepDailySummaryDto dailySummary(String email, LocalDate date) {
+        UserEntity user = requireUser(email);
+        validateRange(user, date, date);
+        return cached(email, UserAnalyticsCacheNames.SLEEP_DAILY, "daily",
+                () -> buildCachedDailySummary(email, date), date, user.getTimeZone());
+    }
+
+    private SleepDailySummaryDto buildCachedDailySummary(String email, LocalDate date) {
         UserEntity user = requireUser(email);
         validateRange(user, date, date);
         List<SleepSessionEntity> sessions = sessionRepository
@@ -138,6 +166,15 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
     @Transactional(readOnly = true)
     public SleepWeeklySummaryDto weeklySummary(String email, LocalDate endDate) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.ADVANCED_ANALYTICS);
+        UserEntity user = requireUser(email);
+        LocalDate startDate = endDate.minusDays(6);
+        validateRange(user, startDate, endDate);
+        return cached(email, UserAnalyticsCacheNames.SLEEP_WEEKLY, "weekly",
+                () -> buildCachedWeeklySummary(email, endDate),
+                startDate, endDate, user.getTimeZone());
+    }
+
+    private SleepWeeklySummaryDto buildCachedWeeklySummary(String email, LocalDate endDate) {
         UserEntity user = requireUser(email);
         LocalDate startDate = endDate.minusDays(6);
         validateRange(user, startDate, endDate);
@@ -163,6 +200,13 @@ public class SleepTrackingServiceImpl implements SleepTrackingService {
                         .mapToDouble(Double::doubleValue).average().orElse(0)))
                 .days(days)
                 .build();
+    }
+
+    private <T> T cached(String email, String cacheName, String variant,
+                         java.util.function.Supplier<T> loader, Object... dimensions) {
+        var identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(identity, variant, dimensions);
+        return analyticsCacheGateway.get(cacheName, key, loader);
     }
 
     private SleepSessionDto save(

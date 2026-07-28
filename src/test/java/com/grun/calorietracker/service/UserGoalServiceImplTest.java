@@ -35,12 +35,14 @@ class UserGoalServiceImplTest {
 
     @Mock
     private UserService userService;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     private UserGoalServiceImpl userGoalService;
 
     @BeforeEach
     void setUp() {
-        userGoalService = new UserGoalServiceImpl(goalRepository, userService, new ProfileEnergyExpenditureCalculator());
+        userGoalService = new UserGoalServiceImpl(goalRepository, userService, new ProfileEnergyExpenditureCalculator(), analyticsCacheRevisionService);
     }
 
     @Test

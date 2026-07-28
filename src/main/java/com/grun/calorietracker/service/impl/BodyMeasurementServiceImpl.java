@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.BodyMeasurementSummaryDto;
 import com.grun.calorietracker.entity.BodyMeasurementEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.BodyMeasurementUnitSystem;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -13,6 +14,7 @@ import com.grun.calorietracker.repository.BodyMeasurementRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.BodyMeasurementService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ public class BodyMeasurementServiceImpl implements BodyMeasurementService {
     private final BodyMeasurementRepository repository;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @Override
     @Transactional
@@ -58,6 +61,7 @@ public class BodyMeasurementServiceImpl implements BodyMeasurementService {
 
         BodyMeasurementEntity saved = repository.save(entity);
         syncCurrentProfile(user);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.BODY_MEASUREMENT);
         return toDto(saved, user);
     }
 
@@ -73,6 +77,7 @@ public class BodyMeasurementServiceImpl implements BodyMeasurementService {
         entity.setUpdatedAt(LocalDateTime.now());
         BodyMeasurementEntity saved = repository.save(entity);
         syncCurrentProfile(user);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.BODY_MEASUREMENT);
         return toDto(saved, user);
     }
 
@@ -164,6 +169,7 @@ public class BodyMeasurementServiceImpl implements BodyMeasurementService {
         repository.delete(entity);
         repository.flush();
         syncCurrentProfile(user);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.BODY_MEASUREMENT);
     }
 
     private void apply(BodyMeasurementRequestDto request, BodyMeasurementEntity entity) {

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
 import com.grun.calorietracker.dto.HealthConnectionDto;
 import com.grun.calorietracker.dto.HealthConnectionRequestDto;
 import com.grun.calorietracker.dto.HealthDataDeleteResponseDto;
@@ -17,6 +18,7 @@ import com.grun.calorietracker.entity.HealthConnectionEntity;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.ExerciseProviderActivityMappingEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.HealthConnectionStatus;
 import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.enums.SubscriptionFeature;
@@ -27,11 +29,14 @@ import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.SleepSessionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.HealthIntegrationService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.ExerciseLogsService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.HealthDailyEnergyResolver;
 import com.grun.calorietracker.service.support.HealthDailyEnergySnapshot;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,9 +59,12 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     private final SleepSessionRepository sleepSessionRepository;
     private final ExerciseProviderActivityMappingRepository exerciseProviderActivityMappingRepository;
     private final ExerciseLogsService exerciseLogsService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final SubscriptionService subscriptionService;
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final HealthDailyEnergyResolver healthDailyEnergyResolver;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional(readOnly = true)
@@ -71,6 +79,13 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
     @Transactional(readOnly = true)
     public HealthDailySummaryDto getDailySummary(String email, LocalDate date) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
+        UserEntity user = getUser(email);
+        LocalDate resolvedDate = date == null ? userTimeZoneSupport.today(user) : date;
+        return cached(email, UserAnalyticsCacheNames.HEALTH_DAILY, "daily",
+                () -> buildCachedDailySummary(email, resolvedDate), resolvedDate, user.getTimeZone());
+    }
+
+    private HealthDailySummaryDto buildCachedDailySummary(String email, LocalDate date) {
         UserEntity user = getUser(email);
         LocalDate summaryDate = date == null ? userTimeZoneSupport.today(user) : date;
         LocalDateTime start = summaryDate.atStartOfDay();
@@ -116,6 +131,16 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         UserEntity user = getUser(email);
         LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
+        validateSummaryRange(resolvedStart, resolvedEnd);
+        return cached(email, UserAnalyticsCacheNames.HEALTH_RANGE, "range",
+                () -> buildCachedRangeSummary(email, resolvedStart, resolvedEnd),
+                resolvedStart, resolvedEnd, user.getTimeZone());
+    }
+
+    private HealthRangeSummaryDto buildCachedRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
+        UserEntity user = getUser(email);
+        LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
+        LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
         if (resolvedStart.isAfter(resolvedEnd)) {
             throw new IllegalArgumentException("Health summary startDate must be before or equal to endDate.");
         }
@@ -124,7 +149,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         }
 
         List<HealthDailySummaryDto> days = resolvedStart.datesUntil(resolvedEnd.plusDays(1))
-                .map(date -> getDailySummary(email, date))
+                .map(date -> buildCachedDailySummary(email, date))
                 .toList();
 
         HealthRangeSummaryDto dto = new HealthRangeSummaryDto();
@@ -138,6 +163,22 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         dto.setAverageHeartRate(round(days.stream().map(HealthDailySummaryDto::getAverageHeartRate).filter(value -> value != null && value > 0).mapToDouble(Double::doubleValue).average().orElse(0.0)));
         dto.setHasHealthData(days.stream().anyMatch(day -> Boolean.TRUE.equals(day.getHasHealthData())));
         return dto;
+    }
+
+    private void validateSummaryRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Health summary startDate must be before or equal to endDate.");
+        }
+        if (startDate.plusDays(90).isBefore(endDate)) {
+            throw new IllegalArgumentException("Health summary date range cannot exceed 90 days.");
+        }
+    }
+
+    private <T> T cached(String email, String cacheName, String variant,
+                         java.util.function.Supplier<T> loader, Object... dimensions) {
+        var identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(identity, variant, dimensions);
+        return analyticsCacheGateway.get(cacheName, key, loader);
     }
 
     @Override
@@ -161,7 +202,9 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
             connection.setDeviceModel(trimToNull(request.getDeviceModel()));
             connection.setAppVersion(trimToNull(request.getAppVersion()));
         }
-        return toDto(healthConnectionRepository.save(connection));
+        HealthConnectionEntity saved = healthConnectionRepository.save(connection);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.HEALTH);
+        return toDto(saved);
     }
 
     @Override
@@ -179,12 +222,24 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
 
         connection.setStatus(HealthConnectionStatus.DISCONNECTED);
         connection.setDisconnectedAt(LocalDateTime.now());
-        return toDto(healthConnectionRepository.save(connection));
+        HealthConnectionEntity saved = healthConnectionRepository.save(connection);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.HEALTH);
+        return toDto(saved);
     }
 
     @Override
     @Transactional
     public HealthMetricSyncResponseDto syncMetric(String email, HealthProvider provider, HealthMetricSyncRequestDto request) {
+        HealthMetricSyncResponseDto response = syncMetricInternal(email, provider, request);
+        analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.HEALTH);
+        return response;
+    }
+
+    private HealthMetricSyncResponseDto syncMetricInternal(
+            String email,
+            HealthProvider provider,
+            HealthMetricSyncRequestDto request
+    ) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.HEALTH_INTEGRATION);
         if (request == null) {
             throw new IllegalArgumentException("Health metric payload is required.");
@@ -244,7 +299,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         }
 
         List<HealthMetricSyncResponseDto> results = request.getMetrics().stream()
-                .map(metric -> syncMetric(email, provider, metric))
+                .map(metric -> syncMetricInternal(email, provider, metric))
                 .toList();
         int insertedCount = (int) results.stream().filter(HealthMetricSyncResponseDto::isInserted).count();
         LocalDateTime latestRecordedAt = request.getMetrics().stream()
@@ -253,6 +308,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
                 .max(Comparator.naturalOrder())
                 .orElse(null);
 
+        analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.HEALTH);
         return new HealthMetricBatchSyncResponseDto(
                 provider,
                 results.size(),
@@ -322,6 +378,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
                     connection.setLastSyncAt(null);
                     healthConnectionRepository.save(connection);
                 });
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.HEALTH);
         return new HealthDataDeleteResponseDto(provider, deletedCount);
     }
 
@@ -338,6 +395,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
                     connection.setLastSyncAt(null);
                     healthConnectionRepository.save(connection);
                 });
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.HEALTH);
         return new HealthDataDeleteResponseDto(null, deletedCount);
     }
 

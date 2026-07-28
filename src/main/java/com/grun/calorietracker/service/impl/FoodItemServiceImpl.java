@@ -119,7 +119,7 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + (#email == null ? 'anonymous' : #email.toLowerCase())", unless = "#result == null")
+    @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + @foodProductCacheUserScopeResolver.resolve(#email)", unless = "#result == null")
     public FoodProductDto getFoodItemById(Long id, String email) {
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));

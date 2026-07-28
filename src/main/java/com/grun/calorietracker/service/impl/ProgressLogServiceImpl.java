@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.ProgressLogDto;
 import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProgressLogNotFoundException;
 import com.grun.calorietracker.mapper.ProgressLogMapper;
@@ -10,6 +11,7 @@ import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.service.ProgressLogService;
 import com.grun.calorietracker.service.BodyMeasurementService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     private final UserService userService;
     private final ProgressLogMapper progressLogMapper;
     private final BodyMeasurementService bodyMeasurementService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @Override
     @Transactional
@@ -33,6 +36,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
         ProgressLogEntity entity = progressLogMapper.toEntity(log, user);
         ProgressLogEntity saved = progressLogRepository.save(entity);
         bodyMeasurementService.syncWeightFromProgress(saved.getId(), saved.getWeight(), saved.getLogDate(), email);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.PROGRESS);
         return progressLogMapper.toDto(saved);
     }
 
@@ -49,6 +53,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
         entity.setNote(log.getNote());
         ProgressLogEntity saved = progressLogRepository.save(entity);
         bodyMeasurementService.syncWeightFromProgress(saved.getId(), saved.getWeight(), saved.getLogDate(), email);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.PROGRESS);
         return progressLogMapper.toDto(saved);
     }
 
@@ -65,6 +70,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
         UserEntity user = getUserByEmail(email);
         progressLogRepository.delete(getOwnedLog(id, user));
         bodyMeasurementService.deleteWeightFromProgress(id, email);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.PROGRESS);
     }
 
     @Override

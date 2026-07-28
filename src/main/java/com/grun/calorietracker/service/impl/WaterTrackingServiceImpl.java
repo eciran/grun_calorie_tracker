@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.config.WaterTrackingProperties;
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
 import com.grun.calorietracker.dto.WaterDailySummaryDto;
 import com.grun.calorietracker.dto.WaterDailyTrendDto;
 import com.grun.calorietracker.dto.WaterGoalDto;
@@ -14,6 +15,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.entity.WaterReminderSettingsEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -25,7 +27,10 @@ import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.WaterTrackingService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -70,6 +75,9 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final PushDeliveryService pushDeliveryService;
     private final SubscriptionService subscriptionService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional
@@ -84,7 +92,9 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         entity.setAmountMl(request.getAmountMl());
         entity.setSource(normalizeSource(request.getSource()));
         entity.setLoggedAt(resolveLoggedAt(request, user));
-        return toDto(waterLogRepository.save(entity));
+        WaterLogEntity saved = waterLogRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.WATER);
+        return toDto(saved);
     }
 
     @Override
@@ -100,12 +110,21 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         entity.setAmountMl(request.getAmountMl());
         entity.setSource(normalizeSource(request.getSource()));
         entity.setLoggedAt(resolveLoggedAt(request, user));
-        return toDto(waterLogRepository.save(entity));
+        WaterLogEntity saved = waterLogRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.WATER);
+        return toDto(saved);
     }
     @Override
     @Transactional(readOnly = true)
     public WaterDailySummaryDto getDailySummary(String email, LocalDate date) {
         assertWaterTrackingAccess(email);
+        UserEntity user = getUser(email);
+        LocalDate resolvedDate = date == null ? userTimeZoneSupport.today(user) : date;
+        return cached(email, UserAnalyticsCacheNames.WATER_DAILY, "daily",
+                () -> buildDailySummary(email, resolvedDate), resolvedDate, user.getTimeZone());
+    }
+
+    private WaterDailySummaryDto buildDailySummary(String email, LocalDate date) {
         UserEntity user = getUser(email);
         List<WaterLogDto> logs = waterLogRepository.findByUserAndLogDateOrderByLoggedAtAsc(user, date)
                 .stream()
@@ -130,6 +149,16 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
     @Transactional(readOnly = true)
     public WaterRangeSummaryDto getRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
         assertWaterTrackingAccess(email);
+        UserEntity user = getUser(email);
+        LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
+        LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
+        validateRange(resolvedStart, resolvedEnd);
+        return cached(email, UserAnalyticsCacheNames.WATER_RANGE, "range",
+                () -> buildRangeSummary(email, resolvedStart, resolvedEnd),
+                resolvedStart, resolvedEnd, user.getTimeZone());
+    }
+
+    private WaterRangeSummaryDto buildRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
         UserEntity user = getUser(email);
         LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
@@ -177,7 +206,9 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         UserEntity user = getUser(email);
         WaterReminderSettingsEntity settings = getOrDefaultSettings(user);
         settings.setDailyTargetMl(request.getTargetMl());
-        return toGoalDto(waterReminderSettingsRepository.save(settings));
+        WaterReminderSettingsEntity saved = waterReminderSettingsRepository.save(settings);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.WATER);
+        return toGoalDto(saved);
     }
 
     @Override
@@ -188,6 +219,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         WaterLogEntity entity = waterLogRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Water log not found"));
         waterLogRepository.delete(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.WATER);
     }
 
     @Override
@@ -254,6 +286,13 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         });
         waterReminderSettingsRepository.saveAll(dueSettings);
         return dueSettings.size();
+    }
+
+    private <T> T cached(String email, String cacheName, String variant,
+                         java.util.function.Supplier<T> loader, Object... dimensions) {
+        var identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(identity, variant, dimensions);
+        return analyticsCacheGateway.get(cacheName, key, loader);
     }
 
     private ReminderCopy randomCopy(List<ReminderCopy> options) {

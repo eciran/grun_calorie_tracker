@@ -50,6 +50,9 @@ class FastingTrackingServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private PushDeliveryService pushDeliveryService;
+    @Mock private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    @Mock private com.grun.calorietracker.service.support.UserAnalyticsCacheGateway analyticsCacheGateway;
+    @Mock private com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     private FastingTrackingServiceImpl service;
     private UserEntity user;
@@ -63,8 +66,20 @@ class FastingTrackingServiceImplTest {
                 notificationRepository,
                 userRepository,
                 new UserTimeZoneSupport(),
-                pushDeliveryService
+                pushDeliveryService,
+                analyticsCacheRevisionService
+        ,
+                analyticsCacheGateway,
+                analyticsCacheKeyFactory
         );
+        org.mockito.Mockito.lenient().when(analyticsCacheRevisionService.requireIdentity(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(new com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity(1L, 0L, "Europe/Dublin"));
+        org.mockito.Mockito.lenient().when(analyticsCacheKeyFactory.key(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.<Object[]>any()))
+                .thenReturn("test-key");
+        org.mockito.Mockito.lenient().doAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(2)).get())
+                .when(analyticsCacheGateway).get(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.nullable(String.class), org.mockito.ArgumentMatchers.any());
         ReflectionTestUtils.setField(service, "fastingRemindersEnabled", true);
         ReflectionTestUtils.setField(service, "fastingReminderLeadMinutes", 30);
         user = new UserEntity();

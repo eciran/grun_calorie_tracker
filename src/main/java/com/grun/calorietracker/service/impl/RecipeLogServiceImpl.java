@@ -5,12 +5,14 @@ import com.grun.calorietracker.dto.RecipeLogRequestDto;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.RecipeLogRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeLogService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
     private final UserRepository userRepository;
     private final RecipeRepository recipeRepository;
     private final RecipeLogRepository recipeLogRepository;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @Override
     @Transactional
@@ -40,7 +43,9 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         log.setUser(user);
         log.setRecipe(recipe);
         applyRequest(log, recipe, request);
-        return toDto(recipeLogRepository.save(log));
+        RecipeLogEntity saved = recipeLogRepository.save(log);
+        analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.RECIPE_LOG);
+        return toDto(saved);
     }
 
     @Override
@@ -61,7 +66,9 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         RecipeLogEntity log = recipeLogRepository.findByIdAndUser(logId, getUser(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe log not found"));
         applyUpdateRequest(log, request);
-        return toDto(recipeLogRepository.save(log));
+        RecipeLogEntity saved = recipeLogRepository.save(log);
+        analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.RECIPE_LOG);
+        return toDto(saved);
     }
 
     @Override
@@ -70,6 +77,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         RecipeLogEntity log = recipeLogRepository.findByIdAndUser(logId, getUser(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe log not found"));
         recipeLogRepository.delete(log);
+        analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.RECIPE_LOG);
     }
 
     private void applyRequest(RecipeLogEntity log, RecipeEntity recipe, RecipeLogRequestDto request) {

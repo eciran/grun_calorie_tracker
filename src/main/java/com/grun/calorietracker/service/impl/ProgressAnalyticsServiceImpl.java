@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
+
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.SleepSessionEntity;
@@ -42,6 +44,9 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
     private final ProgressLogRepository progressLogRepository;
     private final BodyMeasurementRepository bodyMeasurementRepository;
     private final SleepSessionRepository sleepSessionRepository;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final com.grun.calorietracker.service.support.UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional(readOnly = true)
@@ -53,7 +58,15 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
     ) {
         validateRange(startDate, endDate);
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.ADVANCED_ANALYTICS);
-        return buildAnalytics(email, startDate, endDate, comparePrevious);
+        com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity identity =
+                analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(
+                identity, "advanced", startDate, endDate, comparePrevious, identity.timeZone());
+        return analyticsCacheGateway.get(
+                UserAnalyticsCacheNames.PROGRESS_ADVANCED,
+                key,
+                () -> buildAnalytics(email, startDate, endDate, comparePrevious)
+        );
     }
 
     @Override
@@ -64,7 +77,15 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
             LocalDate endDate
     ) {
         validateRange(startDate, endDate);
-        return ProgressBasicAnalyticsDto.from(buildAnalytics(email, startDate, endDate, false));
+        com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity identity =
+                analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(
+                identity, "basic", startDate, endDate, identity.timeZone());
+        return analyticsCacheGateway.get(
+                UserAnalyticsCacheNames.PROGRESS_BASIC,
+                key,
+                () -> ProgressBasicAnalyticsDto.from(buildAnalytics(email, startDate, endDate, false))
+        );
     }
 
     private ProgressAnalyticsDto buildAnalytics(

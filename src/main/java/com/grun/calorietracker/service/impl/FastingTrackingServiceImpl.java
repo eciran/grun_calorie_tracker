@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
 import com.grun.calorietracker.dto.FastingDailySummaryDto;
 import com.grun.calorietracker.dto.FastingDailyTrendDto;
 import com.grun.calorietracker.dto.FastingPlanDto;
@@ -14,6 +15,7 @@ import com.grun.calorietracker.entity.FastingPlanEntity;
 import com.grun.calorietracker.entity.FastingSessionEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FastingPlanType;
 import com.grun.calorietracker.enums.FastingSessionStatus;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -24,8 +26,11 @@ import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FastingTrackingService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -76,6 +81,9 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private final UserRepository userRepository;
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final PushDeliveryService pushDeliveryService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Value("${grun.fasting.reminders.enabled:true}")
     private boolean fastingRemindersEnabled;
@@ -103,7 +111,9 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         plan.setActive(request.getActive());
         plan.setReminderEnabled(request.getReminderEnabled());
         plan.setNote(normalizeNote(request.getNote()));
-        return toPlanDto(fastingPlanRepository.save(plan));
+        FastingPlanEntity saved = fastingPlanRepository.save(plan);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FASTING);
+        return toPlanDto(saved);
     }
 
     @Override
@@ -134,7 +144,9 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         session.setTargetEndAt(startedAt.plusMinutes(targetMinutes));
         session.setTargetReached(false);
         session.setNote(normalizeNote(request.getNote()));
-        return toSessionDto(fastingSessionRepository.save(session));
+        FastingSessionEntity saved = fastingSessionRepository.save(session);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FASTING);
+        return toSessionDto(saved);
     }
 
     @Override
@@ -158,7 +170,9 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         session.setTargetReached(actualMinutes >= session.getTargetMinutes());
         session.setStatus(FastingSessionStatus.COMPLETED);
         session.setNote(normalizeNote(request.getNote()));
-        return toSessionDto(fastingSessionRepository.save(session));
+        FastingSessionEntity saved = fastingSessionRepository.save(session);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FASTING);
+        return toSessionDto(saved);
     }
 
     @Override
@@ -181,12 +195,23 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         session.setTargetReached(false);
         session.setStatus(FastingSessionStatus.CANCELLED);
         session.setNote(normalizeNote(request.getNote()));
-        return toSessionDto(fastingSessionRepository.save(session));
+        FastingSessionEntity saved = fastingSessionRepository.save(session);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FASTING);
+        return toSessionDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public FastingDailySummaryDto getDailySummary(String email, LocalDate date) {
+        UserEntity user = getUser(email);
+        LocalDate resolvedDate = date == null ? userTimeZoneSupport.today(user) : date;
+        LocalDateTime now = userTimeZoneSupport.now(user);
+        return cached(email, UserAnalyticsCacheNames.FASTING_DAILY, "daily",
+                () -> buildCachedDailySummary(email, resolvedDate),
+                resolvedDate, user.getTimeZone(), now.truncatedTo(ChronoUnit.MINUTES));
+    }
+
+    private FastingDailySummaryDto buildCachedDailySummary(String email, LocalDate date) {
         UserEntity user = getUser(email);
         List<FastingSessionDto> sessions = fastingSessionRepository.findByUserAndFastingDateOrderByStartedAtAsc(user, date)
                 .stream()
@@ -221,6 +246,14 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     @Override
     @Transactional(readOnly = true)
     public FastingRangeSummaryDto getRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
+        validateRange(startDate, endDate);
+        UserEntity user = getUser(email);
+        return cached(email, UserAnalyticsCacheNames.FASTING_RANGE, "range",
+                () -> buildCachedRangeSummary(email, startDate, endDate),
+                startDate, endDate, user.getTimeZone());
+    }
+
+    private FastingRangeSummaryDto buildCachedRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
         validateRange(startDate, endDate);
         UserEntity user = getUser(email);
         List<FastingSessionEntity> sessions = fastingSessionRepository
@@ -261,6 +294,25 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     @Override
     @Transactional(readOnly = true)
     public FastingSessionPageDto getSessions(
+            String email,
+            FastingSessionStatus status,
+            LocalDate startDate,
+            LocalDate endDate,
+            int page,
+            int size
+    ) {
+        if (startDate != null && endDate != null) {
+            validateRange(startDate, endDate);
+        }
+        UserEntity user = getUser(email);
+        int resolvedPage = safePage(page);
+        int resolvedSize = safePageSize(size);
+        return cached(email, UserAnalyticsCacheNames.FASTING_HISTORY, "history",
+                () -> buildCachedSessions(email, status, startDate, endDate, resolvedPage, resolvedSize),
+                status, startDate, endDate, resolvedPage, resolvedSize, user.getTimeZone());
+    }
+
+    private FastingSessionPageDto buildCachedSessions(
             String email,
             FastingSessionStatus status,
             LocalDate startDate,
@@ -321,6 +373,13 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         });
         fastingSessionRepository.saveAll(dueSessions);
         return dueSessions.size();
+    }
+
+    private <T> T cached(String email, String cacheName, String variant,
+                         java.util.function.Supplier<T> loader, Object... dimensions) {
+        var identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(identity, variant, dimensions);
+        return analyticsCacheGateway.get(cacheName, key, loader);
     }
 
     private ReminderCopy randomCopy(List<ReminderCopy> options) {

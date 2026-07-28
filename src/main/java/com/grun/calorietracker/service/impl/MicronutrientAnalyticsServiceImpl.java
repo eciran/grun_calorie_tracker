@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
+
 import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.MicronutrientAnalyticsDto;
 import com.grun.calorietracker.dto.MicronutrientDataQualityDto;
@@ -12,6 +14,10 @@ import com.grun.calorietracker.service.MicronutrientAnalyticsService;
 import com.grun.calorietracker.service.MicronutrientReferenceService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,10 +60,37 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
     private final UserService userService;
     private final FoodLogsService foodLogsService;
     private final MicronutrientReferenceService micronutrientReferenceService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional(readOnly = true)
     public MicronutrientAnalyticsDto getAnalytics(
+            String email,
+            LocalDate startDate,
+            LocalDate endDate,
+            boolean comparePrevious
+    ) {
+        validateRange(startDate, endDate);
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.MICRONUTRIENT_ANALYTICS);
+        UserAnalyticsCacheIdentity identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(
+                identity,
+                "micronutrients-v1",
+                startDate,
+                endDate,
+                comparePrevious,
+                identity.timeZone()
+        );
+        return analyticsCacheGateway.get(
+                UserAnalyticsCacheNames.MICRONUTRIENTS,
+                key,
+                () -> buildAnalytics(email, startDate, endDate, comparePrevious)
+        );
+    }
+
+    private MicronutrientAnalyticsDto buildAnalytics(
             String email,
             LocalDate startDate,
             LocalDate endDate,

@@ -9,12 +9,12 @@ spring:
       leak-detection-threshold: ${SPRING_DATASOURCE_HIKARI_LEAK_DETECTION_THRESHOLD:0}
   cache:
     type: ${SPRING_CACHE_TYPE:simple}
-    cache-names: foodProductById,foodProductByBarcode,foodProductSearch
+    cache-names: foodProductById,foodProductByBarcode,foodProductSearch,dashboardDailySummary,progressBasicAnalytics,progressAdvancedAnalytics,energyBalanceAnalytics,micronutrientAnalytics,waterDailySummary,waterRangeSummary,stepDailySummary,stepRangeSummary,stepManualLogs,fastingDailySummary,fastingRangeSummary,fastingSessionHistory,sleepDailySummary,sleepWeeklySummary,sleepSessionHistory,healthDailySummary,healthRangeSummary
     redis:
       time-to-live: ${SPRING_CACHE_REDIS_TIME_TO_LIVE:10m}
       cache-null-values: false
       use-key-prefix: true
-      key-prefix: "grun:prod:"
+      key-prefix: "grun:${GRUN_ENVIRONMENT:prod}:"
   jpa:
     open-in-view: false
     show-sql: false

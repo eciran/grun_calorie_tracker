@@ -51,6 +51,10 @@ class WaterTrackingServiceImplTest {
     private PushDeliveryService pushDeliveryService;
     @Mock
     private SubscriptionService subscriptionService;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    @Mock private com.grun.calorietracker.service.support.UserAnalyticsCacheGateway analyticsCacheGateway;
+    @Mock private com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     private WaterTrackingServiceImpl service;
     private UserEntity user;
@@ -68,8 +72,19 @@ class WaterTrackingServiceImplTest {
                 properties,
                 new UserTimeZoneSupport(),
                 pushDeliveryService,
-                subscriptionService
+                subscriptionService,
+                analyticsCacheRevisionService,
+                analyticsCacheGateway,
+                analyticsCacheKeyFactory
         );
+        org.mockito.Mockito.lenient().when(analyticsCacheRevisionService.requireIdentity(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(new com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity(1L, 0L, "Europe/Dublin"));
+        org.mockito.Mockito.lenient().when(analyticsCacheKeyFactory.key(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.<Object[]>any()))
+                .thenReturn("test-key");
+        org.mockito.Mockito.lenient().doAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(2)).get())
+                .when(analyticsCacheGateway).get(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.nullable(String.class), org.mockito.ArgumentMatchers.any());
 
         user = new UserEntity();
         user.setId(1L);
@@ -401,7 +416,10 @@ class WaterTrackingServiceImplTest {
                 properties,
                 new UserTimeZoneSupport(),
                 pushDeliveryService,
-                subscriptionService
+                subscriptionService,
+                analyticsCacheRevisionService,
+                analyticsCacheGateway,
+                analyticsCacheKeyFactory
         );
 
         int created = service.createDueReminderNotifications();

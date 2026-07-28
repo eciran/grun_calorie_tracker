@@ -6,17 +6,20 @@ import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.UserGoalService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.ProfileEnergyEstimate;
 import com.grun.calorietracker.service.support.ProfileEnergyExpenditureCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -35,8 +38,10 @@ public class UserGoalServiceImpl implements UserGoalService {
     private final GoalRepository userGoalRepository;
     private final UserService userService;
     private final ProfileEnergyExpenditureCalculator profileEnergyCalculator;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @Override
+    @Transactional
     public UserGoalDto saveUserGoal(GoalCalculationRequestDto goalData, String email) {
         log.info("Saving new goal for user: {}", email);
 
@@ -56,6 +61,7 @@ public class UserGoalServiceImpl implements UserGoalService {
         UserGoalEntity saved = userGoalRepository.save(newGoal);
 
         log.info("New goal saved for user: {} with id {}", email, saved.getId());
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.GOAL);
         return UserGoalMapper.toDto(saved);
     }
 
@@ -284,6 +290,7 @@ public class UserGoalServiceImpl implements UserGoalService {
     }
 
     @Override
+    @Transactional
     public void deleteGoalByUser(String email) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
@@ -292,6 +299,9 @@ public class UserGoalServiceImpl implements UserGoalService {
         }
         Optional<UserGoalEntity> existingGoal = userGoalRepository.findByUser(user);
         existingGoal.ifPresent(userGoalRepository::delete);
+        if (existingGoal.isPresent()) {
+            analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.GOAL);
+        }
     }
 
     private record RateResult(double effectiveRateKg, boolean adjusted, String warning) {

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
 import com.grun.calorietracker.dto.DailySummaryDto;
 import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
@@ -24,6 +25,10 @@ import com.grun.calorietracker.service.MicronutrientReferenceService;
 import com.grun.calorietracker.service.StepTrackingService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,10 +58,34 @@ public class DashboardServiceImpl implements DashboardService {
     private final StepTrackingService stepTrackingService;
     private final SubscriptionService subscriptionService;
     private final MicronutrientReferenceService micronutrientReferenceService;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional(readOnly = true)
     public DailySummaryDto getDailySummary(String email, LocalDate date) {
+        UserAnalyticsCacheIdentity identity = analyticsCacheRevisionService.requireIdentity(email);
+        boolean micronutrientsAllowed = subscriptionService.hasFeatureAccess(
+                email, SubscriptionFeature.MICRONUTRIENT_DETAILS);
+        boolean healthAllowed = subscriptionService.hasFeatureAccess(
+                email, SubscriptionFeature.HEALTH_INTEGRATION);
+        String key = analyticsCacheKeyFactory.key(
+                identity,
+                "daily",
+                date,
+                identity.timeZone(),
+                micronutrientsAllowed,
+                healthAllowed
+        );
+        return analyticsCacheGateway.get(
+                UserAnalyticsCacheNames.DASHBOARD_DAILY_SUMMARY,
+                key,
+                () -> buildDailySummary(email, date)
+        );
+    }
+
+    private DailySummaryDto buildDailySummary(String email, LocalDate date) {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
 

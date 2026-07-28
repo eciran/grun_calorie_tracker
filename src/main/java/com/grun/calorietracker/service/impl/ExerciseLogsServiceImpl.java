@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ExerciseLogsDto;
 import com.grun.calorietracker.entity.ExerciseItemEntity;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.exception.DuplicateExternalExerciseLogException;
 import com.grun.calorietracker.exception.ExerciseItemNotFoundException;
@@ -15,6 +16,7 @@ import com.grun.calorietracker.repository.ExerciseItemRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.ExerciseLogsService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -40,8 +42,10 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     private final ExerciseItemRepository exerciseItemRepository;
     private final UserRepository userRepository;
     private final ExerciseLogsMapper exerciseLogsMapper;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @Override
+    @Transactional
     public ExerciseLogsDto addExerciseLog(ExerciseLogsDto dto, String email) {
         UserEntity user = getUserByEmail(email);
         ExerciseItemEntity exerciseItem = getExerciseItemById(dto.getExerciseItemId());
@@ -50,10 +54,13 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         ExerciseLogsEntity entity = buildExerciseLogEntity(dto, user, exerciseItem);
         entity.setSource(normalizeSource(dto.getSource(), "MANUAL"));
         entity.setExternalId(trimToNull(dto.getExternalId()));
-        return exerciseLogsMapper.toDto(exerciseLogsRepository.save(entity));
+        ExerciseLogsEntity saved = exerciseLogsRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.EXERCISE_LOG);
+        return exerciseLogsMapper.toDto(saved);
     }
 
     @Override
+    @Transactional
     public ExerciseLogsDto updateExerciseLog(Long id, ExerciseLogsDto dto, String email) {
         UserEntity user = getUserByEmail(email);
         ExerciseLogsEntity entity = getLogsItemById(id, user);
@@ -64,7 +71,9 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         entity.setCaloriesBurned(dto.getCaloriesBurned());
         entity.setLogDate(dto.getLogDate());
         entity.setExtraData(dto.getExtraData());
-        return exerciseLogsMapper.toDto(exerciseLogsRepository.save(entity));
+        ExerciseLogsEntity saved = exerciseLogsRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.EXERCISE_LOG);
+        return exerciseLogsMapper.toDto(saved);
     }
 
     @Override
@@ -103,13 +112,16 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
     }
 
     @Override
+    @Transactional
     public void deleteExerciseLog(Long id, String email) {
         UserEntity user = getUserByEmail(email);
         ExerciseLogsEntity entity = getLogsItemById(id,user);
         exerciseLogsRepository.delete(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.EXERCISE_LOG);
     }
 
     @Override
+    @Transactional
     public ExerciseLogsDto addExerciseLogFromExternal(ExerciseLogsDto dto, String email) {
         UserEntity user = getUserByEmail(email);
         ExerciseItemEntity exerciseItem = getExerciseItemById(dto.getExerciseItemId());
@@ -127,7 +139,9 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         ExerciseLogsEntity entity = buildExerciseLogEntity(dto, user, exerciseItem);
         entity.setSource(source);
         entity.setExternalId(externalId);
-        return exerciseLogsMapper.toDto(exerciseLogsRepository.save(entity));
+        ExerciseLogsEntity saved = exerciseLogsRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.EXERCISE_LOG);
+        return exerciseLogsMapper.toDto(saved);
     }
 
     @Override

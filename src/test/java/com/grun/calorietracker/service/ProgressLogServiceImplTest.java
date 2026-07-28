@@ -33,13 +33,15 @@ class ProgressLogServiceImplTest {
 
     @Mock
     private BodyMeasurementService bodyMeasurementService;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     private ProgressLogServiceImpl progressLogService;
     private UserEntity user;
 
     @BeforeEach
     void setUp() {
-        progressLogService = new ProgressLogServiceImpl(progressLogRepository, userService, new ProgressLogMapper(), bodyMeasurementService);
+        progressLogService = new ProgressLogServiceImpl(progressLogRepository, userService, new ProgressLogMapper(), bodyMeasurementService, analyticsCacheRevisionService);
         user = new UserEntity();
         user.setId(9L);
         user.setEmail("progress@grun.app");

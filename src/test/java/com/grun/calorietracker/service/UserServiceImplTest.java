@@ -55,6 +55,8 @@ class UserServiceImplTest {
 
     @Spy
     private UserTimeZoneSupport userTimeZoneSupport = new UserTimeZoneSupport();
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     private UserEntity testUser;
 
@@ -69,6 +71,7 @@ class UserServiceImplTest {
                 refreshTokenService,
                 userTimeZoneSupport,
                 new com.grun.calorietracker.service.support.UserAgeSupport(),
+                analyticsCacheRevisionService,
                 5,
                 15
         );

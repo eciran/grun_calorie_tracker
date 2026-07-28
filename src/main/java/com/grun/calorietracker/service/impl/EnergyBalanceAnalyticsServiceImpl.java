@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
+
 import com.grun.calorietracker.dto.EnergyBalanceAnalyticsDto;
 import com.grun.calorietracker.entity.BodyMeasurementEntity;
 import com.grun.calorietracker.entity.DeviceDataEntity;
@@ -13,6 +15,10 @@ import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.service.EnergyBalanceAnalyticsService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import com.grun.calorietracker.service.support.DailyCalorieIntakeSnapshot;
 import com.grun.calorietracker.service.support.DailyEnergyExpenditureResolver;
 import com.grun.calorietracker.service.support.DailyEnergyExpenditureSnapshot;
@@ -50,11 +56,30 @@ public class EnergyBalanceAnalyticsServiceImpl implements EnergyBalanceAnalytics
     private final DailyEnergyExpenditureResolver expenditureResolver;
     private final EnergyWeightModelCalculator weightModelCalculator;
     private final EnergyBalanceAnalyticsAssembler assembler;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional(readOnly = true)
     public EnergyBalanceAnalyticsDto getAnalytics(String email, LocalDate startDate, LocalDate endDate) {
         EnergyBalanceRequestGuard.RequestContext context = requestGuard.validate(email, startDate, endDate);
+        UserAnalyticsCacheIdentity identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(
+                identity,
+                "energy-balance-v2",
+                startDate,
+                endDate,
+                context.zoneId().getId()
+        );
+        return analyticsCacheGateway.get(
+                UserAnalyticsCacheNames.ENERGY_BALANCE,
+                key,
+                () -> buildAnalytics(context)
+        );
+    }
+
+    private EnergyBalanceAnalyticsDto buildAnalytics(EnergyBalanceRequestGuard.RequestContext context) {
         LocalDateTime start = context.startDate().atStartOfDay();
         LocalDateTime endExclusive = context.endDate().plusDays(1).atStartOfDay();
 

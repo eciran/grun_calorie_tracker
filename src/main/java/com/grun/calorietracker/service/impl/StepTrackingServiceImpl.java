@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.config.UserAnalyticsCacheNames;
 import com.grun.calorietracker.dto.StepDailySummaryDto;
 import com.grun.calorietracker.dto.StepGoalDto;
 import com.grun.calorietracker.dto.StepGoalRequestDto;
@@ -10,6 +11,7 @@ import com.grun.calorietracker.entity.DeviceDataEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.StepGoalEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.DuplicateManualStepLogException;
@@ -21,7 +23,10 @@ import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.StepTrackingService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
+import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -67,6 +72,9 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     private final NotificationRepository notificationRepository;
     private final PushDeliveryService pushDeliveryService;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserAnalyticsCacheGateway analyticsCacheGateway;
+    private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
 
     @Override
     @Transactional(readOnly = true)
@@ -108,12 +116,21 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         if (!Boolean.TRUE.equals(goal.getReminderEnabled())) {
             goal.setLastReminderAt(null);
         }
-        return toGoalDto(stepGoalRepository.save(goal));
+        StepGoalEntity saved = stepGoalRepository.save(goal);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.STEP);
+        return toGoalDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public StepDailySummaryDto getDailySummary(String email, LocalDate date) {
+        UserEntity user = getUser(email);
+        LocalDate resolvedDate = date == null ? userTimeZoneSupport.today(user) : date;
+        return cached(email, UserAnalyticsCacheNames.STEP_DAILY, "daily",
+                () -> buildCachedDailySummary(email, resolvedDate), resolvedDate, user.getTimeZone());
+    }
+
+    private StepDailySummaryDto buildCachedDailySummary(String email, LocalDate date) {
         UserEntity user = getUser(email);
         LocalDate summaryDate = date == null ? userTimeZoneSupport.today(user) : date;
         return buildDailySummary(user, summaryDate, getTargetSteps(user), true);
@@ -122,6 +139,16 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     @Override
     @Transactional(readOnly = true)
     public StepRangeSummaryDto getRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
+        UserEntity user = getUser(email);
+        LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
+        LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
+        validateRange(resolvedStart, resolvedEnd);
+        return cached(email, UserAnalyticsCacheNames.STEP_RANGE, "range",
+                () -> buildCachedRangeSummary(email, resolvedStart, resolvedEnd),
+                resolvedStart, resolvedEnd, user.getTimeZone());
+    }
+
+    private StepRangeSummaryDto buildCachedRangeSummary(String email, LocalDate startDate, LocalDate endDate) {
         UserEntity user = getUser(email);
         LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd.minusDays(6) : startDate;
@@ -152,6 +179,16 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
         LocalDate resolvedStart = startDate == null ? resolvedEnd : startDate;
         validateRange(resolvedStart, resolvedEnd);
+        return cached(email, UserAnalyticsCacheNames.STEP_MANUAL_LOGS, "manual",
+                () -> buildCachedManualLogs(email, resolvedStart, resolvedEnd),
+                resolvedStart, resolvedEnd, user.getTimeZone());
+    }
+
+    private List<StepManualLogResponseDto> buildCachedManualLogs(String email, LocalDate startDate, LocalDate endDate) {
+        UserEntity user = getUser(email);
+        LocalDate resolvedEnd = endDate == null ? userTimeZoneSupport.today(user) : endDate;
+        LocalDate resolvedStart = startDate == null ? resolvedEnd : startDate;
+        validateRange(resolvedStart, resolvedEnd);
         return deviceDataRepository.findByUserAndProviderAndRecordedAtBetweenOrderByRecordedAtAsc(
                         user,
                         HealthProvider.MANUAL,
@@ -176,6 +213,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         DeviceDataEntity entity = new DeviceDataEntity();
         applyManualLog(entity, user, request);
         DeviceDataEntity saved = deviceDataRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.STEP);
         return toManualLogResponse(saved);
     }
 
@@ -191,6 +229,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         validateManualLog(user, request, entity);
         applyManualLog(entity, user, request);
         DeviceDataEntity saved = deviceDataRepository.save(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.STEP);
         return toManualLogResponse(saved);
     }
 
@@ -201,6 +240,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         DeviceDataEntity entity = deviceDataRepository.findByIdAndUserAndProvider(id, user, HealthProvider.MANUAL)
                 .orElseThrow(() -> new ResourceNotFoundException("Manual step log not found."));
         deviceDataRepository.delete(entity);
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.STEP);
     }
 
     @Override
@@ -233,6 +273,13 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         });
         stepGoalRepository.saveAll(dueGoals);
         return dueGoals.size();
+    }
+
+    private <T> T cached(String email, String cacheName, String variant,
+                         java.util.function.Supplier<T> loader, Object... dimensions) {
+        var identity = analyticsCacheRevisionService.requireIdentity(email);
+        String key = analyticsCacheKeyFactory.key(identity, variant, dimensions);
+        return analyticsCacheGateway.get(cacheName, key, loader);
     }
 
     private ReminderCopy randomCopy(List<ReminderCopy> options) {

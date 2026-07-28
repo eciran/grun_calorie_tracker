@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminUserActivityFilter;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionPlan;
@@ -12,6 +13,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.RefreshTokenService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserAgeSupport;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.springframework.data.domain.Page;
@@ -48,6 +50,7 @@ public class UserServiceImpl implements UserService {
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserAgeSupport userAgeSupport;
     private final int maxFailedLoginAttempts;
     private final int loginLockMinutes;
@@ -59,6 +62,7 @@ public class UserServiceImpl implements UserService {
                            RefreshTokenService refreshTokenService,
                            UserTimeZoneSupport userTimeZoneSupport,
                            UserAgeSupport userAgeSupport,
+                           UserAnalyticsCacheRevisionService analyticsCacheRevisionService,
                            @Value("${grun.security.login.max-failed-attempts:" + DEFAULT_MAX_FAILED_LOGIN_ATTEMPTS + "}") int maxFailedLoginAttempts,
                            @Value("${grun.security.login.lock-minutes:" + DEFAULT_LOGIN_LOCK_MINUTES + "}") int loginLockMinutes) {
         this.userRepository = userRepository;
@@ -68,6 +72,7 @@ public class UserServiceImpl implements UserService {
         this.refreshTokenService = refreshTokenService;
         this.userTimeZoneSupport = userTimeZoneSupport;
         this.userAgeSupport = userAgeSupport;
+        this.analyticsCacheRevisionService = analyticsCacheRevisionService;
         this.maxFailedLoginAttempts = Math.max(1, maxFailedLoginAttempts);
         this.loginLockMinutes = Math.max(1, loginLockMinutes);
     }
@@ -251,6 +256,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public MyProfileDto updateProfileBody(ProfileBodyUpdateRequestDto request, String email) {
         UserEntity user = requireUser(email);
         boolean recalculate = false;
@@ -290,6 +296,7 @@ public class UserServiceImpl implements UserService {
         if (recalculate) {
             response.setGoalRecalculationReason("Profile metrics that affect calorie calculation changed.");
         }
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.PROFILE);
         return response;
     }
 
@@ -300,6 +307,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public MyProfileDto updateProfilePreferences(ProfilePreferencesUpdateRequestDto request, String email) {
         UserEntity user = requireUser(email);
         if (request.getCountryCode() != null) {
@@ -317,7 +325,9 @@ public class UserServiceImpl implements UserService {
         if (request.getUnitPreference() != null) {
             user.setUnitPreference(request.getUnitPreference());
         }
-        return mapToMyProfileDto(userRepository.save(user));
+        MyProfileDto response = mapToMyProfileDto(userRepository.save(user));
+        analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.PROFILE);
+        return response;
     }
 
     @Override
@@ -371,6 +381,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public UserProfileDto updateCurrentUser(UserProfileDto updatedUserDto, String email) {
         return userRepository.findByEmail(email).map(existingUser -> {
             boolean goalRecalculationRecommended = false;
@@ -414,6 +425,7 @@ public class UserServiceImpl implements UserService {
 
             // DTO'dan gelen verilerle entity'yi gÃ¼ncelledikten sonra kaydet
             UserEntity updatedUser = userRepository.save(existingUser);
+            analyticsCacheRevisionService.bump(updatedUser.getId(), AnalyticsMutationSource.PROFILE);
             // Kaydedilen entity'yi DTO'ya dÃ¶nÃ¼ÅŸtÃ¼rerek dÃ¶ndÃ¼r
             UserProfileDto response = mapToUserProfileDto(updatedUser);
             response.setGoalRecalculationRecommended(goalRecalculationRecommended);
