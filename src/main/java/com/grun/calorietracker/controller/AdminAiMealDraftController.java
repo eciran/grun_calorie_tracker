@@ -124,6 +124,7 @@ public class AdminAiMealDraftController {
             @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
+    @PreAuthorize("denyAll()")
     public ResponseEntity<AdminAiQuotaRefundResponseDto> refundQuota(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "AI request id.", example = "10") @PathVariable Long requestId,
