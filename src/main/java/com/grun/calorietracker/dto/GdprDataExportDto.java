@@ -77,6 +77,32 @@ public class GdprDataExportDto {
     private List<ProductCorrectionSuggestionExportDto> productCorrectionSuggestions;
     private List<ProductAnalyticsEventExportDto> productAnalyticsEvents;
     private List<SubscriptionEventExportDto> subscriptionEvents;
+    private AdvancedFastingExportDto advancedFasting;
+
+    @Data
+    @AllArgsConstructor
+    public static class AdvancedFastingExportDto {
+        private List<AdvancedFastingProgramExportDto> programs;
+        private AdvancedFastingReminderSettingsExportDto reminderSettings;
+        private List<FastingScheduleExceptionExportDto> scheduleExceptions;
+        private List<FastingHistoryCorrectionExportDto> historyCorrections;
+        private List<FastingScheduleExceptionAuditExportDto> exceptionAudits;
+    }
+
+    public record AdvancedFastingProgramExportDto(Long id, String name, String status, LocalDate effectiveFrom,
+            LocalDate effectiveUntil, Integer currentVersionNumber, LocalDateTime createdAt, LocalDateTime updatedAt) {}
+    public record AdvancedFastingReminderSettingsExportDto(Boolean enabled, Boolean preStartEnabled,
+            Boolean startEnabled, Boolean nearingCompletionEnabled, Boolean completionEnabled,
+            Boolean missedPlanEnabled, Integer preStartMinutes, Integer nearingCompletionMinutes,
+            LocalDateTime updatedAt) {}
+    public record FastingScheduleExceptionExportDto(Long id, Long programId, LocalDate sourceDate,
+            LocalDate targetDate, String exceptionType, String movedStartTime, LocalDateTime createdAt,
+            LocalDateTime updatedAt) {}
+    public record FastingHistoryCorrectionExportDto(Long id, Long sessionId, String action,
+            LocalDateTime oldStartedAt, LocalDateTime oldEndedAt, LocalDateTime newStartedAt,
+            LocalDateTime newEndedAt, LocalDateTime createdAt) {}
+    public record FastingScheduleExceptionAuditExportDto(Long id, Long exceptionId, LocalDate sourceDate,
+            String action, LocalDateTime createdAt) {}
 
     @Data
     @AllArgsConstructor

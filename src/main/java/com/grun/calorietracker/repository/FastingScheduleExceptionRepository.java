@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 public interface FastingScheduleExceptionRepository extends JpaRepository<FastingScheduleExceptionEntity, Long> {
+    List<FastingScheduleExceptionEntity> findAllByUserIdOrderBySourceDateAsc(Long userId);
     Optional<FastingScheduleExceptionEntity> findByUserAndSourceDate(UserEntity user, LocalDate sourceDate);
     List<FastingScheduleExceptionEntity> findByUserAndSourceDateBetween(UserEntity user, LocalDate start, LocalDate end);
     List<FastingScheduleExceptionEntity> findByUserAndTargetDateBetween(UserEntity user, LocalDate start, LocalDate end);

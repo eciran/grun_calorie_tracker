@@ -15,6 +15,10 @@ import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingPlanRepository;
 import com.grun.calorietracker.repository.FastingProgramRepository;
+import com.grun.calorietracker.repository.AdvancedFastingReminderSettingsRepository;
+import com.grun.calorietracker.repository.FastingScheduleExceptionRepository;
+import com.grun.calorietracker.repository.FastingHistoryCorrectionRepository;
+import com.grun.calorietracker.repository.FastingScheduleExceptionAuditRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FailedBarcodeScanRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -96,6 +100,10 @@ class AccountGdprServiceImplTest {
     @Mock private WaterReminderSettingsRepository waterReminderSettingsRepository;
     @Mock private FastingPlanRepository fastingPlanRepository;
     @Mock private FastingProgramRepository fastingProgramRepository;
+    @Mock private AdvancedFastingReminderSettingsRepository advancedFastingReminderSettingsRepository;
+    @Mock private FastingScheduleExceptionRepository fastingScheduleExceptionRepository;
+    @Mock private FastingHistoryCorrectionRepository fastingHistoryCorrectionRepository;
+    @Mock private FastingScheduleExceptionAuditRepository fastingScheduleExceptionAuditRepository;
     @Mock private FastingSessionRepository fastingSessionRepository;
     @Mock private StepGoalRepository stepGoalRepository;
     @Mock private UserPushTokenRepository userPushTokenRepository;
@@ -148,6 +156,10 @@ class AccountGdprServiceImplTest {
                 waterReminderSettingsRepository,
                 fastingPlanRepository,
                 fastingProgramRepository,
+                advancedFastingReminderSettingsRepository,
+                fastingScheduleExceptionRepository,
+                fastingHistoryCorrectionRepository,
+                fastingScheduleExceptionAuditRepository,
                 fastingSessionRepository,
                 stepGoalRepository,
                 userPushTokenRepository,
@@ -175,6 +187,12 @@ class AccountGdprServiceImplTest {
         user.setCountryCode(com.grun.calorietracker.enums.CountryCode.IE);
         user.setEmailVerified(true);
         user.setPasswordSet(true);
+
+        when(fastingProgramRepository.findAllByUserIdOrderByCreatedAtDesc(10L)).thenReturn(java.util.List.of());
+        when(advancedFastingReminderSettingsRepository.findByUser(user)).thenReturn(Optional.empty());
+        when(fastingScheduleExceptionRepository.findAllByUserIdOrderBySourceDateAsc(10L)).thenReturn(java.util.List.of());
+        when(fastingHistoryCorrectionRepository.findAllByUserIdOrderByCreatedAtDesc(10L)).thenReturn(java.util.List.of());
+        when(fastingScheduleExceptionAuditRepository.findAllByUserIdOrderByCreatedAtDesc(10L)).thenReturn(java.util.List.of());
     }
 
     @Test

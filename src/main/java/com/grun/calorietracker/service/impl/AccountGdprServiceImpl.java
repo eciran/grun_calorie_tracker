@@ -38,6 +38,10 @@ import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingPlanRepository;
 import com.grun.calorietracker.repository.FastingProgramRepository;
+import com.grun.calorietracker.repository.AdvancedFastingReminderSettingsRepository;
+import com.grun.calorietracker.repository.FastingScheduleExceptionRepository;
+import com.grun.calorietracker.repository.FastingHistoryCorrectionRepository;
+import com.grun.calorietracker.repository.FastingScheduleExceptionAuditRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FailedBarcodeScanRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -122,6 +126,10 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
     private final FastingPlanRepository fastingPlanRepository;
     private final FastingProgramRepository fastingProgramRepository;
+    private final AdvancedFastingReminderSettingsRepository advancedFastingReminderSettingsRepository;
+    private final FastingScheduleExceptionRepository fastingScheduleExceptionRepository;
+    private final FastingHistoryCorrectionRepository fastingHistoryCorrectionRepository;
+    private final FastingScheduleExceptionAuditRepository fastingScheduleExceptionAuditRepository;
     private final FastingSessionRepository fastingSessionRepository;
     private final StepGoalRepository stepGoalRepository;
     private final UserPushTokenRepository userPushTokenRepository;
@@ -231,10 +239,39 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 failedBarcodeScanRepository.findByUserOrderByLastScannedAtDesc(user).stream().map(this::toFailedBarcodeScanExport).toList(),
                 productCorrectionSuggestionRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toProductCorrectionSuggestionExport).toList(),
                 productAnalyticsEventRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toProductAnalyticsEventExport).toList(),
-                subscriptionProviderEventRepository.findByUserOrderByReceivedAtDesc(user).stream().map(this::toSubscriptionEventExport).toList()
+                subscriptionProviderEventRepository.findByUserOrderByReceivedAtDesc(user).stream().map(this::toSubscriptionEventExport).toList(),
+                toAdvancedFastingExport(user)
         );
     }
 
+    private GdprDataExportDto.AdvancedFastingExportDto toAdvancedFastingExport(UserEntity user) {
+        var programs = fastingProgramRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(program -> new GdprDataExportDto.AdvancedFastingProgramExportDto(program.getId(),
+                        program.getName(), program.getStatus().name(), program.getEffectiveFrom(),
+                        program.getEffectiveUntil(), program.getCurrentVersionNumber(), program.getCreatedAt(),
+                        program.getUpdatedAt())).toList();
+        var reminders = advancedFastingReminderSettingsRepository.findByUser(user)
+                .map(settings -> new GdprDataExportDto.AdvancedFastingReminderSettingsExportDto(
+                        settings.getEnabled(), settings.getPreStartEnabled(), settings.getStartEnabled(),
+                        settings.getNearingCompletionEnabled(), settings.getCompletionEnabled(),
+                        settings.getMissedPlanEnabled(), settings.getPreStartMinutes(),
+                        settings.getNearingCompletionMinutes(), settings.getUpdatedAt())).orElse(null);
+        var exceptions = fastingScheduleExceptionRepository.findAllByUserIdOrderBySourceDateAsc(user.getId()).stream()
+                .map(exception -> new GdprDataExportDto.FastingScheduleExceptionExportDto(exception.getId(),
+                        exception.getProgram().getId(), exception.getSourceDate(), exception.getTargetDate(),
+                        exception.getExceptionType().name(), exception.getMovedStartTime() == null ? null
+                                : exception.getMovedStartTime().toString(), exception.getCreatedAt(),
+                        exception.getUpdatedAt())).toList();
+        var corrections = fastingHistoryCorrectionRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(correction -> new GdprDataExportDto.FastingHistoryCorrectionExportDto(correction.getId(),
+                        correction.getSession().getId(), correction.getAction().name(), correction.getOldStartedAt(),
+                        correction.getOldEndedAt(), correction.getNewStartedAt(), correction.getNewEndedAt(),
+                        correction.getCreatedAt())).toList();
+        var audits = fastingScheduleExceptionAuditRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(audit -> new GdprDataExportDto.FastingScheduleExceptionAuditExportDto(audit.getId(),
+                        audit.getExceptionId(), audit.getSourceDate(), audit.getAction(), audit.getCreatedAt())).toList();
+        return new GdprDataExportDto.AdvancedFastingExportDto(programs, reminders, exceptions, corrections, audits);
+    }
     @Override
     @Transactional
     public void anonymizeAndDeleteAccount(String userEmail, String confirmText, String currentPassword) {
