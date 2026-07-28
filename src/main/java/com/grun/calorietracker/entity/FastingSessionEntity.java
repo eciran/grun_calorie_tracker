@@ -18,12 +18,14 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "fasting_sessions")
+@SQLRestriction("archived_at IS NULL")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -89,6 +91,11 @@ public class FastingSessionEntity {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    @Column(nullable = false)
+    private Boolean manualEntry = false;
+
+    private LocalDateTime archivedAt;
 
     @PrePersist
     void prePersist() {

@@ -38,6 +38,20 @@ public interface FastingSessionRepository extends JpaRepository<FastingSessionEn
     long countByUser(UserEntity user);
     long countByStartedAtAfter(LocalDateTime startedAt);
     long countByStatus(FastingSessionStatus status);
+    @Query("""
+            select count(session)
+            from FastingSessionEntity session
+            where session.user = :user
+              and (:excludedId is null or session.id <> :excludedId)
+              and session.status <> com.grun.calorietracker.enums.FastingSessionStatus.CANCELLED
+              and session.startedAt < :endedAt
+              and (session.endedAt is null or session.endedAt > :startedAt)
+            """)
+    long countOverlappingHistory(
+            @Param("user") UserEntity user,
+            @Param("excludedId") Long excludedId,
+            @Param("startedAt") LocalDateTime startedAt,
+            @Param("endedAt") LocalDateTime endedAt);
     long deleteByUser(UserEntity user);
     boolean existsByUserAndFastingDateAndStatusAndTargetReachedTrue(
             UserEntity user,
