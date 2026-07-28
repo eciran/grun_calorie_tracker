@@ -19,6 +19,8 @@ public class AdvancedFastingExecutionController {
  private final AdvancedFastingScheduleExceptionService exceptionService;
  @GetMapping("/{date}") @Operation(summary="Get planned fasting occurrence")
  public ResponseEntity<FastingOccurrenceDto> get(@AuthenticationPrincipal UserDetails user,@PathVariable LocalDate date){ return ResponseEntity.ok(service.getOrCreate(user.getUsername(),date)); }
+ @GetMapping("/{date}/nutrition-summary") @Operation(summary="Get canonical reduced-day nutrition summary")
+ public ResponseEntity<ReducedDayNutritionSummaryDto> nutritionSummary(@AuthenticationPrincipal UserDetails user,@PathVariable LocalDate date){ return ResponseEntity.ok(service.reducedDayNutritionSummary(user.getUsername(),date)); }
  @PostMapping("/{date}/recalculate") @Operation(summary="Recalculate occurrence adherence")
  public ResponseEntity<FastingOccurrenceDto> recalculate(@AuthenticationPrincipal UserDetails user,@PathVariable LocalDate date){ return ResponseEntity.ok(service.recalculate(user.getUsername(),date)); }
  @PostMapping("/{date}/skip") @Operation(summary="Skip planned fasting occurrence")

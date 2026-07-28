@@ -18,6 +18,7 @@ import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -33,6 +34,7 @@ import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +58,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     private final UserRepository userRepository;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final FastingDiaryContextResolver fastingDiaryContextResolver;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -87,6 +90,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         markFoodItemUsed(foodItem);
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        publishDiaryChanged(user, saved.getLogDate());
         return toDto(saved);
     }
 
@@ -129,6 +133,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setSource(resolveSource(dto.getSource(), FoodLogSource.AI_ESTIMATE));
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        publishDiaryChanged(user, saved.getLogDate());
         return toDto(saved);
     }
     @Override
@@ -151,6 +156,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         List<FoodLogsDto> copied = toDtos(user, copiedEntities);
         if (!copied.isEmpty()) {
             analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+            publishDiaryChanged(user, request.getTargetDate().atStartOfDay());
         }
         return copied;
     }
@@ -161,6 +167,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         UserEntity user = getUser(email);
         FoodLogsEntity entity = foodLogsRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
+        LocalDateTime previousLogDate = entity.getLogDate();
         validateFoodLogUpdateRequest(dto, entity);
         FoodItemEntity foodItem = resolveFoodItemForUpdate(dto, entity);
         if (foodItem != null) {
@@ -185,6 +192,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        publishDiaryChanged(user, previousLogDate);
+        publishDiaryChanged(user, saved.getLogDate());
         return toDto(saved);
     }
 
@@ -299,6 +308,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
         FoodLogsEntity saved = foodLogsRepository.save(entity);
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        publishDiaryChanged(user, saved.getLogDate());
         return toDto(saved);
     }
 
@@ -319,6 +329,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Food log not found"));
         foodLogsRepository.delete(entity);
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        publishDiaryChanged(user, entity.getLogDate());
     }
 
     @Override
@@ -764,6 +775,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (foodItem.getVerificationStatus() == VerificationStatus.REJECTED) {
             throw new ProductNotFoundException("Food item is not available");
         }
+    }
+
+    private void publishDiaryChanged(UserEntity user, LocalDateTime timestamp) {
+        if (eventPublisher != null && timestamp != null) eventPublisher.publishEvent(new FoodDiaryChangedEvent(user.getEmail(), timestamp.toLocalDate()));
     }
 
     private UserEntity getUser(String email) {

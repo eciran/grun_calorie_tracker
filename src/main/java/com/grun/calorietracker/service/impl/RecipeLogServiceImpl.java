@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
+import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.RecipeLogRepository;
@@ -16,6 +17,7 @@ import com.grun.calorietracker.service.RecipeLogService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.FastingDiaryContextResolver;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
     private final RecipeLogRepository recipeLogRepository;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final FastingDiaryContextResolver fastingDiaryContextResolver;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -49,6 +52,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         applyRequest(log, recipe, request);
         RecipeLogEntity saved = recipeLogRepository.save(log);
         analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.RECIPE_LOG);
+        publishDiaryChanged(email, saved.getLogDate());
         return toDto(saved);
     }
 
@@ -69,9 +73,12 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         validateLogRequest(request);
         RecipeLogEntity log = recipeLogRepository.findByIdAndUser(logId, getUser(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe log not found"));
+        LocalDateTime previousLogDate = log.getLogDate();
         applyUpdateRequest(log, request);
         RecipeLogEntity saved = recipeLogRepository.save(log);
         analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.RECIPE_LOG);
+        publishDiaryChanged(email, previousLogDate);
+        publishDiaryChanged(email, saved.getLogDate());
         return toDto(saved);
     }
 
@@ -82,6 +89,7 @@ public class RecipeLogServiceImpl implements RecipeLogService {
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe log not found"));
         recipeLogRepository.delete(log);
         analyticsCacheRevisionService.bumpForEmail(email, AnalyticsMutationSource.RECIPE_LOG);
+        publishDiaryChanged(email, log.getLogDate());
     }
 
     private void applyRequest(RecipeLogEntity log, RecipeEntity recipe, RecipeLogRequestDto request) {
@@ -243,6 +251,10 @@ public class RecipeLogServiceImpl implements RecipeLogService {
         dto.setSnapshotVitaminB12(log.getSnapshotVitaminB12());
         dto.setFastingContext(fastingContext == null ? FastingDiaryContextDto.outsideWindow() : fastingContext);
         return dto;
+    }
+
+    private void publishDiaryChanged(String email, LocalDateTime timestamp) {
+        if (eventPublisher != null && timestamp != null) eventPublisher.publishEvent(new FoodDiaryChangedEvent(email, timestamp.toLocalDate()));
     }
 
     private UserEntity getUser(String email) {

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 public interface AdvancedFastingExecutionService {
  FastingOccurrenceDto getOrCreate(String email,LocalDate date);
  FastingOccurrenceDto recalculate(String email,LocalDate date);
+ ReducedDayNutritionSummaryDto reducedDayNutritionSummary(String email,LocalDate date);
  FastingOccurrenceDto skip(String email,LocalDate date,FastingOccurrenceSkipRequestDto request);
  FastingSessionDto start(String email,LocalDate date,FastingSessionStartRequestDto request);
 }

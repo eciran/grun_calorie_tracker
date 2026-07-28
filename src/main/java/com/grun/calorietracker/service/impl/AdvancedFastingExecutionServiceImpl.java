@@ -31,6 +31,13 @@ public class AdvancedFastingExecutionServiceImpl implements AdvancedFastingExecu
   return dto(refresh(occurrence,email,user));
  }
  @Override @Transactional public FastingOccurrenceDto recalculate(String email,LocalDate date){ return getOrCreate(email,date); }
+ @Override @Transactional public ReducedDayNutritionSummaryDto reducedDayNutritionSummary(String email,LocalDate date){
+  FastingOccurrenceDto occurrence=getOrCreate(email,date);
+  if(occurrence.ruleType()!=FastingDayRuleType.REDUCED_CALORIE) throw new AdvancedFastingException(AdvancedFastingErrorCode.REDUCED_CALORIE_OCCURRENCE_REQUIRED,"Nutrition summary is only available for reduced-calorie occurrences.");
+  double consumed=occurrence.actualCalories()==null?0.0:occurrence.actualCalories();
+  double remaining=Math.round((occurrence.plannedCalorieTarget()-consumed)*100.0)/100.0;
+  return new ReducedDayNutritionSummaryDto(occurrence.id(),occurrence.occurrenceDate(),occurrence.plannedCalorieTarget(),consumed,remaining,occurrence.evaluatedAt(),occurrence.adherenceStatus());
+ }
  @Override @Transactional public FastingOccurrenceDto skip(String email,LocalDate date,FastingOccurrenceSkipRequestDto request){
   UserEntity user=user(email); LocalDate resolved=date==null?timeZoneSupport.today(user):date;
   FastingProgramOccurrenceEntity occurrence=occurrenceRepository.findByUserAndOccurrenceDate(user,resolved).orElseGet(()->createOccurrence(user,resolved));
