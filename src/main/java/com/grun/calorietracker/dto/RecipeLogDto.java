@@ -11,6 +11,7 @@ public class RecipeLogDto {
     private Long id;
     private Long recipeId;
     private String recipeName;
+    private String imageUrl;
     private Double servingGrams;
     private Double servingCount;
     private String mealType;

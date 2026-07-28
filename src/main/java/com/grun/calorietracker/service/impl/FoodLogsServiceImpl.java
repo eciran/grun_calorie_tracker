@@ -467,6 +467,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setId(log.getId());
         dto.setRecipeId(log.getRecipe().getId());
         dto.setRecipeName(log.getRecipe().getName());
+        dto.setImageUrl(log.getRecipe().getImageUrl());
         dto.setServingGrams(log.getServingGrams());
         dto.setServingCount(log.getServingCount());
         dto.setMealType(log.getMealType());
