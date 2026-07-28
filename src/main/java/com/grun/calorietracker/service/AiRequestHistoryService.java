@@ -10,4 +10,6 @@ public interface AiRequestHistoryService {
     List<AiRequestHistoryDetailDto> listHistory(String email, AiRequestType requestType, AiRequestStatus status, int limit);
 
     AiRequestHistoryDetailDto getHistoryItem(String email, Long requestId);
+
+    void acknowledgeCompletion(String email, Long requestId);
 }

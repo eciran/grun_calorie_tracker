@@ -223,6 +223,31 @@ class AiMealDraftServiceImplTest {
         verifyNoInteractions(providerClient, subscriptionService, historyRepository);
     }
 
+
+    @Test
+    void createPhotoMealDraft_passesRequestedLocaleToProvider() {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(providerClient.provider()).thenReturn(AiProvider.LOG);
+        when(providerClient.createPhotoMealDraft(any())).thenReturn(providerResponse());
+        SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiRemainingThisPeriod(14);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
+            AiRequestHistoryEntity entity = invocation.getArgument(0);
+            entity.setId(11L);
+            return entity;
+        });
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://api.grun.app/api/v1/ai/meal-drafts/photo-references/meal.jpg");
+        request.setLocale("tr");
+
+        service.createPhotoMealDraft("user@example.com", request);
+
+        ArgumentCaptor<AiPhotoMealDraftRequestDto> requestCaptor =
+                ArgumentCaptor.forClass(AiPhotoMealDraftRequestDto.class);
+        verify(providerClient).createPhotoMealDraft(requestCaptor.capture());
+        assertEquals("tr", requestCaptor.getValue().getLocale());
+    }
     @Test
     void createPhotoMealDraft_whenImageReferencePrefixNotAllowed_doesNotCallProviderOrConsumeQuota() {
         AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
@@ -557,6 +582,3 @@ class AiMealDraftServiceImplTest {
         return response;
     }
 }
-
-
-

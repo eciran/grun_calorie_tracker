@@ -306,10 +306,27 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     private void enrichRequestContext(Object request, UserEntity user) {
         Map<String, Object> context = toUserContext(user);
         if (request instanceof AiVoiceFoodDraftRequestDto voiceRequest) {
+            voiceRequest.setLocale(resolveOutputLocale(voiceRequest.getLocale(), user));
             voiceRequest.setUserContext(context);
         } else if (request instanceof AiPhotoMealDraftRequestDto photoRequest) {
+            photoRequest.setLocale(resolveOutputLocale(photoRequest.getLocale(), user));
             photoRequest.setUserContext(context);
         }
+    }
+
+    private String resolveOutputLocale(String requestedLocale, UserEntity user) {
+        String normalized = requestedLocale == null
+                ? ""
+                : requestedLocale.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.equals("tr") || normalized.startsWith("tr-") || normalized.startsWith("tr_")) {
+            return "tr";
+        }
+        if (normalized.equals("en") || normalized.startsWith("en-") || normalized.startsWith("en_")) {
+            return "en";
+        }
+        return user.getPreferredLanguage() != null && user.getPreferredLanguage().name().equals("TR")
+                ? "tr"
+                : "en";
     }
 
     private Map<String, Object> toUserContext(UserEntity user) {

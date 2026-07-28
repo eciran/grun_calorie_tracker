@@ -89,6 +89,37 @@ class AiCompletionNotificationServiceTest {
         verifyNoInteractions(notificationRepository, pushDeliveryService);
     }
 
+
+    @Test
+    void publishPendingNotifications_localizesPhotoMealCopy() {
+        AiRequestHistoryRepository historyRepository = mock(AiRequestHistoryRepository.class);
+        NotificationRepository notificationRepository = mock(NotificationRepository.class);
+        PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
+        UserEntity user = new UserEntity();
+        user.setId(9L);
+        user.setPreferredLanguage(PreferredLanguage.TR);
+        AiRequestHistoryEntity history = new AiRequestHistoryEntity();
+        history.setId(44L);
+        history.setUser(user);
+        history.setRequestType(AiRequestType.PHOTO_MEAL_LOG);
+        history.setStatus(AiRequestStatus.DRAFT_CREATED);
+        when(historyRepository.findPendingCompletionNotifications(anyList(), any(Pageable.class)))
+                .thenReturn(List.of(history));
+        when(notificationRepository.save(any(NotificationEntity.class)))
+                .thenAnswer(call -> call.getArgument(0));
+
+        new AiCompletionNotificationService(
+                historyRepository, notificationRepository, pushDeliveryService, messageSource())
+                .publishPendingNotifications();
+
+        ArgumentCaptor<NotificationEntity> captor = ArgumentCaptor.forClass(NotificationEntity.class);
+        verify(notificationRepository).save(captor.capture());
+        assertEquals("Öğün taraman hazır!", captor.getValue().getTitle());
+        assertEquals(
+                "Tespit edilen yiyecekleri ve porsiyonları günlüğüne eklemeden önce inceleyebilirsin.",
+                captor.getValue().getMessage());
+        assertEquals("ai-draft-review", captor.getValue().getTargetRoute());
+    }
     private ResourceBundleMessageSource messageSource() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
         source.setBasename("messages");

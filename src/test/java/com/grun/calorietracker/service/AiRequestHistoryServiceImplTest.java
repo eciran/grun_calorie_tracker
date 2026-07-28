@@ -64,4 +64,24 @@ class AiRequestHistoryServiceImplTest {
         assertEquals("AI_ANALYSIS_FAILED", result.getSafeOutputPayload().get("errorCode").asText());
         assertEquals("PHOTO_MEAL_LOG", result.getSafeOutputPayload().get("requestType").asText());
     }
+
+    @Test
+    void acknowledgeCompletion_whenDraftIsReady_marksItSeen() {
+        UserEntity user = new UserEntity();
+        user.setId(2L);
+        user.setEmail("foreground@example.com");
+
+        AiRequestHistoryEntity history = new AiRequestHistoryEntity();
+        history.setId(8L);
+        history.setUser(user);
+        history.setStatus(AiRequestStatus.DRAFT_CREATED);
+
+        when(userRepository.findByEmail("foreground@example.com")).thenReturn(Optional.of(user));
+        when(historyRepository.findByIdAndUser(8L, user)).thenReturn(Optional.of(history));
+
+        service.acknowledgeCompletion("foreground@example.com", 8L);
+
+        assertNotNull(history.getCompletionNotifiedAt());
+        org.mockito.Mockito.verify(historyRepository).save(history);
+    }
 }

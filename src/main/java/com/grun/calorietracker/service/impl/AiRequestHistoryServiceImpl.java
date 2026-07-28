@@ -16,7 +16,9 @@ import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -43,6 +45,22 @@ public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
         AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
                 .orElseThrow(() -> new IllegalArgumentException("AI request history item was not found."));
         return toDto(history);
+    }
+
+    @Override
+    @Transactional
+    public void acknowledgeCompletion(String email, Long requestId) {
+        UserEntity user = getUser(email);
+        AiRequestHistoryEntity history = aiRequestHistoryRepository.findByIdAndUser(requestId, user)
+                .orElseThrow(() -> new IllegalArgumentException("AI request history item was not found."));
+        if (history.getStatus() != AiRequestStatus.DRAFT_CREATED
+                && history.getStatus() != AiRequestStatus.FAILED) {
+            throw new IllegalArgumentException("AI request is not complete.");
+        }
+        if (history.getCompletionNotifiedAt() == null) {
+            history.setCompletionNotifiedAt(LocalDateTime.now());
+            aiRequestHistoryRepository.save(history);
+        }
     }
 
     private List<AiRequestHistoryEntity> findHistory(

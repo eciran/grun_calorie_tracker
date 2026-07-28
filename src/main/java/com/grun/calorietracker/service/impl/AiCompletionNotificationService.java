@@ -97,6 +97,18 @@ public class AiCompletionNotificationService {
                     messageSource.getMessage("notification.ai.failed.message", new Object[]{label}, "Request could not be completed", locale),
                     route);
         }
+        if (type == AiRequestType.PHOTO_MEAL_LOG) {
+            return new NotificationCopy(
+                    messageSource.getMessage("notification.ai.ready.photo-meal-log.title", null, "Your meal scan is ready!", locale),
+                    messageSource.getMessage("notification.ai.ready.photo-meal-log.message", null, "Review the detected foods and portions before adding them to your diary.", locale),
+                    route);
+        }
+        if (type == AiRequestType.VOICE_FOOD_LOG) {
+            return new NotificationCopy(
+                    messageSource.getMessage("notification.ai.ready.voice-food-log.title", null, "Your meal draft is ready!", locale),
+                    messageSource.getMessage("notification.ai.ready.voice-food-log.message", null, "Review your meal draft before adding it to your diary.", locale),
+                    route);
+        }
         return new NotificationCopy(
                 messageSource.getMessage("notification.ai.ready.title", new Object[]{label}, "AI result is ready", locale),
                 messageSource.getMessage("notification.ai.ready.message", null, "AI result is ready to review", locale),

@@ -22,6 +22,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -75,5 +76,24 @@ public class AiRequestHistoryController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "AI request id.", example = "10") @PathVariable Long requestId) {
         return ResponseEntity.ok(aiRequestHistoryService.getHistoryItem(userDetails.getUsername(), requestId));
+    }
+
+    @PostMapping("/history/{requestId}/completion-seen")
+    @Operation(
+            summary = "Acknowledge a completed AI request",
+            description = "Marks a completed, user-owned AI request as seen in the foreground so a redundant completion push is not sent. The operation is idempotent."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Completion acknowledged."),
+            @ApiResponse(responseCode = "400", description = "The request was not found or is not complete.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<Void> acknowledgeCompletion(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "AI request id.", example = "10") @PathVariable Long requestId) {
+        aiRequestHistoryService.acknowledgeCompletion(userDetails.getUsername(), requestId);
+        return ResponseEntity.noContent().build();
     }
 }

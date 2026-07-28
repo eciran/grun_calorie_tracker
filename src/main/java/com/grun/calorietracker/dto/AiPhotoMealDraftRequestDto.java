@@ -25,6 +25,10 @@ public class AiPhotoMealDraftRequestDto {
     @Schema(description = "Diary timestamp to use for the draft.", example = "2026-06-01T13:30:00")
     private LocalDateTime logDate;
 
+    @Size(max = 10, message = "Locale must not exceed 10 characters")
+    @Schema(description = "Requested language for user-visible AI output.", example = "tr")
+    private String locale;
+
     @Schema(description = "Backend-built user profile context for provider calls. Clients should not set this field.", accessMode = Schema.AccessMode.READ_ONLY)
     private Object userContext;
 }
