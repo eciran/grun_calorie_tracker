@@ -41,6 +41,8 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
 
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MINIMUM_COMPARISON_DAYS = 4;
+    private static final double MINIMUM_COMPARISON_COVERAGE_PERCENT = 40.0;
+    private static final double MINIMUM_BASELINE_TARGET_PERCENT = 5.0;
     private static final int MAX_INSIGHTS = 5;
     private static final List<NutrientDefinition> NUTRIENTS = List.of(
             nutrient("SODIUM", "MG", "AT_MOST", FoodLogDailyStatsDto::getTotalSodium, MicronutrientTotalsDto::getSodium),
@@ -77,7 +79,7 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
         UserAnalyticsCacheIdentity identity = analyticsCacheRevisionService.requireIdentity(email);
         String key = analyticsCacheKeyFactory.key(
                 identity,
-                "micronutrients-v1",
+                "micronutrients-v2",
                 startDate,
                 endDate,
                 comparePrevious,
@@ -236,31 +238,38 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
                 .interpretation(interpret(average, target, availableDays, definition.referenceDirection()))
                 .trend(trend)
                 .comparison(comparePrevious
-                        ? compare(currentStats, previousStats)
+                        ? compare(currentStats, previousStats, dayCount, target)
                         : null)
                 .build();
     }
 
     private MicronutrientAnalyticsDto.PeriodComparison compare(
             DoubleSummaryStatistics current,
-            DoubleSummaryStatistics previous
+            DoubleSummaryStatistics previous,
+            int dayCount,
+            Double target
     ) {
-        boolean sufficient = current.getCount() >= MINIMUM_COMPARISON_DAYS
-                && previous.getCount() >= MINIMUM_COMPARISON_DAYS;
-        if (!sufficient) {
-            return MicronutrientAnalyticsDto.PeriodComparison.builder()
-                    .currentAverage(current.getCount() == 0 ? null : round(current.getAverage()))
-                    .previousAverage(previous.getCount() == 0 ? null : round(previous.getAverage()))
-                    .direction("INSUFFICIENT_DATA")
-                    .sufficientData(false)
-                    .build();
+        int requiredDays = Math.max(
+                MINIMUM_COMPARISON_DAYS,
+                (int) Math.ceil(dayCount * MINIMUM_COMPARISON_COVERAGE_PERCENT / 100.0)
+        );
+        boolean sufficientCoverage = current.getCount() >= requiredDays
+                && previous.getCount() >= requiredDays;
+        if (!sufficientCoverage) {
+            return insufficientComparison(current, previous, null);
         }
+
         double currentAverage = current.getAverage();
         double previousAverage = previous.getAverage();
         double change = currentAverage - previousAverage;
-        Double percentChange = Math.abs(previousAverage) < 0.0001
-                ? (Math.abs(currentAverage) < 0.0001 ? 0.0 : null)
-                : round(change / Math.abs(previousAverage) * 100.0);
+        double baselineFloor = target != null && target > 0.0
+                ? target * MINIMUM_BASELINE_TARGET_PERCENT / 100.0
+                : Math.max(Math.abs(currentAverage) * MINIMUM_BASELINE_TARGET_PERCENT / 100.0, 0.0001);
+        if (Math.abs(previousAverage) < baselineFloor) {
+            return insufficientComparison(current, previous, round(change));
+        }
+
+        Double percentChange = round(change / Math.abs(previousAverage) * 100.0);
         String direction = Math.abs(change) < 0.01 ? "STABLE" : change > 0 ? "UP" : "DOWN";
         return MicronutrientAnalyticsDto.PeriodComparison.builder()
                 .currentAverage(round(currentAverage))
@@ -269,6 +278,21 @@ public class MicronutrientAnalyticsServiceImpl implements MicronutrientAnalytics
                 .percentChange(percentChange)
                 .direction(direction)
                 .sufficientData(true)
+                .build();
+    }
+
+    private MicronutrientAnalyticsDto.PeriodComparison insufficientComparison(
+            DoubleSummaryStatistics current,
+            DoubleSummaryStatistics previous,
+            Double absoluteChange
+    ) {
+        return MicronutrientAnalyticsDto.PeriodComparison.builder()
+                .currentAverage(current.getCount() == 0 ? null : round(current.getAverage()))
+                .previousAverage(previous.getCount() == 0 ? null : round(previous.getAverage()))
+                .absoluteChange(absoluteChange)
+                .percentChange(null)
+                .direction("INSUFFICIENT_DATA")
+                .sufficientData(false)
                 .build();
     }
 

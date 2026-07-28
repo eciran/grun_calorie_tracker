@@ -206,6 +206,63 @@ class MicronutrientAnalyticsServiceImplTest {
     }
 
     @Test
+    void getAnalytics_WhenPreviousBaselineIsTiny_SuppressesMisleadingPercentage() {
+        LocalDate start = LocalDate.of(2026, 7, 5);
+        LocalDate end = LocalDate.of(2026, 7, 8);
+        LocalDate previousStart = LocalDate.of(2026, 7, 1);
+        LocalDate previousEnd = LocalDate.of(2026, 7, 4);
+        when(userService.findByEmail("micro@grun.app")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", start.atStartOfDay(), end.plusDays(1).atStartOfDay()))
+                .thenReturn(start.datesUntil(end.plusDays(1))
+                        .map(date -> food(date.toString(), 740.0, null))
+                        .toList());
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", previousStart.atStartOfDay(), previousEnd.plusDays(1).atStartOfDay()))
+                .thenReturn(previousStart.datesUntil(previousEnd.plusDays(1))
+                        .map(date -> food(date.toString(), 0.83, null))
+                        .toList());
+
+        MicronutrientAnalyticsDto.NutrientMetric sodium = nutrient(
+                service.getAnalytics("micro@grun.app", start, end, true),
+                "SODIUM"
+        );
+
+        assertFalse(sodium.getComparison().isSufficientData());
+        assertNull(sodium.getComparison().getPercentChange());
+        assertEquals(739.17, sodium.getComparison().getAbsoluteChange());
+        assertEquals("INSUFFICIENT_DATA", sodium.getComparison().getDirection());
+    }
+
+    @Test
+    void getAnalytics_WhenEitherPeriodCoverageIsBelowFortyPercent_SuppressesComparison() {
+        LocalDate start = LocalDate.of(2026, 6, 29);
+        LocalDate end = LocalDate.of(2026, 7, 28);
+        LocalDate previousStart = LocalDate.of(2026, 5, 30);
+        LocalDate previousEnd = LocalDate.of(2026, 6, 28);
+        when(userService.findByEmail("micro@grun.app")).thenReturn(Optional.of(user));
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", start.atStartOfDay(), end.plusDays(1).atStartOfDay()))
+                .thenReturn(start.datesUntil(start.plusDays(15))
+                        .map(date -> food(date.toString(), 740.0, null))
+                        .toList());
+        when(foodLogsService.getDailyStats(
+                "micro@grun.app", previousStart.atStartOfDay(), previousEnd.plusDays(1).atStartOfDay()))
+                .thenReturn(previousStart.datesUntil(previousStart.plusDays(11))
+                        .map(date -> food(date.toString(), 600.0, null))
+                        .toList());
+
+        MicronutrientAnalyticsDto.NutrientMetric sodium = nutrient(
+                service.getAnalytics("micro@grun.app", start, end, true),
+                "SODIUM"
+        );
+
+        assertFalse(sodium.getComparison().isSufficientData());
+        assertNull(sodium.getComparison().getPercentChange());
+        assertEquals("INSUFFICIENT_DATA", sodium.getComparison().getDirection());
+    }
+
+    @Test
     void getAnalytics_WhenRangeExceedsLimit_RejectsBeforeLoadingData() {
         assertThrows(IllegalArgumentException.class, () -> service.getAnalytics(
                 "micro@grun.app",
