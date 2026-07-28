@@ -34,7 +34,7 @@ public class AdvancedFastingExecutionServiceImpl implements AdvancedFastingExecu
  @Override @Transactional public FastingOccurrenceDto skip(String email,LocalDate date,FastingOccurrenceSkipRequestDto request){
   UserEntity user=user(email); LocalDate resolved=date==null?timeZoneSupport.today(user):date;
   FastingProgramOccurrenceEntity occurrence=occurrenceRepository.findByUserAndOccurrenceDate(user,resolved).orElseGet(()->createOccurrence(user,resolved));
-  if(occurrence.getFastingSession()!=null&&occurrence.getFastingSession().getStatus()==FastingSessionStatus.ACTIVE) throw new IllegalArgumentException("An active occurrence cannot be skipped.");
+  if(occurrence.getFastingSession()!=null&&occurrence.getFastingSession().getStatus()==FastingSessionStatus.ACTIVE) throw new AdvancedFastingException(AdvancedFastingErrorCode.ACTIVE_OCCURRENCE_CANNOT_BE_SKIPPED,"An active occurrence cannot be skipped.");
   occurrence.setStatus(FastingOccurrenceStatus.SKIPPED); occurrence.setAdherenceStatus(FastingAdherenceStatus.NOT_APPLICABLE);
   occurrence.setSkipReason(request.getReason()); occurrence.setReasonNote(normalize(request.getNote())); occurrence.setEvaluatedAt(timeZoneSupport.now(user));
   return dto(occurrenceRepository.save(occurrence));
@@ -42,10 +42,10 @@ public class AdvancedFastingExecutionServiceImpl implements AdvancedFastingExecu
  @Override @Transactional public FastingSessionDto start(String email,LocalDate date,FastingSessionStartRequestDto request){
   UserEntity user=user(email); LocalDate resolved=date==null?timeZoneSupport.today(user):date;
   FastingProgramOccurrenceEntity occurrence=occurrenceRepository.findByUserAndOccurrenceDate(user,resolved).orElseGet(()->createOccurrence(user,resolved));
-  if(occurrence.getRuleType()!=FastingDayRuleType.FAST) throw new IllegalArgumentException("Only FAST occurrences create fasting sessions.");
-  if(occurrence.getStatus()==FastingOccurrenceStatus.SKIPPED) throw new IllegalArgumentException("Skipped occurrences cannot be started.");
+  if(occurrence.getRuleType()!=FastingDayRuleType.FAST) throw new AdvancedFastingException(AdvancedFastingErrorCode.FAST_OCCURRENCE_REQUIRED,"Only FAST occurrences create fasting sessions.");
+  if(occurrence.getStatus()==FastingOccurrenceStatus.SKIPPED) throw new AdvancedFastingException(AdvancedFastingErrorCode.SKIPPED_OCCURRENCE_CANNOT_BE_STARTED,"Skipped occurrences cannot be started.");
   if(occurrence.getFastingSession()!=null) return sessionDto(occurrence.getFastingSession());
-  sessionRepository.findTopByUserAndStatusOrderByStartedAtDesc(user,FastingSessionStatus.ACTIVE).ifPresent(active->{ throw new IllegalArgumentException("An active fasting session already exists."); });
+  sessionRepository.findTopByUserAndStatusOrderByStartedAtDesc(user,FastingSessionStatus.ACTIVE).ifPresent(active->{ throw new AdvancedFastingException(AdvancedFastingErrorCode.ACTIVE_FASTING_SESSION_EXISTS,"An active fasting session already exists."); });
   LocalDateTime started=request.getStartedAt()==null?timeZoneSupport.now(user):request.getStartedAt();
   int target=request.getTargetMinutes()==null?occurrence.getPlannedFastingMinutes():request.getTargetMinutes();
   FastingSessionEntity session=new FastingSessionEntity(); session.setUser(user); session.setStatus(FastingSessionStatus.ACTIVE);

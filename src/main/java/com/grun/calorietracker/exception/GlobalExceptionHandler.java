@@ -188,6 +188,14 @@ public class GlobalExceptionHandler {
     ) {
         return buildDomainResponse(ex.getCode().status(), ex.getCode().name(), ex.getMessage(), List.of(), request);
     }
+    @ExceptionHandler(AdvancedFastingException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAdvancedFastingException(
+            AdvancedFastingException ex,
+            HttpServletRequest request
+    ) {
+        return buildDomainResponse(ex.getCode().status(), ex.getCode().name(), ex.getMessage(), List.of(), request);
+    }
+
     @ExceptionHandler(FastingSafetyException.class)
     public ResponseEntity<ApiErrorResponseDto> handleFastingSafetyException(
             FastingSafetyException ex,

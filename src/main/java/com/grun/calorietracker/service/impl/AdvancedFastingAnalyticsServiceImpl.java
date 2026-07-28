@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.FastingProgramOccurrenceEntity;
 import com.grun.calorietracker.entity.FastingSessionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.*;
+import com.grun.calorietracker.exception.AdvancedFastingException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FastingProgramOccurrenceRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -67,10 +68,10 @@ public class AdvancedFastingAnalyticsServiceImpl implements AdvancedFastingAnaly
     }
 
     private void validateRange(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null) throw new IllegalArgumentException("startDate and endDate are required.");
-        if (endDate.isBefore(startDate)) throw new IllegalArgumentException("endDate must not be before startDate.");
+        if (startDate == null || endDate == null) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_ANALYTICS_RANGE, "startDate and endDate are required.");
+        if (endDate.isBefore(startDate)) throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_ANALYTICS_RANGE, "endDate must not be before startDate.");
         if (ChronoUnit.DAYS.between(startDate, endDate) + 1 > MAX_RANGE_DAYS) {
-            throw new IllegalArgumentException("Advanced fasting analytics range cannot exceed 366 days.");
+            throw new AdvancedFastingException(AdvancedFastingErrorCode.INVALID_FASTING_ANALYTICS_RANGE, "Advanced fasting analytics range cannot exceed 366 days.");
         }
     }
 
