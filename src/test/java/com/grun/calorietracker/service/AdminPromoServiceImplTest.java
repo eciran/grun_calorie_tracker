@@ -7,6 +7,9 @@ import com.grun.calorietracker.repository.*;
 import com.grun.calorietracker.service.impl.AdminPromoServiceImpl;
 import org.junit.jupiter.api.*;
 
+import java.sql.Date;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -74,6 +77,28 @@ class AdminPromoServiceImplTest {
         assertTrue(result.entitlementGuardrail().contains("never grant paid entitlement"));
     }
 
+    @Test
+    void analytics_returnsOnlyAggregateOperationsAndPadsMissingDates() {
+        LocalDate today = LocalDate.now();
+        when(promoRepository.countGroupedByStatus()).thenReturn(List.<Object[]>of(new Object[] { PromoStatus.ACTIVE, 2L }));
+        when(promoRepository.countGroupedByType()).thenReturn(List.<Object[]>of(new Object[] { PromoType.CAMPAIGN, 2L }));
+        when(redemptionRepository.countGroupedByStatus()).thenReturn(List.<Object[]>of(
+                new Object[] { PromoRedemptionStatus.CONVERTED, 3L },
+                new Object[] { PromoRedemptionStatus.REJECTED, 1L }
+        ));
+        when(redemptionRepository.countRejectedBySafeCategory()).thenReturn(List.<Object[]>of(new Object[] { "LIMIT", 1L }));
+        when(redemptionRepository.countDailyOperations(any())).thenReturn(List.<Object[]>of(
+                new Object[] { Date.valueOf(today), 4L, 3L, 1L, 2L }
+        ));
+
+        AdminPromotionOperationsAnalyticsDto result = service.analytics(7);
+
+        assertEquals(7, result.windowDays());
+        assertEquals(7, result.redemptionTrend().size());
+        assertEquals(4, result.redemptionTrend().get(6).attempts());
+        assertEquals(2, result.redemptionTrend().get(6).duplicateAttempts());
+        assertEquals("LIMIT", result.rejectionCategories().get(0).name());
+    }
     private AdminPromoRequestDto request(PromoStore store) {
         AdminPromoRequestDto request = new AdminPromoRequestDto();
         request.setCode("welcome_20");

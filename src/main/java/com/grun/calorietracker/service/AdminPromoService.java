@@ -15,5 +15,6 @@ public interface AdminPromoService {
     AdminPromoRedemptionDto recordRedemption(Long id, AdminPromoRedemptionRequestDto request,
                                              String adminEmail, String correlationId);
     AdminPromoMetricsDto metrics(Long promoId);
+    AdminPromotionOperationsAnalyticsDto analytics(int windowDays);
     AdminPromoRedemptionPageDto redemptions(Long promoId, PromoRedemptionStatus status, int page, int size);
 }

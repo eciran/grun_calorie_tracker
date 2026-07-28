@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminPromoPageDto;
+import com.grun.calorietracker.dto.AdminPromotionOperationsAnalyticsDto;
 import com.grun.calorietracker.enums.*;
 import com.grun.calorietracker.service.AdminPromoService;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class AdminPromoControllerTest {
     @MockBean AdminPromoService promoService;
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_DASHBOARD_READ"})
     void list_forwardsServerSideFiltersAndPagination() throws Exception {
         when(promoService.list("welcome", PromoStatus.ACTIVE, PromoType.INTRO_OFFER,
                 PromoStore.REVENUECAT, 2, 20)).thenReturn(new AdminPromoPageDto(List.of(), 2, 20, 45, 3, false, true));
@@ -45,4 +46,17 @@ class AdminPromoControllerTest {
     void list_rejectsNonAdmin() throws Exception {
         mockMvc.perform(get("/api/v1/admin/promotions")).andExpect(status().isForbidden());
     }
-}
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_DASHBOARD_READ"})
+    void analytics_forwardsValidatedWindow() throws Exception {
+        when(promoService.analytics(30)).thenReturn(new AdminPromotionOperationsAnalyticsDto(
+                30, List.of(), List.of(), List.of(), List.of(), List.of()
+        ));
+
+        mockMvc.perform(get("/api/v1/admin/promotions/analytics").param("windowDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.windowDays").value(30));
+
+        verify(promoService).analytics(30);
+    }}

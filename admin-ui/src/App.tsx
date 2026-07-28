@@ -26,6 +26,7 @@ import {
   AdminEngagementAnalytics,
   AdminPromotion,
   AdminPromotionMetrics,
+  AdminPromotionOperationsAnalytics,
   AdminPromotionPage,
   AdminPromotionPreview,
   AdminPromotionReconciliation,
@@ -114,6 +115,11 @@ const RecipeModerationChart = lazy(() => import("./RecipeOperationsCharts").then
 const RecipeBacklogChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeBacklogChart })));
 const RecipeImportPipelineChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeImportPipelineChart })));
 const RecipeSubmissionTrendChart = lazy(() => import("./RecipeOperationsCharts").then((module) => ({ default: module.RecipeSubmissionTrendChart })));
+const PromotionLifecycleChart = lazy(() => import("./PromotionOperationsCharts").then((module) => ({ default: module.PromotionLifecycleChart })));
+const PromotionTypeChart = lazy(() => import("./PromotionOperationsCharts").then((module) => ({ default: module.PromotionTypeChart })));
+const RedemptionOutcomeChart = lazy(() => import("./PromotionOperationsCharts").then((module) => ({ default: module.RedemptionOutcomeChart })));
+const PromotionRejectionChart = lazy(() => import("./PromotionOperationsCharts").then((module) => ({ default: module.PromotionRejectionChart })));
+const PromotionRedemptionTrendChart = lazy(() => import("./PromotionOperationsCharts").then((module) => ({ default: module.PromotionRedemptionTrendChart })));
 
 type SectionKey =
   | "dashboard"
@@ -10933,6 +10939,8 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
   const [state, setState] = useState<LoadState>("idle");
   const [pageData, setPageData] = useState<AdminPromotionPage>({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true });
   const [metrics, setMetrics] = useState<AdminPromotionMetrics | null>(null);
+  const [analytics, setAnalytics] = useState<AdminPromotionOperationsAnalytics | null>(null);
+  const [analyticsWindowDays, setAnalyticsWindowDays] = useState(30);
   const [redemptions, setRedemptions] = useState<AdminPromotionRedemptionPage>({ content: [], page: 0, size: 10, totalElements: 0, totalPages: 0, first: true, last: true });
   const [redemptionPage, setRedemptionPage] = useState(0);
   const [redemptionStatus, setRedemptionStatus] = useState("");
@@ -10963,14 +10971,16 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
       if (store) params.set("store", store);
       const redemptionParams = new URLSearchParams({ page: String(redemptionPage), size: "10" });
       if (redemptionStatus) redemptionParams.set("status", redemptionStatus);
-      const [promotions, summary, redemptionPageData] = await Promise.all([
+      const [promotions, summary, redemptionPageData, analyticsData] = await Promise.all([
         request<AdminPromotionPage>(`/api/v1/admin/promotions?${params}`),
         request<AdminPromotionMetrics>("/api/v1/admin/promotions/metrics"),
-        request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${redemptionParams}`)
+request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${redemptionParams}`),
+        request<AdminPromotionOperationsAnalytics>(`/api/v1/admin/promotions/analytics?windowDays=${analyticsWindowDays}`)
       ]);
       setPageData(promotions);
       setMetrics(summary);
       setRedemptions(redemptionPageData);
+      setAnalytics(analyticsData);
       setState("ready");
     } catch (error) {
       setState("error");
@@ -10978,7 +10988,7 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
     }
   }
 
-  useEffect(() => { void load(); }, [page, size, appliedSearch, status, type, store, redemptionPage, redemptionStatus]);
+  useEffect(() => { void load(); }, [page, size, appliedSearch, status, type, store, redemptionPage, redemptionStatus, analyticsWindowDays]);
 
   function resetDraft() {
     setDraft(EMPTY_PROMOTION);
@@ -11089,7 +11099,13 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
   const revenueLabel = (metrics?.revenueByCurrency ?? []).length
     ? (metrics?.revenueByCurrency ?? []).map((item) => `${((item.amountMinor ?? 0) / 100).toFixed(2)} ${item.currency ?? ""}`).join(" ? ")
     : "0.00";
-  return (
+  const hasPromotionLifecycle = (analytics?.promotionStatuses ?? []).some((item) => Number(item.count ?? 0) > 0);
+  const hasPromotionTypes = (analytics?.promotionTypes ?? []).some((item) => Number(item.count ?? 0) > 0);
+  const hasRedemptionOutcomes = (analytics?.redemptionStatuses ?? []).some((item) => Number(item.count ?? 0) > 0);
+  const hasRejectionCategories = (analytics?.rejectionCategories ?? []).some((item) => Number(item.count ?? 0) > 0);
+  const hasRedemptionActivity = (analytics?.redemptionTrend ?? []).some(
+    (item) => Number(item.attempts ?? 0) + Number(item.duplicateAttempts ?? 0) > 0
+  );  return (
     <div className="view-stack commercial-ops-view">
       <SectionToolbar title="Commercial operations" description="Store-safe promotion lifecycle, targeting, provider mapping and conversion health." state={state} onReload={load} />
 
@@ -11102,6 +11118,42 @@ function PromotionsView({ onError }: { onError: (message: string | null) => void
         <MetricCard label="Abuse signals" value={formatValue(metrics?.abuseSignals)} hint={`${formatValue(metrics?.duplicateAttempts)} duplicate / ${formatValue(metrics?.limitRejections)} limit`} />
       </div>
 
+      <div className="promotion-operations-analytics-head">
+        <div>
+          <strong>Promotion performance</strong>
+          <span>Aggregate conversion, rejection and abuse signals without user or provider identifiers.</span>
+        </div>
+        <label>
+          Analytics window
+          <select value={analyticsWindowDays} onChange={(event) => setAnalyticsWindowDays(Number(event.target.value))}>
+            <option value={7}>7 days</option>
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+          </select>
+        </label>
+      </div>
+
+      {analytics && (
+        <Suspense fallback={<div className="chart-loading">Loading promotion analytics...</div>}>
+          <div className="promotion-operations-chart-grid">
+            <Panel title="Promotion lifecycle" description="Current commercial rule status distribution." className="promotion-operations-chart-panel">
+              {hasPromotionLifecycle ? <PromotionLifecycleChart analytics={analytics} /> : <div className="promotion-chart-empty">No lifecycle data yet.</div>}
+            </Panel>
+            <Panel title="Offer mix" description="Campaign, introductory, win-back and support offer distribution." className="promotion-operations-chart-panel">
+              {hasPromotionTypes ? <PromotionTypeChart analytics={analytics} /> : <div className="promotion-chart-empty">No offer type data yet.</div>}
+            </Panel>
+            <Panel title="Redemption outcomes" description="Provider-confirmed conversion and rejection states." className="promotion-operations-chart-panel">
+              {hasRedemptionOutcomes ? <RedemptionOutcomeChart analytics={analytics} /> : <div className="promotion-chart-empty">No redemption outcomes yet.</div>}
+            </Panel>
+            <Panel title="Rejection concentration" description="Sanitized rejection categories; raw reasons remain outside analytics." className="promotion-operations-chart-panel">
+              {hasRejectionCategories ? <PromotionRejectionChart analytics={analytics} /> : <div className="promotion-chart-empty">No rejection categories yet.</div>}
+            </Panel>
+            <Panel title="Redemption flow" description={`Attempts, conversions, rejections and duplicate signals across ${analytics.windowDays ?? analyticsWindowDays} days.`} className="promotion-operations-chart-panel promotion-redemption-trend-panel">
+              {hasRedemptionActivity ? <PromotionRedemptionTrendChart analytics={analytics} /> : <div className="promotion-chart-empty promotion-trend-empty">No redemption activity in this window.</div>}
+            </Panel>
+          </div>
+        </Suspense>
+      )}
       <div className="commercial-workspace-grid">
         <Panel title={editingId ? "Edit draft promotion" : "Create promotion draft"} description="Activation is a separate, validated and audited action.">
           <form className="commercial-form" onSubmit={savePromotion}>

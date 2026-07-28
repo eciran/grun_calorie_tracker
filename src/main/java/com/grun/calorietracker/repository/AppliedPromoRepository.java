@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.PromoRedemptionStatus;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,7 +44,38 @@ public interface AppliedPromoRepository extends JpaRepository<AppliedPromoEntity
             group by coalesce(redemption.currency, 'UNKNOWN')
             order by coalesce(redemption.currency, 'UNKNOWN')
             """)
-    List<CurrencyRevenueProjection> sumConvertedRevenueByCurrency(@Param("promoId") Long promoId);
+List<CurrencyRevenueProjection> sumConvertedRevenueByCurrency(@Param("promoId") Long promoId);
+
+    @Query("select redemption.status, count(redemption) from AppliedPromoEntity redemption group by redemption.status")
+    List<Object[]> countGroupedByStatus();
+
+    @Query(value = """
+            select case
+                     when rejection_reason like 'LIMIT:%' then 'LIMIT'
+                     when rejection_reason like 'ELIGIBILITY:%' then 'ELIGIBILITY'
+                     when rejection_reason like 'PROVIDER:%' then 'PROVIDER'
+                     else 'OTHER'
+                   end as rejection_category,
+                   count(*) as rejection_count
+            from applied_promos
+            where status = 'REJECTED'
+            group by rejection_category
+            order by rejection_count desc
+            """, nativeQuery = true)
+    List<Object[]> countRejectedBySafeCategory();
+
+    @Query(value = """
+            select cast(applied_at as date) as applied_date,
+                   count(*) as attempts,
+                   sum(case when status = 'CONVERTED' then 1 else 0 end) as converted,
+                   sum(case when status = 'REJECTED' then 1 else 0 end) as rejected,
+                   coalesce(sum(duplicate_hits), 0) as duplicate_attempts
+            from applied_promos
+            where applied_at >= :fromInclusive
+            group by cast(applied_at as date)
+            order by applied_date
+            """, nativeQuery = true)
+    List<Object[]> countDailyOperations(@Param("fromInclusive") LocalDateTime fromInclusive);
 
     interface CurrencyRevenueProjection {
         String getCurrency();

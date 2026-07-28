@@ -16,7 +16,13 @@ public interface PromoCodeRepository extends JpaRepository<PromoCodeEntity, Long
     long countByStatus(PromoStatus status);
 
     @Query("select count(promo) from PromoCodeEntity promo where promo.status = com.grun.calorietracker.enums.PromoStatus.ACTIVE and promo.active = true and (promo.startAt is null or promo.startAt <= :now) and (promo.endAt is null or promo.endAt > :now)")
-    long countCurrentlyActive(@Param("now") LocalDateTime now);
+long countCurrentlyActive(@Param("now") LocalDateTime now);
+
+    @Query("select promo.status, count(promo) from PromoCodeEntity promo group by promo.status")
+    List<Object[]> countGroupedByStatus();
+
+    @Query("select promo.promoType, count(promo) from PromoCodeEntity promo group by promo.promoType")
+    List<Object[]> countGroupedByType();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select promo from PromoCodeEntity promo where promo.id = :id")

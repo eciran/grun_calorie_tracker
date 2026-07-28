@@ -1233,6 +1233,20 @@ rejectionRate?: number;
   abuseSignals?: number;
 };
 
+export type AdminPromotionOperationsAnalytics = {
+  windowDays?: number;
+  promotionStatuses?: Array<{ name?: string; count?: number }>;
+  promotionTypes?: Array<{ name?: string; count?: number }>;
+  redemptionStatuses?: Array<{ name?: string; count?: number }>;
+  rejectionCategories?: Array<{ name?: string; count?: number }>;
+  redemptionTrend?: Array<{
+    date?: string;
+    attempts?: number;
+    converted?: number;
+    rejected?: number;
+    duplicateAttempts?: number;
+  }>;
+};
 export type AdminPromotionReconciliation = {
   promoId?: number; store?: string; mappingReady?: boolean; providerOfferId?: string; providerProductId?: string;
   observedProviderEvents?: number; lastObservedAt?: string; providerRoute?: string; issues?: string[]; entitlementGuardrail?: string;

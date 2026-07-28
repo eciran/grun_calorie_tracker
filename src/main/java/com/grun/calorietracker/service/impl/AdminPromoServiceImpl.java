@@ -240,6 +240,44 @@ public class AdminPromoServiceImpl implements AdminPromoService {
 
     @Override
     @Transactional(readOnly = true)
+    public AdminPromotionOperationsAnalyticsDto analytics(int windowDays) {
+        LocalDate today = LocalDate.now();
+        LocalDate firstDate = today.minusDays(windowDays - 1L);
+        Map<LocalDate, long[]> dailyOperations = new LinkedHashMap<>();
+        for (LocalDate date = firstDate; !date.isAfter(today); date = date.plusDays(1)) {
+            dailyOperations.put(date, new long[4]);
+        }
+        for (Object[] row : redemptionRepository.countDailyOperations(firstDate.atStartOfDay())) {
+            LocalDate date = toLocalDate(row[0]);
+            if (date != null && dailyOperations.containsKey(date)) {
+                dailyOperations.put(date, new long[] {
+                        numberValue(row[1]),
+                        numberValue(row[2]),
+                        numberValue(row[3]),
+                        numberValue(row[4])
+                });
+            }
+        }
+        List<AdminPromotionOperationsAnalyticsDto.RedemptionTrendPoint> trend = dailyOperations.entrySet().stream()
+                .map(entry -> new AdminPromotionOperationsAnalyticsDto.RedemptionTrendPoint(
+                        entry.getKey(),
+                        entry.getValue()[0],
+                        entry.getValue()[1],
+                        entry.getValue()[2],
+                        entry.getValue()[3]
+                ))
+                .toList();
+        return new AdminPromotionOperationsAnalyticsDto(
+                windowDays,
+                toCountMetrics(promoRepository.countGroupedByStatus()),
+                toCountMetrics(promoRepository.countGroupedByType()),
+                toCountMetrics(redemptionRepository.countGroupedByStatus()),
+                toCountMetrics(redemptionRepository.countRejectedBySafeCategory()),
+                trend
+        );
+    }
+    @Override
+    @Transactional(readOnly = true)
     public AdminPromoRedemptionPageDto redemptions(Long promoId, PromoRedemptionStatus status, int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100),
                 Sort.by(Sort.Direction.DESC, "appliedAt"));
@@ -431,6 +469,25 @@ public class AdminPromoServiceImpl implements AdminPromoService {
                 ENTITLEMENT_GUARDRAIL);
     }
 
+    private List<AdminPromotionOperationsAnalyticsDto.CountMetric> toCountMetrics(List<Object[]> rows) {
+        return rows.stream()
+                .filter(row -> row != null && row.length >= 2 && row[0] != null)
+                .map(row -> new AdminPromotionOperationsAnalyticsDto.CountMetric(
+                        row[0].toString(),
+                        numberValue(row[1])
+                ))
+                .toList();
+    }
+
+    private long numberValue(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) return localDate;
+        if (value instanceof java.sql.Date date) return date.toLocalDate();
+        return value == null ? null : LocalDate.parse(value.toString());
+    }
     private double rate(long numerator, long denominator) {
         return denominator == 0 ? 0 : Math.round(numerator * 1000.0 / denominator) / 10.0;
     }

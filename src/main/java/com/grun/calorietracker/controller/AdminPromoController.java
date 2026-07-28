@@ -104,6 +104,12 @@ public class AdminPromoController {
         return ResponseEntity.ok(promoService.metrics(promoId));
     }
 
+    @GetMapping("/analytics")
+    @Operation(summary = "Get privacy-safe promotion operations analytics")
+    public ResponseEntity<AdminPromotionOperationsAnalyticsDto> analytics(
+            @RequestParam(defaultValue = "30") @Min(7) @Max(90) int windowDays) {
+        return ResponseEntity.ok(promoService.analytics(windowDays));
+    }
     private String correlationId(HttpServletRequest request) {
         Object value = request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
         return value == null ? request.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER) : value.toString();
