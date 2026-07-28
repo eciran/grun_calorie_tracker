@@ -1,2 +1,9 @@
 package com.grun.calorietracker.service;
-public interface AdvancedFastingReminderService { int createDueReminderNotifications(); }
+
+import com.grun.calorietracker.dto.AdvancedFastingReminderSettingsDto;
+
+public interface AdvancedFastingReminderService {
+    int createDueReminderNotifications();
+    AdvancedFastingReminderSettingsDto getSettings(String email);
+    AdvancedFastingReminderSettingsDto updateSettings(String email, AdvancedFastingReminderSettingsDto request);
+}
