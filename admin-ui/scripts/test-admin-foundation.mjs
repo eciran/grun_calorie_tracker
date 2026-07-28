@@ -29,4 +29,8 @@ assert.match(primitives, /aria-label="Table pagination"/, "Pagination must expos
 assert.match(styles, /\.clickable-row:focus-visible/, "Keyboard focus must be visible.");
 assert.match(styles, /\.async-state\.error-state/, "Async error state must be styled.");
 
+assert.match(app, /<QRCodeSVG value=\{enrollment\.otpauthUri\}/, "MFA enrollment must render its QR code locally from the backend URI.");
+assert.match(app, /<summary>Manual setup<\/summary>/, "MFA enrollment must retain a manual setup fallback.");
+assert.match(app, /aria-label="QR code for authenticator app enrollment"/, "MFA enrollment QR code must have an accessible label.");
+
 console.log("Admin foundation checks passed.");

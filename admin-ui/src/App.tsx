@@ -1,4 +1,5 @@
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import {
   clearTokens,
@@ -3600,9 +3601,17 @@ function AdminMfaEnrollmentPanel({ onError }: { onError: (message: string | null
         <button className="primary-button" disabled={busy || !password} type="submit">Start enrollment</button>
       </form>}
       {enrollment && <div className="admin-mfa-setup">
-        <div><strong>Authenticator secret</strong><code>{enrollment.secret}</code><small>Add this secret to Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.</small></div>
-        <label>Six-digit code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value)} /></label>
-        <button className="primary-button" disabled={busy || code.trim().length !== 6} type="button" onClick={verify}>Verify and enable</button>
+        <div className="admin-mfa-qr">
+          <div className="admin-mfa-qr-frame">
+            {enrollment.otpauthUri ? <QRCodeSVG value={enrollment.otpauthUri} size={220} marginSize={2} level="M" role="img" aria-label="QR code for authenticator app enrollment" /> : <span>QR code unavailable. Use manual setup.</span>}
+          </div>
+          <div><strong>Scan with your authenticator app</strong><small>Use Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.</small></div>
+        </div>
+        <div className="admin-mfa-verification">
+          <label>Six-digit code<input inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} /></label>
+          <button className="primary-button" disabled={busy || code.trim().length !== 6} type="button" onClick={verify}>Verify and enable</button>
+          <details className="admin-mfa-manual"><summary>Manual setup</summary><code>{enrollment.secret}</code><small>Enter this key manually only when the QR code cannot be scanned.</small></details>
+        </div>
       </div>}
       {status?.enabled && <div className="admin-mfa-disable">
         <label>Authenticator or recovery code<input autoComplete="one-time-code" maxLength={32} value={code} onChange={(event) => setCode(event.target.value)} /></label>
