@@ -28,6 +28,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FastingTrackingService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.PushDeliveryService;
+import com.grun.calorietracker.service.support.FastingSafetyPolicy;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
@@ -84,6 +85,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserAnalyticsCacheGateway analyticsCacheGateway;
     private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
+    private final FastingSafetyPolicy fastingSafetyPolicy;
 
     @Value("${grun.fasting.reminders.enabled:true}")
     private boolean fastingRemindersEnabled;
@@ -418,9 +420,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
     }
 
     private void validatePlanRequest(FastingPlanRequestDto request) {
-        if (request.getFastingHours() + request.getEatingWindowHours() > 48) {
-            throw new IllegalArgumentException("fastingHours and eatingWindowHours total cannot exceed 48.");
-        }
+        fastingSafetyPolicy.validateBasicPlan(request);
     }
 
     private void validateRange(LocalDate startDate, LocalDate endDate) {

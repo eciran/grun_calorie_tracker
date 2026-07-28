@@ -1,6 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
+import com.grun.calorietracker.dto.FastingAdvancedEligibilityDto;
+import com.grun.calorietracker.dto.FastingAdvancedEligibilityRequestDto;
 import com.grun.calorietracker.dto.FastingDailySummaryDto;
 import com.grun.calorietracker.dto.FastingPlanDto;
 import com.grun.calorietracker.dto.FastingPlanRequestDto;
@@ -15,6 +17,7 @@ import com.grun.calorietracker.enums.FastingSessionStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.service.FastingTrackingService;
 import com.grun.calorietracker.service.UserService;
+import com.grun.calorietracker.service.support.FastingSafetyPolicy;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -50,6 +53,21 @@ public class FastingTrackingController {
     private final FastingTrackingService fastingTrackingService;
     private final UserService userService;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final FastingSafetyPolicy fastingSafetyPolicy;
+
+    @PostMapping("/advanced/eligibility")
+    @Operation(summary = "Evaluate advanced fasting eligibility",
+            description = "Evaluates adult and declared health-risk safety gates without persisting the declaration.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Eligibility evaluated."),
+            @ApiResponse(responseCode = "403", description = "FASTING_ADVANCED entitlement is unavailable.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
+            @ApiResponse(responseCode = "428", description = "Current safety policy acknowledgement is required.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+    })
+    public ResponseEntity<FastingAdvancedEligibilityDto> evaluateAdvancedEligibility(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid FastingAdvancedEligibilityRequestDto request) {
+        return ResponseEntity.ok(fastingSafetyPolicy.evaluateAdvanced(currentUser(userDetails.getUsername()), request));
+    }
 
     @GetMapping("/plan")
     @Operation(

@@ -67,10 +67,10 @@ class FastingTrackingServiceImplTest {
                 userRepository,
                 new UserTimeZoneSupport(),
                 pushDeliveryService,
-                analyticsCacheRevisionService
-        ,
+                analyticsCacheRevisionService,
                 analyticsCacheGateway,
-                analyticsCacheKeyFactory
+                analyticsCacheKeyFactory,
+                new com.grun.calorietracker.service.support.FastingSafetyPolicy()
         );
         org.mockito.Mockito.lenient().when(analyticsCacheRevisionService.requireIdentity(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity(1L, 0L, "Europe/Dublin"));

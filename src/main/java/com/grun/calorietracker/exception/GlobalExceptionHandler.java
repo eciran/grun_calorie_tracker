@@ -188,6 +188,14 @@ public class GlobalExceptionHandler {
     ) {
         return buildDomainResponse(ex.getCode().status(), ex.getCode().name(), ex.getMessage(), List.of(), request);
     }
+    @ExceptionHandler(FastingSafetyException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleFastingSafetyException(
+            FastingSafetyException ex,
+            HttpServletRequest request
+    ) {
+        return buildDomainResponse(ex.getCode().status(), ex.getCode().name(), ex.getMessage(), List.of(), request);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiErrorResponseDto> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED, "error.invalid.credentials", "Invalid credentials", ex.getMessage(), request);

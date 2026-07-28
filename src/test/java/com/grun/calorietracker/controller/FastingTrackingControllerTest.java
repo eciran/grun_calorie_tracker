@@ -63,7 +63,8 @@ class FastingTrackingControllerTest {
                 .standaloneSetup(new FastingTrackingController(
                         fastingTrackingService,
                         mock(UserService.class),
-                        new UserTimeZoneSupport()
+                        new UserTimeZoneSupport(),
+                        new com.grun.calorietracker.service.support.FastingSafetyPolicy()
                 ))
                 .setCustomArgumentResolvers(new TestAuthenticationPrincipalResolver())
                 .build();

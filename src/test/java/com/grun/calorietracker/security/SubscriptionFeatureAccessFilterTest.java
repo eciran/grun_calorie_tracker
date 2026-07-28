@@ -47,6 +47,10 @@ class SubscriptionFeatureAccessFilterTest {
                 SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/sleep/providers/APPLE_HEALTH/sessions"));
         assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/sleep/summary/weekly"));
+        assertEquals(SubscriptionFeature.FASTING_ADVANCED,
+                SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/fasting/advanced/eligibility"));
+        assertEquals(SubscriptionFeature.FASTING_BASIC,
+                SubscriptionFeatureAccessFilter.resolveFeature("PUT", "/api/v1/fasting/plan"));
         assertEquals(SubscriptionFeature.NEXT_MEAL_SUGGESTIONS,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/meal-coach/next"));
         assertEquals(null,

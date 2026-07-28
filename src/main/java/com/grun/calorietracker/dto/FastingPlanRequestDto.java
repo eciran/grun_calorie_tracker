@@ -19,7 +19,6 @@ public class FastingPlanRequestDto {
 
     @NotNull(message = "{validation.fasting-plan.fasting-hours.required}")
     @Min(value = 1, message = "{validation.fasting-plan.fasting-hours.min}")
-    @Max(value = 48, message = "{validation.fasting-plan.fasting-hours.max}")
     @Schema(description = "Target fasting duration in hours.", example = "16", requiredMode = Schema.RequiredMode.REQUIRED)
     private Integer fastingHours;
 
