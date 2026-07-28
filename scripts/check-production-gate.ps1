@@ -5,7 +5,15 @@ param(
     [switch]$SkipEnvLoad,
     [switch]$Production,
     [switch]$RunOnboardingTests,
-    [switch]$RequireOnboardingEvents
+    [switch]$RequireOnboardingEvents,
+    [switch]$RunAnalyticsCacheLoad,
+    [switch]$RequireAnalyticsCacheLoad,
+    [string]$AnalyticsUserToken = "",
+    [int]$AnalyticsLoadRequests = 200,
+    [int]$AnalyticsLoadConcurrency = 20,
+    [int]$AnalyticsLoadP95BudgetMs = 300,
+    [double]$AnalyticsLoadMaxErrorRate = 0,
+    [string]$AnalyticsLoadPaths = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -194,7 +202,51 @@ if ([string]::IsNullOrWhiteSpace($AdminToken)) {
     }
 }
 
+$analyticsLoadFailed = $false
+if ($RequireAnalyticsCacheLoad) {
+    $RunAnalyticsCacheLoad = $true
+}
+if ($RunAnalyticsCacheLoad) {
+    Write-Host ""
+    Write-Host "[Analytics cache load gate]"
+    if ([string]::IsNullOrWhiteSpace($AnalyticsUserToken)) {
+        Write-Host "- FAIL: AnalyticsUserToken is required."
+        $analyticsLoadFailed = $true
+    } else {
+        $loadScript = Join-Path $PSScriptRoot "test-user-analytics-cache-load.ps1"
+        try {
+            $loadArguments = @{
+                BaseUrl = $BaseUrl
+                Token = $AnalyticsUserToken
+                Requests = $AnalyticsLoadRequests
+                Concurrency = $AnalyticsLoadConcurrency
+                P95BudgetMs = $AnalyticsLoadP95BudgetMs
+                MaxErrorRate = $AnalyticsLoadMaxErrorRate
+            }
+            if (-not [string]::IsNullOrWhiteSpace($AnalyticsLoadPaths)) {
+                $loadArguments.Paths = $AnalyticsLoadPaths
+            }
+            & $loadScript @loadArguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "Analytics cache load runner exited with code $LASTEXITCODE."
+            }
+            Write-Host "- analytics cache load: PASS"
+        } catch {
+            Write-Host "- analytics cache load: FAIL"
+            Write-Host ("  " + $_.Exception.Message)
+            $analyticsLoadFailed = $true
+        }
+    }
+} elseif ($Production) {
+    Write-Host ""
+    Write-Host "Analytics cache load gate skipped. Use -RequireAnalyticsCacheLoad for release acceptance."
+}
+
 Write-Host ""
+if ($analyticsLoadFailed) {
+    Write-Host "Gate result: FAIL (analytics cache load gate failed)"
+    exit 1
+}
 if ($onboardingTestsFailed) {
     Write-Host "Gate result: FAIL (onboarding automated tests failed)"
     exit 1
