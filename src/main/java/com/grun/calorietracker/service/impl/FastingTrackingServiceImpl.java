@@ -67,11 +67,11 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
             new ReminderCopy("Final stretch", "A little more patience, then it is time to wrap up your fast.")
     );
     private static final List<ReminderCopy> FASTING_REMINDER_COPY_TR = List.of(
-            new ReminderCopy("Hedefe çok az kaldı", "Oruç süren neredeyse tamamlandı. Harika gidiyorsun."),
-            new ReminderCopy("Geri sayım başladı", "Yemek pencerene çok az kaldı."),
-            new ReminderCopy("Güçlü bir final", "Orucunu tamamlamaya yaklaştın. Böyle devam et."),
-            new ReminderCopy("Neredeyse tamam", "Oruç zamanlayıcın harika ilerlediğini söylüyor."),
-            new ReminderCopy("Son düzlük", "Biraz daha sabır; oruç süren yakında tamamlanacak.")
+            new ReminderCopy("Hedefe Ã§ok az kaldÄ±", "OruÃ§ sÃ¼ren neredeyse tamamlandÄ±. Harika gidiyorsun."),
+            new ReminderCopy("Geri sayÄ±m baÅŸladÄ±", "Yemek pencerene Ã§ok az kaldÄ±."),
+            new ReminderCopy("GÃ¼Ã§lÃ¼ bir final", "Orucunu tamamlamaya yaklaÅŸtÄ±n. BÃ¶yle devam et."),
+            new ReminderCopy("Neredeyse tamam", "OruÃ§ zamanlayÄ±cÄ±n harika ilerlediÄŸini sÃ¶ylÃ¼yor."),
+            new ReminderCopy("Son dÃ¼zlÃ¼k", "Biraz daha sabÄ±r; oruÃ§ sÃ¼ren yakÄ±nda tamamlanacak.")
     );
     private static final int DEFAULT_SESSION_PAGE_SIZE = 20;
     private static final int MAX_SESSION_PAGE_SIZE = 100;
@@ -536,6 +536,14 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         dto.setTargetMinutes(entity.getTargetMinutes());
         dto.setActualMinutes(entity.getActualMinutes());
         dto.setTargetReached(Boolean.TRUE.equals(entity.getTargetReached()));
+        dto.setPlannedRuleId(entity.getPlannedRule() == null ? null : entity.getPlannedRule().getId());
+        dto.setPlannedProgramVersion(entity.getPlannedProgramVersion());
+        dto.setPlannedRuleType(entity.getPlannedRuleType());
+        dto.setPlannedFastingMinutes(entity.getPlannedFastingMinutes());
+        dto.setPlannedReducedCalorieTarget(entity.getPlannedReducedCalorieTarget());
+        dto.setPlannedStartAt(entity.getPlannedStartAt());
+        dto.setPlannedEndAt(entity.getPlannedEndAt());
+        dto.setOutcomeReason(entity.getOutcomeReason());
         dto.setNote(entity.getNote());
         return dto;
     }

@@ -1,6 +1,8 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FastingSessionStatus;
+import com.grun.calorietracker.enums.FastingDayRuleType;
+import com.grun.calorietracker.enums.FastingSessionOutcomeReason;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -30,6 +32,14 @@ public class FastingSessionDto {
     private Integer actualMinutes;
     @Schema(description = "Whether the target duration was reached.", example = "true")
     private Boolean targetReached;
+    private Long plannedRuleId;
+    private Integer plannedProgramVersion;
+    private FastingDayRuleType plannedRuleType;
+    private Integer plannedFastingMinutes;
+    private Integer plannedReducedCalorieTarget;
+    private LocalDateTime plannedStartAt;
+    private LocalDateTime plannedEndAt;
+    private FastingSessionOutcomeReason outcomeReason;
     @Schema(description = "Optional user note.", example = "Felt good.")
     private String note;
 }
