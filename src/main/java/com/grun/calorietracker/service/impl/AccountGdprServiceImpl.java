@@ -37,6 +37,7 @@ import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingPlanRepository;
+import com.grun.calorietracker.repository.FastingProgramRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FailedBarcodeScanRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -120,6 +121,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final WaterLogRepository waterLogRepository;
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
     private final FastingPlanRepository fastingPlanRepository;
+    private final FastingProgramRepository fastingProgramRepository;
     private final FastingSessionRepository fastingSessionRepository;
     private final StepGoalRepository stepGoalRepository;
     private final UserPushTokenRepository userPushTokenRepository;
@@ -275,6 +277,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         waterReminderSettingsRepository.deleteByUser(user);
         fastingSessionRepository.deleteByUser(user);
         fastingPlanRepository.deleteByUser(user);
+        fastingProgramRepository.deleteByUser(user);
         exerciseLogRepository.deleteByUser(user);
         progressLogRepository.deleteByUser(user);
         bodyMeasurementRepository.deleteByUser(user);

@@ -14,6 +14,7 @@ import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.EmailVerificationTokenRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FastingPlanRepository;
+import com.grun.calorietracker.repository.FastingProgramRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
 import com.grun.calorietracker.repository.FailedBarcodeScanRepository;
 import com.grun.calorietracker.repository.FederatedIdentityRepository;
@@ -94,6 +95,7 @@ class AccountGdprServiceImplTest {
     @Mock private WaterLogRepository waterLogRepository;
     @Mock private WaterReminderSettingsRepository waterReminderSettingsRepository;
     @Mock private FastingPlanRepository fastingPlanRepository;
+    @Mock private FastingProgramRepository fastingProgramRepository;
     @Mock private FastingSessionRepository fastingSessionRepository;
     @Mock private StepGoalRepository stepGoalRepository;
     @Mock private UserPushTokenRepository userPushTokenRepository;
@@ -145,6 +147,7 @@ class AccountGdprServiceImplTest {
                 waterLogRepository,
                 waterReminderSettingsRepository,
                 fastingPlanRepository,
+                fastingProgramRepository,
                 fastingSessionRepository,
                 stepGoalRepository,
                 userPushTokenRepository,
@@ -279,6 +282,7 @@ class AccountGdprServiceImplTest {
         verify(waterReminderSettingsRepository).deleteByUser(user);
         verify(fastingSessionRepository).deleteByUser(user);
         verify(fastingPlanRepository).deleteByUser(user);
+        verify(fastingProgramRepository).deleteByUser(user);
         verify(mealPlanRepository).deleteByUser(user);
         verify(recipeLogRepository).deleteByUser(user);
         verify(stepGoalRepository).deleteByUser(user);

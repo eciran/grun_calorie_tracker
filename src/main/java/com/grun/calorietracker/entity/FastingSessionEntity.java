@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.FastingDayRuleType;
 import com.grun.calorietracker.enums.FastingSessionStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -57,6 +58,22 @@ public class FastingSessionEntity {
     private Integer actualMinutes;
 
     private Boolean targetReached;
+
+    @ManyToOne
+    @JoinColumn(name = "planned_rule_id")
+    private FastingProgramDayRuleEntity plannedRule;
+
+    private Integer plannedProgramVersion;
+
+    @Enumerated(EnumType.STRING)
+    private FastingDayRuleType plannedRuleType;
+
+    private Integer plannedFastingMinutes;
+
+    private Integer plannedReducedCalorieTarget;
+
+    @Column(length = 50)
+    private String plannedSafetyPolicyVersion;
 
     @Column(length = 500)
     private String note;
