@@ -7,6 +7,8 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FastingPlanType;
 import com.grun.calorietracker.enums.FastingSafetyErrorCode;
 import com.grun.calorietracker.exception.FastingSafetyException;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -20,6 +22,7 @@ public class FastingSafetyPolicy {
     public static final String VERSION = "FASTING_SAFETY_V1";
     public static final int MAX_CONTINUOUS_FASTING_HOURS = 24;
     private static final int MINIMUM_ADVANCED_AGE = 18;
+    @Autowired(required = false) private MeterRegistry meterRegistry;
     private static final Map<FastingPlanType, Integer> PRESET_HOURS = Map.of(
             FastingPlanType.FASTING_16_8, 16,
             FastingPlanType.FASTING_18_6, 18,
@@ -31,6 +34,7 @@ public class FastingSafetyPolicy {
         int fastingHours = request.getFastingHours();
         int eatingWindowHours = request.getEatingWindowHours();
         if (fastingHours > MAX_CONTINUOUS_FASTING_HOURS) {
+            recordBlocked();
             throw new FastingSafetyException(FastingSafetyErrorCode.FASTING_UNSAFE_DURATION,
                     "Continuous fasting cannot exceed 24 hours.");
         }
@@ -47,6 +51,7 @@ public class FastingSafetyPolicy {
                                                             FastingAdvancedEligibilityRequestDto request) {
         if (!Boolean.TRUE.equals(request.getSafetyAcknowledged())
                 || !VERSION.equals(request.getAcknowledgedPolicyVersion())) {
+            recordBlocked();
             throw new FastingSafetyException(FastingSafetyErrorCode.FASTING_SAFETY_ACKNOWLEDGEMENT_REQUIRED,
                     "The current fasting safety policy must be acknowledged.");
         }
@@ -56,8 +61,13 @@ public class FastingSafetyPolicy {
         if (Boolean.TRUE.equals(request.getEatingDisorderRiskOrHistory())) reasons.add("EATING_DISORDER_RISK_OR_HISTORY");
         if (Boolean.TRUE.equals(request.getDiabetesOrGlucoseMedication())) reasons.add("DIABETES_OR_GLUCOSE_MEDICATION");
         if (Boolean.TRUE.equals(request.getOtherClinicianManagedCondition())) reasons.add("CLINICIAN_REVIEW_REQUIRED");
+        if (!reasons.isEmpty()) recordBlocked();
         return new FastingAdvancedEligibilityDto(reasons.isEmpty(), VERSION,
                 MAX_CONTINUOUS_FASTING_HOURS, List.copyOf(reasons));
+    }
+
+    private void recordBlocked() {
+        if (meterRegistry != null) meterRegistry.counter("grun.fasting.safety.blocked").increment();
     }
 
     private int resolvedAge(UserEntity user) {
