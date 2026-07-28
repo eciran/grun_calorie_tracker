@@ -5,7 +5,8 @@ import {
   RuntimeApiMetrics,
   RuntimeOperationRecord,
   RuntimeOperationsPolicy,
-  SystemReliabilityAnalytics
+  SystemReliabilityAnalytics,
+  ProductionVerificationRun
 } from "./types";
 
 const ApiReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.ApiReliabilityChart })));
@@ -39,6 +40,8 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
   const [reliability, setReliability] = useState<SystemReliabilityAnalytics | null>(null);
   const [reliabilityWindowHours, setReliabilityWindowHours] = useState(24);
   const [records, setRecords] = useState<PageResponse<RuntimeOperationRecord> | null>(null);
+  const [verifications, setVerifications] = useState<PageResponse<ProductionVerificationRun> | null>(null);
+  const [verificationDraft, setVerificationDraft] = useState({ provider: "REVENUECAT", environment: "SANDBOX", scenario: "PURCHASE", status: "PASSED", evidenceReference: "", summary: "" });
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [typeFilter, setTypeFilter] = useState("");
@@ -62,17 +65,19 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
       const query = new URLSearchParams({ page: String(page), size: String(pageSize), sort: "createdAt,desc" });
       if (typeFilter) query.set("type", typeFilter);
       if (statusFilter) query.set("status", statusFilter);
-      const [nextPolicy, nextMetrics, nextReliability, nextRecords] = await Promise.all([
+      const [nextPolicy, nextMetrics, nextReliability, nextRecords, nextVerifications] = await Promise.all([
         request<RuntimeOperationsPolicy>("/api/v1/admin/system/operations/policy"),
         request<RuntimeApiMetrics>("/api/v1/admin/system/operations/api-metrics"),
         request<SystemReliabilityAnalytics>(`/api/v1/admin/system/operations/reliability-analytics?windowHours=${reliabilityWindowHours}`),
-        request<PageResponse<RuntimeOperationRecord>>(`/api/v1/admin/system/operations/records?${query}`)
+        request<PageResponse<RuntimeOperationRecord>>(`/api/v1/admin/system/operations/records?${query}`),
+        request<PageResponse<ProductionVerificationRun>>("/api/v1/admin/system/production-verifications?page=0&size=10")
       ]);
       setPolicy(nextPolicy);
       setDraft(nextPolicy);
       setMetrics(nextMetrics);
       setReliability(nextReliability);
       setRecords(nextRecords);
+      setVerifications(nextVerifications);
       setState("ready");
       onError(null);
     } catch (error) {
@@ -83,6 +88,19 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
 
   useEffect(() => { void load(); }, [page, pageSize, typeFilter, statusFilter, reliabilityWindowHours]);
 
+  async function recordVerification(event: FormEvent) {
+    event.preventDefault();
+    setActionState("loading");
+    try {
+      await request("/api/v1/admin/system/production-verifications", { method: "POST", body: verificationDraft });
+      setVerificationDraft((current) => ({ ...current, evidenceReference: "", summary: "" }));
+      await load();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setActionState("idle");
+    }
+  }
   async function savePolicy() {
     if (!draft) return;
     setActionState("loading");
@@ -259,6 +277,18 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
         </Panel>
       </div>
 
+      <Panel title="Production verification evidence" description="Record real sandbox, device, provider, backup, restore, and outage evidence. Never paste credentials or raw provider payloads.">
+        <form className="runtime-record-form" onSubmit={recordVerification}>
+          <label>Provider<select value={verificationDraft.provider} onChange={(event) => setVerificationDraft({ ...verificationDraft, provider: event.target.value })}>{["REVENUECAT", "BREVO", "PUSH", "DATABASE", "CLOUD"].map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label>Environment<select value={verificationDraft.environment} onChange={(event) => setVerificationDraft({ ...verificationDraft, environment: event.target.value })}>{["SANDBOX", "STAGING", "PRODUCTION"].map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label>Scenario<input required pattern="[A-Z0-9_]{3,64}" value={verificationDraft.scenario} onChange={(event) => setVerificationDraft({ ...verificationDraft, scenario: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_") })} placeholder="PURCHASE_RENEWAL" /></label>
+          <label>Status<select value={verificationDraft.status} onChange={(event) => setVerificationDraft({ ...verificationDraft, status: event.target.value })}>{["PASSED", "FAILED", "BLOCKED"].map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label>Evidence reference<input required maxLength={240} value={verificationDraft.evidenceReference} onChange={(event) => setVerificationDraft({ ...verificationDraft, evidenceReference: event.target.value })} placeholder="Ticket, CI run, or protected evidence URL" /></label>
+          <label className="wide-field">Safe summary<textarea required maxLength={500} value={verificationDraft.summary} onChange={(event) => setVerificationDraft({ ...verificationDraft, summary: event.target.value })} /></label>
+          <button className="primary-button" disabled={actionState === "loading"} type="submit">Record verification</button>
+        </form>
+        <DataTable columns={["Provider", "Scenario", "Environment", "Status", "Evidence", "Executed"]} rows={(verifications?.content ?? []).map((item) => [item.provider, item.scenario, item.environment, item.expired ? "EXPIRED" : item.status, item.evidenceReference, formatDate(item.executedAt)])} empty="No production verification evidence recorded." />
+      </Panel>
       <Panel title="Operations ledger" description="Paginated history for scheduled jobs, incidents, backups, restore drills, retries, and dead letters.">
         <div className="runtime-filter-row">
           <label>Type<select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }}><option value="">All types</option><option>INCIDENT</option><option>BACKUP</option><option>RESTORE_DRILL</option><option>SCHEDULED_JOB</option></select></label>

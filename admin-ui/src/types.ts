@@ -1491,3 +1491,16 @@ export type AdminGdprRequestPage = {
   first: boolean;
   last: boolean;
 };
+export type ProductionVerificationRun = {
+  id: number;
+  provider: "REVENUECAT" | "BREVO" | "PUSH" | "DATABASE" | "CLOUD";
+  environment: "SANDBOX" | "STAGING" | "PRODUCTION";
+  scenario: string;
+  status: "PASSED" | "FAILED" | "BLOCKED";
+  evidenceReference: string;
+  summary: string;
+  executedBy: string;
+  executedAt: string;
+  validUntil?: string | null;
+  expired: boolean;
+};
