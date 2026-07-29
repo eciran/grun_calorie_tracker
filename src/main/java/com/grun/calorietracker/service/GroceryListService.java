@@ -3,6 +3,7 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.GroceryListManualItemRequestDto;
 import com.grun.calorietracker.dto.GroceryListPurchaseRequestDto;
 import com.grun.calorietracker.dto.GroceryListQuantityRequestDto;
+import com.grun.calorietracker.dto.GroceryListRefreshRequestDto;
 import com.grun.calorietracker.dto.PersistedGroceryListDto;
 
 public interface GroceryListService {
@@ -12,6 +13,7 @@ public interface GroceryListService {
     PersistedGroceryListDto setPurchased(String email, Long listId, Long itemId, GroceryListPurchaseRequestDto request);
     PersistedGroceryListDto updateQuantity(String email, Long listId, Long itemId, GroceryListQuantityRequestDto request);
     PersistedGroceryListDto removeItem(String email, Long listId, Long itemId, Long expectedVersion);
+    PersistedGroceryListDto refresh(String email, Long listId, GroceryListRefreshRequestDto request);
     PersistedGroceryListDto complete(String email, Long listId);
     void archive(String email, Long listId);
 }

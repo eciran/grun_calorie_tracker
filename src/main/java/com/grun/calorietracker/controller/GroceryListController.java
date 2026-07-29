@@ -3,6 +3,7 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.GroceryListManualItemRequestDto;
 import com.grun.calorietracker.dto.GroceryListPurchaseRequestDto;
 import com.grun.calorietracker.dto.GroceryListQuantityRequestDto;
+import com.grun.calorietracker.dto.GroceryListRefreshRequestDto;
 import com.grun.calorietracker.dto.PersistedGroceryListDto;
 import com.grun.calorietracker.service.GroceryListService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -101,6 +102,16 @@ public class GroceryListController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(groceryListService.removeItem(
                 userDetails.getUsername(), listId, itemId, expectedVersion));
+    }
+
+    @PostMapping("/{listId}/refresh")
+    @Operation(summary = "Refresh grocery list from meal plan",
+            description = "Merges current meal plan ingredients while preserving manual items, purchase state, exclusions and quantity overrides.")
+    public ResponseEntity<PersistedGroceryListDto> refresh(
+            @PathVariable @Positive Long listId,
+            @RequestBody @Valid GroceryListRefreshRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(groceryListService.refresh(userDetails.getUsername(), listId, request));
     }
 
     @PostMapping("/{listId}/complete")

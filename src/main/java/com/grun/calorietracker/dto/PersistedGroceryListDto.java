@@ -12,6 +12,8 @@ public class PersistedGroceryListDto {
     private Long sourceMealPlanId;
     private String sourceMealPlanName;
     private LocalDateTime sourceUpdatedAt;
+    private LocalDateTime currentSourceUpdatedAt;
+    private Boolean sourceOutdated;
     private GroceryListStatus status;
     private Integer totalItems;
     private Integer purchasedItems;

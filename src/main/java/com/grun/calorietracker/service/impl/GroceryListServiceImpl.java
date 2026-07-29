@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.GroceryListItemResponseDto;
 import com.grun.calorietracker.dto.GroceryListManualItemRequestDto;
 import com.grun.calorietracker.dto.GroceryListPurchaseRequestDto;
 import com.grun.calorietracker.dto.GroceryListQuantityRequestDto;
+import com.grun.calorietracker.dto.GroceryListRefreshRequestDto;
 import com.grun.calorietracker.dto.PersistedGroceryListDto;
 import com.grun.calorietracker.entity.GroceryListEntity;
 import com.grun.calorietracker.entity.GroceryListItemEntity;
@@ -35,7 +36,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -143,6 +148,51 @@ public class GroceryListServiceImpl implements GroceryListService {
 
     @Override
     @Transactional
+    public PersistedGroceryListDto refresh(String email, Long listId, GroceryListRefreshRequestDto request) {
+        assertAccess(email);
+        UserEntity user = getUser(email);
+        GroceryListEntity list = getOwnedForUpdate(listId, user);
+        assertEditable(list);
+        assertVersion(list, request.getExpectedVersion());
+
+        GroceryListDto generated = mealPlanService.getGroceryList(email, list.getSourceMealPlan().getId());
+        if (generated.getItems().size() > GroceryListLimits.MAX_ITEMS_PER_LIST) {
+            throw new IllegalArgumentException("Grocery list item limit exceeded");
+        }
+
+        Map<String, GroceryListItemEntity> existing = new HashMap<>();
+        list.getItems().stream()
+                .filter(item -> item.getSource() == GroceryListItemSource.GENERATED)
+                .forEach(item -> {
+                    if (item.getGeneratedSourceKey() == null
+                            || existing.put(item.getGeneratedSourceKey(), item) != null) {
+                        throw new RequestConflictException("Grocery list contains ambiguous generated items");
+                    }
+                });
+
+        Set<String> incomingKeys = new HashSet<>();
+        for (GroceryListItemDto source : generated.getItems()) {
+            if (source.getFoodItemId() == null) {
+                throw new RequestConflictException("Meal plan contains an item without a stable food reference");
+            }
+            String key = "food:" + source.getFoodItemId();
+            if (!incomingKeys.add(key)) {
+                throw new RequestConflictException("Meal plan contains duplicate grocery items");
+            }
+            GroceryListItemEntity item = existing.get(key);
+            if (item == null) {
+                list.addItem(toGeneratedItem(source));
+            } else {
+                mergeGeneratedItem(item, source);
+            }
+        }
+
+        existing.forEach((key, item) -> item.setSourceRemoved(!incomingKeys.contains(key)));
+        list.setSourceUpdatedAt(currentSourceUpdatedAt(list));
+        return toDto(groceryListRepository.save(list));
+    }
+    @Override
+    @Transactional
     public PersistedGroceryListDto complete(String email, Long listId) {
         assertAccess(email);
         GroceryListEntity list = getOwnedForUpdate(listId, getUser(email));
@@ -195,6 +245,23 @@ public class GroceryListServiceImpl implements GroceryListService {
         return item;
     }
 
+    private void mergeGeneratedItem(GroceryListItemEntity item, GroceryListItemDto source) {
+        item.setFoodItem(foodItemRepository.findById(source.getFoodItemId()).orElse(null));
+        item.setDisplayName(source.getName());
+        item.setPlannedUses(source.getPlannedUses() == null ? 0 : source.getPlannedUses());
+        item.setSourceRemoved(false);
+        if (!Boolean.TRUE.equals(item.getQuantityOverridden())) {
+            item.setDisplayQuantity(positive(source.getTotalQuantity()) ? source.getTotalQuantity() : source.getTotalGrams());
+            item.setDisplayUnit(positive(source.getTotalQuantity()) && source.getQuantityUnit() != null
+                    ? source.getQuantityUnit() : FoodPortionUnit.GRAM);
+            item.setNormalizedGrams(source.getTotalGrams());
+        }
+    }
+
+    private LocalDateTime currentSourceUpdatedAt(GroceryListEntity list) {
+        LocalDateTime updatedAt = list.getSourceMealPlan().getUpdatedAt();
+        return updatedAt == null ? LocalDateTime.now() : updatedAt;
+    }
     private PersistedGroceryListDto toDto(GroceryListEntity entity) {
         List<GroceryListItemResponseDto> items = entity.getItems().stream()
                 .sorted(Comparator.comparing(GroceryListItemEntity::getCategory)
@@ -206,10 +273,16 @@ public class GroceryListServiceImpl implements GroceryListService {
         dto.setSourceMealPlanId(entity.getSourceMealPlan().getId());
         dto.setSourceMealPlanName(entity.getSourceMealPlan().getName());
         dto.setSourceUpdatedAt(entity.getSourceUpdatedAt());
+        LocalDateTime currentSourceUpdatedAt = currentSourceUpdatedAt(entity);
+        dto.setCurrentSourceUpdatedAt(currentSourceUpdatedAt);
+        dto.setSourceOutdated(entity.getSourceUpdatedAt() == null
+                || currentSourceUpdatedAt.isAfter(entity.getSourceUpdatedAt()));
         dto.setStatus(entity.getStatus());
         dto.setTotalItems(items.size());
-        dto.setVisibleItems((int) items.stream().filter(item -> !Boolean.TRUE.equals(item.getExcluded())).count());
+        dto.setVisibleItems((int) items.stream().filter(item -> !Boolean.TRUE.equals(item.getExcluded())
+                && !Boolean.TRUE.equals(item.getSourceRemoved())).count());
         dto.setPurchasedItems((int) items.stream().filter(item -> !Boolean.TRUE.equals(item.getExcluded())
+                && !Boolean.TRUE.equals(item.getSourceRemoved())
                 && Boolean.TRUE.equals(item.getPurchased())).count());
         dto.setVersion(entity.getVersion());
         dto.setCreatedAt(entity.getCreatedAt());
@@ -231,6 +304,7 @@ public class GroceryListServiceImpl implements GroceryListService {
         dto.setPlannedUses(entity.getPlannedUses());
         dto.setPurchased(entity.getPurchased());
         dto.setExcluded(entity.getExcluded());
+        dto.setSourceRemoved(entity.getSourceRemoved());
         dto.setQuantityOverridden(entity.getQuantityOverridden());
         dto.setVersion(entity.getVersion());
         return dto;
@@ -272,6 +346,11 @@ public class GroceryListServiceImpl implements GroceryListService {
         }
     }
 
+    private void assertVersion(GroceryListEntity list, Long expectedVersion) {
+        if (expectedVersion == null || !expectedVersion.equals(list.getVersion())) {
+            throw new RequestConflictException("Grocery list was updated by another request");
+        }
+    }
     private void assertVersion(GroceryListItemEntity item, Long expectedVersion) {
         if (expectedVersion == null || !expectedVersion.equals(item.getVersion())) {
             throw new RequestConflictException("Grocery list item was updated by another request");

@@ -18,6 +18,7 @@ public class GroceryListItemResponseDto {
     private Integer plannedUses;
     private Boolean purchased;
     private Boolean excluded;
+    private Boolean sourceRemoved;
     private Boolean quantityOverridden;
     private Long version;
 }

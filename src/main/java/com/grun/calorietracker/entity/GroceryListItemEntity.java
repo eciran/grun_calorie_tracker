@@ -62,6 +62,9 @@ public class GroceryListItemEntity {
     @Column(nullable = false)
     private Boolean excluded = false;
 
+    @Column(name = "source_removed", nullable = false)
+    private Boolean sourceRemoved = false;
+
     @Column(name = "quantity_overridden", nullable = false)
     private Boolean quantityOverridden = false;
 
@@ -96,6 +99,7 @@ public class GroceryListItemEntity {
         if (category == null) category = GroceryCategory.OTHER;
         if (purchased == null) purchased = false;
         if (excluded == null) excluded = false;
+        if (sourceRemoved == null) sourceRemoved = false;
         if (quantityOverridden == null) quantityOverridden = false;
         if (plannedUses == null) plannedUses = 0;
         if (version == null) version = 0L;

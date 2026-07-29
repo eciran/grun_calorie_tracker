@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.GroceryListDto;
 import com.grun.calorietracker.dto.GroceryListItemDto;
 import com.grun.calorietracker.dto.GroceryListManualItemRequestDto;
 import com.grun.calorietracker.dto.GroceryListPurchaseRequestDto;
+import com.grun.calorietracker.dto.GroceryListRefreshRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.GroceryListEntity;
 import com.grun.calorietracker.entity.GroceryListItemEntity;
@@ -29,6 +30,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -135,6 +138,99 @@ class GroceryListServiceImplTest {
         verify(groceryListItemRepository).save(item);
     }
 
+    @Test
+    void get_marksListOutdatedWhenMealPlanChanged() {
+        GroceryListEntity list = list();
+        mealPlan.setUpdatedAt(list.getSourceUpdatedAt().plusMinutes(1));
+        when(groceryListRepository.findByIdAndUser(20L, user)).thenReturn(Optional.of(list));
+
+        var result = service.get(user.getEmail(), 20L);
+
+        assertTrue(result.getSourceOutdated());
+        assertEquals(mealPlan.getUpdatedAt(), result.getCurrentSourceUpdatedAt());
+    }
+
+    @Test
+    void refresh_mergesSourceWhilePreservingUserDecisions() {
+        GroceryListEntity list = list();
+        GroceryListItemEntity retained = list.getItems().get(0);
+        retained.setPurchased(true);
+        retained.setExcluded(true);
+        retained.setQuantityOverridden(true);
+        retained.setDisplayQuantity(9.0);
+
+        GroceryListItemEntity removed = generatedItem(31L, 8L, "Old ingredient");
+        list.addItem(removed);
+        GroceryListItemEntity manual = new GroceryListItemEntity();
+        manual.setId(32L);
+        manual.setSource(GroceryListItemSource.MANUAL);
+        manual.setDisplayName("Reusable bag");
+        manual.setCategory(GroceryCategory.OTHER);
+        manual.setDisplayQuantity(1.0);
+        manual.setDisplayUnit(FoodPortionUnit.PIECE);
+        manual.setPurchased(true);
+        manual.setVersion(0L);
+        list.addItem(manual);
+
+        GroceryListDto generated = new GroceryListDto();
+        generated.setItems(List.of(
+                new GroceryListItemDto(5L, "Updated yogurt", 500.0, 3.0, FoodPortionUnit.SERVING, 3),
+                new GroceryListItemDto(6L, "Bananas", 240.0, 2.0, FoodPortionUnit.PIECE, 2)));
+        mealPlan.setUpdatedAt(mealPlan.getUpdatedAt().plusDays(1));
+        when(groceryListRepository.findOwnedForUpdate(20L, user)).thenReturn(Optional.of(list));
+        when(mealPlanService.getGroceryList(user.getEmail(), 12L)).thenReturn(generated);
+        when(foodItemRepository.findById(any())).thenReturn(Optional.empty());
+        GroceryListRefreshRequestDto request = new GroceryListRefreshRequestDto();
+        request.setExpectedVersion(0L);
+
+        var result = service.refresh(user.getEmail(), 20L, request);
+
+        var retainedResult = result.getItems().stream()
+                .filter(item -> "Updated yogurt".equals(item.getDisplayName())).findFirst().orElseThrow();
+        assertTrue(retainedResult.getPurchased());
+        assertTrue(retainedResult.getExcluded());
+        assertEquals(9.0, retainedResult.getDisplayQuantity());
+        assertFalse(retainedResult.getSourceRemoved());
+        assertTrue(result.getItems().stream().anyMatch(item -> "Bananas".equals(item.getDisplayName())));
+        assertTrue(result.getItems().stream()
+                .filter(item -> "Old ingredient".equals(item.getDisplayName()))
+                .findFirst().orElseThrow().getSourceRemoved());
+        assertTrue(result.getItems().stream().anyMatch(item -> "Reusable bag".equals(item.getDisplayName())));
+        assertFalse(result.getSourceOutdated());
+    }
+
+    @Test
+    void refresh_rejectsStaleListVersion() {
+        GroceryListEntity list = list();
+        list.setVersion(4L);
+        when(groceryListRepository.findOwnedForUpdate(20L, user)).thenReturn(Optional.of(list));
+        GroceryListRefreshRequestDto request = new GroceryListRefreshRequestDto();
+        request.setExpectedVersion(3L);
+
+        assertThrows(RequestConflictException.class,
+                () -> service.refresh(user.getEmail(), 20L, request));
+    }
+
+    private GroceryListItemEntity generatedItem(Long id, Long foodId, String name) {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(foodId);
+        GroceryListItemEntity item = new GroceryListItemEntity();
+        item.setId(id);
+        item.setFoodItem(food);
+        item.setSource(GroceryListItemSource.GENERATED);
+        item.setGeneratedSourceKey("food:" + foodId);
+        item.setDisplayName(name);
+        item.setCategory(GroceryCategory.OTHER);
+        item.setDisplayQuantity(1.0);
+        item.setDisplayUnit(FoodPortionUnit.PIECE);
+        item.setPurchased(false);
+        item.setExcluded(false);
+        item.setSourceRemoved(false);
+        item.setQuantityOverridden(false);
+        item.setPlannedUses(1);
+        item.setVersion(0L);
+        return item;
+    }
     private GroceryListEntity list() {
         GroceryListEntity list = new GroceryListEntity();
         list.setId(20L);
