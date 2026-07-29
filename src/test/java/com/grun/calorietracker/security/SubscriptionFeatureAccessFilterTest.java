@@ -46,6 +46,8 @@ class SubscriptionFeatureAccessFilterTest {
         assertEquals(SubscriptionFeature.GROCERY_LIST,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/meal-plans/42/grocery-list"));
         assertEquals(SubscriptionFeature.GROCERY_LIST,
+                SubscriptionFeatureAccessFilter.resolveFeature("PATCH", "/api/v1/grocery-lists/20/items/30/purchased"));
+        assertEquals(SubscriptionFeature.GROCERY_LIST,
                 SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/meal-plans/42/grocery-list/"));
         assertNull(SubscriptionFeatureAccessFilter.resolveFeature(
                 "GET", "/api/v1/meal-plans/42"));
