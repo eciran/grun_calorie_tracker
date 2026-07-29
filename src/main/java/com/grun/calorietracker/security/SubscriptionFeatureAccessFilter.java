@@ -71,6 +71,7 @@ public class SubscriptionFeatureAccessFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/progress")) return SubscriptionFeature.WEIGHT_PROGRESS;
         if (path.startsWith("/api/v1/exercise-logs")) return SubscriptionFeature.WORKOUT_LOGGING;
         if (path.startsWith("/api/v1/meal-templates")) return SubscriptionFeature.SAVED_MEAL_TEMPLATES;
+        if (path.matches("^/api/v1/meal-plans/\\d+/grocery-list/?$")) return SubscriptionFeature.GROCERY_LIST;
         if (path.startsWith("/api/v1/health")) return SubscriptionFeature.HEALTH_INTEGRATION;
         if (path.startsWith("/api/v1/sleep/providers")) return SubscriptionFeature.HEALTH_INTEGRATION;
         if (path.startsWith("/api/v1/sleep/summary/weekly")) return SubscriptionFeature.ADVANCED_ANALYTICS;

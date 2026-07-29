@@ -32,6 +32,7 @@ import com.grun.calorietracker.enums.MealPlanItemType;
 import com.grun.calorietracker.enums.MealPlanStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.RecipeVisibility;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -39,6 +40,7 @@ import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.MealPlanService;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -65,6 +67,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final RecipeRepository recipeRepository;
     private final WorkoutPlanRepository workoutPlanRepository;
     private final ObjectMapper objectMapper;
+    private final SubscriptionService subscriptionService;
 
     @Override
     @Transactional
@@ -155,6 +158,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     @Override
     @Transactional(readOnly = true)
     public GroceryListDto getGroceryList(String email, Long planId) {
+        subscriptionService.assertFeatureAccess(email, SubscriptionFeature.GROCERY_LIST);
         MealPlanEntity plan = getOwnedPlan(planId, getUser(email));
         Map<Long, GroceryAccumulator> accumulator = new LinkedHashMap<>();
         for (MealPlanItemEntity item : plan.getItems()) {

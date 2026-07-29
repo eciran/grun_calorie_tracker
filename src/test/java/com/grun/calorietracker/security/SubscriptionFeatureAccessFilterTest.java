@@ -43,6 +43,12 @@ class SubscriptionFeatureAccessFilterTest {
                 "GET", "/api/v1/progress/analytics/basic"));
         assertEquals(SubscriptionFeature.WORKOUT_LOGGING,
                 SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/exercise-logs"));
+        assertEquals(SubscriptionFeature.GROCERY_LIST,
+                SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/meal-plans/42/grocery-list"));
+        assertEquals(SubscriptionFeature.GROCERY_LIST,
+                SubscriptionFeatureAccessFilter.resolveFeature("GET", "/api/v1/meal-plans/42/grocery-list/"));
+        assertNull(SubscriptionFeatureAccessFilter.resolveFeature(
+                "GET", "/api/v1/meal-plans/42"));
         assertEquals(SubscriptionFeature.HEALTH_INTEGRATION,
                 SubscriptionFeatureAccessFilter.resolveFeature("POST", "/api/v1/sleep/providers/APPLE_HEALTH/sessions"));
         assertEquals(SubscriptionFeature.ADVANCED_ANALYTICS,
@@ -92,6 +98,29 @@ class SubscriptionFeatureAccessFilterTest {
         verify(chain, never()).doFilter(request, response);
     }
 
+    @Test
+    void doFilter_whenGroceryListAccessIsDenied_returnsStandardForbidden() throws Exception {
+        SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        FilterChain chain = mock(FilterChain.class);
+        SubscriptionFeatureAccessFilter filter = new SubscriptionFeatureAccessFilter(subscriptionService, objectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/v1/meal-plans/42/grocery-list");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.setAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE, "grocery-request-1");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("free@grun.app", "n/a", List.of()));
+        when(subscriptionService.hasFeatureAccess("free@grun.app", SubscriptionFeature.GROCERY_LIST))
+                .thenReturn(false);
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(403, response.getStatus());
+        var body = objectMapper().readTree(response.getContentAsString());
+        assertEquals("SUBSCRIPTION_FEATURE_ACCESS_DENIED", body.get("code").asText());
+        assertEquals("grocery-request-1", body.get("correlationId").asText());
+        assertEquals("/api/v1/meal-plans/42/grocery-list", body.get("path").asText());
+        verify(chain, never()).doFilter(request, response);
+    }
     @Test
     void doFilter_whenResolvedAccessIsAllowed_continuesRequest() throws Exception {
         SubscriptionService subscriptionService = mock(SubscriptionService.class);

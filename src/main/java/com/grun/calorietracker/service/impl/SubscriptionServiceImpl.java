@@ -114,6 +114,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             case WATER_TRACKING -> Boolean.TRUE.equals(access.getWaterTracking());
             case WORKOUT_LOGGING -> Boolean.TRUE.equals(access.getWorkoutLogging());
             case SAVED_MEAL_TEMPLATES -> Boolean.TRUE.equals(access.getSavedMealTemplates());
+            case GROCERY_LIST -> Boolean.TRUE.equals(access.getGroceryList());
             case RECIPE_BUILDER -> Boolean.TRUE.equals(access.getRecipeBuilder());
             case PUBLIC_RECIPE_LIBRARY -> Boolean.TRUE.equals(access.getPublicRecipeLibrary());
             case NEXT_MEAL_SUGGESTIONS -> Boolean.TRUE.equals(access.getNextMealSuggestions());
@@ -483,6 +484,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setWaterTracking(featureAllowed(subscription, resolution, SubscriptionFeature.WATER_TRACKING));
         dto.setWorkoutLogging(featureAllowed(subscription, resolution, SubscriptionFeature.WORKOUT_LOGGING));
         dto.setSavedMealTemplates(featureAllowed(subscription, resolution, SubscriptionFeature.SAVED_MEAL_TEMPLATES));
+        dto.setGroceryList(featureAllowed(subscription, resolution, SubscriptionFeature.GROCERY_LIST));
         dto.setRecipeBuilder(featureAllowed(subscription, resolution, SubscriptionFeature.RECIPE_BUILDER));
         dto.setPublicRecipeLibrary(featureAllowed(subscription, resolution, SubscriptionFeature.PUBLIC_RECIPE_LIBRARY));
         dto.setNextMealSuggestions(featureAllowed(subscription, resolution, SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
@@ -582,6 +584,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             return planType == SubscriptionPlan.PRO;
         }
         if (feature == SubscriptionFeature.NEXT_MEAL_SUGGESTIONS) {
+            return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
+        }
+        if (feature == SubscriptionFeature.GROCERY_LIST) {
             return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
         }
         if (feature == SubscriptionFeature.PUBLIC_RECIPE_LIBRARY) {

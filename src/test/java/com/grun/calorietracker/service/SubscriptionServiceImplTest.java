@@ -185,6 +185,7 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getAiWorkoutPlanner());
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getNextMealSuggestions());
+        assertEquals(true, result.getGroceryList());
         assertEquals(true, result.getRecipeBuilder());
         assertEquals(true, result.getPublicRecipeLibrary());
         assertEquals(false, result.getAdvancedAnalytics());
@@ -210,6 +211,7 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getAdvancedAnalytics());
         assertEquals(true, result.getMicronutrientDetails());
         assertEquals(true, result.getMicronutrientAnalytics());
+        assertEquals(true, result.getGroceryList());
     }
 
     @Test
@@ -247,6 +249,20 @@ class SubscriptionServiceImplTest {
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
 
         assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.NEXT_MEAL_SUGGESTIONS));
+    }
+
+    @Test
+    void hasFeatureAccess_forGroceryList_usesPaidPlanDefaults() {
+        SubscriptionEntity free = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(free));
+
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.GROCERY_LIST));
+
+        SubscriptionEntity plus = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(plus));
+
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.GROCERY_LIST));
     }
 
     @Test
@@ -734,6 +750,7 @@ class SubscriptionServiceImplTest {
 
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getNextMealSuggestions());
+        assertEquals(true, result.getGroceryList());
         verify(subscriptionPlanFeatureRepository).findByPlanTypeOrderByFeatureAsc(SubscriptionPlan.PLUS);
     }
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {

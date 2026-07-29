@@ -21,6 +21,7 @@ public class SubscriptionFeatureAccessDto {
     private Boolean waterTracking;
     private Boolean workoutLogging;
     private Boolean savedMealTemplates;
+    private Boolean groceryList;
     private Boolean recipeBuilder;
     private Boolean publicRecipeLibrary;
     private Boolean nextMealSuggestions;

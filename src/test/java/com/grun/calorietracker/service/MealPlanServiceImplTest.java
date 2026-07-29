@@ -19,6 +19,7 @@ import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.MealPlanItemType;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MealPlanServiceImplTest {
@@ -43,13 +45,15 @@ class MealPlanServiceImplTest {
     private final FoodItemRepository foodItemRepository = mock(FoodItemRepository.class);
     private final RecipeRepository recipeRepository = mock(RecipeRepository.class);
     private final WorkoutPlanRepository workoutPlanRepository = mock(WorkoutPlanRepository.class);
+    private final SubscriptionService subscriptionService = mock(SubscriptionService.class);
     private final MealPlanServiceImpl service = new MealPlanServiceImpl(
             mealPlanRepository,
             userRepository,
             foodItemRepository,
             recipeRepository,
             workoutPlanRepository,
-            new ObjectMapper().findAndRegisterModules()
+            new ObjectMapper().findAndRegisterModules(),
+            subscriptionService
     );
 
     @Test
@@ -116,6 +120,7 @@ class MealPlanServiceImplTest {
 
         GroceryListDto result = service.getGroceryList("user@test.com", 99L);
 
+        verify(subscriptionService).assertFeatureAccess("user@test.com", SubscriptionFeature.GROCERY_LIST);
         assertEquals(99L, result.getMealPlanId());
         assertEquals(2, result.getItems().size());
         assertEquals("Chicken", result.getItems().get(0).getName());
