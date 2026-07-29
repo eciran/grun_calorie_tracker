@@ -28,26 +28,43 @@ export class ApiRequestError extends Error {
   }
 }
 
-const TOKEN_KEY = "grun.admin.accessToken";
-const REFRESH_TOKEN_KEY = "grun.admin.refreshToken";
+let accessToken: string | null = null;
+const AUTH_CHANNEL = "grun-admin-auth";
 const UNAUTHORIZED_EVENT = "grun-admin-unauthorized";
+const ACTIVITY_EVENT = "grun-admin-activity";
+const REAUTH_EVENT = "grun-admin-reauth-required";
+let reauthCodeResolver: ((code: string | null) => void) | null = null;
 const DEFAULT_TIMEOUT_MS = 20000;
 
-export function getToken(): string | null {
-  return window.sessionStorage.getItem(TOKEN_KEY);
-}
+export function getToken(): string | null { return accessToken; }
 
-export function saveTokens(response: LoginResponse) {
-  window.sessionStorage.setItem(TOKEN_KEY, response.token);
-  if (response.refreshToken) {
-    window.sessionStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
+export function saveTokens(response: LoginResponse) { accessToken = response.token; }
+
+export function clearTokens(broadcast = true) {
+  accessToken = null;
+  if (broadcast && "BroadcastChannel" in window) {
+    const channel = new BroadcastChannel(AUTH_CHANNEL);
+    channel.postMessage({ type: "logout" });
+    channel.close();
   }
 }
 
-export function clearTokens() {
-  window.sessionStorage.removeItem(TOKEN_KEY);
-  window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+export async function restoreAdminSession(): Promise<boolean> {
+  try { saveTokens(await request<LoginResponse>("/api/v1/auth/admin/refresh", { method: "POST", auth: false })); return true; }
+  catch { clearTokens(false); return false; }
 }
+
+export async function logoutAdmin(): Promise<void> {
+  try { await request("/api/v1/auth/admin/logout", { method: "POST", auth: false }); } finally { clearTokens(); }
+}
+
+function requestReauthCode(purpose: string): Promise<string | null> {
+  if (reauthCodeResolver) reauthCodeResolver(null);
+  window.dispatchEvent(new CustomEvent(REAUTH_EVENT, { detail: { purpose } }));
+  return new Promise((resolve) => { reauthCodeResolver = resolve; });
+}
+export function resolveAdminReauth(code: string | null) { const resolver = reauthCodeResolver; reauthCodeResolver = null; resolver?.(code); }
+export function subscribeAdminReauth(handler: (purpose: string) => void): () => void { const listener = (event: Event) => handler(String((event as CustomEvent).detail?.purpose ?? "")); window.addEventListener(REAUTH_EVENT, listener); return () => window.removeEventListener(REAUTH_EVENT, listener); }
 
 export function isUnauthorizedError(error: unknown): boolean {
   return error instanceof ApiRequestError && error.status === 401;
@@ -64,7 +81,7 @@ export function formatRequestError(error: unknown): string {
 }
 
 export async function login(email: string, password: string, adminMfaCode?: string): Promise<LoginResponse> {
-  return request<LoginResponse>("/api/v1/auth/login", {
+  return request<LoginResponse>("/api/v1/auth/admin/login", {
     method: "POST",
     auth: false,
     body: { email, password, adminMfaCode: adminMfaCode?.trim() || undefined }
@@ -79,6 +96,7 @@ export async function request<T>(
     body?: unknown;
     headers?: Record<string, string>;
     timeoutMs?: number;
+    reauthRetry?: boolean;
   } = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
@@ -118,6 +136,14 @@ export async function request<T>(
   const text = await response.text();
   const data = text ? safeJson(text) : null;
   if (!response.ok) {
+    if (response.status === 428 && options.reauthRetry !== false && data && typeof data === "object") {
+      const purpose = String((data as Record<string, unknown>).requiredPurpose ?? "");
+      const code = await requestReauthCode(purpose);
+      if (code && purpose) {
+        const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", { method: "POST", body: { code, purpose }, reauthRetry: false });
+        if (proof.token) return request<T>(path, { ...options, headers: { ...options.headers, "X-Admin-Reauth-Token": proof.token }, reauthRetry: false });
+      }
+    }
     if (response.status === 401) {
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     }
@@ -144,7 +170,8 @@ export async function requestFormData<T>(
       method: options.method ?? "POST",
       headers,
       body: formData,
-      signal: controller.signal
+      signal: controller.signal,
+      credentials: "include"
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
@@ -161,18 +188,22 @@ export async function requestFormData<T>(
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
     throw new ApiRequestError(message, response.status, path);
   }
+  window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT));
   return data as T;
 }
 
-export async function requestBlob(path: string, options: { timeoutMs?: number } = {}): Promise<Blob> {
-  const headers: Record<string, string> = { Accept: "text/csv" };
+export async function requestBlob(
+  path: string,
+  options: { timeoutMs?: number; headers?: Record<string, string>; reauthRetry?: boolean } = {},
+): Promise<Blob> {
+  const headers: Record<string, string> = { Accept: "text/csv", ...options.headers };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(path, { headers, signal: controller.signal });
+    response = await fetch(path, { headers, signal: controller.signal, credentials: "include" });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ApiRequestError("Request timed out. Check whether the backend is running.", 0, path);
@@ -185,11 +216,37 @@ export async function requestBlob(path: string, options: { timeoutMs?: number } 
     const text = await response.text();
     const data = text ? safeJson(text) : null;
     if (response.status === 401) window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    if (response.status === 428 && options.reauthRetry !== false && data && typeof data === "object") {
+      const purpose = (data as { requiredPurpose?: string }).requiredPurpose;
+      if (purpose) {
+        const code = await requestReauthCode(purpose);
+        if (code) {
+          const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", {
+            method: "POST",
+            body: { code, purpose },
+            reauthRetry: false,
+          });
+          if (proof.token) {
+            return requestBlob(path, {
+              ...options,
+              headers: { ...options.headers, "X-Admin-Reauth-Token": proof.token },
+              reauthRetry: false,
+            });
+          }
+        }
+      }
+    }
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
     throw new ApiRequestError(message, response.status, path);
   }
+  window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT));
   return response.blob();
 }
+export function subscribeAdminActivity(handler: () => void): () => void {
+  window.addEventListener(ACTIVITY_EVENT, handler);
+  return () => window.removeEventListener(ACTIVITY_EVENT, handler);
+}
+
 export function subscribeUnauthorized(handler: () => void): () => void {
   window.addEventListener(UNAUTHORIZED_EVENT, handler);
   return () => window.removeEventListener(UNAUTHORIZED_EVENT, handler);

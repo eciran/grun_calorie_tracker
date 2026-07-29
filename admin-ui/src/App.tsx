@@ -6,12 +6,17 @@ import {
   formatRequestError,
   getToken,
   login,
+  logoutAdmin,
+  restoreAdminSession,
   PageResponse,
   request,
   requestBlob,
   requestFormData,
   saveTokens,
-  subscribeUnauthorized
+  subscribeUnauthorized,
+  subscribeAdminActivity,
+  subscribeAdminReauth,
+  resolveAdminReauth
 } from "./api";
 import {
   AdminCatalogImportJob,
@@ -40,6 +45,8 @@ import {
   AdminAchievementDefinition,
   AdminAchievementMetrics,
   AdminAccessProfile,
+  AdminSessionPage,
+  OwnerAdminSessionPage,
   AdminApprovalPage,
   AdminApprovalRequest,
   AdminMfaEnrollment,
@@ -608,7 +615,8 @@ const PRODUCT_VITAMIN_FIELDS: Array<{ key: ProductReviewNumberField; label: stri
 ];
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(Boolean(getToken()));
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authRestoring, setAuthRestoring] = useState(true);
   const [active, setActive] = useState<SectionKey>(() => sectionFromHash());
   const [error, setError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
@@ -616,6 +624,10 @@ export default function App() {
   const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
   const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
   const [accessProfile, setAccessProfile] = useState<AdminAccessProfile | null>(null);
+  const [sessionWarningOpen, setSessionWarningOpen] = useState(false);
+  const [sessionWarningBusy, setSessionWarningBusy] = useState(false);
+  const [reauthPurpose, setReauthPurpose] = useState<string | null>(null);
+  const [reauthCode, setReauthCode] = useState("");
   const mainRef = useRef<HTMLElement | null>(null);
 
   function navigateToSection(section: SectionKey) {
@@ -675,9 +687,40 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    restoreAdminSession().then(setAuthenticated).finally(() => setAuthRestoring(false));
+  }, []);
+
+  useEffect(() => subscribeAdminReauth(setReauthPurpose), []);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    let warningTimer = 0;
+    const reset = () => {
+      window.clearTimeout(warningTimer);
+      warningTimer = window.setTimeout(() => setSessionWarningOpen(true), 13 * 60 * 1000);
+    };
+    reset();
+    const unsubscribe = subscribeAdminActivity(reset);
+    return () => { window.clearTimeout(warningTimer); unsubscribe(); };
+  }, [authenticated]);
+
+  async function continueAdminSession() {
+    setSessionWarningBusy(true);
+    try { const ok = await restoreAdminSession(); setAuthenticated(ok); setSessionWarningOpen(false); }
+    finally { setSessionWarningBusy(false); }
+  }
+
+  async function endAdminSession() {
+    setSessionWarningBusy(true);
+    try { await logoutAdmin(); } finally { setSessionWarningOpen(false); setSessionWarningBusy(false); setAuthenticated(false); }
+  }
+
   function toggleTheme() {
     setTheme((current) => current === "dark" ? "light" : "dark");
   }
+
+  if (authRestoring) return <main className="login-page"><p>Restoring secure session...</p></main>;
 
   if (!authenticated) {
     return <LoginView onLogin={() => {
@@ -751,10 +794,7 @@ export default function App() {
         </nav>
         <button
           className="logout-button"
-          onClick={() => {
-            clearTokens();
-            setAuthenticated(false);
-          }}
+          onClick={() => void endAdminSession()}
           type="button"
         >
           Sign out
@@ -830,6 +870,8 @@ export default function App() {
           {active === "systemProduction" && <RuntimeOperationsView onError={setError} />}
         </section>
       </main>
+      {reauthPurpose && <div className="modal-backdrop confirm-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-label="Fresh owner MFA required"><div className="confirm-dialog-copy"><p className="eyebrow">Sensitive owner action</p><h2>Fresh MFA verification</h2><p>Purpose: {humanizeFeature(reauthPurpose)}</p><label>Authenticator or recovery code<input autoFocus value={reauthCode} onChange={(event)=>setReauthCode(event.target.value)} maxLength={32} autoComplete="one-time-code" /></label></div><div className="modal-actions"><button className="ghost-button" type="button" onClick={()=>{resolveAdminReauth(null);setReauthPurpose(null);setReauthCode("");}}>Cancel</button><button className="primary-button" disabled={!reauthCode.trim()} type="button" onClick={()=>{resolveAdminReauth(reauthCode.trim());setReauthPurpose(null);setReauthCode("");}}>Verify and continue</button></div></section></div>}
+      {sessionWarningOpen && <ConfirmDialog title="Admin session expiring" message="Your admin session will expire in about 2 minutes. Continue only if you are still actively administering GRUN." confirmLabel="Continue session" busy={sessionWarningBusy} onCancel={() => void endAdminSession()} onConfirm={() => void continueAdminSession()} />}
     </div>
   );
 }
@@ -3641,7 +3683,7 @@ function AdminApprovalQueue({ accessProfile, onError }: { accessProfile: AdminAc
     if (!selected?.id || !mfaCode.trim() || !decisionReason.trim()) return;
     setBusy(true);
     try {
-      const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", { method: "POST", body: { code: mfaCode } });
+      const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", { method: "POST", body: { code: mfaCode, purpose: "APPROVAL_DECISION" } });
       if (!proof.token) throw new Error("MFA re-authentication token was not returned.");
       await request(`/api/v1/admin/approvals/${selected.id}/${approve ? "approve" : "reject"}`, {
         method: "POST",
@@ -3670,6 +3712,73 @@ function AdminApprovalQueue({ accessProfile, onError }: { accessProfile: AdminAc
     {state === "loading" && <span className="muted-text">Loading approval queue...</span>}
   </Panel>;
 }
+function AdminSessionPanel({ canRevoke, onError }: { canRevoke: boolean; onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const path = `/api/v1/admin/security/sessions?page=${page}&size=${pageSize}`;
+  const { data, state, reload } = useEndpoint<AdminSessionPage>(path, onError);
+  const [busy, setBusy] = useState(false);
+
+  const [pendingRevoke, setPendingRevoke] = useState<string | "others" | null>(null);
+  const [reason, setReason] = useState("");
+
+  async function confirmRevoke() {
+    if (!pendingRevoke || !reason.trim()) return;
+    setBusy(true);
+    try {
+      const path = pendingRevoke === "others" ? "/api/v1/admin/security/sessions/others" : `/api/v1/admin/security/sessions/${pendingRevoke}`;
+      await request(path, { method: "DELETE", body: { reason: reason.trim() } });
+      setPendingRevoke(null); setReason(""); await reload();
+    } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
+  }
+
+  const sessions = data?.content ?? [];
+  return <Panel title="Your active admin sessions" description="Server-side sessions. Network addresses are masked and revocation takes effect on the next backend request.">
+    <div className="form-actions"><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh sessions</button>{canRevoke && sessions.some((item) => !item.current) && <button className="danger-button" disabled={busy} type="button" onClick={() => setPendingRevoke("others")}>Revoke all other sessions</button>}</div>
+    <DataTable columns={["Device", "Network", "Created", "Last activity", "Expiry", "Action"]} rows={sessions.map((item) => [
+      <div className="entity-cell"><strong>{item.device ?? "Unknown browser"}</strong><small>{item.current ? "Current session" : item.id ?? "-"}</small></div>,
+      item.maskedIp ?? "Unknown", formatDate(item.createdAt), formatDate(item.lastActivityAt),
+      <div className="table-stack"><span>Idle {formatDate(item.idleExpiresAt)}</span><small>Absolute {formatDate(item.absoluteExpiresAt)}</small></div>,
+      item.current ? <Badge value="CURRENT" tone="good" /> : canRevoke ? <button className="danger-button" disabled={busy} type="button" onClick={() => item.id && setPendingRevoke(item.id)}>Revoke</button> : <Badge value="ACTIVE" />
+    ])} empty={state === "loading" ? "Loading sessions..." : "No active sessions found."} />
+    {pendingRevoke && <div className="approval-decision-panel"><strong>{pendingRevoke === "others" ? "Revoke all other sessions" : "Revoke selected session"}</strong><p>{pendingRevoke === "others" ? "Every other active admin session will be signed out immediately. This session remains active." : "The selected browser will be signed out on its next backend request."}</p><label>Required audit reason<textarea value={reason} onChange={(event)=>setReason(event.target.value)} maxLength={500} /></label><div className="form-actions"><button className="ghost-button" disabled={busy} type="button" onClick={()=>{setPendingRevoke(null);setReason("");}}>Cancel</button><button className="danger-button" disabled={busy||!reason.trim()} type="button" onClick={()=>void confirmRevoke()}>Confirm revocation</button></div></div>}
+    <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page===0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(0);}} />
+  </Panel>;
+}
+
+function OwnerAdminSessionsPanel({ onError }: { onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [pending, setPending] = useState<{ id: string; email: string } | null>(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const path = `/api/v1/admin/security/owner-sessions?page=${page}&size=${pageSize}`;
+  const { data, state, reload } = useEndpoint<OwnerAdminSessionPage>(path, onError);
+
+  async function revoke() {
+    if (!pending || !reason.trim()) return;
+    setBusy(true);
+    try {
+      await request(`/api/v1/admin/security/owner-sessions/${pending.id}`, { method: "DELETE", body: { reason: reason.trim() } });
+      setPending(null); setReason(""); await reload();
+    } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
+  }
+
+  const sessions = data?.content ?? [];
+  return <Panel title="All active admin sessions" description="OWNER-only view. Network addresses are masked; revocation requires fresh owner verification and is audit logged.">
+    <div className="form-actions"><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh all sessions</button></div>
+    <DataTable columns={["Admin", "Device", "Network", "Last activity", "Expiry", "Action"]} rows={sessions.map((item) => [
+      <div className="entity-cell"><strong>{item.adminEmail ?? "Unknown admin"}</strong><small>{humanizeFeature(item.adminRole)}</small></div>,
+      <div className="entity-cell"><strong>{item.device ?? "Unknown browser"}</strong><small>{formatDate(item.createdAt)}</small></div>,
+      item.maskedIp ?? "Unknown", formatDate(item.lastActivityAt),
+      <div className="table-stack"><span>Idle {formatDate(item.idleExpiresAt)}</span><small>Absolute {formatDate(item.absoluteExpiresAt)}</small></div>,
+      item.current ? <Badge value="CURRENT ? PROTECTED" tone="good" /> : <button className="danger-button" disabled={busy || !item.id} type="button" onClick={() => item.id && setPending({ id: item.id, email: item.adminEmail ?? "this admin" })}>Revoke</button>
+    ])} empty={state === "loading" ? "Loading all admin sessions..." : "No active admin sessions found."} />
+    {pending && <div className="approval-decision-panel"><strong>Revoke {pending.email}'s session</strong><p>The selected admin will be signed out on the next backend request. Your current OWNER session is protected.</p><label>Required audit reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} /></label><div className="form-actions"><button className="ghost-button" disabled={busy} type="button" onClick={() => { setPending(null); setReason(""); }}>Cancel</button><button className="danger-button" disabled={busy || !reason.trim()} type="button" onClick={() => void revoke()}>Confirm revocation</button></div></div>}
+    <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1, data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+  </Panel>;
+}
+
 function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -3732,7 +3841,9 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
       <MetricCard label="MFA policy" value={accessProfile?.mfaRequired ? "Required" : "Prepared"} hint={accessProfile?.mfaEnabled ? "Your MFA is enabled" : "Your MFA is not enrolled"} />
     </div>
     <AdminMfaEnrollmentPanel onError={onError} />
-    <AdminApprovalQueue accessProfile={accessProfile} onError={onError} />
+    <AdminSessionPanel canRevoke={accessProfile?.role === "OWNER"} onError={onError} />
+    {accessProfile?.role === "OWNER" && <OwnerAdminSessionsPanel onError={onError} />}
+    {canManage && <AdminApprovalQueue accessProfile={accessProfile} onError={onError} />}
     {canManage && <Panel title="Grant admin access">
       <form className="admin-security-grant" onSubmit={grantAccess}>
         <label>Existing verified account email<input type="email" required value={grant.email} onChange={(event) => setGrant((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>

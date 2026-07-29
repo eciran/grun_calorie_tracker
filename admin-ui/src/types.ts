@@ -1305,6 +1305,24 @@ export type AdminTeamMember = {
   roleUpdatedAt?: string;
 };
 
+export type AdminSession = {
+  id?: string; device?: string; maskedIp?: string; createdAt?: string; lastActivityAt?: string;
+  idleExpiresAt?: string; absoluteExpiresAt?: string; current?: boolean;
+};
+export type AdminSessionPage = {
+  content?: AdminSession[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
+};
+
+export type OwnerAdminSession = AdminSession & {
+  adminEmail?: string;
+  adminRole?: string;
+};
+export type OwnerAdminSessionPage = {
+  content?: OwnerAdminSession[]; page?: number; size?: number; totalElements?: number;
+  totalPages?: number; first?: boolean; last?: boolean;
+};
+
 export type AdminTeamPage = {
   content?: AdminTeamMember[];
   page?: number;

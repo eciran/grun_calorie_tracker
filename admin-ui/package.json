@@ -11,7 +11,7 @@
     "test:foundation": "node scripts/test-admin-foundation.mjs",
     "test:growth-dashboard": "node scripts/test-growth-dashboard.mjs",
     "test:customer-360": "node scripts/test-customer-360.mjs",
-    "test:production": "npm run test:foundation && npm run test:growth-dashboard && npm run test:engagement-charts && npm run test:commercial-charts && npm run test:ai-operations-charts && npm run test:campaign-operations-charts && npm run test:catalog-quality-charts && npm run test:recipe-operations-charts && npm run test:promotion-operations-charts && npm run test:system-reliability-charts && npm run test:customer-360 && npm run test:quality-workbench && node scripts/test-production-readiness.mjs",
+    "test:production": "npm run test:foundation && npm run test:growth-dashboard && npm run test:engagement-charts && npm run test:commercial-charts && npm run test:ai-operations-charts && npm run test:campaign-operations-charts && npm run test:catalog-quality-charts && npm run test:recipe-operations-charts && npm run test:promotion-operations-charts && npm run test:system-reliability-charts && npm run test:customer-360 && npm run test:quality-workbench && node scripts/test-production-readiness.mjs && npm run test:admin-security-session",
     "test:engagement-charts": "node scripts/test-engagement-charts.mjs",
     "test:commercial-charts": "node scripts/test-commercial-charts.mjs",
     "test:ai-operations-charts": "node scripts/test-ai-operations-charts.mjs",
@@ -19,7 +19,8 @@
     "test:catalog-quality-charts": "node scripts/test-catalog-quality-charts.mjs",
     "test:recipe-operations-charts": "node scripts/test-recipe-operations-charts.mjs",
     "test:promotion-operations-charts": "node scripts/test-promotion-operations-charts.mjs",
-    "test:system-reliability-charts": "node scripts/test-system-reliability-charts.mjs"
+    "test:system-reliability-charts": "node scripts/test-system-reliability-charts.mjs",
+    "test:admin-security-session": "node scripts/test-admin-security-session.mjs"
   },
   "dependencies": {
     "echarts": "^6.1.0",

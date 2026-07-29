@@ -24,10 +24,12 @@ assert.match(primitives, /onKeyDown=/, "Clickable table rows must remain keyboar
 assert.match(styles, /prefers-reduced-motion/, "Reduced-motion preferences must be respected.");
 assert.match(styles, /\.skip-link:focus/, "Skip link focus styling is required.");
 
-assert.doesNotMatch(app, /window\.(alert|confirm)\(/, "Native dialogs are not allowed in production admin flows.");
+assert.doesNotMatch(app, /window\.(alert|confirm|prompt)\(/, "Native dialogs are not allowed in production admin flows.");
+assert.doesNotMatch(api, /window\.(alert|confirm|prompt)\(/, "Native dialogs are not allowed in API security flows.");
 assert.doesNotMatch(app, /dangerouslySetInnerHTML/, "Untrusted HTML rendering is not allowed.");
 assert.doesNotMatch(api, /localStorage\.setItem\([^,]*(token|refresh)/i, "Auth tokens must not use persistent local storage.");
-assert.match(api, /sessionStorage\.setItem\(TOKEN_KEY/, "Access tokens must remain session scoped.");
+assert.match(api, /let accessToken: string \| null = null/, "Access tokens must remain in memory only.");
+assert.doesNotMatch(api, /(localStorage|sessionStorage)\.(setItem|getItem)\([^)]*(token|refresh)/i, "Auth tokens must not use browser storage.");
 
 const activeSections = new Set([...app.matchAll(/active === "([A-Za-z0-9]+)"/g)].map((match) => match[1]));
 const navigableSections = new Set([...app.matchAll(/navSection\("([A-Za-z0-9]+)"\)/g)].map((match) => match[1]));
