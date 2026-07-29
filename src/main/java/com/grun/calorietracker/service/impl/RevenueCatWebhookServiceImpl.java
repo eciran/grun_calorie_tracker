@@ -153,7 +153,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 .setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
     private void notifyAdminsAboutFailedProviderEvent(SubscriptionProviderEventEntity event) {
-        List<UserEntity> admins = userRepository.findByRole(UserRole.ADMIN);
+        List<UserEntity> admins = userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_FINANCE));
         if (admins == null || admins.isEmpty()) {
             return;
         }

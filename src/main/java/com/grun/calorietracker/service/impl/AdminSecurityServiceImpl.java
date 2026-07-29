@@ -36,6 +36,8 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AdminAuditService adminAuditService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.grun.calorietracker.service.AdminSessionService adminSessionService;
 
     @Value("${grun.security.admin-mfa-required:false}")
     private boolean adminMfaRequired;
@@ -86,9 +88,8 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
             AdminAccessGrantRequestDto request,
             String correlationId
     ) {
-        if (!request.role().isAdminRole()) {
-            throw new IllegalArgumentException("Only admin team roles can be granted.");
-        }
+        requireOwner(actorEmail);
+        requireAssignableAdminRole(request.role());
         UserEntity target = userRepository.findByEmailForUpdate(request.email().trim().toLowerCase())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Create and verify the standard user account before granting admin access."
@@ -119,21 +120,17 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
             AdminTeamMemberUpdateRequestDto request,
             String correlationId
     ) {
-        if (!request.role().isAdminRole()) {
-            throw new IllegalArgumentException("Only admin team roles can be assigned here.");
-        }
+        requireOwner(actorEmail);
+        requireAssignableAdminRole(request.role());
         UserEntity target = requireAdmin(userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin account was not found.")));
+        if (target.getRole().isOwner() || request.role().isOwner()) {
+            throw new IllegalArgumentException("Owner accounts cannot be modified through admin team management.");
+        }
         boolean self = target.getEmail().equalsIgnoreCase(actorEmail);
         if (self && (!request.enabled() || request.role() != target.getRole())) {
             throw new IllegalArgumentException("You cannot deactivate or change your own admin role.");
         }
-        if (target.getRole() == UserRole.ADMIN
-                && request.role() != UserRole.ADMIN
-                && userRepository.countByRoleAndAccountEnabledTrue(UserRole.ADMIN) <= 1) {
-            throw new IllegalArgumentException("The final active Super Admin cannot be downgraded.");
-        }
-
         Map<String, Object> before = snapshot(target);
         UserRole oldRole = target.getRole();
         boolean oldEnabled = Boolean.TRUE.equals(target.getAccountEnabled());
@@ -147,6 +144,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         boolean securityChanged = oldRole != request.role()
                 || oldEnabled != request.enabled();
         if (securityChanged) {
+            if (adminSessionService != null) adminSessionService.revokeAllForUser(saved);
             LocalDateTime now = LocalDateTime.now();
             refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(saved)
                     .forEach(token -> token.setRevokedAt(now));
@@ -179,6 +177,23 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
             throw new IllegalArgumentException("Account is not an admin team member.");
         }
         return user;
+    }
+
+    private UserEntity requireOwner(String actorEmail) {
+        UserEntity actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Owner account was not found."));
+        if (actor.getRole() != UserRole.OWNER
+                || !Boolean.TRUE.equals(actor.getAccountEnabled())
+                || Boolean.TRUE.equals(actor.getAccountLocked())) {
+            throw new IllegalArgumentException("Only an active owner can manage admin access.");
+        }
+        return actor;
+    }
+
+    private void requireAssignableAdminRole(UserRole role) {
+        if (role == null || !role.isAdminRole() || role.isOwner() || role == UserRole.ADMIN) {
+            throw new IllegalArgumentException("Only least-privilege admin roles can be assigned.");
+        }
     }
 
     private AdminTeamMemberDto toDto(UserEntity user) {

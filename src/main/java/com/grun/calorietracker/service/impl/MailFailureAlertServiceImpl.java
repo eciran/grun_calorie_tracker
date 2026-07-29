@@ -25,7 +25,7 @@ public class MailFailureAlertServiceImpl implements MailFailureAlertService {
 
     @Override
     public void notifyAdminForProviderFailure(String flowType, String recipientEmail, String errorMessage) {
-        List<UserEntity> admins = userRepository.findByRole(UserRole.ADMIN);
+        List<UserEntity> admins = userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_TECHNICAL));
         if (admins.isEmpty()) {
             log.warn(
                     "mail_provider_failure flowType={} recipient={} reason={} adminNotificationSkipped=true",

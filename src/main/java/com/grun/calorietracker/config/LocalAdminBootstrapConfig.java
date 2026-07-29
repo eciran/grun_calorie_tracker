@@ -36,10 +36,16 @@ public class LocalAdminBootstrapConfig {
             }
 
             UserEntity admin = userRepository.findByEmail(email)
+                    .map(existing -> {
+                        if (existing.getRole() == UserRole.OWNER) {
+                            throw new IllegalStateException("Local admin bootstrap cannot modify an owner identity.");
+                        }
+                        return existing;
+                    })
                     .orElseGet(UserEntity::new);
             admin.setEmail(email);
             admin.setPassword(passwordEncoder.encode(password));
-            admin.setRole(UserRole.ADMIN);
+            admin.setRole(UserRole.ADMIN_READ_ONLY);
             admin.setEmailVerified(true);
 
             if (admin.getName() == null || admin.getName().isBlank()) {
@@ -47,7 +53,7 @@ public class LocalAdminBootstrapConfig {
             }
 
             userRepository.save(admin);
-            log.info("Local admin bootstrap ensured ADMIN user for email={}", email);
+            log.info("Local admin bootstrap ensured ADMIN_READ_ONLY user for email={}", email);
         };
     }
 

@@ -9,6 +9,7 @@ import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserSubscriptionEntitlementEntity;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.AccountSecurityAuditEventRepository;
 import com.grun.calorietracker.repository.AdminUserSupportNoteRepository;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
@@ -294,8 +295,12 @@ public class AdminCustomer360ServiceImpl implements AdminCustomer360Service {
     }
 
     private UserEntity requireUser(Long userId) {
-        return userRepository.findById(userId)
+        UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        if (user.getRole() == UserRole.OWNER) {
+            throw new IllegalArgumentException("Owner accounts are not available in customer management.");
+        }
+        return user;
     }
 
     private int intValue(Integer value) {

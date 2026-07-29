@@ -27,6 +27,18 @@ class AdminPermissionMatrixTest {
     }
 
     @Test
+    void ownerReceivesTheCompletePermissionCatalog() {
+        assertEquals(java.util.Set.copyOf(java.util.Arrays.asList(AdminPermission.values())),
+                AdminPermissionMatrix.permissionsFor(UserRole.OWNER));
+    }
+
+    @Test
+    void legacyAdminHasOnlyReadOnlyPermissions() {
+        assertEquals(AdminPermissionMatrix.permissionsFor(UserRole.ADMIN_READ_ONLY),
+                AdminPermissionMatrix.permissionsFor(UserRole.ADMIN));
+    }
+
+    @Test
     void supportCannotWriteSubscriptionConfiguration() throws Exception {
         authenticate(UserRole.ADMIN_SUPPORT);
         MockHttpServletResponse response = execute("PATCH", "/api/v1/admin/subscriptions/users/7");

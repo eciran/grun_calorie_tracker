@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.time.Instant;
 import java.util.function.Function;
 
 @Component
@@ -39,11 +40,26 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateAdminSessionToken(String username, String sessionId, Instant absoluteExpiry) {
+        long expiresAt = Math.min(System.currentTimeMillis() + expirationTime, absoluteExpiry.toEpochMilli());
+        return Jwts.builder().setSubject(username).claim("adminSessionId", sessionId)
+                .setIssuedAt(new Date()).setExpiration(new Date(expiresAt))
+                .signWith(signKey, SignatureAlgorithm.HS256).compact();
+    }
+
+    public String extractAdminSessionId(String token) {
+        return extractAllClaims(token).get("adminSessionId", String.class);
+    }
+
     public String generateAdminReauthenticationToken(String username) {
+        return generateAdminReauthenticationToken(username, com.grun.calorietracker.enums.AdminReauthenticationPurpose.APPROVAL_DECISION);
+    }
+
+    public String generateAdminReauthenticationToken(String username, com.grun.calorietracker.enums.AdminReauthenticationPurpose purpose) {
         long expiresIn = 300_000L;
         return Jwts.builder()
                 .setSubject(username)
-                .claim("purpose", "ADMIN_REAUTH")
+                .claim("purpose", "ADMIN_REAUTH:" + purpose.name())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + expiresIn))
                 .signWith(signKey, SignatureAlgorithm.HS256)
@@ -51,9 +67,13 @@ public class JwtUtil {
     }
 
     public boolean isAdminReauthenticationTokenValid(String token, String username) {
+        return isAdminReauthenticationTokenValid(token, username, com.grun.calorietracker.enums.AdminReauthenticationPurpose.APPROVAL_DECISION);
+    }
+
+    public boolean isAdminReauthenticationTokenValid(String token, String username, com.grun.calorietracker.enums.AdminReauthenticationPurpose purpose) {
         Claims claims = extractAllClaims(token);
         return username.equals(claims.getSubject())
-                && "ADMIN_REAUTH".equals(claims.get("purpose", String.class))
+                && ("ADMIN_REAUTH:" + purpose.name()).equals(claims.get("purpose", String.class))
                 && claims.getExpiration().after(new Date());
     }
     public long getExpirationSeconds() {

@@ -41,7 +41,7 @@ class MailFailureAlertServiceImplTest {
         admin2.setEmail("admin2@grun.local");
         admin2.setRole(UserRole.ADMIN);
 
-        when(userRepository.findByRole(UserRole.ADMIN)).thenReturn(List.of(admin1, admin2));
+        when(userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_TECHNICAL))).thenReturn(List.of(admin1, admin2));
 
         MailFailureAlertServiceImpl service = new MailFailureAlertServiceImpl(userRepository, notificationRepository);
         service.notifyAdminForProviderFailure("EMAIL_VERIFICATION", "user@example.com", "Brevo timeout");
@@ -62,7 +62,7 @@ class MailFailureAlertServiceImplTest {
 
     @Test
     void notifyAdminForProviderFailure_whenNoAdminExists_doesNotPersistNotification() {
-        when(userRepository.findByRole(UserRole.ADMIN)).thenReturn(List.of());
+        when(userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_TECHNICAL))).thenReturn(List.of());
 
         MailFailureAlertServiceImpl service = new MailFailureAlertServiceImpl(userRepository, notificationRepository);
         service.notifyAdminForProviderFailure("PASSWORD_RESET", "user@example.com", "Brevo 401");

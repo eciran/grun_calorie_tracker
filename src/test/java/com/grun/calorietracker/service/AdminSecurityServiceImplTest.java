@@ -43,7 +43,9 @@ class AdminSecurityServiceImplTest {
 
     @Test
     void roleChangeRevokesRefreshSessionsAndWritesAudit() {
+        UserEntity actor = admin(1L, "owner@grun.app", UserRole.OWNER);
         UserEntity target = admin(7L, "catalog@grun.app", UserRole.ADMIN_CATALOG);
+        when(userRepository.findByEmail("owner@grun.app")).thenReturn(Optional.of(actor));
         RefreshTokenEntity token = new RefreshTokenEntity();
         when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(target));
         when(userRepository.save(target)).thenReturn(target);
@@ -71,31 +73,37 @@ class AdminSecurityServiceImplTest {
     }
 
     @Test
-    void finalSuperAdminCannotBeDowngraded() {
-        UserEntity target = admin(1L, "owner@grun.app", UserRole.ADMIN);
-        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(target));
-        when(userRepository.countByRoleAndAccountEnabledTrue(UserRole.ADMIN)).thenReturn(1L);
-
+    void nonOwnerCannotManageAdminRoles() {
+        UserEntity actor = admin(3L, "legacy@grun.app", UserRole.ADMIN);
+        when(userRepository.findByEmail("legacy@grun.app")).thenReturn(Optional.of(actor));
         assertThrows(IllegalArgumentException.class, () -> service.updateMember(
-                "security@grun.app",
-                1L,
-                new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN_READ_ONLY, true, true, "Unsafe downgrade"),
-                "cid-2"
-        ));
-        verify(userRepository, never()).save(any());
+                "legacy@grun.app", 7L,
+                new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN_SUPPORT, true, true, "Forbidden"),
+                "cid-2"));
+        verify(userRepository, never()).findByIdForUpdate(any());
     }
 
     @Test
-    void adminCannotDeactivateOwnAccount() {
-        UserEntity target = admin(3L, "owner@grun.app", UserRole.ADMIN);
-        when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(target));
-
+    void legacyAdminRoleCannotBeAssigned() {
+        UserEntity actor = admin(1L, "owner@grun.app", UserRole.OWNER);
+        when(userRepository.findByEmail("owner@grun.app")).thenReturn(Optional.of(actor));
         assertThrows(IllegalArgumentException.class, () -> service.updateMember(
-                "owner@grun.app",
-                3L,
-                new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN, false, true, "Self deactivate"),
-                "cid-3"
-        ));
+                "owner@grun.app", 7L,
+                new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN, true, true, "No super admins"),
+                "cid-3"));
+        verify(userRepository, never()).findByIdForUpdate(any());
+    }
+
+    @Test
+    void ownerCannotBeModifiedThroughAdminTeamEndpoint() {
+        UserEntity target = admin(9L, "primary@gmail.com", UserRole.OWNER);
+        when(userRepository.findByEmail("primary@gmail.com")).thenReturn(Optional.of(target));
+        when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(target));
+        assertThrows(IllegalArgumentException.class, () -> service.updateMember(
+                "primary@gmail.com", 9L,
+                new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN_READ_ONLY, true, true, "No generic mutation"),
+                "cid-owner"));
+        verify(userRepository, never()).save(any());
     }
 
     private UserEntity admin(Long id, String email, UserRole role) {

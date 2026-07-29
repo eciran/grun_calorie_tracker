@@ -276,6 +276,9 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     @Transactional
     public void anonymizeAndDeleteAccount(String userEmail, String confirmText, String currentPassword) {
         UserEntity user = findUser(userEmail);
+        if (user.getRole() == com.grun.calorietracker.enums.UserRole.OWNER) {
+            throw new IllegalArgumentException("Owner accounts cannot be deleted through normal account workflows.");
+        }
         if (!DELETE_CONFIRM_TEXT.equalsIgnoreCase(confirmText == null ? "" : confirmText.trim())) {
             throw new IllegalArgumentException("confirmText must be DELETE_MY_ACCOUNT");
         }

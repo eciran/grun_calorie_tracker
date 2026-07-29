@@ -18,7 +18,8 @@ public final class AdminPermissionMatrix {
             return Set.of();
         }
         return switch (role) {
-            case ADMIN -> EnumSet.allOf(AdminPermission.class);
+            case OWNER -> EnumSet.allOf(AdminPermission.class);
+            case ADMIN, ADMIN_READ_ONLY -> readOnlyPermissions();
             case ADMIN_SUPPORT -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ,
                     AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ);
             case ADMIN_CATALOG -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.CATALOG_READ,
@@ -29,12 +30,15 @@ public final class AdminPermissionMatrix {
                     AdminPermission.FINANCE_MANAGE, AdminPermission.AUDIT_READ);
             case ADMIN_TECHNICAL -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.TECHNICAL_READ,
                     AdminPermission.TECHNICAL_MANAGE, AdminPermission.AUDIT_READ);
-            case ADMIN_READ_ONLY -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ,
-                    AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ, AdminPermission.FINANCE_READ,
-                    AdminPermission.TECHNICAL_READ, AdminPermission.COMPLIANCE_READ, AdminPermission.AUDIT_READ,
-                    AdminPermission.ADMIN_TEAM_READ);
             default -> Set.of();
         };
+    }
+
+    private static Set<AdminPermission> readOnlyPermissions() {
+        return EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ,
+                AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ, AdminPermission.FINANCE_READ,
+                AdminPermission.TECHNICAL_READ, AdminPermission.COMPLIANCE_READ, AdminPermission.AUDIT_READ,
+                AdminPermission.ADMIN_TEAM_READ);
     }
 
     public static String authority(AdminPermission permission) {

@@ -13,6 +13,8 @@ import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.security.TotpService;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminMfaService;
+import com.grun.calorietracker.service.AdminSecurityAlertService;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,6 +40,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     private final AdminMfaSecretCipher secretCipher;
     private final JwtUtil jwtUtil;
     private final AdminAuditService auditService;
+    @Autowired(required=false) private AdminSecurityAlertService securityAlerts;
 
     @Value("${grun.security.admin-mfa-required:false}")
     private boolean adminMfaRequired;
@@ -109,12 +112,14 @@ public class AdminMfaServiceImpl implements AdminMfaService {
 
     @Override
     @Transactional
-    public AdminReauthenticationDto reauthenticate(String email, String code, String correlationId) {
+    public AdminReauthenticationDto reauthenticate(String email, String code, com.grun.calorietracker.enums.AdminReauthenticationPurpose purpose, String correlationId) {
         UserEntity user = requireAdmin(email, true);
+        if (user.getRole() != com.grun.calorietracker.enums.UserRole.OWNER) throw new IllegalArgumentException("Owner account required.");
+        if (purpose == null) throw new IllegalArgumentException("Re-authentication purpose is required.");
         requireValidCode(user, code, true);
         auditService.record(email, AdminAuditActionType.ADMIN_MFA_REAUTHENTICATE,
-                AdminAuditTargetType.ADMIN_ACCOUNT, user.getId().toString(), null, Map.of("verified", true), correlationId);
-        return new AdminReauthenticationDto(jwtUtil.generateAdminReauthenticationToken(email), 300);
+                AdminAuditTargetType.ADMIN_ACCOUNT, user.getId().toString(), null, Map.of("verified", true, "purpose", purpose.name()), correlationId);
+        return new AdminReauthenticationDto(jwtUtil.generateAdminReauthenticationToken(email, purpose), 300);
     }
 
     @Override
@@ -122,6 +127,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     public void verifyLogin(UserEntity user, String code) {
         if (!user.getRole().isAdminRole()) return;
         if (!Boolean.TRUE.equals(user.getAdminMfaEnabled())) {
+            if (user.getRole() == com.grun.calorietracker.enums.UserRole.OWNER) return;
             if (adminMfaRequired) {
                 throw new IllegalArgumentException("Admin MFA enrollment is required before secure login.");
             }
@@ -135,7 +141,8 @@ public class AdminMfaServiceImpl implements AdminMfaService {
             throw new IllegalArgumentException("Admin MFA is not enrolled.");
         }
         if (totpService.verify(secretCipher.decrypt(user.getAdminMfaSecretEncrypted()), code)) return;
-        if (allowRecovery && consumeRecoveryCode(user, code)) return;
+        if (allowRecovery && consumeRecoveryCode(user, code)) { if(securityAlerts!=null) securityAlerts.recoveryCodeUsed(user); return; }
+        if(securityAlerts!=null) securityAlerts.mfaFailure(user);
         throw new IllegalArgumentException("Authenticator or recovery code is invalid.");
     }
 

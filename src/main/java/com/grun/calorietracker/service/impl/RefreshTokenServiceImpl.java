@@ -33,6 +33,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final UserActivityService userActivityService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.grun.calorietracker.service.AdminSessionService adminSessionService;
 
     @Value("${grun.refresh-token.expiration-days:30}")
     private long expirationDays;
@@ -102,6 +104,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     @Transactional
     public void revokeAllForUser(UserEntity user) {
+        if (adminSessionService != null) adminSessionService.revokeAllForUser(user);
         LocalDateTime now = LocalDateTime.now();
         refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user)
                 .forEach(token -> token.setRevokedAt(now));

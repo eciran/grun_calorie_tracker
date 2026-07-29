@@ -985,7 +985,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     }
 
     private void notifyAdminsAboutRejectedDraft(AiRequestHistoryEntity history) {
-        List<UserEntity> admins = userRepository.findByRole(UserRole.ADMIN);
+        List<UserEntity> admins = userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_TECHNICAL));
         if (admins.isEmpty()) {
             return;
         }

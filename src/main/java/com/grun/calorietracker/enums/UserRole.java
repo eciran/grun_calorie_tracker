@@ -3,6 +3,7 @@ package com.grun.calorietracker.enums;
 public enum UserRole {
     STANDARD,
     PRO,
+    OWNER,
     ADMIN,
     ADMIN_SUPPORT,
     ADMIN_CATALOG,
@@ -12,6 +13,10 @@ public enum UserRole {
     ADMIN_READ_ONLY;
 
     public boolean isAdminRole() {
-        return this == ADMIN || name().startsWith("ADMIN_");
+        return this == OWNER || this == ADMIN || name().startsWith("ADMIN_");
+    }
+
+    public boolean isOwner() {
+        return this == OWNER;
     }
 }

@@ -8,6 +8,6 @@ public interface AdminMfaService {
     AdminMfaEnrollmentDto beginEnrollment(String email, String currentPassword, String correlationId);
     AdminMfaVerificationDto verifyEnrollment(String email, String code, String correlationId);
     AdminMfaStatusDto disable(String email, String code, String correlationId);
-    AdminReauthenticationDto reauthenticate(String email, String code, String correlationId);
+    AdminReauthenticationDto reauthenticate(String email, String code, com.grun.calorietracker.enums.AdminReauthenticationPurpose purpose, String correlationId);
     void verifyLogin(UserEntity user, String code);
 }

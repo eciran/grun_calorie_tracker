@@ -19,7 +19,7 @@ class JwtAuthenticationFilterTest {
 
     private final JwtUtil jwtUtil = mock(JwtUtil.class);
     private final UserDetailsService userDetailsService = mock(UserDetailsService.class);
-    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtUtil, userDetailsService);
+    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtUtil, userDetailsService, org.mockito.Mockito.mock(com.grun.calorietracker.service.AdminSessionService.class));
 
     @AfterEach
     void tearDown() {

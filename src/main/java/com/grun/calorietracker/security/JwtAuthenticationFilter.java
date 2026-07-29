@@ -22,10 +22,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final com.grun.calorietracker.service.AdminSessionService adminSessionService;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService,
+                                   com.grun.calorietracker.service.AdminSessionService adminSessionService) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
+        this.adminSessionService = adminSessionService;
     }
 
     @Override
@@ -75,6 +78,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            boolean admin = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (tokenValid && admin) {
+                String sessionId = jwtUtil.extractAdminSessionId(jwt);
+                tokenValid = sessionId != null && adminSessionService.validateAndTouch(sessionId, username);
+            }
             if (tokenValid && userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());

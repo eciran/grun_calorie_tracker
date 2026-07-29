@@ -61,7 +61,8 @@ public class SecurityConfig {
             HttpSecurity http,
             SubscriptionFeatureAccessFilter subscriptionFeatureAccessFilter,
             AdminAuthorizationFilter adminAuthorizationFilter,
-            RuntimeMaintenanceFilter runtimeMaintenanceFilter) throws Exception {
+            RuntimeMaintenanceFilter runtimeMaintenanceFilter,
+            com.grun.calorietracker.security.OwnerSensitiveActionFilter ownerSensitiveActionFilter) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
@@ -89,7 +90,8 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(adminAuthorizationFilter, JwtAuthenticationFilter.class)
+.addFilterAfter(ownerSensitiveActionFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(adminAuthorizationFilter, com.grun.calorietracker.security.OwnerSensitiveActionFilter.class)
                 .addFilterAfter(subscriptionFeatureAccessFilter, JwtAuthenticationFilter.class)
                 .addFilterAfter(runtimeMaintenanceFilter, SubscriptionFeatureAccessFilter.class)
                 .build();
@@ -159,7 +161,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization", "X-Correlation-Id"));
-        configuration.setAllowCredentials(false);
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

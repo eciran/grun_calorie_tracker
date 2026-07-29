@@ -47,9 +47,20 @@ class LocalAdminBootstrapConfigTest {
         verify(userRepository).save(captor.capture());
         assertEquals("admin@grun.local", captor.getValue().getEmail());
         assertEquals("encoded-password", captor.getValue().getPassword());
-        assertEquals(UserRole.ADMIN, captor.getValue().getRole());
+        assertEquals(UserRole.ADMIN_READ_ONLY, captor.getValue().getRole());
         assertEquals("Local Admin", captor.getValue().getName());
         assertEquals(true, captor.getValue().getEmailVerified());
+    }
+
+    @Test
+    void localBootstrapRefusesToModifyOwnerIdentity() throws Exception {
+        UserEntity owner = new UserEntity();
+        owner.setRole(UserRole.OWNER);
+        when(userRepository.findByEmail("owner@grun.local")).thenReturn(Optional.of(owner));
+        CommandLineRunner runner = config.localAdminBootstrapRunner(
+                userRepository, passwordEncoder, "owner@grun.local", "password");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, runner::run);
+        verify(userRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

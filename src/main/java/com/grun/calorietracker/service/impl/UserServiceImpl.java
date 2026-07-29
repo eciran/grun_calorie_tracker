@@ -141,6 +141,8 @@ public class UserServiceImpl implements UserService {
         int safePage = Math.max(page, 0);
         int safeSize = size <= 0 ? DEFAULT_ADMIN_USER_PAGE_SIZE : Math.min(size, MAX_ADMIN_USER_PAGE_SIZE);
         Specification<UserEntity> specification = (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();
+        specification = specification.and((root, query, criteriaBuilder) ->
+                criteriaBuilder.notEqual(root.get("role"), UserRole.OWNER));
         if (search != null && !search.isBlank()) {
             String normalizedSearch = search.trim().toLowerCase();
             specification = specification.and((root, query, criteriaBuilder) -> {
@@ -219,6 +221,7 @@ public class UserServiceImpl implements UserService {
     public AdminUserDto updateUserStatus(Long userId, AdminUserStatusUpdateRequestDto request, String adminEmail) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        rejectOwnerGenericMutation(user);
         boolean selfTarget = user.getEmail() != null && user.getEmail().equalsIgnoreCase(adminEmail);
         boolean wouldDisableSelf = Boolean.FALSE.equals(request.getAccountEnabled());
         boolean wouldLockSelf = Boolean.TRUE.equals(request.getAccountLocked());
@@ -243,6 +246,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public MyProfileDto updateMyProfile(MyProfileUpdateRequestDto request, String email) {
         UserEntity user = requireUser(email);
+        rejectOwnerGenericMutation(user);
         if (request.getName() != null) {
             user.setName(request.getName().trim());
         }
@@ -580,6 +584,12 @@ public class UserServiceImpl implements UserService {
     private UserEntity requireUser(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+    }
+
+    private void rejectOwnerGenericMutation(UserEntity user) {
+        if (user.getRole() == UserRole.OWNER) {
+            throw new IllegalArgumentException("Owner accounts cannot be modified through generic user endpoints.");
+        }
     }
 
     private Integer resolvedAge(UserEntity user) {

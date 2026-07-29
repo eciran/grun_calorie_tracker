@@ -512,7 +512,7 @@ class AiMealDraftServiceImplTest {
         admin.setId(99L);
         admin.setEmail("admin@example.com");
         admin.setRole(UserRole.ADMIN);
-        when(userRepository.findByRole(UserRole.ADMIN)).thenReturn(List.of(admin));
+        when(userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_TECHNICAL))).thenReturn(List.of(admin));
 
         var result = service.rejectDraft("user@example.com", 10L, request);
 
