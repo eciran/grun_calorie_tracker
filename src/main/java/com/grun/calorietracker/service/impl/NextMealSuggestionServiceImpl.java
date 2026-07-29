@@ -31,7 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -43,7 +42,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class NextMealSuggestionServiceImpl implements NextMealSuggestionService {
 
-    private static final double MIN_MEAL_CALORIES = 50.0;
     private static final int RECIPE_CANDIDATE_LIMIT = 50;
     private static final int RECIPE_SUGGESTION_LIMIT = 3;
     private static final List<MealSlot> CORE_MEALS = List.of(
@@ -68,7 +66,6 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         LocalDate today = userTimeZoneSupport.today(user);
-        LocalTime now = userTimeZoneSupport.currentTime(user);
         DailySummaryDto summary = dashboardService.getDailySummary(email, today);
 
         NextMealSuggestionDto result = baseResult(user, summary, today);
@@ -76,13 +73,13 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
             result.setStatus(NextMealStatus.NO_ACTIVE_GOAL);
             return result;
         }
-        if (safe(summary.getRemainingCalories()) <= MIN_MEAL_CALORIES) {
+        if (safe(summary.getRemainingCalories()) <= 0.0) {
             result.setStatus(NextMealStatus.TARGET_REACHED);
             return result;
         }
 
         Set<String> loggedMealTypes = loggedMealTypes(user, today);
-        MealAllocation allocation = resolveAllocation(now, loggedMealTypes);
+        MealAllocation allocation = resolveAllocation(loggedMealTypes);
         if (allocation == null) {
             result.setStatus(NextMealStatus.NO_UPCOMING_MEAL);
             return result;
@@ -138,34 +135,23 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
         return mealTypes;
     }
 
-    private MealAllocation resolveAllocation(LocalTime now, Set<String> loggedMealTypes) {
-        int firstEligibleIndex = firstEligibleMealIndex(now);
-        if (firstEligibleIndex < 0) {
-            return null;
+    private MealAllocation resolveAllocation(Set<String> loggedMealTypes) {
+        int latestLoggedIndex = -1;
+        for (int index = 0; index < CORE_MEALS.size(); index++) {
+            if (loggedMealTypes.contains(CORE_MEALS.get(index).mealType())) {
+                latestLoggedIndex = index;
+            }
         }
-        List<MealSlot> remaining = CORE_MEALS.subList(firstEligibleIndex, CORE_MEALS.size()).stream()
+
+        List<MealSlot> remaining = CORE_MEALS.subList(latestLoggedIndex + 1, CORE_MEALS.size()).stream()
                 .filter(slot -> !loggedMealTypes.contains(slot.mealType()))
                 .toList();
         if (remaining.isEmpty()) {
-            return null;
+            return new MealAllocation("SNACK", 1.0);
         }
         MealSlot selected = remaining.get(0);
         double remainingWeight = remaining.stream().mapToDouble(MealSlot::weight).sum();
         return new MealAllocation(selected.mealType(), selected.weight() / remainingWeight);
-    }
-
-    private int firstEligibleMealIndex(LocalTime now) {
-        int hour = now.getHour();
-        if (hour < 11) {
-            return 0;
-        }
-        if (hour < 16) {
-            return 1;
-        }
-        if (hour < 22) {
-            return 2;
-        }
-        return -1;
     }
 
     private List<NextMealRecipeSuggestionDto> findRecipeSuggestions(

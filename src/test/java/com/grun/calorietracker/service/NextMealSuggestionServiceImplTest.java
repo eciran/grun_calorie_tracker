@@ -98,7 +98,6 @@ class NextMealSuggestionServiceImplTest {
 
     @Test
     void getNextMeal_afterBreakfast_targetsLunchAndBuildsRecipePrefill() {
-        when(userTimeZoneSupport.currentTime(user)).thenReturn(LocalTime.of(12, 30));
         when(dashboardService.getDailySummary(EMAIL, TODAY)).thenReturn(summary(1180.0, 72.0, 130.0, 44.0));
         FoodLogsEntity breakfast = new FoodLogsEntity();
         breakfast.setMealType("BREAKFAST");
@@ -137,7 +136,6 @@ class NextMealSuggestionServiceImplTest {
 
     @Test
     void getNextMeal_whenLunchRecipeWasLogged_targetsDinner() {
-        when(userTimeZoneSupport.currentTime(user)).thenReturn(LocalTime.of(13, 30));
         when(dashboardService.getDailySummary(EMAIL, TODAY)).thenReturn(summary(700.0, 40.0, 70.0, 25.0));
         when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                 eq(user), any(), any())).thenReturn(List.of());
@@ -167,9 +165,71 @@ class NextMealSuggestionServiceImplTest {
     }
 
     @Test
+    void getNextMeal_lateAtNightWithoutLogs_stillTargetsBreakfast() {
+        when(userTimeZoneSupport.now(user)).thenReturn(LocalDateTime.of(TODAY, LocalTime.of(23, 30)));
+        when(dashboardService.getDailySummary(EMAIL, TODAY)).thenReturn(summary(1600.0, 90.0, 180.0, 55.0));
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                eq(user), any(), any())).thenReturn(List.of());
+        when(recipeLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                eq(user), any(), any())).thenReturn(List.of());
+        when(nutritionPreferenceService.get(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(recipeService.getPublicRecipes(
+                eq(EMAIL), eq(null), eq("BREAKFAST"), eq(MarketRegion.UK_IE), eq("en"),
+                any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(recipePage());
+        when(recipeService.getPublicRecipes(
+                eq(EMAIL), eq(null), eq("BREAKFAST"), eq(MarketRegion.UK_IE), eq(null),
+                any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(recipePage());
+        when(recipeService.getPublicRecipes(
+                eq(EMAIL), eq(null), eq("BREAKFAST"), eq(null), eq(null),
+                any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(recipePage());
+
+        NextMealSuggestionDto result = service.getNextMeal(EMAIL);
+
+        assertEquals(NextMealStatus.READY, result.getStatus());
+        assertEquals("BREAKFAST", result.getMealType());
+        assertEquals(LocalDateTime.of(TODAY, LocalTime.of(23, 30)), result.getGeneratedAt());
+    }
+
+    @Test
+    void getNextMeal_whenMainMealsAreLoggedAndCaloriesRemain_targetsSnack() {
+        when(dashboardService.getDailySummary(EMAIL, TODAY)).thenReturn(summary(420.0, 24.0, 45.0, 14.0));
+        FoodLogsEntity breakfast = new FoodLogsEntity();
+        breakfast.setMealType("BREAKFAST");
+        FoodLogsEntity lunch = new FoodLogsEntity();
+        lunch.setMealType("LUNCH");
+        FoodLogsEntity dinner = new FoodLogsEntity();
+        dinner.setMealType("DINNER");
+        when(foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                eq(user), any(), any())).thenReturn(List.of(breakfast, lunch, dinner));
+        when(recipeLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
+                eq(user), any(), any())).thenReturn(List.of());
+        when(nutritionPreferenceService.get(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(recipeService.getPublicRecipes(
+                eq(EMAIL), eq(null), eq("SNACK"), eq(MarketRegion.UK_IE), eq("en"),
+                any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(recipePage());
+        when(recipeService.getPublicRecipes(
+                eq(EMAIL), eq(null), eq("SNACK"), eq(MarketRegion.UK_IE), eq(null),
+                any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(recipePage());
+        when(recipeService.getPublicRecipes(
+                eq(EMAIL), eq(null), eq("SNACK"), eq(null), eq(null),
+                any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(recipePage());
+
+        NextMealSuggestionDto result = service.getNextMeal(EMAIL);
+
+        assertEquals(NextMealStatus.READY, result.getStatus());
+        assertEquals("SNACK", result.getMealType());
+        assertEquals(420.0, result.getTargetCalories());
+    }
+
+    @Test
     void getNextMeal_whenDailyTargetReached_doesNotQueryRecipes() {
-        when(userTimeZoneSupport.currentTime(user)).thenReturn(LocalTime.of(12, 30));
-        when(dashboardService.getDailySummary(EMAIL, TODAY)).thenReturn(summary(20.0, 0.0, 0.0, 0.0));
+        when(dashboardService.getDailySummary(EMAIL, TODAY)).thenReturn(summary(0.0, 0.0, 0.0, 0.0));
 
         NextMealSuggestionDto result = service.getNextMeal(EMAIL);
 
