@@ -30,6 +30,7 @@ import com.grun.calorietracker.service.GroceryListService;
 import com.grun.calorietracker.service.MealPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.GroceryListLimits;
+import com.grun.calorietracker.service.support.GroceryListMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +54,7 @@ public class GroceryListServiceImpl implements GroceryListService {
     private final GroceryListRepository groceryListRepository;
     private final GroceryListItemRepository groceryListItemRepository;
     private final MealPlanService mealPlanService;
+    private final GroceryListMetrics groceryListMetrics;
 
     @Override
     @Transactional
@@ -70,7 +72,9 @@ public class GroceryListServiceImpl implements GroceryListService {
     @Transactional(readOnly = true)
     public PersistedGroceryListDto get(String email, Long listId) {
         assertAccess(email);
-        return toDto(getOwned(listId, getUser(email)));
+        PersistedGroceryListDto result = toDto(getOwned(listId, getUser(email)));
+        groceryListMetrics.recordOpened();
+        return result;
     }
 
     @Override
@@ -100,12 +104,13 @@ public class GroceryListServiceImpl implements GroceryListService {
                                                  GroceryListPurchaseRequestDto request) {
         assertAccess(email);
         UserEntity user = getUser(email);
+        GroceryListEntity list = getOwnedForUpdate(listId, user);
+        assertEditable(list);
         GroceryListItemEntity item = getOwnedItemForUpdate(itemId, listId, user);
-        assertEditable(item.getGroceryList());
         assertVersion(item, request.getExpectedVersion());
         item.setPurchased(request.getPurchased());
         groceryListItemRepository.save(item);
-        return toDto(item.getGroceryList());
+        return toDto(list);
     }
 
     @Override
@@ -114,8 +119,9 @@ public class GroceryListServiceImpl implements GroceryListService {
                                                    GroceryListQuantityRequestDto request) {
         assertAccess(email);
         UserEntity user = getUser(email);
+        GroceryListEntity list = getOwnedForUpdate(listId, user);
+        assertEditable(list);
         GroceryListItemEntity item = getOwnedItemForUpdate(itemId, listId, user);
-        assertEditable(item.getGroceryList());
         assertVersion(item, request.getExpectedVersion());
         item.setDisplayQuantity(request.getDisplayQuantity());
         item.setDisplayUnit(request.getDisplayUnit());
@@ -123,7 +129,7 @@ public class GroceryListServiceImpl implements GroceryListService {
         if (request.getCategory() != null) item.setCategory(request.getCategory());
         item.setQuantityOverridden(true);
         groceryListItemRepository.save(item);
-        return toDto(item.getGroceryList());
+        return toDto(list);
     }
 
     @Override
@@ -131,9 +137,9 @@ public class GroceryListServiceImpl implements GroceryListService {
     public PersistedGroceryListDto removeItem(String email, Long listId, Long itemId, Long expectedVersion) {
         assertAccess(email);
         UserEntity user = getUser(email);
-        GroceryListItemEntity item = getOwnedItemForUpdate(itemId, listId, user);
-        GroceryListEntity list = item.getGroceryList();
+        GroceryListEntity list = getOwnedForUpdate(listId, user);
         assertEditable(list);
+        GroceryListItemEntity item = getOwnedItemForUpdate(itemId, listId, user);
         assertVersion(item, expectedVersion);
         if (item.getSource() == GroceryListItemSource.MANUAL) {
             list.removeItem(item);
@@ -189,7 +195,9 @@ public class GroceryListServiceImpl implements GroceryListService {
 
         existing.forEach((key, item) -> item.setSourceRemoved(!incomingKeys.contains(key)));
         list.setSourceUpdatedAt(currentSourceUpdatedAt(list));
-        return toDto(groceryListRepository.save(list));
+        PersistedGroceryListDto result = toDto(groceryListRepository.save(list));
+        groceryListMetrics.recordRefreshed();
+        return result;
     }
     @Override
     @Transactional
@@ -198,7 +206,9 @@ public class GroceryListServiceImpl implements GroceryListService {
         GroceryListEntity list = getOwnedForUpdate(listId, getUser(email));
         assertEditable(list);
         list.setStatus(GroceryListStatus.COMPLETED);
-        return toDto(groceryListRepository.save(list));
+        PersistedGroceryListDto result = toDto(groceryListRepository.save(list));
+        groceryListMetrics.recordCompleted();
+        return result;
     }
 
     @Override
@@ -227,7 +237,9 @@ public class GroceryListServiceImpl implements GroceryListService {
         list.setSourceUpdatedAt(mealPlan.getUpdatedAt() == null ? LocalDateTime.now() : mealPlan.getUpdatedAt());
         list.setStatus(GroceryListStatus.ACTIVE);
         generated.getItems().forEach(item -> list.addItem(toGeneratedItem(item)));
-        return toDto(groceryListRepository.save(list));
+        PersistedGroceryListDto result = toDto(groceryListRepository.save(list));
+        groceryListMetrics.recordGenerated();
+        return result;
     }
 
     private GroceryListItemEntity toGeneratedItem(GroceryListItemDto source) {
@@ -348,11 +360,14 @@ public class GroceryListServiceImpl implements GroceryListService {
 
     private void assertVersion(GroceryListEntity list, Long expectedVersion) {
         if (expectedVersion == null || !expectedVersion.equals(list.getVersion())) {
+            groceryListMetrics.recordRefreshConflict();
             throw new RequestConflictException("Grocery list was updated by another request");
         }
     }
+
     private void assertVersion(GroceryListItemEntity item, Long expectedVersion) {
         if (expectedVersion == null || !expectedVersion.equals(item.getVersion())) {
+            groceryListMetrics.recordItemMutationConflict();
             throw new RequestConflictException("Grocery list item was updated by another request");
         }
     }

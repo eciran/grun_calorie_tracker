@@ -89,7 +89,7 @@ Out of MVP:
 | Sprint 3 - Grocery API | COMPLETED (2026-07-29) | Persistent create/get, manual item, purchased toggle, quantity override, remove/exclude, complete/archive endpoints; 14 targeted tests passed |
 | Sprint 4 - Refresh and merge | COMPLETED (2026-07-29) | Source freshness metadata, explicit deterministic refresh, preserved user decisions, source-removed history, optimistic conflict protection; 17 targeted tests passed |
 | Sprint 5 - Mobile integration handoff | COMPLETED (2026-07-29) | Dedicated mobile contract covers entitlement gating, API/DTO models, refresh merge UX, cache replacement, 409 recovery, screen states and acceptance criteria; approved UI remains unchanged |
-| Sprint 6 - Quality and observability | PENDING | - |
+| Sprint 6 - Quality and observability | COMPLETED (2026-07-29) | Privacy-safe aggregate Micrometer operations, deterministic lock-order coverage, serving/piece/mixed-unit regressions and full grocery security/domain/migration suite; 33 targeted tests passed |
 
 ## 6. Planned sprints
 

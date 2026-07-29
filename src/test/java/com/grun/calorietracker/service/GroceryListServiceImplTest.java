@@ -22,6 +22,7 @@ import com.grun.calorietracker.repository.GroceryListRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.GroceryListServiceImpl;
+import com.grun.calorietracker.service.support.GroceryListMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,9 +49,10 @@ class GroceryListServiceImplTest {
     private final GroceryListRepository groceryListRepository = mock(GroceryListRepository.class);
     private final GroceryListItemRepository groceryListItemRepository = mock(GroceryListItemRepository.class);
     private final MealPlanService mealPlanService = mock(MealPlanService.class);
+    private final GroceryListMetrics groceryListMetrics = mock(GroceryListMetrics.class);
     private final GroceryListServiceImpl service = new GroceryListServiceImpl(
             subscriptionService, userRepository, mealPlanRepository, foodItemRepository,
-            groceryListRepository, groceryListItemRepository, mealPlanService);
+            groceryListRepository, groceryListItemRepository, mealPlanService, groceryListMetrics);
 
     private UserEntity user;
     private MealPlanEntity mealPlan;
@@ -92,6 +95,7 @@ class GroceryListServiceImplTest {
         assertEquals(GroceryListItemSource.GENERATED, result.getItems().get(0).getSource());
         assertEquals(2.0, result.getItems().get(0).getDisplayQuantity());
         assertEquals(FoodPortionUnit.SERVING, result.getItems().get(0).getDisplayUnit());
+        verify(groceryListMetrics).recordGenerated();
     }
 
     @Test
@@ -117,6 +121,7 @@ class GroceryListServiceImplTest {
         GroceryListEntity list = list();
         GroceryListItemEntity item = list.getItems().get(0);
         item.setVersion(3L);
+        when(groceryListRepository.findOwnedForUpdate(20L, user)).thenReturn(Optional.of(list));
         when(groceryListItemRepository.findOwnedForUpdate(30L, 20L, user)).thenReturn(Optional.of(item));
         GroceryListPurchaseRequestDto request = new GroceryListPurchaseRequestDto();
         request.setPurchased(true);
@@ -127,9 +132,27 @@ class GroceryListServiceImplTest {
     }
 
     @Test
+    void setPurchased_locksListBeforeItemMutation() {
+        GroceryListEntity list = list();
+        GroceryListItemEntity item = list.getItems().get(0);
+        when(groceryListRepository.findOwnedForUpdate(20L, user)).thenReturn(Optional.of(list));
+        when(groceryListItemRepository.findOwnedForUpdate(30L, 20L, user)).thenReturn(Optional.of(item));
+        GroceryListPurchaseRequestDto request = new GroceryListPurchaseRequestDto();
+        request.setPurchased(true);
+        request.setExpectedVersion(0L);
+
+        service.setPurchased(user.getEmail(), 20L, 30L, request);
+
+        var ordered = inOrder(groceryListRepository, groceryListItemRepository);
+        ordered.verify(groceryListRepository).findOwnedForUpdate(20L, user);
+        ordered.verify(groceryListItemRepository).findOwnedForUpdate(30L, 20L, user);
+        assertTrue(item.getPurchased());
+    }
+    @Test
     void removeGeneratedItem_excludesWithoutDeletingSourceHistory() {
         GroceryListEntity list = list();
         GroceryListItemEntity item = list.getItems().get(0);
+        when(groceryListRepository.findOwnedForUpdate(20L, user)).thenReturn(Optional.of(list));
         when(groceryListItemRepository.findOwnedForUpdate(30L, 20L, user)).thenReturn(Optional.of(item));
 
         var result = service.removeItem(user.getEmail(), 20L, 30L, 0L);
@@ -148,6 +171,7 @@ class GroceryListServiceImplTest {
 
         assertTrue(result.getSourceOutdated());
         assertEquals(mealPlan.getUpdatedAt(), result.getCurrentSourceUpdatedAt());
+        verify(groceryListMetrics).recordOpened();
     }
 
     @Test
@@ -197,6 +221,7 @@ class GroceryListServiceImplTest {
                 .findFirst().orElseThrow().getSourceRemoved());
         assertTrue(result.getItems().stream().anyMatch(item -> "Reusable bag".equals(item.getDisplayName())));
         assertFalse(result.getSourceOutdated());
+        verify(groceryListMetrics).recordRefreshed();
     }
 
     @Test
@@ -209,6 +234,7 @@ class GroceryListServiceImplTest {
 
         assertThrows(RequestConflictException.class,
                 () -> service.refresh(user.getEmail(), 20L, request));
+        verify(groceryListMetrics).recordRefreshConflict();
     }
 
     private GroceryListItemEntity generatedItem(Long id, Long foodId, String name) {

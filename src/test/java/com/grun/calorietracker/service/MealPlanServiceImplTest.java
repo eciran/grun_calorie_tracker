@@ -156,6 +156,52 @@ class MealPlanServiceImplTest {
     }
 
     @Test
+    void getGroceryList_whenFoodUsesPieces_preservesPieceDisplayAndNormalizesGrams() {
+        UserEntity user = user();
+        FoodItemEntity banana = food(12L, "Banana");
+        banana.setServingSizeGrams(80.0);
+        MealPlanEntity plan = new MealPlanEntity();
+        plan.setId(99L);
+        plan.setUser(user);
+        plan.setName("Piece plan");
+        var item = foodItem(plan, banana, 3.0);
+        item.setPortionUnit(FoodPortionUnit.PIECE);
+        plan.getItems().add(item);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.findByIdAndUser(99L, user)).thenReturn(Optional.of(plan));
+
+        GroceryListDto result = service.getGroceryList("user@test.com", 99L);
+
+        assertEquals(240.0, result.getItems().get(0).getTotalGrams());
+        assertEquals(3.0, result.getItems().get(0).getTotalQuantity());
+        assertEquals(FoodPortionUnit.PIECE, result.getItems().get(0).getQuantityUnit());
+    }
+
+    @Test
+    void getGroceryList_whenSameFoodUsesMixedUnits_fallsBackToNormalizedGrams() {
+        UserEntity user = user();
+        FoodItemEntity yogurt = food(10L, "Greek yogurt");
+        yogurt.setServingSizeGrams(170.0);
+        MealPlanEntity plan = new MealPlanEntity();
+        plan.setId(99L);
+        plan.setUser(user);
+        plan.setName("Mixed unit plan");
+        var grams = foodItem(plan, yogurt, 100.0);
+        var serving = foodItem(plan, yogurt, 1.0);
+        serving.setPortionUnit(FoodPortionUnit.SERVING);
+        plan.getItems().add(grams);
+        plan.getItems().add(serving);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.findByIdAndUser(99L, user)).thenReturn(Optional.of(plan));
+
+        GroceryListDto result = service.getGroceryList("user@test.com", 99L);
+
+        assertEquals(270.0, result.getItems().get(0).getTotalGrams());
+        assertEquals(270.0, result.getItems().get(0).getTotalQuantity());
+        assertEquals(FoodPortionUnit.GRAM, result.getItems().get(0).getQuantityUnit());
+        assertEquals(2, result.getItems().get(0).getPlannedUses());
+    }
+    @Test
     void duplicateMealPlan_copiesItemsToNewDateRange() {
         UserEntity user = user();
         FoodItemEntity yogurt = food(10L, "Greek yogurt");
