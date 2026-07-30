@@ -70,6 +70,14 @@ logging:
     com.grun.calorietracker: INFO
 
 grun:
+  product-intake:
+    rollout:
+      enabled: ${GRUN_PRODUCT_INTAKE_ROLLOUT_ENABLED:false}
+      kill-switch: ${GRUN_PRODUCT_INTAKE_KILL_SWITCH:false}
+      percentage: ${GRUN_PRODUCT_INTAKE_ROLLOUT_PERCENTAGE:0}
+      markets: ${GRUN_PRODUCT_INTAKE_ROLLOUT_MARKETS:}
+      internal-dogfood-emails: ${GRUN_PRODUCT_INTAKE_DOGFOOD_EMAILS:}
+      cohort-salt: ${GRUN_PRODUCT_INTAKE_COHORT_SALT:product-intake-v1}
   errors:
     include-internal-details: false
   food-contribution-storage:

@@ -19,6 +19,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodProductUploadSessionService;
 import com.grun.calorietracker.service.evidence.FoodProductDirectUploadStorage;
 import com.grun.calorietracker.service.support.FoodProductEvidenceImageInspector;
+import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
     private final FoodProductReviewCaseAssetRepository assetRepository;
     private final FoodProductDirectUploadStorage directStorage;
     private final FoodProductEvidenceImageInspector imageInspector;
+    private final ProductIntakeRolloutPolicy rolloutPolicy;
 
     @Override
     @Transactional
@@ -56,6 +58,7 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
     ) {
         UserEntity user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        rolloutPolicy.requireAvailable(user);
         validateRequest(request);
         return sessionRepository.findByCreatedByIdAndIdempotencyKey(user.getId(), request.idempotencyKey())
                 .map(existing -> existingResponse(existing, user.getId()))

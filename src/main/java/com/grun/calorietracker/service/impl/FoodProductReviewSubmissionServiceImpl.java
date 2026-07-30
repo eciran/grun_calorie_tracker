@@ -7,6 +7,7 @@ import com.grun.calorietracker.exception.*;
 import com.grun.calorietracker.repository.*;
 import com.grun.calorietracker.service.*;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
+import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -17,9 +18,11 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
  private final UserRepository users; private final FoodProductUploadSessionRepository sessions;
  private final FoodProductReviewCaseAssetRepository assets; private final FoodProductReviewCaseRepository reviewCases; private final FoodProductReviewCaseService cases;
  private final ObjectMapper json;
+ private final ProductIntakeRolloutPolicy rolloutPolicy;
  @Override @Transactional
  public synchronized FoodProductReviewSubmitResponseDto submit(String email,String sessionId,FoodProductReviewSubmitRequestDto r){
   UserEntity user=users.findByEmail(email).orElseThrow(()->new InvalidCredentialsException("Invalid credential"));
+  rolloutPolicy.requireAvailable(user);
   var session=sessions.findById(sessionId).orElseThrow(()->new IllegalArgumentException("Upload session was not found."));
   if(!session.getCreatedBy().getId().equals(user.getId())) throw new InvalidCredentialsException("Invalid credential");
   if(session.getStatus()!=FoodProductUploadSessionStatus.FINALIZED) throw new RequestConflictException("Evidence must be finalized.");
@@ -38,6 +41,7 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
  @Override @Transactional
  public synchronized FoodProductReviewSubmitResponseDto resubmitEvidence(String email,Long caseId,String sessionId){
   UserEntity user=users.findByEmail(email).orElseThrow(()->new InvalidCredentialsException("Invalid credential"));
+  rolloutPolicy.requireAvailable(user);
   var review=reviewCases.findById(caseId).orElseThrow(()->new IllegalArgumentException("Review case was not found."));
   if(review.getSubmittedBy()==null||!review.getSubmittedBy().getId().equals(user.getId())) throw new InvalidCredentialsException("Invalid credential");
   if(review.getStatus()!=FoodProductReviewCaseStatus.NEEDS_SUBMITTER_ACTION) throw new RequestConflictException("Review case is not waiting for updated evidence.");

@@ -13,6 +13,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.evidence.FoodProductDirectUploadStorage;
 import com.grun.calorietracker.service.impl.FoodProductUploadSessionServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductEvidenceImageInspector;
+import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,7 @@ class FoodProductUploadSessionServiceImplTest {
     @Mock private FoodProductReviewCaseAssetRepository assetRepository;
     @Mock private FoodProductDirectUploadStorage directStorage;
     @Mock private FoodProductEvidenceImageInspector imageInspector;
+    @Mock private ProductIntakeRolloutPolicy rolloutPolicy;
 
     private FoodContributionStorageProperties properties;
     private FoodProductUploadSessionServiceImpl service;
@@ -53,7 +55,7 @@ class FoodProductUploadSessionServiceImplTest {
         properties = new FoodContributionStorageProperties();
         properties.getS3().setPrefix("pending/product-intakes");
         service = new FoodProductUploadSessionServiceImpl(
-                properties, userRepository, sessionRepository, assetRepository, directStorage, imageInspector
+                properties, userRepository, sessionRepository, assetRepository, directStorage, imageInspector, rolloutPolicy
         );
     }
 

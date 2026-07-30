@@ -86,6 +86,15 @@ safe dependency reason for parallel progress.
 - [x] `S6-04` Make quality, canonical/search recalculation, cache invalidation and audit atomic.
 - [x] `S6-05` Add high-impact confirmation, corroboration context and user decision notifications.
 - [x] `S6-06` Complete concurrency, rollback and Sprint 6 acceptance verification.
+
+## Sprint 7 work queue
+
+- [x] `S7-01` Add market-neutral rollout flags, deterministic cohorts, safe defaults and kill-switch enforcement.
+- [ ] `S7-02` Enable internal dogfood with pilot observability and existing-flow fallbacks.
+- [ ] `S7-03` Add configurable 1/10/50/100 market rollout and prove a second market needs no code change.
+- [ ] `S7-04` Validate OCR thresholds, moderation SLA/capacity, retention and provider operations.
+- [ ] `S7-05` Complete cost/abuse/rollback rehearsal, release runbook and Sprint 7 acceptance.
+
 ## Deferred release gates
 
 - `S3-PROVIDER-PROOF` (user-deferred 2026-07-30): before staging/production release, select the S3-compatible provider and private bucket, replace example origins, apply CORS/lifecycle policies with approved credentials, and archive provider-side privacy/30-day/90-day/rollback evidence. This gate must be surfaced again before Sprint 7 closure or any deployment.
@@ -133,6 +142,7 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s6-04 | S6-04 | DONE | Existing-product apply and candidate publish now share a transactional catalog mutation orchestrator: selected-field audits, quality issue sync, canonical/search recalculation and product cache eviction execute with the case transition; failures propagate before APPLIED. Focused suite: 18 passed, 0 failed; compile and diff check passed. | Pending commit |
 | 2026-07-30 | manual-20260730-s6-05 | S6-05 | DONE | Backend rejects unconfirmed publication and material nutrition changes (20% relative threshold); Workbench marks high-impact comparisons, confirms apply/publish and shows provider/value/basis/confidence/timestamp corroboration. Contributors receive decision notifications on rejection and only after real APPLIED/publication success. Focused backend suite: 26 passed, 0 failed; admin production build and diff check passed. | Pending commit |
 | 2026-07-30 | manual-20260730-s6-06 | Sprint 6 | DONE | Real JPA concurrency test proves the second decision waits on the case PESSIMISTIC_WRITE lock; rollback/error paths retain APPROVED and suppress success notifications. Complete Sprint 6 suite: 45 passed, 0 failed; diff check clean. | Pending commit |
+| 2026-07-30 | manual-20260730-s7-01 | S7-01 | DONE | Fail-closed global defaults; market-configured deterministic SHA-256 cohorts; internal dogfood override; kill switch evaluated before every user create/submit/resubmit; authenticated availability contract. Focused suites: 12 passed, 0 failed; compile and diff check passed. Context smoke remains blocked by the pre-existing LOCAL-storage conditional submission-service/controller mismatch. | Pending commit |
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.

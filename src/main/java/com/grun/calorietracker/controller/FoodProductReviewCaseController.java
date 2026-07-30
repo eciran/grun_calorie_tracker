@@ -1,13 +1,14 @@
 package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.*; import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException; import com.grun.calorietracker.repository.*;
-import com.grun.calorietracker.service.FoodProductReviewCaseService; import com.grun.calorietracker.service.FoodProductReviewSubmissionService; import jakarta.validation.constraints.*;
+import com.grun.calorietracker.service.FoodProductReviewCaseService; import com.grun.calorietracker.service.FoodProductReviewSubmissionService; import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy; import jakarta.validation.constraints.*;
 import jakarta.validation.Valid; import lombok.RequiredArgsConstructor; import org.springframework.data.domain.PageRequest; import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal; import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated; import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/v1/products/review-cases") @RequiredArgsConstructor @Validated
 public class FoodProductReviewCaseController {
- private final UserRepository users; private final FoodProductReviewCaseRepository cases; private final FoodProductReviewCaseService service; private final FoodProductReviewSubmissionService submissionService;
+ private final UserRepository users; private final FoodProductReviewCaseRepository cases; private final FoodProductReviewCaseService service; private final FoodProductReviewSubmissionService submissionService; private final ProductIntakeRolloutPolicy rolloutPolicy;
+ @GetMapping("/availability") public ResponseEntity<ProductIntakeAvailabilityDto> availability(@AuthenticationPrincipal UserDetails p){ UserEntity u=user(p); var d=rolloutPolicy.evaluate(u); return ResponseEntity.ok(new ProductIntakeAvailabilityDto(d.available(),d.reason(),d.marketRegion()));}
  @GetMapping public ResponseEntity<MyProductIntakePageDto> mine(@AuthenticationPrincipal UserDetails p,@RequestParam(defaultValue="0") @Min(0) int page,@RequestParam(defaultValue="25") @Min(1) @Max(100) int size){
   UserEntity u=user(p); var result=cases.findAllBySubmittedByIdOrderByCreatedAtDesc(u.getId(),PageRequest.of(page,size));
   var rows=result.getContent().stream().map(this::dto).toList();
