@@ -14,15 +14,15 @@
     {
       "corpus": "TR",
       "evaluated": 50,
-      "criticalFieldCoverage": 0.04,
-      "criticalFieldPrecision": 0.50,
+      "criticalFieldCoverage": 0.205,
+      "criticalFieldPrecision": 0.6585,
       "gate": "FAIL"
     },
     {
       "corpus": "UK_EN",
       "evaluated": 50,
-      "criticalFieldCoverage": 0.05,
-      "criticalFieldPrecision": 0.90,
+      "criticalFieldCoverage": 0.795,
+      "criticalFieldPrecision": 0.7107,
       "gate": "FAIL"
     }
   ],
@@ -32,8 +32,8 @@
   },
   "limitations": [
     "This evaluates the production parser against reference OCR text, not on-device ML Kit or Apple Vision latency/accuracy.",
-    "The mobile repository currently has no GrunProductOcr native Android/iOS bridge implementation.",
+    "The Android ML Kit and iOS Apple Vision bridges now exist and autolink; Android compilation passed, while an iOS device build cannot be verified from Windows.",`r`n    "Reference OCR uses word bounding boxes from the provider artifact and remains a parser benchmark rather than device evidence.",
     "Full row-level reports remain local under outputs and contain no downloaded image binaries."
   ],
-  "decision": "STOP_ROLLOUT_FIX_PARSER_AND_NATIVE_BRIDGE"
+  "decision": "STOP_ROLLOUT_VALIDATE_AND_IMPROVE_PARSER_ON_DEVICE"
 }

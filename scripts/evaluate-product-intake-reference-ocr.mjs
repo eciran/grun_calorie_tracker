@@ -10,7 +10,7 @@ const ts = require(path.join(frontend, 'node_modules/typescript'));
 const sourcePath = path.join(frontend, 'src/services/productOcr.ts');
 const source = fs.readFileSync(sourcePath, 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const sandbox = { module: { exports: {} }, exports: {}, require: (name) => name === 'react-native' ? { NativeModules: {}, Platform: { OS: 'android' } } : require(name) };
+const sandbox = { module: { exports: {} }, exports: {}, require: (name) => name === 'react-native' ? { NativeModules: {}, Platform: { OS: 'android' } } : name === 'expo-modules-core' ? { requireOptionalNativeModule: () => null } : require(name) };
 sandbox.exports = sandbox.module.exports;
 vm.runInNewContext(`(function(require,module,exports){${compiled}\n})(require,module,exports)`, sandbox, { filename: sourcePath });
 const parseNutritionObservations = sandbox.module.exports.parseNutritionObservations;
@@ -59,7 +59,14 @@ for (const candidate of candidates) {
     const json = JSON.parse(zlib.gunzipSync(Buffer.from(await response.arrayBuffer())).toString('utf8'));
     const annotation = json.responses?.[0]?.textAnnotations?.[0];
     if (!annotation?.description) continue;
-    const observations = annotation.description.split(/\r?\n/).filter(Boolean).map((text) => ({ text, confidence: 0.8 }));
+    const words = (json.responses?.[0]?.textAnnotations || []).slice(1);
+    const observations = words.length ? words.map((item) => {
+      const vertices = item.boundingPoly?.vertices || [];
+      const xs = vertices.map((point) => Number(point.x || 0));
+      const ys = vertices.map((point) => Number(point.y || 0));
+      const x = Math.min(...xs); const y = Math.min(...ys);
+      return { text: item.description, confidence: 0.8, box: { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y } };
+    }) : annotation.description.split(/\r?\n/).filter(Boolean).map((text) => ({ text, confidence: 0.8 }));
     const parsed = parseNutritionObservations(observations);
     const n = product.nutriments;
     const expected = { calories: Number(n['energy-kcal_100g']), protein: Number(n.proteins_100g), carbs: Number(n.carbohydrates_100g), fat: Number(n.fat_100g), sugar: Number(n.sugars_100g), fiber: Number(n.fiber_100g), sodium: Number(n.sodium_100g) * 1000 };

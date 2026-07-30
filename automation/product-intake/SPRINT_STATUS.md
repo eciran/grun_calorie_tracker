@@ -6,18 +6,18 @@
 **Per-run implementation budget:** 20 minutes  
 **Program status:** IN_PROGRESS
 **Active sprint:** Sprint 7
-**Last completed run:** 2026-07-30 â€” Sprint 2 closure verified
+**Last completed run:** 2026-07-30 Ã¢â‚¬â€ Sprint 2 closure verified
 
 ## Sprint board
 
 | Sprint | State | Exit summary |
 |---|---|---|
-| Sprint 0 â€” Baseline, contract and feasibility | DONE | Baseline and implementation contracts established. |
-| Sprint 1 â€” Publication gate | DONE | User reads are guarded and publication is centralized. |
-| Sprint 2 â€” Common Review Case | DONE | User/admin/correction sources share the review-case foundation and legacy bridge. |
-| Sprint 3 â€” Direct storage and retention | DONE_WITH_RELEASE_GATE | Local implementation complete; provider proof deferred to pre-release/Sprint 7. |
-| Sprint 4 â€” Admin intake and assignments | DONE | Unified queue, assignment, Workbench, evidence and manual intake acceptance passed. |
-| Sprint 5 â€” Mobile user flow | DONE | User approved work on the existing mobile frontend branch; unrelated changes remain untouched. |
+| Sprint 0 Ã¢â‚¬â€ Baseline, contract and feasibility | DONE | Baseline and implementation contracts established. |
+| Sprint 1 Ã¢â‚¬â€ Publication gate | DONE | User reads are guarded and publication is centralized. |
+| Sprint 2 Ã¢â‚¬â€ Common Review Case | DONE | User/admin/correction sources share the review-case foundation and legacy bridge. |
+| Sprint 3 Ã¢â‚¬â€ Direct storage and retention | DONE_WITH_RELEASE_GATE | Local implementation complete; provider proof deferred to pre-release/Sprint 7. |
+| Sprint 4 Ã¢â‚¬â€ Admin intake and assignments | DONE | Unified queue, assignment, Workbench, evidence and manual intake acceptance passed. |
+| Sprint 5 Ã¢â‚¬â€ Mobile user flow | DONE | User approved work on the existing mobile frontend branch; unrelated changes remain untouched. |
 | Sprint 6 - Apply/publish hardening | DONE | Evidence-backed apply and publish are atomic. |
 | Sprint 7 - First-market pilot and global operations closure | ACTIVE | Market-configured rollout, portability, metrics, cost and rollback gates pass. |
 
@@ -147,11 +147,13 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s7-03 | S7-03 | DONE | Rollout configuration accepts only 0/1/10/50/100; deterministic cohort proof over 2,000 identities remains monotonic through every stage; Spring binding opens EU and UK_IE together from configuration with no market-specific implementation. Focused suites: 9 passed, 0 failed; compile and diff check passed. | Pending commit |
 | 2026-07-30 | manual-20260730-s7-04 | S7-04 | BLOCKED_EXTERNAL_EVIDENCE | Added versioned OCR/admin-capacity/retention thresholds, real-evidence template and fail-closed validator. Synthetic fixture returns PASS_WITH_RELEASE_GATE; empty real template returns BLOCKED with 11 missing measurements; storage policy VALID (30/90/1 days); retention suite 3 passed. Closure requires real 50+50 label corpus results, real queue/capacity and deletion rehearsal measurements, plus S3-PROVIDER-PROOF before release. | Pending framework commit |
 | 2026-07-30 | manual-20260730-s7-04-reference-ocr | S7-04 | STOP_GATE | Open Food Facts reference OCR evaluation ran the unchanged mobile parser over 50 TR + 50 UK/EN nutrition labels without retaining images. TR coverage 4%/precision 50%; UK coverage 5%/precision 90%; both fail 90%/95% gates. Android/iOS GrunProductOcr native bridge is absent. Parser/native implementation must be fixed before user device acceptance. | Pending commit |
+
+| 2026-07-30 | manual-20260730-s7-04-native-ocr | S7-04 | STOP_GATE | Added an autolinked local Expo OCR module: Android uses unbundled Google ML Kit and iOS uses Apple Vision. Android manifest + Kotlin compilation and mobile typecheck passed; Apple autolinking resolves the pod/module (device build remains external). Geometry-aware parser reference rerun improved TR to 20.5% coverage/65.85% precision and UK/EN to 79.5%/71.07%, still below 90%/95%; rollout stays stopped pending device corpus and parser quality. | Pending commits |
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.
 - Keep an incomplete slice active when a focused test fails.
-- Record exact commands and pass/fail counts; do not write only â€œtests passedâ€.
+- Record exact commands and pass/fail counts; do not write only Ã¢â‚¬Å“tests passedÃ¢â‚¬Â.
 - A blocked item must name the missing authority, credential, repository or
   product decision.
 - Do not mark a sprint complete while a P0 acceptance item is skipped.
