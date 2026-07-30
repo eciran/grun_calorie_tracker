@@ -27,6 +27,7 @@ import com.grun.calorietracker.service.AdminProductIntakeService;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
 import com.grun.calorietracker.service.CatalogPublicationService;
+import com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +68,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private final long overdueHours;
     private FoodProductReviewCaseEvidenceService evidenceService;
     private CatalogPublicationService catalogPublicationService;
+    private ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -95,6 +97,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setCatalogPublicationService(CatalogPublicationService catalogPublicationService) {
         this.catalogPublicationService = catalogPublicationService;
+    }
+    @Autowired
+    public void setCatalogMutationOrchestrator(ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator) {
+        this.catalogMutationOrchestrator = catalogMutationOrchestrator;
     }
 
     @Override
@@ -222,9 +228,18 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         var food = reviewCase.getFoodItem();
         if (food == null || food.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW) throw new IllegalStateException("Candidate must still be internal review.");
         if (catalogPublicationService == null) throw new IllegalStateException("Catalog publication service is unavailable.");
+        if (catalogMutationOrchestrator == null) throw new IllegalStateException("Catalog mutation orchestrator is unavailable.");
+        String previousCanonicalKey = food.getCanonicalFoodKey();
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        oldValues.put("verificationStatus", food.getVerificationStatus());
+        oldValues.put("publicationStatus", food.getPublicationStatus());
         food.setVerificationStatus(com.grun.calorietracker.enums.VerificationStatus.VERIFIED);
         var published = catalogPublicationService.publish(food.getId(), actor.getEmail(), reason, correlationId);
         if (published.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Central publication did not publish the candidate.");
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        newValues.put("verificationStatus", published.getVerificationStatus());
+        newValues.put("publicationStatus", published.getPublicationStatus());
+        catalogMutationOrchestrator.reconcileAndAudit(published, previousCanonicalKey, actor.getEmail(), reviewCase.getId(), oldValues, newValues);
         reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
         reviewCase.setAppliedAt(LocalDateTime.now());
         return action(repository.save(reviewCase));
@@ -240,11 +255,18 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         if (fields == null || fields.isEmpty()) throw new IllegalArgumentException("At least one field must be selected.");
         var food = reviewCase.getFoodItem();
         if (food == null || food.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Existing-product apply requires a published target.");
+        if (catalogMutationOrchestrator == null) throw new IllegalStateException("Catalog mutation orchestrator is unavailable.");
         Map<String, Object> submitted = submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>());
         EnumMap<ProductIntakeApplyField, Object> values = new EnumMap<>(ProductIntakeApplyField.class);
         for (ProductIntakeApplyField field : fields) values.put(field, validatedApplyValue(field, submitted));
+        String previousCanonicalKey = food.getCanonicalFoodKey();
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        values.keySet().forEach(field -> oldValues.put(applyFieldName(field), currentValue(food, field)));
         values.forEach((field, value) -> applyValue(food, field, value));
         foodItemRepository.save(food);
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        values.keySet().forEach(field -> newValues.put(applyFieldName(field), currentValue(food, field)));
+        catalogMutationOrchestrator.reconcileAndAudit(food, previousCanonicalKey, actor.getEmail(), reviewCase.getId(), oldValues, newValues);
         reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
         reviewCase.setAppliedAt(LocalDateTime.now());
         return action(repository.save(reviewCase));
@@ -278,6 +300,23 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
             case SUGAR -> food.setSugar((Double) value);
             case SODIUM -> food.setSodium((Double) value);
         }
+    }
+    private String applyFieldName(ProductIntakeApplyField field) {
+        return field == ProductIntakeApplyField.PRODUCT_NAME ? "name" : field.name().toLowerCase();
+    }
+
+    private Object currentValue(com.grun.calorietracker.entity.FoodItemEntity food, ProductIntakeApplyField field) {
+        return switch (field) {
+            case PRODUCT_NAME -> food.getName();
+            case BRAND -> food.getBrand();
+            case CALORIES -> food.getCalories();
+            case PROTEIN -> food.getProtein();
+            case FAT -> food.getFat();
+            case CARBS -> food.getCarbs();
+            case FIBER -> food.getFiber();
+            case SUGAR -> food.getSugar();
+            case SODIUM -> food.getSodium();
+        };
     }
     @Override
     @Transactional
