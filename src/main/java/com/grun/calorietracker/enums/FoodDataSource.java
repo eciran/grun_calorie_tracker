@@ -7,5 +7,7 @@ public enum FoodDataSource {
     EDAMAM,
     NUTRITIONIX,
     LOCAL_CURATED,
-    ADMIN_IMPORT
+    ADMIN_IMPORT,
+    USER_SUBMITTED_LABEL,
+    ADMIN_REVIEWED_LABEL
 }

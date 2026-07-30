@@ -20,12 +20,14 @@ class AdminProductIntakeReviewActionsTest {
     private final NotificationRepository notifications = mock(NotificationRepository.class);
     private final FoodProductReviewCaseAssetRepository assetRepository = mock(FoodProductReviewCaseAssetRepository.class);
     private final FoodProductReviewCaseService reviewCaseService = mock(FoodProductReviewCaseService.class);
+    private final FoodProductReviewCaseEvidenceService evidenceService = mock(FoodProductReviewCaseEvidenceService.class);
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private final AdminProductIntakeServiceImpl service = new AdminProductIntakeServiceImpl(cases, users, foods, notifications, assetRepository, reviewCaseService, objectMapper, 24);
     private FoodProductReviewCaseEntity reviewCase;
 
     @BeforeEach
     void setup() {
+        service.setEvidenceService(evidenceService);
         reviewCase = new FoodProductReviewCaseEntity();
         reviewCase.setId(72L);
         reviewCase.setStatus(FoodProductReviewCaseStatus.SUBMITTED);
@@ -56,6 +58,7 @@ class AdminProductIntakeReviewActionsTest {
         assertEquals(FoodProductReviewCaseStatus.APPROVED, result.status());
         assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, food.getPublicationStatus());
         verify(foods, never()).save(any());
+        verify(evidenceService).recordAcceptedEvidence(reviewCase);
     }
 
     @Test

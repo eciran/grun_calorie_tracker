@@ -24,10 +24,12 @@ import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.service.AdminProductIntakeService;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
+import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -59,6 +61,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private final FoodProductReviewCaseService reviewCaseService;
     private final ObjectMapper objectMapper;
     private final long overdueHours;
+    private FoodProductReviewCaseEvidenceService evidenceService;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -78,6 +81,11 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         this.reviewCaseService = reviewCaseService;
         this.objectMapper = objectMapper;
         this.overdueHours = Math.max(1, overdueHours);
+    }
+
+    @Autowired
+    public void setEvidenceService(FoodProductReviewCaseEvidenceService evidenceService) {
+        this.evidenceService = evidenceService;
     }
 
     @Override
@@ -174,6 +182,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         reviewCase.setReviewNote(note.trim());
         reviewCase.setReviewedBy(actor.getEmail());
         reviewCase.setReviewedAt(LocalDateTime.now());
+        if (approved) {
+            if (evidenceService == null) throw new IllegalStateException("Review evidence service is unavailable.");
+            evidenceService.recordAcceptedEvidence(reviewCase);
+        }
         return action(repository.save(reviewCase));
     }
 

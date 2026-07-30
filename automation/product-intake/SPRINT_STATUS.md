@@ -54,12 +54,12 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S6-01
+**ID:** S6-02
 **State:** READY
 **Owner/run ID:** unassigned
 **Started:** 2026-07-30
-**Expected files:** Accepted-case source evidence transaction and apply foundation
-**Required verification:** Accepted cases create immutable reviewed source evidence without publishing
+**Expected files:** Existing-product selected-field apply contract and transaction
+**Required verification:** Only explicitly selected supported fields change on an existing published product
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
@@ -80,7 +80,7 @@ safe dependency reason for parallel progress.
 
 ## Sprint 6 work queue
 
-- [ ] `S6-01` Convert accepted case values into immutable reviewed source evidence.
+- [x] `S6-01` Convert accepted case values into immutable reviewed source evidence.
 - [ ] `S6-02` Apply only explicitly selected fields to an existing published product.
 - [ ] `S6-03` Verify and publish a new internal candidate through the central publication service.
 - [ ] `S6-04` Make quality, canonical/search recalculation, cache invalidation and audit atomic.
@@ -123,6 +123,8 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s5-05 | S5-05 | DONE | Added owner-scoped My Contributions list/withdrawal, profile entry, UPDATE_PRODUCT_EVIDENCE notification deep link and same-case two-asset resubmission; old evidence enters retention cleanup. Backend focused suites: 12 passed, 0 failed; mobile typecheck and both diff checks passed. | Uncommitted Sprint 5 |
 
 | 2026-07-30 | manual-20260730-s5-06 | Sprint 5 | DONE | Corrected EN/TR encoding and Turkish parser labels; added accessible names, roles, selected/disabled states and localized low-confidence hints; removed the photo-free dead end by routing optional Custom Food separately. Mobile static QA: 2/2 passed; backend regression: 12/12 passed; both diff checks clean. | Pending closure commits |
+
+| 2026-07-30 | manual-20260730-s6-01 | S6-01 | DONE | Approval transaction now emits immutable USER_SUBMITTED_LABEL/ADMIN_REVIEWED_LABEL evidence with case/field fingerprints, reviewer identity and schema provenance while leaving catalog publication and values untouched. Focused evidence/admin suite: 14 passed, 0 failed; Flyway versions unique; diff check clean. | Pending commit |
 
 ## Tracker update rules
 
