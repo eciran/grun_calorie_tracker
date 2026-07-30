@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "ocr": {
+    "minimumLanguages": 2,
+    "minimumSamplesPerLanguage": 50,
+    "minimumCriticalFieldPrecision": 0.95,
+    "minimumCriticalFieldCoverage": 0.90,
+    "minimumBasisAccuracy": 0.95,
+    "maximumSaltSodiumConfusionRate": 0.01,
+    "minimumDecimalAccuracy": 0.98,
+    "maximumCorrectionRate": 0.25,
+    "maximumP95LatencyMs": 2500,
+    "maximumCrashAnrRate": 0.005
+  },
+  "operations": {
+    "maximumQueueP95Hours": 24,
+    "maximumOverdueCases": 10,
+    "maximumCapacityUtilization": 0.80
+  },
+  "retention": {
+    "maximumDeletionFailures": 0,
+    "maximumDeletionBacklog": 0,
+    "maximumEvidenceAgeDays": 90
+  }
+}

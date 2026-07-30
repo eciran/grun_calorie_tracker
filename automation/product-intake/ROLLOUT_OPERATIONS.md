@@ -38,3 +38,18 @@ Food paths.
 
 Set `GRUN_PRODUCT_INTAKE_KILL_SWITCH=true`. The kill switch takes precedence
 over market, cohort, and internal dogfood eligibility.
+## Pilot quality gate
+
+Copy `ops/product-intake-pilot/pilot-evidence.template.json` to an evidence
+archive, populate it only from a real versioned OCR corpus and operational
+measurements, then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/validate-product-intake-pilot.ps1 `
+  -EvidencePath <real-pilot-evidence.json>
+```
+
+The validator checks two measured languages with at least 50 labels each,
+critical-field safety, latency/crash thresholds, admin queue SLA/capacity,
+retention backlog and provider proof. `-AllowDeferredProviderProof` is for local
+preflight only and must not be used for production approval.

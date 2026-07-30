@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "evidenceType": "REAL_PILOT",
+  "capturedAt": null,
+  "marketRegions": [],
+  "ocrLanguages": [],
+  "operations": {
+    "queueP95Hours": null,
+    "overdueCases": null,
+    "capacityUtilization": null
+  },
+  "retention": {
+    "deletionFailures": null,
+    "deletionBacklog": null,
+    "oldestEvidenceAgeDays": null,
+    "rehearsalReference": null
+  },
+  "provider": {
+    "policyValidated": false,
+    "externalProofArchived": false,
+    "proofReference": null
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "evidenceType": "SYNTHETIC_TEST",
+  "capturedAt": "2026-07-30T20:00:00Z",
+  "marketRegions": ["EU", "UK_IE"],
+  "ocrLanguages": [
+    {"language":"en","sampleCount":50,"criticalFieldPrecision":0.98,"criticalFieldCoverage":0.94,"basisAccuracy":0.98,"saltSodiumConfusionRate":0.00,"decimalAccuracy":0.99,"correctionRate":0.18,"p95LatencyMs":1900,"crashAnrRate":0.001},
+    {"language":"de","sampleCount":50,"criticalFieldPrecision":0.97,"criticalFieldCoverage":0.92,"basisAccuracy":0.96,"saltSodiumConfusionRate":0.01,"decimalAccuracy":0.99,"correctionRate":0.20,"p95LatencyMs":2100,"crashAnrRate":0.002}
+  ],
+  "operations": {"queueP95Hours":18,"overdueCases":2,"capacityUtilization":0.65},
+  "retention": {"deletionFailures":0,"deletionBacklog":0,"oldestEvidenceAgeDays":88,"rehearsalReference":"synthetic-rehearsal"},
+  "provider": {"policyValidated":true,"externalProofArchived":false,"proofReference":null}
+}
