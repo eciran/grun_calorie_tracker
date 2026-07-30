@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -84,6 +86,22 @@ class ProductIntakeRolloutPolicyTest {
                 .anyMatch(tag -> tag.getValue().contains("@")));
     }
 
+    @Test
+    void stagedRolloutIsMonotonicAndKeepsPreviouslyEligibleUsers() {
+        properties.setEnabled(true);
+        properties.setMarkets(Set.of(MarketRegion.EU));
+        Set<String> previous = Set.of();
+        for (int stage : new int[]{1, 10, 50, 100}) {
+            properties.setPercentage(stage);
+            Set<String> eligible = IntStream.range(0, 2_000)
+                    .mapToObj(index -> "pilot-" + index + "@example.com")
+                    .filter(email -> policy.evaluate(user(email, MarketRegion.EU)).available())
+                    .collect(Collectors.toSet());
+            assertTrue(eligible.containsAll(previous));
+            previous = eligible;
+        }
+        assertEquals(2_000, previous.size());
+    }
     private UserEntity user(String email, MarketRegion market) {
         UserEntity user = new UserEntity();
         user.setEmail(email);

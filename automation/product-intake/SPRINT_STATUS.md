@@ -54,12 +54,12 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S7-03
+**ID:** S7-04
 **State:** READY
 **Owner/run ID:** unassigned
 **Started:** 2026-07-30
-**Expected files:** Configurable staged market rollout and second-market no-code proof
-**Required verification:** 1/10/50/100 cohorts remain stable and another configured market opens without implementation changes
+**Expected files:** OCR thresholds, moderation SLA/capacity, retention and provider operational validation
+**Required verification:** Pilot quality and operational gates have measurable thresholds and rehearsal evidence
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
@@ -91,7 +91,7 @@ safe dependency reason for parallel progress.
 
 - [x] `S7-01` Add market-neutral rollout flags, deterministic cohorts, safe defaults and kill-switch enforcement.
 - [x] `S7-02` Enable internal dogfood with pilot observability and existing-flow fallbacks.
-- [ ] `S7-03` Add configurable 1/10/50/100 market rollout and prove a second market needs no code change.
+- [x] `S7-03` Add configurable 1/10/50/100 market rollout and prove a second market needs no code change.
 - [ ] `S7-04` Validate OCR thresholds, moderation SLA/capacity, retention and provider operations.
 - [ ] `S7-05` Complete cost/abuse/rollback rehearsal, release runbook and Sprint 7 acceptance.
 
@@ -144,6 +144,7 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s6-06 | Sprint 6 | DONE | Real JPA concurrency test proves the second decision waits on the case PESSIMISTIC_WRITE lock; rollback/error paths retain APPROVED and suppress success notifications. Complete Sprint 6 suite: 45 passed, 0 failed; diff check clean. | Pending commit |
 | 2026-07-30 | manual-20260730-s7-01 | S7-01 | DONE | Fail-closed global defaults; market-configured deterministic SHA-256 cohorts; internal dogfood override; kill switch evaluated before every user create/submit/resubmit; authenticated availability contract. Focused suites: 12 passed, 0 failed; compile and diff check passed. Context smoke remains blocked by the pre-existing LOCAL-storage conditional submission-service/controller mismatch. | Pending commit |
 | 2026-07-30 | manual-20260730-s7-02 | S7-02 | DONE | Explicit email-configured internal dogfood bypasses market/cohort but remains kill-switch controlled; rollout decisions emit bounded reason+market metrics without user identity; availability contract always preserves SEARCH_MANUALLY and CREATE_CUSTOM_FOOD fallbacks. Focused suites: 14 passed, 0 failed; compile and diff check passed. | Pending commit |
+| 2026-07-30 | manual-20260730-s7-03 | S7-03 | DONE | Rollout configuration accepts only 0/1/10/50/100; deterministic cohort proof over 2,000 identities remains monotonic through every stage; Spring binding opens EU and UK_IE together from configuration with no market-specific implementation. Focused suites: 9 passed, 0 failed; compile and diff check passed. | Pending commit |
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.
