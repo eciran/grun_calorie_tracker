@@ -26,6 +26,7 @@ public class ProductCorrectionSuggestionServiceImpl implements ProductCorrection
     private final ProductCorrectionSuggestionRepository productCorrectionSuggestionRepository;
     private final FoodItemRepository foodItemRepository;
     private final UserRepository userRepository;
+    private final LegacyFoodProductReviewCaseBridge reviewCaseBridge;
 
     @Override
     @Transactional
@@ -48,6 +49,8 @@ public class ProductCorrectionSuggestionServiceImpl implements ProductCorrection
         entity.setImageUrl(trimToNull(request.getImageUrl()));
         entity.setStatus(ProductCorrectionStatus.OPEN);
         entity.setCreatedAt(LocalDateTime.now());
+        entity = productCorrectionSuggestionRepository.save(entity);
+        entity.setReviewCase(reviewCaseBridge.linkCorrection(entity));
         return toDto(productCorrectionSuggestionRepository.save(entity));
     }
 

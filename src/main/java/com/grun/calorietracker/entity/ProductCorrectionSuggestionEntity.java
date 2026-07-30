@@ -40,4 +40,8 @@ public class ProductCorrectionSuggestionEntity {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "review_case_id", unique = true)
+    private FoodProductReviewCaseEntity reviewCase;
 }
