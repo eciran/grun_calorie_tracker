@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
@@ -101,7 +102,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         java.util.Optional<FoodItemEntity> localProduct = findByNormalizedBarcode(normalizedBarcode);
         if (localProduct.isPresent()) {
             FoodItemEntity product = localProduct.get();
-            if (isRejected(product)) {
+            if (isRejected(product) || !isPublished(product)) {
                 throw new ProductNotFoundException("Product is not available for barcode: " + normalizedBarcode);
             }
             return product;
@@ -172,6 +173,10 @@ public class FoodItemServiceImpl implements FoodItemService {
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.equal(
+                    root.get("publicationStatus"),
+                    CatalogPublicationStatus.PUBLISHED
+            ));
             predicates.add(criteriaBuilder.or(
                     criteriaBuilder.isNull(root.get("verificationStatus")),
                     criteriaBuilder.notEqual(root.get("verificationStatus"), VerificationStatus.REJECTED)
@@ -202,6 +207,10 @@ public class FoodItemServiceImpl implements FoodItemService {
                             root.get("canonicalFoodKey")
                     ),
                     criteriaBuilder.notEqual(resolvedPrimary, root),
+                    criteriaBuilder.equal(
+                            resolvedPrimary.get("publicationStatus"),
+                            CatalogPublicationStatus.PUBLISHED
+                    ),
                     visibleVerificationStatusPredicate(resolvedPrimary, criteriaBuilder),
                     criticalNutritionEligibilityPredicate(resolvedPrimary, criteriaBuilder),
                     criteriaBuilder.not(resolvedPrimary.get("id").in(blockedPrimaryIdsSubquery))
@@ -945,7 +954,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         java.util.Optional<FoodItemEntity> localProduct = findByNormalizedBarcode(normalizedBarcode);
         if (localProduct.isPresent()) {
             FoodItemEntity product = localProduct.get();
-            return isRejected(product) ? null : product;
+            return isRejected(product) || !isPublished(product) ? null : product;
         }
 
         FoodItemEntity saved = foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
@@ -973,6 +982,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         entity.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
         entity.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         entity.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        entity.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
         entity.setExternalImageUrl(resolveExternalImageUrl(externalProduct));
         entity.setDisplayImageUrl(null);
         entity.setImageSource(ImageSource.OPEN_FOOD_FACTS);
@@ -1016,9 +1026,25 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private boolean isVisibleToUser(FoodItemEntity product, String email) {
-        if (!Boolean.TRUE.equals(product.getIsCustom())) {
+        if (product.getPublicationStatus() == null) {
+            return !Boolean.TRUE.equals(product.getIsCustom())
+                    || isOwnedBy(product, email);
+        }
+        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
             return true;
         }
+        if (product.getPublicationStatus() != CatalogPublicationStatus.PRIVATE_USER) {
+            return false;
+        }
+        return isOwnedBy(product, email);
+    }
+
+    private boolean isPublished(FoodItemEntity product) {
+        return product.getPublicationStatus() == null
+                || product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED;
+    }
+
+    private boolean isOwnedBy(FoodItemEntity product, String email) {
         UserEntity owner = product.getCreatedByUser();
         return owner != null
                 && owner.getEmail() != null

@@ -1,5 +1,6 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
@@ -52,6 +53,10 @@ public class FoodItemEntity {
 
     @Enumerated(EnumType.STRING)
     private VerificationStatus verificationStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private CatalogPublicationStatus publicationStatus;
 
     @Enumerated(EnumType.STRING)
     private ImageSource imageSource;
@@ -140,5 +145,19 @@ public class FoodItemEntity {
 
     @OneToMany(mappedBy = "foodItem", fetch = FetchType.LAZY)
     private Set<FoodItemSearchAliasEntity> searchAliases = new HashSet<>();
+
+    @PrePersist
+    void initializePublicationStatus() {
+        if (publicationStatus != null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(isCustom)) {
+            publicationStatus = CatalogPublicationStatus.PRIVATE_USER;
+        } else if (verificationStatus == VerificationStatus.REJECTED) {
+            publicationStatus = CatalogPublicationStatus.HIDDEN;
+        } else {
+            publicationStatus = CatalogPublicationStatus.PUBLISHED;
+        }
+    }
 }
 

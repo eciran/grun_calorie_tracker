@@ -37,9 +37,19 @@ public class FoodServingOptionServiceImpl implements FoodServingOptionService {
     }
 
     private boolean isVisibleToUser(FoodItemEntity product, String email) {
-        if (!Boolean.TRUE.equals(product.getIsCustom())) {
+        if (product.getPublicationStatus() == null) {
+            return !Boolean.TRUE.equals(product.getIsCustom()) || isOwnedBy(product, email);
+        }
+        if (product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) {
             return true;
         }
+        if (product.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PRIVATE_USER) {
+            return false;
+        }
+        return isOwnedBy(product, email);
+    }
+
+    private boolean isOwnedBy(FoodItemEntity product, String email) {
         UserEntity owner = product.getCreatedByUser();
         return owner != null
                 && owner.getEmail() != null

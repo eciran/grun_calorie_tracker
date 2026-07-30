@@ -1,5 +1,6 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
@@ -78,6 +79,9 @@ public class FoodProductDto {
 
     @Schema(description = "Catalog verification status for product data.", example = "NEEDS_REVIEW")
     private VerificationStatus verificationStatus;
+
+    @Schema(description = "Product publication visibility.", example = "PUBLISHED")
+    private CatalogPublicationStatus publicationStatus;
 
     @Schema(description = "Source of the selected product image.", example = "OPEN_FOOD_FACTS")
     private ImageSource imageSource;
