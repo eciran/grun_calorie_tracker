@@ -30,6 +30,7 @@ import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.service.FoodItemService;
+import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
 import com.grun.calorietracker.service.FoodProductEvidenceService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
@@ -68,6 +69,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     private final FoodProductEvidenceService foodProductEvidenceService;
+    private final CatalogPublicationService catalogPublicationService;
     private PostgresFoodSearchCandidateProvider postgresFoodSearchCandidateProvider;
     public FoodItemServiceImpl(
             FoodItemRepository foodItemRepository,
@@ -76,7 +78,8 @@ public class FoodItemServiceImpl implements FoodItemService {
             FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository,
             OpenFoodFactsService openFoodFactsService,
             FoodProductQualityIssueTracker foodProductQualityIssueTracker,
-            FoodProductEvidenceService foodProductEvidenceService
+            FoodProductEvidenceService foodProductEvidenceService,
+            CatalogPublicationService catalogPublicationService
     ) {
         this.foodItemRepository = foodItemRepository;
         this.foodItemLocalizationRepository = foodItemLocalizationRepository;
@@ -85,6 +88,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         this.openFoodFactsService = openFoodFactsService;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
         this.foodProductEvidenceService = foodProductEvidenceService;
+        this.catalogPublicationService = catalogPublicationService;
     }
 
     @Autowired(required = false)
@@ -911,7 +915,12 @@ public class FoodItemServiceImpl implements FoodItemService {
                 .orElseThrow(() -> new ProductNotFoundException("Product not found for barcode: " + barcode));
 
         FoodItemEntity entity = buildImportedFoodItem(externalProduct, barcode);
-        FoodItemEntity saved = foodItemRepository.save(entity);
+        FoodItemEntity saved = catalogPublicationService.publishNew(
+                entity,
+                "system:open-food-facts",
+                "Trusted barcode lookup import",
+                null
+        );
         foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
         recordOpenFoodFactsEvidence(saved);
         return saved;
@@ -957,7 +966,12 @@ public class FoodItemServiceImpl implements FoodItemService {
             return isRejected(product) || !isPublished(product) ? null : product;
         }
 
-        FoodItemEntity saved = foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
+        FoodItemEntity saved = catalogPublicationService.publishNew(
+                buildImportedFoodItem(externalProduct, normalizedBarcode),
+                "system:open-food-facts",
+                "Trusted search cache import",
+                null
+        );
         foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
         recordOpenFoodFactsEvidence(saved);
         return saved;
@@ -982,7 +996,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         entity.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
         entity.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         entity.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
-        entity.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        entity.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
         entity.setExternalImageUrl(resolveExternalImageUrl(externalProduct));
         entity.setDisplayImageUrl(null);
         entity.setImageSource(ImageSource.OPEN_FOOD_FACTS);

@@ -39,6 +39,8 @@ class FoodItemPublicationVisibilityTest {
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
     @Mock
     private FoodProductEvidenceService foodProductEvidenceService;
+    @Mock
+    private CatalogPublicationService catalogPublicationService;
     @InjectMocks
     private FoodItemServiceImpl service;
 

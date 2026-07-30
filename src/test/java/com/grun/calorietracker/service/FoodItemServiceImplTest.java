@@ -55,6 +55,8 @@ class FoodItemServiceImplTest {
 
     @Mock
     private FoodProductEvidenceService foodProductEvidenceService;
+    @Mock
+    private CatalogPublicationService catalogPublicationService;
 
     @Mock
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
@@ -115,7 +117,8 @@ class FoodItemServiceImplTest {
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
-        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode("3017620422003");
 
@@ -128,7 +131,7 @@ class FoodItemServiceImplTest {
         assertEquals(ImageSource.OPEN_FOOD_FACTS, result.getImageSource());
         assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
         assertEquals(MarketRegion.UK_IE, result.getMarketRegion());
-        verify(foodItemRepository).save(any(FoodItemEntity.class));
+        verify(catalogPublicationService).publishNew(any(FoodItemEntity.class), any(), any(), any());
         verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 
@@ -141,7 +144,8 @@ class FoodItemServiceImplTest {
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
-        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode(" 301-762 0422003 ");
 
@@ -267,7 +271,7 @@ class FoodItemServiceImplTest {
         when(openFoodFactsService.searchProductsByCriteria(criteria)).thenReturn(List.of(externalProduct));
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
-        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> {
+        when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any())).thenAnswer(invocation -> {
             FoodItemEntity entity = invocation.getArgument(0);
             entity.setId(10L);
             return entity;
@@ -281,7 +285,7 @@ class FoodItemServiceImplTest {
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, result.getContent().get(0).getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getContent().get(0).getVerificationStatus());
         verify(openFoodFactsService).searchProductsByCriteria(criteria);
-        verify(foodItemRepository).save(any(FoodItemEntity.class));
+        verify(catalogPublicationService).publishNew(any(FoodItemEntity.class), any(), any(), any());
         verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 

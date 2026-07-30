@@ -104,6 +104,12 @@ class GoldenFoodSearchQualityGateTest {
                 objectMapper
         );
         importGoldenCatalog(importService);
+        foodItemRepository.findAll().forEach(product ->
+                product.setPublicationStatus(
+                        com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED
+                )
+        );
+        foodItemRepository.flush();
         seedMarketProducts();
         seedGuardrailProducts();
         resolveCanonicalBananaDuplicate();
@@ -117,7 +123,8 @@ class GoldenFoodSearchQualityGateTest {
                 foodItemServingOptionLocalizationRepository,
                 Mockito.mock(OpenFoodFactsService.class),
                 issueTracker,
-                Mockito.mock(FoodProductEvidenceService.class)
+                Mockito.mock(FoodProductEvidenceService.class),
+                Mockito.mock(CatalogPublicationService.class)
         );
 
         GoldenMetrics metrics = evaluate(fixture, foodItemService);
