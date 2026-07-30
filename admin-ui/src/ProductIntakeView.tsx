@@ -1,10 +1,10 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatRequestError, request } from "./api";
 import { DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
 import type { AdminAccessProfile } from "./types";
 import { ManualProductIntakeForm } from "./ManualProductIntakeForm";
 
-type IntakeSummary = { id: number; source?: string; status?: string; marketRegion?: string; barcode?: string; riskLevel?: string; assignedAdminEmail?: string; createdAt?: string; updatedAt?: string };
+type IntakeSummary = { id: number; source?: string; status?: string; marketRegion?: string; barcode?: string; resolutionMode?: string; riskLevel?: string; assignedAdminEmail?: string; createdAt?: string; updatedAt?: string };
 type IntakePage = { content: IntakeSummary[]; page: number; size: number; totalElements: number; totalPages: number; first: boolean; last: boolean };
 type Evidence = { assetId: number; assetType?: string; sizeBytes?: number; available: boolean };
 type IntakeDetail = {
@@ -34,6 +34,7 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
   const [reassignEmail, setReassignEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [applyFields, setApplyFields] = useState<string[]>([]);
   const canWrite = Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"));
   const isOwner = accessProfile?.role === "OWNER";
 
@@ -61,6 +62,7 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
       setSelected(detail);
       setNote(detail.reviewNote ?? "");
       setFoodItemId(detail.linkedFoodItemId ? String(detail.linkedFoodItemId) : "");
+      setApplyFields([]);
     } catch (error) {
       onError(formatRequestError(error));
     }
@@ -126,7 +128,8 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
         <div className="contribution-review-body">
           <div className="contribution-review-details">
             <h3>Submitted vs catalog</h3>
-            <DataTable columns={["Field", "Submitted", "Catalog", "Match"]} rows={(selected.fieldComparisons ?? []).map((item) => [item.field, formatField(item.submittedValue), formatField(item.catalogValue), item.equal ? "Match" : "Review"])} empty="No field comparison is available." />
+            <DataTable columns={["Apply", "Field", "Submitted", "Catalog", "Match"]} rows={(selected.fieldComparisons ?? []).map((item) => { const applyField = toApplyField(item.field); const selectable = canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && Boolean(applyField); return [selectable ? <input type="checkbox" aria-label={`Apply ${item.field}`} checked={applyFields.includes(applyField!)} onChange={(event) => setApplyFields((current) => event.target.checked ? [...current, applyField!] : current.filter((value) => value !== applyField))} /> : "-", item.field, formatField(item.submittedValue), formatField(item.catalogValue), item.equal ? "Match" : "Review"]; })} empty="No field comparison is available." />
+            {selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && canWrite && <div className="review-apply-panel"><strong>Apply selected fields to the published product</strong><p>Only checked fields will change. Barcode, market and publication state are never edited here.</p><button className="primary-button" type="button" disabled={busy || applyFields.length === 0} onClick={() => void mutate("apply-existing", { fields: applyFields }, "Selected fields applied to the existing product.")}>Apply {applyFields.length} selected field{applyFields.length === 1 ? "" : "s"}</button></div>}
             {(selected.warnings ?? []).map((warning) => <div className="warning-banner" key={warning}>{warning}</div>)}
             <label>Review note<textarea maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
           </div>
@@ -153,7 +156,11 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
   </div>;
 }
 
-function formatDate(value?: string) {
+function toApplyField(field: string) {
+  const normalized = field.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
+  const supported = new Set(["PRODUCT_NAME", "BRAND", "CALORIES", "PROTEIN", "FAT", "CARBS", "FIBER", "SUGAR", "SODIUM"]);
+  return supported.has(normalized) ? normalized : null;
+}function formatDate(value?: string) {
   return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "-";
 }
 function formatField(value: unknown) {

@@ -82,6 +82,39 @@ class AdminProductIntakeReviewActionsTest {
     }
 
     @Test
+    void applyExistingChangesOnlyExplicitlySelectedFields() {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(99L); food.setName("Original"); food.setCalories(100.0); food.setProtein(4.0);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        reviewCase.setSubmittedValuesJson("{\"productName\":\"Proposed\",\"calories\":\"220\",\"protein\":\"9\"}");
+        var result = service.applyExistingProduct(72L, "catalog@grun.app", java.util.Set.of(ProductIntakeApplyField.CALORIES));
+        assertEquals(FoodProductReviewCaseStatus.APPLIED, result.status());
+        assertEquals(220.0, food.getCalories()); assertEquals(4.0, food.getProtein()); assertEquals("Original", food.getName());
+        assertNotNull(reviewCase.getAppliedAt()); verify(foods).save(food);
+    }
+
+    @Test
+    void applyExistingRejectsInternalCandidateAndLeavesItUnchanged() {
+        FoodItemEntity food = new FoodItemEntity(); food.setId(100L); food.setCalories(100.0);
+        food.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.NEW_CANDIDATE);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED); reviewCase.setSubmittedValuesJson("{\"calories\":220}");
+        assertThrows(IllegalStateException.class, () -> service.applyExistingProduct(72L, "catalog@grun.app", java.util.Set.of(ProductIntakeApplyField.CALORIES)));
+        assertEquals(100.0, food.getCalories()); verify(foods, never()).save(food);
+    }
+
+    @Test
+    void applyExistingValidatesAllSelectedValuesBeforeMutation() {
+        FoodItemEntity food = new FoodItemEntity(); food.setId(101L); food.setCalories(100.0); food.setProtein(4.0);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED); reviewCase.setSubmittedValuesJson("{\"calories\":220,\"protein\":\"invalid\"}");
+        assertThrows(IllegalArgumentException.class, () -> service.applyExistingProduct(72L, "catalog@grun.app", java.util.Set.of(ProductIntakeApplyField.CALORIES, ProductIntakeApplyField.PROTEIN)));
+        assertEquals(100.0, food.getCalories()); assertEquals(4.0, food.getProtein()); verify(foods, never()).save(food);
+    }
+    @Test
     void nonAssignedCatalogAdminCannotMutateCase() {
         when(users.findByEmail("other@grun.app")).thenReturn(Optional.of(user("other@grun.app", UserRole.ADMIN_CATALOG, true)));
         assertThrows(AccessDeniedException.class,

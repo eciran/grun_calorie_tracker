@@ -17,6 +17,7 @@ import com.grun.calorietracker.enums.FoodProductReviewCaseSource;
 import com.grun.calorietracker.enums.FoodProductReviewRiskLevel;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.enums.ProductIntakeApplyField;
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -44,6 +45,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
+import java.util.Set;
+import java.util.EnumMap;
 
 @Service
 public class AdminProductIntakeServiceImpl implements AdminProductIntakeService {
@@ -202,6 +205,56 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         return action(repository.save(reviewCase));
     }
 
+    @Override
+    @Transactional
+    public AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields) {
+        UserEntity actor = requireActiveAdmin(actorEmail);
+        FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireAssignedOrOwner(reviewCase, actor);
+        if (reviewCase.getStatus() != FoodProductReviewCaseStatus.APPROVED) throw new IllegalStateException("Only an approved product intake can be applied.");
+        if (reviewCase.getResolutionMode() != FoodProductResolutionMode.UPDATE_EXISTING) throw new IllegalStateException("This action applies only to an existing product.");
+        if (fields == null || fields.isEmpty()) throw new IllegalArgumentException("At least one field must be selected.");
+        var food = reviewCase.getFoodItem();
+        if (food == null || food.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Existing-product apply requires a published target.");
+        Map<String, Object> submitted = submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>());
+        EnumMap<ProductIntakeApplyField, Object> values = new EnumMap<>(ProductIntakeApplyField.class);
+        for (ProductIntakeApplyField field : fields) values.put(field, validatedApplyValue(field, submitted));
+        values.forEach((field, value) -> applyValue(food, field, value));
+        foodItemRepository.save(food);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
+        reviewCase.setAppliedAt(LocalDateTime.now());
+        return action(repository.save(reviewCase));
+    }
+
+    private Object validatedApplyValue(ProductIntakeApplyField field, Map<String, Object> submitted) {
+        String key = field == ProductIntakeApplyField.PRODUCT_NAME ? "productName" : field.name().toLowerCase();
+        if (!submitted.containsKey(key)) throw new IllegalArgumentException("Selected field is missing from the accepted submission: " + field);
+        Object raw = submitted.get(key);
+        if (field == ProductIntakeApplyField.PRODUCT_NAME) {
+            if (!(raw instanceof String text) || text.isBlank()) throw new IllegalArgumentException("Product name cannot be blank.");
+            return text.trim();
+        }
+        if (field == ProductIntakeApplyField.BRAND) return raw == null || raw.toString().isBlank() ? null : raw.toString().trim();
+        Double value;
+        try { value = raw instanceof Number number ? number.doubleValue() : Double.valueOf(raw.toString().replace(',', '.')); }
+        catch (RuntimeException failure) { throw new IllegalArgumentException("Selected nutrition field is not numeric: " + field, failure); }
+        if (value < 0 || value.isNaN() || value.isInfinite()) throw new IllegalArgumentException("Selected nutrition field is invalid: " + field);
+        return value;
+    }
+
+    private void applyValue(com.grun.calorietracker.entity.FoodItemEntity food, ProductIntakeApplyField field, Object value) {
+        switch (field) {
+            case PRODUCT_NAME -> food.setName((String) value);
+            case BRAND -> food.setBrand((String) value);
+            case CALORIES -> food.setCalories((Double) value);
+            case PROTEIN -> food.setProtein((Double) value);
+            case FAT -> food.setFat((Double) value);
+            case CARBS -> food.setCarbs((Double) value);
+            case FIBER -> food.setFiber((Double) value);
+            case SUGAR -> food.setSugar((Double) value);
+            case SODIUM -> food.setSodium((Double) value);
+        }
+    }
     @Override
     @Transactional
     public AdminProductIntakeActionDto createManual(String actorEmail, AdminProductIntakeManualRequestDto request) {

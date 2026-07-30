@@ -8,6 +8,8 @@ import com.grun.calorietracker.dto.AdminProductIntakeDetailDto;
 import com.grun.calorietracker.enums.AdminProductIntakeQueue;
 import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.ProductIntakeApplyField;
+import java.util.Set;
 
 public interface AdminProductIntakeService {
     AdminProductIntakePageDto list(String adminEmail, AdminProductIntakeQueue queue,
@@ -19,6 +21,7 @@ public interface AdminProductIntakeService {
     AdminProductIntakeActionDto requestBetterEvidence(Long caseId, String actorEmail, String note);
     AdminProductIntakeActionDto decideEvidence(Long caseId, String actorEmail, boolean approved, String note);
     AdminProductIntakeActionDto attachExistingProduct(Long caseId, String actorEmail, Long foodItemId);
+    AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields);
     AdminProductIntakeActionDto createManual(String actorEmail, AdminProductIntakeManualRequestDto request);
     AdminProductIntakeDetailDto detail(Long caseId);
 }

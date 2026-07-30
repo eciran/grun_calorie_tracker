@@ -54,12 +54,12 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S6-02
+**ID:** S6-03
 **State:** READY
 **Owner/run ID:** unassigned
 **Started:** 2026-07-30
-**Expected files:** Existing-product selected-field apply contract and transaction
-**Required verification:** Only explicitly selected supported fields change on an existing published product
+**Expected files:** Internal-candidate verification and central publication transaction
+**Required verification:** Approved new candidates become visible only through the central publication service
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
@@ -81,7 +81,7 @@ safe dependency reason for parallel progress.
 ## Sprint 6 work queue
 
 - [x] `S6-01` Convert accepted case values into immutable reviewed source evidence.
-- [ ] `S6-02` Apply only explicitly selected fields to an existing published product.
+- [x] `S6-02` Apply only explicitly selected fields to an existing published product.
 - [ ] `S6-03` Verify and publish a new internal candidate through the central publication service.
 - [ ] `S6-04` Make quality, canonical/search recalculation, cache invalidation and audit atomic.
 - [ ] `S6-05` Add high-impact confirmation, corroboration context and user decision notifications.
@@ -125,6 +125,8 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s5-06 | Sprint 5 | DONE | Corrected EN/TR encoding and Turkish parser labels; added accessible names, roles, selected/disabled states and localized low-confidence hints; removed the photo-free dead end by routing optional Custom Food separately. Mobile static QA: 2/2 passed; backend regression: 12/12 passed; both diff checks clean. | Pending closure commits |
 
 | 2026-07-30 | manual-20260730-s6-01 | S6-01 | DONE | Approval transaction now emits immutable USER_SUBMITTED_LABEL/ADMIN_REVIEWED_LABEL evidence with case/field fingerprints, reviewer identity and schema provenance while leaving catalog publication and values untouched. Focused evidence/admin suite: 14 passed, 0 failed; Flyway versions unique; diff check clean. | Pending commit |
+
+| 2026-07-30 | manual-20260730-s6-02 | S6-02 | DONE | Added allow-listed selected-field apply for APPROVED UPDATE_EXISTING cases; all selected values validate before mutation, unselected fields and publication metadata remain unchanged, and the admin comparison UI exposes explicit checkboxes. Backend evidence/apply suite: 17 passed, 0 failed; admin production build and compile passed; diff check clean. | Pending commit |
 
 ## Tracker update rules
 
