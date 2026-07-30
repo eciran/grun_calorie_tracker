@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "evidenceType": "REFERENCE_OCR_NOT_DEVICE",
+  "generatedAt": "2026-07-30",
+  "source": "Open Food Facts selected nutrition images and AWS Google Cloud Vision OCR artifacts",
+  "parser": "Claude_Grun_frontend/src/services/productOcr.ts",
+  "methodology": {
+    "productsPerLanguage": 50,
+    "criticalFields": ["calories", "protein", "carbs", "fat"],
+    "numericTolerance": "max(0.5 absolute, 8% relative)",
+    "imageFilesRetained": false
+  },
+  "results": [
+    {
+      "corpus": "TR",
+      "evaluated": 50,
+      "criticalFieldCoverage": 0.04,
+      "criticalFieldPrecision": 0.50,
+      "gate": "FAIL"
+    },
+    {
+      "corpus": "UK_EN",
+      "evaluated": 50,
+      "criticalFieldCoverage": 0.05,
+      "criticalFieldPrecision": 0.90,
+      "gate": "FAIL"
+    }
+  ],
+  "thresholds": {
+    "minimumCriticalFieldCoverage": 0.90,
+    "minimumCriticalFieldPrecision": 0.95
+  },
+  "limitations": [
+    "This evaluates the production parser against reference OCR text, not on-device ML Kit or Apple Vision latency/accuracy.",
+    "The mobile repository currently has no GrunProductOcr native Android/iOS bridge implementation.",
+    "Full row-level reports remain local under outputs and contain no downloaded image binaries."
+  ],
+  "decision": "STOP_ROLLOUT_FIX_PARSER_AND_NATIVE_BRIDGE"
+}
