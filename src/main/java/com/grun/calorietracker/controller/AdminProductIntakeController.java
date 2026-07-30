@@ -20,6 +20,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.servlet.http.HttpServletRequest;
+import com.grun.calorietracker.security.CorrelationIdFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -117,6 +119,18 @@ public class AdminProductIntakeController {
             @RequestBody @Valid AdminProductIntakeAttachRequestDto request
     ) {
         return ResponseEntity.ok(service.attachExistingProduct(caseId, userDetails.getUsername(), request.foodItemId()));
+    }
+    @PatchMapping("/{caseId}/publish-candidate")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")
+    public ResponseEntity<AdminProductIntakeActionDto> publishCandidate(
+            @PathVariable Long caseId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid AdminProductIntakeActionRequestDto request,
+            HttpServletRequest servletRequest
+    ) {
+        Object correlation = servletRequest.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
+        return ResponseEntity.ok(service.publishCandidate(caseId, userDetails.getUsername(), request.note(),
+                correlation == null ? null : correlation.toString()));
     }
     @PatchMapping("/{caseId}/apply-existing")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")

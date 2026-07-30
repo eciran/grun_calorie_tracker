@@ -26,6 +26,7 @@ import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.service.AdminProductIntakeService;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
+import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,6 +66,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private final ObjectMapper objectMapper;
     private final long overdueHours;
     private FoodProductReviewCaseEvidenceService evidenceService;
+    private CatalogPublicationService catalogPublicationService;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -89,6 +91,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setEvidenceService(FoodProductReviewCaseEvidenceService evidenceService) {
         this.evidenceService = evidenceService;
+    }
+    @Autowired
+    public void setCatalogPublicationService(CatalogPublicationService catalogPublicationService) {
+        this.catalogPublicationService = catalogPublicationService;
     }
 
     @Override
@@ -205,6 +211,24 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         return action(repository.save(reviewCase));
     }
 
+    @Override
+    @Transactional
+    public AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId) {
+        UserEntity actor = requireActiveAdmin(actorEmail);
+        FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireAssignedOrOwner(reviewCase, actor);
+        if (reviewCase.getStatus() != FoodProductReviewCaseStatus.APPROVED) throw new IllegalStateException("Only an approved product intake can be published.");
+        if (reviewCase.getResolutionMode() != FoodProductResolutionMode.NEW_CANDIDATE) throw new IllegalStateException("Only a new candidate can use candidate publication.");
+        var food = reviewCase.getFoodItem();
+        if (food == null || food.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW) throw new IllegalStateException("Candidate must still be internal review.");
+        if (catalogPublicationService == null) throw new IllegalStateException("Catalog publication service is unavailable.");
+        food.setVerificationStatus(com.grun.calorietracker.enums.VerificationStatus.VERIFIED);
+        var published = catalogPublicationService.publish(food.getId(), actor.getEmail(), reason, correlationId);
+        if (published.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Central publication did not publish the candidate.");
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
+        reviewCase.setAppliedAt(LocalDateTime.now());
+        return action(repository.save(reviewCase));
+    }
     @Override
     @Transactional
     public AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields) {

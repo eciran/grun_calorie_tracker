@@ -149,6 +149,7 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
           <button className="ghost-button" type="button" onClick={() => setSelected(null)}>Close</button>
           {canWrite && <button className="ghost-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("request-better-evidence", { note: note.trim() }, "Better evidence requested.")}>Request better evidence</button>}
           {canWrite && <button className="ghost-button danger-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/reject", { note: note.trim() }, "Evidence rejected.")}>Reject evidence</button>}
+          {canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "NEW_CANDIDATE" && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("publish-candidate", { note: note.trim() }, "Candidate verified and published through the central publication service.")}>Verify and publish candidate</button>}
           {canWrite && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/approve", { note: note.trim() }, "Evidence approved; publication remains separate.")}>Approve evidence</button>}
         </footer>
       </section>

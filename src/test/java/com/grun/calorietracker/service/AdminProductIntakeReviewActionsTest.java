@@ -21,6 +21,7 @@ class AdminProductIntakeReviewActionsTest {
     private final FoodProductReviewCaseAssetRepository assetRepository = mock(FoodProductReviewCaseAssetRepository.class);
     private final FoodProductReviewCaseService reviewCaseService = mock(FoodProductReviewCaseService.class);
     private final FoodProductReviewCaseEvidenceService evidenceService = mock(FoodProductReviewCaseEvidenceService.class);
+    private final CatalogPublicationService publicationService = mock(CatalogPublicationService.class);
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private final AdminProductIntakeServiceImpl service = new AdminProductIntakeServiceImpl(cases, users, foods, notifications, assetRepository, reviewCaseService, objectMapper, 24);
     private FoodProductReviewCaseEntity reviewCase;
@@ -28,6 +29,7 @@ class AdminProductIntakeReviewActionsTest {
     @BeforeEach
     void setup() {
         service.setEvidenceService(evidenceService);
+        service.setCatalogPublicationService(publicationService);
         reviewCase = new FoodProductReviewCaseEntity();
         reviewCase.setId(72L);
         reviewCase.setStatus(FoodProductReviewCaseStatus.SUBMITTED);
@@ -113,6 +115,44 @@ class AdminProductIntakeReviewActionsTest {
         reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED); reviewCase.setSubmittedValuesJson("{\"calories\":220,\"protein\":\"invalid\"}");
         assertThrows(IllegalArgumentException.class, () -> service.applyExistingProduct(72L, "catalog@grun.app", java.util.Set.of(ProductIntakeApplyField.CALORIES, ProductIntakeApplyField.PROTEIN)));
         assertEquals(100.0, food.getCalories()); assertEquals(4.0, food.getProtein()); verify(foods, never()).save(food);
+    }
+    @Test
+    void approvedNewCandidatePublishesOnlyThroughCentralService() {
+        FoodItemEntity food = new FoodItemEntity(); food.setId(202L); food.setName("Candidate"); food.setCalories(120.0);
+        food.setVerificationStatus(VerificationStatus.NEEDS_REVIEW); food.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.NEW_CANDIDATE);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        when(publicationService.publish(202L, "catalog@grun.app", "Verified label", "cid-202")).thenAnswer(invocation -> { food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED); return food; });
+
+        var result = service.publishCandidate(72L, "catalog@grun.app", "Verified label", "cid-202");
+
+        assertEquals(FoodProductReviewCaseStatus.APPLIED, result.status());
+        assertEquals(VerificationStatus.VERIFIED, food.getVerificationStatus());
+        assertEquals(CatalogPublicationStatus.PUBLISHED, food.getPublicationStatus());
+        assertNotNull(reviewCase.getAppliedAt());
+        verify(publicationService).publish(202L, "catalog@grun.app", "Verified label", "cid-202");
+        verify(foods, never()).save(food);
+    }
+
+    @Test
+    void existingProductCannotUseCandidatePublicationPath() {
+        FoodItemEntity food = new FoodItemEntity(); food.setId(203L); food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        assertThrows(IllegalStateException.class, () -> service.publishCandidate(72L, "catalog@grun.app", "No", "cid"));
+        verifyNoInteractions(publicationService);
+    }
+
+    @Test
+    void centralPublicationFailureDoesNotMarkCaseApplied() {
+        FoodItemEntity food = new FoodItemEntity(); food.setId(204L); food.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.NEW_CANDIDATE);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        when(publicationService.publish(204L, "catalog@grun.app", "Verified", "cid")).thenThrow(new IllegalArgumentException("Quality gate"));
+        assertThrows(IllegalArgumentException.class, () -> service.publishCandidate(72L, "catalog@grun.app", "Verified", "cid"));
+        assertEquals(FoodProductReviewCaseStatus.APPROVED, reviewCase.getStatus());
+        assertNull(reviewCase.getAppliedAt());
+        verify(cases, never()).save(reviewCase);
     }
     @Test
     void nonAssignedCatalogAdminCannotMutateCase() {
