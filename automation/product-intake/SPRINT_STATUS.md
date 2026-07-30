@@ -1,11 +1,11 @@
-﻿# Product Intake Automation Status
+# Product Intake Automation Status
 
 **Branch:** `feature/unified-product-intake-review`  
 **Source plan:** `docs/UNIFIED_PRODUCT_INTAKE_AND_CATALOG_REVIEW_MASTER_PLAN_2026-07-29.md`  
 **Cadence:** 30 minutes  
 **Per-run implementation budget:** 20 minutes  
 **Program status:** IN_PROGRESS
-**Active sprint:** Sprint 5
+**Active sprint:** Sprint 6
 **Last completed run:** 2026-07-30 â€” Sprint 2 closure verified
 
 ## Sprint board
@@ -17,8 +17,8 @@
 | Sprint 2 â€” Common Review Case | DONE | User/admin/correction sources share the review-case foundation and legacy bridge. |
 | Sprint 3 â€” Direct storage and retention | DONE_WITH_RELEASE_GATE | Local implementation complete; provider proof deferred to pre-release/Sprint 7. |
 | Sprint 4 â€” Admin intake and assignments | DONE | Unified queue, assignment, Workbench, evidence and manual intake acceptance passed. |
-| Sprint 5 â€” Mobile user flow | BLOCKED_EXTERNAL_REPO | Requires explicitly approved frontend-repository branch/scope. |
-| Sprint 6 â€” Apply/publish hardening | PENDING | Evidence-backed apply and publish are atomic. |
+| Sprint 5 â€” Mobile user flow | DONE | User approved work on the existing mobile frontend branch; unrelated changes remain untouched. |
+| Sprint 6 â€” Apply/publish hardening | ACTIVE | Evidence-backed apply and publish are atomic. |
 | Sprint 7 â€” First-market pilot and global operations closure | PENDING | Market-configured rollout, portability, metrics, cost and rollback gates pass. |
 
 ## Sprint 3 work queue
@@ -54,18 +54,38 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S5-01
-**State:** BLOCKED_EXTERNAL_REPO
+**ID:** S6-01
+**State:** READY
 **Owner/run ID:** unassigned
-**Started:** pending frontend authorization
-**Expected files:** Mobile barcode-not-found CTA and capture flow in the approved frontend branch
-**Required verification:** Mobile repository branch/scope approval before any edits
+**Started:** 2026-07-30
+**Expected files:** Accepted-case source evidence transaction and apply foundation
+**Required verification:** Accepted cases create immutable reviewed source evidence without publishing
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
   repository's `admin-ui`, not the mobile frontend repository. The legacy
   Label Contributions route now renders the unified Product Intake Workbench.
+- `S5-FRONTEND-SCOPE`: RESOLVED 2026-07-30. User approved Product Intake work
+  on the existing `Claude_Grun_frontend` branch. The unrelated modified
+  `docs/FRONTEND_UI_STANDARD_AUDIT.md` file is preserved and excluded.
 
+## Sprint 5 work queue
+
+- [x] `S5-01` Add the third barcode-not-found CTA, localized front/nutrition capture, device-side JPEG normalization and a manual fallback route.
+- [x] `S5-02` Add OCR adapter/parser warnings, correction form and restart-safe draft storage.
+- [x] `S5-03` Add idempotent direct upload/finalize with progress and retry.
+- [x] `S5-04` Add explicit submission consent, optional Custom Food separation and submit.
+- [x] `S5-05` Add My Contributions, request-evidence deep links and withdrawal.
+- [x] `S5-06` Complete mobile accessibility, localization and acceptance verification.
+
+## Sprint 6 work queue
+
+- [ ] `S6-01` Convert accepted case values into immutable reviewed source evidence.
+- [ ] `S6-02` Apply only explicitly selected fields to an existing published product.
+- [ ] `S6-03` Verify and publish a new internal candidate through the central publication service.
+- [ ] `S6-04` Make quality, canonical/search recalculation, cache invalidation and audit atomic.
+- [ ] `S6-05` Add high-impact confirmation, corroboration context and user decision notifications.
+- [ ] `S6-06` Complete concurrency, rollback and Sprint 6 acceptance verification.
 ## Deferred release gates
 
 - `S3-PROVIDER-PROOF` (user-deferred 2026-07-30): before staging/production release, select the S3-compatible provider and private bucket, replace example origins, apply CORS/lifecycle policies with approved credentials, and archive provider-side privacy/30-day/90-day/rollback evidence. This gate must be surfaced again before Sprint 7 closure or any deployment.
@@ -94,6 +114,15 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s4-06-admin-ui | S4-06 | IN_PROGRESS | Located backend `admin-ui`; legacy Label Contributions navigation now opens the unified queue/detail Workbench with optional market filtering, assignment actions, comparisons, warnings, lazy evidence and review actions. `npm run build` passed. Permission-aware action visibility and admin-manual form remain before closure. | Uncommitted Sprint 4 |
 | 2026-07-30 | heartbeat-20260730T122017Z | S4-06 | IN_PROGRESS | Product Intake UI now consumes the admin access profile: ADMIN_READ_ONLY cannot open private evidence or see write actions; reassignment is owner-only; supported markets are backend-aligned and no market defaults to TR. `npm run build` passed. Admin-manual form remains before closure. | Uncommitted Sprint 4 |
 | 2026-07-30 | heartbeat-20260730T123517Z | Sprint 4 | DONE | Admin manual form creates INTERNAL_REVIEW candidates with backend-aligned market and nutrition enums; admin UI production build passed; full Sprint 4 backend suite: 35 passed, 0 failed; `git diff --check` clean. | Pending closure commit |
+| 2026-07-30 | manual-20260730-s5-01 | S5-01 | DONE | Existing mobile branch approved; third CTA routes to localized two-photo capture, images are resized/re-encoded as JPEG on-device, and manual continuation remains available. Mobile `npm run typecheck` passed. | Uncommitted Sprint 5 |
+| 2026-07-30 | manual-20260730-s5-02 | S5-02 | DONE | Provider-neutral lazy native OCR adapter with unavailable fallback, locale-aware nutrition parser, visible confidence warnings, editable review fields and barcode-keyed SecureStore draft recovery added. Mobile `npm run typecheck` passed; frontend `git diff --check` clean. | Uncommitted Sprint 5 |
+| 2026-07-30 | manual-20260730-s5-03-core | S5-03 | IN_PROGRESS | Added SHA-256 metadata, idempotency-key session reuse, presigned XMLHttpRequest upload progress and finalize client. Mobile `npm run typecheck` passed; retry state persistence and UI integration remain. Automation recreation attempted twice but Codex app returned `No handler registered`; no automation is currently active. | Uncommitted Sprint 5 |
+| 2026-07-30 | manual-20260730-s5-03-ui | S5-03 | DONE | Review UI shows per-asset progress and retry/error states; persisted idempotency key and unexpired upload session are reused after restart; finalize completes both assets together. Mobile `npm run typecheck` passed and frontend `git diff --check` clean. | Uncommitted Sprint 5 |
+| 2026-07-30 | manual-20260730-s5-04 | S5-04 | DONE | Added finalized-session submit endpoint that creates an idempotent USER_OCR review case and attaches two verified private assets. Mobile UI requires explicit temporary-storage/admin-review consent, never grants public-media consent, and keeps optional Custom Food separate. Backend compile, 11 focused tests, mobile typecheck and both diff checks passed. | Uncommitted Sprint 5 |
+
+| 2026-07-30 | manual-20260730-s5-05 | S5-05 | DONE | Added owner-scoped My Contributions list/withdrawal, profile entry, UPDATE_PRODUCT_EVIDENCE notification deep link and same-case two-asset resubmission; old evidence enters retention cleanup. Backend focused suites: 12 passed, 0 failed; mobile typecheck and both diff checks passed. | Uncommitted Sprint 5 |
+
+| 2026-07-30 | manual-20260730-s5-06 | Sprint 5 | DONE | Corrected EN/TR encoding and Turkish parser labels; added accessible names, roles, selected/disabled states and localized low-confidence hints; removed the photo-free dead end by routing optional Custom Food separately. Mobile static QA: 2/2 passed; backend regression: 12/12 passed; both diff checks clean. | Pending closure commits |
 
 ## Tracker update rules
 

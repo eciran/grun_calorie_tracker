@@ -3,7 +3,10 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.FoodProductUploadFinalizeDto;
 import com.grun.calorietracker.dto.FoodProductUploadSessionDto;
 import com.grun.calorietracker.dto.FoodProductUploadSessionRequestDto;
+import com.grun.calorietracker.dto.FoodProductReviewSubmitRequestDto;
+import com.grun.calorietracker.dto.FoodProductReviewSubmitResponseDto;
 import com.grun.calorietracker.service.FoodProductUploadSessionService;
+import com.grun.calorietracker.service.FoodProductReviewSubmissionService;
 import com.grun.calorietracker.service.support.FoodProductIntakeMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "grun.food-contribution-storage", name = "provider", havingValue = "S3")
 public class FoodProductUploadSessionController {
     private final FoodProductUploadSessionService service;
+    private final FoodProductReviewSubmissionService submissionService;
     private final FoodProductIntakeMetrics metrics;
 
     @PostMapping
@@ -62,5 +66,15 @@ public class FoodProductUploadSessionController {
             metrics.record("upload_finalize", "failure");
             throw failure;
         }
+    }
+
+    @PostMapping("/{sessionId}/submit")
+    @Operation(summary = "Submit a finalized evidence session for admin review")
+    public ResponseEntity<FoodProductReviewSubmitResponseDto> submit(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable String sessionId,
+            @Valid @RequestBody FoodProductReviewSubmitRequestDto request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(submissionService.submit(userDetails.getUsername(), sessionId, request));
     }
 }

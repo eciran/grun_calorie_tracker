@@ -46,6 +46,7 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
             FoodProductReviewCaseStatus.IN_REVIEW, EnumSet.of(
                     FoodProductReviewCaseStatus.APPROVED,
                     FoodProductReviewCaseStatus.REJECTED,
+                    FoodProductReviewCaseStatus.WITHDRAWN,
                     FoodProductReviewCaseStatus.EXPIRED
             ),
             FoodProductReviewCaseStatus.APPROVED, EnumSet.of(FoodProductReviewCaseStatus.APPLIED)

@@ -107,6 +107,23 @@ class FoodProductReviewCaseServiceImplTest {
         );
     }
 
+    @Test
+    void submitterCanWithdrawWhileReviewIsActive() {
+        FoodProductReviewCaseEntity reviewCase = new FoodProductReviewCaseEntity();
+        reviewCase.setId(32L);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.IN_REVIEW);
+        when(reviewCaseRepository.findById(32L)).thenReturn(Optional.of(reviewCase));
+        when(reviewCaseRepository.save(reviewCase)).thenReturn(reviewCase);
+
+        FoodProductReviewCaseEntity result = service.transition(
+                32L,
+                FoodProductReviewCaseStatus.WITHDRAWN,
+                "submitter@grun.local",
+                "Withdrawn by submitter"
+        );
+
+        assertEquals(FoodProductReviewCaseStatus.WITHDRAWN, result.getStatus());
+    }
     private FoodProductReviewCaseCommand command(String idempotencyKey) {
         return new FoodProductReviewCaseCommand(
                 idempotencyKey,

@@ -327,7 +327,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         notification.setSource("PRODUCT_INTAKE");
         notification.setTargetType("FOOD_PRODUCT_REVIEW_CASE");
         notification.setTargetId(reviewCase.getId().toString());
-        notification.setTargetRoute("/product-intakes/" + reviewCase.getId());
+        notification.setTargetRoute("product-contribution-review");
+        notification.setPrimaryAction("UPDATE_PRODUCT_EVIDENCE");
         notification.setVisibleInApp(true);
         notification.setIsRead(false);
         notification.setCreatedAt(LocalDateTime.now());
