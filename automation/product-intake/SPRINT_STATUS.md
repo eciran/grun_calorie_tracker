@@ -5,7 +5,7 @@
 **Cadence:** 30 minutes  
 **Per-run implementation budget:** 20 minutes  
 **Program status:** IN_PROGRESS
-**Active sprint:** Sprint 6
+**Active sprint:** Sprint 7
 **Last completed run:** 2026-07-30 â€” Sprint 2 closure verified
 
 ## Sprint board
@@ -18,8 +18,8 @@
 | Sprint 3 â€” Direct storage and retention | DONE_WITH_RELEASE_GATE | Local implementation complete; provider proof deferred to pre-release/Sprint 7. |
 | Sprint 4 â€” Admin intake and assignments | DONE | Unified queue, assignment, Workbench, evidence and manual intake acceptance passed. |
 | Sprint 5 â€” Mobile user flow | DONE | User approved work on the existing mobile frontend branch; unrelated changes remain untouched. |
-| Sprint 6 â€” Apply/publish hardening | ACTIVE | Evidence-backed apply and publish are atomic. |
-| Sprint 7 â€” First-market pilot and global operations closure | PENDING | Market-configured rollout, portability, metrics, cost and rollback gates pass. |
+| Sprint 6 - Apply/publish hardening | DONE | Evidence-backed apply and publish are atomic. |
+| Sprint 7 - First-market pilot and global operations closure | ACTIVE | Market-configured rollout, portability, metrics, cost and rollback gates pass. |
 
 ## Sprint 3 work queue
 
@@ -54,12 +54,12 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S6-06
+**ID:** S7-01
 **State:** READY
 **Owner/run ID:** unassigned
 **Started:** 2026-07-30
-**Expected files:** Concurrency, rollback and Sprint 6 acceptance verification
-**Required verification:** Concurrent decisions serialize, rollback holds and complete Sprint 6 acceptance passes
+**Expected files:** Market-neutral rollout flags, cohort and kill-switch foundation
+**Required verification:** Global defaults remain safe and rollout can be disabled without deployment
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
@@ -85,7 +85,7 @@ safe dependency reason for parallel progress.
 - [x] `S6-03` Verify and publish a new internal candidate through the central publication service.
 - [x] `S6-04` Make quality, canonical/search recalculation, cache invalidation and audit atomic.
 - [x] `S6-05` Add high-impact confirmation, corroboration context and user decision notifications.
-- [ ] `S6-06` Complete concurrency, rollback and Sprint 6 acceptance verification.
+- [x] `S6-06` Complete concurrency, rollback and Sprint 6 acceptance verification.
 ## Deferred release gates
 
 - `S3-PROVIDER-PROOF` (user-deferred 2026-07-30): before staging/production release, select the S3-compatible provider and private bucket, replace example origins, apply CORS/lifecycle policies with approved credentials, and archive provider-side privacy/30-day/90-day/rollback evidence. This gate must be surfaced again before Sprint 7 closure or any deployment.
@@ -132,6 +132,7 @@ safe dependency reason for parallel progress.
 
 | 2026-07-30 | manual-20260730-s6-04 | S6-04 | DONE | Existing-product apply and candidate publish now share a transactional catalog mutation orchestrator: selected-field audits, quality issue sync, canonical/search recalculation and product cache eviction execute with the case transition; failures propagate before APPLIED. Focused suite: 18 passed, 0 failed; compile and diff check passed. | Pending commit |
 | 2026-07-30 | manual-20260730-s6-05 | S6-05 | DONE | Backend rejects unconfirmed publication and material nutrition changes (20% relative threshold); Workbench marks high-impact comparisons, confirms apply/publish and shows provider/value/basis/confidence/timestamp corroboration. Contributors receive decision notifications on rejection and only after real APPLIED/publication success. Focused backend suite: 26 passed, 0 failed; admin production build and diff check passed. | Pending commit |
+| 2026-07-30 | manual-20260730-s6-06 | Sprint 6 | DONE | Real JPA concurrency test proves the second decision waits on the case PESSIMISTIC_WRITE lock; rollback/error paths retain APPROVED and suppress success notifications. Complete Sprint 6 suite: 45 passed, 0 failed; diff check clean. | Pending commit |
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.
