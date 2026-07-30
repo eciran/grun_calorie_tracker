@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.AdminProductIntakeDetailDto;
 import com.grun.calorietracker.dto.AdminProductIntakeActionRequestDto;
 import com.grun.calorietracker.dto.AdminProductIntakeAttachRequestDto;
 import com.grun.calorietracker.dto.AdminProductIntakeApplyRequestDto;
+import com.grun.calorietracker.dto.AdminProductIntakePublishRequestDto;
 import com.grun.calorietracker.dto.AdminProductIntakePageDto;
 import com.grun.calorietracker.dto.AdminProductIntakeReassignRequestDto;
 import com.grun.calorietracker.enums.AdminProductIntakeQueue;
@@ -125,12 +126,12 @@ public class AdminProductIntakeController {
     public ResponseEntity<AdminProductIntakeActionDto> publishCandidate(
             @PathVariable Long caseId,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody @Valid AdminProductIntakeActionRequestDto request,
+            @RequestBody @Valid AdminProductIntakePublishRequestDto request,
             HttpServletRequest servletRequest
     ) {
         Object correlation = servletRequest.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
         return ResponseEntity.ok(service.publishCandidate(caseId, userDetails.getUsername(), request.note(),
-                correlation == null ? null : correlation.toString()));
+                correlation == null ? null : correlation.toString(), request.confirmed()));
     }
     @PatchMapping("/{caseId}/apply-existing")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")
@@ -139,7 +140,7 @@ public class AdminProductIntakeController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid AdminProductIntakeApplyRequestDto request
     ) {
-        return ResponseEntity.ok(service.applyExistingProduct(caseId, userDetails.getUsername(), request.fields()));
+        return ResponseEntity.ok(service.applyExistingProduct(caseId, userDetails.getUsername(), request.fields(), request.confirmed()));
     }
     @PostMapping("/manual")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")

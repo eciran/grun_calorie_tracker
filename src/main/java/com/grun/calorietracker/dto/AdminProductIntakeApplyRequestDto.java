@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import java.util.Set;
 
 public record AdminProductIntakeApplyRequestDto(
-        @NotEmpty @Size(max = 9) Set<@NotNull ProductIntakeApplyField> fields
+        @NotEmpty @Size(max = 9) Set<@NotNull ProductIntakeApplyField> fields,
+        boolean confirmed
 ) {
 }

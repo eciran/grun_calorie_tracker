@@ -11,7 +11,8 @@ type IntakeDetail = {
   summary: IntakeSummary;
   reviewNote?: string;
   linkedFoodItemId?: number;
-  fieldComparisons?: Array<{ field: string; submittedValue?: unknown; catalogValue?: unknown; equal: boolean }>;
+  fieldComparisons?: Array<{ field: string; submittedValue?: unknown; catalogValue?: unknown; equal: boolean; highImpact: boolean }>;
+  corroboratingEvidence?: Array<{ field: string; provider: string; numericValue: number; basis: string; confidenceScore: number; observedAt?: string; sourceVersion?: string }>;
   warnings?: string[];
   evidence?: Evidence[];
 };
@@ -84,6 +85,19 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
     }
   }
 
+  function applySelectedFields() {
+    if (!selected || applyFields.length === 0) return;
+    const highImpact = (selected.fieldComparisons ?? []).filter((item) => item.highImpact && applyFields.includes(toApplyField(item.field) ?? ""));
+    const confirmed = highImpact.length === 0 || window.confirm(`This materially changes ${highImpact.map((item) => item.field).join(", ")}. Apply only after checking all evidence. Continue?`);
+    if (!confirmed) return;
+    void mutate("apply-existing", { fields: applyFields, confirmed: true }, "Selected fields applied to the existing product.");
+  }
+
+  function publishSelectedCandidate() {
+    if (!note.trim()) return;
+    const confirmed = window.confirm("Publish this verified candidate to the public catalog? This action will notify the contributor.");
+    if (confirmed) void mutate("publish-candidate", { note: note.trim(), confirmed: true }, "Candidate verified and published through the central publication service.");
+  }
   async function viewEvidence(asset: Evidence) {
     try {
       const read = await request<{ signedUrl: string }>(`/api/v1/admin/products/review-cases/assets/${asset.assetId}/evidence-url`);
@@ -128,9 +142,11 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
         <div className="contribution-review-body">
           <div className="contribution-review-details">
             <h3>Submitted vs catalog</h3>
-            <DataTable columns={["Apply", "Field", "Submitted", "Catalog", "Match"]} rows={(selected.fieldComparisons ?? []).map((item) => { const applyField = toApplyField(item.field); const selectable = canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && Boolean(applyField); return [selectable ? <input type="checkbox" aria-label={`Apply ${item.field}`} checked={applyFields.includes(applyField!)} onChange={(event) => setApplyFields((current) => event.target.checked ? [...current, applyField!] : current.filter((value) => value !== applyField))} /> : "-", item.field, formatField(item.submittedValue), formatField(item.catalogValue), item.equal ? "Match" : "Review"]; })} empty="No field comparison is available." />
-            {selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && canWrite && <div className="review-apply-panel"><strong>Apply selected fields to the published product</strong><p>Only checked fields will change. Barcode, market and publication state are never edited here.</p><button className="primary-button" type="button" disabled={busy || applyFields.length === 0} onClick={() => void mutate("apply-existing", { fields: applyFields }, "Selected fields applied to the existing product.")}>Apply {applyFields.length} selected field{applyFields.length === 1 ? "" : "s"}</button></div>}
+            <DataTable columns={["Apply", "Field", "Submitted", "Catalog", "Match"]} rows={(selected.fieldComparisons ?? []).map((item) => { const applyField = toApplyField(item.field); const selectable = canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && Boolean(applyField); return [selectable ? <input type="checkbox" aria-label={`Apply ${item.field}`} checked={applyFields.includes(applyField!)} onChange={(event) => setApplyFields((current) => event.target.checked ? [...current, applyField!] : current.filter((value) => value !== applyField))} /> : "-", item.field, formatField(item.submittedValue), formatField(item.catalogValue), item.equal ? "Match" : item.highImpact ? "High impact" : "Review"]; })} empty="No field comparison is available." />
+            {selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && canWrite && <div className="review-apply-panel"><strong>Apply selected fields to the published product</strong><p>Only checked fields will change. Barcode, market and publication state are never edited here.</p><button className="primary-button" type="button" disabled={busy || applyFields.length === 0} onClick={applySelectedFields}>Apply {applyFields.length} selected field{applyFields.length === 1 ? "" : "s"}</button></div>}
             {(selected.warnings ?? []).map((warning) => <div className="warning-banner" key={warning}>{warning}</div>)}
+            <h3>Corroborating source evidence</h3>
+            <DataTable columns={["Field", "Provider", "Value", "Basis", "Confidence", "Observed"]} rows={(selected.corroboratingEvidence ?? []).map((item) => [item.field, item.provider, item.numericValue, item.basis, `${item.confidenceScore}%`, formatDate(item.observedAt)])} empty="No additional source evidence is available." />
             <label>Review note<textarea maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
           </div>
           <div className="contribution-evidence-panel">
@@ -149,7 +165,7 @@ export function ProductIntakeView({ accessProfile, onError }: { accessProfile: A
           <button className="ghost-button" type="button" onClick={() => setSelected(null)}>Close</button>
           {canWrite && <button className="ghost-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("request-better-evidence", { note: note.trim() }, "Better evidence requested.")}>Request better evidence</button>}
           {canWrite && <button className="ghost-button danger-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/reject", { note: note.trim() }, "Evidence rejected.")}>Reject evidence</button>}
-          {canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "NEW_CANDIDATE" && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("publish-candidate", { note: note.trim() }, "Candidate verified and published through the central publication service.")}>Verify and publish candidate</button>}
+          {canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "NEW_CANDIDATE" && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={publishSelectedCandidate}>Verify and publish candidate</button>}
           {canWrite && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/approve", { note: note.trim() }, "Evidence approved; publication remains separate.")}>Approve evidence</button>}
         </footer>
       </section>

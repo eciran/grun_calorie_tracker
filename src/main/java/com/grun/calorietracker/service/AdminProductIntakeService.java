@@ -21,8 +21,8 @@ public interface AdminProductIntakeService {
     AdminProductIntakeActionDto requestBetterEvidence(Long caseId, String actorEmail, String note);
     AdminProductIntakeActionDto decideEvidence(Long caseId, String actorEmail, boolean approved, String note);
     AdminProductIntakeActionDto attachExistingProduct(Long caseId, String actorEmail, Long foodItemId);
-    AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields);
-    AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId);
+    AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields, boolean confirmed);
+    AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId, boolean confirmed);
     AdminProductIntakeActionDto createManual(String actorEmail, AdminProductIntakeManualRequestDto request);
     AdminProductIntakeDetailDto detail(Long caseId);
 }

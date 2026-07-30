@@ -54,12 +54,12 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S6-05
+**ID:** S6-06
 **State:** READY
 **Owner/run ID:** unassigned
 **Started:** 2026-07-30
-**Expected files:** High-impact confirmation, corroboration context and user decision notifications
-**Required verification:** Confirmation gates, evidence context and user-visible outcomes pass
+**Expected files:** Concurrency, rollback and Sprint 6 acceptance verification
+**Required verification:** Concurrent decisions serialize, rollback holds and complete Sprint 6 acceptance passes
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
@@ -84,7 +84,7 @@ safe dependency reason for parallel progress.
 - [x] `S6-02` Apply only explicitly selected fields to an existing published product.
 - [x] `S6-03` Verify and publish a new internal candidate through the central publication service.
 - [x] `S6-04` Make quality, canonical/search recalculation, cache invalidation and audit atomic.
-- [ ] `S6-05` Add high-impact confirmation, corroboration context and user decision notifications.
+- [x] `S6-05` Add high-impact confirmation, corroboration context and user decision notifications.
 - [ ] `S6-06` Complete concurrency, rollback and Sprint 6 acceptance verification.
 ## Deferred release gates
 
@@ -131,6 +131,7 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s6-03 | S6-03 | DONE | APPROVED NEW_CANDIDATE cases are verified then published only through CatalogPublicationService with actor/reason/correlation audit context; central failure leaves the case approved and unapplied. Admin UI exposes the action only for the valid state/mode. Publish/apply/evidence suite: 22 passed, 0 failed; admin production build and diff check passed. | Pending commit |
 
 | 2026-07-30 | manual-20260730-s6-04 | S6-04 | DONE | Existing-product apply and candidate publish now share a transactional catalog mutation orchestrator: selected-field audits, quality issue sync, canonical/search recalculation and product cache eviction execute with the case transition; failures propagate before APPLIED. Focused suite: 18 passed, 0 failed; compile and diff check passed. | Pending commit |
+| 2026-07-30 | manual-20260730-s6-05 | S6-05 | DONE | Backend rejects unconfirmed publication and material nutrition changes (20% relative threshold); Workbench marks high-impact comparisons, confirms apply/publish and shows provider/value/basis/confidence/timestamp corroboration. Contributors receive decision notifications on rejection and only after real APPLIED/publication success. Focused backend suite: 26 passed, 0 failed; admin production build and diff check passed. | Pending commit |
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.

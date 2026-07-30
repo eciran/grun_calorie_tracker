@@ -16,9 +16,20 @@ public record AdminProductIntakeDetailDto(
         List<FieldComparison> fieldComparisons,
         List<String> warnings,
         LocalDateTime evidenceExpiresAt,
-        List<EvidenceDescriptor> evidence
+        List<EvidenceDescriptor> evidence,
+        List<CorroboratingEvidence> corroboratingEvidence
 ) {
-    public record FieldComparison(String field, Object submittedValue, Object catalogValue, boolean equal) {}
+    public record FieldComparison(String field, Object submittedValue, Object catalogValue, boolean equal, boolean highImpact) {}
+
+    public record CorroboratingEvidence(
+            FoodEvidenceField field,
+            FoodDataSource provider,
+            Double numericValue,
+            FoodEvidenceBasis basis,
+            Integer confidenceScore,
+            LocalDateTime observedAt,
+            String sourceVersion
+    ) {}
 
     public record EvidenceDescriptor(
             Long assetId,

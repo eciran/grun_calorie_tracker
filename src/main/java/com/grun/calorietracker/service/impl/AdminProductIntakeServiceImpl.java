@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.AdminProductIntakeSummaryDto;
 import com.grun.calorietracker.entity.FoodProductReviewCaseEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity;
+import com.grun.calorietracker.entity.FoodProductSourceEvidenceEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminProductIntakeQueue;
 import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
@@ -23,6 +24,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
+import com.grun.calorietracker.repository.FoodProductSourceEvidenceRepository;
 import com.grun.calorietracker.service.AdminProductIntakeService;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
@@ -69,6 +71,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private FoodProductReviewCaseEvidenceService evidenceService;
     private CatalogPublicationService catalogPublicationService;
     private ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator;
+    private FoodProductSourceEvidenceRepository sourceEvidenceRepository;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -101,6 +104,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setCatalogMutationOrchestrator(ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator) {
         this.catalogMutationOrchestrator = catalogMutationOrchestrator;
+    }    @Autowired
+    public void setSourceEvidenceRepository(FoodProductSourceEvidenceRepository sourceEvidenceRepository) {
+        this.sourceEvidenceRepository = sourceEvidenceRepository;
     }
 
     @Override
@@ -201,7 +207,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
             if (evidenceService == null) throw new IllegalStateException("Review evidence service is unavailable.");
             evidenceService.recordAcceptedEvidence(reviewCase);
         }
-        return action(repository.save(reviewCase));
+        FoodProductReviewCaseEntity saved = repository.save(reviewCase);
+        if (!approved) notifyRejectedDecision(saved);
+        return action(saved);
     }
 
     @Override
@@ -219,10 +227,11 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
 
     @Override
     @Transactional
-    public AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId) {
+    public AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId, boolean confirmed) {
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
         requireAssignedOrOwner(reviewCase, actor);
+        if (!confirmed) throw new IllegalArgumentException("Explicit publication confirmation is required.");
         if (reviewCase.getStatus() != FoodProductReviewCaseStatus.APPROVED) throw new IllegalStateException("Only an approved product intake can be published.");
         if (reviewCase.getResolutionMode() != FoodProductResolutionMode.NEW_CANDIDATE) throw new IllegalStateException("Only a new candidate can use candidate publication.");
         var food = reviewCase.getFoodItem();
@@ -242,11 +251,13 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         catalogMutationOrchestrator.reconcileAndAudit(published, previousCanonicalKey, actor.getEmail(), reviewCase.getId(), oldValues, newValues);
         reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
         reviewCase.setAppliedAt(LocalDateTime.now());
-        return action(repository.save(reviewCase));
+        FoodProductReviewCaseEntity saved = repository.save(reviewCase);
+        notifySuccessfulDecision(saved, true);
+        return action(saved);
     }
     @Override
     @Transactional
-    public AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields) {
+    public AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields, boolean confirmed) {
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
         requireAssignedOrOwner(reviewCase, actor);
@@ -259,6 +270,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         Map<String, Object> submitted = submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>());
         EnumMap<ProductIntakeApplyField, Object> values = new EnumMap<>(ProductIntakeApplyField.class);
         for (ProductIntakeApplyField field : fields) values.put(field, validatedApplyValue(field, submitted));
+        boolean highImpact = values.entrySet().stream().anyMatch(entry -> isHighImpact(entry.getKey(), currentValue(food, entry.getKey()), entry.getValue()));
+        if (highImpact && !confirmed) throw new IllegalArgumentException("Explicit confirmation is required for material nutrition changes.");
         String previousCanonicalKey = food.getCanonicalFoodKey();
         Map<String, Object> oldValues = new LinkedHashMap<>();
         values.keySet().forEach(field -> oldValues.put(applyFieldName(field), currentValue(food, field)));
@@ -269,7 +282,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         catalogMutationOrchestrator.reconcileAndAudit(food, previousCanonicalKey, actor.getEmail(), reviewCase.getId(), oldValues, newValues);
         reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
         reviewCase.setAppliedAt(LocalDateTime.now());
-        return action(repository.save(reviewCase));
+        FoodProductReviewCaseEntity saved = repository.save(reviewCase);
+        notifySuccessfulDecision(saved, false);
+        return action(saved);
     }
 
     private Object validatedApplyValue(ProductIntakeApplyField field, Map<String, Object> submitted) {
@@ -394,7 +409,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         return new AdminProductIntakeDetailDto(toSummary(reviewCase), reviewCase.getReviewNote(),
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getId(),
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getPublicationStatus(),
-                submitted, catalog, comparisons(submitted, catalog), List.copyOf(warnings), expiry, evidence);
+                submitted, catalog, comparisons(submitted, catalog), List.copyOf(warnings), expiry, evidence,
+                corroboratingEvidence(reviewCase));
     }
 
     @SuppressWarnings("unchecked")
@@ -432,8 +448,83 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         fields.addAll(submitted.keySet());
         fields.addAll(catalog.keySet());
         return fields.stream().map(field -> new AdminProductIntakeDetailDto.FieldComparison(field,
-                submitted.get(field), catalog.get(field), Objects.equals(submitted.get(field), catalog.get(field))))
+                submitted.get(field), catalog.get(field), Objects.equals(submitted.get(field), catalog.get(field)),
+                isHighImpactField(field, catalog.get(field), submitted.get(field))))
                 .toList();
+    }
+    private boolean isHighImpact(ProductIntakeApplyField field, Object oldValue, Object newValue) {
+        return switch (field) {
+            case CALORIES, PROTEIN, FAT, CARBS, FIBER, SUGAR, SODIUM -> materialDifference(oldValue, newValue);
+            default -> false;
+        };
+    }
+
+    private boolean isHighImpactField(String field, Object oldValue, Object newValue) {
+        try {
+            ProductIntakeApplyField applyField = "productName".equals(field)
+                    ? ProductIntakeApplyField.PRODUCT_NAME
+                    : ProductIntakeApplyField.valueOf(field.toUpperCase());
+            return isHighImpact(applyField, oldValue, newValue);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private boolean materialDifference(Object oldValue, Object newValue) {
+        Double oldNumber = numberValue(oldValue);
+        Double newNumber = numberValue(newValue);
+        if (oldNumber == null || newNumber == null || Objects.equals(oldNumber, newNumber)) return false;
+        if (oldNumber == 0.0) return newNumber != 0.0;
+        return Math.abs(newNumber - oldNumber) / Math.abs(oldNumber) >= 0.20;
+    }
+
+    private Double numberValue(Object value) {
+        if (value instanceof Number number) return number.doubleValue();
+        if (value == null) return null;
+        try { return Double.valueOf(value.toString().replace(',', '.')); }
+        catch (NumberFormatException ignored) { return null; }
+    }
+
+    private List<AdminProductIntakeDetailDto.CorroboratingEvidence> corroboratingEvidence(FoodProductReviewCaseEntity reviewCase) {
+        if (sourceEvidenceRepository == null || reviewCase.getFoodItem() == null || reviewCase.getFoodItem().getId() == null) return List.of();
+        return sourceEvidenceRepository.findByFoodItemIdOrderByObservedAtDescIdDesc(reviewCase.getFoodItem().getId()).stream()
+                .map(value -> new AdminProductIntakeDetailDto.CorroboratingEvidence(value.getFieldName(), value.getProvider(),
+                        value.getNumericValue(), value.getBasis(), value.getConfidenceScore(), value.getObservedAt(), value.getSourceVersion()))
+                .toList();
+    }
+
+    private void notifySuccessfulDecision(FoodProductReviewCaseEntity reviewCase, boolean publication) {
+        if (reviewCase.getSubmittedBy() == null || reviewCase.getStatus() != FoodProductReviewCaseStatus.APPLIED) return;
+        notificationRepository.save(decisionNotification(reviewCase,
+                publication ? "Product contribution published" : "Product contribution applied",
+                publication ? "Your contribution is now available in the product catalog." : "Your verified contribution improved an existing catalog product.",
+                "VIEW_APPLIED_PRODUCT", "SUCCESS"));
+    }
+
+    private void notifyRejectedDecision(FoodProductReviewCaseEntity reviewCase) {
+        if (reviewCase.getSubmittedBy() == null || reviewCase.getStatus() != FoodProductReviewCaseStatus.REJECTED) return;
+        notificationRepository.save(decisionNotification(reviewCase, "Product contribution reviewed",
+                "Your product contribution was not applied to the catalog.", "VIEW_PRODUCT_CONTRIBUTION", "INFO"));
+    }
+
+    private NotificationEntity decisionNotification(FoodProductReviewCaseEntity reviewCase, String title, String message,
+                                                    String action, String severity) {
+        NotificationEntity notification = new NotificationEntity();
+        notification.setUser(reviewCase.getSubmittedBy());
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setNote(reviewCase.getReviewNote());
+        notification.setType("PRODUCT_INTAKE");
+        notification.setSeverity(severity);
+        notification.setSource("PRODUCT_INTAKE");
+        notification.setTargetType(reviewCase.getFoodItem() == null ? "FOOD_PRODUCT_REVIEW_CASE" : "FOOD_ITEM");
+        notification.setTargetId(reviewCase.getFoodItem() == null ? reviewCase.getId().toString() : reviewCase.getFoodItem().getId().toString());
+        notification.setTargetRoute(reviewCase.getFoodItem() == null ? "product-contribution-review" : "food-detail");
+        notification.setPrimaryAction(action);
+        notification.setVisibleInApp(true);
+        notification.setIsRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        return notification;
     }
     private void requireAssignedOrOwner(FoodProductReviewCaseEntity reviewCase, UserEntity actor) {
         if (actor.getRole() == UserRole.OWNER) return;
