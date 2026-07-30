@@ -1,25 +1,25 @@
-# Product Intake Automation Status
+﻿# Product Intake Automation Status
 
 **Branch:** `feature/unified-product-intake-review`  
 **Source plan:** `docs/UNIFIED_PRODUCT_INTAKE_AND_CATALOG_REVIEW_MASTER_PLAN_2026-07-29.md`  
 **Cadence:** 30 minutes  
 **Per-run implementation budget:** 20 minutes  
 **Program status:** IN_PROGRESS
-**Active sprint:** Sprint 4
-**Last completed run:** 2026-07-30 — Sprint 2 closure verified
+**Active sprint:** Sprint 5
+**Last completed run:** 2026-07-30 â€” Sprint 2 closure verified
 
 ## Sprint board
 
 | Sprint | State | Exit summary |
 |---|---|---|
-| Sprint 0 — Baseline, contract and feasibility | DONE | Baseline and implementation contracts established. |
-| Sprint 1 — Publication gate | DONE | User reads are guarded and publication is centralized. |
-| Sprint 2 — Common Review Case | DONE | User/admin/correction sources share the review-case foundation and legacy bridge. |
-| Sprint 3 — Direct storage and retention | ACTIVE | Private two-asset upload and bounded deletion work. |
-| Sprint 4 — Admin intake and assignments | PENDING | Product Intake queue and real food assignment work. |
-| Sprint 5 — Mobile user flow | PENDING_EXTERNAL_REPO | Requires explicitly approved frontend-repository work. |
-| Sprint 6 — Apply/publish hardening | PENDING | Evidence-backed apply and publish are atomic. |
-| Sprint 7 — First-market pilot and global operations closure | PENDING | Market-configured rollout, portability, metrics, cost and rollback gates pass. |
+| Sprint 0 â€” Baseline, contract and feasibility | DONE | Baseline and implementation contracts established. |
+| Sprint 1 â€” Publication gate | DONE | User reads are guarded and publication is centralized. |
+| Sprint 2 â€” Common Review Case | DONE | User/admin/correction sources share the review-case foundation and legacy bridge. |
+| Sprint 3 â€” Direct storage and retention | DONE_WITH_RELEASE_GATE | Local implementation complete; provider proof deferred to pre-release/Sprint 7. |
+| Sprint 4 â€” Admin intake and assignments | DONE | Unified queue, assignment, Workbench, evidence and manual intake acceptance passed. |
+| Sprint 5 â€” Mobile user flow | BLOCKED_EXTERNAL_REPO | Requires explicitly approved frontend-repository branch/scope. |
+| Sprint 6 â€” Apply/publish hardening | PENDING | Evidence-backed apply and publish are atomic. |
+| Sprint 7 â€” First-market pilot and global operations closure | PENDING | Market-configured rollout, portability, metrics, cost and rollback gates pass. |
 
 ## Sprint 3 work queue
 
@@ -45,24 +45,26 @@ safe dependency reason for parallel progress.
   verification evidence.
 ## Sprint 4 work queue
 
-- [ ] `S4-01` Add admin Product Intake queue DTOs, filters and paginated queries.
-- [ ] `S4-02` Add active ADMIN_CATALOG assignment validation and claim/release/reassign actions.
-- [ ] `S4-03` Add request-better-evidence, evidence approve/reject and existing-product attach actions.
-- [ ] `S4-04` Add admin manual-product intake as an internal candidate with action-level permission gates.
-- [ ] `S4-05` Add Workbench submission detail contract with lazy evidence, field comparison, risk/warnings and expiry.
-- [ ] `S4-06` Complete backend/admin-portal acceptance verification and Sprint 4 handoff.
+- [x] `S4-01` Add admin Product Intake queue DTOs, filters and paginated queries.
+- [x] `S4-02` Add active ADMIN_CATALOG assignment validation and claim/release/reassign actions.
+- [x] `S4-03` Add request-better-evidence, evidence approve/reject and existing-product attach actions.
+- [x] `S4-04` Add admin manual-product intake as an internal candidate with action-level permission gates.
+- [x] `S4-05` Add Workbench submission detail contract with lazy evidence, field comparison, risk/warnings and expiry.
+- [x] `S4-06` Complete backend/admin-portal acceptance verification and Sprint 4 handoff.
 
 ## Active slice
 
-**ID:** S4-01
-**State:** READY
+**ID:** S5-01
+**State:** BLOCKED_EXTERNAL_REPO
 **Owner/run ID:** unassigned
-**Started:** 2026-07-30
-**Expected files:** Admin Product Intake queue DTOs, repository queries, service/controller and focused tests
-**Required verification:** My queue, unassigned, needs-action, high-risk and overdue filters paginate without exposing private evidence URLs
+**Started:** pending frontend authorization
+**Expected files:** Mobile barcode-not-found CTA and capture flow in the approved frontend branch
+**Required verification:** Mobile repository branch/scope approval before any edits
 ## Blockers
 
-None for Sprint 4 implementation.
+- `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
+  repository's `admin-ui`, not the mobile frontend repository. The legacy
+  Label Contributions route now renders the unified Product Intake Workbench.
 
 ## Deferred release gates
 
@@ -83,12 +85,21 @@ None for Sprint 4 implementation.
 | 2026-07-30 | manual-20260730-s3-06 | S3-06 | DONE | Dedicated upload/finalize/evidence-read limits plus operation/cleanup metrics; focused suites: 35 passed, 0 failed | Uncommitted Sprint 3 |
 | 2026-07-30 | heartbeat-20260730T112016Z | S3-07 | IN_PROGRESS | Provider-neutral CORS/lifecycle templates, validator and rollback runbook added; offline policy VALID (30/90/1 days). External provider evidence blocked on approved provider/bucket/origins/credentials | Uncommitted Sprint 3 |
 | 2026-07-30 | manual-20260730-close-s3-defer-provider | Sprint 3 | DONE_WITH_RELEASE_GATE | User deferred external provider proof; complete local Sprint 3 suite: 51 passed, 0 failed; policy validator VALID; S3-PROVIDER-PROOF retained for pre-release/Sprint 7 | Pending commit |
+| 2026-07-30 | manual-20260730-s4-01 | S4-01 | DONE | Six queue modes plus status/market filters paginate; summary contract excludes URL/storage/checksum fields; 7 passed, 0 failed | Uncommitted Sprint 4 |
+| 2026-07-30 | heartbeat-20260730T114216Z | S4-02 | DONE | V203 assignment fields; locked claim/release/reassign; active ADMIN_CATALOG and owner-only reassignment; timestamp clears on release; 12 passed, 0 failed | Uncommitted Sprint 4 |
+| 2026-07-30 | manual-20260730-s4-03 | S4-03 | DONE | Assigned-admin/owner request-evidence, approve/reject and attach-existing actions; user-visible notification; catalog publication untouched; 17 passed, 0 failed | Uncommitted Sprint 4 |
+| 2026-07-30 | manual-20260730-s4-04 | S4-04 | DONE | OWNER/ADMIN_CATALOG manual intake uses ADMIN_MANUAL review command; service enforces INTERNAL_REVIEW candidate and blocks read-only/published results; 24 passed, 0 failed | Uncommitted Sprint 4 |
+| 2026-07-30 | manual-20260730-s4-05 | S4-05 | DONE | Workbench detail parses submitted/catalog fields, compares values, reports risk/availability/expiry, and exposes URL-free lazy evidence descriptors; 22 passed, 0 failed | Uncommitted Sprint 4 |
+| 2026-07-30 | heartbeat-20260730T120216Z | S4-06 | BLOCKED_EXTERNAL_REPO | Complete Sprint 4 backend suite plus permission contract: 35 passed, 0 failed; git diff --check clean. Admin portal search found no Product Intake UI, so frontend scope/branch approval is required before acceptance and closure. | Uncommitted Sprint 4 |
+| 2026-07-30 | manual-20260730-s4-06-admin-ui | S4-06 | IN_PROGRESS | Located backend `admin-ui`; legacy Label Contributions navigation now opens the unified queue/detail Workbench with optional market filtering, assignment actions, comparisons, warnings, lazy evidence and review actions. `npm run build` passed. Permission-aware action visibility and admin-manual form remain before closure. | Uncommitted Sprint 4 |
+| 2026-07-30 | heartbeat-20260730T122017Z | S4-06 | IN_PROGRESS | Product Intake UI now consumes the admin access profile: ADMIN_READ_ONLY cannot open private evidence or see write actions; reassignment is owner-only; supported markets are backend-aligned and no market defaults to TR. `npm run build` passed. Admin-manual form remains before closure. | Uncommitted Sprint 4 |
+| 2026-07-30 | heartbeat-20260730T123517Z | Sprint 4 | DONE | Admin manual form creates INTERNAL_REVIEW candidates with backend-aligned market and nutrition enums; admin UI production build passed; full Sprint 4 backend suite: 35 passed, 0 failed; `git diff --check` clean. | Pending closure commit |
 
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.
 - Keep an incomplete slice active when a focused test fails.
-- Record exact commands and pass/fail counts; do not write only “tests passed”.
+- Record exact commands and pass/fail counts; do not write only â€œtests passedâ€.
 - A blocked item must name the missing authority, credential, repository or
   product decision.
 - Do not mark a sprint complete while a P0 acceptance item is skipped.

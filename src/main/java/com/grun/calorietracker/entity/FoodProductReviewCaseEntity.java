@@ -87,6 +87,11 @@ public class FoodProductReviewCaseEntity {
     @Column(name = "public_media_allowed", nullable = false)
     private Boolean publicMediaAllowed;
 
+    @Column(name = "assigned_admin_email", length = 255)
+    private String assignedAdminEmail;
+
+    @Column(name = "review_claimed_at")
+    private LocalDateTime reviewClaimedAt;
     @Column(name = "review_note", length = 1000)
     private String reviewNote;
 

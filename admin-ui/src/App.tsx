@@ -1,6 +1,7 @@
-import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+﻿import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { RuntimeOperationsView } from "./RuntimeOperationsView";
+import { ProductIntakeView } from "./ProductIntakeView";
 import {
   clearTokens,
   formatRequestError,
@@ -833,7 +834,7 @@ export default function App() {
           {active === "catalogExercises" && <CatalogOperationsView mode="exercises" onError={setError} />}
           {active === "catalogSources" && <CatalogOperationsView mode="sources" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
-          {active === "productContributions" && <FoodContributionReviewView onError={setError} />}
+          {active === "productContributions" && <ProductIntakeView accessProfile={accessProfile} onError={setError} />}
           {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
           {active === "productImages" && <ProductReviewView mode="images" onError={setError} />}
           {active === "productNutrition" && <ProductReviewView mode="nutrition" onError={setError} />}
@@ -1095,7 +1096,7 @@ function GrowthFunnel({ steps, onOpen }: { steps: GrowthFunnelStep[]; onOpen: (s
           <div className="growth-funnel-track">
             <i style={{ width: `${Math.min(100, Math.max(0, step.conversionFromRegistrationPercent))}%` }} />
           </div>
-          <small>{step.conversionFromRegistrationPercent.toFixed(1)}% of registrations{step.dataStatus === "PARTIAL" ? " · partial" : ""}</small>
+          <small>{step.conversionFromRegistrationPercent.toFixed(1)}% of registrations{step.dataStatus === "PARTIAL" ? " Â· partial" : ""}</small>
         </button>
       ))}
     </div>
@@ -2069,9 +2070,9 @@ function FoodContributionReviewView({ onError }: { onError: (message: string | n
       <DataTable
         columns={["Product", "Evidence", "Nutrition / 100 g", "Consent", "Status"]}
         rows={rows.map((item) => [
-          <div className="table-stack"><strong>{item.productName ?? "Unnamed product"}</strong><span>{item.brand ?? "-"}</span><small>{item.barcode ?? "-"} · {item.marketRegion ?? "-"}</small></div>,
-          <div className="table-stack"><span>{item.evidenceContentType ?? "Private object"}</span><small>{formatContributionBytes(item.evidenceSizeBytes)} · {formatDate(item.evidenceRetrievedAt)}</small></div>,
-          <div className="table-stack"><span>{formatValue(item.calories)} kcal</span><small>P {formatValue(item.protein)} · C {formatValue(item.carbs)} · F {formatValue(item.fat)}</small></div>,
+          <div className="table-stack"><strong>{item.productName ?? "Unnamed product"}</strong><span>{item.brand ?? "-"}</span><small>{item.barcode ?? "-"} Â· {item.marketRegion ?? "-"}</small></div>,
+          <div className="table-stack"><span>{item.evidenceContentType ?? "Private object"}</span><small>{formatContributionBytes(item.evidenceSizeBytes)} Â· {formatDate(item.evidenceRetrievedAt)}</small></div>,
+          <div className="table-stack"><span>{formatValue(item.calories)} kcal</span><small>P {formatValue(item.protein)} Â· C {formatValue(item.carbs)} Â· F {formatValue(item.fat)}</small></div>,
           <div className="table-stack"><span>{item.commercialUseAllowed ? "Commercial use" : "Missing commercial consent"}</span><small>{item.persistentStorageAllowed ? "Persistent storage" : "Storage not allowed"}</small></div>,
           <div className="badge-stack"><Badge value={item.status} tone={contributionStatusTone(item.status)} /><small>{formatDate(item.createdAt)}</small></div>
         ])}
@@ -2093,15 +2094,15 @@ function FoodContributionReviewView({ onError }: { onError: (message: string | n
         <div className="modal-backdrop" role="presentation" onClick={closeContribution}>
           <div className="modal-card contribution-review-modal" role="dialog" aria-modal="true" aria-label="Review food label contribution" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <div><span>PRIVATE LABEL EVIDENCE</span><h2>{selected.productName ?? "Product contribution"}</h2><p>{selected.brand ?? "-"} · {selected.barcode ?? "-"}</p></div>
+              <div><span>PRIVATE LABEL EVIDENCE</span><h2>{selected.productName ?? "Product contribution"}</h2><p>{selected.brand ?? "-"} Â· {selected.barcode ?? "-"}</p></div>
               <button className="modal-icon-close" type="button" onClick={closeContribution} aria-label="Close contribution review">x</button>
             </header>
             <div className="contribution-review-body">
               <div className="contribution-evidence-panel">
-                {evidenceState === "loading" && <div className="evidence-placeholder">Loading private evidence…</div>}
+                {evidenceState === "loading" && <div className="evidence-placeholder">Loading private evidenceâ€¦</div>}
                 {evidenceState === "error" && <div className="evidence-placeholder error">Evidence could not be loaded.</div>}
                 {evidenceObjectUrl && <img src={evidenceObjectUrl} alt={`Submitted label for ${selected.productName ?? "product"}`} />}
-                <small>Private object · no public URL · {formatContributionBytes(selected.evidenceSizeBytes)}</small>
+                <small>Private object Â· no public URL Â· {formatContributionBytes(selected.evidenceSizeBytes)}</small>
               </div>
               <div className="contribution-review-details">
                 <div className="contribution-detail-grid">
@@ -3700,7 +3701,7 @@ function AdminApprovalQueue({ accessProfile, onError }: { accessProfile: AdminAc
     <DataTable columns={["Action", "Target", "Maker", "Status", "Expires"]} rows={rows.map((item) => [<div className="entity-cell"><strong>{humanizeFeature(item.actionType)}</strong><small>{item.requestReason}</small></div>, item.targetKey ?? "-", item.makerEmail ?? "-", <Badge value={item.status} tone={item.status === "APPROVED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />, formatDate(item.expiresAt)])} rowData={rows} onRowClick={setSelected} empty="No approval requests in this state." />
     <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page===0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(0);}} />
     {selected && <div className="approval-decision-panel">
-      <div><strong>{humanizeFeature(selected.actionType)}</strong><span>Target {selected.targetKey} · requested by {selected.makerEmail}</span><p>{selected.requestReason}</p></div>
+      <div><strong>{humanizeFeature(selected.actionType)}</strong><span>Target {selected.targetKey} Â· requested by {selected.makerEmail}</span><p>{selected.requestReason}</p></div>
       <details><summary>Whitelisted change payload</summary><pre>{JSON.stringify(selected.payload ?? {}, null, 2)}</pre></details>
       {selected.status === "PENDING" && canApprove && selected.makerEmail !== accessProfile?.email && <>
         <label>Decision reason<textarea value={decisionReason} onChange={(event)=>setDecisionReason(event.target.value)} maxLength={500} /></label>
