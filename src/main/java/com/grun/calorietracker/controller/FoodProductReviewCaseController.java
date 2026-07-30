@@ -8,7 +8,7 @@ import org.springframework.validation.annotation.Validated; import org.springfra
 @RestController @RequestMapping("/api/v1/products/review-cases") @RequiredArgsConstructor @Validated
 public class FoodProductReviewCaseController {
  private final UserRepository users; private final FoodProductReviewCaseRepository cases; private final FoodProductReviewCaseService service; private final FoodProductReviewSubmissionService submissionService; private final ProductIntakeRolloutPolicy rolloutPolicy;
- @GetMapping("/availability") public ResponseEntity<ProductIntakeAvailabilityDto> availability(@AuthenticationPrincipal UserDetails p){ UserEntity u=user(p); var d=rolloutPolicy.evaluate(u); return ResponseEntity.ok(new ProductIntakeAvailabilityDto(d.available(),d.reason(),d.marketRegion()));}
+ @GetMapping("/availability") public ResponseEntity<ProductIntakeAvailabilityDto> availability(@AuthenticationPrincipal UserDetails p){ UserEntity u=user(p); var d=rolloutPolicy.evaluate(u); return ResponseEntity.ok(new ProductIntakeAvailabilityDto(d.available(),d.reason(),d.marketRegion(),ProductIntakeAvailabilityDto.EXISTING_FALLBACKS));}
  @GetMapping public ResponseEntity<MyProductIntakePageDto> mine(@AuthenticationPrincipal UserDetails p,@RequestParam(defaultValue="0") @Min(0) int page,@RequestParam(defaultValue="25") @Min(1) @Max(100) int size){
   UserEntity u=user(p); var result=cases.findAllBySubmittedByIdOrderByCreatedAtDesc(u.getId(),PageRequest.of(page,size));
   var rows=result.getContent().stream().map(this::dto).toList();

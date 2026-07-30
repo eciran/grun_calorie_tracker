@@ -21,22 +21,31 @@ public class ProductIntakeRolloutPolicy {
     public static final String ROLLOUT_ELIGIBLE = "ROLLOUT_ELIGIBLE";
 
     private final ProductIntakeRolloutProperties properties;
+    private final FoodProductIntakeMetrics metrics;
 
-    public ProductIntakeRolloutPolicy(ProductIntakeRolloutProperties properties) {
+    public ProductIntakeRolloutPolicy(
+            ProductIntakeRolloutProperties properties,
+            FoodProductIntakeMetrics metrics
+    ) {
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     public Decision evaluate(UserEntity user) {
         MarketRegion market = user.getMarketRegion() == null ? MarketRegion.GLOBAL : user.getMarketRegion();
-        if (properties.isKillSwitch()) return new Decision(false, KILL_SWITCH, market);
-        if (!properties.isEnabled()) return new Decision(false, DISABLED, market);
+        if (properties.isKillSwitch()) return recorded(new Decision(false, KILL_SWITCH, market));
+        if (!properties.isEnabled()) return recorded(new Decision(false, DISABLED, market));
         String normalizedEmail = normalize(user.getEmail());
         if (properties.getInternalDogfoodEmails().stream().map(this::normalize).anyMatch(normalizedEmail::equals)) {
-            return new Decision(true, INTERNAL_DOGFOOD, market);
+            return recorded(new Decision(true, INTERNAL_DOGFOOD, market));
         }
-        if (!properties.getMarkets().contains(market)) return new Decision(false, MARKET_NOT_ENABLED, market);
-        if (bucket(normalizedEmail) >= properties.getPercentage()) return new Decision(false, OUTSIDE_COHORT, market);
-        return new Decision(true, ROLLOUT_ELIGIBLE, market);
+        if (!properties.getMarkets().contains(market)) {
+            return recorded(new Decision(false, MARKET_NOT_ENABLED, market));
+        }
+        if (bucket(normalizedEmail) >= properties.getPercentage()) {
+            return recorded(new Decision(false, OUTSIDE_COHORT, market));
+        }
+        return recorded(new Decision(true, ROLLOUT_ELIGIBLE, market));
     }
 
     public void requireAvailable(UserEntity user) {
@@ -59,6 +68,14 @@ public class ProductIntakeRolloutPolicy {
 
     private String normalize(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private Decision recorded(Decision decision) {
+        metrics.recordRolloutDecision(
+                decision.reason().toLowerCase(Locale.ROOT),
+                decision.marketRegion().name().toLowerCase(Locale.ROOT)
+        );
+        return decision;
     }
 
     public record Decision(boolean available, String reason, MarketRegion marketRegion) { }

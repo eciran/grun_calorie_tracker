@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.support;
 import com.grun.calorietracker.config.ProductIntakeRolloutProperties;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.MarketRegion;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -15,7 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProductIntakeRolloutPolicyTest {
     private final ProductIntakeRolloutProperties properties = new ProductIntakeRolloutProperties();
-    private final ProductIntakeRolloutPolicy policy = new ProductIntakeRolloutPolicy(properties);
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final ProductIntakeRolloutPolicy policy =
+            new ProductIntakeRolloutPolicy(properties, new FoodProductIntakeMetrics(meterRegistry));
 
     @Test
     void defaultsAreFailClosed() {
@@ -67,6 +70,18 @@ class ProductIntakeRolloutPolicyTest {
         assertEquals(first, policy.bucket("stable@example.com"));
         properties.setPercentage(100);
         assertTrue(policy.evaluate(user).available());
+    }
+
+    @Test
+    void recordsBoundedPilotMetricsWithoutUserIdentity() {
+        properties.setEnabled(true);
+        properties.setInternalDogfoodEmails(Set.of("staff@example.com"));
+        policy.evaluate(user("staff@example.com", MarketRegion.EU));
+        assertEquals(1.0, meterRegistry.get("grun.food.product.intake.rollout.decisions")
+                .tags("reason", "internal_dogfood", "market", "eu").counter().count());
+        assertFalse(meterRegistry.getMeters().stream()
+                .flatMap(meter -> meter.getId().getTags().stream())
+                .anyMatch(tag -> tag.getValue().contains("@")));
     }
 
     private UserEntity user(String email, MarketRegion market) {

@@ -18,4 +18,12 @@ public class FoodProductIntakeMetrics {
         meterRegistry.counter(METER_NAME, "action", "cleanup", "result", "deleted").increment(deleted);
         meterRegistry.counter(METER_NAME, "action", "cleanup", "result", "failed").increment(failed);
     }
+
+    public void recordRolloutDecision(String reason, String market) {
+        meterRegistry.counter(
+                "grun.food.product.intake.rollout.decisions",
+                "reason", reason,
+                "market", market
+        ).increment();
+    }
 }

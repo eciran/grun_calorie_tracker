@@ -54,12 +54,12 @@ safe dependency reason for parallel progress.
 
 ## Active slice
 
-**ID:** S7-01
+**ID:** S7-03
 **State:** READY
 **Owner/run ID:** unassigned
 **Started:** 2026-07-30
-**Expected files:** Market-neutral rollout flags, cohort and kill-switch foundation
-**Required verification:** Global defaults remain safe and rollout can be disabled without deployment
+**Expected files:** Configurable staged market rollout and second-market no-code proof
+**Required verification:** 1/10/50/100 cohorts remain stable and another configured market opens without implementation changes
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend
@@ -90,7 +90,7 @@ safe dependency reason for parallel progress.
 ## Sprint 7 work queue
 
 - [x] `S7-01` Add market-neutral rollout flags, deterministic cohorts, safe defaults and kill-switch enforcement.
-- [ ] `S7-02` Enable internal dogfood with pilot observability and existing-flow fallbacks.
+- [x] `S7-02` Enable internal dogfood with pilot observability and existing-flow fallbacks.
 - [ ] `S7-03` Add configurable 1/10/50/100 market rollout and prove a second market needs no code change.
 - [ ] `S7-04` Validate OCR thresholds, moderation SLA/capacity, retention and provider operations.
 - [ ] `S7-05` Complete cost/abuse/rollback rehearsal, release runbook and Sprint 7 acceptance.
@@ -143,6 +143,7 @@ safe dependency reason for parallel progress.
 | 2026-07-30 | manual-20260730-s6-05 | S6-05 | DONE | Backend rejects unconfirmed publication and material nutrition changes (20% relative threshold); Workbench marks high-impact comparisons, confirms apply/publish and shows provider/value/basis/confidence/timestamp corroboration. Contributors receive decision notifications on rejection and only after real APPLIED/publication success. Focused backend suite: 26 passed, 0 failed; admin production build and diff check passed. | Pending commit |
 | 2026-07-30 | manual-20260730-s6-06 | Sprint 6 | DONE | Real JPA concurrency test proves the second decision waits on the case PESSIMISTIC_WRITE lock; rollback/error paths retain APPROVED and suppress success notifications. Complete Sprint 6 suite: 45 passed, 0 failed; diff check clean. | Pending commit |
 | 2026-07-30 | manual-20260730-s7-01 | S7-01 | DONE | Fail-closed global defaults; market-configured deterministic SHA-256 cohorts; internal dogfood override; kill switch evaluated before every user create/submit/resubmit; authenticated availability contract. Focused suites: 12 passed, 0 failed; compile and diff check passed. Context smoke remains blocked by the pre-existing LOCAL-storage conditional submission-service/controller mismatch. | Pending commit |
+| 2026-07-30 | manual-20260730-s7-02 | S7-02 | DONE | Explicit email-configured internal dogfood bypasses market/cohort but remains kill-switch controlled; rollout decisions emit bounded reason+market metrics without user identity; availability contract always preserves SEARCH_MANUALLY and CREATE_CUSTOM_FOOD fallbacks. Focused suites: 14 passed, 0 failed; compile and diff check passed. | Pending commit |
 ## Tracker update rules
 
 - Set the active slice before editing implementation files.
