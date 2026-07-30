@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,13 @@ public class AiNutritionPlanItemDto {
     @NotBlank
     @Size(max = 255)
     private String displayName;
+
+    @NotBlank
+    @Size(max = 160)
+    private String groceryName;
+
+    @NotNull
+    private FoodPreparationState preparationMethod;
 
     @Size(max = 1000)
     private String description;

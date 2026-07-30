@@ -14,10 +14,12 @@ import com.grun.calorietracker.dto.MealPlanItemRequestDto;
 import com.grun.calorietracker.dto.MealPlanRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.MealPlanEntity;
+import com.grun.calorietracker.entity.MealPlanItemEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanItemType;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -129,6 +131,68 @@ class MealPlanServiceImplTest {
         assertEquals(150.0, result.getItems().get(1).getTotalGrams());
     }
 
+    @Test
+    void getGroceryList_includesLinkedAndUnlinkedAiSnapshots() {
+        UserEntity user = user();
+        FoodItemEntity yogurt = food(10L, "Greek yogurt");
+        MealPlanEntity plan = new MealPlanEntity();
+        plan.setId(99L);
+        plan.setUser(user);
+        plan.setName("AI nutrition week");
+
+        MealPlanItemEntity linked = new MealPlanItemEntity();
+        linked.setItemType(MealPlanItemType.AI_SNAPSHOT);
+        linked.setFoodItem(yogurt);
+        linked.setSnapshotName("Greek yogurt");
+        linked.setPortionSize(200.0);
+        linked.setPortionUnit(FoodPortionUnit.GRAM);
+        plan.getItems().add(linked);
+
+        for (int i = 0; i < 2; i++) {
+            MealPlanItemEntity snapshot = new MealPlanItemEntity();
+            snapshot.setItemType(MealPlanItemType.AI_SNAPSHOT);
+            snapshot.setSnapshotName(i == 0 ? "Baked salmon" : "Grilled salmon");
+            snapshot.setGroceryName("Salmon");
+            snapshot.setPreparationMethod(i == 0 ? FoodPreparationState.BAKED : FoodPreparationState.GRILLED);
+            snapshot.setPortionSize(200.0);
+            snapshot.setPortionUnit(FoodPortionUnit.GRAM);
+            plan.getItems().add(snapshot);
+        }
+
+        MealPlanItemEntity potatoes = new MealPlanItemEntity();
+        potatoes.setItemType(MealPlanItemType.AI_SNAPSHOT);
+        potatoes.setSnapshotName("Boiled potatoes");
+        potatoes.setGroceryName("Potatoes");
+        potatoes.setPreparationMethod(FoodPreparationState.BOILED);
+        potatoes.setPortionSize(300.0);
+        potatoes.setPortionUnit(FoodPortionUnit.GRAM);
+        plan.getItems().add(potatoes);
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(mealPlanRepository.findByIdAndUser(99L, user)).thenReturn(Optional.of(plan));
+
+        GroceryListDto result = service.getGroceryList("user@test.com", 99L);
+
+        assertEquals(3, result.getItems().size());
+        var linkedItem = result.getItems().stream()
+                .filter(item -> "Greek yogurt".equals(item.getName()))
+                .findFirst().orElseThrow();
+        assertEquals(10L, linkedItem.getFoodItemId());
+        assertEquals(200.0, linkedItem.getTotalGrams());
+
+        var snapshotItem = result.getItems().stream()
+                .filter(item -> "Salmon".equals(item.getName()))
+                .findFirst().orElseThrow();
+        assertEquals(null, snapshotItem.getFoodItemId());
+        assertEquals(400.0, snapshotItem.getTotalGrams());
+        assertEquals(2, snapshotItem.getPlannedUses());
+
+        var potatoesItem = result.getItems().stream()
+                .filter(item -> "Potatoes".equals(item.getName()))
+                .findFirst().orElseThrow();
+        assertEquals(300.0, potatoesItem.getTotalGrams());
+        assertEquals(1, potatoesItem.getPlannedUses());
+    }
     @Test
     void getGroceryList_whenFoodItemUsesServing_usesProductServingSize() {
         UserEntity user = user();
@@ -249,6 +313,8 @@ class MealPlanServiceImplTest {
 
         assertEquals(MealPlanItemType.AI_SNAPSHOT, result.getItems().get(0).getItemType());
         assertEquals("Grilled Chicken with Rice", result.getItems().get(0).getSnapshotName());
+        assertEquals("Chicken and Rice", result.getItems().get(0).getGroceryName());
+        assertEquals(FoodPreparationState.GRILLED, result.getItems().get(0).getPreparationMethod());
         assertEquals(520.0, result.getItems().get(0).getSnapshotNutrition().getCalories());
         assertEquals(null, result.getItems().get(0).getFoodItemId());
         assertEquals(null, result.getItems().get(0).getRecipeId());
@@ -396,6 +462,8 @@ class MealPlanServiceImplTest {
         item.setMealType("LUNCH");
         item.setItemType(MealPlanItemType.AI_SNAPSHOT);
         item.setSnapshotName("grilled chicken with rice");
+        item.setGroceryName("chicken and rice");
+        item.setPreparationMethod(FoodPreparationState.GRILLED);
         item.setPortionSize(430.0);
         item.setPortionUnit(FoodPortionUnit.GRAM);
         item.setSnapshotNutrition(nutrition);

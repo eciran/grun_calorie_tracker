@@ -34,6 +34,7 @@ import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
 import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
@@ -164,7 +165,9 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
             meal.setSummary("Balanced meal with an editable snapshot portion.");
             MealPlanNutritionSnapshotDto mealNutrition = scale(target, 1.0 / mealsPerDay);
             AiNutritionPlanItemDto item = new AiNutritionPlanItemDto();
-            item.setDisplayName(index == 0 ? "Greek Yogurt With Oats" : index == 1 ? "Chicken Rice Bowl" : index == 2 ? "Salmon With Vegetables" : "Fruit And Nuts");
+            item.setDisplayName(index == 0 ? "Greek Yogurt With Oats" : index == 1 ? "Chicken Rice Bowl" : index == 2 ? "Baked Salmon" : "Fruit And Nuts");
+            item.setGroceryName(index == 2 ? "Salmon" : item.getDisplayName());
+            item.setPreparationMethod(index == 2 ? FoodPreparationState.BAKED : FoodPreparationState.PREPARED);
             item.setDescription("Snapshot-based suggestion for user review.");
             item.setQuantity(1.0);
             item.setUnit(FoodPortionUnit.SERVING);

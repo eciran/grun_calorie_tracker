@@ -64,7 +64,7 @@ public class GroceryListServiceImpl implements GroceryListService {
         MealPlanEntity mealPlan = mealPlanRepository.findByIdAndUser(mealPlanId, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Meal plan not found"));
         return groceryListRepository.findByUserAndSourceMealPlanAndStatus(user, mealPlan, GroceryListStatus.ACTIVE)
-                .map(this::toDto)
+                .map(list -> populateGeneratedItemsIfEmpty(email, list))
                 .orElseGet(() -> createList(email, user, mealPlan));
     }
 
@@ -178,10 +178,7 @@ public class GroceryListServiceImpl implements GroceryListService {
 
         Set<String> incomingKeys = new HashSet<>();
         for (GroceryListItemDto source : generated.getItems()) {
-            if (source.getFoodItemId() == null) {
-                throw new RequestConflictException("Meal plan contains an item without a stable food reference");
-            }
-            String key = "food:" + source.getFoodItemId();
+            String key = generatedSourceKey(source);
             if (!incomingKeys.add(key)) {
                 throw new RequestConflictException("Meal plan contains duplicate grocery items");
             }
@@ -220,6 +217,21 @@ public class GroceryListServiceImpl implements GroceryListService {
         groceryListRepository.save(list);
     }
 
+    private PersistedGroceryListDto populateGeneratedItemsIfEmpty(String email, GroceryListEntity list) {
+        boolean hasGeneratedItems = list.getItems().stream()
+                .anyMatch(item -> item.getSource() == GroceryListItemSource.GENERATED);
+        if (hasGeneratedItems) {
+            return toDto(list);
+        }
+        GroceryListDto generated = mealPlanService.getGroceryList(email, list.getSourceMealPlan().getId());
+        if (list.getItems().size() + generated.getItems().size() > GroceryListLimits.MAX_ITEMS_PER_LIST) {
+            throw new IllegalArgumentException("Grocery list item limit exceeded");
+        }
+        generated.getItems().forEach(item -> list.addItem(toGeneratedItem(item)));
+        list.setSourceUpdatedAt(currentSourceUpdatedAt(list));
+        return toDto(groceryListRepository.save(list));
+    }
+
     private PersistedGroceryListDto createList(String email, UserEntity user, MealPlanEntity mealPlan) {
         if (groceryListRepository.countByUserAndStatus(user, GroceryListStatus.ACTIVE)
                 >= GroceryListLimits.MAX_ACTIVE_LISTS_PER_USER) {
@@ -245,7 +257,7 @@ public class GroceryListServiceImpl implements GroceryListService {
     private GroceryListItemEntity toGeneratedItem(GroceryListItemDto source) {
         GroceryListItemEntity item = new GroceryListItemEntity();
         item.setSource(GroceryListItemSource.GENERATED);
-        item.setGeneratedSourceKey("food:" + source.getFoodItemId());
+        item.setGeneratedSourceKey(generatedSourceKey(source));
         item.setFoodItem(source.getFoodItemId() == null ? null : foodItemRepository.findById(source.getFoodItemId()).orElse(null));
         item.setDisplayName(source.getName());
         item.setCategory(GroceryCategory.OTHER);
@@ -258,7 +270,7 @@ public class GroceryListServiceImpl implements GroceryListService {
     }
 
     private void mergeGeneratedItem(GroceryListItemEntity item, GroceryListItemDto source) {
-        item.setFoodItem(foodItemRepository.findById(source.getFoodItemId()).orElse(null));
+        item.setFoodItem(source.getFoodItemId() == null ? null : foodItemRepository.findById(source.getFoodItemId()).orElse(null));
         item.setDisplayName(source.getName());
         item.setPlannedUses(source.getPlannedUses() == null ? 0 : source.getPlannedUses());
         item.setSourceRemoved(false);
@@ -268,6 +280,18 @@ public class GroceryListServiceImpl implements GroceryListService {
                     ? source.getQuantityUnit() : FoodPortionUnit.GRAM);
             item.setNormalizedGrams(source.getTotalGrams());
         }
+    }
+
+    private String generatedSourceKey(GroceryListItemDto source) {
+        if (source.getFoodItemId() != null) {
+            return "food:" + source.getFoodItemId();
+        }
+        String name = source.getName() == null ? "item" : source.getName().trim().toLowerCase(java.util.Locale.ROOT);
+        name = name.replaceAll("\\s+", " ");
+        String hash = Integer.toUnsignedString(name.hashCode(), 16);
+        int maxNameLength = 120 - "snapshot::".length() - hash.length();
+        String prefix = name.length() <= maxNameLength ? name : name.substring(0, maxNameLength);
+        return "snapshot:" + prefix + ":" + hash;
     }
 
     private LocalDateTime currentSourceUpdatedAt(GroceryListEntity list) {

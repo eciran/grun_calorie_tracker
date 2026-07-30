@@ -840,6 +840,8 @@ class AiNutritionPlanServiceImplTest {
     private AiNutritionPlanMealDto meal(String type, String name) {
         AiNutritionPlanItemDto item = new AiNutritionPlanItemDto();
         item.setDisplayName(name);
+        item.setGroceryName(name);
+        item.setPreparationMethod(FoodPreparationState.UNSPECIFIED);
         item.setQuantity(1.0);
         item.setUnit(FoodPortionUnit.SERVING);
         item.setNutrition(nutrition(1000.0, 60.0, 115.0, 32.5));

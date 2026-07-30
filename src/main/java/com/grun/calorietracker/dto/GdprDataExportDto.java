@@ -275,6 +275,8 @@ public class GdprDataExportDto {
         private Double portionSize;
         private String portionUnit;
         private String snapshotName;
+        private String groceryName;
+        private String preparationMethod;
         private String snapshotDescription;
         private String shortPreparationState;
         private MealPlanNutritionSnapshotDto snapshotNutrition;

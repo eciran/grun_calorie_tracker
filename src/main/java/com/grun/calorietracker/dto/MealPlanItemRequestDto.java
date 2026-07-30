@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanItemType;
 
 import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
@@ -52,6 +53,12 @@ public class MealPlanItemRequestDto {
 
     @Schema(description = "Required display name for AI_SNAPSHOT.", example = "Grilled Chicken With Rice")
     private String snapshotName;
+
+    @Schema(description = "Purchasable base food name without cooking-only modifiers.", example = "Salmon")
+    private String groceryName;
+
+    @Schema(description = "Preparation method represented separately from the grocery name.", example = "BAKED")
+    private FoodPreparationState preparationMethod;
 
     private String snapshotDescription;
     @Schema(description = "Short state only, not full cooking instructions.", example = "Grilled")

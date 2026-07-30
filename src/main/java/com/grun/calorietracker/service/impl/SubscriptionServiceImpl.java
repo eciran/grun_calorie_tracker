@@ -587,7 +587,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
         }
         if (feature == SubscriptionFeature.GROCERY_LIST) {
-            return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;
+            return planType == SubscriptionPlan.PRO;
         }
         if (feature == SubscriptionFeature.PUBLIC_RECIPE_LIBRARY) {
             return planType == SubscriptionPlan.PLUS || planType == SubscriptionPlan.PRO;

@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanItemType;
 
 import com.grun.calorietracker.enums.MealPlanItemLinkState;
@@ -28,6 +29,8 @@ public class MealPlanItemDto {
 
     private MealPlanItemLinkState linkState;
     private String snapshotName;
+    private String groceryName;
+    private FoodPreparationState preparationMethod;
     private String snapshotDescription;
     private String shortPreparationState;
     private MealPlanNutritionSnapshotDto snapshotNutrition;

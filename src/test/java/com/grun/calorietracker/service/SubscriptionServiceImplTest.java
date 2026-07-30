@@ -185,7 +185,7 @@ class SubscriptionServiceImplTest {
         assertEquals(true, result.getAiWorkoutPlanner());
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getNextMealSuggestions());
-        assertEquals(true, result.getGroceryList());
+        assertEquals(false, result.getGroceryList());
         assertEquals(true, result.getRecipeBuilder());
         assertEquals(true, result.getPublicRecipeLibrary());
         assertEquals(false, result.getAdvancedAnalytics());
@@ -252,7 +252,7 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
-    void hasFeatureAccess_forGroceryList_usesPaidPlanDefaults() {
+    void hasFeatureAccess_forGroceryList_isProOnlyByDefault() {
         SubscriptionEntity free = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(free));
@@ -261,7 +261,10 @@ class SubscriptionServiceImplTest {
 
         SubscriptionEntity plus = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 0);
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(plus));
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.GROCERY_LIST));
 
+        SubscriptionEntity pro = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 0);
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(pro));
         assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.GROCERY_LIST));
     }
 
@@ -750,7 +753,7 @@ class SubscriptionServiceImplTest {
 
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getNextMealSuggestions());
-        assertEquals(true, result.getGroceryList());
+        assertEquals(false, result.getGroceryList());
         verify(subscriptionPlanFeatureRepository).findByPlanTypeOrderByFeatureAsc(SubscriptionPlan.PLUS);
     }
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {

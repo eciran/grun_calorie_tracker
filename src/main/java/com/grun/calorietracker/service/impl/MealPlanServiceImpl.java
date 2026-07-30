@@ -28,6 +28,7 @@ import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanItemType;
 import com.grun.calorietracker.enums.MealPlanStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -42,6 +43,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.MealPlanService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.GroceryListLimits;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -160,24 +162,16 @@ public class MealPlanServiceImpl implements MealPlanService {
     public GroceryListDto getGroceryList(String email, Long planId) {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.GROCERY_LIST);
         MealPlanEntity plan = getOwnedPlan(planId, getUser(email));
-        Map<Long, GroceryAccumulator> accumulator = new LinkedHashMap<>();
+        Map<String, GroceryAccumulator> accumulator = new LinkedHashMap<>();
         for (MealPlanItemEntity item : plan.getItems()) {
-            if (item.getItemType() == MealPlanItemType.FOOD_ITEM && item.getFoodItem() != null) {
+            if (item.getFoodItem() != null) {
                 addFood(accumulator, item.getFoodItem(),
                         toGrams(item.getPortionSize(), item.getPortionUnit(), item.getFoodItem()),
                         item.getPortionSize(), item.getPortionUnit(), 1);
-            } else if (item.getItemType() == MealPlanItemType.RECIPE && item.getRecipe() != null) {
-                double servings = item.getServingCount() == null ? 1.0 : item.getServingCount();
-                double recipeServingGrams = item.getRecipe().getDefaultServingGrams() == null
-                        ? 0.0
-                        : item.getRecipe().getDefaultServingGrams();
-                double factor = recipeServingGrams <= 0 || item.getRecipe().getTotalYieldGrams() == null || item.getRecipe().getTotalYieldGrams() <= 0
-                        ? servings
-                        : (recipeServingGrams * servings) / item.getRecipe().getTotalYieldGrams();
-                for (RecipeIngredientEntity ingredient : item.getRecipe().getIngredients()) {
-                    double ingredientGrams = safe(ingredient.getNormalizedPortionGrams()) * factor;
-                    addFood(accumulator, ingredient.getFoodItem(), ingredientGrams, ingredientGrams, FoodPortionUnit.GRAM, 1);
-                }
+            } else if (item.getRecipe() != null) {
+                addRecipe(accumulator, item.getRecipe(), item.getServingCount());
+            } else if (item.getItemType() == MealPlanItemType.AI_SNAPSHOT) {
+                addSnapshot(accumulator, item);
             }
         }
 
@@ -336,6 +330,8 @@ public class MealPlanServiceImpl implements MealPlanService {
 
         dto.setLinkState(item.getLinkState());
         dto.setSnapshotName(item.getSnapshotName());
+        dto.setGroceryName(item.getGroceryName());
+        dto.setPreparationMethod(item.getPreparationMethod());
         dto.setSnapshotDescription(item.getSnapshotDescription());
         dto.setShortPreparationState(item.getShortPreparationState());
         dto.setSnapshotNutrition(toNutritionSnapshot(item));
@@ -408,13 +404,19 @@ public class MealPlanServiceImpl implements MealPlanService {
     private void applySnapshotItem(MealPlanItemEntity item, MealPlanItemRequestDto request, UserEntity user) {
         String snapshotName = FoodProductNormalizationRules.normalizeProductDisplayName(request.getSnapshotName());
         item.setSnapshotName(snapshotName);
+        String groceryName = request.getGroceryName() == null || request.getGroceryName().isBlank()
+                ? snapshotName
+                : FoodProductNormalizationRules.normalizeProductDisplayName(request.getGroceryName());
+        item.setGroceryName(groceryName);
+        item.setPreparationMethod(request.getPreparationMethod() == null
+                ? FoodPreparationState.UNSPECIFIED : request.getPreparationMethod());
         item.setSnapshotDescription(trimToNull(request.getSnapshotDescription()));
         item.setShortPreparationState(trimToNull(request.getShortPreparationState()));
         item.setPortionSize(request.getPortionSize());
         item.setPortionUnit(request.getPortionUnit());
         item.setWorkoutRelation(request.getWorkoutRelation() == null ? MealPlanWorkoutRelation.NONE : request.getWorkoutRelation());
         item.setLinkState(MealPlanItemLinkState.NONE);
-        item.setSchemaVersion("meal_plan_item_v1");
+        item.setSchemaVersion("meal_plan_item_v2");
         setNutritionSnapshot(item, request.getSnapshotNutrition());
         item.setAllergensPayload(writeStringList(request.getAllergens()));
         item.setWarningsPayload(writeStringList(request.getWarnings()));
@@ -443,6 +445,9 @@ public class MealPlanServiceImpl implements MealPlanService {
             throw new IllegalArgumentException("AI_SNAPSHOT requires a valid snapshot name.");
         }
 
+        if (item.getGroceryName() != null && (item.getGroceryName().isBlank() || item.getGroceryName().length() > 160)) {
+            throw new IllegalArgumentException("AI_SNAPSHOT grocery name is invalid.");
+        }
         if (item.getSnapshotDescription() != null && item.getSnapshotDescription().length() > 2000) {
             throw new IllegalArgumentException("AI_SNAPSHOT description is too long.");
         }
@@ -564,6 +569,8 @@ public class MealPlanServiceImpl implements MealPlanService {
     private void copySnapshotMetadata(MealPlanItemEntity source, MealPlanItemEntity target) {
         target.setLinkState(source.getLinkState());
         target.setSnapshotName(source.getSnapshotName());
+        target.setGroceryName(source.getGroceryName());
+        target.setPreparationMethod(source.getPreparationMethod());
         target.setSnapshotDescription(source.getSnapshotDescription());
         target.setShortPreparationState(source.getShortPreparationState());
         target.setSnapshotCalories(source.getSnapshotCalories());
@@ -648,7 +655,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private void addFood(
-            Map<Long, GroceryAccumulator> accumulator,
+            Map<String, GroceryAccumulator> accumulator,
             FoodItemEntity foodItem,
             double grams,
             Double quantity,
@@ -658,8 +665,42 @@ public class MealPlanServiceImpl implements MealPlanService {
         if (foodItem == null || foodItem.getId() == null || grams <= 0 || quantity == null || quantity <= 0) {
             return;
         }
-        accumulator.computeIfAbsent(foodItem.getId(), ignored -> new GroceryAccumulator(foodItem.getId(), foodItem.getName()))
+        String key = "food:" + foodItem.getId();
+        accumulator.computeIfAbsent(key, ignored -> new GroceryAccumulator(foodItem.getId(), foodItem.getName()))
                 .add(grams, quantity, FoodPortionCalculator.resolveUnit(unit), uses);
+    }
+
+    private void addRecipe(Map<String, GroceryAccumulator> accumulator, RecipeEntity recipe, Double servingCount) {
+        double servings = servingCount == null ? 1.0 : servingCount;
+        double servingGrams = recipe.getDefaultServingGrams() == null ? 0.0 : recipe.getDefaultServingGrams();
+        double factor = servingGrams <= 0 || recipe.getTotalYieldGrams() == null || recipe.getTotalYieldGrams() <= 0
+                ? servings
+                : (servingGrams * servings) / recipe.getTotalYieldGrams();
+        for (RecipeIngredientEntity ingredient : recipe.getIngredients()) {
+            double ingredientGrams = safe(ingredient.getNormalizedPortionGrams()) * factor;
+            addFood(accumulator, ingredient.getFoodItem(), ingredientGrams, ingredientGrams, FoodPortionUnit.GRAM, 1);
+        }
+    }
+
+    private void addSnapshot(Map<String, GroceryAccumulator> accumulator, MealPlanItemEntity item) {
+        String name = trimToNull(item.getGroceryName());
+        if (name == null) {
+            name = trimToNull(item.getSnapshotName());
+        }
+        Double quantity = item.getPortionSize();
+        if (name == null || quantity == null || quantity <= 0) {
+            return;
+        }
+        if (name.length() > GroceryListLimits.MAX_ITEM_NAME_LENGTH) {
+            name = name.substring(0, GroceryListLimits.MAX_ITEM_NAME_LENGTH);
+        }
+        FoodPortionUnit unit = FoodPortionCalculator.resolveUnit(item.getPortionUnit());
+        Double normalized = FoodPortionCalculator.normalizeToGrams(quantity, unit, null);
+        double grams = normalized == null ? quantity : normalized;
+        String key = "snapshot:" + name.toLowerCase(java.util.Locale.ROOT);
+        String displayName = name;
+        accumulator.computeIfAbsent(key, ignored -> new GroceryAccumulator(null, displayName))
+                .add(grams, quantity, unit, 1);
     }
     private double toGrams(Double portionSize, FoodPortionUnit unit, FoodItemEntity foodItem) {
         Double grams = FoodPortionCalculator.normalizeToGrams(portionSize, unit, foodItem);

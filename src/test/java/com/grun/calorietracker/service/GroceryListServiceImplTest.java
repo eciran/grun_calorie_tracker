@@ -99,6 +99,33 @@ class GroceryListServiceImplTest {
     }
 
     @Test
+    void createFromMealPlan_repopulatesPreviouslyEmptyAiList() {
+        GroceryListEntity existing = new GroceryListEntity();
+        existing.setId(20L);
+        existing.setUser(user);
+        existing.setSourceMealPlan(mealPlan);
+        existing.setStatus(GroceryListStatus.ACTIVE);
+        existing.setSourceUpdatedAt(mealPlan.getUpdatedAt());
+
+        GroceryListDto generated = new GroceryListDto();
+        generated.setMealPlanId(12L);
+        generated.setMealPlanName("Week plan");
+        generated.setItems(List.of(new GroceryListItemDto(
+                null, "Grilled chicken with rice", 430.0, 430.0, FoodPortionUnit.GRAM, 1)));
+
+        when(mealPlanRepository.findByIdAndUser(12L, user)).thenReturn(Optional.of(mealPlan));
+        when(groceryListRepository.findByUserAndSourceMealPlanAndStatus(user, mealPlan, GroceryListStatus.ACTIVE))
+                .thenReturn(Optional.of(existing));
+        when(mealPlanService.getGroceryList(user.getEmail(), 12L)).thenReturn(generated);
+
+        var result = service.createFromMealPlan(user.getEmail(), 12L);
+
+        assertEquals(1, result.getItems().size());
+        assertEquals("Grilled chicken with rice", result.getItems().get(0).getDisplayName());
+        assertTrue(existing.getItems().get(0).getGeneratedSourceKey().startsWith("snapshot:"));
+        verify(groceryListRepository).save(existing);
+    }
+    @Test
     void addManualItem_addsEditableNonCatalogItem() {
         GroceryListEntity list = list();
         when(groceryListRepository.findOwnedForUpdate(20L, user)).thenReturn(Optional.of(list));

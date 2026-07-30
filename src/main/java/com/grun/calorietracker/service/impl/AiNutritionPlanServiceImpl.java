@@ -449,6 +449,10 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             throw new IllegalArgumentException("AI nutrition provider returned an empty item.");
         }
         item.setDisplayName(name(item.getDisplayName(), null));
+        item.setGroceryName(groceryName(item.getGroceryName(), item.getDisplayName()));
+        if (item.getPreparationMethod() == null) {
+            item.setPreparationMethod(FoodPreparationState.UNSPECIFIED);
+        }
         if (item.getQuantity() == null || !Double.isFinite(item.getQuantity())
                 || item.getQuantity() <= 0 || item.getQuantity() > 100_000 || item.getUnit() == null) {
             throw new IllegalArgumentException("AI nutrition provider returned an invalid item portion.");
@@ -463,13 +467,15 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         item.setWorkoutRelation(normalizeWorkoutRelation(
                 item.getWorkoutRelation(), request, date, mealTime, item.getWarnings()));
         for (String excluded : request.getExcludedFoods()) {
-            if (item.getDisplayName().toLowerCase(Locale.ROOT)
+            String searchableName = item.getDisplayName() + " " + item.getGroceryName();
+            if (searchableName.toLowerCase(Locale.ROOT)
                     .contains(excluded.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("AI nutrition provider included an excluded food.");
             }
         }
         Set<RecipeAllergen> detectedAllergens = RecipeAllergenResolver.resolve(
                 String.join(",", item.getAllergens()) + " " + item.getDisplayName() + " "
+                        + item.getGroceryName() + " "
                         + Objects.toString(item.getDescription(), ""));
         for (String trustedAllergen : request.getTrustedAllergens()) {
             RecipeAllergen allergen = parseAllergen(trustedAllergen);
@@ -638,6 +644,8 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
                     item.setMealType(meal.getMealType());
                     item.setItemType(MealPlanItemType.AI_SNAPSHOT);
                     item.setSnapshotName(source.getDisplayName());
+                    item.setGroceryName(source.getGroceryName());
+                    item.setPreparationMethod(source.getPreparationMethod());
                     item.setSnapshotDescription(source.getDescription());
                     item.setShortPreparationState(source.getShortPreparationState());
                     item.setPortionSize(source.getQuantity());
@@ -972,6 +980,14 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         if (normalized == null || normalized.isBlank() || normalized.length() > 255) {
             throw new IllegalArgumentException(
                     "AI nutrition provider returned an invalid display name.");
+        }
+        return normalized;
+    }
+
+    private String groceryName(String value, String fallback) {
+        String normalized = name(value, fallback);
+        if (normalized.length() > 160) {
+            throw new IllegalArgumentException("AI nutrition provider returned an invalid grocery name.");
         }
         return normalized;
     }

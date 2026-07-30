@@ -122,7 +122,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         String targetGuardrails = nutritionPlanTargetGuardrails(request);
         return callOpenAi(
                 AiRequestType.AI_NUTRITION_PLAN,
-                "grun_nutrition_plan_v1",
+                "grun_nutrition_plan_v2",
                 nutritionPlanSchema(),
                 List.of(textContent(AiPromptTemplates.nutrition(targetGuardrails, writeJson(request)))),
                 AiNutritionPlanDraftResponseDto.class,
@@ -811,6 +811,8 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
     private Map<String, Object> nutritionPlanSchema() {
         Map<String, Object> item = strictObjectSchema(props(
                 "displayName", stringSchema(),
+                "groceryName", stringSchema(),
+                "preparationMethod", enumSchema("UNSPECIFIED", "RAW", "COOKED", "BOILED", "GRILLED", "FRIED", "BAKED", "ROASTED", "STEAMED", "PREPARED"),
                 "quantity", numberSchema(),
                 "unit", enumSchema("GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"),
                 "nutrition", coreNutritionSchema(),

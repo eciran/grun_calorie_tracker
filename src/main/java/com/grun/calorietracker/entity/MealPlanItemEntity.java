@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MealPlanItemType;
 import com.grun.calorietracker.enums.MealPlanItemLinkState;
 import com.grun.calorietracker.enums.MealPlanWorkoutRelation;
@@ -73,6 +74,13 @@ public class MealPlanItemEntity {
 
     @Column(name = "snapshot_name", length = 255)
     private String snapshotName;
+
+    @Column(name = "grocery_name", length = 160)
+    private String groceryName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preparation_method", length = 30)
+    private FoodPreparationState preparationMethod;
 
     @Column(name = "snapshot_description", columnDefinition = "TEXT")
     private String snapshotDescription;

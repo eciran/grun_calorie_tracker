@@ -560,6 +560,8 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 item.getPortionSize(),
                 item.getPortionUnit() == null ? null : item.getPortionUnit().name(),
                 item.getSnapshotName(),
+                item.getGroceryName(),
+                item.getPreparationMethod() == null ? null : item.getPreparationMethod().name(),
                 item.getSnapshotDescription(),
                 item.getShortPreparationState(),
                 nutrition,
