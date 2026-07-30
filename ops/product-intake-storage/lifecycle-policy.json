@@ -1,0 +1,22 @@
+{
+  "rules": [
+    {
+      "id": "product-intake-pending-expiry",
+      "prefix": "pending/product-intakes/",
+      "expireAfterDays": 30,
+      "enabled": true
+    },
+    {
+      "id": "product-intake-evidence-hard-backstop",
+      "prefix": "evidence/product-intakes/",
+      "expireAfterDays": 90,
+      "enabled": true
+    },
+    {
+      "id": "product-intake-aborted-multipart",
+      "prefix": "",
+      "abortIncompleteMultipartAfterDays": 1,
+      "enabled": true
+    }
+  ]
+}

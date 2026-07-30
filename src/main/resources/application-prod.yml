@@ -75,13 +75,26 @@ grun:
   food-contribution-storage:
     provider: ${GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER:S3}
     max-upload-bytes: ${GRUN_FOOD_CONTRIBUTION_MAX_UPLOAD_BYTES:6291456}
+    max-decoded-pixels: ${GRUN_FOOD_CONTRIBUTION_MAX_DECODED_PIXELS:24000000}
     allowed-content-types: ${GRUN_FOOD_CONTRIBUTION_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
     storage-directory: ${GRUN_FOOD_CONTRIBUTION_STORAGE_DIRECTORY:storage/food-contribution-evidence}
     private-base-url: ${GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL:https://api.grun.app}
+    upload-session-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_SESSION_TTL:20m}
+    upload-url-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_URL_TTL:10m}
+    admin-read-url-ttl: ${GRUN_FOOD_CONTRIBUTION_ADMIN_READ_URL_TTL:5m}
+    pending-retention-days: ${GRUN_FOOD_CONTRIBUTION_PENDING_RETENTION_DAYS:30}
+    evidence-retention-days: ${GRUN_FOOD_CONTRIBUTION_EVIDENCE_RETENTION_DAYS:90}
+    cleanup-batch-size: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_BATCH_SIZE:50}
+    cleanup-interval: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_INTERVAL:1h}
     s3:
+      endpoint: ${GRUN_FOOD_CONTRIBUTION_S3_ENDPOINT:}
+      jurisdiction: ${GRUN_FOOD_CONTRIBUTION_S3_JURISDICTION:}
+      access-key: ${GRUN_FOOD_CONTRIBUTION_S3_ACCESS_KEY:}
+      secret-key: ${GRUN_FOOD_CONTRIBUTION_S3_SECRET_KEY:}
       bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
-      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
-      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:product-contributions}
+      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:auto}
+      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:pending/product-intakes}
+      path-style-access: ${GRUN_FOOD_CONTRIBUTION_S3_PATH_STYLE_ACCESS:false}
   recipe-media:
     image:
       max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
@@ -178,6 +191,13 @@ grun:
       enabled: true
     account-link:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_ACCOUNT_LINK_MAX_REQUESTS_PER_MINUTE:5}
+    product-intake:
+      upload:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_UPLOAD_MAX_REQUESTS_PER_MINUTE:6}
+      finalize:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_FINALIZE_MAX_REQUESTS_PER_MINUTE:12}
+      evidence-read:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_EVIDENCE_READ_MAX_REQUESTS_PER_MINUTE:30}
   revenuecat:
     strict-product-mapping: true
     api:

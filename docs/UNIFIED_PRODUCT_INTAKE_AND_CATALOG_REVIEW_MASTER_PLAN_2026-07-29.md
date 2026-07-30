@@ -1,10 +1,28 @@
 # Unified Product Intake and Catalog Review Master Plan
 
 **Tarih:** 2026-07-29  
-**Durum:** Tasarım tamamlandı; uygulama Sprint 0 ile başlayabilir  
+**Durum:** Sprint 0-3 tamamlandı; S3 provider kanıtı release gate olarak ertelendi; sıradaki uygulama adımı Sprint 4
 **Kapsam:** Kullanıcı barkod katkısı, cihaz üstü OCR, admin manuel ürün girişi, mevcut ürün düzeltmeleri, görev atama, kanıt inceleme ve katalog yayını  
-**İlk pazar:** TR pilotu; veri modeli çoklu pazar için hazırlanacak  
+**Pazar yaklaşımı:** Çekirdek sistem ülke bağımsızdır; ilk kontrollü rollout pazarı konfigürasyonla seçilir ve sistem hiçbir ülkeye kod seviyesinde bağlanmaz
 **Ana ilke:** Kullanıcı ve admin iki farklı veri giriş kanalıdır; doğrulama, görev, kanıt, audit ve katalog yayın motoru tektir.
+
+### Global çalışma sözleşmesi
+
+- Ülke, dil ve bölge sabit kod yolu veya iş kuralı değildir.
+- `marketRegion`, `countryCode`, `locale`, etiket dili ve ölçü birimi açık
+  metadata olarak taşınır.
+- Rollout; feature flag, cohort ve market konfigürasyonuyla yönetilir. Yeni bir
+  pazar açmak backend kod değişikliği gerektirmemelidir.
+- Barcode çözümleme ve candidate tekilleştirme market-aware, ortak review ve
+  publication motoru market-agnostic çalışır.
+- OCR adapter ve parser sözlükleri dil paketleriyle genişletilir; bilinmeyen dil
+  veya format manuel fallback'i engellemez.
+- Admin kuyruğu market ve dil ile filtrelenebilir; erişim yetkisi market adına
+  göre hard-code edilmez.
+- Besin değerleri canonical birimlerde saklanır; yerel gösterim ve decimal
+  formatı locale katmanında uygulanır.
+- İlk pilot pazarı yalnız rollout ve ölçüm kapsamıdır; ürünün kullanım sınırı
+  değildir.
 
 ## 1. Yönetici Özeti
 
@@ -648,7 +666,8 @@ ayrıca doğrulanır; yalnız byte limitine güvenilmez.
 
 ### 10.4 Parser kuralları
 
-İlk sözlük TR ve EN destekler:
+İlk doğrulama paketi Türkçe ve İngilizce terimleri içerir; parser dili
+hard-code etmez ve versiyonlu dil sözlükleriyle genişletilir:
 
 - energy / enerji;
 - kcal / kJ;
@@ -680,8 +699,10 @@ Zorunlu güvenlik kuralları:
 
 ### 10.5 OCR kalite kapısı
 
-Tam rollout öncesi en az 50 TR ve 50 EN gerçek etiketli, versiyonlanmış bir test
-seti kullanılır.
+Tam rollout öncesi ilk seçilen pazarlardaki en az iki etiket dili için, dil
+başına en az 50 gerçek etiket içeren versiyonlanmış bir test seti kullanılır.
+İlk corpus Türkçe ve İngilizce olabilir; bu seçim production desteğini bu iki
+dille sınırlamaz.
 
 Ölçümler:
 
@@ -1119,7 +1140,7 @@ Finalize ana alanları:
   "idempotencyKey": "uuid",
   "schemaVersion": 1,
   "barcode": "869...",
-  "marketRegion": "TR",
+  "marketRegion": "<ISO-3166-1-alpha-2>",
   "productName": "...",
   "brand": "...",
   "nutritionBasis": "PER_100_G",
@@ -1340,8 +1361,8 @@ Mobil:
 - Android ML Kit unbundled spike.
 - iOS Apple Vision spike.
 - Ortak recognized-line adapter.
-- İlk TR/EN parser.
-- 50 TR + 50 EN etiket corpus planı; en az 25+25 ile ilk ölçüm.
+- Versiyonlu, genişletilebilir ilk iki dil parser paketi.
+- İlk iki etiket dili için 50+50 corpus planı; en az 25+25 ile ilk ölçüm.
 - App size, latency, memory ve manual fallback ölçümü.
 
 Kabul:
@@ -1464,7 +1485,8 @@ Kabul:
 - My contributions/status.
 - Request-better-evidence deep link.
 - Withdrawal.
-- TR/EN localization ve accessibility.
+- Locale-aware localization altyapısı, ilk desteklenen dil paketleri ve
+  accessibility.
 
 Kabul:
 
@@ -1495,11 +1517,12 @@ Kabul:
 - Search cache stale veri göstermez.
 - Kullanıcı yalnız gerçek apply/publication sonrası başarı bildirimi alır.
 
-### Sprint 7 — TR pilotu ve operasyon kapanışı
+### Sprint 7 — İlk pazar pilotu ve global operasyon kapanışı
 
-- Feature flag ve cohort rollout.
+- Feature flag, cohort ve market bazlı rollout.
 - Internal dogfood.
-- %1, %10, %50, uygun ise %100 TR rollout.
+- Konfigürasyonla seçilen ilk pazarda %1, %10, %50 ve uygun ise %100 rollout.
+- İkinci bir pazarı kod değişikliği olmadan açma provası.
 - OCR parser threshold tuning.
 - Admin SLA ve queue capacity ölçümü.
 - Retention deletion rehearsal.
@@ -1627,7 +1650,8 @@ Bu program aşağıdakilerin tamamı kanıtlanmadan DONE değildir:
 - [ ] Audit/source evidence/cache invalidation atomik.
 - [ ] Retention, withdrawal ve GDPR deletion çalışıyor.
 - [ ] Rate limit/idempotency/concurrency testleri geçiyor.
-- [ ] TR pilot metrics ve cost report mevcut.
+- [ ] Seçilen ilk pazarın pilot metrikleri ve cost report'u mevcut.
+- [ ] İkinci pazarın kod değişikliği olmadan açılabildiği doğrulandı.
 - [ ] Rollback/kill-switch rehearsal tamam.
 
 ## 27. Uygulama Öncesi Dış Bağımlılıklar
@@ -1639,7 +1663,8 @@ hazırlıklardır:
 2. Production CORS ve lifecycle configuration.
 3. Geçici evidence ve opsiyonel public media için hukuk/privacy metni.
 4. Minimum iOS sürümü ve Vision language/device test matrisi.
-5. TR pilot admin sorumluları ve hedef review SLA.
+5. Konfigürasyonla seçilen ilk pilot pazarın admin sorumluları, desteklenen
+   dilleri ve hedef review SLA'i.
 6. Mobil repository'de native module uygulanacak branch/release takvimi.
 
 Varsayılan SLA önerisi:

@@ -39,6 +39,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final String ACCOUNT_LINK_APPLE_PATH = "/api/v1/account/link/apple";
     private static final String ACCOUNT_LINKED_IDENTITIES_PATH_PREFIX = "/api/v1/account/linked-identities/";
     private static final String PRODUCT_BARCODE_PATH_PREFIX = "/api/v1/products/barcode/";
+    private static final String PRODUCT_UPLOAD_SESSION_PATH = "/api/v1/products/review-cases/upload-sessions";
+    private static final String ADMIN_PRODUCT_EVIDENCE_PATH_PREFIX = "/api/v1/admin/products/review-cases/assets/";
     private static final Set<String> AI_DRAFT_PATHS = Set.of(
             "/api/v1/ai/meal-drafts/voice",
             "/api/v1/ai/meal-drafts/photo",
@@ -69,6 +71,15 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Value("${grun.rate-limit.ai-draft.max-requests-per-minute:10}")
     private int aiDraftMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.product-intake.upload.max-requests-per-minute:6}")
+    private int productIntakeUploadMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.product-intake.finalize.max-requests-per-minute:12}")
+    private int productIntakeFinalizeMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.product-intake.evidence-read.max-requests-per-minute:30}")
+    private int productIntakeEvidenceReadMaxRequestsPerMinute;
 
     @Value("${grun.rate-limit.trusted-proxy-count:0}")
     private int trustedProxyCount;
@@ -103,6 +114,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if ("POST".equalsIgnoreCase(request.getMethod()) && isAiGenerationPath(request.getRequestURI())) {
             return true;
         }
+        if ("POST".equalsIgnoreCase(request.getMethod()) && isProductUploadPath(request.getRequestURI())) {
+            return true;
+        }
+        if ("GET".equalsIgnoreCase(request.getMethod()) && isProductEvidenceReadPath(request.getRequestURI())) {
+            return true;
+        }
         return "GET".equalsIgnoreCase(request.getMethod())
                 && request.getRequestURI().startsWith(PRODUCT_BARCODE_PATH_PREFIX);
     }
@@ -116,6 +133,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         }
         return "DELETE".equalsIgnoreCase(request.getMethod())
                 && path.startsWith(ACCOUNT_LINKED_IDENTITIES_PATH_PREFIX);
+    }
+    private boolean isProductUploadPath(String path) {
+        return PRODUCT_UPLOAD_SESSION_PATH.equals(path)
+                || (path.startsWith(PRODUCT_UPLOAD_SESSION_PATH + "/") && path.endsWith("/finalize"));
+    }
+
+    private boolean isProductEvidenceReadPath(String path) {
+        return path.startsWith(ADMIN_PRODUCT_EVIDENCE_PATH_PREFIX) && path.endsWith("/evidence-url");
     }
     private boolean isAiGenerationPath(String path) {
         return AI_DRAFT_PATHS.contains(path)
@@ -158,6 +183,15 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         }
         if (isAiGenerationPath(path)) {
             return aiDraftMaxRequestsPerMinute;
+        }
+        if ("POST".equalsIgnoreCase(request.getMethod()) && PRODUCT_UPLOAD_SESSION_PATH.equals(path)) {
+            return productIntakeUploadMaxRequestsPerMinute;
+        }
+        if ("POST".equalsIgnoreCase(request.getMethod()) && isProductUploadPath(path)) {
+            return productIntakeFinalizeMaxRequestsPerMinute;
+        }
+        if ("GET".equalsIgnoreCase(request.getMethod()) && isProductEvidenceReadPath(path)) {
+            return productIntakeEvidenceReadMaxRequestsPerMinute;
         }
         return authMaxRequestsPerMinute;
     }

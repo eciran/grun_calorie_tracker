@@ -7,12 +7,14 @@ import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
+import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.GtinValidator;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -51,6 +53,9 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
 
     private final FoodProductReviewCaseRepository reviewCaseRepository;
     private final FoodItemRepository foodItemRepository;
+
+    @Autowired(required = false)
+    private FoodProductReviewCaseAssetRepository reviewCaseAssetRepository;
 
     @Override
     @Transactional
@@ -92,7 +97,11 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
         if (target == FoodProductReviewCaseStatus.APPLIED) {
             reviewCase.setAppliedAt(LocalDateTime.now());
         }
-        return reviewCaseRepository.save(reviewCase);
+        FoodProductReviewCaseEntity saved = reviewCaseRepository.save(reviewCase);
+        if (target == FoodProductReviewCaseStatus.WITHDRAWN && reviewCaseAssetRepository != null) {
+            reviewCaseAssetRepository.expireReviewCaseAssets(saved.getId(), LocalDateTime.now());
+        }
+        return saved;
     }
 
     private FoodProductReviewCaseEntity createCase(FoodProductReviewCaseCommand command) {

@@ -10,4 +10,6 @@ public interface FoodProductUploadSessionRepository extends JpaRepository<FoodPr
             Long userId,
             String idempotencyKey
     );
+
+    long deleteAllByCreatedById(Long userId);
 }

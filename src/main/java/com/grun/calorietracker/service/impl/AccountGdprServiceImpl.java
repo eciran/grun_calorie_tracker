@@ -48,6 +48,8 @@ import com.grun.calorietracker.repository.FederatedIdentityRepository;
 import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
+import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.HealthConnectionRepository;
 import com.grun.calorietracker.repository.MealPlanRepository;
@@ -78,7 +80,9 @@ import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
+import com.grun.calorietracker.service.FoodProductEvidenceRetentionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -145,6 +149,14 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private final SleepGoalRepository sleepGoalRepository;
     private final SleepSessionRepository sleepSessionRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Autowired(required = false)
+    private FoodProductEvidenceRetentionService foodProductEvidenceRetentionService;
+
+    @Autowired(required = false)
+    private FoodProductReviewCaseRepository gdprFoodProductReviewCaseRepository;
+    @Autowired(required = false)
+    private FoodProductReviewCaseAssetRepository gdprFoodProductReviewCaseAssetRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -240,10 +252,42 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 productCorrectionSuggestionRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toProductCorrectionSuggestionExport).toList(),
                 productAnalyticsEventRepository.findByUserOrderByCreatedAtDesc(user).stream().map(this::toProductAnalyticsEventExport).toList(),
                 subscriptionProviderEventRepository.findByUserOrderByReceivedAtDesc(user).stream().map(this::toSubscriptionEventExport).toList(),
-                toAdvancedFastingExport(user)
+                toAdvancedFastingExport(user),
+                toProductReviewCaseExports(user)
         );
     }
 
+    private List<GdprDataExportDto.ProductReviewCaseExportDto> toProductReviewCaseExports(UserEntity user) {
+        if (gdprFoodProductReviewCaseRepository == null || gdprFoodProductReviewCaseAssetRepository == null) {
+            return List.of();
+        }
+        return gdprFoodProductReviewCaseRepository.findAllBySubmittedByIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(reviewCase -> new GdprDataExportDto.ProductReviewCaseExportDto(
+                        reviewCase.getId(),
+                        reviewCase.getSource() == null ? null : reviewCase.getSource().name(),
+                        reviewCase.getStatus() == null ? null : reviewCase.getStatus().name(),
+                        reviewCase.getMarketRegion() == null ? null : reviewCase.getMarketRegion().name(),
+                        reviewCase.getNormalizedBarcode(),
+                        reviewCase.getResolutionMode() == null ? null : reviewCase.getResolutionMode().name(),
+                        reviewCase.getRiskLevel() == null ? null : reviewCase.getRiskLevel().name(),
+                        reviewCase.getCreatedAt(),
+                        reviewCase.getUpdatedAt(),
+                        gdprFoodProductReviewCaseAssetRepository
+                                .findAllByReviewCaseIdOrderByAssetTypeAsc(reviewCase.getId()).stream()
+                                .map(asset -> new GdprDataExportDto.ProductReviewAssetExportDto(
+                                        asset.getId(),
+                                        asset.getAssetType() == null ? null : asset.getAssetType().name(),
+                                        asset.getContentType(),
+                                        asset.getSizeBytes(),
+                                        asset.getWidth(),
+                                        asset.getHeight(),
+                                        asset.getUploadState() == null ? null : asset.getUploadState().name(),
+                                        asset.getExpiresAt(),
+                                        asset.getDeletionState() == null ? null : asset.getDeletionState().name(),
+                                        asset.getDeletedAt()
+                                )).toList()
+                )).toList();
+    }
     private GdprDataExportDto.AdvancedFastingExportDto toAdvancedFastingExport(UserEntity user) {
         var programs = fastingProgramRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId()).stream()
                 .map(program -> new GdprDataExportDto.AdvancedFastingProgramExportDto(program.getId(),
@@ -305,6 +349,10 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         user.setAvatarUrl(null);
         user.setEmailVerified(false);
         user.setPasswordSet(false);
+
+        if (foodProductEvidenceRetentionService != null) {
+            foodProductEvidenceRetentionService.purgeForUser(user.getId());
+        }
 
         refreshTokenRepository.deleteByUser(user);
         passwordResetTokenRepository.deleteByUser(user);
