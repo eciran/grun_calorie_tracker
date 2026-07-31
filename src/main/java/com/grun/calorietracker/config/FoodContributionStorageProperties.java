@@ -17,8 +17,9 @@ public class FoodContributionStorageProperties {
     private Duration uploadSessionTtl = Duration.ofMinutes(20);
     private Duration uploadUrlTtl = Duration.ofMinutes(10);
     private Duration adminReadUrlTtl = Duration.ofMinutes(5);
-    private int pendingRetentionDays = 30;
-    private int evidenceRetentionDays = 90;
+    private int pendingRetentionDays = 28;
+    private Duration approvedEvidenceDeletionDelay = Duration.ofHours(24);
+    private Duration rejectedEvidenceRetention = Duration.ofDays(7);
     private int cleanupBatchSize = 50;
     private S3 s3 = new S3();
 
@@ -29,7 +30,7 @@ public class FoodContributionStorageProperties {
         private String accessKey = "";
         private String secretKey = "";
         private String bucket = "";
-        private String region = "auto";
+        private String region = "eu-west-1";
         private String prefix = "pending/product-intakes";
         private boolean pathStyleAccess = false;
     }

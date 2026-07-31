@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -39,6 +40,7 @@ public class S3FoodProductDirectUploadStorage implements FoodProductDirectUpload
                 .key(object.storageKey())
                 .contentType(object.contentType())
                 .contentLength(object.sizeBytes())
+                .serverSideEncryption(ServerSideEncryption.AES256)
                 .metadata(Map.of("sha256", object.sha256()))
                 .build();
         var signed = presigner.presignPutObject(PutObjectPresignRequest.builder()

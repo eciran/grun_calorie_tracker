@@ -11,6 +11,7 @@ import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
+import com.grun.calorietracker.service.support.FoodProductEvidenceExpiryScheduler;
 import com.grun.calorietracker.service.support.GtinValidator;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,9 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
     @Autowired(required = false)
     private FoodProductReviewCaseAssetRepository reviewCaseAssetRepository;
 
+    @Autowired(required = false)
+    private FoodProductEvidenceExpiryScheduler evidenceExpiryScheduler;
+
     @Override
     @Transactional
     public synchronized FoodProductReviewCaseEntity finalizeCase(FoodProductReviewCaseCommand command) {
@@ -99,7 +103,9 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
             reviewCase.setAppliedAt(LocalDateTime.now());
         }
         FoodProductReviewCaseEntity saved = reviewCaseRepository.save(reviewCase);
-        if (target == FoodProductReviewCaseStatus.WITHDRAWN && reviewCaseAssetRepository != null) {
+        if (evidenceExpiryScheduler != null) {
+            evidenceExpiryScheduler.schedule(saved.getId(), target, LocalDateTime.now());
+        } else if (target == FoodProductReviewCaseStatus.WITHDRAWN && reviewCaseAssetRepository != null) {
             reviewCaseAssetRepository.expireReviewCaseAssets(saved.getId(), LocalDateTime.now());
         }
         return saved;

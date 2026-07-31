@@ -18,9 +18,12 @@ public interface FoodProductReviewCaseAssetRepository extends JpaRepository<Food
     @Query(value = """
             select asset.*
             from food_product_review_case_assets asset
+            join food_product_upload_sessions upload_session on upload_session.id = asset.upload_session_id
             left join food_product_review_cases review_case on review_case.id = asset.review_case_id
             where asset.deletion_state in ('ACTIVE', 'FAILED')
-              and (asset.expires_at <= :now or review_case.status = 'WITHDRAWN')
+              and (asset.expires_at <= :now
+                   or review_case.status in ('WITHDRAWN', 'EXPIRED')
+                   or (asset.review_case_id is null and upload_session.expires_at <= :now))
             order by asset.id
             for update skip locked
             """, nativeQuery = true)

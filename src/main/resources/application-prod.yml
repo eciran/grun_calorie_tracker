@@ -90,8 +90,9 @@ grun:
     upload-session-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_SESSION_TTL:20m}
     upload-url-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_URL_TTL:10m}
     admin-read-url-ttl: ${GRUN_FOOD_CONTRIBUTION_ADMIN_READ_URL_TTL:5m}
-    pending-retention-days: ${GRUN_FOOD_CONTRIBUTION_PENDING_RETENTION_DAYS:30}
-    evidence-retention-days: ${GRUN_FOOD_CONTRIBUTION_EVIDENCE_RETENTION_DAYS:90}
+    pending-retention-days: ${GRUN_FOOD_CONTRIBUTION_PENDING_RETENTION_DAYS:28}
+    approved-evidence-deletion-delay: ${GRUN_FOOD_CONTRIBUTION_APPROVED_DELETION_DELAY:24h}
+    rejected-evidence-retention: ${GRUN_FOOD_CONTRIBUTION_REJECTED_RETENTION:7d}
     cleanup-batch-size: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_BATCH_SIZE:50}
     cleanup-interval: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_INTERVAL:1h}
     s3:
@@ -100,7 +101,7 @@ grun:
       access-key: ${GRUN_FOOD_CONTRIBUTION_S3_ACCESS_KEY:}
       secret-key: ${GRUN_FOOD_CONTRIBUTION_S3_SECRET_KEY:}
       bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
-      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:auto}
+      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
       prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:pending/product-intakes}
       path-style-access: ${GRUN_FOOD_CONTRIBUTION_S3_PATH_STYLE_ACCESS:false}
   recipe-media:

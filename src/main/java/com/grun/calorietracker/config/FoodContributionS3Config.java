@@ -61,6 +61,18 @@ public class FoodContributionS3Config {
                 || properties.getAdminReadUrlTtl().isZero() || properties.getAdminReadUrlTtl().isNegative()) {
             throw new IllegalStateException("Signed URL TTL values must be positive.");
         }
+        if (properties.getPendingRetentionDays() < 1 || properties.getPendingRetentionDays() > 28) {
+            throw new IllegalStateException("Pending product evidence retention must be between 1 and 28 days.");
+        }
+        if (properties.getApprovedEvidenceDeletionDelay().isZero()
+                || properties.getApprovedEvidenceDeletionDelay().isNegative()
+                || properties.getApprovedEvidenceDeletionDelay().compareTo(java.time.Duration.ofHours(24)) > 0) {
+            throw new IllegalStateException("Approved product evidence deletion delay must be positive and at most 24 hours.");
+        }
+        if (properties.getRejectedEvidenceRetention().isNegative()
+                || properties.getRejectedEvidenceRetention().compareTo(java.time.Duration.ofDays(7)) > 0) {
+            throw new IllegalStateException("Rejected product evidence retention must be between zero and 7 days.");
+        }
     }
 
     private Region region(FoodContributionStorageProperties properties) {

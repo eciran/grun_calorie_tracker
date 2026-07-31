@@ -30,6 +30,7 @@ import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
 import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator;
+import com.grun.calorietracker.service.support.FoodProductEvidenceExpiryScheduler;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,6 +73,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private CatalogPublicationService catalogPublicationService;
     private ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator;
     private FoodProductSourceEvidenceRepository sourceEvidenceRepository;
+    private FoodProductEvidenceExpiryScheduler evidenceExpiryScheduler;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -104,7 +106,13 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setCatalogMutationOrchestrator(ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator) {
         this.catalogMutationOrchestrator = catalogMutationOrchestrator;
-    }    @Autowired
+    }
+
+    @Autowired
+    public void setEvidenceExpiryScheduler(FoodProductEvidenceExpiryScheduler evidenceExpiryScheduler) {
+        this.evidenceExpiryScheduler = evidenceExpiryScheduler;
+    }
+    @Autowired
     public void setSourceEvidenceRepository(FoodProductSourceEvidenceRepository sourceEvidenceRepository) {
         this.sourceEvidenceRepository = sourceEvidenceRepository;
     }
@@ -208,6 +216,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
             evidenceService.recordAcceptedEvidence(reviewCase);
         }
         FoodProductReviewCaseEntity saved = repository.save(reviewCase);
+        if (evidenceExpiryScheduler != null) {
+            evidenceExpiryScheduler.schedule(saved.getId(), saved.getStatus(), saved.getReviewedAt());
+        }
         if (!approved) notifyRejectedDecision(saved);
         return action(saved);
     }

@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Private GRun media bucket with short-lived product evidence retention.
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Globally unique S3 bucket name.
+
+Resources:
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - content-type
+              - content-length
+              - x-amz-meta-sha256
+              - x-amz-server-side-encryption
+            AllowedMethods: [PUT]
+            AllowedOrigins: ["*"]
+            MaxAge: 300
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+          - Id: DeletePrivateProductEvidenceAfterThirtyDays
+            Status: Enabled
+            Prefix: grun/private/product-evidence/
+            ExpirationInDays: 30
+          - Id: DeleteLegacyProductEvidenceAfterThirtyDays
+            Status: Enabled
+            Prefix: pending/product-intakes/
+            ExpirationInDays: 30
+
+  MediaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MediaBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !Sub "${MediaBucket.Arn}"
+              - !Sub "${MediaBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: DenyUnencryptedObjectUploads
+            Effect: Deny
+            Principal: "*"
+            Action: s3:PutObject
+            Resource: !Sub "${MediaBucket.Arn}/*"
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: AES256
+
+Outputs:
+  BucketName:
+    Value: !Ref MediaBucket
+  BucketArn:
+    Value: !GetAtt MediaBucket.Arn
