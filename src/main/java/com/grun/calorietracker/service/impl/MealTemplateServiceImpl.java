@@ -2,8 +2,10 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.*;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -12,9 +14,11 @@ import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.MealTemplateService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +38,8 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     private final FoodLogsRepository foodLogsRepository;
     private final FoodItemRepository foodItemRepository;
     private final MealTemplateRepository mealTemplateRepository;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -117,12 +123,17 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         String targetMealType = request.getMealType() == null || request.getMealType().isBlank()
                 ? template.getMealType()
                 : normalizeMealType(request.getMealType());
-        return template.getItems().stream()
+        List<FoodLogsDto> loggedItems = template.getItems().stream()
                 .map(item -> toFoodLog(item, user, request, targetMealType))
                 .map(foodLogsRepository::save)
                 .peek(saved -> markFoodItemUsed(saved.getFoodItem()))
                 .map(this::toFoodLogDto)
                 .toList();
+        if (!loggedItems.isEmpty()) {
+            analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+            eventPublisher.publishEvent(new FoodDiaryChangedEvent(user.getEmail(), request.getTargetDate()));
+        }
+        return loggedItems;
     }
 
     @Override

@@ -11,9 +11,11 @@ import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.MealTemplateEntity;
 import com.grun.calorietracker.entity.MealTemplateItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
@@ -35,6 +38,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +52,10 @@ class MealTemplateServiceImplTest {
     private FoodItemRepository foodItemRepository;
     @Mock
     private MealTemplateRepository mealTemplateRepository;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     @InjectMocks
     private MealTemplateServiceImpl service;
 
@@ -128,6 +136,10 @@ class MealTemplateServiceImplTest {
         assertEquals(LocalDateTime.of(2026, 5, 22, 8, 15), result.get(0).getLogDate());
         assertEquals("BREAKFAST", result.get(0).getMealType());
         assertEquals(FoodLogSource.TEMPLATE, result.get(0).getSource());
+        verify(analyticsCacheRevisionService).bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+        verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof FoodDiaryChangedEvent changed
+                && changed.email().equals(user.getEmail())
+                && changed.date().equals(request.getTargetDate())));
     }
 
     @Test

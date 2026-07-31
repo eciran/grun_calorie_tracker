@@ -41,7 +41,7 @@ public class FoodDiaryNoteServiceImpl implements FoodDiaryNoteService {
         UserEntity user = getUser(email);
         return foodDiaryNoteRepository.findByUserAndDiaryDate(user, diaryDate)
                 .map(this::toDto)
-                .orElseThrow(() -> new ResourceNotFoundException("Food diary note not found"));
+                .orElseGet(() -> emptyNote(diaryDate));
     }
 
     @Override
@@ -51,6 +51,12 @@ public class FoodDiaryNoteServiceImpl implements FoodDiaryNoteService {
         FoodDiaryNoteEntity note = foodDiaryNoteRepository.findByUserAndDiaryDate(user, diaryDate)
                 .orElseThrow(() -> new ResourceNotFoundException("Food diary note not found"));
         foodDiaryNoteRepository.delete(note);
+    }
+
+    private FoodDiaryNoteDto emptyNote(LocalDate diaryDate) {
+        FoodDiaryNoteDto dto = new FoodDiaryNoteDto();
+        dto.setDiaryDate(diaryDate);
+        return dto;
     }
 
     private FoodDiaryNoteEntity newNote(UserEntity user, LocalDate diaryDate, LocalDateTime now) {

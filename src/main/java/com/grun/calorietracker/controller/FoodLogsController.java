@@ -231,12 +231,11 @@ public class FoodLogsController {
     @GetMapping("/diary-note")
     @Operation(
             summary = "Get a daily food diary note",
-            description = "Returns the note for one authenticated food diary day."
+            description = "Returns the note for one authenticated food diary day. When no note exists, returns the requested date with a null note."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Food diary note returned."),
-            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class))),
-            @ApiResponse(responseCode = "404", description = "Food diary note was not found.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
+            @ApiResponse(responseCode = "200", description = "Food diary note or an empty daily note returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.", content = @Content(schema = @Schema(implementation = ApiErrorResponseDto.class)))
     })
     public ResponseEntity<FoodDiaryNoteDto> getDiaryNote(
             @Parameter(description = "Diary date in ISO format.", example = "2026-05-23") @RequestParam String date,
