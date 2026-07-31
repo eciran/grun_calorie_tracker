@@ -3,6 +3,7 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.FoodProductUploadFinalizeDto;
 import com.grun.calorietracker.dto.FoodProductUploadSessionDto;
 import com.grun.calorietracker.dto.FoodProductUploadSessionRequestDto;
+import com.grun.calorietracker.dto.FoodProductUploadSessionStateDto;
 import com.grun.calorietracker.dto.FoodProductReviewSubmitRequestDto;
 import com.grun.calorietracker.dto.FoodProductReviewSubmitResponseDto;
 import com.grun.calorietracker.service.FoodProductUploadSessionService;
@@ -19,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,6 +52,14 @@ public class FoodProductUploadSessionController {
             metrics.record("upload_session_create", "failure");
             throw failure;
         }
+    }
+
+    @GetMapping("/{sessionId}")
+    @Operation(summary = "Resume a private product evidence upload draft")
+    public FoodProductUploadSessionStateDto get(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable String sessionId) {
+        return service.get(userDetails.getUsername(), sessionId);
     }
 
     @PostMapping("/{sessionId}/finalize")

@@ -4,6 +4,7 @@ import com.grun.calorietracker.config.FoodContributionStorageProperties;
 import com.grun.calorietracker.dto.FoodProductUploadFinalizeDto;
 import com.grun.calorietracker.dto.FoodProductUploadSessionDto;
 import com.grun.calorietracker.dto.FoodProductUploadSessionRequestDto;
+import com.grun.calorietracker.dto.FoodProductUploadSessionStateDto;
 import com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity;
 import com.grun.calorietracker.entity.FoodProductUploadSessionEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -65,6 +66,23 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
                 .orElseGet(() -> createSession(user, request));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public FoodProductUploadSessionStateDto get(String userEmail, String sessionId) {
+        UserEntity user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        FoodProductUploadSessionEntity session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Product evidence upload session was not found."));
+        if (!session.getCreatedBy().getId().equals(user.getId())) {
+            throw new InvalidCredentialsException("Invalid credential");
+        }
+        var values = assetRepository.findAllByUploadSessionIdOrderByAssetTypeAsc(sessionId).stream()
+                .map(asset -> new FoodProductUploadSessionStateDto.Asset(
+                        asset.getId(), asset.getAssetType(), asset.getUploadState()))
+                .toList();
+        return new FoodProductUploadSessionStateDto(session.getId(), session.getIdempotencyKey(),
+                session.getStatus(), session.getExpiresAt(), session.getFinalizedAt(), values);
+    }
     @Override
     @Transactional
     public synchronized FoodProductUploadFinalizeDto finalizeUpload(String userEmail, String sessionId) {
@@ -169,6 +187,9 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
         }
         if (session.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new RequestConflictException("Product evidence upload session has expired.");
+        }
+        if (session.getStatus() != FoodProductUploadSessionStatus.UPLOADING) {
+            throw new RequestConflictException("Product evidence upload session no longer accepts uploads.");
         }
         return response(session, assetRepository.findAllByUploadSessionIdOrderByAssetTypeAsc(session.getId()));
     }

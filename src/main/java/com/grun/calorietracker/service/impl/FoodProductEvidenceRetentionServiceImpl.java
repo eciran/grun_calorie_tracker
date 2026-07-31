@@ -5,11 +5,13 @@ import com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity;
 import com.grun.calorietracker.enums.FoodProductAssetDeletionState;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
+import com.grun.calorietracker.repository.FoodProductReviewCaseExtractionRepository;
 import com.grun.calorietracker.repository.FoodProductUploadSessionRepository;
 import com.grun.calorietracker.service.FoodProductEvidenceRetentionService;
 import com.grun.calorietracker.service.evidence.FoodProductDirectUploadStorage;
 import com.grun.calorietracker.service.support.FoodProductIntakeMetrics;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,6 +31,9 @@ public class FoodProductEvidenceRetentionServiceImpl implements FoodProductEvide
     private final FoodProductReviewCaseRepository reviewCaseRepository;
     private final FoodProductDirectUploadStorage directStorage;
     private final FoodProductIntakeMetrics metrics;
+
+    @Autowired(required = false)
+    private FoodProductReviewCaseExtractionRepository extractionRepository;
 
     @Override
     @Scheduled(fixedDelayString = "${grun.food-contribution-storage.cleanup-interval:1h}")
@@ -54,6 +59,7 @@ public class FoodProductEvidenceRetentionServiceImpl implements FoodProductEvide
             }
         }
         assetRepository.saveAll(claimed);
+        redactExpiredOcrPayloads();
         return deleted;
     }
 
@@ -67,6 +73,13 @@ public class FoodProductEvidenceRetentionServiceImpl implements FoodProductEvide
         reviewCaseRepository.anonymizeSubmittedByUserId(userId);
     }
 
+    private void redactExpiredOcrPayloads() {
+        if (extractionRepository == null) return;
+        LocalDateTime now = LocalDateTime.now();
+        extractionRepository.lockExpiredRawPayloads(
+                        now, PageRequest.of(0, properties.getCleanupBatchSize()))
+                .forEach(extraction -> extractionRepository.redactRawPayload(extraction.getId(), now));
+    }
     private String safeMessage(RuntimeException failure) {
         String message = failure.getMessage();
         if (message == null || message.isBlank()) return failure.getClass().getSimpleName();

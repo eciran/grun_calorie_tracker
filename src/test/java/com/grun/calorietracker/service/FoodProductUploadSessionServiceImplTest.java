@@ -94,6 +94,7 @@ class FoodProductUploadSessionServiceImplTest {
         FoodProductUploadSessionEntity existing = new FoodProductUploadSessionEntity();
         existing.setId("existing-session");
         existing.setCreatedBy(user);
+        existing.setStatus(com.grun.calorietracker.enums.FoodProductUploadSessionStatus.UPLOADING);
         existing.setExpiresAt(LocalDateTime.now().plusMinutes(10));
         FoodProductReviewCaseAssetEntity front = asset(existing, 1L, FoodProductReviewAssetType.FRONT_PACKAGE);
         FoodProductReviewCaseAssetEntity nutrition = asset(existing, 2L, FoodProductReviewAssetType.NUTRITION_LABEL);
