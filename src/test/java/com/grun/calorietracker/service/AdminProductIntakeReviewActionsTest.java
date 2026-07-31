@@ -24,6 +24,8 @@ class AdminProductIntakeReviewActionsTest {
     private final CatalogPublicationService publicationService = mock(CatalogPublicationService.class);
     private final FoodProductSourceEvidenceRepository sourceEvidence = mock(FoodProductSourceEvidenceRepository.class);
     private final com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator mutationOrchestrator = mock(com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator.class);
+    private final com.grun.calorietracker.service.support.ProductIntakeApplyGate applyGate = mock(com.grun.calorietracker.service.support.ProductIntakeApplyGate.class);
+    private final com.grun.calorietracker.service.support.FoodProductIntakeMetrics intakeMetrics = mock(com.grun.calorietracker.service.support.FoodProductIntakeMetrics.class);
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     private final AdminProductIntakeServiceImpl service = new AdminProductIntakeServiceImpl(cases, users, foods, notifications, assetRepository, reviewCaseService, objectMapper, 24);
     private FoodProductReviewCaseEntity reviewCase;
@@ -34,6 +36,8 @@ class AdminProductIntakeReviewActionsTest {
         service.setCatalogPublicationService(publicationService);
         service.setSourceEvidenceRepository(sourceEvidence);
         service.setCatalogMutationOrchestrator(mutationOrchestrator);
+        service.setApplyGate(applyGate);
+        service.setIntakeMetrics(intakeMetrics);
         reviewCase = new FoodProductReviewCaseEntity();
         reviewCase.setId(72L);
         reviewCase.setStatus(FoodProductReviewCaseStatus.SUBMITTED);
@@ -101,6 +105,9 @@ class AdminProductIntakeReviewActionsTest {
         assertEquals(220.0, food.getCalories()); assertEquals(4.0, food.getProtein()); assertEquals("Original", food.getName());
         assertNotNull(reviewCase.getAppliedAt()); verify(foods).save(food);
         verify(notifications).save(argThat(value -> "VIEW_APPLIED_PRODUCT".equals(value.getPrimaryAction())));
+        verify(applyGate).requireAcceptedEvidence(reviewCase);
+        verify(applyGate).requireProductQuality(food);
+        verify(intakeMetrics).record("apply_existing", "success");
         verify(mutationOrchestrator).reconcileAndAudit(eq(food), isNull(), eq("catalog@grun.app"), eq(72L),
                 eq(java.util.Map.of("calories", 100.0)), eq(java.util.Map.of("calories", 220.0)));
     }
@@ -140,6 +147,8 @@ class AdminProductIntakeReviewActionsTest {
         assertNotNull(reviewCase.getAppliedAt());
         verify(publicationService).publish(202L, "catalog@grun.app", "Verified label", "cid-202");
         verify(notifications).save(argThat(value -> "Product contribution published".equals(value.getTitle())));
+        verify(applyGate).requirePublishable(reviewCase, food);
+        verify(intakeMetrics).record("publish", "success");
         verify(mutationOrchestrator).reconcileAndAudit(eq(food), isNull(), eq("catalog@grun.app"), eq(72L), anyMap(), anyMap());
         verify(foods, never()).save(food);
     }

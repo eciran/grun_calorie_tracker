@@ -31,6 +31,8 @@ import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
 import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.CatalogMediaService;
 import com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator;
+import com.grun.calorietracker.service.support.ProductIntakeApplyGate;
+import com.grun.calorietracker.service.support.FoodProductIntakeMetrics;
 import com.grun.calorietracker.service.support.FoodProductEvidenceExpiryScheduler;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -76,6 +78,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private FoodProductSourceEvidenceRepository sourceEvidenceRepository;
     private FoodProductEvidenceExpiryScheduler evidenceExpiryScheduler;
     private CatalogMediaService catalogMediaService;
+    private ProductIntakeApplyGate applyGate;
+    private FoodProductIntakeMetrics intakeMetrics;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -121,6 +125,14 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setSourceEvidenceRepository(FoodProductSourceEvidenceRepository sourceEvidenceRepository) {
         this.sourceEvidenceRepository = sourceEvidenceRepository;
+    }
+    @Autowired
+    public void setApplyGate(ProductIntakeApplyGate applyGate) {
+        this.applyGate = applyGate;
+    }
+    @Autowired
+    public void setIntakeMetrics(FoodProductIntakeMetrics intakeMetrics) {
+        this.intakeMetrics = intakeMetrics;
     }
 
     @Override
@@ -263,6 +275,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         oldValues.put("verificationStatus", food.getVerificationStatus());
         oldValues.put("publicationStatus", food.getPublicationStatus());
         food.setVerificationStatus(com.grun.calorietracker.enums.VerificationStatus.VERIFIED);
+        applyGate.requirePublishable(reviewCase, food);
         var published = catalogPublicationService.publish(food.getId(), actor.getEmail(), reason, correlationId);
         if (published.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Central publication did not publish the candidate.");
         Map<String, Object> newValues = new LinkedHashMap<>();
@@ -273,6 +286,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         reviewCase.setAppliedAt(LocalDateTime.now());
         FoodProductReviewCaseEntity saved = repository.save(reviewCase);
         notifySuccessfulDecision(saved, true);
+        intakeMetrics.record("publish", "success");
         return action(saved);
     }
     @Override
@@ -287,6 +301,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         var food = reviewCase.getFoodItem();
         if (food == null || food.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Existing-product apply requires a published target.");
         if (catalogMutationOrchestrator == null) throw new IllegalStateException("Catalog mutation orchestrator is unavailable.");
+        applyGate.requireAcceptedEvidence(reviewCase);
         Map<String, Object> submitted = submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>());
         EnumMap<ProductIntakeApplyField, Object> values = new EnumMap<>(ProductIntakeApplyField.class);
         for (ProductIntakeApplyField field : fields) values.put(field, validatedApplyValue(field, submitted));
@@ -296,6 +311,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         Map<String, Object> oldValues = new LinkedHashMap<>();
         values.keySet().forEach(field -> oldValues.put(applyFieldName(field), currentValue(food, field)));
         values.forEach((field, value) -> applyValue(food, field, value));
+        applyGate.requireProductQuality(food);
         foodItemRepository.save(food);
         Map<String, Object> newValues = new LinkedHashMap<>();
         values.keySet().forEach(field -> newValues.put(applyFieldName(field), currentValue(food, field)));
@@ -304,6 +320,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         reviewCase.setAppliedAt(LocalDateTime.now());
         FoodProductReviewCaseEntity saved = repository.save(reviewCase);
         notifySuccessfulDecision(saved, false);
+        intakeMetrics.record("apply_existing", "success");
         return action(saved);
     }
 
