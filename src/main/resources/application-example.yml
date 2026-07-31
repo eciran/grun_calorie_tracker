@@ -103,6 +103,18 @@ grun:
       region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
       prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:pending/product-intakes}
       path-style-access: ${GRUN_FOOD_CONTRIBUTION_S3_PATH_STYLE_ACCESS:false}
+  media-storage:
+    provider: ${GRUN_MEDIA_STORAGE_PROVIDER:LOCAL}
+    local-directory: ${GRUN_MEDIA_STORAGE_LOCAL_DIRECTORY:storage/media}
+    root-prefix: ${GRUN_MEDIA_STORAGE_ROOT_PREFIX:grun}
+    public-base-url: ${GRUN_MEDIA_STORAGE_PUBLIC_BASE_URL:https://api.grun.app}
+    s3:
+      endpoint: ${GRUN_MEDIA_STORAGE_S3_ENDPOINT:}
+      access-key: ${GRUN_MEDIA_STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${GRUN_MEDIA_STORAGE_S3_SECRET_KEY:}
+      bucket: ${GRUN_MEDIA_STORAGE_S3_BUCKET:}
+      region: ${GRUN_MEDIA_STORAGE_S3_REGION:eu-west-1}
+      path-style-access: ${GRUN_MEDIA_STORAGE_S3_PATH_STYLE_ACCESS:false}
   recipe-media:
     image:
       max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}

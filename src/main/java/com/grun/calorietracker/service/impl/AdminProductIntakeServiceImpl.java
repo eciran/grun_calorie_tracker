@@ -29,6 +29,7 @@ import com.grun.calorietracker.service.AdminProductIntakeService;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
 import com.grun.calorietracker.service.CatalogPublicationService;
+import com.grun.calorietracker.service.CatalogMediaService;
 import com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator;
 import com.grun.calorietracker.service.support.FoodProductEvidenceExpiryScheduler;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
@@ -74,6 +75,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private ProductIntakeCatalogMutationOrchestrator catalogMutationOrchestrator;
     private FoodProductSourceEvidenceRepository sourceEvidenceRepository;
     private FoodProductEvidenceExpiryScheduler evidenceExpiryScheduler;
+    private CatalogMediaService catalogMediaService;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -111,6 +113,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setEvidenceExpiryScheduler(FoodProductEvidenceExpiryScheduler evidenceExpiryScheduler) {
         this.evidenceExpiryScheduler = evidenceExpiryScheduler;
+    }
+    @Autowired(required = false)
+    public void setCatalogMediaService(CatalogMediaService catalogMediaService) {
+        this.catalogMediaService = catalogMediaService;
     }
     @Autowired
     public void setSourceEvidenceRepository(FoodProductSourceEvidenceRepository sourceEvidenceRepository) {
@@ -214,6 +220,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         if (approved) {
             if (evidenceService == null) throw new IllegalStateException("Review evidence service is unavailable.");
             evidenceService.recordAcceptedEvidence(reviewCase);
+            if (catalogMediaService != null) {
+                catalogMediaService.promoteApprovedFrontImage(reviewCase, reviewCase.getFoodItem());
+            }
         }
         FoodProductReviewCaseEntity saved = repository.save(reviewCase);
         if (evidenceExpiryScheduler != null) {

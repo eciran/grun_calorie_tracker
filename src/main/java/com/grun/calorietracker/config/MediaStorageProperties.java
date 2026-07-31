@@ -9,6 +9,7 @@ public class MediaStorageProperties {
     private String provider = "LOCAL";
     private String localDirectory = "storage/media";
     private String rootPrefix = "grun";
+    private String publicBaseUrl = "https://api.grun.app";
     private S3 s3 = new S3();
 
     @Data
