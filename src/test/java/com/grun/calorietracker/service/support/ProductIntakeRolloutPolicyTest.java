@@ -102,6 +102,18 @@ class ProductIntakeRolloutPolicyTest {
         }
         assertEquals(2_000, previous.size());
     }
+    @Test
+    void rejectsUnsafeExternalRolloutConfiguration() {
+        properties.setEnabled(true);
+        properties.setPercentage(10);
+        properties.setMarkets(Set.of());
+        assertFalse(properties.isMarketConfiguredForExternalRollout());
+        properties.setMarkets(Set.of(MarketRegion.EU));
+        assertTrue(properties.isMarketConfiguredForExternalRollout());
+        properties.setCohortSalt("short");
+        assertFalse(properties.isCohortSaltSafe());
+    }
+
     private UserEntity user(String email, MarketRegion market) {
         UserEntity user = new UserEntity();
         user.setEmail(email);

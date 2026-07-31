@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "ocr": {
     "minimumLanguages": 2,
     "minimumSamplesPerLanguage": 50,
@@ -15,11 +15,18 @@
   "operations": {
     "maximumQueueP95Hours": 24,
     "maximumOverdueCases": 10,
-    "maximumCapacityUtilization": 0.80
+    "maximumCapacityUtilization": 0.80,
+    "maximumUploadErrorRate": 0.05
   },
   "retention": {
     "maximumDeletionFailures": 0,
     "maximumDeletionBacklog": 0,
-    "maximumEvidenceAgeDays": 90
+    "maximumEvidenceAgeDays": 28
+  },
+  "abuse": {
+    "maximumConfirmedAbuseRate": 0.02
+  },
+  "cost": {
+    "maximumCostPerAcceptedContributionEur": 0.10
   }
 }

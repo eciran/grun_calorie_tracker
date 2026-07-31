@@ -1,19 +1,42 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "evidenceType": "REAL_PILOT",
   "capturedAt": null,
+  "rolloutStage": 1,
   "marketRegions": [],
   "ocrLanguages": [],
   "operations": {
     "queueP95Hours": null,
     "overdueCases": null,
-    "capacityUtilization": null
+    "capacityUtilization": null,
+    "uploadErrorRate": null
   },
   "retention": {
     "deletionFailures": null,
     "deletionBacklog": null,
     "oldestEvidenceAgeDays": null,
     "rehearsalReference": null
+  },
+  "safety": {
+    "internalProductLeakage": null,
+    "evidenceAuthorizationFailures": null,
+    "unexplainedDuplicateCandidates": null,
+    "materialNutritionMisapplies": null
+  },
+  "abuse": {
+    "reviewCompleted": false,
+    "confirmedAbuseRate": null,
+    "reportReference": null
+  },
+  "cost": {
+    "estimatedCostPerAcceptedContributionEur": null,
+    "reportReference": null
+  },
+  "rehearsals": {
+    "killSwitchBlockedNewIntakes": false,
+    "rollbackRestoredPreviousStage": false,
+    "secondMarketEnabledWithoutCodeChange": false,
+    "reference": null
   },
   "provider": {
     "policyValidated": false,

@@ -33,4 +33,14 @@ public class ProductIntakeRolloutProperties {
                 || percentage == 50
                 || percentage == 100;
     }
+
+    @AssertTrue(message = "product intake external rollout requires at least one configured market")
+    public boolean isMarketConfiguredForExternalRollout() {
+        return !enabled || percentage == 0 || (markets != null && !markets.isEmpty());
+    }
+
+    @AssertTrue(message = "product intake enabled rollout requires a stable cohort salt of at least 16 characters")
+    public boolean isCohortSaltSafe() {
+        return !enabled || (cohortSalt != null && cohortSalt.trim().length() >= 16);
+    }
 }
