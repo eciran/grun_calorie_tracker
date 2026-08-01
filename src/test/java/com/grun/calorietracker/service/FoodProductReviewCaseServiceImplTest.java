@@ -65,6 +65,7 @@ class FoodProductReviewCaseServiceImplTest {
         assertEquals(FoodProductResolutionMode.NEW_CANDIDATE, result.getResolutionMode());
         assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, result.getFoodItem().getPublicationStatus());
         assertEquals(VerificationStatus.NEEDS_REVIEW, result.getFoodItem().getVerificationStatus());
+        assertEquals(0L, result.getFoodItem().getSearchSelectionCount());
     }
 
     @Test

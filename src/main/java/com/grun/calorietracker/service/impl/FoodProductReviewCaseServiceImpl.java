@@ -211,6 +211,7 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
         candidate.setSodium(command.sodium());
         candidate.setIsCustom(false);
         candidate.setUsageCount(0L);
+        candidate.setSearchSelectionCount(0L);
         try {
             return foodItemRepository.saveAndFlush(candidate);
         } catch (DataIntegrityViolationException duplicate) {

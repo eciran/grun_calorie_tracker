@@ -15,10 +15,12 @@ import com.grun.calorietracker.security.CorrelationIdFilter;
 import com.grun.calorietracker.service.AdminSecurityService;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.AdminSessionService;
+import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.dto.AdminSessionPageDto;
 import com.grun.calorietracker.dto.AdminSessionRevokeRequestDto;
 import com.grun.calorietracker.dto.OwnerAdminSessionPageDto;
+import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,7 @@ public class AdminSecurityController {
     private final AdminMfaService adminMfaService;
     private final AdminSessionService adminSessionService;
     private final JwtUtil jwtUtil;
+    private final PasswordResetService passwordResetService;
 
     @GetMapping("/me")
     public ResponseEntity<AdminAccessProfileDto> currentAccess(
@@ -89,6 +92,17 @@ public class AdminSecurityController {
         ));
     }
 
+    @PostMapping("/team/{userId}/password-reset")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<PasswordResetResponseDto> requestMemberPasswordReset(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.ok(passwordResetService.requestAdminPasswordReset(
+                userDetails.getUsername(), userId, correlationId(request)
+        ));
+    }
     @GetMapping("/mfa")
     public ResponseEntity<AdminMfaStatusDto> mfaStatus(@AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(adminMfaService.status(userDetails.getUsername()));

@@ -904,6 +904,21 @@ tr:last-child td {
   color: var(--on-primary-container);
 }
 
+.text-button {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+
+.text-button:hover {
+  color: var(--primary-strong);
+  text-decoration: underline;
+}
 .ghost-button {
   background: var(--button-surface);
   color: var(--muted-strong);
@@ -7300,22 +7315,121 @@ label {
 }
 
 .contribution-review-modal {
-  width: min(1080px, 100%);
+  width: min(1380px, calc(100vw - 40px));
   max-height: calc(100vh - 48px);
   overflow: auto;
 }
 
 .contribution-review-body {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.75fr);
   gap: 24px;
   padding: 24px;
 }
 
 .contribution-evidence-panel {
+  position: sticky;
+  top: 0;
   display: grid;
   align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.evidence-panel-heading,
+.evidence-selector {
+  display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+.evidence-panel-heading {
+  justify-content: space-between;
+}
+
+.evidence-panel-heading span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.evidence-panel-heading h3 {
+  margin: 3px 0 0;
+}
+
+.evidence-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.evidence-tab {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.evidence-tab span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.evidence-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.evidence-image-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(340px, 52vh, 620px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+}
+
+.evidence-image-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.evidence-image-frame > span {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.contribution-review-details {
+  min-width: 0;
+}
+
+.contribution-review-details .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.contribution-review-details .table-wrap table {
+  min-width: 680px;
 }
 
 .contribution-evidence-panel img,
@@ -9490,4 +9604,18 @@ a:focus-visible {
   .admin-mfa-qr-frame { width: 112px; }
   .admin-mfa-recovery > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .approval-queue-toolbar { align-items: stretch; flex-direction: column; }
+}
+.admin-invitation-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(220px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+.admin-invitation-form .primary-button { min-height: 44px; white-space: nowrap; }
+.admin-invitation-list { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.admin-invitation-list .panel-heading { margin-bottom: 14px; }
+.table-actions { display: flex; gap: 8px; align-items: center; }
+.compact { min-height: 34px; padding: 7px 11px; }
+@media (max-width: 900px) {
+  .admin-invitation-form { grid-template-columns: 1fr; }
 }

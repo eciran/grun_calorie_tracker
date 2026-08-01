@@ -128,12 +128,14 @@ grun:
       allowed-content-types: ${GRUN_PROFILE_AVATAR_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
       storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
+  admin-password-reset:
+    base-url: ${GRUN_ADMIN_PASSWORD_RESET_BASE_URL}
   security:
     admin-session:
       idle-timeout: ${GRUN_ADMIN_SESSION_IDLE_TIMEOUT:15m}
       absolute-timeout: ${GRUN_ADMIN_SESSION_ABSOLUTE_TIMEOUT:8h}
       secure-cookie: ${GRUN_ADMIN_SESSION_SECURE_COOKIE:true}
-    admin-mfa-required: ${GRUN_SECURITY_ADMIN_MFA_REQUIRED:false}
+    admin-mfa-required: ${GRUN_SECURITY_ADMIN_MFA_REQUIRED:true}
     owner-bootstrap:
       enabled: ${GRUN_OWNER_BOOTSTRAP_ENABLED:false}
       primary-email: ${GRUN_OWNER_PRIMARY_EMAIL:}
@@ -233,3 +235,7 @@ grun:
     demo-seed:
       enabled: false
 
+
+  admin-invitation:
+    expiration-hours: ${GRUN_ADMIN_INVITATION_EXPIRATION_HOURS:48}
+    base-url: ${GRUN_ADMIN_INVITATION_BASE_URL:https://admin.grun.app/?adminInvitation=true}

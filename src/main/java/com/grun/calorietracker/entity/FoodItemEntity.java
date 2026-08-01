@@ -80,7 +80,7 @@ public class FoodItemEntity {
     private FoodNutritionBasis nutritionBasis;
 
     private Long usageCount;
-    private Long searchSelectionCount;
+    private Long searchSelectionCount = 0L;
     private Integer qualityScore;
     private Integer confidenceScore;
     private Boolean autoApprovedForCatalog;

@@ -1,4 +1,4 @@
-﻿import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import { ProductIntakeView } from "./ProductIntakeView";
@@ -721,6 +721,12 @@ export default function App() {
     setTheme((current) => current === "dark" ? "light" : "dark");
   }
 
+  const query = new URLSearchParams(window.location.search);
+  const passwordResetToken = query.get("passwordResetToken");
+  const invitationToken = query.get("token");
+  if (passwordResetToken) return <AdminPasswordResetView token={passwordResetToken} theme={theme} toggleTheme={toggleTheme} />;
+  if (invitationToken) return <AdminInvitationActivationView token={invitationToken} theme={theme} toggleTheme={toggleTheme} />;
+
   if (authRestoring) return <main className="login-page"><p>Restoring secure session...</p></main>;
 
   if (!authenticated) {
@@ -927,12 +933,19 @@ function LoginView({
   const [mfaCode, setMfaCode] = useState("");
   const [showMfa, setShowMfa] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      if (forgotMode) {
+        const result = await request<{ message?: string }>("/api/v1/auth/password-reset/request", { method: "POST", auth: false, body: { email: email.trim() } });
+        setResetNotice(result.message ?? "If the email exists, a password reset link has been sent.");
+        return;
+      }
       const response = await login(email, password, mfaCode);
       saveTokens(response);
       onLogin();
@@ -963,21 +976,26 @@ function LoginView({
       <form className="login-card" onSubmit={submit}>
         <div>
           <p className="eyebrow">Secure access</p>
-          <h2>Admin login</h2>
+          <h2>{forgotMode ? "Reset admin password" : "Admin login"}</h2>
+          {forgotMode && <p className="muted-text">Enter your admin email. We will send a single-use reset link if the account exists.</p>}
         </div>
         <label>
           Email
           <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" />
         </label>
-        <label>
+        {!forgotMode && <label>
           Password
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Admin password" />
-        </label>
-        {showMfa && <label>Authenticator or recovery code<input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={32} placeholder="6-digit code" /></label>}
-        {notice && <div className="form-notice">{notice}</div>}
+        </label>}
+        {!forgotMode && showMfa && <label>Authenticator or recovery code<input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={32} placeholder="6-digit code" /></label>}
+        {notice && !forgotMode && <div className="form-notice">{notice}</div>}
+        {resetNotice && <div className="form-notice">{resetNotice}</div>}
         {error && <div className="form-error">{error}</div>}
-        <button className="primary-button" disabled={busy || !email.trim() || !password} type="submit">
-          {busy ? "Signing in..." : "Sign in"}
+        <button className="primary-button" disabled={busy || !email.trim() || (!forgotMode && !password)} type="submit">
+          {busy ? "Working..." : forgotMode ? "Send reset link" : "Sign in"}
+        </button>
+        <button className="text-button" type="button" onClick={() => { setForgotMode((current) => !current); setError(null); setResetNotice(null); }}>
+          {forgotMode ? "Back to admin login" : "Forgot password?"}
         </button>
       </form>
     </main>
@@ -3780,6 +3798,123 @@ function OwnerAdminSessionsPanel({ onError }: { onError: (message: string | null
   </Panel>;
 }
 
+type AdminInvitation = {
+  id?: number; email?: string; role?: string; status?: string; invitedBy?: string;
+  expiresAt?: string; acceptedAt?: string; revokedAt?: string; createdAt?: string;
+};
+type AdminInvitationPage = PageResponse<AdminInvitation>;
+
+function AdminPasswordResetView({ token, theme, toggleTheme }: { token: string; theme: ThemeMode; toggleTheme: () => void }) {
+  const [form, setForm] = useState({ password: "", confirmPassword: "" });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [complete, setComplete] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (form.password !== form.confirmPassword) { setMessage("Passwords do not match."); return; }
+    setBusy(true); setMessage(null);
+    try {
+      await request("/api/v1/auth/password-reset/confirm", { method: "POST", auth: false, body: { token, newPassword: form.password } });
+      setComplete(true);
+      setMessage("Password changed. All existing admin sessions have been signed out.");
+      window.history.replaceState(null, "", window.location.pathname);
+    } catch (error) { setMessage(formatRequestError(error)); }
+    finally { setBusy(false); }
+  }
+
+  return <main className="login-page">
+    <div className="login-theme-action"><ThemeToggle theme={theme} toggleTheme={toggleTheme} /></div>
+    <section className="login-hero"><div className="hero-copy"><div className="login-brand-lockup"><img src="./grun/grun-wordmark.svg" alt="GRUN" /><span>Operations</span></div><h1>Recover secure admin access.</h1><p>The link is single-use. Completing this reset revokes every existing session for the admin account.</p></div></section>
+    <form className="login-card" onSubmit={submit}>
+      <div><p className="eyebrow">Account recovery</p><h2>Set a new password</h2></div>
+      {!complete && <>
+        <label>New password<input required type="password" minLength={8} autoComplete="new-password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} /></label>
+        <label>Confirm password<input required type="password" minLength={8} autoComplete="new-password" value={form.confirmPassword} onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))} /></label>
+        <small>Use uppercase, lowercase, number, and a supported special character.</small>
+        <button className="primary-button" disabled={busy || !form.password || !form.confirmPassword} type="submit">{busy ? "Changing password..." : "Change password"}</button>
+      </>}
+      {message && <div className={complete ? "form-notice" : "form-error"}>{message}</div>}
+      {complete && <button className="primary-button" type="button" onClick={() => window.location.assign(window.location.pathname)}>Continue to admin login</button>}
+    </form>
+  </main>;
+}
+function AdminInvitationActivationView({ token, theme, toggleTheme }: { token: string; theme: ThemeMode; toggleTheme: () => void }) {
+  const [invitation, setInvitation] = useState<AdminInvitation | null>(null);
+  const [state, setState] = useState<LoadState>("loading");
+  const [message, setMessage] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", password: "", confirmPassword: "" });
+  useEffect(() => {
+    request<AdminInvitation>("/api/v1/auth/admin-invitations/inspect?token=" + encodeURIComponent(token), { auth: false })
+      .then((value) => { setInvitation(value); setState("ready"); })
+      .catch((error) => { setMessage(formatRequestError(error)); setState("error"); });
+  }, [token]);
+  async function activate(event: FormEvent) {
+    event.preventDefault();
+    if (form.password !== form.confirmPassword) { setMessage("Passwords do not match."); return; }
+    setState("loading"); setMessage(null);
+    try {
+      await request("/api/v1/auth/admin-invitations/accept", { method: "POST", auth: false, body: { token, name: form.name.trim(), password: form.password } });
+      setState("ready"); setMessage("Admin account activated. You can now sign in.");
+      window.history.replaceState(null, "", window.location.pathname);
+      setInvitation((current) => current ? { ...current, status: "ACCEPTED" } : current);
+    } catch (error) { setState("error"); setMessage(formatRequestError(error)); }
+  }
+  return <main className="login-page">
+    <div className="login-theme-action"><button className="icon-button" type="button" onClick={toggleTheme}>{theme === "dark" ? "Light" : "Dark"}</button></div>
+    <section className="login-hero"><div><div className="login-brand-lockup"><img src="./grun/grun-app-icon.svg" alt="" /><strong>GRun Admin</strong></div><h1>Join the admin team</h1><p>Secure invitation activation. Your role is fixed by the owner and MFA enrollment follows after sign-in.</p></div></section>
+    <form className="login-card" onSubmit={activate}>
+      <div><span className="eyebrow">ADMIN INVITATION</span><h2>Activate account</h2><p>{invitation ? invitation.email + " - " + humanizeFeature(invitation.role) : "Validating your invitation..."}</p></div>
+      {invitation?.status === "PENDING" && <>
+        <label>Full name<input required minLength={2} maxLength={100} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
+        <label>Password<input required type="password" minLength={8} value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} /></label>
+        <label>Confirm password<input required type="password" minLength={8} value={form.confirmPassword} onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))} /></label>
+        <small>Use uppercase, lowercase, number, and a special character.</small>
+        <button className="primary-button" disabled={state === "loading"} type="submit">{state === "loading" ? "Activating..." : "Activate admin account"}</button>
+      </>}
+      {message && <div className={invitation?.status === "ACCEPTED" ? "status-banner success" : "status-banner error"}>{message}</div>}
+      {invitation?.status === "ACCEPTED" && <button className="primary-button" type="button" onClick={() => window.location.assign(window.location.pathname)}>Continue to admin login</button>}
+    </form>
+  </main>;
+}
+
+function AdminInvitationPanel({ onError }: { onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const { data, state, reload } = useEndpoint<AdminInvitationPage>("/api/v1/admin/security/invitations?page=" + page + "&size=10", onError);
+  const [form, setForm] = useState({ email: "", role: "ADMIN_READ_ONLY" });
+  const [busy, setBusy] = useState(false);
+  const invitations = data?.content ?? [];
+  async function create(event: FormEvent) {
+    event.preventDefault(); setBusy(true);
+    try { await request("/api/v1/admin/security/invitations", { method: "POST", body: { email: form.email.trim(), role: form.role } }); setForm((current) => ({ ...current, email: "" })); await reload(); }
+    catch (error) { onError(formatRequestError(error)); } finally { setBusy(false); }
+  }
+  async function action(id: number | undefined, method: "resend" | "revoke") {
+    if (!id) return;
+    if (!window.confirm(method === "revoke" ? "Revoke this admin invitation?" : "Invalidate the old link and send a new invitation?")) return;
+    setBusy(true);
+    try { await request("/api/v1/admin/security/invitations/" + id + (method === "resend" ? "/resend" : ""), { method: method === "resend" ? "POST" : "DELETE" }); await reload(); }
+    catch (error) { onError(formatRequestError(error)); } finally { setBusy(false); }
+  }
+  return <Panel title="Invite an admin" description="Owner-only. Invitations are single-use, expire automatically, and never expose their token in the dashboard.">
+    <form className="admin-invitation-form" onSubmit={create}>
+      <label>Email address<input type="email" required value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
+      <label>Least-privilege role<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT","ADMIN_CATALOG","ADMIN_GROWTH","ADMIN_FINANCE","ADMIN_TECHNICAL","ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+      <button className="primary-button" disabled={busy || !form.email.trim()} type="submit">{busy ? "Working..." : "Send invitation"}</button>
+    </form>
+    <div className="admin-invitation-list">
+      <div className="panel-heading"><div><h3>Invitation history</h3><p>Pending, accepted, revoked, and expired links.</p></div><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh</button></div>
+      <DataTable columns={["Recipient","Role","Status","Sent","Expires","Actions"]} rows={invitations.map((item) => [
+        <div className="entity-cell"><strong>{item.email}</strong><small>Invited by {item.invitedBy}</small></div>,
+        <Badge value={item.role} />, <Badge value={item.status} tone={item.status === "ACCEPTED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />,
+        formatDate(item.createdAt), formatDate(item.expiresAt),
+        item.status === "PENDING" ? <div className="table-actions"><button className="ghost-button compact" disabled={busy} type="button" onClick={() => void action(item.id, "resend")}>Resend</button><button className="danger-button compact" disabled={busy} type="button" onClick={() => void action(item.id, "revoke")}>Revoke</button></div> : "-"
+      ])} empty={state === "loading" ? "Loading invitations..." : "No admin invitations yet."} />
+      <PaginationControls page={data?.page ?? page} pageSize={10} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={() => undefined} />
+    </div>
+  </Panel>;
+}
+
 function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -3789,7 +3924,6 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
   const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", enabled: true, mfaEnabled: false, reason: "" });
   const [saving, setSaving] = useState(false);
   const canManage = Boolean(accessProfile?.permissions?.includes("ADMIN_TEAM_MANAGE"));
-  const [grant, setGrant] = useState({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
   const members = data?.content ?? [];
 
   function selectMember(member: AdminTeamMember) {
@@ -3820,19 +3954,15 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
     }
   }
 
-  async function grantAccess(event: FormEvent) {
-    event.preventDefault();
-    if (!canManage) return;
+  async function sendPasswordReset() {
+    if (!selected?.id || !canManage) return;
+    if (!window.confirm(`Send a single-use password reset link to ${selected.email}? Existing sessions will be revoked only after the password is changed.`)) return;
     setSaving(true);
     try {
-      await request<AdminTeamMember>("/api/v1/admin/security/team/grant", { method: "POST", body: { ...grant, email: grant.email.trim(), reason: grant.reason.trim() } });
-      setGrant({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
-      await reload();
-    } catch (failure) {
-      onError(formatRequestError(failure));
-    } finally {
-      setSaving(false);
-    }
+      const result = await request<{ message?: string }>(`/api/v1/admin/security/team/${selected.id}/password-reset`, { method: "POST" });
+      onError(result.message ?? "Password reset link sent.");
+    } catch (failure) { onError(formatRequestError(failure)); }
+    finally { setSaving(false); }
   }
   return <div className="stack">
     <SectionToolbar title="Admin security and access" description="Backend-enforced roles, current permissions, MFA readiness, and active sessions." state={state} onReload={reload} />
@@ -3845,14 +3975,8 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
     <AdminSessionPanel canRevoke={accessProfile?.role === "OWNER"} onError={onError} />
     {accessProfile?.role === "OWNER" && <OwnerAdminSessionsPanel onError={onError} />}
     {canManage && <AdminApprovalQueue accessProfile={accessProfile} onError={onError} />}
-    {canManage && <Panel title="Grant admin access">
-      <form className="admin-security-grant" onSubmit={grantAccess}>
-        <label>Existing verified account email<input type="email" required value={grant.email} onChange={(event) => setGrant((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
-        <label>Initial role<select value={grant.role} onChange={(event) => setGrant((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
-        <label>Required audit reason<input required maxLength={500} value={grant.reason} onChange={(event) => setGrant((current) => ({ ...current, reason: event.target.value }))} placeholder="Why access is required" /></label>
-        <button className="primary-button" disabled={saving || !grant.email.trim() || !grant.reason.trim()} type="submit">Grant access</button>
-      </form>
-    </Panel>}    <Panel title="Role boundaries">
+    {accessProfile?.role === "OWNER" && <AdminInvitationPanel onError={onError} />}
+    <Panel title="Role boundaries">
       <div className="security-role-grid">
         <div><strong>Support</strong><span>User support only; no pricing, promotions, secrets, or system changes.</span></div>
         <div><strong>Catalog</strong><span>Food, recipe, exercise, and review operations.</span></div>
@@ -3882,7 +4006,7 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
         <label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
         <label className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
         <label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain this access change." /></label>
-        <div className="form-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="submit">{saving ? "Saving..." : "Apply access change"}</button></div>
+        <div className="form-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="ghost-button" disabled={saving} type="button" onClick={() => void sendPasswordReset()}>Send password reset</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="submit">{saving ? "Saving..." : "Apply access change"}</button></div>
       </form>
     </Panel>}
   </div>;

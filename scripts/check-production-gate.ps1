@@ -113,6 +113,8 @@ if ($Production) {
         (Check-Env "GRUN_AI_PROVIDER"),
         (Check-EnvEquals "GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED" "false"),
         (Check-EnvEquals "GRUN_LOCAL_DEMO_SEED_ENABLED" "false"),
+        (Check-EnvEquals "GRUN_SECURITY_ADMIN_MFA_REQUIRED" "true"),
+        (Check-Env "GRUN_ADMIN_PASSWORD_RESET_BASE_URL"),
         (Check-Env "SPRING_DATA_REDIS_HOST"),
         (Check-Env "SPRING_DATA_REDIS_PORT")
     )

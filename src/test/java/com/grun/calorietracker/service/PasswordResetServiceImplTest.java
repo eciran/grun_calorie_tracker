@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.entity.PasswordResetTokenEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.PasswordResetServiceImpl;
@@ -47,6 +48,15 @@ class PasswordResetServiceImplTest {
     @Mock
     private RefreshTokenService refreshTokenService;
 
+    @Mock
+    private AdminSessionService adminSessionService;
+
+    @Mock
+    private AdminAuditService adminAuditService;
+
+    @Mock
+    private MailDeliveryService mailDeliveryService;
+
     private PasswordResetServiceImpl passwordResetService;
     private UserEntity user;
 
@@ -57,10 +67,14 @@ class PasswordResetServiceImplTest {
                 passwordResetTokenRepository,
                 passwordEncoder,
                 passwordResetMailSender,
-                refreshTokenService
+                refreshTokenService,
+                adminSessionService,
+                adminAuditService,
+                mailDeliveryService
         );
         ReflectionTestUtils.setField(passwordResetService, "expirationMinutes", 30L);
         ReflectionTestUtils.setField(passwordResetService, "resetBaseUrl", "http://localhost:8080/reset-password");
+        ReflectionTestUtils.setField(passwordResetService, "adminResetBaseUrl", "http://localhost:8080/admin-ui/index.html");
         ReflectionTestUtils.setField(passwordResetService, "requestCooldownSeconds", 60L);
 
         user = new UserEntity();
@@ -174,6 +188,56 @@ class PasswordResetServiceImplTest {
         verify(passwordResetTokenRepository).save(token);
     }
 
+    @Test
+    void requestAdminPasswordReset_whenOwnerTargetsDelegatedAdmin_sendsAdminLinkAndAudits() {
+        UserEntity owner = new UserEntity();
+        owner.setEmail("owner@grun.app");
+        owner.setRole(UserRole.OWNER);
+        owner.setAccountEnabled(true);
+        owner.setAccountLocked(false);
+        user.setRole(UserRole.ADMIN_CATALOG);
+
+        when(userRepository.findByEmail("owner@grun.app")).thenReturn(Optional.of(owner));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of());
+
+        PasswordResetResponseDto response = passwordResetService.requestAdminPasswordReset("owner@grun.app", 1L, "cid-1");
+
+        assertThat(response.getMessage()).contains("sent to the admin account");
+        verify(passwordResetMailSender).sendPasswordResetToken(
+                org.mockito.ArgumentMatchers.eq("user@example.com"), anyString(),
+                org.mockito.ArgumentMatchers.contains("passwordResetToken="));
+        verify(adminAuditService).record(
+                org.mockito.ArgumentMatchers.eq("owner@grun.app"),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.AdminAuditActionType.ADMIN_PASSWORD_RESET_REQUEST),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.AdminAuditTargetType.ADMIN_ACCOUNT),
+                org.mockito.ArgumentMatchers.eq("1"), any(), any(), org.mockito.ArgumentMatchers.eq("cid-1"));
+    }
+
+    @Test
+    void confirmPasswordReset_whenAdminTokenIsValid_revokesAdminSessionsAndSendsSecurityMail() {
+        PasswordResetConfirmRequestDto request = new PasswordResetConfirmRequestDto();
+        request.setToken("raw-token");
+        request.setNewPassword("NewStrongPass1!");
+        user.setRole(UserRole.ADMIN_CATALOG);
+        PasswordResetTokenEntity token = new PasswordResetTokenEntity();
+        token.setUser(user);
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        when(passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(anyString())).thenReturn(Optional.of(token));
+        when(passwordEncoder.encode("NewStrongPass1!")).thenReturn("encoded-new-password");
+
+        passwordResetService.confirmPasswordReset(request);
+
+        verify(refreshTokenService).revokeAllForUser(user);
+        verify(adminSessionService).revokeAllForUser(user);
+        verify(mailDeliveryService).sendTransactionalEmail(
+                org.mockito.ArgumentMatchers.eq("user@example.com"), anyString(), anyString(), anyString());
+        verify(adminAuditService).record(
+                org.mockito.ArgumentMatchers.eq("user@example.com"),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.AdminAuditActionType.ADMIN_PASSWORD_RESET_CONFIRM),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.AdminAuditTargetType.ADMIN_ACCOUNT),
+                org.mockito.ArgumentMatchers.eq("1"), any(), any(), org.mockito.ArgumentMatchers.isNull());
+    }
     @Test
     void confirmPasswordReset_whenTokenExpired_marksTokenUsedAndThrows() {
         PasswordResetConfirmRequestDto request = new PasswordResetConfirmRequestDto();

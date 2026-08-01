@@ -5,8 +5,13 @@ import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.entity.PasswordResetTokenEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.AdminAuditActionType;
+import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.service.AdminAuditService;
+import com.grun.calorietracker.service.AdminSessionService;
+import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.PasswordResetMailSender;
 import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.RefreshTokenService;
@@ -22,6 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -36,12 +42,18 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetMailSender passwordResetMailSender;
     private final RefreshTokenService refreshTokenService;
+    private final AdminSessionService adminSessionService;
+    private final AdminAuditService adminAuditService;
+    private final MailDeliveryService mailDeliveryService;
 
     @Value("${grun.password-reset.expiration-minutes:30}")
     private long expirationMinutes;
 
     @Value("${grun.password-reset.base-url:http://localhost:8082/reset-password}")
     private String resetBaseUrl;
+
+    @Value("${grun.admin-password-reset.base-url:http://localhost:8080/admin-ui/index.html}")
+    private String adminResetBaseUrl;
 
     @Value("${grun.password-reset.request-cooldown-seconds:60}")
     private long requestCooldownSeconds;
@@ -62,12 +74,33 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             token.setExpiresAt(LocalDateTime.now().plusMinutes(expirationMinutes));
             passwordResetTokenRepository.save(token);
 
-            passwordResetMailSender.sendPasswordResetToken(user.getEmail(), rawToken, buildResetLink(rawToken));
+            passwordResetMailSender.sendPasswordResetToken(user.getEmail(), rawToken, buildResetLink(user, rawToken));
         });
 
         return new PasswordResetResponseDto(REQUEST_MESSAGE, Math.max(requestCooldownSeconds, 0L));
     }
 
+    @Override
+    @Transactional
+    public PasswordResetResponseDto requestAdminPasswordReset(String ownerEmail, Long userId, String correlationId) {
+        UserEntity owner = userRepository.findByEmail(ownerEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Owner account was not found."));
+        if (owner.getRole() == null || !owner.getRole().isOwner()
+                || !Boolean.TRUE.equals(owner.getAccountEnabled()) || Boolean.TRUE.equals(owner.getAccountLocked())) {
+            throw new IllegalArgumentException("Only an active owner can request an admin password reset.");
+        }
+        UserEntity target = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin account was not found."));
+        if (target.getRole() == null || !target.getRole().isAdminRole() || target.getRole().isOwner()) {
+            throw new IllegalArgumentException("Password reset links can only be sent to delegated admin accounts.");
+        }
+        issueToken(target);
+        adminAuditService.record(ownerEmail, AdminAuditActionType.ADMIN_PASSWORD_RESET_REQUEST,
+                AdminAuditTargetType.ADMIN_ACCOUNT, target.getId().toString(), null,
+                Map.of("email", target.getEmail(), "delivery", "PASSWORD_RESET_LINK"), correlationId);
+        return new PasswordResetResponseDto("Password reset link has been sent to the admin account.",
+                Math.max(requestCooldownSeconds, 0L));
+    }
     @Override
     @Transactional(noRollbackFor = IllegalArgumentException.class)
     public PasswordResetResponseDto confirmPasswordReset(PasswordResetConfirmRequestDto request) {
@@ -86,6 +119,15 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         user.setEmailVerified(true);
         userRepository.save(user);
         refreshTokenService.revokeAllForUser(user);
+        if (user.getRole() != null && user.getRole().isAdminRole()) {
+            adminSessionService.revokeAllForUser(user);
+            adminAuditService.record(user.getEmail(), AdminAuditActionType.ADMIN_PASSWORD_RESET_CONFIRM,
+                    AdminAuditTargetType.ADMIN_ACCOUNT, user.getId().toString(), null,
+                    Map.of("sessionsRevoked", true), null);
+            mailDeliveryService.sendTransactionalEmail(user.getEmail(), "Your GRun admin password was changed",
+                    "Your GRun admin password was changed. If you did not perform this action, contact the account owner immediately.",
+                    "<p>Your GRun admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
+        }
 
         token.setUsedAt(LocalDateTime.now());
         passwordResetTokenRepository.save(token);
@@ -126,7 +168,21 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         }
     }
 
-    private String buildResetLink(String rawToken) {
-        return resetBaseUrl + "?token=" + rawToken;
+    private void issueToken(UserEntity user) {
+        invalidateExistingTokens(user);
+        String rawToken = generateRawToken();
+        PasswordResetTokenEntity token = new PasswordResetTokenEntity();
+        token.setUser(user);
+        token.setTokenHash(hashToken(rawToken));
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(expirationMinutes));
+        passwordResetTokenRepository.save(token);
+        passwordResetMailSender.sendPasswordResetToken(user.getEmail(), rawToken, buildResetLink(user, rawToken));
+    }
+
+    private String buildResetLink(UserEntity user, String rawToken) {
+        if (user.getRole() != null && user.getRole().isAdminRole()) {
+            return adminResetBaseUrl + (adminResetBaseUrl.contains("?") ? "&" : "?") + "passwordResetToken=" + rawToken;
+        }
+        return resetBaseUrl + (resetBaseUrl.contains("?") ? "&" : "?") + "token=" + rawToken;
     }
 }

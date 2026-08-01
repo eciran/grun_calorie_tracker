@@ -251,6 +251,8 @@ grun:
       client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
     apple:
       client-ids: ${APPLE_OAUTH_CLIENT_IDS:}
+  admin-password-reset:
+    base-url: ${GRUN_ADMIN_PASSWORD_RESET_BASE_URL:http://localhost:8080/admin-ui/index.html}
   password-reset:
     expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
     base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}
@@ -276,3 +278,7 @@ grun:
       user-email: ${GRUN_LOCAL_DEMO_USER_EMAIL:}
       user-password: ${GRUN_LOCAL_DEMO_USER_PASSWORD:}
 
+
+  admin-invitation:
+    expiration-hours: ${GRUN_ADMIN_INVITATION_EXPIRATION_HOURS:48}
+    base-url: ${GRUN_ADMIN_INVITATION_BASE_URL:https://admin.grun.app/?adminInvitation=true}
