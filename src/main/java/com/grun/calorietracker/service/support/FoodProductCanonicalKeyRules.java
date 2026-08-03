@@ -21,7 +21,14 @@ public final class FoodProductCanonicalKeyRules {
         if (identityName == null) {
             identityName = FoodProductNormalizationRules.normalizeText(product.getName());
         }
-        return resolve(product.getCatalogType(), product.getMarketRegion(), product.getPreparationState(), identityName);
+        return resolve(
+                product.getCatalogType(),
+                product.getMarketRegion(),
+                product.getPreparationState(),
+                identityName,
+                product.getDishFamilyKey(),
+                product.getDishVariantKey()
+        );
     }
 
     public static String resolve(
@@ -30,17 +37,54 @@ public final class FoodProductCanonicalKeyRules {
             FoodPreparationState preparationState,
             String displayName
     ) {
-        if (catalogType != FoodCatalogType.GENERIC_INGREDIENT || displayName == null) {
+        return resolve(catalogType, marketRegion, preparationState, displayName, null, null);
+    }
+
+    public static String resolve(
+            FoodCatalogType catalogType,
+            MarketRegion marketRegion,
+            FoodPreparationState preparationState,
+            String displayName,
+            String dishFamilyKey,
+            String dishVariantKey
+    ) {
+        if (catalogType == null || displayName == null) {
             return null;
         }
         MarketRegion effectiveRegion = marketRegion == null ? MarketRegion.GLOBAL : marketRegion;
         FoodPreparationState effectiveState = preparationState == null
                 ? FoodPreparationState.UNSPECIFIED
                 : preparationState;
+
+        if (catalogType == FoodCatalogType.LOCAL_DISH) {
+            String family = normalizeLocalDishIdentityKey(dishFamilyKey);
+            String variant = normalizeLocalDishIdentityKey(dishVariantKey);
+            String displayIdentity = slug(FoodProductNormalizationRules.normalizeText(displayName));
+            if (family == null) {
+                family = displayIdentity;
+            }
+            if (variant == null && dishFamilyKey != null) {
+                variant = displayIdentity.equals(family) ? "classic" : displayIdentity;
+            }
+            String prefix = effectiveRegion.name()
+                    + ":" + catalogType.name()
+                    + ":" + effectiveState.name()
+                    + ":" + family;
+            return variant == null ? prefix : prefix + ":" + variant;
+        }
+
+        if (catalogType != FoodCatalogType.GENERIC_INGREDIENT) {
+            return null;
+        }
         return effectiveRegion.name()
                 + ":" + catalogType.name()
                 + ":" + effectiveState.name()
                 + ":" + slug(normalizeCanonicalGenericName(displayName));
+    }
+
+    public static String normalizeLocalDishIdentityKey(String value) {
+        String normalized = FoodProductNormalizationRules.normalizeText(value);
+        return normalized == null ? null : slug(normalized);
     }
 
     private static String normalizeCanonicalGenericName(String displayName) {
@@ -64,7 +108,9 @@ public final class FoodProductCanonicalKeyRules {
     }
 
     private static String slug(String value) {
-        String ascii = Normalizer.normalize(value == null ? "unnamed" : value, Normalizer.Form.NFD)
+        String transliterated = (value == null ? "unnamed" : value)
+                .replace('ı', 'i').replace('İ', 'I');
+        String ascii = Normalizer.normalize(transliterated, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "");
         String slug = ascii.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "_")

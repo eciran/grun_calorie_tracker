@@ -531,6 +531,29 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(FoodPreparationState.RAW, savedProducts.get(1).getPreparationState());
     }
 
+    @Test
+    void importCsv_persistsLocalDishFamilyVariantAndCanonicalIdentity() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,calories,protein,fat,carbs,market_region,preparation_state,nutrition_basis,dish_family_key,dish_variant_key
+                LOCAL_DISH,TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli,Etli Kuru Fasulye,165,10,7,15,TR,PREPARED,ESTIMATED,kuru-fasulye,etli
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity dish = captor.getValue().get(0);
+        assertEquals("kuru_fasulye", dish.getDishFamilyKey());
+        assertEquals("etli", dish.getDishVariantKey());
+        assertEquals("TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli", dish.getCanonicalFoodKey());
+        assertEquals(null, dish.getBarcode());
+    }
+
+
 
     @Test
     void importCsv_keepsRawAndCookedNonBarcodeFoodsSeparate() {

@@ -86,7 +86,7 @@ class FoodProductContributionControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ"})
     void adminEvidence_whenAdmin_streamsPrivateContent() throws Exception {
         when(contributionService.loadEvidenceForAdmin(11L))
                 .thenReturn(new EvidenceContent(new byte[]{4, 5, 6}, MediaType.IMAGE_PNG_VALUE));
@@ -99,7 +99,7 @@ class FoodProductContributionControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void adminReview_whenAdmin_returnsReviewedContribution() throws Exception {
         FoodProductContributionDto response = new FoodProductContributionDto();
         response.setId(11L);
@@ -114,7 +114,7 @@ class FoodProductContributionControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ"})
     void evidenceLedger_whenAdmin_returnsTsvAttachment() throws Exception {
         when(contributionService.exportApprovedTrEvidenceLedger()).thenReturn("barcode\tevidenceType\n".getBytes());
 

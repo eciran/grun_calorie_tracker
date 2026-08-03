@@ -325,11 +325,17 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         ProductDisplayNames displayNames = resolveProductDisplayNames(name, catalogType, preparationState, row, sourceFormat);
         product.setDisplayName(displayNames.displayName());
         product.setShortDisplayName(displayNames.shortDisplayName());
+        String dishFamilyKey = resolveLocalDishIdentityKey(row, catalogType, "dishfamilykey", "dish_family_key");
+        String dishVariantKey = resolveLocalDishIdentityKey(row, catalogType, "dishvariantkey", "dish_variant_key");
+        product.setDishFamilyKey(dishFamilyKey);
+        product.setDishVariantKey(dishVariantKey);
         product.setCanonicalFoodKey(resolveCanonicalFoodKey(
                 catalogType,
                 regionResolution.region(),
                 preparationState,
-                displayNames.displayName()
+                displayNames.displayName(),
+                dishFamilyKey,
+                dishVariantKey
         ));
         String brand = firstText(row, "brand", "brands", "manufacturer", "producer");
         if (brand != null) {
@@ -617,13 +623,31 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                     ? FoodNutritionBasis.ESTIMATED
                     : FoodNutritionBasis.SOURCE_REPORTED;
         }
-    }    private String resolveCanonicalFoodKey(
+    }
+
+    private String resolveCanonicalFoodKey(
             FoodCatalogType catalogType,
             MarketRegion marketRegion,
             FoodPreparationState preparationState,
-            String displayName
+            String displayName,
+            String dishFamilyKey,
+            String dishVariantKey
     ) {
-        return FoodProductCanonicalKeyRules.resolve(catalogType, marketRegion, preparationState, displayName);
+        return FoodProductCanonicalKeyRules.resolve(
+                catalogType,
+                marketRegion,
+                preparationState,
+                displayName,
+                dishFamilyKey,
+                dishVariantKey
+        );
+    }
+
+    private String resolveLocalDishIdentityKey(CsvRow row, FoodCatalogType catalogType, String... columns) {
+        if (catalogType != FoodCatalogType.LOCAL_DISH) {
+            return null;
+        }
+        return FoodProductCanonicalKeyRules.normalizeLocalDishIdentityKey(firstText(row, columns));
     }
     private void addPotentialCanonicalDuplicateWarnings(
             Map<String, Integer> warningCounts,

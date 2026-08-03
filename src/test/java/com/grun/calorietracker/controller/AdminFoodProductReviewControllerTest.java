@@ -89,7 +89,7 @@ class AdminFoodProductReviewControllerTest {
     private ProductQualitySuggestionService productQualitySuggestionService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void importProducts_whenAdmin_returnsImportResult() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -121,7 +121,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenAdmin_returnsProducts() throws Exception {
         FoodProductDto product = new FoodProductDto();
         product.setId(1L);
@@ -162,7 +162,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenRegionProvided_passesRegionFilter() throws Exception {
         FoodProductReviewPageDto page = new FoodProductReviewPageDto();
         page.setContent(List.of());
@@ -193,7 +193,7 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductSearchAliases_whenAdmin_returnsAliases() throws Exception {
         FoodSearchAliasDto alias = new FoodSearchAliasDto(
                 10L,
@@ -218,7 +218,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void addProductSearchAlias_whenAdmin_returnsAlias() throws Exception {
         FoodSearchAliasRequestDto request = new FoodSearchAliasRequestDto();
         request.setAlias("yarÃƒâ€žÃ‚Â±m yaÃƒâ€žÃ…Â¸lÃƒâ€žÃ‚Â± sÃƒÆ’Ã‚Â¼t");
@@ -251,7 +251,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void updateProductSearchAliasStatus_whenAdmin_returnsAlias() throws Exception {
         FoodSearchAliasDto response = new FoodSearchAliasDto(
                 10L,
@@ -278,7 +278,7 @@ class AdminFoodProductReviewControllerTest {
 
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void scanProductQualitySuggestions_whenAdmin_returnsScanResult() throws Exception {
         ProductQualitySuggestionScanResultDto response = new ProductQualitySuggestionScanResultDto(50, 12, 3);
         when(productQualitySuggestionService.scanSuggestions(MarketRegion.UK_IE, 50, false, ProductQualityScanTriggerType.MANUAL, "admin@test.com")).thenReturn(response);
@@ -295,7 +295,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductQualitySuggestions_whenAdmin_returnsSuggestions() throws Exception {
         ProductQualitySuggestionDto suggestion = new ProductQualitySuggestionDto(
                 1L,
@@ -329,7 +329,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void backfillQualityIssues_whenAdmin_returnsBackfillResult() throws Exception {
         FoodProductQualityIssueBackfillResultDto response =
                 new FoodProductQualityIssueBackfillResultDto(1250L, 3, 500);
@@ -347,7 +347,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void importNutritionCorrections_whenAdmin_returnsCorrectionResult() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -371,7 +371,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void exportProductsForReview_whenAdmin_returnsCsvForCurrentFilter() throws Exception {
         byte[] csv = "id,product_name\n1,Almond\n".getBytes();
 
@@ -410,7 +410,7 @@ class AdminFoodProductReviewControllerTest {
         );
     }
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductQualityIssues_whenAdmin_returnsIssues() throws Exception {
         FoodProductQualityIssueDto issue = new FoodProductQualityIssueDto(
                 7L,
@@ -438,7 +438,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenCatalogTypeProvided_passesCatalogTypeFilter() throws Exception {
         FoodProductReviewPageDto page = new FoodProductReviewPageDto();
         page.setContent(List.of());
@@ -471,7 +471,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenDataSourceProvided_passesDataSourceFilter() throws Exception {
         FoodProductReviewPageDto page = new FoodProductReviewPageDto();
         page.setContent(List.of());
@@ -505,7 +505,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenQualityIssueProvided_passesQualityIssueFilter() throws Exception {
         FoodProductReviewPageDto page = new FoodProductReviewPageDto();
         page.setContent(List.of());
@@ -547,7 +547,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getDuplicateProductGroups_whenAdmin_returnsGroups() throws Exception {
         FoodProductDto firstProduct = new FoodProductDto();
         firstProduct.setId(1L);
@@ -584,7 +584,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getCanonicalDuplicateProductGroups_whenAdmin_returnsCandidates() throws Exception {
         String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
         FoodProductDto firstProduct = new FoodProductDto();
@@ -624,7 +624,7 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.content[0].resolvedBy").value("admin@test.com"));
     }
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void resolveCanonicalPrimary_whenAdmin_returnsResolution() throws Exception {
         String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
         FoodCanonicalResolutionRequestDto request = new FoodCanonicalResolutionRequestDto();
@@ -651,7 +651,7 @@ class AdminFoodProductReviewControllerTest {
         );
     }
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getCanonicalDuplicateProductGroups_withResolvedFilter_passesFilterToService() throws Exception {
         FoodCanonicalDuplicateGroupPageDto emptyPage = new FoodCanonicalDuplicateGroupPageDto(
                 List.of(), 0, 25, 0L, 0, true, true
@@ -668,7 +668,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void clearCanonicalResolution_whenAdmin_returnsNoContent() throws Exception {
         String canonicalKey = "GLOBAL:GENERIC_INGREDIENT:RAW:banana";
 
@@ -680,7 +680,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void mergeDuplicateProducts_whenAdmin_returnsMergeResult() throws Exception {
         FoodProductMergeRequestDto request = new FoodProductMergeRequestDto(1L, List.of(2L));
 
@@ -713,7 +713,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void updateProductReview_whenAdmin_returnsUpdatedProduct() throws Exception {
         FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
         request.setProductName("Verified Product");
@@ -746,7 +746,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductReviewAudits_whenAdmin_returnsAuditEntries() throws Exception {
         FoodProductReviewAuditDto audit = new FoodProductReviewAuditDto();
         audit.setId(10L);
@@ -780,7 +780,7 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductQualityWorkbench_whenAdmin_returnsAggregateContext() throws Exception {
         FoodProductDto product = new FoodProductDto();
         product.setId(1L);

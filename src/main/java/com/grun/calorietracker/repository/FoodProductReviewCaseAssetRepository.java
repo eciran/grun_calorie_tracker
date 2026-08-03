@@ -25,7 +25,7 @@ public interface FoodProductReviewCaseAssetRepository extends JpaRepository<Food
                    or review_case.status in ('WITHDRAWN', 'EXPIRED')
                    or (asset.review_case_id is null and upload_session.expires_at <= :now))
             order by asset.id
-            for update skip locked
+            for update of asset skip locked
             """, nativeQuery = true)
     List<FoodProductReviewCaseAssetEntity> lockCleanupBatch(@Param("now") LocalDateTime now, Pageable pageable);
 

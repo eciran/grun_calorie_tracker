@@ -38,6 +38,13 @@ public class FoodItemEntity {
     private String normalizedBarcode;
     private String sourceKey;
     private String canonicalFoodKey;
+
+    @Column(name = "dish_family_key", length = 160)
+    private String dishFamilyKey;
+
+    @Column(name = "dish_variant_key", length = 160)
+    private String dishVariantKey;
+
     private String brand;
     private String imageUrl;
     private String externalImageUrl;

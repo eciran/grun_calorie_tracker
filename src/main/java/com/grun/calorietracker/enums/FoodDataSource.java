@@ -4,6 +4,7 @@ public enum FoodDataSource {
     MANUAL,
     OPEN_FOOD_FACTS,
     USDA_FOODDATA,
+    COFID,
     EDAMAM,
     NUTRITIONIX,
     LOCAL_CURATED,
