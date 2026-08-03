@@ -128,7 +128,8 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
                 e.getPlatform(), e.getRoute(), e.getPreviousRoute(), e.getDescription(), e.getAppVersion(),
                 e.getBuildNumber(), e.getEasBuildId(), e.getCommitSha(), e.getOsVersion(), e.getDeviceModel(),
                 e.getLanguageTag(), e.getMarketRegion(), e.getLastHttpStatus(), e.getLastHttpDurationMs(),
-                e.getLastCorrelationId(), e.getNetworkState(), e.getAdminNote(),
+                e.getLastCorrelationId(), e.getNetworkState(), e.getScreenshotAttachedAt() != null && e.getScreenshotDeletedAt() == null
+                        && e.getScreenshotExpiresAt() != null && e.getScreenshotExpiresAt().isAfter(LocalDateTime.now()), e.getScreenshotExpiresAt(), e.getAdminNote(),
                 e.getReviewedBy() == null ? null : e.getReviewedBy().getEmail(), e.getReviewedAt(),
                 e.getCreatedAt(), e.getUpdatedAt());
     }

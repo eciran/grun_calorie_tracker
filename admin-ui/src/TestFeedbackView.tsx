@@ -15,6 +15,7 @@ export function TestFeedbackView({ onError }: { onError: (message: string | null
   const [status, setStatus] = useState(""); const [type, setType] = useState(""); const [platform, setPlatform] = useState("");
   const [routeDraft, setRouteDraft] = useState(""); const [route, setRoute] = useState("");
   const [selected, setSelected] = useState<AdminTestFeedback | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useState<string>();
   const [reviewStatus, setReviewStatus] = useState<TestFeedbackStatus>("NEW"); const [note, setNote] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle"); const [saving, setSaving] = useState(false);
 
@@ -37,7 +38,11 @@ export function TestFeedbackView({ onError }: { onError: (message: string | null
   async function inspect(id: number) {
     try {
       const item = await request<AdminTestFeedback>(`/api/v1/admin/test-feedback/${id}`);
-      setSelected(item); setReviewStatus(item.status); setNote(item.adminNote ?? "");
+      setSelected(item); setReviewStatus(item.status); setNote(item.adminNote ?? ""); setScreenshotUrl(undefined);
+      if (item.screenshotAvailable) {
+        const screenshot = await request<{ url: string }>("/api/v1/admin/test-feedback/" + id + "/screenshot");
+        setScreenshotUrl(screenshot.url);
+      }
     } catch (error) { onError(formatRequestError(error)); }
   }
 
@@ -93,7 +98,7 @@ export function TestFeedbackView({ onError }: { onError: (message: string | null
       <form className="modal-card test-feedback-modal" role="dialog" aria-modal="true" aria-label="Test feedback detail" onSubmit={save} onClick={(event) => event.stopPropagation()}>
         <header className="modal-header"><div><span>TEST FEEDBACK #{selected.id}</span><h2>{selected.route}</h2><p>{selected.platform} · {selected.feedbackType.replaceAll("_", " ")}</p></div><button className="modal-icon-close" type="button" onClick={() => setSelected(null)}>x</button></header>
         <div className="modal-body test-feedback-detail-grid">
-          <section><h3>Tester report</h3><p className="feedback-description">{selected.description || "No written explanation was provided."}</p><dl><dt>Tester</dt><dd>{selected.userEmail}</dd><dt>Previous route</dt><dd>{selected.previousRoute || "-"}</dd><dt>Created</dt><dd>{new Date(selected.createdAt).toLocaleString()}</dd></dl></section>
+          <section><h3>Tester report</h3>{screenshotUrl && <img className="test-feedback-screenshot" src={screenshotUrl} alt="Tester supplied screenshot" />}<p className="feedback-description">{selected.description || "No written explanation was provided."}</p><dl><dt>Tester</dt><dd>{selected.userEmail}</dd><dt>Previous route</dt><dd>{selected.previousRoute || "-"}</dd><dt>Created</dt><dd>{new Date(selected.createdAt).toLocaleString()}</dd></dl></section>
           <section><h3>Technical context</h3><dl><dt>Build</dt><dd>{selected.appVersion || "-"} ({selected.buildNumber || "-"})</dd><dt>Device</dt><dd>{selected.deviceModel || "-"} · {selected.osVersion || "-"}</dd><dt>Locale</dt><dd>{selected.languageTag || "-"} · {selected.marketRegion || "-"}</dd><dt>Network</dt><dd>{selected.networkState || "-"}</dd><dt>Last HTTP</dt><dd>{selected.lastHttpStatus || "-"} · {selected.lastHttpDurationMs ?? "-"} ms</dd><dt>Correlation ID</dt><dd>{selected.lastCorrelationId || "-"}</dd></dl></section>
           <section className="test-feedback-review"><h3>Admin review</h3><label>Status<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as TestFeedbackStatus)}>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></label><label>Internal note<textarea rows={5} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} /></label>{selected.reviewedByEmail && <small>Last reviewed by {selected.reviewedByEmail}</small>}</section>
         </div>

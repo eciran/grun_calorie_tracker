@@ -1518,7 +1518,7 @@ export type AdminTestFeedback = {
   appVersion?: string | null; buildNumber?: string | null; easBuildId?: string | null; commitSha?: string | null;
   osVersion?: string | null; deviceModel?: string | null; languageTag?: string | null; marketRegion?: string | null;
   lastHttpStatus?: number | null; lastHttpDurationMs?: number | null; lastCorrelationId?: string | null;
-  networkState?: string | null; adminNote?: string | null; reviewedByEmail?: string | null;
+  networkState?: string | null; screenshotAvailable: boolean; screenshotExpiresAt?: string | null; adminNote?: string | null; reviewedByEmail?: string | null;
   reviewedAt?: string | null; createdAt: string; updatedAt: string;
 };
 export type AdminTestFeedbackPage = {

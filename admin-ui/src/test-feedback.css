@@ -16,3 +16,5 @@
 .test-feedback-review h3, .test-feedback-review small { grid-column: 1 / -1; }
 @media (max-width: 900px) { .test-feedback-metrics, .test-feedback-filters { grid-template-columns: 1fr 1fr; } .test-feedback-detail-grid { grid-template-columns: 1fr; } .test-feedback-review { grid-column: auto; grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .test-feedback-metrics, .test-feedback-filters { grid-template-columns: 1fr; } }
+
+.test-feedback-screenshot { width: 100%; max-height: 360px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); margin-bottom: 14px; }

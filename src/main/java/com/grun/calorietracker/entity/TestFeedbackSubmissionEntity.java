@@ -70,6 +70,20 @@ public class TestFeedbackSubmissionEntity {
     private String networkState;
     @Column(name = "admin_note", length = 2000)
     private String adminNote;
+    @Column(name = "screenshot_storage_key", length = 500)
+    private String screenshotStorageKey;
+    @Column(name = "screenshot_content_type", length = 80)
+    private String screenshotContentType;
+    @Column(name = "screenshot_size_bytes")
+    private Long screenshotSizeBytes;
+    @Column(name = "screenshot_sha256", length = 64)
+    private String screenshotSha256;
+    @Column(name = "screenshot_attached_at")
+    private LocalDateTime screenshotAttachedAt;
+    @Column(name = "screenshot_expires_at")
+    private LocalDateTime screenshotExpiresAt;
+    @Column(name = "screenshot_deleted_at")
+    private LocalDateTime screenshotDeletedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by_user_id")

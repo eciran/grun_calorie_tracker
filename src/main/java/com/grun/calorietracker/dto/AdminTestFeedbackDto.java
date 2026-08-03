@@ -12,6 +12,7 @@ public record AdminTestFeedbackDto(
         String appVersion, String buildNumber, String easBuildId, String commitSha,
         String osVersion, String deviceModel, String languageTag, String marketRegion,
         Integer lastHttpStatus, Long lastHttpDurationMs, String lastCorrelationId,
-        String networkState, String adminNote, String reviewedByEmail,
+        String networkState, boolean screenshotAvailable, LocalDateTime screenshotExpiresAt,
+        String adminNote, String reviewedByEmail,
         LocalDateTime reviewedAt, LocalDateTime createdAt, LocalDateTime updatedAt
 ) { }

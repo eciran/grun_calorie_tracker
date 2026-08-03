@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.TestFeedbackPlatform;
 import com.grun.calorietracker.enums.TestFeedbackStatus;
 import com.grun.calorietracker.enums.TestFeedbackType;
 import com.grun.calorietracker.service.AdminTestFeedbackService;
+import com.grun.calorietracker.service.TestFeedbackScreenshotService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Admin - Test Feedback")
 public class AdminTestFeedbackController {
     private final AdminTestFeedbackService service;
+    private final TestFeedbackScreenshotService screenshotService;
 
     @GetMapping
     public AdminTestFeedbackPageDto list(@RequestParam(required = false) TestFeedbackStatus status,
@@ -48,6 +50,9 @@ public class AdminTestFeedbackController {
                                        @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
         return service.update(id, request, user.getUsername(), correlationId);
     }
+
+    @GetMapping("/{id}/screenshot")
+    public TestFeedbackScreenshotReadDto screenshot(@PathVariable Long id) { return screenshotService.authorizeAdminRead(id); }
 
     @GetMapping("/analytics")
     public AdminTestFeedbackAnalyticsDto analytics() { return service.analytics(); }
