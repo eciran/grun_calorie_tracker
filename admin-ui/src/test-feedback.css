@@ -1,4 +1,4 @@
-﻿.test-feedback-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.test-feedback-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .test-feedback-filters { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)) auto; gap: 12px; align-items: end; margin-bottom: 18px; }
 .test-feedback-filters label, .test-feedback-review label { display: grid; gap: 7px; }
 .feedback-works_well { background: #d9f5e7; color: #17633d; }
@@ -18,3 +18,9 @@
 @media (max-width: 600px) { .test-feedback-metrics, .test-feedback-filters { grid-template-columns: 1fr; } }
 
 .test-feedback-screenshot { width: 100%; max-height: 360px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); margin-bottom: 14px; }
+
+.test-feedback-breakdowns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.feedback-ranking { display: grid; gap: 8px; }
+.feedback-ranking > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.feedback-ranking span { overflow-wrap: anywhere; }
+@media (max-width: 900px) { .test-feedback-breakdowns { grid-template-columns: 1fr; } }

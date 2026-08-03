@@ -1526,8 +1526,9 @@ export type AdminTestFeedbackPage = {
   totalPages: number; first: boolean; last: boolean;
 };
 export type AdminTestFeedbackAnalytics = {
-  total: number; lastSevenDays: number; byStatus: Record<string, number>;
-  byType: Record<string, number>; byPlatform: Record<string, number>;
+  total: number; lastSevenDays: number; httpFailures: number; slowRequests: number;
+  byStatus: Record<string, number>; byType: Record<string, number>; byPlatform: Record<string, number>;
+  byRoute: Record<string, number>; byBuild: Record<string, number>;
 };
 export type ProductionVerificationRun = {
   id: number;

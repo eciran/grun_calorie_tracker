@@ -76,8 +76,11 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
         long lastSevenDays = entityManager.createQuery(
                         "select count(f) from TestFeedbackSubmissionEntity f where f.createdAt >= :from", Long.class)
                 .setParameter("from", LocalDateTime.now().minusDays(7)).getSingleResult();
-        return new AdminTestFeedbackAnalyticsDto(total, lastSevenDays,
-                grouped("status"), grouped("feedbackType"), grouped("platform"));
+        long httpFailures = countWhere("f.lastHttpStatus >= 400");
+        long slowRequests = countWhere("f.lastHttpDurationMs >= 2000");
+        return new AdminTestFeedbackAnalyticsDto(total, lastSevenDays, httpFailures, slowRequests,
+                grouped("status"), grouped("feedbackType"), grouped("platform"),
+                groupedLimited("route", 8), groupedBuilds(8));
     }
 
     @Override
@@ -110,6 +113,35 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
         };
     }
 
+    private long countWhere(String predicate) {
+        return entityManager.createQuery(
+                "select count(f) from TestFeedbackSubmissionEntity f where " + predicate, Long.class)
+                .getSingleResult();
+    }
+
+    private Map<String, Long> groupedLimited(String field, int limit) {
+        List<Object[]> rows = entityManager.createQuery(
+                        "select f." + field + ", count(f) from TestFeedbackSubmissionEntity f " +
+                                "where f." + field + " is not null group by f." + field + " order by count(f) desc",
+                        Object[].class)
+                .setMaxResults(limit)
+                .getResultList();
+        Map<String, Long> values = new LinkedHashMap<>();
+        rows.forEach(row -> values.put(String.valueOf(row[0]), (Long) row[1]));
+        return values;
+    }
+
+    private Map<String, Long> groupedBuilds(int limit) {
+        List<Object[]> rows = entityManager.createQuery(
+                        "select concat(coalesce(f.appVersion, '-'), ' (', coalesce(f.buildNumber, '-'), ')'), count(f) " +
+                                "from TestFeedbackSubmissionEntity f group by f.appVersion, f.buildNumber order by count(f) desc",
+                        Object[].class)
+                .setMaxResults(limit)
+                .getResultList();
+        Map<String, Long> values = new LinkedHashMap<>();
+        rows.forEach(row -> values.put(String.valueOf(row[0]), (Long) row[1]));
+        return values;
+    }
     private Map<String, Long> grouped(String field) {
         List<Object[]> rows = entityManager.createQuery(
                 "select f." + field + ", count(f) from TestFeedbackSubmissionEntity f group by f." + field,

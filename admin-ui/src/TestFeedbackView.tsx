@@ -1,4 +1,4 @@
-﻿import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { formatRequestError, request, requestBlob } from "./api";
 import { DataTable, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
 import type { AdminTestFeedback, AdminTestFeedbackAnalytics, AdminTestFeedbackPage, TestFeedbackStatus } from "./types";
@@ -74,6 +74,16 @@ export function TestFeedbackView({ onError }: { onError: (message: string | null
       <MetricCard label="Last 7 days" value={String(analytics?.lastSevenDays ?? 0)} hint="Recent tester activity" />
       <MetricCard label="Problems" value={String(analytics?.byType?.PROBLEM ?? 0)} hint="Reported defects" />
       <MetricCard label="Open triage" value={String((analytics?.byStatus?.NEW ?? 0) + (analytics?.byStatus?.REVIEWING ?? 0))} hint="New or under review" />
+      <MetricCard label="HTTP failures" value={String(analytics?.httpFailures ?? 0)} hint="Last request returned 4xx/5xx" />
+      <MetricCard label="Slow requests" value={String(analytics?.slowRequests ?? 0)} hint="Last request took at least 2 seconds" />
+    </div>
+    <div className="test-feedback-breakdowns">
+      <Panel title="Top affected routes" description="Pages receiving the most internal test feedback.">
+        <div className="feedback-ranking">{Object.entries(analytics?.byRoute ?? {}).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{!Object.keys(analytics?.byRoute ?? {}).length && <p>No route data yet.</p>}</div>
+      </Panel>
+      <Panel title="Build coverage" description="Feedback distribution across preview builds.">
+        <div className="feedback-ranking">{Object.entries(analytics?.byBuild ?? {}).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{!Object.keys(analytics?.byBuild ?? {}).length && <p>No build data yet.</p>}</div>
+      </Panel>
     </div>
     <Panel title="Feedback inbox" description="Filter by triage state, result, platform or application route.">
       <form className="test-feedback-filters" onSubmit={(event) => { event.preventDefault(); setPage(0); setRoute(routeDraft.trim()); }}>
