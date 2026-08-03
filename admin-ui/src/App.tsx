@@ -2,6 +2,7 @@ import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo
 import { QRCodeSVG } from "qrcode.react";
 import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import { ProductIntakeView } from "./ProductIntakeView";
+import { TestFeedbackView } from "./TestFeedbackView";
 import {
   clearTokens,
   formatRequestError,
@@ -188,7 +189,8 @@ type SectionKey =
   | "systemRuntime"
   | "systemDatabase"
   | "systemProviders"
-  | "systemProduction";
+  | "systemProduction"
+  | "testFeedback";
 
 type RevenueCatRange = "7d" | "28d" | "90d" | "custom";
 type ThemeMode = "light" | "dark";
@@ -329,6 +331,7 @@ const sections: SectionMeta[] = [
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
   { key: "settings", label: "Settings", hint: "App config", icon: "G" },
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
+  { key: "testFeedback", label: "Test Feedback", hint: "Preview build reports", icon: "T" },
   { key: "retentionPolicies", label: "Retention Policies", hint: "Legal data rules", icon: "R" },
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
   { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
@@ -433,7 +436,7 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
   [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
-  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
+  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps"), navSection("testFeedback")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
 ];
 
@@ -445,7 +448,7 @@ function permissionForSection(section: SectionKey): string {
   if (section === "users" || section === "userVerification") return "USERS_READ";
   if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSources", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
   if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
-  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps"].includes(section)) return "GROWTH_READ";
+  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "testFeedback"].includes(section)) return "GROWTH_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
   if (section === "audits") return "AUDIT_READ";
   if (["integrations", "integrationProviders", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
@@ -891,6 +894,7 @@ export default function App() {
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "engagement" && <EngagementAnalyticsView onError={setError} />}
+          {active === "testFeedback" && <TestFeedbackView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
           {active === "trackingFasting" && <TrackingMonitoringView mode="fasting" onError={setError} />}
