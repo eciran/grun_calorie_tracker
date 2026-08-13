@@ -3753,19 +3753,21 @@ function AdminApprovalQueue({ accessProfile, onError }: { accessProfile: AdminAc
   }
 
   const rows = data?.content ?? [];
-  return <Panel title="Critical action approval queue" description="A different MFA-verified owner approves each critical change. Requests expire after 24 hours.">
+  const canDecideSelected = selected?.status === "PENDING" && canApprove
+    && (selected.makerEmail !== accessProfile?.email || accessProfile?.role === "OWNER");
+  return <Panel title="Critical action approval queue" description="Owners can approve their own requests with fresh MFA. Requests from other admins remain pending for owner review and expire after 24 hours.">
     <div className="approval-queue-toolbar"><label>Status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }}>{["PENDING","APPROVED","REJECTED","EXPIRED","EXECUTION_FAILED"].map((item) => <option key={item}>{item}</option>)}</select></label><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh</button></div>
     <DataTable columns={["Action", "Target", "Maker", "Status", "Expires"]} rows={rows.map((item) => [<div className="entity-cell"><strong>{humanizeFeature(item.actionType)}</strong><small>{item.requestReason}</small></div>, item.targetKey ?? "-", item.makerEmail ?? "-", <Badge value={item.status} tone={item.status === "APPROVED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />, formatDate(item.expiresAt)])} rowData={rows} onRowClick={setSelected} empty="No approval requests in this state." />
     <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page===0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(0);}} />
     {selected && <div className="approval-decision-panel">
       <div><strong>{humanizeFeature(selected.actionType)}</strong><span>Target {selected.targetKey} Ã‚Â· requested by {selected.makerEmail}</span><p>{selected.requestReason}</p></div>
       <details><summary>Whitelisted change payload</summary><pre>{JSON.stringify(selected.payload ?? {}, null, 2)}</pre></details>
-      {selected.status === "PENDING" && canApprove && selected.makerEmail !== accessProfile?.email && <>
+      {canDecideSelected && <>
         <label>Decision reason<textarea value={decisionReason} onChange={(event)=>setDecisionReason(event.target.value)} maxLength={500} /></label>
         <label>Fresh authenticator or recovery code<input value={mfaCode} onChange={(event)=>setMfaCode(event.target.value)} maxLength={32} autoComplete="one-time-code" /></label>
         <div className="form-actions"><button className="ghost-button" type="button" onClick={()=>setSelected(null)}>Close</button><button className="danger-button" disabled={busy || !decisionReason.trim() || !mfaCode.trim()} type="button" onClick={()=>void decide(false)}>Reject</button><button className="primary-button" disabled={busy || !decisionReason.trim() || !mfaCode.trim()} type="button" onClick={()=>void decide(true)}>Approve and execute</button></div>
       </>}
-      {selected.makerEmail === accessProfile?.email && selected.status === "PENDING" && <div className="form-notice">You created this request. A different owner must decide it.</div>}
+      {selected.makerEmail === accessProfile?.email && selected.status === "PENDING" && accessProfile?.role !== "OWNER" && <div className="form-notice">You created this request. An owner must decide it.</div>}
     </div>}
     {state === "loading" && <span className="muted-text">Loading approval queue...</span>}
   </Panel>;

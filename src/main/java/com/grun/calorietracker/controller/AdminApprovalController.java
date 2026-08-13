@@ -43,7 +43,7 @@ public class AdminApprovalController {
             @RequestHeader("X-Admin-Reauth-Token") String reauthToken,
             @RequestBody @Valid AdminApprovalDecisionRequestDto request,
             @AuthenticationPrincipal UserDetails user,HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(service.approve(id,user.getUsername(),reauthToken,request.reason(),correlationId(servletRequest)));
+        return ResponseEntity.ok(service.approve(id,user.getUsername(),isOwner(user),reauthToken,request.reason(),correlationId(servletRequest)));
     }
 
     @PostMapping("/{id}/reject")
@@ -52,7 +52,7 @@ public class AdminApprovalController {
             @RequestHeader("X-Admin-Reauth-Token") String reauthToken,
             @RequestBody @Valid AdminApprovalDecisionRequestDto request,
             @AuthenticationPrincipal UserDetails user,HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(service.reject(id,user.getUsername(),reauthToken,request.reason(),correlationId(servletRequest)));
+        return ResponseEntity.ok(service.reject(id,user.getUsername(),isOwner(user),reauthToken,request.reason(),correlationId(servletRequest)));
     }
 
     private void requireMakerPermission(AdminApprovalActionType actionType, UserDetails user) {
@@ -75,5 +75,11 @@ public class AdminApprovalController {
     private String correlationId(HttpServletRequest request) {
         Object value=request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
         return value==null?request.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER):value.toString();
+    }
+
+    private boolean isOwner(UserDetails user) {
+        return user.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_OWNER"::equals);
     }
 }

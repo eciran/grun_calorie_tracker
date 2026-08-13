@@ -50,9 +50,9 @@ public class AdminApprovalServiceImpl implements AdminApprovalService {
     }
 
     @Override @Transactional
-    public AdminApprovalRequestDto approve(Long id,String checker,String reauthToken,String reason,String correlationId) {
+    public AdminApprovalRequestDto approve(Long id,String checker,boolean owner,String reauthToken,String reason,String correlationId) {
         AdminApprovalRequestEntity entity=requirePending(id);
-        requireChecker(entity,checker,reauthToken);
+        requireChecker(entity,checker,owner,reauthToken);
         execute(entity,checker,correlationId);
         entity.setStatus(AdminApprovalStatus.APPROVED);
             entity.setCheckerEmail(checker); entity.setDecisionReason(reason.trim()); entity.setDecidedAt(Instant.now());
@@ -62,8 +62,8 @@ public class AdminApprovalServiceImpl implements AdminApprovalService {
     }
 
     @Override @Transactional
-    public AdminApprovalRequestDto reject(Long id,String checker,String reauthToken,String reason,String correlationId) {
-        AdminApprovalRequestEntity entity=requirePending(id); requireChecker(entity,checker,reauthToken);
+    public AdminApprovalRequestDto reject(Long id,String checker,boolean owner,String reauthToken,String reason,String correlationId) {
+        AdminApprovalRequestEntity entity=requirePending(id); requireChecker(entity,checker,owner,reauthToken);
         entity.setStatus(AdminApprovalStatus.REJECTED); entity.setCheckerEmail(checker);
         entity.setDecisionReason(reason.trim()); entity.setDecidedAt(Instant.now());
         AdminApprovalRequestEntity saved=repository.save(entity);
@@ -112,6 +112,6 @@ public class AdminApprovalServiceImpl implements AdminApprovalService {
     private JsonNode readTree(String value){try{return objectMapper.readTree(value);}catch(Exception e){throw new IllegalStateException("Stored approval payload is invalid.");}}
     private Long positiveTarget(String key){try{long value=Long.parseLong(key);if(value<=0)throw new Exception();return value;}catch(Exception e){throw new IllegalArgumentException("Approval target must be a positive id.");}}
     private AdminApprovalRequestEntity requirePending(Long id){AdminApprovalRequestEntity e=repository.findByIdForUpdate(id).orElseThrow(()->new IllegalArgumentException("Approval request was not found."));if(e.getStatus()!=AdminApprovalStatus.PENDING)throw new IllegalArgumentException("Approval request is no longer pending.");if(e.getExpiresAt().isBefore(Instant.now())){e.setStatus(AdminApprovalStatus.EXPIRED);repository.save(e);throw new IllegalArgumentException("Approval request has expired.");}return e;}
-    private void requireChecker(AdminApprovalRequestEntity entity,String checker,String token){if(entity.getMakerEmail().equalsIgnoreCase(checker))throw new IllegalArgumentException("The maker cannot approve or reject their own request.");if(token==null||!jwtUtil.isAdminReauthenticationTokenValid(token,checker))throw new IllegalArgumentException("Fresh MFA re-authentication is required.");}
+    private void requireChecker(AdminApprovalRequestEntity entity,String checker,boolean owner,String token){if(entity.getMakerEmail().equalsIgnoreCase(checker)&&!owner)throw new IllegalArgumentException("Only an owner can approve or reject their own request.");if(token==null||!jwtUtil.isAdminReauthenticationTokenValid(token,checker))throw new IllegalArgumentException("Fresh MFA re-authentication is required.");}
     private AdminApprovalRequestDto toDto(AdminApprovalRequestEntity e){return new AdminApprovalRequestDto(e.getId(),e.getActionType(),e.getStatus(),e.getMakerEmail(),e.getCheckerEmail(),e.getTargetKey(),readTree(e.getPayloadJson()),e.getRequestReason(),e.getDecisionReason(),e.getCreatedAt(),e.getExpiresAt(),e.getDecidedAt());}
 }
