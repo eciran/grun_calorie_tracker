@@ -15,6 +15,8 @@
 
 - Mobile commit: `708083d798fd745369bae1a283f64b23368d866b`
 - EAS build: `490b7bde-629b-4fd1-8182-71e34ce4d5a4`
+- EAS submission: `6db03fac-aa8d-4651-a1a3-9bb75832aa35`
+- Submission URL: `https://expo.dev/accounts/eciran/projects/grun-calorie-tracker/submissions/6db03fac-aa8d-4651-a1a3-9bb75832aa35`
 - App version: `1.0.3 (9)`
 - Platform: iOS TestFlight build.
 - OCR and RevenueCat diagnostics/fixes are included in the build commit history. Real-device verification remains required.
