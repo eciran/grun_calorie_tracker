@@ -43,6 +43,19 @@ public class ConfigurableMailDeliveryService implements MailDeliveryService {
         );
     }
 
+    @Override
+    public void sendTransactionalTemplate(String recipientEmail, long templateId, Map<String, Object> parameters,
+                                          String fallbackSubject, String fallbackText, String fallbackHtml) {
+        if (mailProperties.getProvider() != MailProvider.BREVO) {
+            sendTransactionalEmail(recipientEmail, fallbackSubject, fallbackText, fallbackHtml);
+            return;
+        }
+        if (templateId <= 0) {
+            throw new IllegalStateException("A positive Brevo template ID is required for transactional template email");
+        }
+        sendTemplateWithBrevo(recipientEmail, templateId, parameters);
+    }
+
     private String sanitizeForLog(String value) {
         if (value == null) {
             return null;
@@ -75,6 +88,36 @@ public class ConfigurableMailDeliveryService implements MailDeliveryService {
                     .body(payload)
                     .retrieve()
                     .toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            throw new MailDeliveryException("Brevo rejected transactional email request with status " + ex.getStatusCode(), ex);
+        } catch (RestClientException ex) {
+            throw new MailDeliveryException("Brevo transactional email request failed", ex);
+        }
+    }
+
+    private void sendTemplateWithBrevo(String recipientEmail, long templateId, Map<String, Object> parameters) {
+        MailProperties.Brevo brevo = mailProperties.getBrevo();
+        requireBrevoApiKey(brevo);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sender", Map.of("email", mailProperties.getFromEmail(), "name", mailProperties.getFromName()));
+        payload.put("to", List.of(Map.of("email", recipientEmail)));
+        payload.put("templateId", templateId);
+        payload.put("params", parameters == null ? Map.of() : parameters);
+        postToBrevo(brevo, payload);
+    }
+
+    private void requireBrevoApiKey(MailProperties.Brevo brevo) {
+        if (brevo.getApiKey() == null || brevo.getApiKey().isBlank()) {
+            throw new IllegalStateException("Brevo API key is required when grun.mail.provider=BREVO");
+        }
+    }
+
+    private void postToBrevo(MailProperties.Brevo brevo, Map<String, Object> payload) {
+        try {
+            restClientBuilder.build().post().uri(brevo.getApiUrl())
+                    .header("api-key", brevo.getApiKey()).header("accept", "application/json")
+                    .header("Content-Type", "application/json").body(payload).retrieve().toBodilessEntity();
         } catch (RestClientResponseException ex) {
             throw new MailDeliveryException("Brevo rejected transactional email request with status " + ex.getStatusCode(), ex);
         } catch (RestClientException ex) {

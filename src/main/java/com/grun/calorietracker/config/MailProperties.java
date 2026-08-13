@@ -20,5 +20,21 @@ public class MailProperties {
     public static class Brevo {
         private String apiKey = "";
         private String apiUrl = "https://api.brevo.com/v3/smtp/email";
+        private Templates templates = new Templates();
+    }
+
+    @Getter
+    @Setter
+    public static class Templates {
+        private long emailVerificationEn;
+        private long emailVerificationTr;
+        private long passwordResetEn;
+        private long passwordResetTr;
+        private long subscriptionFeatureChangeEn;
+        private long subscriptionFeatureChangeTr;
+        private long adminInvitationEn;
+        private long adminInvitationTr;
+        private long adminPasswordChangedEn;
+        private long adminPasswordChangedTr;
     }
 }

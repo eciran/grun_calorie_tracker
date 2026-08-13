@@ -15,8 +15,11 @@ import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.PasswordResetMailSender;
 import com.grun.calorietracker.service.PasswordResetService;
 import com.grun.calorietracker.service.RefreshTokenService;
+import com.grun.calorietracker.config.MailProperties;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +48,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final AdminSessionService adminSessionService;
     private final AdminAuditService adminAuditService;
     private final MailDeliveryService mailDeliveryService;
+    @Autowired(required = false) private MailProperties mailProperties;
 
     @Value("${grun.password-reset.expiration-minutes:30}")
     private long expirationMinutes;
@@ -124,9 +128,18 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             adminAuditService.record(user.getEmail(), AdminAuditActionType.ADMIN_PASSWORD_RESET_CONFIRM,
                     AdminAuditTargetType.ADMIN_ACCOUNT, user.getId().toString(), null,
                     Map.of("sessionsRevoked", true), null);
-            mailDeliveryService.sendTransactionalEmail(user.getEmail(), "Your GRun admin password was changed",
-                    "Your GRun admin password was changed. If you did not perform this action, contact the account owner immediately.",
-                    "<p>Your GRun admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
+            if (mailProperties == null) {
+                mailDeliveryService.sendTransactionalEmail(user.getEmail(), "Your GRun admin password was changed",
+                        "Your GRun admin password was changed. If you did not perform this action, contact the account owner immediately.",
+                        "<p>Your GRun admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
+            } else {
+                boolean turkish = user.getPreferredLanguage() == PreferredLanguage.TR;
+                long templateId = turkish ? mailProperties.getBrevo().getTemplates().getAdminPasswordChangedTr()
+                        : mailProperties.getBrevo().getTemplates().getAdminPasswordChangedEn();
+                mailDeliveryService.sendTransactionalTemplate(user.getEmail(), templateId, Map.of(), "Your GRun admin password was changed",
+                        "Your GRun admin password was changed. If you did not perform this action, contact the account owner immediately.",
+                        "<p>Your GRun admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
+            }
         }
 
         token.setUsedAt(LocalDateTime.now());

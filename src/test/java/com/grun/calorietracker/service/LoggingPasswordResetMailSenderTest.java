@@ -2,6 +2,8 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.exception.MailDeliveryException;
 import com.grun.calorietracker.service.impl.LoggingPasswordResetMailSender;
+import com.grun.calorietracker.config.MailProperties;
+import com.grun.calorietracker.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -12,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyMap;
 
 @ExtendWith(MockitoExtension.class)
 class LoggingPasswordResetMailSenderTest {
@@ -21,10 +24,17 @@ class LoggingPasswordResetMailSenderTest {
 
     @Mock
     private MailFailureAlertService mailFailureAlertService;
+    @Mock private UserRepository userRepository;
+
+    private MailProperties properties() {
+        MailProperties properties = new MailProperties();
+        properties.getBrevo().getTemplates().setPasswordResetEn(201);
+        return properties;
+    }
 
     @Test
     void sendPasswordResetTokenDelegatesToMailDeliveryService() {
-        LoggingPasswordResetMailSender sender = new LoggingPasswordResetMailSender(mailDeliveryService, mailFailureAlertService);
+        LoggingPasswordResetMailSender sender = new LoggingPasswordResetMailSender(mailDeliveryService, mailFailureAlertService, userRepository, properties());
 
         sender.sendPasswordResetToken(
                 "user@example.com",
@@ -32,8 +42,9 @@ class LoggingPasswordResetMailSenderTest {
                 "https://app.grun.local/reset?token=raw-token"
         );
 
-        verify(mailDeliveryService).sendTransactionalEmail(
+        verify(mailDeliveryService).sendTransactionalTemplate(
                 eq("user@example.com"),
+                eq(201L), anyMap(),
                 eq("Reset your GRun password"),
                 eq("Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"),
                 contains("Reset password")
@@ -42,10 +53,10 @@ class LoggingPasswordResetMailSenderTest {
 
     @Test
     void sendPasswordResetToken_whenProviderFails_sendsAdminAlertAndRethrows() {
-        LoggingPasswordResetMailSender sender = new LoggingPasswordResetMailSender(mailDeliveryService, mailFailureAlertService);
+        LoggingPasswordResetMailSender sender = new LoggingPasswordResetMailSender(mailDeliveryService, mailFailureAlertService, userRepository, properties());
         doThrow(new MailDeliveryException("Brevo rejected transactional email request with status 401 UNAUTHORIZED"))
                 .when(mailDeliveryService)
-                .sendTransactionalEmail(eq("user@example.com"), eq("Reset your GRun password"), eq("Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"), contains("Reset password"));
+                .sendTransactionalTemplate(eq("user@example.com"), eq(201L), anyMap(), eq("Reset your GRun password"), eq("Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"), contains("Reset password"));
 
         assertThatThrownBy(() -> sender.sendPasswordResetToken(
                 "user@example.com",
