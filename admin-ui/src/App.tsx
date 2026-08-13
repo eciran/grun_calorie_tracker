@@ -1,8 +1,6 @@
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { RuntimeOperationsView } from "./RuntimeOperationsView";
 import { ProductIntakeView } from "./ProductIntakeView";
-import { TestFeedbackView } from "./TestFeedbackView";
 import {
   clearTokens,
   formatRequestError,
@@ -117,6 +115,8 @@ import {
 } from "./AdminPrimitives";
 
 const GrowthTrendChart = lazy(() => import("./GrowthTrendChart").then((module) => ({ default: module.GrowthTrendChart })));
+const RuntimeOperationsView = lazy(() => import("./RuntimeOperationsView").then((module) => ({ default: module.RuntimeOperationsView })));
+const TestFeedbackView = lazy(() => import("./TestFeedbackView").then((module) => ({ default: module.TestFeedbackView })));
 const OnboardingFunnelChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.OnboardingFunnelChart })));
 const FeatureAdoptionChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.FeatureAdoptionChart })));
 const RevenueCatEChart = lazy(() => import("./RevenueCatEChart").then((module) => ({ default: module.RevenueCatEChart })));
@@ -3851,7 +3851,13 @@ function AdminPasswordResetView({ token, theme, toggleTheme }: { token: string; 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
+    if (!token.trim()) { setMessage("This password reset link is incomplete. Request a new link."); return; }
     if (form.password !== form.confirmPassword) { setMessage("Passwords do not match."); return; }
+    if (!passwordPattern.test(form.password)) {
+      setMessage("Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character. Spaces are not allowed.");
+      return;
+    }
     setBusy(true); setMessage(null);
     try {
       await request("/api/v1/auth/password-reset/confirm", { method: "POST", auth: false, body: { token, newPassword: form.password } });
@@ -3870,7 +3876,7 @@ function AdminPasswordResetView({ token, theme, toggleTheme }: { token: string; 
       {!complete && <>
         <label>New password<input required type="password" minLength={8} autoComplete="new-password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} /></label>
         <label>Confirm password<input required type="password" minLength={8} autoComplete="new-password" value={form.confirmPassword} onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))} /></label>
-        <small>Use uppercase, lowercase, number, and a supported special character.</small>
+        <small>Use at least 8 characters with uppercase, lowercase, a number, and a special character. Do not use spaces.</small>
         <button className="primary-button" disabled={busy || !form.password || !form.confirmPassword} type="submit">{busy ? "Changing password..." : "Change password"}</button>
       </>}
       {message && <div className={complete ? "form-notice" : "form-error"}>{message}</div>}
@@ -3923,17 +3929,25 @@ function AdminInvitationPanel({ onError }: { onError: (message: string | null) =
   const [form, setForm] = useState({ email: "", role: "ADMIN_READ_ONLY" });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: number; method: "resend" | "revoke" } | null>(null);
   const invitations = data?.content ?? [];
   async function create(event: FormEvent) {
     event.preventDefault(); setBusy(true); setFormError(null);
     try { await request("/api/v1/admin/security/invitations", { method: "POST", body: { email: form.email.trim(), role: form.role } }); setForm((current) => ({ ...current, email: "" })); await reload(); }
     catch (error) { setFormError(formatRequestError(error)); } finally { setBusy(false); }
   }
-  async function action(id: number | undefined, method: "resend" | "revoke") {
+  function action(id: number | undefined, method: "resend" | "revoke") {
     if (!id) return;
-    if (!window.confirm(method === "revoke" ? "Revoke this admin invitation?" : "Invalidate the old link and send a new invitation?")) return;
+    setPendingAction({ id, method });
+  }
+  async function confirmAction() {
+    if (!pendingAction) return;
     setBusy(true);
-    try { await request("/api/v1/admin/security/invitations/" + id + (method === "resend" ? "/resend" : ""), { method: method === "resend" ? "POST" : "DELETE" }); await reload(); }
+    try {
+      await request("/api/v1/admin/security/invitations/" + pendingAction.id + (pendingAction.method === "resend" ? "/resend" : ""), { method: pendingAction.method === "resend" ? "POST" : "DELETE" });
+      setPendingAction(null);
+      await reload();
+    }
     catch (error) { onError(formatRequestError(error)); } finally { setBusy(false); }
   }
   return <Panel title="Invite an admin" description="Owner-only. Invitations are single-use, expire automatically, and never expose their token in the dashboard.">
@@ -3953,6 +3967,15 @@ function AdminInvitationPanel({ onError }: { onError: (message: string | null) =
       ])} empty={state === "loading" ? "Loading invitations..." : "No admin invitations yet."} />
       <PaginationControls page={data?.page ?? page} pageSize={10} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={() => undefined} />
     </div>
+    {pendingAction && <ConfirmDialog
+      title={pendingAction.method === "revoke" ? "Revoke admin invitation?" : "Send a new invitation link?"}
+      message={pendingAction.method === "revoke" ? "This invitation link will stop working immediately." : "The existing invitation link will be invalidated before a new one is sent."}
+      confirmLabel={pendingAction.method === "revoke" ? "Revoke invitation" : "Resend invitation"}
+      danger={pendingAction.method === "revoke"}
+      busy={busy}
+      onCancel={() => !busy && setPendingAction(null)}
+      onConfirm={() => void confirmAction()}
+    />}
   </Panel>;
 }
 
@@ -3964,6 +3987,7 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
   const [selected, setSelected] = useState<AdminTeamMember | null>(null);
   const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", enabled: true, mfaEnabled: false, reason: "" });
   const [saving, setSaving] = useState(false);
+  const [passwordResetConfirmationOpen, setPasswordResetConfirmationOpen] = useState(false);
   const canManage = Boolean(accessProfile?.permissions?.includes("ADMIN_TEAM_MANAGE"));
   const members = data?.content ?? [];
 
@@ -3996,10 +4020,10 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
 
   async function sendPasswordReset() {
     if (!selected?.id || !canManage) return;
-    if (!window.confirm(`Send a single-use password reset link to ${selected.email}? Existing sessions will be revoked only after the password is changed.`)) return;
     setSaving(true);
     try {
       const result = await request<{ message?: string }>(`/api/v1/admin/security/team/${selected.id}/password-reset`, { method: "POST" });
+      setPasswordResetConfirmationOpen(false);
       onError(result.message ?? "Password reset link sent.");
     } catch (failure) { onError(formatRequestError(failure)); }
     finally { setSaving(false); }
@@ -4041,7 +4065,15 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
       empty="No admin team members returned."
     />
     <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1, data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
-    {selected && <div className="modal-backdrop" role="presentation" onClick={() => !saving && setSelected(null)}><section className="modal-card admin-member-modal" role="dialog" aria-modal="true" aria-label={`Manage ${selected.email ?? "admin"}`} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>Admin access</span><h2>Manage {selected.email ?? "admin"}</h2><p>Changes are backend-enforced and recorded in the security audit trail.</p></div><button className="icon-button" disabled={saving} type="button" onClick={() => setSelected(null)} aria-label="Close admin management">X</button></header><form className="admin-security-form modal-body" onSubmit={(event) => { event.preventDefault(); void saveMember(); }}><label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label><label className="admin-enabled-control"><span>Account access</span><span className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />{draft.enabled ? "Enabled" : "Disabled"}</span></label><label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain why this role or access state is changing." /><small>{draft.reason.length}/500 characters</small></label></form><footer className="modal-actions admin-member-actions"><button className="ghost-button" disabled={saving} type="button" onClick={() => setSelected(null)}>Cancel</button><button className="ghost-button" disabled={saving} type="button" onClick={() => void sendPasswordReset()}>Send password reset</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="button" onClick={() => void saveMember()}>{saving ? "Applying..." : "Apply access change"}</button></footer></section></div>}
+    {selected && <div className="modal-backdrop" role="presentation" onClick={() => !saving && setSelected(null)}><section className="modal-card admin-member-modal" role="dialog" aria-modal="true" aria-label={`Manage ${selected.email ?? "admin"}`} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>Admin access</span><h2>Manage {selected.email ?? "admin"}</h2><p>Changes are backend-enforced and recorded in the security audit trail.</p></div><button className="icon-button" disabled={saving} type="button" onClick={() => setSelected(null)} aria-label="Close admin management">X</button></header><form className="admin-security-form modal-body" onSubmit={(event) => { event.preventDefault(); void saveMember(); }}><label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label><label className="admin-enabled-control"><span>Account access</span><span className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />{draft.enabled ? "Enabled" : "Disabled"}</span></label><label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain why this role or access state is changing." /><small>{draft.reason.length}/500 characters</small></label></form><footer className="modal-actions admin-member-actions"><button className="ghost-button" disabled={saving} type="button" onClick={() => setSelected(null)}>Cancel</button><button className="ghost-button" disabled={saving} type="button" onClick={() => setPasswordResetConfirmationOpen(true)}>Send password reset</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="button" onClick={() => void saveMember()}>{saving ? "Applying..." : "Apply access change"}</button></footer></section></div>}
+    {selected && passwordResetConfirmationOpen && <ConfirmDialog
+      title="Send password reset link?"
+      message={`A single-use password reset link will be sent to ${selected.email}. Existing sessions will be revoked only after the password is changed.`}
+      confirmLabel="Send reset link"
+      busy={saving}
+      onCancel={() => !saving && setPasswordResetConfirmationOpen(false)}
+      onConfirm={() => void sendPasswordReset()}
+    />}
   </div>;
 }
 type UsersMode = "users" | "admins" | "verification";
@@ -4213,6 +4245,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const { data: revenueCat, state: revenueCatState, reload: reloadRevenueCat } = useEndpoint<RevenueCatConfigStatus>("/api/v1/admin/revenuecat/config", onError);
   const { data: subscriptionAudits, state: subscriptionAuditState, reload: reloadSubscriptionAudits } = useEndpoint<PageResponse<AuditEntry>>(buildAuditPath({ actionType: "", targetType: "USER_SUBSCRIPTION", page: 0, size: 20 }), onError);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [featureApprovalNotice, setFeatureApprovalNotice] = useState<string | null>(null);
   const [subscriptionActionState, setSubscriptionActionState] = useState<LoadState>("idle");
   const [subscriptionResult, setSubscriptionResult] = useState<SubscriptionDto | null>(null);
   const [matrixApplyConfirmationOpen, setMatrixApplyConfirmationOpen] = useState(false);
@@ -4399,9 +4432,10 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setSubscriptionActionState("loading");
     onError(null);
     try {
-      const response = await request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${selectedUserId}`, {
-        method: "PATCH",
-        body: {
+      await submitAdminApproval(
+        "SUBSCRIPTION_UPDATE",
+        String(selectedUserId),
+        {
           planType: subscriptionForm.planType,
           status: subscriptionForm.status,
           billingPeriod: subscriptionForm.billingPeriod,
@@ -4412,11 +4446,10 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
           autoRenew: subscriptionForm.autoRenew,
           provider: subscriptionForm.provider,
           providerSubscriptionId: subscriptionForm.providerSubscriptionId.trim() || null
-        }
-      });
-      setSubscriptionResult(response);
-      await refreshSelectedAccess(String(selectedUserId));
-      await reloadSubscriptionAudits();
+        },
+        `Update subscription for user ${selectedUserId}`
+      );
+      setFeatureApprovalNotice("Subscription change is pending approval. Current user access remains unchanged until it is approved.");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4433,6 +4466,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     onError(null);
     try {
       await submitAdminApproval("AI_QUOTA_RESET", String(selectedUserId), {}, "AI quota reset requested from User Access");
+      setFeatureApprovalNotice("AI quota reset is pending approval. Current usage remains unchanged until it is approved.");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4448,17 +4482,17 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setSubscriptionActionState("loading");
     onError(null);
     try {
-      const response = await request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${selectedUserId}/ai-quota/addon`, {
-        method: "POST",
-        body: {
+      await submitAdminApproval(
+        "AI_ADDON_QUOTA_GRANT",
+        String(selectedUserId),
+        {
           amount: parsePositiveInt(addonForm.amount),
           validityDays: parsePositiveInt(addonForm.validityDays),
           note: addonForm.note.trim() || null
-        }
-      });
-      setSubscriptionResult(response);
-      await refreshSelectedAccess(String(selectedUserId));
-      await reloadSubscriptionAudits();
+        },
+        addonForm.note.trim() || `Grant add-on AI quota to user ${selectedUserId}`
+      );
+      setFeatureApprovalNotice("Add-on AI quota grant is pending approval. No credits have been added yet.");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4474,6 +4508,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     onError(null);
     try {
       await submitAdminApproval("ENTITLEMENT_MATRIX_APPLY", String(selectedUserId), {}, "Apply current feature matrix before renewal");
+      setFeatureApprovalNotice("Applying the current feature matrix is pending approval. Current user access remains unchanged.");
       setSubscriptionActionState("ready");
       setMatrixApplyConfirmationOpen(false);
     } catch (err) {
@@ -4488,17 +4523,20 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     }
     const key = featureKey(item);
     setSavingKey(key);
+    setFeatureApprovalNotice(null);
     onError(null);
     try {
-      await request<FeatureMatrixItem>(`/api/v1/admin/subscriptions/features/${item.planType}/${item.feature}`, {
-        method: "PUT",
-        body: {
+      await submitAdminApproval(
+        "PLAN_FEATURE_UPDATE",
+        `${item.planType}:${item.feature}`,
+        {
           enabled,
           aiCreditCost: item.aiCreditCost ?? 1,
           effectiveFrom: item.effectiveFrom || todayIsoDate()
-        }
-      });
-      await reload();
+        },
+        `${enabled ? "Enable" : "Disable"} ${item.feature} for ${item.planType}`
+      );
+      setFeatureApprovalNotice(`${humanizeFeature(item.feature)} for ${item.planType} is pending approval. The current matrix remains unchanged until it is approved.`);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -4554,6 +4592,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
       <SectionToolbar title={title} state={combineStates([state, pricingState, revenueCatState, usersState, subscriptionAuditState, subscriptionActionState])} onReload={() => { void reload(); void reloadPricing(); }}>
         <button className="ghost-button" onClick={reloadRevenueCat} type="button">Reload RevenueCat</button>
       </SectionToolbar>
+      {featureApprovalNotice && <div className="form-notice" role="status">{featureApprovalNotice}</div>}
 
       {(mode === "overview" || mode === "entitlements") && <div className="subscription-hero">
         <div>
@@ -5149,6 +5188,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [refundDraft, setRefundDraft] = useState<{ item: AiMealDraft; amount: string; reason: string } | null>(null);
   const [refundRejectDraft, setRefundRejectDraft] = useState<{ item: AiMealDraft; reason: string } | null>(null);
   const [refundResult, setRefundResult] = useState<AiQuotaRefundResponse | null>(null);
+  const [refundApprovalNotice, setRefundApprovalNotice] = useState<string | null>(null);
   const [inspection, setInspection] = useState<AiRequestInspection | null>(null);
   const [inspectionState, setInspectionState] = useState<LoadState>("idle");
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
@@ -5288,15 +5328,10 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     }
     setRefundState("loading");
     try {
-      const result = await request<AiQuotaRefundResponse>(`/api/v1/admin/ai/meal-drafts/${requestId}/quota-refund`, {
-        method: "POST",
-        body: { amount, reason }
-      });
-      setRefundResult(result);
+      await submitAdminApproval("AI_QUOTA_REFUND", String(requestId), { amount, reason }, reason);
+      setRefundApprovalNotice("AI quota refund is pending approval. The user's quota has not changed yet.");
       setRefundDraft(null);
       setRefundState("ready");
-      await reload();
-      await reloadSummary();
     } catch (error) {
       setRefundState("error");
       onError(formatRequestError(error));
@@ -5486,6 +5521,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           </label>
         </div>
       </Panel>
+      {refundApprovalNotice && <div className="form-notice" role="status">{refundApprovalNotice}</div>}
       {refundResult && <Panel title="Last quota refund decision">
         <div className="ai-refund-result-grid">
           <DetailItem label="Request" value={refundResult.requestId} />
@@ -8199,14 +8235,15 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
     if (!selectedId) return;
     setActionState("loading");
     try {
-      await request<NotificationCampaign>("/api/v1/admin/notification-campaigns/" + selectedId + "/schedule", {
-        method: "POST",
-        body: { scheduledAt: scheduledAt ? scheduledAt + ":00" : null }
-      });
+      await submitAdminApproval(
+        "NOTIFICATION_CAMPAIGN_SCHEDULE",
+        String(selectedId),
+        { scheduledAt: scheduledAt ? scheduledAt + ":00" : null },
+        `Schedule notification campaign ${selectedId}`
+      );
       setConfirmSchedule(false);
+      setNotice("Campaign schedule is pending approval. No notifications have been sent yet.");
       setActionState("ready");
-      await reload();
-      resetDraft();
     } catch (error) {
       setConfirmSchedule(false);
       setActionState("error");
