@@ -27,7 +27,10 @@ public class TestFeedbackScreenshotServiceImpl implements TestFeedbackScreenshot
  @Transactional
  public TestFeedbackScreenshotUploadDto authorize(String email,String environment,Long id,TestFeedbackScreenshotUploadRequestDto request){
   requireEnabled(environment); var entity=owned(id,email); var storage=storage();
-  if(entity.getScreenshotStorageKey()!=null&&entity.getScreenshotDeletedAt()==null) throw new IllegalStateException("A screenshot is already attached to this feedback.");
+  if(entity.getScreenshotStorageKey()!=null&&entity.getScreenshotDeletedAt()==null){
+   if(entity.getScreenshotAttachedAt()!=null) throw new IllegalStateException("A screenshot is already attached to this feedback.");
+   safeDelete(entity.getScreenshotStorageKey()); clear(entity);
+  }
   String key=prefix()+"/test-feedback/"+entity.getUser().getId()+"/"+entity.getId()+"/"+UUID.randomUUID()+extension(request.contentType());
   var auth=storage.authorizeUpload(new FoodProductDirectUploadStorage.UploadObject(key,request.contentType().toLowerCase(Locale.ROOT),request.sizeBytes(),request.sha256().toLowerCase(Locale.ROOT)),properties.getScreenshotUploadUrlTtl());
   entity.setScreenshotStorageKey(key); entity.setScreenshotContentType(request.contentType().toLowerCase(Locale.ROOT));
