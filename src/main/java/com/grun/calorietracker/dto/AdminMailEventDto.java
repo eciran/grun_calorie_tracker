@@ -10,7 +10,7 @@ public class AdminMailEventDto {
     private String event;
     @Schema(description = "Recipient email returned by provider, when available.", example = "user@example.com")
     private String email;
-    @Schema(description = "Email subject returned by provider, when available.", example = "Verify your GRun email")
+    @Schema(description = "Email subject returned by provider, when available.", example = "Verify your GRUN email")
     private String subject;
     @Schema(description = "Provider message id, when available.")
     private String messageId;

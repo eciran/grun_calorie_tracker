@@ -40,7 +40,7 @@ class AdminUserControllerTest {
     private AdminAuditService adminAuditService;
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
     void listUsers_whenAdmin_returnsPaginatedUsers() throws Exception {
         AdminUserDto user = new AdminUserDto();
         user.setId(1L);
@@ -81,7 +81,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
     void updateUserStatus_whenAdmin_returnsUpdatedUserAndRecordsAudit() throws Exception {
         AdminUserDto before = new AdminUserDto();
         before.setId(1L);

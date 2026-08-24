@@ -31,6 +31,7 @@ import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.FastingDiaryContextResolver;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.NormalizedFoodPortion;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -74,7 +76,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
         entity.setPortionSize(dto.getPortionSize());
         entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
-        entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
+        FoodPortionCalculator.validateServingOptionUnit(entity.getPortionUnit(), entity.getServingOption());
+        applyNormalizedPortion(entity, FoodPortionCalculator.normalize(
                 dto.getPortionSize(),
                 entity.getPortionUnit(),
                 foodItem,
@@ -176,7 +179,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
             entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
             entity.setPortionSize(dto.getPortionSize());
             entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
-            entity.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
+            FoodPortionCalculator.validateServingOptionUnit(entity.getPortionUnit(), entity.getServingOption());
+            applyNormalizedPortion(entity, FoodPortionCalculator.normalize(
                     dto.getPortionSize(),
                     entity.getPortionUnit(),
                     foodItem,
@@ -724,7 +728,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     private String normalizeMealType(String mealType) {
-        return mealType == null ? null : mealType.trim().toUpperCase();
+        return mealType == null ? null : mealType.trim().toUpperCase(Locale.ROOT);
     }
 
     private FoodLogsEntity copyLogToDate(FoodLogsEntity source, LocalDate targetDate, UserEntity user) {
@@ -742,6 +746,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         copy.setPortionSize(source.getPortionSize());
         copy.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
         copy.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
+        copy.setNormalizedPortionMilliliters(source.getNormalizedPortionMilliliters());
         copy.setSnapshotCalories(source.getSnapshotCalories());
         copy.setSnapshotProtein(source.getSnapshotProtein());
         copy.setSnapshotCarbs(source.getSnapshotCarbs());
@@ -834,6 +839,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setPortionSize(entity.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(entity.getPortionUnit()));
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
+        dto.setNormalizedPortionMilliliters(entity.getNormalizedPortionMilliliters());
         dto.setSnapshotCalories(entity.getSnapshotCalories());
         dto.setSnapshotProtein(entity.getSnapshotProtein());
         dto.setSnapshotCarbs(entity.getSnapshotCarbs());
@@ -860,28 +866,33 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem) {
-        Double grams = entity.getNormalizedPortionGrams() != null
-                ? entity.getNormalizedPortionGrams()
-                : entity.getPortionSize();
-        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), grams));
-        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), grams));
-        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), grams));
-        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), grams));
-        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), grams));
-        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), grams));
-        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), grams));
-        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), grams));
-        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), grams));
-        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), grams));
-        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), grams));
-        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), grams));
-        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), grams));
-        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), grams));
-        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), grams));
-        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), grams));
-        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), grams));
-        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), grams));
-        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), grams));
+        Double referenceAmount = foodItem.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML
+                ? entity.getNormalizedPortionMilliliters()
+                : entity.getNormalizedPortionGrams();
+        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), referenceAmount));
+        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), referenceAmount));
+        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), referenceAmount));
+        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), referenceAmount));
+        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), referenceAmount));
+        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), referenceAmount));
+        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), referenceAmount));
+        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), referenceAmount));
+        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), referenceAmount));
+        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), referenceAmount));
+        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), referenceAmount));
+        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), referenceAmount));
+        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), referenceAmount));
+        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), referenceAmount));
+        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), referenceAmount));
+        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), referenceAmount));
+        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), referenceAmount));
+        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), referenceAmount));
+        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), referenceAmount));
+    }
+
+    private void applyNormalizedPortion(FoodLogsEntity entity, NormalizedFoodPortion normalized) {
+        entity.setNormalizedPortionGrams(normalized.grams());
+        entity.setNormalizedPortionMilliliters(normalized.milliliters());
     }
 
     private Double calculateNutritionValue(Double perHundredGrams, Double grams) {
@@ -901,8 +912,14 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (servingOptionId == null) {
             return null;
         }
-        return foodItemServingOptionRepository.findByIdAndFoodItem(servingOptionId, foodItem)
-                .orElseThrow(() -> new IllegalArgumentException("Serving option does not belong to the selected food item."));
+        return foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                        servingOptionId,
+                        foodItem,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                )
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Serving option is not verified or does not belong to the selected food item."
+                ));
     }
 
     private FoodLogSource resolveSource(FoodLogSource source, FoodLogSource fallback) {
@@ -915,10 +932,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setPortionUnit(row[1] == null ? FoodPortionUnit.GRAM : FoodPortionUnit.valueOf(row[1].toString()));
         dto.setServingOptionId(row[2] == null ? null : ((Number) row[2]).longValue());
         dto.setServingOptionLabel(row[3] == null ? null : row[3].toString());
-        dto.setNormalizedPortionGrams(toDouble(row[4]));
-        dto.setSource(row[5] == null ? FoodLogSource.MANUAL : FoodLogSource.valueOf(row[5].toString()));
+        dto.setNormalizedPortionGrams(toNullableDouble(row, 4));
+        dto.setNormalizedPortionMilliliters(toNullableDouble(row, 5));
+        dto.setSource(row[6] == null ? FoodLogSource.MANUAL : FoodLogSource.valueOf(row[6].toString()));
         return dto;
     }
 
 }
-

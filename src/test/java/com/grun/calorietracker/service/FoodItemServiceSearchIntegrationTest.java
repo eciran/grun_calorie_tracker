@@ -94,7 +94,8 @@ class FoodItemServiceSearchIntegrationTest {
                 foodItemServingOptionLocalizationRepository,
                 openFoodFactsService,
                 foodProductQualityIssueTracker,
-                Mockito.mock(com.grun.calorietracker.service.FoodProductEvidenceService.class)
+                Mockito.mock(com.grun.calorietracker.service.FoodProductEvidenceService.class),
+                Mockito.mock(CatalogPublicationService.class)
         );
     }
 
@@ -1413,6 +1414,7 @@ FoodSearchCriteriaDto bananaEnglish = new FoodSearchCriteriaDto();
         product.setBarcode(barcode);
         product.setNormalizedBarcode(barcode);
         product.setVerificationStatus(verificationStatus);
+        product.setPublicationStatus(com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED);
         product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         product.setCalories(100.0);
         product.setProtein(0.0);

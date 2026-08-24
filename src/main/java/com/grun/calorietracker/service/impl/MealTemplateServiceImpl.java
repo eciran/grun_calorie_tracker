@@ -2,19 +2,25 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.*;
+import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.MealTemplateRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.MealTemplateService;
+import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.NormalizedFoodPortion;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +39,10 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     private final UserRepository userRepository;
     private final FoodLogsRepository foodLogsRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final MealTemplateRepository mealTemplateRepository;
+    private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -70,9 +79,20 @@ public class MealTemplateServiceImpl implements MealTemplateService {
                 MealTemplateItemEntity item = new MealTemplateItemEntity();
                 item.setTemplate(template);
                 item.setFoodItem(source.getFoodItem());
+                item.setServingOption(source.getServingOption());
                 item.setPortionSize(source.getPortionSize());
                 item.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
-                item.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
+                NormalizedFoodPortion normalized = source.getNormalizedPortionGrams() != null
+                        || source.getNormalizedPortionMilliliters() != null
+                        ? new NormalizedFoodPortion(source.getNormalizedPortionGrams(), source.getNormalizedPortionMilliliters(), null)
+                        : FoodPortionCalculator.normalize(
+                                source.getPortionSize(),
+                                item.getPortionUnit(),
+                                source.getFoodItem(),
+                                source.getServingOption()
+                        );
+                item.setNormalizedPortionGrams(normalized.grams());
+                item.setNormalizedPortionMilliliters(normalized.milliliters());
                 item.setLogTime(source.getLogDate() == null ? null : source.getLogDate().toLocalTime());
                 item.setItemOrder(index);
                 items.add(item);
@@ -117,12 +137,17 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         String targetMealType = request.getMealType() == null || request.getMealType().isBlank()
                 ? template.getMealType()
                 : normalizeMealType(request.getMealType());
-        return template.getItems().stream()
+        List<FoodLogsDto> loggedItems = template.getItems().stream()
                 .map(item -> toFoodLog(item, user, request, targetMealType))
                 .map(foodLogsRepository::save)
                 .peek(saved -> markFoodItemUsed(saved.getFoodItem()))
                 .map(this::toFoodLogDto)
                 .toList();
+        if (!loggedItems.isEmpty()) {
+            analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.FOOD_LOG);
+            eventPublisher.publishEvent(new FoodDiaryChangedEvent(user.getEmail(), request.getTargetDate()));
+        }
+        return loggedItems;
     }
 
     @Override
@@ -141,9 +166,12 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         FoodLogsEntity log = new FoodLogsEntity();
         log.setUser(user);
         log.setFoodItem(item.getFoodItem());
+        ensureServingOptionIsVerified(item.getServingOption(), item.getFoodItem());
+        log.setServingOption(item.getServingOption());
         log.setPortionSize(item.getPortionSize());
         log.setPortionUnit(FoodPortionCalculator.resolveUnit(item.getPortionUnit()));
         log.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
+        log.setNormalizedPortionMilliliters(item.getNormalizedPortionMilliliters());
         applyNutritionSnapshot(log, item.getFoodItem());
         log.setMealType(mealType);
         log.setSource(FoodLogSource.TEMPLATE);
@@ -169,18 +197,26 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     private MealTemplateItemDto toItemDto(MealTemplateItemEntity item) {
         MealTemplateItemDto dto = new MealTemplateItemDto();
         FoodItemEntity foodItem = item.getFoodItem();
-        Double grams = item.getNormalizedPortionGrams() != null
-                ? item.getNormalizedPortionGrams()
-                : item.getPortionSize();
+        Double referenceAmount = foodItem.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML
+                ? item.getNormalizedPortionMilliliters()
+                : item.getNormalizedPortionGrams();
+        if (referenceAmount == null) {
+            referenceAmount = item.getPortionSize();
+        }
         dto.setFoodItemId(foodItem.getId());
         dto.setFoodName(foodItem.getName());
         dto.setPortionSize(item.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(item.getPortionUnit()));
+        if (item.getServingOption() != null) {
+            dto.setServingOptionId(item.getServingOption().getId());
+            dto.setServingOptionLabel(item.getServingOption().getLabel());
+        }
         dto.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
-        dto.setCalories(calculateNutritionValue(foodItem.getCalories(), grams));
-        dto.setProtein(calculateNutritionValue(foodItem.getProtein(), grams));
-        dto.setCarbs(calculateNutritionValue(foodItem.getCarbs(), grams));
-        dto.setFat(calculateNutritionValue(foodItem.getFat(), grams));
+        dto.setNormalizedPortionMilliliters(item.getNormalizedPortionMilliliters());
+        dto.setCalories(calculateNutritionValue(foodItem.getCalories(), referenceAmount));
+        dto.setProtein(calculateNutritionValue(foodItem.getProtein(), referenceAmount));
+        dto.setCarbs(calculateNutritionValue(foodItem.getCarbs(), referenceAmount));
+        dto.setFat(calculateNutritionValue(foodItem.getFat(), referenceAmount));
         return dto;
     }
     private MealTemplateItemEntity toTemplateItem(MealTemplateEntity template,
@@ -193,13 +229,19 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         MealTemplateItemEntity item = new MealTemplateItemEntity();
         item.setTemplate(template);
         item.setFoodItem(foodItem);
+        FoodItemServingOptionEntity servingOption = resolveServingOption(request.getServingOptionId(), foodItem);
+        item.setServingOption(servingOption);
         item.setPortionSize(request.getPortionSize());
         item.setPortionUnit(FoodPortionCalculator.resolveUnit(request.getPortionUnit()));
-        item.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(
+        FoodPortionCalculator.validateServingOptionUnit(item.getPortionUnit(), servingOption);
+        NormalizedFoodPortion normalized = FoodPortionCalculator.normalize(
                 request.getPortionSize(),
                 item.getPortionUnit(),
-                foodItem
-        ));
+                foodItem,
+                servingOption
+        );
+        item.setNormalizedPortionGrams(normalized.grams());
+        item.setNormalizedPortionMilliliters(normalized.milliliters());
         item.setLogTime(LocalTime.NOON);
         item.setItemOrder(itemOrder);
         return item;
@@ -218,9 +260,14 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         dto.setEstimated(Boolean.TRUE.equals(log.getEstimated()));
         dto.setAiRequestId(log.getAiRequestId());
         dto.setAiConfidence(log.getAiConfidence());
+        if (log.getServingOption() != null) {
+            dto.setServingOptionId(log.getServingOption().getId());
+            dto.setServingOptionLabel(log.getServingOption().getLabel());
+        }
         dto.setPortionSize(log.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(log.getPortionUnit()));
         dto.setNormalizedPortionGrams(log.getNormalizedPortionGrams());
+        dto.setNormalizedPortionMilliliters(log.getNormalizedPortionMilliliters());
         dto.setSnapshotCalories(log.getSnapshotCalories());
         dto.setSnapshotProtein(log.getSnapshotProtein());
         dto.setSnapshotCarbs(log.getSnapshotCarbs());
@@ -267,32 +314,57 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     }
 
     private String normalizeMealType(String mealType) {
-        return mealType == null ? null : mealType.trim().toUpperCase();
+        return mealType == null ? null : mealType.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem) {
-        Double grams = entity.getNormalizedPortionGrams() != null
-                ? entity.getNormalizedPortionGrams()
-                : entity.getPortionSize();
-        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), grams));
-        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), grams));
-        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), grams));
-        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), grams));
-        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), grams));
-        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), grams));
-        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), grams));
-        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), grams));
-        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), grams));
-        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), grams));
-        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), grams));
-        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), grams));
-        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), grams));
-        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), grams));
-        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), grams));
-        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), grams));
-        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), grams));
-        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), grams));
-        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), grams));
+        Double amount = foodItem.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML
+                ? entity.getNormalizedPortionMilliliters()
+                : entity.getNormalizedPortionGrams();
+        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), amount));
+        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), amount));
+        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), amount));
+        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), amount));
+        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), amount));
+        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), amount));
+        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), amount));
+        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), amount));
+        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), amount));
+        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), amount));
+        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), amount));
+        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), amount));
+        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), amount));
+        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), amount));
+        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), amount));
+        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), amount));
+        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), amount));
+        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), amount));
+        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), amount));
+    }
+
+    private FoodItemServingOptionEntity resolveServingOption(Long servingOptionId, FoodItemEntity foodItem) {
+        if (servingOptionId == null) {
+            return null;
+        }
+        return foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                        servingOptionId,
+                        foodItem,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                )
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Serving option is not verified or does not belong to the selected food item."
+                ));
+    }
+
+    private void ensureServingOptionIsVerified(FoodItemServingOptionEntity servingOption, FoodItemEntity foodItem) {
+        if (servingOption == null) {
+            return;
+        }
+        if (servingOption.getFoodItem() == null
+                || !foodItem.getId().equals(servingOption.getFoodItem().getId())
+                || servingOption.getQualityStatus() != com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED) {
+            throw new IllegalArgumentException("Meal template serving option is no longer available.");
+        }
     }
 
     private Double calculateNutritionValue(Double perHundredGrams, Double grams) {

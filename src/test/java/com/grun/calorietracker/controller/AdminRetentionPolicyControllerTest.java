@@ -38,7 +38,7 @@ class AdminRetentionPolicyControllerTest {
     private RetentionPolicyService retentionPolicyService;
 
     @Test
-    @WithMockUser(username = "admin@grun.app", roles = "ADMIN")
+    @WithMockUser(username = "admin@grun.app", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_COMPLIANCE_READ", "ADMIN_PERMISSION_COMPLIANCE_MANAGE"})
     void listPolicies_whenAdmin_returnsRetentionRules() throws Exception {
         when(retentionPolicyService.listPolicies()).thenReturn(List.of(policy()));
 
@@ -49,7 +49,7 @@ class AdminRetentionPolicyControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@grun.app", roles = "ADMIN")
+    @WithMockUser(username = "admin@grun.app", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_COMPLIANCE_READ", "ADMIN_PERMISSION_COMPLIANCE_MANAGE"})
     void upsertPolicy_whenAdmin_updatesPolicy() throws Exception {
         RetentionPolicyUpdateRequestDto request = new RetentionPolicyUpdateRequestDto(
                 2555,

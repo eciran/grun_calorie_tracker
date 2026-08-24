@@ -115,6 +115,40 @@ class RateLimitingFilterTest {
         assertEquals(429, secondResponse.getStatus());
     }
     @Test
+    void productUploadCreationUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "productIntakeUploadMaxRequestsPerMinute", 1);
+        FilterChain chain = mock(FilterChain.class);
+        filter.doFilter(post("/api/v1/products/review-cases/upload-sessions"), new MockHttpServletResponse(), chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/products/review-cases/upload-sessions"), response, chain);
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void productUploadFinalizeUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "productIntakeFinalizeMaxRequestsPerMinute", 1);
+        FilterChain chain = mock(FilterChain.class);
+        String path = "/api/v1/products/review-cases/upload-sessions/session-1/finalize";
+        filter.doFilter(post(path), new MockHttpServletResponse(), chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(post(path), response, chain);
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void productEvidenceReadUsesDedicatedLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(10);
+        ReflectionTestUtils.setField(filter, "productIntakeEvidenceReadMaxRequestsPerMinute", 1);
+        FilterChain chain = mock(FilterChain.class);
+        String path = "/api/v1/admin/products/review-cases/assets/42/evidence-url";
+        filter.doFilter(get(path), new MockHttpServletResponse(), chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(get(path), response, chain);
+        assertEquals(429, response.getStatus());
+    }
+    @Test
     void barcodeLookupPathIsRateLimited() throws Exception {
         RateLimitingFilter filter = buildFilter(1);
 
@@ -282,6 +316,9 @@ class RateLimitingFilterTest {
         ReflectionTestUtils.setField(filter, "accountLinkMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "productIntakeUploadMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "productIntakeFinalizeMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "productIntakeEvidenceReadMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "trustedProxyCount", 0);
         return filter;
     }

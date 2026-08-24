@@ -247,6 +247,66 @@ class AiMealDraftServiceImplTest {
                 ArgumentCaptor.forClass(AiPhotoMealDraftRequestDto.class);
         verify(providerClient).createPhotoMealDraft(requestCaptor.capture());
         assertEquals("tr", requestCaptor.getValue().getLocale());
+
+        ArgumentCaptor<AiRequestHistoryEntity> historyCaptor =
+                ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
+        verify(historyRepository, times(2)).save(historyCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                historyCaptor.getValue().getInputPayload().contains("\"locale\":\"tr\""));
+        com.fasterxml.jackson.databind.JsonNode storedOutput = org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> new ObjectMapper().readTree(historyCaptor.getValue().getOutputPayload()));
+        assertEquals("tr", storedOutput.get("outputLanguage").asText());
+    }
+
+    @Test
+    void createPhotoMealDraft_whenResponseLanguageMismatches_doesNotIssueASecondProviderRequest() {
+        properties.setProvider(AiProvider.OPENAI);
+        properties.getOpenai().setApiKey("sk-test");
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(providerClient.provider()).thenReturn(AiProvider.OPENAI);
+        AiMealDraftResponseDto turkish = providerResponse();
+        turkish.setSummary("Fotoğrafta bir şeker görünüyor ve ürün ağırlığı yaklaşık olarak tahmin edildi.");
+        turkish.setReviewReasons(List.of("Marka ve gramaj görünmüyor; besin değeri değişebilir."));
+        when(providerClient.createPhotoMealDraft(any())).thenReturn(turkish);
+        SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiRemainingThisPeriod(14);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
+            AiRequestHistoryEntity entity = invocation.getArgument(0);
+            entity.setId(12L);
+            return entity;
+        });
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://api.grun.app/api/v1/ai/meal-drafts/photo-references/meal.jpg");
+        request.setLocale("en");
+
+        assertThrows(com.grun.calorietracker.exception.AiOutputLanguageMismatchException.class,
+                () -> service.createPhotoMealDraft("user@example.com", request));
+
+        verify(providerClient, times(1)).createPhotoMealDraft(any());
+    }
+
+    @Test
+    void createPhotoMealDraft_whenResponseUsesWrongLanguage_refundsCreditAndFailsDraft() {
+        properties.setProvider(AiProvider.OPENAI);
+        properties.getOpenai().setApiKey("sk-test");
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(providerClient.provider()).thenReturn(AiProvider.OPENAI);
+        AiMealDraftResponseDto turkish = providerResponse();
+        turkish.setSummary("Fotoğrafta bir şeker görünüyor ve ürün ağırlığı yaklaşık olarak tahmin edildi.");
+        turkish.setReviewReasons(List.of("Marka ve gramaj görünmüyor; besin değeri değişebilir."));
+        when(providerClient.createPhotoMealDraft(any())).thenReturn(turkish);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://api.grun.app/api/v1/ai/meal-drafts/photo-references/meal.jpg");
+        request.setLocale("en");
+
+        assertThrows(com.grun.calorietracker.exception.AiOutputLanguageMismatchException.class,
+                () -> service.createPhotoMealDraft("user@example.com", request));
+
+        verify(providerClient, times(1)).createPhotoMealDraft(any());
+        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
     }
     @Test
     void createPhotoMealDraft_whenImageReferencePrefixNotAllowed_doesNotCallProviderOrConsumeQuota() {

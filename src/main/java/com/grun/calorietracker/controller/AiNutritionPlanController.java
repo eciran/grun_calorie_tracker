@@ -77,11 +77,11 @@ public class AiNutritionPlanController {
 
     @PostMapping("/{requestId}/confirm")
     @Operation(summary = "Confirm a reviewed nutrition-plan draft",
-            description = "Creates an immutable snapshot meal plan. It does not create food diary entries.")
+            description = "Creates an immutable snapshot meal plan from the server-stored draft. Client-provided draft changes are ignored. It does not create food diary entries.")
     public ResponseEntity<MealPlanDto> confirm(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails user,
             @PathVariable Long requestId,
-            @RequestBody @Valid AiNutritionPlanConfirmRequestDto request) {
+            @RequestBody(required = false) @Valid AiNutritionPlanConfirmRequestDto request) {
         return ResponseEntity.ok(service.confirmDraft(user.getUsername(), requestId, request));
     }
 

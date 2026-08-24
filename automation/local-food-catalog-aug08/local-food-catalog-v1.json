@@ -1,0 +1,123 @@
+{
+  "schema_version": "local-food-catalog-v1",
+  "import_mode": "RAW_EXTERNAL",
+  "import_format": "GRUN_STANDARD",
+  "allowed_catalog_types": [
+    "GENERIC_INGREDIENT",
+    "LOCAL_DISH"
+  ],
+  "forbidden_catalog_types": [
+    "BRANDED_PRODUCT",
+    "USER_CUSTOM"
+  ],
+  "allowed_local_dish_regions": [
+    "TR",
+    "UK_IE"
+  ],
+  "required_columns": [
+    "catalog_type",
+    "data_source",
+    "source_registry_id",
+    "source_key",
+    "name",
+    "display_name_en",
+    "display_name_tr",
+    "alias_en",
+    "alias_tr",
+    "market_region",
+    "preparation_state",
+    "nutrition_basis",
+    "calories",
+    "protein",
+    "fat",
+    "carbs",
+    "fiber",
+    "sodium",
+    "serving_size_grams",
+    "serving_unit",
+    "serving_options_json",
+    "source_ref",
+    "source_version",
+    "license_id",
+    "provenance_note",
+    "source_record_id",
+    "calculation_method",
+    "calculation_version",
+    "ingredient_links_json",
+    "estimation_method",
+    "confidence_score",
+    "approval_status",
+    "approved_by",
+    "approved_at",
+    "dish_family_key",
+    "dish_variant_key",
+    "barcode"
+  ],
+  "nutrient_units": {
+    "calories": "kcal_per_100g",
+    "protein": "g_per_100g",
+    "fat": "g_per_100g",
+    "carbs": "g_per_100g",
+    "fiber": "g_per_100g",
+    "sugar": "g_per_100g",
+    "sodium": "mg_per_100g",
+    "potassium": "mg_per_100g",
+    "calcium": "mg_per_100g",
+    "iron": "mg_per_100g",
+    "magnesium": "mg_per_100g",
+    "zinc": "mg_per_100g"
+  },
+  "required_nutrients": [
+    "calories",
+    "protein",
+    "fat",
+    "carbs",
+    "fiber",
+    "sodium"
+  ],
+  "micronutrient_fields": [
+    "potassium",
+    "calcium",
+    "iron",
+    "magnesium",
+    "zinc",
+    "vitamin_a",
+    "vitamin_c",
+    "vitamin_d",
+    "vitamin_e",
+    "vitamin_b12"
+  ],
+  "minimum_micronutrient_count": 2,
+  "ranges": {
+    "calories": [0, 900],
+    "protein": [0, 100],
+    "fat": [0, 100],
+    "carbs": [0, 100],
+    "fiber": [0, 100],
+    "sugar": [0, 100],
+    "sodium": [0, 10000],
+    "potassium": [0, 10000],
+    "calcium": [0, 5000],
+    "iron": [0, 200],
+    "magnesium": [0, 2000],
+    "zinc": [0, 200],
+    "vitamin_a": [0, 100000],
+    "vitamin_c": [0, 5000],
+    "vitamin_d": [0, 5000],
+    "vitamin_e": [0, 1000],
+    "vitamin_b12": [0, 1000]
+  },
+  "energy_consistency": {
+    "warning_absolute_kcal": 25,
+    "warning_relative": 0.20,
+    "error_absolute_kcal": 50,
+    "error_relative": 0.30
+  },
+  "serving_grams": {
+    "GENERIC_INGREDIENT": [1, 1000],
+    "LOCAL_DISH": [10, 1000]
+  },
+  "estimated_max_confidence": 49,
+  "stable_key_pattern": "^[A-Z_]+:(GENERIC_INGREDIENT|LOCAL_DISH):[A-Z_]+:[a-z0-9_:-]+$",
+  "identity_segment_pattern": "^[a-z0-9_]+$"
+}

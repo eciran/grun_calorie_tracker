@@ -5,7 +5,6 @@ import com.grun.calorietracker.dto.FoodDiaryNoteRequestDto;
 import com.grun.calorietracker.entity.FoodDiaryNoteEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
-import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodDiaryNoteRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.FoodDiaryNoteServiceImpl;
@@ -67,12 +66,15 @@ class FoodDiaryNoteServiceImplTest {
     }
 
     @Test
-    void getNote_whenMissing_throwsNotFound() {
+    void getNote_whenMissing_returnsEmptyDailyNote() {
         LocalDate diaryDate = LocalDate.of(2026, 5, 23);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(foodDiaryNoteRepository.findByUserAndDiaryDate(user, diaryDate)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> service.getNote("user@example.com", diaryDate));
+        FoodDiaryNoteDto result = service.getNote("user@example.com", diaryDate);
+
+        assertEquals(diaryDate, result.getDiaryDate());
+        assertEquals(null, result.getNote());
     }
 
     @Test

@@ -25,6 +25,10 @@ public class RecipeIngredientEntity {
     @JoinColumn(name = "food_item_id")
     private FoodItemEntity foodItem;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "serving_option_id")
+    private FoodItemServingOptionEntity servingOption;
+
     private Double portionSize;
 
     @Enumerated(EnumType.STRING)
@@ -32,6 +36,9 @@ public class RecipeIngredientEntity {
 
     @Column(name = "normalized_portion_grams")
     private Double normalizedPortionGrams;
+
+    @Column(name = "normalized_portion_milliliters")
+    private Double normalizedPortionMilliliters;
     @Column(name = "snapshot_food_name")
     private String snapshotFoodName;
     @Column(name = "snapshot_calories")

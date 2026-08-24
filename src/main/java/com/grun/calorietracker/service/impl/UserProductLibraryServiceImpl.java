@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
@@ -58,6 +59,8 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         return ids.stream()
                 .map(productsById::get)
                 .filter(product -> product != null)
+                .filter(product -> product.getVerificationStatus() != VerificationStatus.REJECTED)
+                .filter(product -> isVisibleToUser(product, user))
                 .map(FoodItemMapper::mapEntityToDto)
                 .toList();
     }
@@ -80,6 +83,8 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
                         PageRequest.of(safePage(page), safePageSize(size))
                 ).stream()
                 .map(UserFavoriteEntity::getFoodItem)
+                .filter(product -> product.getVerificationStatus() != VerificationStatus.REJECTED)
+                .filter(product -> isVisibleToUser(product, user))
                 .map(FoodItemMapper::mapEntityToDto)
                 .toList();
     }
@@ -119,6 +124,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         product.setDataSource(FoodDataSource.MANUAL);
         product.setCatalogType(FoodCatalogType.USER_CUSTOM);
         product.setVerificationStatus(VerificationStatus.VERIFIED);
+        product.setPublicationStatus(CatalogPublicationStatus.PRIVATE_USER);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
         product.setNutritionBasis(FoodNutritionBasis.ESTIMATED);
         product.setMarketRegion(user.getMarketRegion());
@@ -159,6 +165,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
                         user,
                         PageRequest.of(safePage(page), safePageSize(size))
                 ).stream()
+                .filter(product -> isVisibleToUser(product, user))
                 .map(FoodItemMapper::mapEntityToDto)
                 .toList();
     }
@@ -178,9 +185,19 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     }
 
     private boolean isVisibleToUser(FoodItemEntity product, UserEntity user) {
-        if (!Boolean.TRUE.equals(product.getIsCustom())) {
+        if (product.getPublicationStatus() == null) {
+            return !Boolean.TRUE.equals(product.getIsCustom()) || isOwnedBy(product, user);
+        }
+        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
             return true;
         }
+        if (product.getPublicationStatus() != CatalogPublicationStatus.PRIVATE_USER) {
+            return false;
+        }
+        return isOwnedBy(product, user);
+    }
+
+    private boolean isOwnedBy(FoodItemEntity product, UserEntity user) {
         return product.getCreatedByUser() != null
                 && user.getId() != null
                 && user.getId().equals(product.getCreatedByUser().getId());

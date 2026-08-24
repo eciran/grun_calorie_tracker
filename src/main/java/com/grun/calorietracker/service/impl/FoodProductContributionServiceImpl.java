@@ -23,6 +23,7 @@ import com.grun.calorietracker.service.support.FoodContributionEvidenceFileInspe
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.GtinValidator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,8 @@ public class FoodProductContributionServiceImpl implements FoodProductContributi
     private final FoodContributionEvidenceFileInspector evidenceFileInspector;
     private final FoodContributionEvidenceStorage evidenceStorage;
     private final FoodContributionStorageProperties storageProperties;
+    @Autowired(required = false)
+    private LegacyFoodProductReviewCaseBridge reviewCaseBridge;
 
     @Override
     @Transactional
@@ -95,6 +98,9 @@ public class FoodProductContributionServiceImpl implements FoodProductContributi
             entity.setPersistentStorageAllowed(request.isPersistentStorageAllowed());
             entity.setStatus(FoodProductContributionStatus.PENDING_REVIEW);
             entity = contributionRepository.saveAndFlush(entity);
+            if (reviewCaseBridge != null) {
+                entity.setReviewCase(reviewCaseBridge.linkContribution(entity));
+            }
             entity.setEvidenceUrl(privateEvidenceUrl(entity.getId()));
             return toDto(contributionRepository.save(entity));
         } catch (RuntimeException exception) {
@@ -157,7 +163,11 @@ public class FoodProductContributionServiceImpl implements FoodProductContributi
         entity.setReviewerIdentity(adminEmail);
         entity.setReviewNote(trimToNull(request.getReviewNote()));
         entity.setReviewedAt(LocalDateTime.now());
-        return toDto(contributionRepository.save(entity));
+        entity = contributionRepository.save(entity);
+        if (reviewCaseBridge != null) {
+            reviewCaseBridge.syncContributionReview(entity, adminEmail, entity.getReviewNote());
+        }
+        return toDto(entity);
     }
 
     @Override

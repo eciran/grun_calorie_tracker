@@ -40,6 +40,8 @@ class ExerciseLogsServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private ExerciseLogsMapper exerciseLogsMapper;
+    @Mock
+    private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     @InjectMocks
     private ExerciseLogsServiceImpl exerciseLogsService;

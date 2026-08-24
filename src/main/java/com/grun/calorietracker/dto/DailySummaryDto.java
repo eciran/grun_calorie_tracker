@@ -23,7 +23,7 @@ public class DailySummaryDto {
     private Double remainingCalories;
     @Schema(description = "Net calories after exercise is subtracted from consumed calories.", example = "930.5")
     private Double netCalories;
-    @Schema(description = "Whether exercise calories are added back to the food budget. GRun MVP policy keeps this false.", example = "false")
+    @Schema(description = "Whether exercise calories are added back to the food budget. GRUN MVP policy keeps this false.", example = "false")
     private Boolean exerciseCaloriesAddedToBudget;
     @Schema(description = "Consumed calories as percentage of target calories.", example = "56.27")
     private Double calorieProgressPercent;

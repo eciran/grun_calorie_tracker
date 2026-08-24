@@ -19,6 +19,19 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class GlobalExceptionHandlerTest {
 
     @Test
+    void handleAdminMfaLoginException_returnsStableChallengeCode() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
+        MockHttpServletRequest request = request();
+
+        var response = handler.handleAdminMfaLoginException(AdminMfaLoginException.required(), request);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals("ADMIN_MFA_REQUIRED", response.getBody().getCode());
+        assertEquals("Authenticator or recovery code is required.", response.getBody().getMessage());
+        assertEquals("request-1", response.getBody().getCorrelationId());
+    }
+
+    @Test
     void handleGeneric_whenInternalDetailsDisabled_hidesExceptionMessage() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
         MockHttpServletRequest request = request();

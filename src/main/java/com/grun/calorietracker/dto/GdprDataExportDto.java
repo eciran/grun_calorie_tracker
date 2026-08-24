@@ -78,6 +78,17 @@ public class GdprDataExportDto {
     private List<ProductAnalyticsEventExportDto> productAnalyticsEvents;
     private List<SubscriptionEventExportDto> subscriptionEvents;
     private AdvancedFastingExportDto advancedFasting;
+    private List<ProductReviewCaseExportDto> productReviewCases;
+
+    public record ProductReviewCaseExportDto(
+            Long id, String source, String status, String marketRegion, String barcode,
+            String resolutionMode, String riskLevel, LocalDateTime createdAt, LocalDateTime updatedAt,
+            List<ProductReviewAssetExportDto> assets) {}
+
+    public record ProductReviewAssetExportDto(
+            Long id, String assetType, String contentType, Long sizeBytes, Integer width, Integer height,
+            String uploadState, LocalDateTime expiresAt, String deletionState, LocalDateTime deletedAt) {}
+
 
     @Data
     @AllArgsConstructor

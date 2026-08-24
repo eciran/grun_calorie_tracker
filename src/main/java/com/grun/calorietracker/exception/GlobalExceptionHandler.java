@@ -209,6 +209,20 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, "error.invalid.credentials", "Invalid credentials", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(AdminMfaLoginException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAdminMfaLoginException(
+            AdminMfaLoginException ex,
+            HttpServletRequest request
+    ) {
+        return buildDomainResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getCode(),
+                ex.getMessage(),
+                List.of(),
+                request
+        );
+    }
+
     @ExceptionHandler(SubscriptionFeatureAccessDeniedException.class)
     public ResponseEntity<ApiErrorResponseDto> handleSubscriptionFeatureAccessDenied(
             SubscriptionFeatureAccessDeniedException ex,

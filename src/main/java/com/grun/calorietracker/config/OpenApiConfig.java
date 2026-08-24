@@ -24,10 +24,10 @@ import java.util.Map;
 @Configuration
 @OpenAPIDefinition(
         info = @Info(
-                title = "GRun Calorie Tracker API",
+                title = "GRUN Calorie Tracker API",
                 version = "v1",
                 description = "Backend API for user authentication, product lookup, food logs, exercise logs, goals, and progress tracking.",
-                contact = @Contact(name = "GRun"),
+                contact = @Contact(name = "GRUN"),
                 license = @License(name = "Private")
         )
 )

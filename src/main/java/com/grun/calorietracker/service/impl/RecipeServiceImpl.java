@@ -13,6 +13,7 @@ import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
@@ -20,6 +21,8 @@ import com.grun.calorietracker.entity.RecipeReportEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -34,6 +37,7 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeReportRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
@@ -41,6 +45,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeImageModerationService;
 import com.grun.calorietracker.service.RecipeService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
+import com.grun.calorietracker.service.support.NormalizedFoodPortion;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.RecipeAllergenResolver;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +78,7 @@ public class RecipeServiceImpl implements RecipeService {
 
     private final UserRepository userRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final RecipeRepository recipeRepository;
     private final RecipeReportRepository recipeReportRepository;
     private final RecipeUserInteractionRepository recipeUserInteractionRepository;
@@ -270,9 +276,11 @@ public class RecipeServiceImpl implements RecipeService {
             RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
             ingredient.setRecipe(copy);
             ingredient.setFoodItem(sourceIngredient.getFoodItem());
+            ingredient.setServingOption(sourceIngredient.getServingOption());
             ingredient.setPortionSize(sourceIngredient.getPortionSize());
             ingredient.setPortionUnit(sourceIngredient.getPortionUnit());
             ingredient.setNormalizedPortionGrams(sourceIngredient.getNormalizedPortionGrams());
+            ingredient.setNormalizedPortionMilliliters(sourceIngredient.getNormalizedPortionMilliliters());
             copyIngredientSnapshotFields(sourceIngredient, ingredient);
             ingredient.setItemOrder(index);
             copy.getIngredients().add(ingredient);
@@ -476,8 +484,16 @@ public class RecipeServiceImpl implements RecipeService {
                     .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
             ensureFoodAvailable(foodItem, user);
             ingredient.setFoodItem(foodItem);
-            ingredient.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(request.getPortionSize(), unit, foodItem));
+            FoodItemServingOptionEntity servingOption = resolveServingOption(request.getServingOptionId(), foodItem);
+            FoodPortionCalculator.validateServingOptionUnit(unit, servingOption);
+            NormalizedFoodPortion normalized = FoodPortionCalculator.normalize(request.getPortionSize(), unit, foodItem, servingOption);
+            ingredient.setServingOption(servingOption);
+            ingredient.setNormalizedPortionGrams(normalized.grams());
+            ingredient.setNormalizedPortionMilliliters(normalized.milliliters());
             return ingredient;
+        }
+        if (request.getServingOptionId() != null) {
+            throw new IllegalArgumentException("Serving option requires a catalog food item.");
         }
         String snapshotName = FoodProductNormalizationRules.normalizeProductDisplayName(request.getSnapshotFoodName());
         if (snapshotName == null || snapshotName.isBlank()) {
@@ -490,6 +506,20 @@ public class RecipeServiceImpl implements RecipeService {
             throw new IllegalArgumentException("Snapshot recipe ingredient requires calories, protein, carbs, and fat when no full recipe nutrition snapshot is provided.");
         }
         return ingredient;
+    }
+
+    private FoodItemServingOptionEntity resolveServingOption(Long servingOptionId, FoodItemEntity foodItem) {
+        if (servingOptionId == null) {
+            return null;
+        }
+        return foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                        servingOptionId,
+                        foodItem,
+                        FoodServingOptionQualityStatus.VERIFIED
+                )
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Serving option must belong to the selected food item and be verified."
+                ));
     }
     private void recalculateNutrition(RecipeEntity recipe, RecipeRequestDto request) {
         double ingredientYield = recipe.getIngredients().stream()
@@ -684,7 +714,18 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     private double factor(RecipeIngredientEntity ingredient) {
-        return ingredient.getNormalizedPortionGrams() == null ? 0.0 : ingredient.getNormalizedPortionGrams() / 100.0;
+        FoodItemEntity foodItem = ingredient.getFoodItem();
+        boolean per100Milliliters = foodItem != null
+                && foodItem.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML;
+        Double referenceAmount = per100Milliliters
+                ? ingredient.getNormalizedPortionMilliliters()
+                : ingredient.getNormalizedPortionGrams();
+        if (referenceAmount == null || referenceAmount <= 0) {
+            throw new IllegalStateException(
+                    "Recipe ingredient is missing the normalized amount required by its nutrition reference unit."
+            );
+        }
+        return referenceAmount / 100.0;
     }
 
     private RecipeDto toDto(RecipeEntity recipe, UserEntity viewer) {
@@ -877,6 +918,11 @@ public class RecipeServiceImpl implements RecipeService {
         dto.setPortionSize(ingredient.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(ingredient.getPortionUnit()));
         dto.setNormalizedPortionGrams(ingredient.getNormalizedPortionGrams());
+        dto.setNormalizedPortionMilliliters(ingredient.getNormalizedPortionMilliliters());
+        if (ingredient.getServingOption() != null) {
+            dto.setServingOptionId(ingredient.getServingOption().getId());
+            dto.setServingOptionLabel(ingredient.getServingOption().getLabel());
+        }
         dto.setSnapshotCalories(ingredient.getSnapshotCalories());
         dto.setSnapshotProtein(ingredient.getSnapshotProtein());
         dto.setSnapshotCarbs(ingredient.getSnapshotCarbs());
@@ -1182,7 +1228,7 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     private String normalizeMealType(String mealType) {
-        return mealType == null || mealType.isBlank() ? null : mealType.trim().toUpperCase();
+        return mealType == null || mealType.isBlank() ? null : mealType.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private String trimToNull(String value) {

@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.FoodLogDailyStatsDto;
 import com.grun.calorietracker.dto.FoodLogCopyMealRequestDto;
 import com.grun.calorietracker.dto.FoodLogMealSummaryDto;
 import com.grun.calorietracker.dto.FoodLogRecentMealDto;
+import com.grun.calorietracker.dto.FoodLogRecentPortionDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
@@ -11,6 +12,7 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.FoodServingOptionSource;
@@ -98,6 +100,30 @@ class FoodLogsServiceImplTest {
                 any(),
                 any()
         )).thenReturn(Collections.emptyList());
+    }
+
+    @Test
+    void getRecentPortions_preservesMilliliterNormalizationAndServingOption() {
+        foodItem.setVerificationStatus(VerificationStatus.VERIFIED);
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(foodLogsRepository.findRecentPortionsByUserAndFoodItem(eq(1L), eq(1L), any(Pageable.class)))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        2.0,
+                        "TABLESPOON",
+                        9L,
+                        "1 tablespoon",
+                        null,
+                        30.0,
+                        "MANUAL"
+                }));
+
+        List<FoodLogRecentPortionDto> result = foodLogsService.getRecentPortions("test@test.com", 1L, 5);
+
+        assertEquals(1, result.size());
+        assertEquals(9L, result.get(0).getServingOptionId());
+        assertEquals(30.0, result.get(0).getNormalizedPortionMilliliters());
+        assertNull(result.get(0).getNormalizedPortionGrams());
     }
 
     @Test
@@ -317,6 +343,7 @@ class FoodLogsServiceImplTest {
 
     @Test
     void addFoodLog_whenMilliliterUnitProvided_usesEnteredMillilitersAsCalculationAmount() {
+        foodItem.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
         FoodLogsDto dto = new FoodLogsDto();
         dto.setFoodItemId(1L);
         dto.setPortionSize(330.0);
@@ -335,10 +362,12 @@ class FoodLogsServiceImplTest {
         FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
 
         assertEquals(FoodPortionUnit.MILLILITER, result.getPortionUnit());
-        assertEquals(330.0, result.getNormalizedPortionGrams());
+        assertEquals(null, result.getNormalizedPortionGrams());
+        assertEquals(330.0, result.getNormalizedPortionMilliliters());
         verify(foodLogsRepository).save(argThat(entity ->
                 entity.getPortionUnit() == FoodPortionUnit.MILLILITER
-                        && entity.getNormalizedPortionGrams().equals(330.0)
+                        && entity.getNormalizedPortionGrams() == null
+                        && entity.getNormalizedPortionMilliliters().equals(330.0)
         ));
     }
 
@@ -358,7 +387,7 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
-    void addFoodLog_whenServingUsesFallbackSize_keepsNutritionCalculationPredictable() {
+    void addFoodLog_whenServingConversionIsMissing_rejectsUnsafeHundredGramFallback() {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setFoodItemId(1L);
         dto.setPortionSize(1.25);
@@ -368,18 +397,12 @@ class FoodLogsServiceImplTest {
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
-            FoodLogsEntity entity = invocation.getArgument(0);
-            entity.setId(13L);
-            return entity;
-        });
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> foodLogsService.addFoodLog(dto, "test@test.com")
+        );
 
-        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
-
-        assertEquals(FoodPortionUnit.SERVING, result.getPortionUnit());
-        assertEquals(125.0, result.getNormalizedPortionGrams());
-        assertEquals(193.75, result.getSnapshotCalories());
-        assertEquals(16.25, result.getSnapshotProtein());
+        verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
     }
 
     @Test
@@ -601,7 +624,9 @@ class FoodLogsServiceImplTest {
         dto.setLogDate(LocalDateTime.now());
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
-        when(foodItemServingOptionRepository.findByIdAndFoodItem(5L, foodItem)).thenReturn(Optional.of(slice));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                5L, foodItem, FoodServingOptionQualityStatus.VERIFIED
+        )).thenReturn(Optional.of(slice));
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
         when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
             FoodLogsEntity entity = invocation.getArgument(0);
@@ -635,10 +660,40 @@ class FoodLogsServiceImplTest {
 
         when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        when(foodItemServingOptionRepository.findByIdAndFoodItem(99L, foodItem)).thenReturn(Optional.empty());
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                99L, foodItem, FoodServingOptionQualityStatus.VERIFIED
+        )).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class, () -> foodLogsService.addFoodLog(dto, "test@test.com"));
 
+        verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
+    }
+
+    @Test
+    void addFoodLog_whenServingOptionUnitConflictsWithPortionUnit_rejectsRequest() {
+        FoodItemServingOptionEntity bottle = new FoodItemServingOptionEntity();
+        bottle.setId(6L);
+        bottle.setFoodItem(foodItem);
+        bottle.setLabel("1 bottle");
+        bottle.setUnitType(FoodServingOptionUnit.BOTTLE);
+        bottle.setQuantity(1.0);
+        bottle.setGramWeight(330.0);
+
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setServingOptionId(6L);
+        dto.setPortionSize(1.0);
+        dto.setPortionUnit(FoodPortionUnit.SLICE);
+        dto.setMealType("snack");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                6L, foodItem, FoodServingOptionQualityStatus.VERIFIED
+        )).thenReturn(Optional.of(bottle));
+
+        assertThrows(IllegalArgumentException.class, () -> foodLogsService.addFoodLog(dto, "test@test.com"));
         verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
     }
 
@@ -866,4 +921,3 @@ class FoodLogsServiceImplTest {
                 () -> foodLogsService.getDailyStats("missing@test.com", start, end));
     }
 }
-

@@ -26,6 +26,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ConfigurableMailDeliveryServiceTest {
 
     @Test
+    void sendTransactionalTemplateUsesBrevoTemplateIdAndParams() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ConfigurableMailDeliveryService service = new ConfigurableMailDeliveryService(builder, brevoProperties());
+
+        server.expect(requestTo("https://api.brevo.com/v3/smtp/email"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"sender":{"email":"no-reply@grun.app","name":"GRUN"},
+                         "to":[{"email":"user@example.com"}],
+                         "templateId":101,
+                         "params":{"verificationUrl":"https://app.grun/verify"}}
+                        """))
+                .andRespond(withSuccess());
+
+        service.sendTransactionalTemplate("user@example.com", 101,
+                java.util.Map.of("verificationUrl", "https://app.grun/verify"),
+                "fallback", "fallback", "<p>fallback</p>");
+        server.verify();
+    }
+
+    @Test
     void sendTransactionalEmailUsesBrevoPayloadWhenProviderIsBrevo() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -39,14 +61,14 @@ class ConfigurableMailDeliveryServiceTest {
                         {
                           "sender": {
                             "email": "no-reply@grun.app",
-                            "name": "GRun"
+                            "name": "GRUN"
                           },
                           "to": [
                             {
                               "email": "user@example.com"
                             }
                           ],
-                          "subject": "Verify your GRun email",
+                          "subject": "Verify your GRUN email",
                           "textContent": "Verify text",
                           "htmlContent": "<p>Verify html</p>"
                         }
@@ -55,7 +77,7 @@ class ConfigurableMailDeliveryServiceTest {
 
         service.sendTransactionalEmail(
                 "user@example.com",
-                "Verify your GRun email",
+                "Verify your GRUN email",
                 "Verify text",
                 "<p>Verify html</p>"
         );
@@ -125,7 +147,7 @@ class ConfigurableMailDeliveryServiceTest {
         MailProperties properties = new MailProperties();
         properties.setProvider(MailProvider.BREVO);
         properties.setFromEmail("no-reply@grun.app");
-        properties.setFromName("GRun");
+        properties.setFromName("GRUN");
         properties.getBrevo().setApiKey("brevo-api-key");
         properties.getBrevo().setApiUrl("https://api.brevo.com/v3/smtp/email");
         return properties;

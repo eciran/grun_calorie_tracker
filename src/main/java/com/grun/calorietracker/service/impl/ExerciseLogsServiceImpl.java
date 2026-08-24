@@ -342,7 +342,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
 
     private String normalizeSource(String source, String defaultSource) {
         String normalized = trimToNull(source);
-        return normalized == null ? defaultSource : normalized.toUpperCase();
+        return normalized == null ? defaultSource : normalized.toUpperCase(java.util.Locale.ROOT);
     }
 
     private String normalizeRequired(String value, String message) {
@@ -350,7 +350,7 @@ public class ExerciseLogsServiceImpl implements ExerciseLogsService {
         if (normalized == null) {
             throw new IllegalArgumentException(message);
         }
-        return normalized.toUpperCase();
+        return normalized.toUpperCase(java.util.Locale.ROOT);
     }
 
     private String requireTrimmed(String value, String message) {

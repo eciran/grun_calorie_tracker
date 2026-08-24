@@ -22,4 +22,7 @@ public class MealTemplateItemRequestDto {
 
     @Schema(description = "Portion unit. Defaults to GRAM.", example = "SERVING")
     private FoodPortionUnit portionUnit;
+
+    @Schema(description = "Optional verified serving option belonging to the selected food item.", example = "5")
+    private Long servingOptionId;
 }

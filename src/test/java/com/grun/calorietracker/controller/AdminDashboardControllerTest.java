@@ -39,7 +39,7 @@ class AdminDashboardControllerTest {
     private AdminGrowthAnalyticsService growthAnalyticsService;
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = { "ROLE_ADMIN", "ADMIN_PERMISSION_DASHBOARD_READ", "ADMIN_PERMISSION_GROWTH_READ", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_TECHNICAL_READ" })
     void getSummary_whenAdmin_returnsDashboardMetrics() throws Exception {
         AdminDashboardSummaryDto summary = new AdminDashboardSummaryDto();
         summary.setTotalUsers(10);
@@ -104,7 +104,7 @@ class AdminDashboardControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = { "ROLE_ADMIN", "ADMIN_PERMISSION_DASHBOARD_READ", "ADMIN_PERMISSION_GROWTH_READ", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_TECHNICAL_READ" })
     void getGrowth_whenAdmin_returnsPrivacySafeDecisionMetrics() throws Exception {
         LocalDate from = LocalDate.of(2026, 7, 20);
         LocalDate to = LocalDate.of(2026, 7, 26);
@@ -145,6 +145,23 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.email").doesNotExist());
     }
 
+    @Test
+    @WithMockUser(username = "catalog@example.com", authorities = { "ROLE_ADMIN_CATALOG", "ADMIN_PERMISSION_DASHBOARD_READ", "ADMIN_PERMISSION_CATALOG_READ" })
+    void getSummary_whenCatalogAdmin_masksOtherCategoryMetrics() throws Exception {
+        AdminDashboardSummaryDto summary = new AdminDashboardSummaryDto();
+        summary.setTotalUsers(10);
+        summary.setTotalProducts(100);
+        summary.setActiveProSubscriptions(8);
+        summary.setAiRequestsLast7Days(12);
+        when(adminDashboardService.getSummary()).thenReturn(summary);
+
+        mockMvc.perform(get("/api/v1/admin/dashboard/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalProducts").value(100))
+                .andExpect(jsonPath("$.totalUsers").value(0))
+                .andExpect(jsonPath("$.activeProSubscriptions").value(0))
+                .andExpect(jsonPath("$.aiRequestsLast7Days").value(0));
+    }
     @Test
     @WithMockUser(username = "user@example.com", roles = "USER")
     void getSummary_whenNotAdmin_returnsForbidden() throws Exception {

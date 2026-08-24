@@ -12,7 +12,10 @@ public class MealTemplateItemDto {
     private String foodName;
     private Double portionSize;
     private FoodPortionUnit portionUnit;
+    private Long servingOptionId;
+    private String servingOptionLabel;
     private Double normalizedPortionGrams;
+    private Double normalizedPortionMilliliters;
 
     @Schema(description = "Calories for this template item using its stored portion.", example = "180.0")
     private Double calories;

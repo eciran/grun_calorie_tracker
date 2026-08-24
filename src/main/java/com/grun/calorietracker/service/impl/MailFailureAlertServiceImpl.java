@@ -6,9 +6,11 @@ import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.MailFailureAlertService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +24,7 @@ public class MailFailureAlertServiceImpl implements MailFailureAlertService {
 
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
     @Override
     public void notifyAdminForProviderFailure(String flowType, String recipientEmail, String errorMessage) {
@@ -55,6 +58,7 @@ public class MailFailureAlertServiceImpl implements MailFailureAlertService {
             return notification;
         }).toList();
 
-        notificationRepository.saveAll(notifications);
+        List<NotificationEntity> saved = notificationRepository.saveAll(notifications);
+        if (pushDeliveryService != null) saved.forEach(pushDeliveryService::deliver);
     }
 }

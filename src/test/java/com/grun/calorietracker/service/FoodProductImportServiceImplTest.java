@@ -13,6 +13,7 @@ import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -138,6 +139,7 @@ class FoodProductImportServiceImplTest {
         assertEquals("GRun Yogurt", inserted.getName());
         assertEquals(MarketRegion.TR, inserted.getMarketRegion());
         assertEquals(ImageStatus.NEEDS_REVIEW, inserted.getImageStatus());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, inserted.getNutritionReferenceUnit());
     }
 
     @Test
@@ -530,6 +532,29 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals("UK_IE:GENERIC_INGREDIENT:RAW:rolled_oats", savedProducts.get(1).getSourceKey());
         assertEquals(FoodPreparationState.RAW, savedProducts.get(1).getPreparationState());
     }
+
+    @Test
+    void importCsv_persistsLocalDishFamilyVariantAndCanonicalIdentity() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,calories,protein,fat,carbs,market_region,preparation_state,nutrition_basis,dish_family_key,dish_variant_key
+                LOCAL_DISH,TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli,Etli Kuru Fasulye,165,10,7,15,TR,PREPARED,ESTIMATED,kuru-fasulye,etli
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity dish = captor.getValue().get(0);
+        assertEquals("kuru_fasulye", dish.getDishFamilyKey());
+        assertEquals("etli", dish.getDishVariantKey());
+        assertEquals("TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli", dish.getCanonicalFoodKey());
+        assertEquals(null, dish.getBarcode());
+    }
+
 
 
     @Test

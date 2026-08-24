@@ -39,7 +39,7 @@ class AdminRevenueCatConfigControllerTest {
     private RevenueCatConfigurationService revenueCatConfigurationService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void getConfigStatus_whenAdmin_returnsSafeConfiguration() throws Exception {
         RevenueCatConfigStatusDto dto = new RevenueCatConfigStatusDto();
         dto.setWebhookAuthorizationConfigured(true);
@@ -62,7 +62,7 @@ class AdminRevenueCatConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void validateMapping_whenAdmin_returnsValidationResult() throws Exception {
         RevenueCatMappingValidationResponseDto response = new RevenueCatMappingValidationResponseDto();
         response.setRecognized(true);
@@ -88,7 +88,7 @@ class AdminRevenueCatConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void validateMapping_whenEventTypeMissing_returnsBadRequest() throws Exception {
         RevenueCatMappingValidationRequestDto request = new RevenueCatMappingValidationRequestDto();
         request.setProductId("grun_pro_monthly");

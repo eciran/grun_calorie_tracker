@@ -70,18 +70,52 @@ logging:
     com.grun.calorietracker: INFO
 
 grun:
+  product-intake:
+    rollout:
+      enabled: ${GRUN_PRODUCT_INTAKE_ROLLOUT_ENABLED:false}
+      kill-switch: ${GRUN_PRODUCT_INTAKE_KILL_SWITCH:false}
+      percentage: ${GRUN_PRODUCT_INTAKE_ROLLOUT_PERCENTAGE:0}
+      markets: ${GRUN_PRODUCT_INTAKE_ROLLOUT_MARKETS:}
+      internal-dogfood-emails: ${GRUN_PRODUCT_INTAKE_DOGFOOD_EMAILS:}
+      cohort-salt: ${GRUN_PRODUCT_INTAKE_COHORT_SALT:product-intake-v1}
   errors:
     include-internal-details: false
   food-contribution-storage:
     provider: ${GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER:S3}
     max-upload-bytes: ${GRUN_FOOD_CONTRIBUTION_MAX_UPLOAD_BYTES:6291456}
+    max-decoded-pixels: ${GRUN_FOOD_CONTRIBUTION_MAX_DECODED_PIXELS:24000000}
     allowed-content-types: ${GRUN_FOOD_CONTRIBUTION_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
     storage-directory: ${GRUN_FOOD_CONTRIBUTION_STORAGE_DIRECTORY:storage/food-contribution-evidence}
     private-base-url: ${GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL:https://api.grun.app}
+    upload-session-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_SESSION_TTL:20m}
+    upload-url-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_URL_TTL:10m}
+    admin-read-url-ttl: ${GRUN_FOOD_CONTRIBUTION_ADMIN_READ_URL_TTL:5m}
+    pending-retention-days: ${GRUN_FOOD_CONTRIBUTION_PENDING_RETENTION_DAYS:28}
+    approved-evidence-deletion-delay: ${GRUN_FOOD_CONTRIBUTION_APPROVED_DELETION_DELAY:24h}
+    rejected-evidence-retention: ${GRUN_FOOD_CONTRIBUTION_REJECTED_RETENTION:7d}
+    cleanup-batch-size: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_BATCH_SIZE:50}
+    cleanup-interval: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_INTERVAL:1h}
     s3:
+      endpoint: ${GRUN_FOOD_CONTRIBUTION_S3_ENDPOINT:}
+      jurisdiction: ${GRUN_FOOD_CONTRIBUTION_S3_JURISDICTION:}
+      access-key: ${GRUN_FOOD_CONTRIBUTION_S3_ACCESS_KEY:}
+      secret-key: ${GRUN_FOOD_CONTRIBUTION_S3_SECRET_KEY:}
       bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
       region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
-      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:product-contributions}
+      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:pending/product-intakes}
+      path-style-access: ${GRUN_FOOD_CONTRIBUTION_S3_PATH_STYLE_ACCESS:false}
+  media-storage:
+    provider: ${GRUN_MEDIA_STORAGE_PROVIDER:S3}
+    local-directory: ${GRUN_MEDIA_STORAGE_LOCAL_DIRECTORY:storage/media}
+    root-prefix: ${GRUN_MEDIA_STORAGE_ROOT_PREFIX:grun}
+    public-base-url: ${GRUN_MEDIA_STORAGE_PUBLIC_BASE_URL:https://api.grun.app}
+    s3:
+      endpoint: ${GRUN_MEDIA_STORAGE_S3_ENDPOINT:}
+      access-key: ${GRUN_MEDIA_STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${GRUN_MEDIA_STORAGE_S3_SECRET_KEY:}
+      bucket: ${GRUN_MEDIA_STORAGE_S3_BUCKET:}
+      region: ${GRUN_MEDIA_STORAGE_S3_REGION:eu-west-1}
+      path-style-access: ${GRUN_MEDIA_STORAGE_S3_PATH_STYLE_ACCESS:false}
   recipe-media:
     image:
       max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
@@ -94,12 +128,14 @@ grun:
       allowed-content-types: ${GRUN_PROFILE_AVATAR_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
       storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
       public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
+  admin-password-reset:
+    base-url: ${GRUN_ADMIN_PASSWORD_RESET_BASE_URL}
   security:
     admin-session:
       idle-timeout: ${GRUN_ADMIN_SESSION_IDLE_TIMEOUT:15m}
       absolute-timeout: ${GRUN_ADMIN_SESSION_ABSOLUTE_TIMEOUT:8h}
       secure-cookie: ${GRUN_ADMIN_SESSION_SECURE_COOKIE:true}
-    admin-mfa-required: ${GRUN_SECURITY_ADMIN_MFA_REQUIRED:false}
+    admin-mfa-required: ${GRUN_SECURITY_ADMIN_MFA_REQUIRED:true}
     owner-bootstrap:
       enabled: ${GRUN_OWNER_BOOTSTRAP_ENABLED:false}
       primary-email: ${GRUN_OWNER_PRIMARY_EMAIL:}
@@ -178,6 +214,13 @@ grun:
       enabled: true
     account-link:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_ACCOUNT_LINK_MAX_REQUESTS_PER_MINUTE:5}
+    product-intake:
+      upload:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_UPLOAD_MAX_REQUESTS_PER_MINUTE:6}
+      finalize:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_FINALIZE_MAX_REQUESTS_PER_MINUTE:12}
+      evidence-read:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_EVIDENCE_READ_MAX_REQUESTS_PER_MINUTE:30}
   revenuecat:
     strict-product-mapping: true
     api:
@@ -192,3 +235,7 @@ grun:
     demo-seed:
       enabled: false
 
+
+  admin-invitation:
+    expiration-hours: ${GRUN_ADMIN_INVITATION_EXPIRATION_HOURS:48}
+    base-url: ${GRUN_ADMIN_INVITATION_BASE_URL:https://admin.grun.app/?adminInvitation=true}

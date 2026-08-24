@@ -66,3 +66,13 @@ frontend_fasting_uyum_analizi_2026-06-23.txt
 frontend_edit_profile_uyum_notu_2026-06-22.txt
 storage/
 frontend_*_uyum_*.txt
+
+# Local build, deployment and generated workspace artifacts
+.codex-deploy/
+.m2/
+.m2-codex/
+.stfolder/
+__pycache__/
+**/__pycache__/
+tmp/
+output/

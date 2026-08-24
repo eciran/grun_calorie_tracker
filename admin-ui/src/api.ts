@@ -19,12 +19,14 @@ export type PageResponse<T> = {
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly path: string;
+  readonly correlationId?: string;
 
-  constructor(message: string, status: number, path: string) {
+  constructor(message: string, status: number, path: string, correlationId?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.path = path;
+    this.correlationId = correlationId;
   }
 }
 
@@ -33,6 +35,7 @@ const AUTH_CHANNEL = "grun-admin-auth";
 const UNAUTHORIZED_EVENT = "grun-admin-unauthorized";
 const ACTIVITY_EVENT = "grun-admin-activity";
 const REAUTH_EVENT = "grun-admin-reauth-required";
+const REAUTH_RESULT_EVENT = "grun-admin-reauth-result";
 let reauthCodeResolver: ((code: string | null) => void) | null = null;
 const DEFAULT_TIMEOUT_MS = 20000;
 
@@ -65,6 +68,7 @@ function requestReauthCode(purpose: string): Promise<string | null> {
 }
 export function resolveAdminReauth(code: string | null) { const resolver = reauthCodeResolver; reauthCodeResolver = null; resolver?.(code); }
 export function subscribeAdminReauth(handler: (purpose: string) => void): () => void { const listener = (event: Event) => handler(String((event as CustomEvent).detail?.purpose ?? "")); window.addEventListener(REAUTH_EVENT, listener); return () => window.removeEventListener(REAUTH_EVENT, listener); }
+export function subscribeAdminReauthResult(handler: (result: { success: boolean; message?: string }) => void): () => void { const listener = (event: Event) => handler((event as CustomEvent).detail ?? { success: false }); window.addEventListener(REAUTH_RESULT_EVENT, listener); return () => window.removeEventListener(REAUTH_RESULT_EVENT, listener); }
 
 export function isUnauthorizedError(error: unknown): boolean {
   return error instanceof ApiRequestError && error.status === 401;
@@ -73,8 +77,8 @@ export function isUnauthorizedError(error: unknown): boolean {
 export function formatRequestError(error: unknown): string {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) return "Session expired. Please sign in again.";
-    if (error.status === 403) return "This account does not have admin permission for this action.";
-    return error.message;
+    if (error.status === 403) return error.message || "This account does not have admin permission for this action.";
+    return error.correlationId ? `${error.message} (Reference: ${error.correlationId})` : error.message;
   }
   if (error instanceof Error) return error.message;
   return "Request failed";
@@ -140,15 +144,27 @@ export async function request<T>(
       const purpose = String((data as Record<string, unknown>).requiredPurpose ?? "");
       const code = await requestReauthCode(purpose);
       if (code && purpose) {
-        const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", { method: "POST", body: { code, purpose }, reauthRetry: false });
-        if (proof.token) return request<T>(path, { ...options, headers: { ...options.headers, "X-Admin-Reauth-Token": proof.token }, reauthRetry: false });
+        try {
+          const proof = await request<{ token?: string }>("/api/v1/admin/security/mfa/reauthenticate", { method: "POST", body: { code, purpose }, reauthRetry: false });
+          if (proof.token) {
+            window.dispatchEvent(new CustomEvent(REAUTH_RESULT_EVENT, { detail: { success: true } }));
+            return request<T>(path, { ...options, headers: { ...options.headers, "X-Admin-Reauth-Token": proof.token }, reauthRetry: false });
+          }
+        } catch (error) {
+          const message = error instanceof ApiRequestError && error.status === 400
+            ? `Authenticator or recovery code is invalid.${error.correlationId ? ` (Reference: ${error.correlationId})` : ""}`
+            : formatRequestError(error);
+          window.dispatchEvent(new CustomEvent(REAUTH_RESULT_EVENT, { detail: { success: false, message } }));
+          return request<T>(path, options);
+        }
       }
     }
     if (response.status === 401) {
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     }
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
-    throw new ApiRequestError(message, response.status, path);
+    const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
+    throw new ApiRequestError(message, response.status, path, correlationId);
   }
   return data as T;
 }
@@ -186,7 +202,8 @@ export async function requestFormData<T>(
   if (!response.ok) {
     if (response.status === 401) window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
-    throw new ApiRequestError(message, response.status, path);
+    const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
+    throw new ApiRequestError(message, response.status, path, correlationId);
   }
   window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT));
   return data as T;
@@ -237,7 +254,8 @@ export async function requestBlob(
       }
     }
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
-    throw new ApiRequestError(message, response.status, path);
+    const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
+    throw new ApiRequestError(message, response.status, path, correlationId);
   }
   window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT));
   return response.blob();

@@ -114,7 +114,10 @@ if ($candidateByQuery.Count -ne $expectedQueries.Count) {
     $unexpected = @($candidateByQuery.Keys | Where-Object { -not $expectedQueries.Contains($_) })
     throw "Candidate query count differs from manifest. Unexpected: $($unexpected -join ', ')"
 }
-if ($seedRows.Count -ne 146 -or $selections.Count -ne 146) { throw "Expected 146 variants, got $($seedRows.Count)" }
+$expectedVariantCount = if ($null -ne $manifest.expectedVariants) { [int]$manifest.expectedVariants } else { 146 }
+if ($seedRows.Count -ne $expectedVariantCount -or $selections.Count -ne $expectedVariantCount) {
+    throw "Expected $expectedVariantCount variants, got $($seedRows.Count)"
+}
 
 $headers = @($seedRows[0].Keys)
 $csvLines = [Collections.Generic.List[string]]::new()

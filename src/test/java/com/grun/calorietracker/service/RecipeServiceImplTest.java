@@ -9,12 +9,16 @@ import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeReportDto;
 import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.RecipeReportEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
+import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.RecipeAllergen;
@@ -25,6 +29,7 @@ import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.DuplicateRecipePublicationRequestException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeReportRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
@@ -56,6 +61,8 @@ class RecipeServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private FoodItemRepository foodItemRepository;
+    @Mock
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
     @Mock
     private RecipeRepository recipeRepository;
     @Mock
@@ -133,6 +140,120 @@ class RecipeServiceImplTest {
         when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user()));
 
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe("user@test.com", request));
+    }
+
+    @Test
+    void createRecipe_withVerifiedProductServingOption_preservesSelectionAndConversion() {
+        UserEntity user = user();
+        FoodItemEntity lentils = product();
+        FoodItemServingOptionEntity option = new FoodItemServingOptionEntity();
+        option.setId(41L);
+        option.setFoodItem(lentils);
+        option.setLabel("1 slice");
+        option.setUnitType(FoodServingOptionUnit.SLICE);
+        option.setGramWeight(35.0);
+        option.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
+        RecipeRequestDto request = recipeRequest(70.0, 70.0, 1);
+        RecipeIngredientRequestDto ingredient = request.getIngredients().get(0);
+        ingredient.setPortionSize(2.0);
+        ingredient.setPortionUnit(FoodPortionUnit.SLICE);
+        ingredient.setServingOptionId(41L);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(lentils));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                41L, lentils, FoodServingOptionQualityStatus.VERIFIED)).thenReturn(Optional.of(option));
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RecipeDto result = service.createRecipe("user@test.com", request);
+
+        assertEquals(41L, result.getIngredients().get(0).getServingOptionId());
+        assertEquals("1 slice", result.getIngredients().get(0).getServingOptionLabel());
+        assertEquals(70.0, result.getIngredients().get(0).getNormalizedPortionGrams());
+    }
+
+    @Test
+    void createRecipe_withPer100MlProduct_usesMillilitersForNutritionFactor() {
+        UserEntity user = user();
+        FoodItemEntity drink = product();
+        drink.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
+        drink.setCalories(45.0);
+        RecipeRequestDto request = recipeRequest(200.0, 200.0, 1);
+        RecipeIngredientRequestDto ingredient = request.getIngredients().get(0);
+        ingredient.setPortionSize(200.0);
+        ingredient.setPortionUnit(FoodPortionUnit.MILLILITER);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(drink));
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RecipeDto result = service.createRecipe("user@test.com", request);
+
+        assertEquals(90.0, result.getTotalNutrition().getCalories());
+        assertEquals(200.0, result.getIngredients().get(0).getNormalizedPortionMilliliters());
+    }
+
+    @Test
+    void createRecipe_withUnverifiedOrForeignServingOption_rejectsRequest() {
+        UserEntity user = user();
+        FoodItemEntity lentils = product();
+        RecipeRequestDto request = recipeRequest(70.0, 70.0, 1);
+        RecipeIngredientRequestDto ingredient = request.getIngredients().get(0);
+        ingredient.setPortionSize(2.0);
+        ingredient.setPortionUnit(FoodPortionUnit.SLICE);
+        ingredient.setServingOptionId(41L);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(lentils));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                41L, lentils, FoodServingOptionQualityStatus.VERIFIED)).thenReturn(Optional.empty());
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createRecipe("user@test.com", request)
+        );
+
+        assertEquals("Serving option must belong to the selected food item and be verified.", error.getMessage());
+    }
+
+    @Test
+    void createRecipe_withIncompatibleServingOptionUnit_rejectsRequest() {
+        UserEntity user = user();
+        FoodItemEntity lentils = product();
+        FoodItemServingOptionEntity option = new FoodItemServingOptionEntity();
+        option.setId(41L);
+        option.setFoodItem(lentils);
+        option.setUnitType(FoodServingOptionUnit.TABLESPOON);
+        option.setGramWeight(15.0);
+        option.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
+        RecipeRequestDto request = recipeRequest(70.0, 70.0, 1);
+        RecipeIngredientRequestDto ingredient = request.getIngredients().get(0);
+        ingredient.setPortionSize(2.0);
+        ingredient.setPortionUnit(FoodPortionUnit.SLICE);
+        ingredient.setServingOptionId(41L);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(lentils));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(
+                41L, lentils, FoodServingOptionQualityStatus.VERIFIED)).thenReturn(Optional.of(option));
+
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe("user@test.com", request));
+    }
+
+    @Test
+    void createRecipe_withServingOptionOnSnapshotIngredient_rejectsRequest() {
+        UserEntity user = user();
+        RecipeIngredientRequestDto ingredient = new RecipeIngredientRequestDto();
+        ingredient.setSnapshotFoodName("estimated soup");
+        ingredient.setPortionSize(1.0);
+        ingredient.setPortionUnit(FoodPortionUnit.SERVING);
+        ingredient.setServingOptionId(41L);
+        RecipeRequestDto request = recipeRequest(200.0, 200.0, 1);
+        request.setIngredients(List.of(ingredient));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createRecipe("user@test.com", request)
+        );
+
+        assertEquals("Serving option requires a catalog food item.", error.getMessage());
     }
 
     @Test

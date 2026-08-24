@@ -13,5 +13,6 @@ public class FoodLogRecentPortionDto {
     private Long servingOptionId;
     private String servingOptionLabel;
     private Double normalizedPortionGrams;
+    private Double normalizedPortionMilliliters;
     private FoodLogSource source;
 }

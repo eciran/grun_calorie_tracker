@@ -4,16 +4,19 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.Test;
@@ -51,10 +54,15 @@ class FoodItemServiceImplTest {
     private FoodItemServingOptionRepository foodItemServingOptionRepository;
 
     @Mock
+    private FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository;
+
+    @Mock
     private OpenFoodFactsService openFoodFactsService;
 
     @Mock
     private FoodProductEvidenceService foodProductEvidenceService;
+    @Mock
+    private CatalogPublicationService catalogPublicationService;
 
     @Mock
     private FoodProductQualityIssueTracker foodProductQualityIssueTracker;
@@ -115,7 +123,8 @@ class FoodItemServiceImplTest {
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
-        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode("3017620422003");
 
@@ -128,7 +137,7 @@ class FoodItemServiceImplTest {
         assertEquals(ImageSource.OPEN_FOOD_FACTS, result.getImageSource());
         assertEquals(ImageStatus.NEEDS_REVIEW, result.getImageStatus());
         assertEquals(MarketRegion.UK_IE, result.getMarketRegion());
-        verify(foodItemRepository).save(any(FoodItemEntity.class));
+        verify(catalogPublicationService).publishNew(any(FoodItemEntity.class), any(), any(), any());
         verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 
@@ -141,7 +150,8 @@ class FoodItemServiceImplTest {
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
-        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         FoodItemEntity result = foodItemService.getOrSaveFoodItemByBarcode(" 301-762 0422003 ");
 
@@ -169,6 +179,29 @@ class FoodItemServiceImplTest {
 
         assertEquals(12L, result.getId());
         assertEquals("Greek yogurt", result.getProductName());
+    }
+
+    @Test
+    void getFoodItemById_whenTurkishRequested_returnsLocalizedDetailName() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(12L);
+        product.setName("Chicken Breast");
+        product.setIsCustom(false);
+        FoodItemLocalizationEntity localization = new FoodItemLocalizationEntity();
+        localization.setFoodItem(product);
+        localization.setLanguage(PreferredLanguage.TR);
+        localization.setDisplayName("Tavuk Göğsü");
+        localization.setShortDisplayName("Tavuk Göğsü");
+        localization.setActive(true);
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(12L, PreferredLanguage.TR))
+                .thenReturn(Optional.of(localization));
+
+        FoodProductDto result = foodItemService.getFoodItemById(12L, "user@example.com", PreferredLanguage.TR);
+
+        assertEquals(PreferredLanguage.TR, result.getLanguage());
+        assertEquals("Tavuk Göğsü", result.getProductName());
+        assertEquals("Tavuk Göğsü", result.getDisplayName());
     }
 
     @Test
@@ -267,7 +300,7 @@ class FoodItemServiceImplTest {
         when(openFoodFactsService.searchProductsByCriteria(criteria)).thenReturn(List.of(externalProduct));
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
-        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> {
+        when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any())).thenAnswer(invocation -> {
             FoodItemEntity entity = invocation.getArgument(0);
             entity.setId(10L);
             return entity;
@@ -281,7 +314,7 @@ class FoodItemServiceImplTest {
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, result.getContent().get(0).getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getContent().get(0).getVerificationStatus());
         verify(openFoodFactsService).searchProductsByCriteria(criteria);
-        verify(foodItemRepository).save(any(FoodItemEntity.class));
+        verify(catalogPublicationService).publishNew(any(FoodItemEntity.class), any(), any(), any());
         verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
 

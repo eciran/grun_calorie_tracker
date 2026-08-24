@@ -1,9 +1,11 @@
 package com.grun.calorietracker.entity;
 
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -37,6 +39,13 @@ public class FoodItemEntity {
     private String normalizedBarcode;
     private String sourceKey;
     private String canonicalFoodKey;
+
+    @Column(name = "dish_family_key", length = 160)
+    private String dishFamilyKey;
+
+    @Column(name = "dish_variant_key", length = 160)
+    private String dishVariantKey;
+
     private String brand;
     private String imageUrl;
     private String externalImageUrl;
@@ -52,6 +61,10 @@ public class FoodItemEntity {
 
     @Enumerated(EnumType.STRING)
     private VerificationStatus verificationStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private CatalogPublicationStatus publicationStatus;
 
     @Enumerated(EnumType.STRING)
     private ImageSource imageSource;
@@ -74,8 +87,11 @@ public class FoodItemEntity {
     @Enumerated(EnumType.STRING)
     private FoodNutritionBasis nutritionBasis;
 
+    @Enumerated(EnumType.STRING)
+    private FoodNutritionReferenceUnit nutritionReferenceUnit;
+
     private Long usageCount;
-    private Long searchSelectionCount;
+    private Long searchSelectionCount = 0L;
     private Integer qualityScore;
     private Integer confidenceScore;
     private Boolean autoApprovedForCatalog;
@@ -140,5 +156,19 @@ public class FoodItemEntity {
 
     @OneToMany(mappedBy = "foodItem", fetch = FetchType.LAZY)
     private Set<FoodItemSearchAliasEntity> searchAliases = new HashSet<>();
+
+    @PrePersist
+    void initializePublicationStatus() {
+        if (publicationStatus != null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(isCustom)) {
+            publicationStatus = CatalogPublicationStatus.PRIVATE_USER;
+        } else if (verificationStatus == VerificationStatus.REJECTED) {
+            publicationStatus = CatalogPublicationStatus.HIDDEN;
+        } else {
+            publicationStatus = CatalogPublicationStatus.PUBLISHED;
+        }
+    }
 }
 

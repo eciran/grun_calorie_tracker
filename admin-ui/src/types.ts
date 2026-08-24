@@ -1509,6 +1509,30 @@ export type AdminGdprRequestPage = {
   first: boolean;
   last: boolean;
 };
+export type TestFeedbackStatus = "NEW" | "REVIEWING" | "FIX_PLANNED" | "FIXED" | "RETEST_NEEDED" | "CLOSED";
+export type TestFeedbackType = "WORKS_WELL" | "PROBLEM" | "IMPROVEMENT";
+export type TestFeedbackPlatform = "ANDROID" | "IOS";
+export type AdminTestFeedback = {
+  id: number; userEmail: string; feedbackType: TestFeedbackType; status: TestFeedbackStatus;
+  platform: TestFeedbackPlatform; route: string; previousRoute?: string | null; description?: string | null;
+  appVersion?: string | null; buildNumber?: string | null; easBuildId?: string | null; commitSha?: string | null;
+  osVersion?: string | null; deviceModel?: string | null; languageTag?: string | null; marketRegion?: string | null;
+  lastHttpStatus?: number | null; lastHttpDurationMs?: number | null; lastCorrelationId?: string | null;
+  networkState?: string | null; screenshotAvailable: boolean; screenshotExpiresAt?: string | null;
+  screenshotState?: "NOT_PROVIDED" | "PENDING" | "ATTACHED" | "FAILED";
+  screenshotEvents?: Array<{ eventType: string; outcome: string; reportedSizeBytes?: number | null; actualSizeBytes?: number | null; contentType?: string | null; errorCode?: string | null; detail?: string | null; createdAt: string }>;
+  adminNote?: string | null; reviewedByEmail?: string | null;
+  reviewedAt?: string | null; createdAt: string; updatedAt: string;
+};
+export type AdminTestFeedbackPage = {
+  content: AdminTestFeedback[]; page: number; size: number; totalElements: number;
+  totalPages: number; first: boolean; last: boolean;
+};
+export type AdminTestFeedbackAnalytics = {
+  total: number; lastSevenDays: number; httpFailures: number; slowRequests: number;
+  byStatus: Record<string, number>; byType: Record<string, number>; byPlatform: Record<string, number>;
+  byRoute: Record<string, number>; byBuild: Record<string, number>;
+};
 export type ProductionVerificationRun = {
   id: number;
   provider: "REVENUECAT" | "BREVO" | "PUSH" | "DATABASE" | "CLOUD";

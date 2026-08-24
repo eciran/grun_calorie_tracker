@@ -190,8 +190,15 @@ public class FoodItemController {
     })
     public ResponseEntity<FoodProductDto> getProductById(
             @Parameter(description = "Food product id.", example = "12") @PathVariable Long id,
+            @Parameter(description = "Preferred response language. Defaults to user profile language, then Accept-Language, then EN.", example = "TR")
+            @RequestParam(required = false) PreferredLanguage language,
+            @RequestHeader(name = "Accept-Language", required = false) String acceptLanguage,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(foodItemService.getFoodItemById(id, userDetails.getUsername()));
+        return ResponseEntity.ok(foodItemService.getFoodItemById(
+                id,
+                userDetails.getUsername(),
+                resolveSearchLanguage(language, acceptLanguage, userDetails)
+        ));
     }
 
     @GetMapping("/{id}/serving-options")
@@ -206,8 +213,15 @@ public class FoodItemController {
     })
     public ResponseEntity<java.util.List<FoodServingOptionDto>> getServingOptions(
             @Parameter(description = "Food product id.", example = "12") @PathVariable Long id,
+            @Parameter(description = "Preferred response language. Defaults to user profile language, then Accept-Language, then EN.", example = "TR")
+            @RequestParam(required = false) PreferredLanguage language,
+            @RequestHeader(name = "Accept-Language", required = false) String acceptLanguage,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(foodServingOptionService.getServingOptions(id, userDetails.getUsername()));
+        return ResponseEntity.ok(foodServingOptionService.getServingOptions(
+                id,
+                userDetails.getUsername(),
+                resolveSearchLanguage(language, acceptLanguage, userDetails)
+        ));
     }
 
     @PostMapping("/{id}/correction-suggestions")

@@ -27,9 +27,12 @@ import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.AiCreditPricingService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.PushDeliveryService;
+import com.grun.calorietracker.config.MailProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -57,6 +60,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final NotificationRepository notificationRepository;
     private final MailDeliveryService mailDeliveryService;
     private final AiCreditPricingService aiCreditPricingService;
+    @Autowired(required = false) private MailProperties mailProperties;
+    @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
     @Override
     public SubscriptionDto getCurrentSubscription(String email) {
@@ -701,7 +706,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             notification.setPrimaryAction("MANAGE_SUBSCRIPTION");
             notification.setIsRead(false);
             notification.setCreatedAt(LocalDateTime.now());
-            notificationRepository.save(notification);
+            NotificationEntity savedNotification = notificationRepository.save(notification);
+            if (pushDeliveryService != null) pushDeliveryService.deliver(savedNotification);
             sendFeatureRemovalEmail(user, planType, feature, effectiveFrom, entitlement.getValidUntil());
         }
     }
@@ -714,14 +720,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (user.getEmail() == null || user.getEmail().isBlank()) {
             return;
         }
-        String subject = "Your GRun plan feature is changing";
+        String subject = "Your GRUN plan feature is changing";
         String textBody = """
                 Hi,
 
                 We are changing %s availability for the %s plan from %s.
                 Your current access remains available until your current subscription period ends%s.
 
-                GRun
+                GRUN
                 """.formatted(
                 feature.name(),
                 planType.name(),
@@ -729,18 +735,32 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 validUntil == null ? "" : " on " + validUntil
         );
         try {
-            sendEmailAfterCommit(user, subject, textBody);
+            sendEmailAfterCommit(user, subject, textBody, planType, feature, effectiveFrom, validUntil);
         } catch (RuntimeException ex) {
             log.warn("Subscription feature change email could not be sent to userId={}", user.getId(), ex);
         }
     }
 
-    private void sendEmailAfterCommit(UserEntity user, String subject, String textBody) {
+    private void sendEmailAfterCommit(UserEntity user, String subject, String textBody,
+                                      SubscriptionPlan planType, SubscriptionFeature feature,
+                                      LocalDate effectiveFrom, LocalDate validUntil) {
         String email = user.getEmail();
         Long userId = user.getId();
         Runnable mailTask = () -> {
             try {
-                mailDeliveryService.sendTransactionalEmail(email, subject, textBody);
+                if (mailProperties == null) {
+                    mailDeliveryService.sendTransactionalEmail(email, subject, textBody);
+                    return;
+                }
+                boolean turkish = user.getPreferredLanguage() == PreferredLanguage.TR;
+                long templateId = turkish
+                        ? mailProperties.getBrevo().getTemplates().getSubscriptionFeatureChangeTr()
+                        : mailProperties.getBrevo().getTemplates().getSubscriptionFeatureChangeEn();
+                mailDeliveryService.sendTransactionalTemplate(email, templateId, Map.of(
+                        "feature", feature.name(), "plan", planType.name(),
+                        "effectiveFrom", effectiveFrom.toString(),
+                        "validUntil", validUntil == null ? "" : validUntil.toString()
+                ), subject, textBody, null);
             } catch (RuntimeException ex) {
                 log.warn("Subscription feature change email could not be sent to userId={}", userId, ex);
             }

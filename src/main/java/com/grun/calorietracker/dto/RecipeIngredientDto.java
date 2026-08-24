@@ -8,11 +8,14 @@ import lombok.Data;
 @Schema(description = "Ingredient response item for a recipe.")
 public class RecipeIngredientDto {
     private Long foodItemId;
+    private Long servingOptionId;
+    private String servingOptionLabel;
     private String foodName;
     private Boolean snapshotIngredient;
     private Double portionSize;
     private FoodPortionUnit portionUnit;
     private Double normalizedPortionGrams;
+    private Double normalizedPortionMilliliters;
     private Double snapshotCalories;
     private Double snapshotProtein;
     private Double snapshotCarbs;

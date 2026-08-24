@@ -16,6 +16,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminSessionService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +42,7 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     @Autowired(required=false) private AdminAuditService auditService;
     @Autowired(required=false) private NotificationRepository notifications;
     @Autowired(required=false) private UserRepository users;
+    @Autowired(required=false) private PushDeliveryService pushDeliveryService;
     @Value("${grun.security.owner-bootstrap.primary-email:}") private String primaryOwnerEmail;
     @Value("${grun.security.admin-session.idle-timeout:15m}") private Duration idleTimeout;
     @Value("${grun.security.admin-session.absolute-timeout:8h}") private Duration absoluteTimeout;
@@ -132,7 +134,7 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     @Override @Transactional public void revokeAllForUser(UserEntity user) { sessions.findByUserAndRevokedAtIsNull(user).forEach(s -> s.setRevokedAt(Instant.now())); }
 
     private AdminSessionEntity ownedSession(String email,String id){return sessions.findById(id).filter(s->s.getRevokedAt()==null&&s.getUser().getEmail().equalsIgnoreCase(email)).orElseThrow(()->new IllegalArgumentException("Admin session was not found."));}
-    private void notifyPrimaryOwner(String title,String message,AdminSessionEntity session){if(notifications==null||users==null||primaryOwnerEmail==null||primaryOwnerEmail.isBlank())return;users.findByEmail(primaryOwnerEmail).ifPresent(primary->{NotificationEntity n=new NotificationEntity();n.setUser(primary);n.setTitle(title);n.setMessage(message);n.setNote("Device: "+session.getDeviceLabel()+" | Network: "+session.getMaskedIp());n.setType("admin_security_alert");n.setSeverity("CRITICAL");n.setSource("ADMIN_SECURITY");n.setTargetType("ADMIN_SESSION");n.setTargetId(session.getId());n.setTargetRoute("admins");n.setVisibleInApp(true);n.setIsRead(false);n.setCreatedAt(LocalDateTime.now());notifications.save(n);});}
+    private void notifyPrimaryOwner(String title,String message,AdminSessionEntity session){if(notifications==null||users==null||primaryOwnerEmail==null||primaryOwnerEmail.isBlank())return;users.findByEmail(primaryOwnerEmail).ifPresent(primary->{NotificationEntity n=new NotificationEntity();n.setUser(primary);n.setTitle(title);n.setMessage(message);n.setNote("Device: "+session.getDeviceLabel()+" | Network: "+session.getMaskedIp());n.setType("admin_security_alert");n.setSeverity("CRITICAL");n.setSource("ADMIN_SECURITY");n.setTargetType("ADMIN_SESSION");n.setTargetId(session.getId());n.setTargetRoute("admins");n.setVisibleInApp(true);n.setIsRead(false);n.setCreatedAt(LocalDateTime.now());NotificationEntity saved=notifications.save(n);if(pushDeliveryService!=null)pushDeliveryService.deliver(saved);});}
     private void audit(String email,AdminAuditActionType action,String id,String reason,String correlationId){if(auditService!=null)auditService.record(email,action,AdminAuditTargetType.ADMIN_SESSION,id,null,Map.of("reason",reason),correlationId);}
     private void requireUsable(AdminSessionEntity s,Instant now) { UserEntity u=s.getUser(); if(s.getRevokedAt()!=null || !s.getAbsoluteExpiresAt().isAfter(now) || !s.getLastActivityAt().plus(idleTimeout).isAfter(now) || !Boolean.TRUE.equals(u.getAccountEnabled()) || Boolean.TRUE.equals(u.getAccountLocked()) || u.getRole()==null || !u.getRole().isAdminRole()) { if(s.getRevokedAt()==null) s.setRevokedAt(now); throw new IllegalArgumentException("Admin session is invalid or expired."); } }
     private AuthResponse response(AdminSessionEntity s,String message) { String jwt=jwtUtil.generateAdminSessionToken(s.getUser().getEmail(),s.getId(),s.getAbsoluteExpiresAt()); return new AuthResponse(jwt,null,"Bearer",jwtUtil.getExpirationSeconds(),message); }

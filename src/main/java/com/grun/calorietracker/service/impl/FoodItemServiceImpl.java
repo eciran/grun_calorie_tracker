@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
@@ -29,6 +30,7 @@ import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.service.FoodItemService;
+import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
 import com.grun.calorietracker.service.FoodProductEvidenceService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
@@ -67,6 +69,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
 
     private final FoodProductEvidenceService foodProductEvidenceService;
+    private final CatalogPublicationService catalogPublicationService;
     private PostgresFoodSearchCandidateProvider postgresFoodSearchCandidateProvider;
     public FoodItemServiceImpl(
             FoodItemRepository foodItemRepository,
@@ -75,7 +78,8 @@ public class FoodItemServiceImpl implements FoodItemService {
             FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository,
             OpenFoodFactsService openFoodFactsService,
             FoodProductQualityIssueTracker foodProductQualityIssueTracker,
-            FoodProductEvidenceService foodProductEvidenceService
+            FoodProductEvidenceService foodProductEvidenceService,
+            CatalogPublicationService catalogPublicationService
     ) {
         this.foodItemRepository = foodItemRepository;
         this.foodItemLocalizationRepository = foodItemLocalizationRepository;
@@ -84,6 +88,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         this.openFoodFactsService = openFoodFactsService;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
         this.foodProductEvidenceService = foodProductEvidenceService;
+        this.catalogPublicationService = catalogPublicationService;
     }
 
     @Autowired(required = false)
@@ -101,7 +106,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         java.util.Optional<FoodItemEntity> localProduct = findByNormalizedBarcode(normalizedBarcode);
         if (localProduct.isPresent()) {
             FoodItemEntity product = localProduct.get();
-            if (isRejected(product)) {
+            if (isRejected(product) || !isPublished(product)) {
                 throw new ProductNotFoundException("Product is not available for barcode: " + normalizedBarcode);
             }
             return product;
@@ -121,12 +126,19 @@ public class FoodItemServiceImpl implements FoodItemService {
     @Transactional(readOnly = true)
     @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + @foodProductCacheUserScopeResolver.resolve(#email)", unless = "#result == null")
     public FoodProductDto getFoodItemById(Long id, String email) {
+        return getFoodItemById(id, email, PreferredLanguage.EN);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + @foodProductCacheUserScopeResolver.resolve(#email) + ':' + (#language == null ? 'EN' : #language.name())", unless = "#result == null")
+    public FoodProductDto getFoodItemById(Long id, String email, PreferredLanguage language) {
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
         if (isRejected(product) || !isVisibleToUser(product, email)) {
             throw new ProductNotFoundException("Product not found: " + id);
         }
-        return toProductDto(product);
+        return toProductDto(product, language);
     }
 
     @Override
@@ -172,6 +184,10 @@ public class FoodItemServiceImpl implements FoodItemService {
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.equal(
+                    root.get("publicationStatus"),
+                    CatalogPublicationStatus.PUBLISHED
+            ));
             predicates.add(criteriaBuilder.or(
                     criteriaBuilder.isNull(root.get("verificationStatus")),
                     criteriaBuilder.notEqual(root.get("verificationStatus"), VerificationStatus.REJECTED)
@@ -202,6 +218,10 @@ public class FoodItemServiceImpl implements FoodItemService {
                             root.get("canonicalFoodKey")
                     ),
                     criteriaBuilder.notEqual(resolvedPrimary, root),
+                    criteriaBuilder.equal(
+                            resolvedPrimary.get("publicationStatus"),
+                            CatalogPublicationStatus.PUBLISHED
+                    ),
                     visibleVerificationStatusPredicate(resolvedPrimary, criteriaBuilder),
                     criticalNutritionEligibilityPredicate(resolvedPrimary, criteriaBuilder),
                     criteriaBuilder.not(resolvedPrimary.get("id").in(blockedPrimaryIdsSubquery))
@@ -902,7 +922,12 @@ public class FoodItemServiceImpl implements FoodItemService {
                 .orElseThrow(() -> new ProductNotFoundException("Product not found for barcode: " + barcode));
 
         FoodItemEntity entity = buildImportedFoodItem(externalProduct, barcode);
-        FoodItemEntity saved = foodItemRepository.save(entity);
+        FoodItemEntity saved = catalogPublicationService.publishNew(
+                entity,
+                "system:open-food-facts",
+                "Trusted barcode lookup import",
+                null
+        );
         foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
         recordOpenFoodFactsEvidence(saved);
         return saved;
@@ -945,10 +970,15 @@ public class FoodItemServiceImpl implements FoodItemService {
         java.util.Optional<FoodItemEntity> localProduct = findByNormalizedBarcode(normalizedBarcode);
         if (localProduct.isPresent()) {
             FoodItemEntity product = localProduct.get();
-            return isRejected(product) ? null : product;
+            return isRejected(product) || !isPublished(product) ? null : product;
         }
 
-        FoodItemEntity saved = foodItemRepository.save(buildImportedFoodItem(externalProduct, normalizedBarcode));
+        FoodItemEntity saved = catalogPublicationService.publishNew(
+                buildImportedFoodItem(externalProduct, normalizedBarcode),
+                "system:open-food-facts",
+                "Trusted search cache import",
+                null
+        );
         foodProductQualityIssueTracker.syncReviewIssues(saved, "open-food-facts");
         recordOpenFoodFactsEvidence(saved);
         return saved;
@@ -973,6 +1003,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         entity.setDataSource(FoodDataSource.OPEN_FOOD_FACTS);
         entity.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         entity.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        entity.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
         entity.setExternalImageUrl(resolveExternalImageUrl(externalProduct));
         entity.setDisplayImageUrl(null);
         entity.setImageSource(ImageSource.OPEN_FOOD_FACTS);
@@ -1016,9 +1047,25 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     private boolean isVisibleToUser(FoodItemEntity product, String email) {
-        if (!Boolean.TRUE.equals(product.getIsCustom())) {
+        if (product.getPublicationStatus() == null) {
+            return !Boolean.TRUE.equals(product.getIsCustom())
+                    || isOwnedBy(product, email);
+        }
+        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
             return true;
         }
+        if (product.getPublicationStatus() != CatalogPublicationStatus.PRIVATE_USER) {
+            return false;
+        }
+        return isOwnedBy(product, email);
+    }
+
+    private boolean isPublished(FoodItemEntity product) {
+        return product.getPublicationStatus() == null
+                || product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED;
+    }
+
+    private boolean isOwnedBy(FoodItemEntity product, String email) {
         UserEntity owner = product.getCreatedByUser();
         return owner != null
                 && owner.getEmail() != null
@@ -1149,7 +1196,10 @@ public class FoodItemServiceImpl implements FoodItemService {
             return result;
         }
         foodItemServingOptionRepository
-                .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(productIds)
+                .findByFoodItemIdInAndQualityStatusOrderByFoodItemIdAscIsDefaultDescLabelAsc(
+                        productIds,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                )
                 .forEach(option -> result
                         .computeIfAbsent(option.getFoodItem().getId(), ignored -> new ArrayList<>())
                         .add(option));
@@ -1264,7 +1314,10 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private FoodProductDto toProductDto(FoodItemEntity product, PreferredLanguage language) {
         List<FoodItemServingOptionEntity> servingOptions =
-                foodItemServingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product);
+                foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
+                        product,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                );
         PreferredLanguage resolvedLanguage = resolveLanguage(language);
         FoodItemLocalizationEntity localization = foodItemLocalizationRepository
                 .findByFoodItemIdAndLanguageAndActiveTrue(product.getId(), resolvedLanguage)

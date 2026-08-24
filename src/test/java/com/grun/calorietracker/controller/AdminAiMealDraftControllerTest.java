@@ -55,7 +55,7 @@ class AdminAiMealDraftControllerTest {
     private AdminAuditService adminAuditService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void listRequests_whenAdmin_returnsReviewQueue() throws Exception {
         AdminAiRequestReviewDto item = new AdminAiRequestReviewDto();
         item.setRequestId(10L);
@@ -87,7 +87,7 @@ class AdminAiMealDraftControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void listAllRequests_whenAdmin_returnsStablePageContract() throws Exception {
         AdminAiRequestReviewDto item = new AdminAiRequestReviewDto();
         item.setRequestId(11L);
@@ -109,7 +109,7 @@ class AdminAiMealDraftControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void getSummary_whenAdmin_returnsPrivacySafeMetrics() throws Exception {
         AdminAiMonitoringSummaryDto summary = new AdminAiMonitoringSummaryDto();
         summary.setWindowHours(24);
@@ -132,7 +132,7 @@ class AdminAiMealDraftControllerTest {
                 .andExpect(jsonPath("$.estimatedCostByCurrency.USD").value(0.18));
     }
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void inspectRequest_whenAdmin_returnsCuratedPayloadAndAuditsRead() throws Exception {
         AdminAiRequestInspectionDto response = new AdminAiRequestInspectionDto();
         response.setRequestId(10L);
@@ -162,8 +162,8 @@ class AdminAiMealDraftControllerTest {
         );
     }
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
-    void refundQuota_whenAdmin_returnsRefundResultAndAudits() throws Exception {
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
+    void refundQuota_whenDirectRefundIsDisabled_returnsForbidden() throws Exception {
         AdminAiQuotaRefundRequestDto request = new AdminAiQuotaRefundRequestDto();
         request.setAmount(1);
         request.setReason("AI result was unrelated.");
@@ -190,24 +190,11 @@ class AdminAiMealDraftControllerTest {
         mockMvc.perform(post("/api/v1/admin/ai/meal-drafts/10/quota-refund")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value(10))
-                .andExpect(jsonPath("$.quotaRefundedAmount").value(1))
-                .andExpect(jsonPath("$.subscription.aiUsedThisPeriod").value(4));
-
-        verify(adminAuditService).record(
-                eq("admin@test.com"),
-                eq(AdminAuditActionType.AI_QUOTA_REFUND),
-                eq(AdminAuditTargetType.AI_REQUEST),
-                eq("10"),
-                eq(null),
-                any(AdminAiQuotaRefundResponseDto.class),
-                any()
-        );
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void rejectQuotaRefund_whenAdmin_returnsDecisionAndAudits() throws Exception {
         AdminAiQuotaRefundRejectRequestDto request = new AdminAiQuotaRefundRejectRequestDto();
         request.setReason("The result was usable.");

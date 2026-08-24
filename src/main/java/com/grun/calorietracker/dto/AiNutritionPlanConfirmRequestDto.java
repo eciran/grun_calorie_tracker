@@ -1,12 +1,13 @@
 package com.grun.calorietracker.dto;
 
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class AiNutritionPlanConfirmRequestDto {
-    @NotNull
-    @Valid
+    /**
+     * Deprecated compatibility field. Confirmation always uses the immutable,
+     * server-stored draft; client-provided draft content is intentionally ignored.
+     */
+    @Deprecated
     private AiNutritionPlanDraftResponseDto draft;
 }

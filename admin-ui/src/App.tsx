@@ -1,6 +1,6 @@
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { RuntimeOperationsView } from "./RuntimeOperationsView";
+import { ProductIntakeView } from "./ProductIntakeView";
 import {
   clearTokens,
   formatRequestError,
@@ -16,6 +16,7 @@ import {
   subscribeUnauthorized,
   subscribeAdminActivity,
   subscribeAdminReauth,
+  subscribeAdminReauthResult,
   resolveAdminReauth
 } from "./api";
 import {
@@ -114,6 +115,8 @@ import {
 } from "./AdminPrimitives";
 
 const GrowthTrendChart = lazy(() => import("./GrowthTrendChart").then((module) => ({ default: module.GrowthTrendChart })));
+const RuntimeOperationsView = lazy(() => import("./RuntimeOperationsView").then((module) => ({ default: module.RuntimeOperationsView })));
+const TestFeedbackView = lazy(() => import("./TestFeedbackView").then((module) => ({ default: module.TestFeedbackView })));
 const OnboardingFunnelChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.OnboardingFunnelChart })));
 const FeatureAdoptionChart = lazy(() => import("./EngagementCharts").then((module) => ({ default: module.FeatureAdoptionChart })));
 const RevenueCatEChart = lazy(() => import("./RevenueCatEChart").then((module) => ({ default: module.RevenueCatEChart })));
@@ -186,7 +189,8 @@ type SectionKey =
   | "systemRuntime"
   | "systemDatabase"
   | "systemProviders"
-  | "systemProduction";
+  | "systemProduction"
+  | "testFeedback";
 
 type RevenueCatRange = "7d" | "28d" | "90d" | "custom";
 type ThemeMode = "light" | "dark";
@@ -327,6 +331,7 @@ const sections: SectionMeta[] = [
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
   { key: "settings", label: "Settings", hint: "App config", icon: "G" },
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
+  { key: "testFeedback", label: "Test Feedback", hint: "Preview build reports", icon: "T" },
   { key: "retentionPolicies", label: "Retention Policies", hint: "Legal data rules", icon: "R" },
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
   { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
@@ -431,7 +436,7 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
   [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
-  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps")],
+  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps"), navSection("testFeedback")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
 ];
 
@@ -443,7 +448,7 @@ function permissionForSection(section: SectionKey): string {
   if (section === "users" || section === "userVerification") return "USERS_READ";
   if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSources", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
   if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
-  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps"].includes(section)) return "GROWTH_READ";
+  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "testFeedback"].includes(section)) return "GROWTH_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
   if (section === "audits") return "AUDIT_READ";
   if (["integrations", "integrationProviders", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
@@ -452,6 +457,7 @@ function permissionForSection(section: SectionKey): string {
 
 function canViewSection(profile: AdminAccessProfile | null, section: SectionKey): boolean {
   if (!profile) return section === "dashboard";
+  if (profile.mfaRequired && !profile.mfaEnabled) return section === "admins";
   return Boolean(profile.permissions?.includes(permissionForSection(section)));
 }
 
@@ -628,6 +634,8 @@ export default function App() {
   const [sessionWarningBusy, setSessionWarningBusy] = useState(false);
   const [reauthPurpose, setReauthPurpose] = useState<string | null>(null);
   const [reauthCode, setReauthCode] = useState("");
+  const [reauthBusy, setReauthBusy] = useState(false);
+  const [reauthError, setReauthError] = useState<string | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
 
   function navigateToSection(section: SectionKey) {
@@ -657,8 +665,9 @@ export default function App() {
   useEffect(() => {
     if (!accessProfile) return;
     if (!canViewSection(accessProfile, active)) {
-      setActive("dashboard");
-      replaceSectionHash("dashboard");
+      const fallback = accessProfile.mfaRequired && !accessProfile.mfaEnabled ? "admins" : "dashboard";
+      setActive(fallback);
+      replaceSectionHash(fallback);
       return;
     }
     mainRef.current?.focus();
@@ -691,7 +700,27 @@ export default function App() {
     restoreAdminSession().then(setAuthenticated).finally(() => setAuthRestoring(false));
   }, []);
 
-  useEffect(() => subscribeAdminReauth(setReauthPurpose), []);
+  useEffect(() => subscribeAdminReauth((purpose) => {
+    setReauthPurpose((current) => {
+      if (current !== purpose) {
+        setReauthCode("");
+        setReauthError(null);
+      }
+      setReauthBusy(false);
+      return purpose;
+    });
+  }), []);
+
+  useEffect(() => subscribeAdminReauthResult((result) => {
+    setReauthBusy(false);
+    if (result.success) {
+      setReauthPurpose(null);
+      setReauthCode("");
+      setReauthError(null);
+    } else {
+      setReauthError(result.message ?? "MFA verification failed. Check the code and try again.");
+    }
+  }), []);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -719,6 +748,12 @@ export default function App() {
   function toggleTheme() {
     setTheme((current) => current === "dark" ? "light" : "dark");
   }
+
+  const query = new URLSearchParams(window.location.search);
+  const passwordResetToken = query.get("passwordResetToken");
+  const invitationToken = query.get("token");
+  if (passwordResetToken) return <AdminPasswordResetView token={passwordResetToken} theme={theme} toggleTheme={toggleTheme} />;
+  if (invitationToken) return <AdminInvitationActivationView token={invitationToken} theme={theme} toggleTheme={toggleTheme} />;
 
   if (authRestoring) return <main className="login-page"><p>Restoring secure session...</p></main>;
 
@@ -818,7 +853,7 @@ export default function App() {
         {error && <div className="error-banner" role="alert">{error}</div>}
         <SectionTabs active={active} onSelect={navigateToSection} accessProfile={accessProfile} />
         <section className="content-surface">
-          {active === "dashboard" && <DashboardView onError={setError} onNavigate={navigateToSection} />}
+          {active === "dashboard" && accessProfile && <DashboardView accessProfile={accessProfile} onError={setError} onNavigate={navigateToSection} />}
           {active === "integrations" && <IntegrationsView mode="overview" onError={setError} />}
           {active === "integrationProviders" && <IntegrationsView mode="providers" onError={setError} />}
           {active === "revenueCatProduction" && <RevenueCatMonitoringView environment="production" onError={setError} />}
@@ -833,7 +868,7 @@ export default function App() {
           {active === "catalogExercises" && <CatalogOperationsView mode="exercises" onError={setError} />}
           {active === "catalogSources" && <CatalogOperationsView mode="sources" onError={setError} />}
           {active === "products" && <ProductReviewView mode="queue" onError={setError} />}
-          {active === "productContributions" && <FoodContributionReviewView onError={setError} />}
+          {active === "productContributions" && <ProductIntakeView accessProfile={accessProfile} onError={setError} />}
           {active === "productDuplicates" && <CanonicalDuplicateWorkspace onError={setError} />}
           {active === "productImages" && <ProductReviewView mode="images" onError={setError} />}
           {active === "productNutrition" && <ProductReviewView mode="nutrition" onError={setError} />}
@@ -859,6 +894,7 @@ export default function App() {
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "engagement" && <EngagementAnalyticsView onError={setError} />}
+          {active === "testFeedback" && <TestFeedbackView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
           {active === "trackingFasting" && <TrackingMonitoringView mode="fasting" onError={setError} />}
@@ -870,7 +906,7 @@ export default function App() {
           {active === "systemProduction" && <RuntimeOperationsView onError={setError} />}
         </section>
       </main>
-      {reauthPurpose && <div className="modal-backdrop confirm-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-label="Fresh owner MFA required"><div className="confirm-dialog-copy"><p className="eyebrow">Sensitive owner action</p><h2>Fresh MFA verification</h2><p>Purpose: {humanizeFeature(reauthPurpose)}</p><label>Authenticator or recovery code<input autoFocus value={reauthCode} onChange={(event)=>setReauthCode(event.target.value)} maxLength={32} autoComplete="one-time-code" /></label></div><div className="modal-actions"><button className="ghost-button" type="button" onClick={()=>{resolveAdminReauth(null);setReauthPurpose(null);setReauthCode("");}}>Cancel</button><button className="primary-button" disabled={!reauthCode.trim()} type="button" onClick={()=>{resolveAdminReauth(reauthCode.trim());setReauthPurpose(null);setReauthCode("");}}>Verify and continue</button></div></section></div>}
+      {reauthPurpose && <div className="modal-backdrop confirm-backdrop" role="presentation"><section className="confirm-dialog reauth-dialog" role="dialog" aria-modal="true" aria-label="Fresh owner MFA required"><div className="confirm-dialog-content"><div className="confirm-dialog-icon neutral" aria-hidden="true">M</div><div className="confirm-dialog-copy"><p className="eyebrow">Sensitive owner action</p><h2>Fresh MFA verification</h2><p>Confirm <strong>{humanizeFeature(reauthPurpose)}</strong> with your authenticator or a recovery code.</p><label>Authenticator or recovery code<input autoFocus value={reauthCode} onChange={(event)=>{setReauthCode(event.target.value);setReauthError(null);}} maxLength={32} autoComplete="one-time-code" /></label>{reauthError && <div className="modal-error" role="alert"><strong>Verification failed</strong><span>{reauthError}</span></div>}</div></div><div className="modal-actions"><button className="ghost-button" disabled={reauthBusy} type="button" onClick={()=>{resolveAdminReauth(null);setReauthPurpose(null);setReauthCode("");setReauthError(null);}}>Cancel</button><button className="primary-button" disabled={reauthBusy || !reauthCode.trim()} type="button" onClick={()=>{setReauthBusy(true);setReauthError(null);resolveAdminReauth(reauthCode.trim());}}>{reauthBusy ? "Verifying..." : "Verify and continue"}</button></div></section></div>}
       {sessionWarningOpen && <ConfirmDialog title="Admin session expiring" message="Your admin session will expire in about 2 minutes. Continue only if you are still actively administering GRUN." confirmLabel="Continue session" busy={sessionWarningBusy} onCancel={() => void endAdminSession()} onConfirm={() => void continueAdminSession()} />}
     </div>
   );
@@ -926,12 +962,19 @@ function LoginView({
   const [mfaCode, setMfaCode] = useState("");
   const [showMfa, setShowMfa] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      if (forgotMode) {
+        const result = await request<{ message?: string }>("/api/v1/auth/password-reset/request", { method: "POST", auth: false, body: { email: email.trim() } });
+        setResetNotice(result.message ?? "If the email exists, a password reset link has been sent.");
+        return;
+      }
       const response = await login(email, password, mfaCode);
       saveTokens(response);
       onLogin();
@@ -962,21 +1005,26 @@ function LoginView({
       <form className="login-card" onSubmit={submit}>
         <div>
           <p className="eyebrow">Secure access</p>
-          <h2>Admin login</h2>
+          <h2>{forgotMode ? "Reset admin password" : "Admin login"}</h2>
+          {forgotMode && <p className="muted-text">Enter your admin email. We will send a single-use reset link if the account exists.</p>}
         </div>
         <label>
           Email
           <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" />
         </label>
-        <label>
+        {!forgotMode && <label>
           Password
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Admin password" />
-        </label>
-        {showMfa && <label>Authenticator or recovery code<input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={32} placeholder="6-digit code" /></label>}
-        {notice && <div className="form-notice">{notice}</div>}
+        </label>}
+        {!forgotMode && showMfa && <label>Authenticator or recovery code<input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={32} placeholder="6-digit code" /></label>}
+        {notice && !forgotMode && <div className="form-notice">{notice}</div>}
+        {resetNotice && <div className="form-notice">{resetNotice}</div>}
         {error && <div className="form-error">{error}</div>}
-        <button className="primary-button" disabled={busy || !email.trim() || !password} type="submit">
-          {busy ? "Signing in..." : "Sign in"}
+        <button className="primary-button" disabled={busy || !email.trim() || (!forgotMode && !password)} type="submit">
+          {busy ? "Working..." : forgotMode ? "Send reset link" : "Sign in"}
+        </button>
+        <button className="text-button" type="button" onClick={() => { setForgotMode((current) => !current); setError(null); setResetNotice(null); }}>
+          {forgotMode ? "Back to admin login" : "Forgot password?"}
         </button>
       </form>
     </main>
@@ -1095,7 +1143,7 @@ function GrowthFunnel({ steps, onOpen }: { steps: GrowthFunnelStep[]; onOpen: (s
           <div className="growth-funnel-track">
             <i style={{ width: `${Math.min(100, Math.max(0, step.conversionFromRegistrationPercent))}%` }} />
           </div>
-          <small>{step.conversionFromRegistrationPercent.toFixed(1)}% of registrations{step.dataStatus === "PARTIAL" ? " · partial" : ""}</small>
+          <small>{step.conversionFromRegistrationPercent.toFixed(1)}% of registrations{step.dataStatus === "PARTIAL" ? " Ã‚Â· partial" : ""}</small>
         </button>
       ))}
     </div>
@@ -1118,14 +1166,19 @@ function GrowthDistribution({ values, empty }: { values: Record<string, number>;
   );
 }
 
-function DashboardView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
+function DashboardView({ accessProfile, onError, onNavigate }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
+  const canUsers = Boolean(accessProfile?.permissions?.includes("USERS_READ"));
+  const canCatalog = Boolean(accessProfile?.permissions?.includes("CATALOG_READ"));
+  const canGrowth = Boolean(accessProfile?.permissions?.includes("GROWTH_READ"));
+  const canFinance = Boolean(accessProfile?.permissions?.includes("FINANCE_READ"));
+  const canTechnical = Boolean(accessProfile?.permissions?.includes("TECHNICAL_READ"));
   const [growthRange, setGrowthRange] = useState<7 | 30 | 90>(30);
   const growthDates = useMemo(() => dublinDateRange(growthRange), [growthRange]);
   const growthPath = `/api/v1/admin/dashboard/growth?from=${growthDates.from}&to=${growthDates.to}&timeZone=Europe%2FDublin`;
   const { data, state, reload } = useEndpoint<DashboardSummary>("/api/v1/admin/dashboard/summary", onError);
-  const { data: growth, state: growthState, reload: reloadGrowth } = useEndpoint<DashboardGrowth>(growthPath, onError);
-  const { data: unreadNotifications, state: unreadNotificationState, reload: reloadUnreadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&page=0&size=5", onError);
-  const { data: criticalNotifications, state: criticalNotificationState, reload: reloadCriticalNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&severity=CRITICAL&page=0&size=5", onError);
+  const { data: growth, state: growthState, reload: reloadGrowth } = useEndpoint<DashboardGrowth>(growthPath, onError, canGrowth);
+  const { data: unreadNotifications, state: unreadNotificationState, reload: reloadUnreadNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&page=0&size=5", onError, canGrowth);
+  const { data: criticalNotifications, state: criticalNotificationState, reload: reloadCriticalNotifications } = useEndpoint<PageResponse<Notification>>("/api/v1/notifications?unreadOnly=true&severity=CRITICAL&page=0&size=5", onError, canGrowth);
   const activeSubscriptions = (data?.activePlusSubscriptions ?? 0) + (data?.activeProSubscriptions ?? 0);
   const catalogReadyPercent = percent(data?.verifiedProducts, data?.totalProducts);
   const paidUserPercent = percent(activeSubscriptions, data?.totalUsers);
@@ -1157,14 +1210,17 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
   const unreadAlertTotal = unreadNotifications?.totalElements ?? unreadNotifications?.content?.length ?? 0;
   const criticalAlertTotal = criticalNotifications?.totalElements ?? criticalNotifications?.content?.length ?? 0;
   const criticalAlertRows = criticalNotifications?.content ?? [];
-  const healthLevel = failedEvents > 0 || criticalAlertTotal > 0 || reviewQueue > 100 ? "Needs attention" : "Stable";
-  const healthTone = failedEvents > 0 || criticalAlertTotal > 0 || reviewQueue > 100 ? "warn" : "good";
+  const catalogApprovalTotal = reviewQueue + pendingRecipeApprovals + pendingRecipeImportCandidates + openRecipeReports + openProductCorrectionSuggestions + openProductQualitySuggestions;
+  const visibleApprovalTotal = (canCatalog ? catalogApprovalTotal : 0) + (canFinance ? refundableAiRequests : 0);
+  const visibleHealthPressure = (canFinance && failedEvents > 0) || (canGrowth && criticalAlertTotal > 0) || (canCatalog && reviewQueue > 100);
+  const healthLevel = visibleHealthPressure ? "Needs attention" : "Stable";
+  const healthTone = visibleHealthPressure ? "warn" : "good";
 
   const headlineCards = [
-    ["Platform state", healthLevel, failedEvents > 0 ? `${failedEvents} failed provider event(s)` : "No failed provider events"],
-    ["Users", data?.totalUsers, `${formatValue(activeSubscriptions)} paid / ${paidUserPercent}% paid ratio`],
-    ["Catalog readiness", `${catalogReadyPercent}%`, `${formatValue(data?.verifiedProducts)} verified of ${formatValue(data?.totalProducts)}`],
-    ["Approval inbox", totalAdminApprovalItems, `${formatValue(pendingRecipeApprovals)} recipe / ${formatValue(reviewQueue)} product review`]
+    ...(canTechnical || canFinance ? [["Platform state", healthLevel, failedEvents > 0 ? `${failedEvents} failed provider event(s)` : "No failed provider events"]] : []),
+    ...(canUsers ? [["Users", data?.totalUsers, canFinance ? `${formatValue(activeSubscriptions)} paid / ${paidUserPercent}% paid ratio` : "Registered account overview"]] : []),
+    ...(canCatalog ? [["Catalog readiness", `${catalogReadyPercent}%`, `${formatValue(data?.verifiedProducts)} verified of ${formatValue(data?.totalProducts)}`]] : []),
+    ...(canCatalog || canFinance ? [["Approval inbox", visibleApprovalTotal, canCatalog ? `${formatValue(pendingRecipeApprovals)} recipe / ${formatValue(reviewQueue)} product review` : `${formatValue(refundableAiRequests)} refundable AI request(s)`]] : [])
   ];
   const approvalCards: OperationCardItem[] = [
     {
@@ -1264,14 +1320,15 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
         state={combineStates([state, growthState, unreadNotificationState, criticalNotificationState])}
         onReload={() => { void reload(); void reloadGrowth(); void reloadUnreadNotifications(); void reloadCriticalNotifications(); }}
       >
-        <div className="segmented-control dashboard-range" aria-label="Growth reporting range">
+        {canGrowth && <div className="segmented-control dashboard-range" aria-label="Growth reporting range">
           {([7, 30, 90] as const).map((days) => (
             <button className={growthRange === days ? "active" : ""} key={days} onClick={() => setGrowthRange(days)} type="button">
               {days} days
             </button>
           ))}
-        </div>
+        </div>}
       </SectionToolbar>
+      {canGrowth && <>
       <div className="growth-coverage-strip">
         <span><strong>{growth?.from ?? growthDates.from}</strong> to <strong>{growth?.to ?? growthDates.to}</strong></span>
         <span>{growth?.registrationCoveragePercent.toFixed(1) ?? "0.0"}% registration history coverage</span>
@@ -1305,22 +1362,23 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
         <Panel title="Region mix"><GrowthDistribution values={growth?.regionDistribution ?? {}} empty="No region data for this cohort." /></Panel>
         <Panel title="Language mix"><GrowthDistribution values={growth?.languageDistribution ?? {}} empty="No language data for this cohort." /></Panel>
       </div>
+      </>}
       <div className="metric-grid">
         {headlineCards.map(([label, value, hint]) => (
           <MetricCard key={String(label)} label={String(label)} value={formatValue(value)} hint={String(hint)} />
         ))}
       </div>
-      <Panel title="Approval inbox">
+      {(canCatalog || canFinance) && <Panel title="Approval inbox">
         <div className="operation-card-grid">
-          {approvalCards.map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
+          {approvalCards.filter((item) => canViewSection(accessProfile, item.target)).map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
         </div>
-      </Panel>
-      <Panel title="Operations queue">
+      </Panel>}
+      {(canCatalog || canFinance || canTechnical || canGrowth) && <Panel title="Operations queue">
         <div className="operation-card-grid">
-          {operationCards.map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
+          {operationCards.filter((item) => canViewSection(accessProfile, item.target)).map((item) => <OperationCard key={item.title} item={item} onNavigate={onNavigate} />)}
         </div>
-      </Panel>
-      <Panel title="Critical admin alerts">
+      </Panel>}
+      {canGrowth && <Panel title="Critical admin alerts">
         <div className="dashboard-alert-panel">
           <div>
             <strong>{formatValue(criticalAlertTotal)}</strong>
@@ -1332,8 +1390,8 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
           </div>
           <button className="ghost-button" type="button" onClick={() => onNavigate("notifications")}>Open Admin Inbox</button>
         </div>
-      </Panel>
-      <div className="split-grid">
+      </Panel>}
+      {(canCatalog || canFinance) && <div className="split-grid">
         <Panel title="Immediate attention">
           <PriorityList
             items={[
@@ -1346,17 +1404,17 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
         </Panel>
         <Panel title="Business snapshot">
           <div className="readonly-grid">
-            <DetailItem label="PLUS active" value={formatValue(data?.activePlusSubscriptions)} />
-            <DetailItem label="PRO active" value={formatValue(data?.activeProSubscriptions)} />
-            <DetailItem label="Canceled" value={formatValue(data?.canceledSubscriptions)} />
-            <DetailItem label="Refunded" value={formatValue(data?.refundedSubscriptions)} />
-            <DetailItem label="Admin users" value={formatValue(data?.adminUsers)} />
-            <DetailItem label="Standard users" value={formatValue(data?.standardUsers)} />
+            {canFinance && <DetailItem label="PLUS active" value={formatValue(data?.activePlusSubscriptions)} />}
+            {canFinance && <DetailItem label="PRO active" value={formatValue(data?.activeProSubscriptions)} />}
+            {canFinance && <DetailItem label="Canceled" value={formatValue(data?.canceledSubscriptions)} />}
+            {canFinance && <DetailItem label="Refunded" value={formatValue(data?.refundedSubscriptions)} />}
+            {canUsers && <DetailItem label="Admin users" value={formatValue(data?.adminUsers)} />}
+            {canUsers && <DetailItem label="Standard users" value={formatValue(data?.standardUsers)} />}
           </div>
         </Panel>
-      </div>
-      <div className="split-grid">
-        <Panel title="AI result quality">
+      </div>}
+      {(canTechnical || canCatalog) && <div className="split-grid">
+        {canTechnical && <Panel title="AI result quality">
           <div className="dashboard-ai-grid">
             <MetricCard label="AI requests 7d" value={formatValue(aiRequests7d)} hint="All tracked AI request types" />
             <MetricCard label="Accepted" value={`${aiAcceptancePercent}%`} hint={`${formatValue(aiConfirmed7d)} confirmed by users`} />
@@ -1367,13 +1425,13 @@ function DashboardView({ onError, onNavigate }: { onError: (message: string | nu
             {aiRejectionReasons.length === 0 && <span className="empty-inline">No rejection reasons in the last 7 days.</span>}
             {aiRejectionReasons.map(([reason, value]) => <ProgressRow key={reason} label={shortFeature(reason)} value={value} total={aiRejected7d || value} tone="warn" />)}
           </div>
-        </Panel>
-        <Panel title="Catalog health">
+        </Panel>}
+        {canCatalog && <Panel title="Catalog health">
           <ProgressRow label="Verified catalog" value={data?.verifiedProducts} total={data?.totalProducts} />
           <ProgressRow label="Needs review" value={data?.needsReviewProducts} total={data?.totalProducts} tone="warn" />
           <ProgressRow label="Rejected" value={data?.rejectedProducts} total={data?.totalProducts} tone="danger" />
-        </Panel>
-      </div>
+        </Panel>}
+      </div>}
       <div className="split-grid">
         <Panel title="Operational routing">
           <div className="roadmap-strip">
@@ -2069,9 +2127,9 @@ function FoodContributionReviewView({ onError }: { onError: (message: string | n
       <DataTable
         columns={["Product", "Evidence", "Nutrition / 100 g", "Consent", "Status"]}
         rows={rows.map((item) => [
-          <div className="table-stack"><strong>{item.productName ?? "Unnamed product"}</strong><span>{item.brand ?? "-"}</span><small>{item.barcode ?? "-"} · {item.marketRegion ?? "-"}</small></div>,
-          <div className="table-stack"><span>{item.evidenceContentType ?? "Private object"}</span><small>{formatContributionBytes(item.evidenceSizeBytes)} · {formatDate(item.evidenceRetrievedAt)}</small></div>,
-          <div className="table-stack"><span>{formatValue(item.calories)} kcal</span><small>P {formatValue(item.protein)} · C {formatValue(item.carbs)} · F {formatValue(item.fat)}</small></div>,
+          <div className="table-stack"><strong>{item.productName ?? "Unnamed product"}</strong><span>{item.brand ?? "-"}</span><small>{item.barcode ?? "-"} Ã‚Â· {item.marketRegion ?? "-"}</small></div>,
+          <div className="table-stack"><span>{item.evidenceContentType ?? "Private object"}</span><small>{formatContributionBytes(item.evidenceSizeBytes)} Ã‚Â· {formatDate(item.evidenceRetrievedAt)}</small></div>,
+          <div className="table-stack"><span>{formatValue(item.calories)} kcal</span><small>P {formatValue(item.protein)} Ã‚Â· C {formatValue(item.carbs)} Ã‚Â· F {formatValue(item.fat)}</small></div>,
           <div className="table-stack"><span>{item.commercialUseAllowed ? "Commercial use" : "Missing commercial consent"}</span><small>{item.persistentStorageAllowed ? "Persistent storage" : "Storage not allowed"}</small></div>,
           <div className="badge-stack"><Badge value={item.status} tone={contributionStatusTone(item.status)} /><small>{formatDate(item.createdAt)}</small></div>
         ])}
@@ -2093,15 +2151,15 @@ function FoodContributionReviewView({ onError }: { onError: (message: string | n
         <div className="modal-backdrop" role="presentation" onClick={closeContribution}>
           <div className="modal-card contribution-review-modal" role="dialog" aria-modal="true" aria-label="Review food label contribution" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <div><span>PRIVATE LABEL EVIDENCE</span><h2>{selected.productName ?? "Product contribution"}</h2><p>{selected.brand ?? "-"} · {selected.barcode ?? "-"}</p></div>
+              <div><span>PRIVATE LABEL EVIDENCE</span><h2>{selected.productName ?? "Product contribution"}</h2><p>{selected.brand ?? "-"} Ã‚Â· {selected.barcode ?? "-"}</p></div>
               <button className="modal-icon-close" type="button" onClick={closeContribution} aria-label="Close contribution review">x</button>
             </header>
             <div className="contribution-review-body">
               <div className="contribution-evidence-panel">
-                {evidenceState === "loading" && <div className="evidence-placeholder">Loading private evidence…</div>}
+                {evidenceState === "loading" && <div className="evidence-placeholder">Loading private evidenceÃ¢â‚¬Â¦</div>}
                 {evidenceState === "error" && <div className="evidence-placeholder error">Evidence could not be loaded.</div>}
                 {evidenceObjectUrl && <img src={evidenceObjectUrl} alt={`Submitted label for ${selected.productName ?? "product"}`} />}
-                <small>Private object · no public URL · {formatContributionBytes(selected.evidenceSizeBytes)}</small>
+                <small>Private object Ã‚Â· no public URL Ã‚Â· {formatContributionBytes(selected.evidenceSizeBytes)}</small>
               </div>
               <div className="contribution-review-details">
                 <div className="contribution-detail-grid">
@@ -3632,7 +3690,7 @@ function AdminMfaEnrollmentPanel({ onError }: { onError: (message: string | null
     } catch (failure) { onError(formatRequestError(failure)); } finally { setBusy(false); }
   }
 
-  return <Panel title="Your multi-factor authentication">
+  return <Panel className="admin-security-panel admin-mfa-card" title="Your multi-factor authentication">
     <div className="admin-mfa-panel">
       <div className="admin-mfa-status">
         <Badge value={status?.enabled ? "Enrolled" : status?.enrollmentPending ? "Verification pending" : "Not enrolled"} tone={status?.enabled ? "good" : "warn"} />
@@ -3695,19 +3753,21 @@ function AdminApprovalQueue({ accessProfile, onError }: { accessProfile: AdminAc
   }
 
   const rows = data?.content ?? [];
-  return <Panel title="Critical action approval queue" description="A different MFA-verified owner approves each critical change. Requests expire after 24 hours.">
+  const canDecideSelected = selected?.status === "PENDING" && canApprove
+    && (selected.makerEmail !== accessProfile?.email || accessProfile?.role === "OWNER");
+  return <Panel title="Critical action approval queue" description="Owners can approve their own requests with fresh MFA. Requests from other admins remain pending for owner review and expire after 24 hours.">
     <div className="approval-queue-toolbar"><label>Status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }}>{["PENDING","APPROVED","REJECTED","EXPIRED","EXECUTION_FAILED"].map((item) => <option key={item}>{item}</option>)}</select></label><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh</button></div>
     <DataTable columns={["Action", "Target", "Maker", "Status", "Expires"]} rows={rows.map((item) => [<div className="entity-cell"><strong>{humanizeFeature(item.actionType)}</strong><small>{item.requestReason}</small></div>, item.targetKey ?? "-", item.makerEmail ?? "-", <Badge value={item.status} tone={item.status === "APPROVED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />, formatDate(item.expiresAt)])} rowData={rows} onRowClick={setSelected} empty="No approval requests in this state." />
     <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page===0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(0);}} />
     {selected && <div className="approval-decision-panel">
-      <div><strong>{humanizeFeature(selected.actionType)}</strong><span>Target {selected.targetKey} · requested by {selected.makerEmail}</span><p>{selected.requestReason}</p></div>
+      <div><strong>{humanizeFeature(selected.actionType)}</strong><span>Target {selected.targetKey} Ã‚Â· requested by {selected.makerEmail}</span><p>{selected.requestReason}</p></div>
       <details><summary>Whitelisted change payload</summary><pre>{JSON.stringify(selected.payload ?? {}, null, 2)}</pre></details>
-      {selected.status === "PENDING" && canApprove && selected.makerEmail !== accessProfile?.email && <>
+      {canDecideSelected && <>
         <label>Decision reason<textarea value={decisionReason} onChange={(event)=>setDecisionReason(event.target.value)} maxLength={500} /></label>
         <label>Fresh authenticator or recovery code<input value={mfaCode} onChange={(event)=>setMfaCode(event.target.value)} maxLength={32} autoComplete="one-time-code" /></label>
         <div className="form-actions"><button className="ghost-button" type="button" onClick={()=>setSelected(null)}>Close</button><button className="danger-button" disabled={busy || !decisionReason.trim() || !mfaCode.trim()} type="button" onClick={()=>void decide(false)}>Reject</button><button className="primary-button" disabled={busy || !decisionReason.trim() || !mfaCode.trim()} type="button" onClick={()=>void decide(true)}>Approve and execute</button></div>
       </>}
-      {selected.makerEmail === accessProfile?.email && selected.status === "PENDING" && <div className="form-notice">You created this request. A different owner must decide it.</div>}
+      {selected.makerEmail === accessProfile?.email && selected.status === "PENDING" && accessProfile?.role !== "OWNER" && <div className="form-notice">You created this request. An owner must decide it.</div>}
     </div>}
     {state === "loading" && <span className="muted-text">Loading approval queue...</span>}
   </Panel>;
@@ -3733,7 +3793,7 @@ function AdminSessionPanel({ canRevoke, onError }: { canRevoke: boolean; onError
   }
 
   const sessions = data?.content ?? [];
-  return <Panel title="Your active admin sessions" description="Server-side sessions. Network addresses are masked and revocation takes effect on the next backend request.">
+  return <Panel className="admin-security-panel admin-session-card" title="Your active admin sessions" description="Server-side sessions. Network addresses are masked and revocation takes effect on the next backend request.">
     <div className="form-actions"><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh sessions</button>{canRevoke && sessions.some((item) => !item.current) && <button className="danger-button" disabled={busy} type="button" onClick={() => setPendingRevoke("others")}>Revoke all other sessions</button>}</div>
     <DataTable columns={["Device", "Network", "Created", "Last activity", "Expiry", "Action"]} rows={sessions.map((item) => [
       <div className="entity-cell"><strong>{item.device ?? "Unknown browser"}</strong><small>{item.current ? "Current session" : item.id ?? "-"}</small></div>,
@@ -3765,7 +3825,7 @@ function OwnerAdminSessionsPanel({ onError }: { onError: (message: string | null
   }
 
   const sessions = data?.content ?? [];
-  return <Panel title="All active admin sessions" description="OWNER-only view. Network addresses are masked; revocation requires fresh owner verification and is audit logged.">
+  return <Panel className="admin-security-panel admin-session-card" title="All active admin sessions" description="OWNER-only view. Network addresses are masked; revocation requires fresh owner verification and is audit logged.">
     <div className="form-actions"><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh all sessions</button></div>
     <DataTable columns={["Admin", "Device", "Network", "Last activity", "Expiry", "Action"]} rows={sessions.map((item) => [
       <div className="entity-cell"><strong>{item.adminEmail ?? "Unknown admin"}</strong><small>{humanizeFeature(item.adminRole)}</small></div>,
@@ -3779,6 +3839,148 @@ function OwnerAdminSessionsPanel({ onError }: { onError: (message: string | null
   </Panel>;
 }
 
+type AdminInvitation = {
+  id?: number; email?: string; role?: string; status?: string; invitedBy?: string;
+  expiresAt?: string; acceptedAt?: string; revokedAt?: string; createdAt?: string;
+};
+type AdminInvitationPage = PageResponse<AdminInvitation>;
+
+function AdminPasswordResetView({ token, theme, toggleTheme }: { token: string; theme: ThemeMode; toggleTheme: () => void }) {
+  const [form, setForm] = useState({ password: "", confirmPassword: "" });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [complete, setComplete] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
+    if (!token.trim()) { setMessage("This password reset link is incomplete. Request a new link."); return; }
+    if (form.password !== form.confirmPassword) { setMessage("Passwords do not match."); return; }
+    if (!passwordPattern.test(form.password)) {
+      setMessage("Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character. Spaces are not allowed.");
+      return;
+    }
+    setBusy(true); setMessage(null);
+    try {
+      await request("/api/v1/auth/password-reset/confirm", { method: "POST", auth: false, body: { token, newPassword: form.password } });
+      setComplete(true);
+      setMessage("Password changed. All existing admin sessions have been signed out.");
+      window.history.replaceState(null, "", window.location.pathname);
+    } catch (error) { setMessage(formatRequestError(error)); }
+    finally { setBusy(false); }
+  }
+
+  return <main className="login-page">
+    <div className="login-theme-action"><ThemeToggle theme={theme} toggleTheme={toggleTheme} /></div>
+    <section className="login-hero"><div className="hero-copy"><div className="login-brand-lockup"><img src="./grun/grun-wordmark.svg" alt="GRUN" /><span>Operations</span></div><h1>Recover secure admin access.</h1><p>The link is single-use. Completing this reset revokes every existing session for the admin account.</p></div></section>
+    <form className="login-card" onSubmit={submit}>
+      <div><p className="eyebrow">Account recovery</p><h2>Set a new password</h2></div>
+      {!complete && <>
+        <label>New password<input required type="password" minLength={8} autoComplete="new-password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} /></label>
+        <label>Confirm password<input required type="password" minLength={8} autoComplete="new-password" value={form.confirmPassword} onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))} /></label>
+        <small>Use at least 8 characters with uppercase, lowercase, a number, and a special character. Do not use spaces.</small>
+        <button className="primary-button" disabled={busy || !form.password || !form.confirmPassword} type="submit">{busy ? "Changing password..." : "Change password"}</button>
+      </>}
+      {message && <div className={complete ? "form-notice" : "form-error"}>{message}</div>}
+      {complete && <button className="primary-button" type="button" onClick={() => window.location.assign(window.location.pathname)}>Continue to admin login</button>}
+    </form>
+  </main>;
+}
+function AdminInvitationActivationView({ token, theme, toggleTheme }: { token: string; theme: ThemeMode; toggleTheme: () => void }) {
+  const [invitation, setInvitation] = useState<AdminInvitation | null>(null);
+  const [state, setState] = useState<LoadState>("loading");
+  const [message, setMessage] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", password: "", confirmPassword: "" });
+  useEffect(() => {
+    request<AdminInvitation>("/api/v1/auth/admin-invitations/inspect?token=" + encodeURIComponent(token), { auth: false })
+      .then((value) => { setInvitation(value); setState("ready"); })
+      .catch((error) => { setMessage(formatRequestError(error)); setState("error"); });
+  }, [token]);
+  async function activate(event: FormEvent) {
+    event.preventDefault();
+    if (form.password !== form.confirmPassword) { setMessage("Passwords do not match."); return; }
+    setState("loading"); setMessage(null);
+    try {
+      await request("/api/v1/auth/admin-invitations/accept", { method: "POST", auth: false, body: { token, name: form.name.trim(), password: form.password } });
+      setState("ready"); setMessage("Admin account activated. You can now sign in.");
+      window.history.replaceState(null, "", window.location.pathname);
+      setInvitation((current) => current ? { ...current, status: "ACCEPTED" } : current);
+    } catch (error) { setState("error"); setMessage(formatRequestError(error)); }
+  }
+  return <main className="login-page">
+    <div className="login-theme-action"><button className="icon-button" type="button" onClick={toggleTheme}>{theme === "dark" ? "Light" : "Dark"}</button></div>
+    <section className="login-hero"><div><div className="login-brand-lockup"><img src="./grun/grun-app-icon.svg" alt="" /><strong>GRUN Admin</strong></div><h1>Join the admin team</h1><p>Secure invitation activation. Your role is fixed by the owner and MFA enrollment follows after sign-in.</p></div></section>
+    <form className="login-card" onSubmit={activate}>
+      <div><span className="eyebrow">ADMIN INVITATION</span><h2>Activate account</h2><p>{invitation ? invitation.email + " - " + humanizeFeature(invitation.role) : "Validating your invitation..."}</p></div>
+      {invitation?.status === "PENDING" && <>
+        <label>Full name<input required minLength={2} maxLength={100} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
+        <label>Password<input required type="password" minLength={8} value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} /></label>
+        <label>Confirm password<input required type="password" minLength={8} value={form.confirmPassword} onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))} /></label>
+        <small>Use uppercase, lowercase, number, and a special character.</small>
+        <button className="primary-button" disabled={state === "loading"} type="submit">{state === "loading" ? "Activating..." : "Activate admin account"}</button>
+      </>}
+      {message && <div className={invitation?.status === "ACCEPTED" ? "status-banner success" : "status-banner error"}>{message}</div>}
+      {invitation?.status === "ACCEPTED" && <button className="primary-button" type="button" onClick={() => window.location.assign(window.location.pathname)}>Continue to admin login</button>}
+    </form>
+  </main>;
+}
+
+function AdminInvitationPanel({ onError }: { onError: (message: string | null) => void }) {
+  const [page, setPage] = useState(0);
+  const { data, state, reload } = useEndpoint<AdminInvitationPage>("/api/v1/admin/security/invitations?page=" + page + "&size=10", onError);
+  const [form, setForm] = useState({ email: "", role: "ADMIN_READ_ONLY" });
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: number; method: "resend" | "revoke" } | null>(null);
+  const invitations = data?.content ?? [];
+  async function create(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setFormError(null);
+    try { await request("/api/v1/admin/security/invitations", { method: "POST", body: { email: form.email.trim(), role: form.role } }); setForm((current) => ({ ...current, email: "" })); await reload(); }
+    catch (error) { setFormError(formatRequestError(error)); } finally { setBusy(false); }
+  }
+  function action(id: number | undefined, method: "resend" | "revoke") {
+    if (!id) return;
+    setPendingAction({ id, method });
+  }
+  async function confirmAction() {
+    if (!pendingAction) return;
+    setBusy(true);
+    try {
+      await request("/api/v1/admin/security/invitations/" + pendingAction.id + (pendingAction.method === "resend" ? "/resend" : ""), { method: pendingAction.method === "resend" ? "POST" : "DELETE" });
+      setPendingAction(null);
+      await reload();
+    }
+    catch (error) { onError(formatRequestError(error)); } finally { setBusy(false); }
+  }
+  return <Panel title="Invite an admin" description="Owner-only. Invitations are single-use, expire automatically, and never expose their token in the dashboard.">
+    <form className="admin-invitation-form" onSubmit={create}>
+      <label>Email address<input type="email" required value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
+      <label>Least-privilege role<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT","ADMIN_CATALOG","ADMIN_GROWTH","ADMIN_FINANCE","ADMIN_TECHNICAL","ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+      <button className="primary-button" disabled={busy || !form.email.trim()} type="submit">{busy ? "Working..." : "Send invitation"}</button>
+      {formError && <div className="form-error admin-invitation-error" role="alert"><strong>Invitation could not be sent</strong><span>{formError}</span></div>}
+    </form>
+    <div className="admin-invitation-list">
+      <div className="panel-heading"><div><h3>Invitation history</h3><p>Pending, accepted, revoked, and expired links.</p></div><button className="ghost-button" type="button" onClick={() => void reload()}>Refresh</button></div>
+      <DataTable columns={["Recipient","Role","Status","Sent","Expires","Actions"]} rows={invitations.map((item) => [
+        <div className="entity-cell"><strong>{item.email}</strong><small>Invited by {item.invitedBy}</small></div>,
+        <Badge value={item.role} />, <Badge value={item.status} tone={item.status === "ACCEPTED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />,
+        formatDate(item.createdAt), formatDate(item.expiresAt),
+        item.status === "PENDING" ? <div className="table-actions"><button className="ghost-button compact" disabled={busy} type="button" onClick={() => void action(item.id, "resend")}>Resend</button><button className="danger-button compact" disabled={busy} type="button" onClick={() => void action(item.id, "revoke")}>Revoke</button></div> : "-"
+      ])} empty={state === "loading" ? "Loading invitations..." : "No admin invitations yet."} />
+      <PaginationControls page={data?.page ?? page} pageSize={10} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={() => undefined} />
+    </div>
+    {pendingAction && <ConfirmDialog
+      title={pendingAction.method === "revoke" ? "Revoke admin invitation?" : "Send a new invitation link?"}
+      message={pendingAction.method === "revoke" ? "This invitation link will stop working immediately." : "The existing invitation link will be invalidated before a new one is sent."}
+      confirmLabel={pendingAction.method === "revoke" ? "Revoke invitation" : "Resend invitation"}
+      danger={pendingAction.method === "revoke"}
+      busy={busy}
+      onCancel={() => !busy && setPendingAction(null)}
+      onConfirm={() => void confirmAction()}
+    />}
+  </Panel>;
+}
+
 function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -3787,8 +3989,8 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
   const [selected, setSelected] = useState<AdminTeamMember | null>(null);
   const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", enabled: true, mfaEnabled: false, reason: "" });
   const [saving, setSaving] = useState(false);
+  const [passwordResetConfirmationOpen, setPasswordResetConfirmationOpen] = useState(false);
   const canManage = Boolean(accessProfile?.permissions?.includes("ADMIN_TEAM_MANAGE"));
-  const [grant, setGrant] = useState({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
   const members = data?.content ?? [];
 
   function selectMember(member: AdminTeamMember) {
@@ -3801,8 +4003,7 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
     });
   }
 
-  async function saveMember(event: FormEvent) {
-    event.preventDefault();
+  async function saveMember() {
     if (!selected?.id || !canManage) return;
     setSaving(true);
     try {
@@ -3819,19 +4020,15 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
     }
   }
 
-  async function grantAccess(event: FormEvent) {
-    event.preventDefault();
-    if (!canManage) return;
+  async function sendPasswordReset() {
+    if (!selected?.id || !canManage) return;
     setSaving(true);
     try {
-      await request<AdminTeamMember>("/api/v1/admin/security/team/grant", { method: "POST", body: { ...grant, email: grant.email.trim(), reason: grant.reason.trim() } });
-      setGrant({ email: "", role: "ADMIN_READ_ONLY", mfaEnabled: false, reason: "" });
-      await reload();
-    } catch (failure) {
-      onError(formatRequestError(failure));
-    } finally {
-      setSaving(false);
-    }
+      const result = await request<{ message?: string }>(`/api/v1/admin/security/team/${selected.id}/password-reset`, { method: "POST" });
+      setPasswordResetConfirmationOpen(false);
+      onError(result.message ?? "Password reset link sent.");
+    } catch (failure) { onError(formatRequestError(failure)); }
+    finally { setSaving(false); }
   }
   return <div className="stack">
     <SectionToolbar title="Admin security and access" description="Backend-enforced roles, current permissions, MFA readiness, and active sessions." state={state} onReload={reload} />
@@ -3844,14 +4041,8 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
     <AdminSessionPanel canRevoke={accessProfile?.role === "OWNER"} onError={onError} />
     {accessProfile?.role === "OWNER" && <OwnerAdminSessionsPanel onError={onError} />}
     {canManage && <AdminApprovalQueue accessProfile={accessProfile} onError={onError} />}
-    {canManage && <Panel title="Grant admin access">
-      <form className="admin-security-grant" onSubmit={grantAccess}>
-        <label>Existing verified account email<input type="email" required value={grant.email} onChange={(event) => setGrant((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label>
-        <label>Initial role<select value={grant.role} onChange={(event) => setGrant((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
-        <label>Required audit reason<input required maxLength={500} value={grant.reason} onChange={(event) => setGrant((current) => ({ ...current, reason: event.target.value }))} placeholder="Why access is required" /></label>
-        <button className="primary-button" disabled={saving || !grant.email.trim() || !grant.reason.trim()} type="submit">Grant access</button>
-      </form>
-    </Panel>}    <Panel title="Role boundaries">
+    {accessProfile?.role === "OWNER" && <AdminInvitationPanel onError={onError} />}
+    <Panel title="Role boundaries">
       <div className="security-role-grid">
         <div><strong>Support</strong><span>User support only; no pricing, promotions, secrets, or system changes.</span></div>
         <div><strong>Catalog</strong><span>Food, recipe, exercise, and review operations.</span></div>
@@ -3876,14 +4067,15 @@ function AdminSecurityView({ accessProfile, onError }: { accessProfile: AdminAcc
       empty="No admin team members returned."
     />
     <PaginationControls page={data?.page ?? page} pageSize={pageSize} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1, data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
-    {selected && <Panel title={`Manage ${selected.email ?? "admin"}`}>
-      <form className="admin-security-form" onSubmit={saveMember}>
-        <label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
-        <label className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
-        <label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain this access change." /></label>
-        <div className="form-actions"><button className="ghost-button" type="button" onClick={() => setSelected(null)}>Cancel</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="submit">{saving ? "Saving..." : "Apply access change"}</button></div>
-      </form>
-    </Panel>}
+    {selected && <div className="modal-backdrop" role="presentation" onClick={() => !saving && setSelected(null)}><section className="modal-card admin-member-modal" role="dialog" aria-modal="true" aria-label={`Manage ${selected.email ?? "admin"}`} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>Admin access</span><h2>Manage {selected.email ?? "admin"}</h2><p>Changes are backend-enforced and recorded in the security audit trail.</p></div><button className="icon-button" disabled={saving} type="button" onClick={() => setSelected(null)} aria-label="Close admin management">X</button></header><form className="admin-security-form modal-body" onSubmit={(event) => { event.preventDefault(); void saveMember(); }}><label>Role<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN", "ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label><label className="admin-enabled-control"><span>Account access</span><span className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />{draft.enabled ? "Enabled" : "Disabled"}</span></label><label className="wide-field">Required audit reason<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Explain why this role or access state is changing." /><small>{draft.reason.length}/500 characters</small></label></form><footer className="modal-actions admin-member-actions"><button className="ghost-button" disabled={saving} type="button" onClick={() => setSelected(null)}>Cancel</button><button className="ghost-button" disabled={saving} type="button" onClick={() => setPasswordResetConfirmationOpen(true)}>Send password reset</button><button className="primary-button" disabled={saving || !draft.reason.trim()} type="button" onClick={() => void saveMember()}>{saving ? "Applying..." : "Apply access change"}</button></footer></section></div>}
+    {selected && passwordResetConfirmationOpen && <ConfirmDialog
+      title="Send password reset link?"
+      message={`A single-use password reset link will be sent to ${selected.email}. Existing sessions will be revoked only after the password is changed.`}
+      confirmLabel="Send reset link"
+      busy={saving}
+      onCancel={() => !saving && setPasswordResetConfirmationOpen(false)}
+      onConfirm={() => void sendPasswordReset()}
+    />}
   </div>;
 }
 type UsersMode = "users" | "admins" | "verification";
@@ -4055,6 +4247,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
   const { data: revenueCat, state: revenueCatState, reload: reloadRevenueCat } = useEndpoint<RevenueCatConfigStatus>("/api/v1/admin/revenuecat/config", onError);
   const { data: subscriptionAudits, state: subscriptionAuditState, reload: reloadSubscriptionAudits } = useEndpoint<PageResponse<AuditEntry>>(buildAuditPath({ actionType: "", targetType: "USER_SUBSCRIPTION", page: 0, size: 20 }), onError);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [featureApprovalNotice, setFeatureApprovalNotice] = useState<string | null>(null);
   const [subscriptionActionState, setSubscriptionActionState] = useState<LoadState>("idle");
   const [subscriptionResult, setSubscriptionResult] = useState<SubscriptionDto | null>(null);
   const [matrixApplyConfirmationOpen, setMatrixApplyConfirmationOpen] = useState(false);
@@ -4241,9 +4434,10 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setSubscriptionActionState("loading");
     onError(null);
     try {
-      const response = await request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${selectedUserId}`, {
-        method: "PATCH",
-        body: {
+      await submitAdminApproval(
+        "SUBSCRIPTION_UPDATE",
+        String(selectedUserId),
+        {
           planType: subscriptionForm.planType,
           status: subscriptionForm.status,
           billingPeriod: subscriptionForm.billingPeriod,
@@ -4254,11 +4448,10 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
           autoRenew: subscriptionForm.autoRenew,
           provider: subscriptionForm.provider,
           providerSubscriptionId: subscriptionForm.providerSubscriptionId.trim() || null
-        }
-      });
-      setSubscriptionResult(response);
-      await refreshSelectedAccess(String(selectedUserId));
-      await reloadSubscriptionAudits();
+        },
+        `Update subscription for user ${selectedUserId}`
+      );
+      setFeatureApprovalNotice("Subscription change is pending approval. Current user access remains unchanged until it is approved.");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4275,6 +4468,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     onError(null);
     try {
       await submitAdminApproval("AI_QUOTA_RESET", String(selectedUserId), {}, "AI quota reset requested from User Access");
+      setFeatureApprovalNotice("AI quota reset is pending approval. Current usage remains unchanged until it is approved.");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4290,17 +4484,17 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     setSubscriptionActionState("loading");
     onError(null);
     try {
-      const response = await request<SubscriptionDto>(`/api/v1/admin/subscriptions/users/${selectedUserId}/ai-quota/addon`, {
-        method: "POST",
-        body: {
+      await submitAdminApproval(
+        "AI_ADDON_QUOTA_GRANT",
+        String(selectedUserId),
+        {
           amount: parsePositiveInt(addonForm.amount),
           validityDays: parsePositiveInt(addonForm.validityDays),
           note: addonForm.note.trim() || null
-        }
-      });
-      setSubscriptionResult(response);
-      await refreshSelectedAccess(String(selectedUserId));
-      await reloadSubscriptionAudits();
+        },
+        addonForm.note.trim() || `Grant add-on AI quota to user ${selectedUserId}`
+      );
+      setFeatureApprovalNotice("Add-on AI quota grant is pending approval. No credits have been added yet.");
       setSubscriptionActionState("ready");
     } catch (err) {
       setSubscriptionActionState("error");
@@ -4316,6 +4510,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     onError(null);
     try {
       await submitAdminApproval("ENTITLEMENT_MATRIX_APPLY", String(selectedUserId), {}, "Apply current feature matrix before renewal");
+      setFeatureApprovalNotice("Applying the current feature matrix is pending approval. Current user access remains unchanged.");
       setSubscriptionActionState("ready");
       setMatrixApplyConfirmationOpen(false);
     } catch (err) {
@@ -4330,17 +4525,20 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
     }
     const key = featureKey(item);
     setSavingKey(key);
+    setFeatureApprovalNotice(null);
     onError(null);
     try {
-      await request<FeatureMatrixItem>(`/api/v1/admin/subscriptions/features/${item.planType}/${item.feature}`, {
-        method: "PUT",
-        body: {
+      await submitAdminApproval(
+        "PLAN_FEATURE_UPDATE",
+        `${item.planType}:${item.feature}`,
+        {
           enabled,
           aiCreditCost: item.aiCreditCost ?? 1,
           effectiveFrom: item.effectiveFrom || todayIsoDate()
-        }
-      });
-      await reload();
+        },
+        `${enabled ? "Enable" : "Disable"} ${item.feature} for ${item.planType}`
+      );
+      setFeatureApprovalNotice(`${humanizeFeature(item.feature)} for ${item.planType} is pending approval. The current matrix remains unchanged until it is approved.`);
     } catch (err) {
       onError(formatRequestError(err));
     } finally {
@@ -4396,6 +4594,7 @@ function SubscriptionsView({ mode, onError }: { mode: SubscriptionMode; onError:
       <SectionToolbar title={title} state={combineStates([state, pricingState, revenueCatState, usersState, subscriptionAuditState, subscriptionActionState])} onReload={() => { void reload(); void reloadPricing(); }}>
         <button className="ghost-button" onClick={reloadRevenueCat} type="button">Reload RevenueCat</button>
       </SectionToolbar>
+      {featureApprovalNotice && <div className="form-notice" role="status">{featureApprovalNotice}</div>}
 
       {(mode === "overview" || mode === "entitlements") && <div className="subscription-hero">
         <div>
@@ -4991,6 +5190,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [refundDraft, setRefundDraft] = useState<{ item: AiMealDraft; amount: string; reason: string } | null>(null);
   const [refundRejectDraft, setRefundRejectDraft] = useState<{ item: AiMealDraft; reason: string } | null>(null);
   const [refundResult, setRefundResult] = useState<AiQuotaRefundResponse | null>(null);
+  const [refundApprovalNotice, setRefundApprovalNotice] = useState<string | null>(null);
   const [inspection, setInspection] = useState<AiRequestInspection | null>(null);
   const [inspectionState, setInspectionState] = useState<LoadState>("idle");
   const path = buildAiOperationsPath({ requestType, status, refundableOnly, page, size: pageSize });
@@ -5130,15 +5330,10 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     }
     setRefundState("loading");
     try {
-      const result = await request<AiQuotaRefundResponse>(`/api/v1/admin/ai/meal-drafts/${requestId}/quota-refund`, {
-        method: "POST",
-        body: { amount, reason }
-      });
-      setRefundResult(result);
+      await submitAdminApproval("AI_QUOTA_REFUND", String(requestId), { amount, reason }, reason);
+      setRefundApprovalNotice("AI quota refund is pending approval. The user's quota has not changed yet.");
       setRefundDraft(null);
       setRefundState("ready");
-      await reload();
-      await reloadSummary();
     } catch (error) {
       setRefundState("error");
       onError(formatRequestError(error));
@@ -5328,6 +5523,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           </label>
         </div>
       </Panel>
+      {refundApprovalNotice && <div className="form-notice" role="status">{refundApprovalNotice}</div>}
       {refundResult && <Panel title="Last quota refund decision">
         <div className="ai-refund-result-grid">
           <DetailItem label="Request" value={refundResult.requestId} />
@@ -6710,7 +6906,7 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
         <form className="brevo-sender-form horizontal" onSubmit={createSender}>
           <label>
             Sender name
-            <input value={createForm.name} onChange={(event) => setCreateForm({ ...createForm, name: event.target.value })} placeholder="GRun Support" required />
+            <input value={createForm.name} onChange={(event) => setCreateForm({ ...createForm, name: event.target.value })} placeholder="GRUN Support" required />
           </label>
           <label>
             Sender email
@@ -6745,7 +6941,7 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
               <div className="sender-update-fields">
                 <label>
                   Sender name
-                <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} placeholder="GRun Support" required />
+                <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} placeholder="GRUN Support" required />
                 </label>
                 <label>
                   Sender email
@@ -6766,6 +6962,15 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
 }
 
 type CatalogOperationsMode = "exercises" | "sources";
+type UnmatchedAiExercise = {
+  id: number; displayName: string; normalizedName: string; language?: string; equipment?: string;
+  targetMuscleGroup?: string; occurrenceCount: number; firstSeenAt: string; lastSeenAt: string;
+  status: string; resolvedExerciseItemId?: number;
+};
+type ExerciseResolutionSummary = {
+  openNames: number; openOccurrences: number; resolvedNames: number; dismissedNames: number;
+  reviewedNames: number; resolutionRatePercent: number;
+};
 
 const EMPTY_EXERCISE: ExerciseCatalogItem = {
   name: "", metCode: "", caloriesPerMinute: 1, description: "", primaryMuscleGroup: "",
@@ -6787,6 +6992,7 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
   const [reviewNote, setReviewNote] = useState("");
   const [assignment, setAssignment] = useState({ assignee: "", dueAt: "", reason: "" });
   const [actionState, setActionState] = useState<LoadState>("ready");
+  const [resolutionIds, setResolutionIds] = useState<Record<number, string>>({});
   const exercisePath = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
     if (appliedQuery) params.set("q", appliedQuery);
@@ -6797,6 +7003,8 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
   const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AdminCatalogSummary>("/api/v1/admin/catalog/summary", onError);
   const { data: importJobs, state: importState, reload: reloadImports } = useEndpoint<AdminCatalogImportJob[]>("/api/v1/admin/catalog/import-jobs", onError);
   const { data: exercises, state: exerciseState, reload: reloadExercises } = useEndpoint<ExerciseCatalogPage>(exercisePath, onError);
+  const { data: unmatchedExercises, state: unmatchedState, reload: reloadUnmatched } = useEndpoint<PageResponse<UnmatchedAiExercise>>("/api/v1/admin/exercise-resolution/unmatched?status=OPEN&page=0&size=50", onError);
+  const { data: resolutionSummary, state: resolutionSummaryState, reload: reloadResolutionSummary } = useEndpoint<ExerciseResolutionSummary>("/api/v1/admin/exercise-resolution/summary", onError);
   const exerciseRows = exercises?.content ?? [];
 
   function openExercise(item?: ExerciseCatalogItem) {
@@ -6861,13 +7069,37 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
     }
   }
 
-  const combinedState = combineStates([summaryState, importState, exerciseState, actionState]);
+  async function resolveAiExercise(item: UnmatchedAiExercise) {
+    const exerciseItemId = Number(resolutionIds[item.id]);
+    if (!Number.isInteger(exerciseItemId) || exerciseItemId <= 0) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/exercise-resolution/unmatched/${item.id}/resolve`, {
+        method: "POST", body: { exerciseItemId, createAlias: true }
+      });
+      setResolutionIds((current) => ({ ...current, [item.id]: "" }));
+      await Promise.all([reloadUnmatched(), reloadResolutionSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error"); onError(formatRequestError(error));
+    }
+  }
+
+  async function dismissAiExercise(item: UnmatchedAiExercise) {
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/exercise-resolution/unmatched/${item.id}/dismiss`, { method: "POST" });
+      await Promise.all([reloadUnmatched(), reloadResolutionSummary()]); setActionState("ready");
+    } catch (error) { setActionState("error"); onError(formatRequestError(error)); }
+  }
+
+  const combinedState = combineStates([summaryState, importState, exerciseState, unmatchedState, resolutionSummaryState, actionState]);
   return <div className="stack catalog-operations-view">
     <SectionToolbar
       title={mode === "exercises" ? "Exercise library operations" : "Catalog sources and jobs"}
       description={mode === "exercises" ? "Moderate technique, safety, media, source evidence, ownership, and active state." : "Cross-catalog coverage, source freshness, licensing evidence, and recent pipeline runs."}
       state={combinedState}
-      onReload={() => { void reloadSummary(); void reloadImports(); void reloadExercises(); }}
+      onReload={() => { void reloadSummary(); void reloadImports(); void reloadExercises(); void reloadUnmatched(); void reloadResolutionSummary(); }}
     />
     {mode === "sources" && <>
       <div className="catalog-domain-grid">
@@ -6921,6 +7153,24 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
           empty="No exercise catalog items match the filters."
         />
         <PaginationControls page={exercises?.page ?? page} pageSize={exercises?.size ?? pageSize} totalElements={exercises?.totalElements ?? 0} totalPages={Math.max(1, exercises?.totalPages ?? 1)} first={exercises?.first ?? page === 0} last={exercises?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+      </Panel>
+      <Panel title="Unmatched AI exercises" description="Names produced by workout generation that could not be linked safely to an approved canonical exercise. Resolving also creates a reusable alias.">
+        <div className="runtime-metric-grid">
+          <MetricCard label="Open names" value={formatValue(resolutionSummary?.openNames)} hint={`${formatValue(resolutionSummary?.openOccurrences)} generated occurrences`} />
+          <MetricCard label="Resolved" value={formatValue(resolutionSummary?.resolvedNames)} hint="Linked to canonical exercises" />
+          <MetricCard label="Dismissed" value={formatValue(resolutionSummary?.dismissedNames)} hint="Reviewed as non-catalog output" />
+          <MetricCard label="Resolution rate" value={`${formatValue(resolutionSummary?.resolutionRatePercent)}%`} hint={`${formatValue(resolutionSummary?.reviewedNames)} names reviewed`} />
+        </div>
+        <DataTable
+          columns={["AI exercise", "Context", "Occurrences", "Last seen", "Resolve to exercise ID"]}
+          rows={(unmatchedExercises?.content ?? []).map((item) => [
+            <div className="entity-cell"><strong>{item.displayName}</strong><small>{item.normalizedName} · {item.language ?? "und"}</small></div>,
+            <div className="entity-cell"><strong>{item.targetMuscleGroup ?? "Unknown muscle"}</strong><small>{item.equipment ?? "Unknown equipment"}</small></div>,
+            formatValue(item.occurrenceCount), formatDate(item.lastSeenAt),
+            <div className="inline-actions"><input aria-label={`Exercise ID for ${item.displayName}`} type="number" min="1" value={resolutionIds[item.id] ?? ""} onChange={(event) => setResolutionIds((current) => ({ ...current, [item.id]: event.target.value }))} /><button className="ghost-button" type="button" disabled={!resolutionIds[item.id] || actionState === "loading"} onClick={() => void resolveAiExercise(item)}>Link + alias</button><button className="ghost-button danger-text" type="button" disabled={actionState === "loading"} onClick={() => void dismissAiExercise(item)}>Dismiss</button></div>
+          ])}
+          empty="No unmatched AI exercises. Generated plans are resolving cleanly."
+        />
       </Panel>
       {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
         <form className="modal-card catalog-exercise-modal" onSubmit={saveExercise} onClick={(event) => event.stopPropagation()}>
@@ -8041,14 +8291,15 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
     if (!selectedId) return;
     setActionState("loading");
     try {
-      await request<NotificationCampaign>("/api/v1/admin/notification-campaigns/" + selectedId + "/schedule", {
-        method: "POST",
-        body: { scheduledAt: scheduledAt ? scheduledAt + ":00" : null }
-      });
+      await submitAdminApproval(
+        "NOTIFICATION_CAMPAIGN_SCHEDULE",
+        String(selectedId),
+        { scheduledAt: scheduledAt ? scheduledAt + ":00" : null },
+        `Schedule notification campaign ${selectedId}`
+      );
       setConfirmSchedule(false);
+      setNotice("Campaign schedule is pending approval. No notifications have been sent yet.");
       setActionState("ready");
-      await reload();
-      resetDraft();
     } catch (error) {
       setConfirmSchedule(false);
       setActionState("error");
@@ -9039,7 +9290,7 @@ function DistributionPanel({ title, items }: { title: string; items: Record<stri
   );
 }
 
-function useEndpoint<T>(path: string, onError: (message: string | null) => void) {
+function useEndpoint<T>(path: string, onError: (message: string | null) => void, enabled = true) {
   const [data, setData] = useState<T | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [reloadToken, setReloadToken] = useState(0);
@@ -9051,6 +9302,11 @@ function useEndpoint<T>(path: string, onError: (message: string | null) => void)
 
   useEffect(() => {
     let active = true;
+    if (!enabled) {
+      setData(null);
+      setState("idle");
+      return () => { active = false; };
+    }
     setState("loading");
     onError(null);
 
@@ -9071,7 +9327,7 @@ function useEndpoint<T>(path: string, onError: (message: string | null) => void)
     return () => {
       active = false;
     };
-  }, [stablePath, reloadToken]);
+  }, [stablePath, reloadToken, enabled]);
 
   return { data, state, reload: load };
 }

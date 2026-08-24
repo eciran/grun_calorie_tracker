@@ -92,7 +92,7 @@ public class AccountController {
     @PostMapping("/link/google")
     @Operation(
             summary = "Link Google login",
-            description = "Verifies a Google ID token and links that Google subject to the authenticated GRun account."
+            description = "Verifies a Google ID token and links that Google subject to the authenticated GRUN account."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Google identity linked."),
@@ -110,7 +110,7 @@ public class AccountController {
     @PostMapping("/link/apple")
     @Operation(
             summary = "Link Apple login",
-            description = "Verifies an Apple identity token and nonce, then links that Apple subject to the authenticated GRun account."
+            description = "Verifies an Apple identity token and nonce, then links that Apple subject to the authenticated GRUN account."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Apple identity linked."),

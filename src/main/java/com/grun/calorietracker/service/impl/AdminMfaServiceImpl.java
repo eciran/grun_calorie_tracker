@@ -133,7 +133,14 @@ public class AdminMfaServiceImpl implements AdminMfaService {
             }
             return;
         }
-        requireValidCode(user, code, true);
+        if (code == null || code.isBlank()) {
+            throw com.grun.calorietracker.exception.AdminMfaLoginException.required();
+        }
+        try {
+            requireValidCode(user, code, true);
+        } catch (IllegalArgumentException ex) {
+            throw com.grun.calorietracker.exception.AdminMfaLoginException.invalid();
+        }
     }
 
     private void requireValidCode(UserEntity user, String code, boolean allowRecovery) {

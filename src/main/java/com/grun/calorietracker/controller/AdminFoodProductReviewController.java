@@ -103,7 +103,7 @@ public class AdminFoodProductReviewController {
             @RequestParam("file") MultipartFile file,
             @Parameter(description = "Controls whether the CSV is curated admin data or raw external bulk data.", example = "RAW_EXTERNAL")
             @RequestParam(defaultValue = "CURATED_ADMIN") FoodProductImportMode importMode,
-            @Parameter(description = "Column mapping format. AUTO detects GRun, Open Food Facts export, or USDA-like files.", example = "AUTO")
+            @Parameter(description = "Column mapping format. AUTO detects GRUN, Open Food Facts export, or USDA-like files.", example = "AUTO")
             @RequestParam(defaultValue = "AUTO") FoodProductImportFormat importFormat,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductImportService.importCsv(

@@ -72,6 +72,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
                 request.getGenerationMode() == NutritionPlanGenerationMode.WORKOUT_ALIGNED)
                 .getTotalCreditCost();
         UserEntity user = user(email);
+        request.setLanguage(user.getPreferredLanguage() == PreferredLanguage.TR ? "tr" : "en");
 
         AiNutritionPlanDraftResponseDto previous = existing(user, key);
         if (previous != null) {
@@ -159,9 +160,6 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
     @Transactional
     public MealPlanDto confirmDraft(
             String email, Long requestId, AiNutritionPlanConfirmRequestDto request) {
-        if (request == null || request.getDraft() == null) {
-            throw new IllegalArgumentException("Reviewed nutrition-plan draft is required.");
-        }
         UserEntity user = userForUpdate(email);
         AiRequestHistoryEntity history = ownedHistory(user, requestId);
         if (history.getStatus() == AiRequestStatus.CONFIRMED) {
@@ -175,13 +173,9 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         }
 
         AiNutritionPlanDraftResponseDto original = readDraft(history);
-        AiNutritionPlanDraftResponseDto reviewed = request.getDraft();
-        reviewed.setGenerationMode(original.getGenerationMode());
-        reviewed.setWorkoutPlanId(original.getWorkoutPlanId());
-        reviewed.setStartDate(original.getStartDate());
-        reviewed.setEndDate(original.getEndDate());
-        reviewed.setDailyTarget(original.getDailyTarget());
+        AiNutritionPlanDraftResponseDto reviewed = readDraft(history);
         AiNutritionPlanDraftRequestDto validationRequest = requestFrom(original);
+        validationRequest.setLanguage(user.getPreferredLanguage() == PreferredLanguage.TR ? "tr" : "en");
         applyPersistentNutritionPreferences(email, validationRequest);
         WorkoutNutritionContextDto currentWorkoutContext = workoutContext(user, validationRequest);
         validationRequest.setTrustedWorkoutContext(currentWorkoutContext);
@@ -329,16 +323,16 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         mergeDailyMicronutrients(day.getTotalNutrition(), day.getDailyMicronutrients());
         validateDailyTarget(response, day.getTotalNutrition().getCalories(), target.getCalories(),
                 Math.max(100.0, target.getCalories() * 0.15),
-                Math.max(150.0, target.getCalories() * 0.25), "calories", date, true);
+                Math.max(150.0, target.getCalories() * 0.25), "calories", date, true, request.getLanguage());
         validateDailyTarget(response, day.getTotalNutrition().getProtein(), target.getProtein(),
                 Math.max(20.0, target.getProtein() * 0.20),
-                Math.max(40.0, target.getProtein() * 0.45), "protein", date, false);
+                Math.max(40.0, target.getProtein() * 0.45), "protein", date, false, request.getLanguage());
         validateDailyTarget(response, day.getTotalNutrition().getCarbs(), target.getCarbs(),
                 Math.max(30.0, target.getCarbs() * 0.20),
-                Math.max(70.0, target.getCarbs() * 0.45), "carbohydrates", date, false);
+                Math.max(70.0, target.getCarbs() * 0.45), "carbohydrates", date, false, request.getLanguage());
         validateDailyTarget(response, day.getTotalNutrition().getFat(), target.getFat(),
                 Math.max(15.0, target.getFat() * 0.20),
-                Math.max(30.0, target.getFat() * 0.60), "fat", date, false);
+                Math.max(30.0, target.getFat() * 0.60), "fat", date, false, request.getLanguage());
     }
 
     private AiNutritionPlanDraftResponseDto createValidatedProviderDraft(
@@ -593,7 +587,8 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
     private void validateDailyTarget(AiNutritionPlanDraftResponseDto response,
                                      Double actual, Double target,
                                      double preferredTolerance, double hardTolerance,
-                                     String nutrient, LocalDate date, boolean failWhenOutsideHardRange) {
+                                     String nutrient, LocalDate date, boolean failWhenOutsideHardRange,
+                                     String language) {
         double difference = actual == null || target == null
                 ? Double.POSITIVE_INFINITY : Math.abs(actual - target);
         if (difference > hardTolerance && failWhenOutsideHardRange) {
@@ -606,13 +601,28 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
                     minimum, maximum));
         }
         if (difference > preferredTolerance && response.getWarnings().size() < 20) {
-            String warning = String.format(Locale.ROOT,
-                    "%s %s is slightly outside the preferred target range; review portions before confirming.",
+            boolean turkish = language != null && language.toLowerCase(Locale.ROOT).startsWith("tr");
+            String warning = turkish
+                    ? String.format(Locale.forLanguageTag("tr-TR"),
+                    "%s tarihinde %s tercih edilen hedef aralığının biraz dışında; onaylamadan önce planı inceleyin.",
+                    date, turkishNutrient(nutrient))
+                    : String.format(Locale.ROOT,
+                    "%s %s is slightly outside the preferred target range; review the plan before confirming.",
                     date, nutrient);
             if (!response.getWarnings().contains(warning)) {
                 response.getWarnings().add(warning);
             }
         }
+    }
+
+    private String turkishNutrient(String nutrient) {
+        return switch (nutrient) {
+            case "calories" -> "kalori";
+            case "protein" -> "protein";
+            case "carbohydrates" -> "karbonhidrat";
+            case "fat" -> "yağ";
+            default -> nutrient;
+        };
     }
 
     private void validateQuality(AiNutritionPlanDraftResponseDto response) {

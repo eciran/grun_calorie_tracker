@@ -721,9 +721,7 @@ class AiNutritionPlanServiceImplTest {
         when(mealPlanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(mealPlanService.getMealPlan("user@example.com", 90L)).thenReturn(created);
 
-        AiNutritionPlanConfirmRequestDto request = new AiNutritionPlanConfirmRequestDto();
-        request.setDraft(validResponse());
-        MealPlanDto result = service.confirmDraft("user@example.com", 77L, request);
+        MealPlanDto result = service.confirmDraft("user@example.com", 77L, null);
 
         assertEquals(90L, result.getId());
         assertEquals(AiRequestStatus.CONFIRMED, history.getStatus());

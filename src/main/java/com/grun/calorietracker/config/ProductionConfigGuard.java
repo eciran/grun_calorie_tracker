@@ -35,24 +35,26 @@ public class ProductionConfigGuard {
         }
         if ("BREVO".equalsIgnoreCase(mailProvider)) {
             requireSecret(errors, "GRUN_BREVO_API_KEY", "grun.mail.brevo.api-key");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_EMAIL_VERIFICATION_EN", "grun.mail.brevo.templates.email-verification-en");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_EMAIL_VERIFICATION_TR", "grun.mail.brevo.templates.email-verification-tr");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_PASSWORD_RESET_EN", "grun.mail.brevo.templates.password-reset-en");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_PASSWORD_RESET_TR", "grun.mail.brevo.templates.password-reset-tr");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_SUBSCRIPTION_FEATURE_CHANGE_EN", "grun.mail.brevo.templates.subscription-feature-change-en");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_SUBSCRIPTION_FEATURE_CHANGE_TR", "grun.mail.brevo.templates.subscription-feature-change-tr");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_ADMIN_INVITATION_EN", "grun.mail.brevo.templates.admin-invitation-en");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_ADMIN_INVITATION_TR", "grun.mail.brevo.templates.admin-invitation-tr");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_ADMIN_PASSWORD_CHANGED_EN", "grun.mail.brevo.templates.admin-password-changed-en");
+            requirePositive(errors, "GRUN_BREVO_TEMPLATE_ADMIN_PASSWORD_CHANGED_TR", "grun.mail.brevo.templates.admin-password-changed-tr");
         }
 
         boolean pushEnabled = environment.getProperty("grun.push.enabled", Boolean.class, false);
         String pushProvider = environment.getProperty("grun.push.provider", "LOG");
-        if (pushEnabled) {
-            if ("LOG".equalsIgnoreCase(pushProvider)) {
-                errors.add("GRUN_PUSH_PROVIDER must not be LOG when push is enabled in prod.");
-            } else if ("EXPO".equalsIgnoreCase(pushProvider)) {
-                requireSecret(errors, "GRUN_PUSH_EXPO_URL", "grun.push.expo.url");
-            } else if ("FCM".equalsIgnoreCase(pushProvider)) {
-                requireSecret(errors, "GRUN_PUSH_FCM_PROJECT_ID", "grun.push.fcm.project-id");
-                requireSecret(errors, "GRUN_PUSH_FCM_CREDENTIALS_JSON", "grun.push.fcm.credentials-json");
-            } else if ("ONESIGNAL".equalsIgnoreCase(pushProvider)) {
-                requireSecret(errors, "GRUN_PUSH_ONESIGNAL_APP_ID", "grun.push.onesignal.app-id");
-                requireSecret(errors, "GRUN_PUSH_ONESIGNAL_API_KEY", "grun.push.onesignal.api-key");
-            } else {
-                errors.add("GRUN_PUSH_PROVIDER is unsupported.");
-            }
+        if (!pushEnabled) {
+            errors.add("GRUN_PUSH_ENABLED must be true in prod.");
+        } else if (!"EXPO".equalsIgnoreCase(pushProvider)) {
+            errors.add("GRUN_PUSH_PROVIDER must be EXPO because the mobile app registers Expo push tokens.");
+        } else {
+            requireSecret(errors, "GRUN_PUSH_EXPO_URL", "grun.push.expo.url");
         }
 
         if (!errors.isEmpty()) {
@@ -71,6 +73,13 @@ public class ProductionConfigGuard {
         String value = environment.getProperty(propertyName);
         if (rejectedValue.equals(value)) {
             errors.add(envName + " must not use the local development fallback value.");
+        }
+    }
+
+    private void requirePositive(List<String> errors, String envName, String propertyName) {
+        Long value = environment.getProperty(propertyName, Long.class);
+        if (value == null || value <= 0) {
+            errors.add(envName + " must be a positive integer.");
         }
     }
 }

@@ -26,9 +26,11 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RevenueCatWebhookService;
 import com.grun.calorietracker.service.PromoProviderRedemptionService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.RoundingMode;
@@ -61,6 +63,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
     private final PromoProviderRedemptionService promoProviderRedemptionService;
+    @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
     @Override
     @Transactional
@@ -177,7 +180,8 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             notification.setCreatedAt(now);
             return notification;
         }).toList();
-        notificationRepository.saveAll(notifications);
+        List<NotificationEntity> saved = notificationRepository.saveAll(notifications);
+        if (pushDeliveryService != null) saved.forEach(pushDeliveryService::deliver);
     }
     private void validateAuthorization(String authorizationHeader) {
         String expected = properties.getWebhookAuthorization();

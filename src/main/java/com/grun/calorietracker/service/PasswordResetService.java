@@ -8,5 +8,7 @@ public interface PasswordResetService {
 
     PasswordResetResponseDto requestPasswordReset(PasswordResetRequestDto request);
 
+    PasswordResetResponseDto requestAdminPasswordReset(String ownerEmail, Long userId, String correlationId);
+
     PasswordResetResponseDto confirmPasswordReset(PasswordResetConfirmRequestDto request);
 }

@@ -75,7 +75,7 @@ class AiCompletionNotificationServiceTest {
         ArgumentCaptor<NotificationEntity> captor = ArgumentCaptor.forClass(NotificationEntity.class);
         verify(notificationRepository).save(captor.capture());
         assertEquals("antrenman plani hazir!", captor.getValue().getTitle());
-        assertEquals("GRun AI sonucunuz incelenmeye hazir.", captor.getValue().getMessage());
+        assertEquals("GRUN AI sonucunuz incelenmeye hazir.", captor.getValue().getMessage());
     }
 
     @Test

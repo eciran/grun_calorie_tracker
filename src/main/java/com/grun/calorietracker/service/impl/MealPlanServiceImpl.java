@@ -208,7 +208,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             MealPlanItemEntity item = new MealPlanItemEntity();
             item.setMealPlan(plan);
             item.setPlanDate(itemRequest.getPlanDate());
-            item.setMealType(itemRequest.getMealType().trim().toUpperCase());
+            item.setMealType(itemRequest.getMealType().trim().toUpperCase(java.util.Locale.ROOT));
             item.setItemType(itemRequest.getItemType());
             item.setItemOrder(order++);
             if (itemRequest.getItemType() == MealPlanItemType.FOOD_ITEM) {

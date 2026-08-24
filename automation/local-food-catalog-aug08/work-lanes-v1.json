@@ -1,0 +1,128 @@
+﻿{
+    "schema_version":  "local-food-dual-lane-v1",
+    "effective_date":  "2026-08-07",
+    "shared_lock":  {
+                        "script":  "scripts/product-catalog-aug08-automation-lock.ps1",
+                        "run_id_prefix":  "LOCAL-FOOD",
+                        "required_before_write":  true,
+                        "busy_behavior":  "REPORT_ONLY_NO_PROJECT_WRITE",
+                        "release_in_finally":  true,
+                        "parallel_project_writes_allowed":  false
+                    },
+    "scheduler":  {
+                      "mode":  "RESUMED_USER_DIRECTED",
+                      "max_slice_minutes":  45,
+                      "selection_order":  [
+                                              "LOCAL_DISH_PROMOTION_IF_UNBLOCKED",
+                                              "RESTAURANT_CHAIN_DISCOVERY",
+                                              "GENERIC_REMEDIATION_IF_KEY_AVAILABLE"
+                                          ],
+                      "same_run_max_lanes":  1,
+                      "reason":  "Shared lock serializes all writes while independent queues continue across alternating heartbeat runs",
+                      "last_completed_lane":  "RESTAURANT_CHAIN_DISCOVERY",
+                      "last_completed_task":  "REVIEW_PASSING_44_COHORT_AND_TWO_NO_DB_REHEARSALS",
+                      "last_completed_run_id":  "LOCAL-FOOD-RC-REHEARSAL44-20260808T0330Z",
+                      "paused_at":  "2026-08-08T00:09:05Z",
+                      "pause_reason":  "HISTORICAL_FINAL_AUDIT_SUPERSEDED_BY_EXPLICIT_USER_RESUME"
+                  },
+    "metric_partitions":  [
+                              {
+                                  "id":  "GENERIC_INGREDIENT",
+                                  "candidate":  151,
+                                  "release_ready":  113,
+                                  "count_isolation":  "STRICT"
+                              },
+                              {
+                                  "id":  "LOCAL_DISH",
+                                  "candidate":  267,
+                                  "tr":  172,
+                                  "uk_ie":  95,
+                                  "calculated_review":  5,
+                                  "release_ready":  0,
+                                  "count_isolation":  "STRICT"
+                              },
+                              {
+                                  "id":  "BRANDED_PRODUCT_RESTAURANT_CHAIN",
+                                  "candidate":  57,
+                                  "brand":  "SIX_BRAND_CORE_MAIN",
+                                  "market":  "TR_AND_UK_IE",
+                                  "release_ready":  0,
+                                  "count_isolation":  "STRICT"
+                              }
+                          ],
+    "lanes":  [
+                  {
+                      "lane_id":  "LOCAL_DISH_PROMOTION",
+                      "status":  "READY_WITH_APPROVAL_DEPENDENCY",
+                      "write_scope":  [
+                                          "outputs/local-food-catalog-aug08/staging",
+                                          "outputs/local-food-catalog-aug08/review",
+                                          "docs/LOCAL_FOOD_CATALOG_AUG08_*",
+                                          "automation/local-food-catalog-aug08"
+                                      ],
+                      "current_stage":  "D4",
+                      "next_ready_task":  "PILOT_5_SOURCE_SUBSTANTIATION_AND_CURATOR_DECISION_MONITOR",
+                      "external_dependency":  "CURATOR_APPROVAL",
+                      "safe_without_approval":  [
+                                                    "official recipe/yield evidence research",
+                                                    "component provenance QA",
+                                                    "decision packet monitoring",
+                                                    "expected-fail preflight verification"
+                                                ],
+                      "forbidden_without_approval":  [
+                                                         "mark approved",
+                                                         "generate approved serving options",
+                                                         "production promotion"
+                                                     ],
+                      "pre_pause_status":  "READY_WITH_APPROVAL_DEPENDENCY"
+                  },
+                  {
+                      "lane_id":  "RESTAURANT_CHAIN_DISCOVERY",
+                      "status":  "IN_PROGRESS",
+                      "write_scope":  [
+                                          "outputs/local-food-catalog-aug08/review/restaurant-chain",
+                                          "automation/local-food-catalog-aug08"
+                                      ],
+                      "current_stage":  "RC5_REHEARSAL",
+                      "next_ready_task":  "BUILD_RIGHTS_WEIGHT_AND_RECORD_APPROVAL_PACKET_44",
+                      "followup_tasks":  [
+                                             "MCDONALDS_UK_IE_OFFICIAL_SOURCE_PILOT",
+                                             "BURGER_KING_TR_WRITTEN_PERMISSION_MONITOR"
+                                         ],
+                      "handoff_target":  "automation/product-catalog-aug08",
+                      "handoff_rule":  "REVIEW_MANIFEST_ONLY_NO_DIRECT_BRANDED_IMPORT_MUTATION",
+                      "forbidden":  [
+                                        "retailer scraping",
+                                        "cross-market nutrition substitution",
+                                        "mix with local-dish metrics"
+                                    ],
+                      "completed_tasks":  [
+                                              "BURGER_KING_TR_OFFICIAL_CANDIDATE_PILOT",
+                                              "BURGER_KING_TR_SERVING_WEIGHT_EVIDENCE_AND_TERMS_REVIEW"
+                                          ],
+                      "pre_pause_status":  "READY"
+                  },
+                  {
+                      "lane_id":  "GENERIC_REMEDIATION",
+                      "status":  "BLOCKED_EXTERNAL_KEY",
+                      "current_stage":  "D2",
+                      "next_ready_task":  "USDA_REQUERY_AND_EXPANSION",
+                      "external_dependency":  "USDA_FOODDATA_API_KEY",
+                      "safe_without_key":  [
+                                               "existing 146-row QA only"
+                                           ],
+                      "pre_pause_status":  "BLOCKED_EXTERNAL_KEY"
+                  }
+              ],
+    "forbidden_global":  [
+                             "reset",
+                             "revert",
+                             "stash",
+                             "commit",
+                             "push",
+                             "deploy",
+                             "AWS mutation",
+                             "production write",
+                             "retailer scraping"
+                         ]
+}

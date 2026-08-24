@@ -33,7 +33,7 @@ class AdminUserAnalyticsControllerTest {
     private AdminUserAnalyticsService analyticsService;
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ"})
     void getAnalytics_whenAdmin_returnsAggregateDataWithoutUserProfiles() throws Exception {
         LocalDate date = LocalDate.of(2026, 7, 26);
         when(analyticsService.getAnalytics(date, date, "Europe/Dublin"))

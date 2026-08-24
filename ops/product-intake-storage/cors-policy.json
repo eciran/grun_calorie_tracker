@@ -1,0 +1,7 @@
+{
+  "allowedOrigins": ["https://admin.example.com", "https://app.example.com"],
+  "allowedMethods": ["PUT", "GET", "HEAD"],
+  "allowedHeaders": ["content-type", "x-amz-checksum-sha256"],
+  "exposeHeaders": ["etag", "x-amz-checksum-sha256"],
+  "maxAgeSeconds": 600
+}

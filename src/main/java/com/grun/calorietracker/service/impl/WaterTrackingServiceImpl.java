@@ -422,7 +422,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         if (source == null || source.isBlank()) {
             return "MANUAL";
         }
-        return source.trim().toUpperCase();
+        return source.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private WaterLogDto toDto(WaterLogEntity entity) {

@@ -136,7 +136,7 @@ public class LocalDemoSeedConfig {
         FoodItemEntity entity = foodItemRepository.findByNormalizedBarcode(barcode)
                 .orElseGet(FoodItemEntity::new);
 
-        entity.setName("GRun Demo Raw Protein Bar");
+        entity.setName("GRUN Demo Raw Protein Bar");
         entity.setBarcode(barcode);
         entity.setNormalizedBarcode(barcode);
         entity.setCalories(230.0);
@@ -241,7 +241,7 @@ public class LocalDemoSeedConfig {
         createRecipeIfMissing(
                 recipeRepository,
                 user,
-                "GRun Demo High Protein Yogurt Bowl",
+                "GRUN Demo High Protein Yogurt Bowl",
                 "Greek yogurt and banana bowl for a quick high protein breakfast.",
                 "BREAKFAST",
                 MarketRegion.UK_IE,
@@ -256,7 +256,7 @@ public class LocalDemoSeedConfig {
         createRecipeIfMissing(
                 recipeRepository,
                 user,
-                "GRun Demo Chicken Meal Prep Salad",
+                "GRUN Demo Chicken Meal Prep Salad",
                 "Simple chicken salad prepared for meal prep and public recipe testing.",
                 "LUNCH",
                 MarketRegion.UK_IE,
@@ -347,7 +347,7 @@ public class LocalDemoSeedConfig {
         return List.of(
                 new DemoFoodProduct(
                         "8690000000011",
-                        "GRun Demo Greek Yogurt",
+                        "GRUN Demo Greek Yogurt",
                         59.0,
                         10.0,
                         3.6,
@@ -358,7 +358,7 @@ public class LocalDemoSeedConfig {
                 ),
                 new DemoFoodProduct(
                         "8690000000028",
-                        "GRun Demo Banana",
+                        "GRUN Demo Banana",
                         89.0,
                         1.1,
                         22.8,
@@ -369,7 +369,7 @@ public class LocalDemoSeedConfig {
                 ),
                 new DemoFoodProduct(
                         "8690000000035",
-                        "GRun Demo Chicken Breast",
+                        "GRUN Demo Chicken Breast",
                         165.0,
                         31.0,
                         0.0,

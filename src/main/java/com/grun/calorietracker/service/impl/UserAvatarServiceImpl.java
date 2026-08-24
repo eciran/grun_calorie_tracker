@@ -5,23 +5,22 @@ import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserAvatarService;
+import com.grun.calorietracker.service.media.MediaNamespace;
+import com.grun.calorietracker.service.media.MediaObjectStorage;
+import com.grun.calorietracker.service.media.MediaStorageKeyPolicy;
+import com.grun.calorietracker.service.support.AvatarUploadInspector;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,44 +28,55 @@ public class UserAvatarServiceImpl implements UserAvatarService {
 
     private final ProfileMediaProperties properties;
     private final UserRepository userRepository;
+    private final MediaObjectStorage mediaStorage;
+    private final MediaStorageKeyPolicy keyPolicy;
+    private final AvatarUploadInspector uploadInspector;
 
     @Override
     public UserProfileDto uploadAvatar(String email, MultipartFile file) {
-        validate(file);
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+        var avatar = uploadInspector.inspect(file);
+        String owner = "u" + user.getId();
+        String storageKey = keyPolicy.create(MediaNamespace.PROFILE_AVATAR, owner, avatar.extension());
+        String previousUrl = user.getAvatarUrl();
 
-        String extension = extension(file.getOriginalFilename(), file.getContentType());
-        String filename = "u" + user.getId() + "-" + UUID.randomUUID() + extension;
-        Path target = storageRoot().resolve(filename).normalize();
-        ensureInsideStorage(target);
-
+        mediaStorage.store(storageKey, avatar.bytes(), avatar.contentType(), avatar.sha256());
         try {
-            Files.createDirectories(storageRoot());
-            file.transferTo(target);
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("Avatar image could not be stored.");
+            user.setAvatarUrl(publicUrl(publicToken(storageKey, owner)));
+            UserProfileDto result = toProfileDto(userRepository.save(user));
+            deleteExistingAvatar(previousUrl);
+            return result;
+        } catch (RuntimeException exception) {
+            safelyDelete(storageKey);
+            throw exception;
         }
-
-        deleteExistingAvatar(user.getAvatarUrl());
-        user.setAvatarUrl(publicUrl(filename));
-        return toProfileDto(userRepository.save(user));
     }
 
     @Override
     public UserProfileDto deleteAvatar(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
-        deleteExistingAvatar(user.getAvatarUrl());
+        String previousUrl = user.getAvatarUrl();
         user.setAvatarUrl(null);
-        return toProfileDto(userRepository.save(user));
+        UserProfileDto result = toProfileDto(userRepository.save(user));
+        deleteExistingAvatar(previousUrl);
+        return result;
     }
 
     @Override
     public Resource loadAvatar(String filename) {
-        if (filename == null || filename.isBlank() || filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
-            throw new IllegalArgumentException("Avatar filename is invalid.");
+        String storageKey = storageKeyFromPublicToken(filename);
+        if (storageKey != null) {
+            mediaStorage.inspect(storageKey);
+            return new ByteArrayResource(mediaStorage.readBounded(
+                    storageKey, properties.getAvatar().getMaxUploadBytes()));
         }
+        return loadLegacyAvatar(filename);
+    }
+
+    private Resource loadLegacyAvatar(String filename) {
+        validateFilename(filename);
         Path target = storageRoot().resolve(filename).normalize();
         ensureInsideStorage(target);
         if (!Files.exists(target) || !Files.isRegularFile(target)) {
@@ -74,25 +84,8 @@ public class UserAvatarServiceImpl implements UserAvatarService {
         }
         try {
             return new UrlResource(target.toUri());
-        } catch (MalformedURLException ex) {
+        } catch (MalformedURLException exception) {
             throw new IllegalArgumentException("Avatar image could not be loaded.");
-        }
-    }
-
-    private void validate(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Avatar image is required.");
-        }
-        if (file.getSize() > properties.getAvatar().getMaxUploadBytes()) {
-            throw new IllegalArgumentException("Avatar image exceeds the configured upload limit.");
-        }
-        String contentType = file.getContentType();
-        Set<String> allowedTypes = Arrays.stream(properties.getAvatar().getAllowedContentTypes().split(","))
-                .map(value -> value.trim().toLowerCase(Locale.ROOT))
-                .filter(value -> !value.isBlank())
-                .collect(Collectors.toSet());
-        if (contentType == null || !allowedTypes.contains(contentType.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("Avatar image content type is not allowed.");
         }
     }
 
@@ -113,7 +106,10 @@ public class UserAvatarServiceImpl implements UserAvatarService {
 
     private void deleteExistingAvatar(String avatarUrl) {
         String filename = filenameFromAvatarUrl(avatarUrl);
-        if (filename == null) {
+        if (filename == null) return;
+        String storageKey = storageKeyFromPublicToken(filename);
+        if (storageKey != null) {
+            safelyDelete(storageKey);
             return;
         }
         Path target = storageRoot().resolve(filename).normalize();
@@ -121,19 +117,42 @@ public class UserAvatarServiceImpl implements UserAvatarService {
             ensureInsideStorage(target);
             Files.deleteIfExists(target);
         } catch (IOException | IllegalArgumentException ignored) {
-            // The profile update should not fail because an old local file is already gone.
+            // An already missing legacy avatar must not fail a profile update.
         }
     }
 
-    private String filenameFromAvatarUrl(String avatarUrl) {
-        if (avatarUrl == null || avatarUrl.isBlank()) {
+    private void safelyDelete(String storageKey) {
+        try {
+            mediaStorage.delete(storageKey);
+        } catch (RuntimeException ignored) {
+            // Cleanup can be retried without breaking the profile operation.
+        }
+    }
+
+    private String publicToken(String storageKey, String owner) {
+        String prefix = keyPolicy.prefix(MediaNamespace.PROFILE_AVATAR) + "/" + owner + "/";
+        if (!storageKey.startsWith(prefix)) {
+            throw new IllegalArgumentException("Avatar storage key is invalid.");
+        }
+        return owner + "~" + storageKey.substring(prefix.length());
+    }
+
+    private String storageKeyFromPublicToken(String token) {
+        if (token == null || !token.matches("u\\d+~[a-fA-F0-9-]{36}\\.(jpg|jpeg|png|webp)")) {
             return null;
         }
+        int separator = token.indexOf('~');
+        String owner = token.substring(0, separator);
+        String objectName = token.substring(separator + 1);
+        return keyPolicy.requireManaged(
+                keyPolicy.prefix(MediaNamespace.PROFILE_AVATAR) + "/" + owner + "/" + objectName);
+    }
+
+    private String filenameFromAvatarUrl(String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.isBlank()) return null;
         String marker = "/api/v1/users/avatars/";
         int markerIndex = avatarUrl.indexOf(marker);
-        if (markerIndex < 0) {
-            return null;
-        }
+        if (markerIndex < 0) return null;
         String filename = avatarUrl.substring(markerIndex + marker.length());
         if (filename.isBlank() || filename.contains("/") || filename.contains("\\") || filename.contains("..")) {
             return null;
@@ -141,21 +160,11 @@ public class UserAvatarServiceImpl implements UserAvatarService {
         return filename;
     }
 
-    private String extension(String originalFilename, String contentType) {
-        String filename = StringUtils.cleanPath(originalFilename == null ? "" : originalFilename);
-        String extension = "";
-        int dot = filename.lastIndexOf('.');
-        if (dot >= 0 && dot < filename.length() - 1) {
-            extension = filename.substring(dot).toLowerCase(Locale.ROOT);
+    private void validateFilename(String filename) {
+        if (filename == null || filename.isBlank() || filename.contains("..")
+                || filename.contains("/") || filename.contains("\\")) {
+            throw new IllegalArgumentException("Avatar filename is invalid.");
         }
-        if (Set.of(".jpg", ".jpeg", ".png", ".webp").contains(extension)) {
-            return extension;
-        }
-        return switch (contentType == null ? "" : contentType.toLowerCase(Locale.ROOT)) {
-            case "image/png" -> ".png";
-            case "image/webp" -> ".webp";
-            default -> ".jpg";
-        };
     }
 
     private UserProfileDto toProfileDto(UserEntity user) {

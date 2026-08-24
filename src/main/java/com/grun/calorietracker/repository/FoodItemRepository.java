@@ -98,9 +98,11 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
             WHERE lower(f.name) LIKE lower(concat('%', :name, '%'))
               AND (f.verificationStatus IS NULL OR f.verificationStatus <> com.grun.calorietracker.enums.VerificationStatus.REJECTED)
               AND (
-                    f.isCustom IS NULL
-                    OR f.isCustom = false
-                    OR f.createdByUser = :user
+                    f.publicationStatus = com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED
+                    OR (
+                        f.publicationStatus = com.grun.calorietracker.enums.CatalogPublicationStatus.PRIVATE_USER
+                        AND f.createdByUser = :user
+                    )
                   )
             ORDER BY
               CASE WHEN f.verificationStatus = com.grun.calorietracker.enums.VerificationStatus.VERIFIED THEN 0 ELSE 1 END,

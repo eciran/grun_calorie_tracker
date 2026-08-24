@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "evidenceType": "SYNTHETIC_TEST",
+  "capturedAt": "2026-08-01T00:00:00Z",
+  "rolloutStage": 1,
+  "marketRegions": ["UK_IE"],
+  "ocrLanguages": [
+    {
+      "language": "en",
+      "sampleCount": 50,
+      "criticalFieldPrecision": 0.97,
+      "criticalFieldCoverage": 0.94,
+      "basisAccuracy": 0.98,
+      "saltSodiumConfusionRate": 0.0,
+      "decimalAccuracy": 0.99,
+      "correctionRate": 0.10,
+      "p95LatencyMs": 1200,
+      "crashAnrRate": 0.0
+    },
+    {
+      "language": "tr",
+      "sampleCount": 50,
+      "criticalFieldPrecision": 0.96,
+      "criticalFieldCoverage": 0.92,
+      "basisAccuracy": 0.97,
+      "saltSodiumConfusionRate": 0.0,
+      "decimalAccuracy": 0.99,
+      "correctionRate": 0.12,
+      "p95LatencyMs": 1400,
+      "crashAnrRate": 0.0
+    }
+  ],
+  "operations": {
+    "queueP95Hours": 4,
+    "overdueCases": 0,
+    "capacityUtilization": 0.40,
+    "uploadErrorRate": 0.01
+  },
+  "retention": {
+    "deletionFailures": 0,
+    "deletionBacklog": 0,
+    "oldestEvidenceAgeDays": 10,
+    "rehearsalReference": "synthetic-retention-test"
+  },
+  "safety": {
+    "internalProductLeakage": 0,
+    "evidenceAuthorizationFailures": 0,
+    "unexplainedDuplicateCandidates": 0,
+    "materialNutritionMisapplies": 0
+  },
+  "abuse": {
+    "reviewCompleted": true,
+    "confirmedAbuseRate": 0.0,
+    "reportReference": "synthetic-abuse-test"
+  },
+  "cost": {
+    "estimatedCostPerAcceptedContributionEur": 0.02,
+    "reportReference": "synthetic-cost-test"
+  },
+  "rehearsals": {
+    "killSwitchBlockedNewIntakes": true,
+    "rollbackRestoredPreviousStage": true,
+    "secondMarketEnabledWithoutCodeChange": true,
+    "reference": "synthetic-rollout-test"
+  },
+  "provider": {
+    "policyValidated": true,
+    "externalProofArchived": false,
+    "proofReference": null
+  }
+}

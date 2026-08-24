@@ -70,6 +70,8 @@ public class SecurityConfig {
                     auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/webhooks/revenuecat").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/email-assets/grun-logo.png").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/admin-ui/**").permitAll();
                     if (swaggerPublic) {
@@ -81,7 +83,7 @@ public class SecurityConfig {
                     }
                     auth
                             .requestMatchers(HttpMethod.GET, "/api/v1/ai/meal-drafts/photo-references/*").permitAll()
-                            .requestMatchers(HttpMethod.GET, "/api/v1/users/avatars/*").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/v1/users/avatars/*", "/api/v1/media/catalog/*").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/v1/recipes/images/*").permitAll()
                             .anyRequest().authenticated();
                 })
@@ -151,13 +153,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "http://192.168.*.*:*",
-                "http://10.*.*.*:*",
-                "http://172.*.*.*:*"
-        ));
+        configuration.setAllowedOriginPatterns(allowedCorsOriginPatterns());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization", "X-Correlation-Id"));
@@ -167,6 +163,20 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    static List<String> allowedCorsOriginPatterns() {
+        return List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://192.168.*.*:*",
+                "http://10.*.*.*:*",
+                "http://172.*.*.*:*",
+                "https://gruncalorietracker.com",
+                "https://www.gruncalorietracker.com",
+                "https://api.gruncalorietracker.com",
+                "https://api-staging.gruncalorietracker.com"
+        );
     }
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {

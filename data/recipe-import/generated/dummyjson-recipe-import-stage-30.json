@@ -1,0 +1,3045 @@
+{
+  "batchId": "dummyjson-recipe-import-stage-30-20260731",
+  "createdAt": "2026-07-31",
+  "purpose": "Stage 30 recipe import candidate batch for GRun recipe catalog QA. Candidates require admin ingredient mapping and review before publication.",
+  "sourcePolicy": {
+    "sourceName": "DummyJSON Recipes",
+    "sourceUrl": "https://dummyjson.com/docs/recipes",
+    "selectionBasis": "Prototype-only pilot recipes used to test GRun recipe import, review, mapping, and mobile catalog flows.",
+    "license": "DummyJSON public placeholder API terms - internal QA only",
+    "licenseUrl": "https://github.com/Ovi/DummyJSON",
+    "attributionRequired": false,
+    "shareAlikeRequired": false,
+    "notes": "Use for internal testing only unless final legal review confirms production content rights. Prefer CC0 datasets for app release seed data."
+  },
+  "recipes": [
+    {
+      "sourceKey": "dummyjson-1",
+      "sourceTitle": "Classic Margherita Pizza",
+      "sourceUrl": "https://dummyjson.com/recipes/1",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Classic Margherita Pizza",
+        "description": "Italian style recipe. Difficulty: Easy. Prep 20 min, cook 15 min. Tags: Pizza, Italian.",
+        "mealType": "DINNER",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/1.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "MEDITERRANEAN"
+        ],
+        "allergens": [
+          "MILK",
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Pizza dough",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomato sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh mozzarella cheese",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh basil leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Preheat the oven to 475°F (245°C)."
+          },
+          {
+            "instruction": "Roll out the pizza dough and spread tomato sauce evenly."
+          },
+          {
+            "instruction": "Top with slices of fresh mozzarella and fresh basil leaves."
+          },
+          {
+            "instruction": "Drizzle with olive oil and season with salt and pepper."
+          },
+          {
+            "instruction": "Bake in the preheated oven for 12-15 minutes or until the crust is golden brown."
+          },
+          {
+            "instruction": "Slice and serve hot."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-2",
+      "sourceTitle": "Vegetarian Stir-Fry",
+      "sourceUrl": "https://dummyjson.com/recipes/2",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Vegetarian Stir-Fry",
+        "description": "Asian style recipe. Difficulty: Medium. Prep 15 min, cook 20 min. Tags: Vegetarian, Stir-fry, Asian.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/2.webp",
+        "totalYieldGrams": 1050,
+        "defaultServingGrams": 350,
+        "servingCount": 3,
+        "categories": [
+          "LUNCH",
+          "VEGETARIAN",
+          "QUICK_MEAL",
+          "VEGETABLES"
+        ],
+        "allergens": [
+          "SOYBEANS",
+          "SESAME"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Tofu, cubed",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Broccoli florets",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Carrots, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Bell peppers, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Soy sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sesame oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cooked rice for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a wok, heat sesame oil over medium-high heat."
+          },
+          {
+            "instruction": "Add minced ginger and garlic, sauté until fragrant."
+          },
+          {
+            "instruction": "Add cubed tofu and stir-fry until golden brown."
+          },
+          {
+            "instruction": "Add broccoli, carrots, and bell peppers. Cook until vegetables are tender-crisp."
+          },
+          {
+            "instruction": "Pour soy sauce over the stir-fry and toss to combine."
+          },
+          {
+            "instruction": "Serve over cooked rice."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-3",
+      "sourceTitle": "Chocolate Chip Cookies",
+      "sourceUrl": "https://dummyjson.com/recipes/3",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Chocolate Chip Cookies",
+        "description": "American style recipe. Difficulty: Easy. Prep 15 min, cook 10 min. Tags: Cookies, Dessert, Baking.",
+        "mealType": "SNACK",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/3.webp",
+        "totalYieldGrams": 4320,
+        "defaultServingGrams": 180,
+        "servingCount": 24,
+        "categories": [
+          "SNACK",
+          "DESSERT"
+        ],
+        "allergens": [
+          "MILK",
+          "EGGS",
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "All-purpose flour",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Butter, softened",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Brown sugar",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "White sugar",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Eggs",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Vanilla extract",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Baking soda",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Chocolate chips",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Preheat the oven to 350°F (175°C)."
+          },
+          {
+            "instruction": "In a bowl, cream together softened butter, brown sugar, and white sugar."
+          },
+          {
+            "instruction": "Beat in eggs one at a time, then stir in vanilla extract."
+          },
+          {
+            "instruction": "Combine flour, baking soda, and salt. Gradually add to the wet ingredients."
+          },
+          {
+            "instruction": "Fold in chocolate chips."
+          },
+          {
+            "instruction": "Drop rounded tablespoons of dough onto ungreased baking sheets."
+          },
+          {
+            "instruction": "Bake for 10-12 minutes or until edges are golden brown."
+          },
+          {
+            "instruction": "Allow cookies to cool on the baking sheet for a few minutes before transferring to a wire rack."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-4",
+      "sourceTitle": "Chicken Alfredo Pasta",
+      "sourceUrl": "https://dummyjson.com/recipes/4",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Chicken Alfredo Pasta",
+        "description": "Italian style recipe. Difficulty: Medium. Prep 15 min, cook 20 min. Tags: Pasta, Chicken.",
+        "mealType": "LUNCH",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/4.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "CHICKEN",
+          "MEDITERRANEAN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "MILK",
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Fettuccine pasta",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Chicken breast, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Heavy cream",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Parmesan cheese, grated",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Butter",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh parsley for garnish",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cook fettuccine pasta according to package instructions."
+          },
+          {
+            "instruction": "In a pan, sauté sliced chicken in butter until fully cooked."
+          },
+          {
+            "instruction": "Add minced garlic and cook until fragrant."
+          },
+          {
+            "instruction": "Pour in heavy cream and grated Parmesan cheese. Stir until the cheese is melted."
+          },
+          {
+            "instruction": "Season with salt and pepper to taste."
+          },
+          {
+            "instruction": "Combine the Alfredo sauce with cooked pasta."
+          },
+          {
+            "instruction": "Garnish with fresh parsley before serving."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-5",
+      "sourceTitle": "Mango Salsa Chicken",
+      "sourceUrl": "https://dummyjson.com/recipes/5",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Mango Salsa Chicken",
+        "description": "Mexican style recipe. Difficulty: Easy. Prep 15 min, cook 25 min. Tags: Chicken, Salsa.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/5.webp",
+        "totalYieldGrams": 1050,
+        "defaultServingGrams": 350,
+        "servingCount": 3,
+        "categories": [
+          "DINNER",
+          "CHICKEN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken thighs",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Mango, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red onion, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cilantro, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Lime juice",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Jalapeño, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cooked rice for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Season chicken thighs with salt and pepper."
+          },
+          {
+            "instruction": "Grill or bake chicken until fully cooked."
+          },
+          {
+            "instruction": "In a bowl, combine diced mango, chopped red onion, cilantro, minced jalapeño, and lime juice."
+          },
+          {
+            "instruction": "Dice the cooked chicken and mix it with the mango salsa."
+          },
+          {
+            "instruction": "Serve over cooked rice."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-6",
+      "sourceTitle": "Quinoa Salad with Avocado",
+      "sourceUrl": "https://dummyjson.com/recipes/6",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Quinoa Salad with Avocado",
+        "description": "Mediterranean style recipe. Difficulty: Easy. Prep 20 min, cook 15 min. Tags: Salad, Quinoa.",
+        "mealType": "LUNCH",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/6.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "SALAD",
+          "MEDITERRANEAN",
+          "VEGETABLES"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Quinoa, cooked",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Avocado, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cherry tomatoes, halved",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cucumber, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red bell pepper, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Feta cheese, crumbled",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Lemon vinaigrette dressing",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a large bowl, combine cooked quinoa, diced avocado, halved cherry tomatoes, diced cucumber, diced red bell pepper, and crumbled feta cheese."
+          },
+          {
+            "instruction": "Drizzle with lemon vinaigrette dressing and toss to combine."
+          },
+          {
+            "instruction": "Season with salt and pepper to taste."
+          },
+          {
+            "instruction": "Chill in the refrigerator before serving."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-7",
+      "sourceTitle": "Tomato Basil Bruschetta",
+      "sourceUrl": "https://dummyjson.com/recipes/7",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Tomato Basil Bruschetta",
+        "description": "Italian style recipe. Difficulty: Easy. Prep 15 min, cook 10 min. Tags: Bruschetta, Italian.",
+        "mealType": "SNACK",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/7.webp",
+        "totalYieldGrams": 1080,
+        "defaultServingGrams": 180,
+        "servingCount": 6,
+        "categories": [
+          "SNACK",
+          "MEDITERRANEAN"
+        ],
+        "allergens": [
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Baguette, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Tomatoes, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh basil, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic cloves, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Balsamic glaze",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Preheat the oven to 375°F (190°C)."
+          },
+          {
+            "instruction": "Place baguette slices on a baking sheet and toast in the oven until golden brown."
+          },
+          {
+            "instruction": "In a bowl, combine diced tomatoes, chopped fresh basil, minced garlic, and a drizzle of olive oil."
+          },
+          {
+            "instruction": "Season with salt and pepper to taste."
+          },
+          {
+            "instruction": "Top each toasted baguette slice with the tomato-basil mixture."
+          },
+          {
+            "instruction": "Drizzle with balsamic glaze before serving."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-8",
+      "sourceTitle": "Beef and Broccoli Stir-Fry",
+      "sourceUrl": "https://dummyjson.com/recipes/8",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Beef and Broccoli Stir-Fry",
+        "description": "Asian style recipe. Difficulty: Medium. Prep 20 min, cook 15 min. Tags: Beef, Stir-fry, Asian.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/8.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "MEAT",
+          "QUICK_MEAL",
+          "VEGETABLES",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "SOYBEANS",
+          "SESAME"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Beef sirloin, thinly sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Broccoli florets",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Soy sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Oyster sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sesame oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cornstarch",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cooked white rice for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a bowl, mix soy sauce, oyster sauce, sesame oil, and cornstarch to create the sauce."
+          },
+          {
+            "instruction": "In a wok, stir-fry thinly sliced beef until browned. Remove from the wok."
+          },
+          {
+            "instruction": "Stir-fry broccoli florets, minced garlic, and minced ginger in the same wok."
+          },
+          {
+            "instruction": "Add the cooked beef back to the wok and pour the sauce over the mixture."
+          },
+          {
+            "instruction": "Stir until everything is coated and heated through."
+          },
+          {
+            "instruction": "Serve over cooked white rice."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-9",
+      "sourceTitle": "Caprese Salad",
+      "sourceUrl": "https://dummyjson.com/recipes/9",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Caprese Salad",
+        "description": "Italian style recipe. Difficulty: Easy. Prep 10 min, cook 0 min. Tags: Salad, Caprese.",
+        "mealType": "LUNCH",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/9.webp",
+        "totalYieldGrams": 700,
+        "defaultServingGrams": 350,
+        "servingCount": 2,
+        "categories": [
+          "LUNCH",
+          "SALAD",
+          "MEDITERRANEAN"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Tomatoes, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Fresh mozzarella cheese, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Fresh basil leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Balsamic glaze",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Extra virgin olive oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Arrange alternating slices of tomatoes and fresh mozzarella on a serving platter."
+          },
+          {
+            "instruction": "Tuck fresh basil leaves between the slices."
+          },
+          {
+            "instruction": "Drizzle with balsamic glaze and extra virgin olive oil."
+          },
+          {
+            "instruction": "Season with salt and pepper to taste."
+          },
+          {
+            "instruction": "Serve immediately as a refreshing salad."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-10",
+      "sourceTitle": "Shrimp Scampi Pasta",
+      "sourceUrl": "https://dummyjson.com/recipes/10",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Shrimp Scampi Pasta",
+        "description": "Italian style recipe. Difficulty: Medium. Prep 15 min, cook 20 min. Tags: Pasta, Shrimp.",
+        "mealType": "DINNER",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/10.webp",
+        "totalYieldGrams": 1050,
+        "defaultServingGrams": 350,
+        "servingCount": 3,
+        "categories": [
+          "DINNER",
+          "FISH",
+          "MEDITERRANEAN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "WHEAT",
+          "GLUTEN",
+          "CRUSTACEAN_SHELLFISH"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Linguine pasta",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Shrimp, peeled and deveined",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "White wine",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Lemon juice",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red pepper flakes",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh parsley, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cook linguine pasta according to package instructions."
+          },
+          {
+            "instruction": "In a skillet, sauté minced garlic in olive oil until fragrant."
+          },
+          {
+            "instruction": "Add shrimp and cook until pink and opaque."
+          },
+          {
+            "instruction": "Pour in white wine and lemon juice. Simmer until the sauce slightly thickens."
+          },
+          {
+            "instruction": "Season with red pepper flakes, salt, and pepper."
+          },
+          {
+            "instruction": "Toss cooked linguine in the shrimp scampi sauce."
+          },
+          {
+            "instruction": "Garnish with chopped fresh parsley before serving."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-11",
+      "sourceTitle": "Chicken Biryani",
+      "sourceUrl": "https://dummyjson.com/recipes/11",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Chicken Biryani",
+        "description": "Pakistani style recipe. Difficulty: Medium. Prep 30 min, cook 45 min. Tags: Biryani, Chicken, Main course, Indian, Pakistani, Asian.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/11.webp",
+        "totalYieldGrams": 2100,
+        "defaultServingGrams": 350,
+        "servingCount": 6,
+        "categories": [
+          "LUNCH",
+          "CHICKEN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Basmati rice",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Chicken, cut into pieces",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, thinly sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Tomatoes, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Yogurt",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger-garlic paste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Biryani masala",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green chilies, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Fresh coriander leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Mint leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ghee",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Marinate chicken with yogurt, ginger-garlic paste, biryani masala, and salt."
+          },
+          {
+            "instruction": "In a pot, sauté sliced onions until golden brown. Remove half for later use."
+          },
+          {
+            "instruction": "Layer marinated chicken, chopped tomatoes, half of the fried onions, and rice in the pot."
+          },
+          {
+            "instruction": "Top with ghee, green chilies, fresh coriander leaves, mint leaves, and the remaining fried onions."
+          },
+          {
+            "instruction": "Cover and cook on low heat until the rice is fully cooked and aromatic."
+          },
+          {
+            "instruction": "Serve hot, garnished with additional coriander and mint leaves."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-12",
+      "sourceTitle": "Chicken Karahi",
+      "sourceUrl": "https://dummyjson.com/recipes/12",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Chicken Karahi",
+        "description": "Pakistani style recipe. Difficulty: Easy. Prep 20 min, cook 30 min. Tags: Chicken, Karahi, Main course, Indian, Pakistani, Asian.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/12.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "CHICKEN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken, cut into pieces",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomatoes, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green chilies, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Ginger, julienned",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coriander powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cumin powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red chili powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garam masala",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cooking oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh coriander leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a wok (karahi), heat cooking oil and sauté minced garlic until golden brown."
+          },
+          {
+            "instruction": "Add chicken pieces and cook until browned on all sides."
+          },
+          {
+            "instruction": "Add chopped tomatoes, green chilies, ginger, and spices. Cook until tomatoes are soft."
+          },
+          {
+            "instruction": "Cover and simmer until the chicken is tender and the oil separates from the masala."
+          },
+          {
+            "instruction": "Garnish with fresh coriander leaves and serve hot with naan or rice."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-13",
+      "sourceTitle": "Aloo Keema",
+      "sourceUrl": "https://dummyjson.com/recipes/13",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Aloo Keema",
+        "description": "Pakistani style recipe. Difficulty: Medium. Prep 25 min, cook 35 min. Tags: Keema, Potatoes, Main course, Pakistani, Asian.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/13.webp",
+        "totalYieldGrams": 1750,
+        "defaultServingGrams": 350,
+        "servingCount": 5,
+        "categories": [
+          "LUNCH",
+          "MEAT",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Ground beef",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Potatoes, peeled and diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomatoes, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger-garlic paste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cumin powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coriander powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Turmeric powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red chili powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cooking oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh coriander leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a pan, heat cooking oil and sauté chopped onions until golden brown."
+          },
+          {
+            "instruction": "Add ginger-garlic paste and sauté until fragrant."
+          },
+          {
+            "instruction": "Add ground beef and cook until browned. Drain excess oil if needed."
+          },
+          {
+            "instruction": "Add diced potatoes, chopped tomatoes, and spices. Mix well."
+          },
+          {
+            "instruction": "Cover and simmer until the potatoes are tender and the masala is well-cooked."
+          },
+          {
+            "instruction": "Garnish with fresh coriander leaves and serve hot with naan or rice."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-14",
+      "sourceTitle": "Chapli Kebabs",
+      "sourceUrl": "https://dummyjson.com/recipes/14",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Chapli Kebabs",
+        "description": "Pakistani style recipe. Difficulty: Medium. Prep 30 min, cook 20 min. Tags: Kebabs, Beef, Indian, Pakistani, Asian.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/14.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "MEAT",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "EGGS"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Ground beef",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomatoes, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green chilies, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coriander leaves, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Pomegranate seeds",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger-garlic paste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cumin powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coriander powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red chili powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Egg",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cooking oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a large bowl, mix ground beef, chopped onions, tomatoes, green chilies, coriander leaves, and pomegranate seeds."
+          },
+          {
+            "instruction": "Add ginger-garlic paste, cumin powder, coriander powder, red chili powder, and salt. Mix well."
+          },
+          {
+            "instruction": "Add an egg to bind the mixture and form into round flat kebabs."
+          },
+          {
+            "instruction": "Heat cooking oil in a pan and shallow fry the kebabs until browned on both sides."
+          },
+          {
+            "instruction": "Serve hot with naan or mint chutney."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-15",
+      "sourceTitle": "Saag (Spinach) with Makki di Roti",
+      "sourceUrl": "https://dummyjson.com/recipes/15",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Saag (Spinach) with Makki di Roti",
+        "description": "Pakistani style recipe. Difficulty: Medium. Prep 40 min, cook 30 min. Tags: Saag, Roti, Main course, Indian, Pakistani, Asian.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/15.webp",
+        "totalYieldGrams": 1050,
+        "defaultServingGrams": 350,
+        "servingCount": 3,
+        "categories": [
+          "BREAKFAST"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Mustard greens, washed and chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Spinach, washed and chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cornmeal (makki ka atta)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green chilies, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger, grated",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ghee",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Boil mustard greens and spinach until tender. Drain and blend into a coarse paste."
+          },
+          {
+            "instruction": "In a pan, sauté chopped onions, green chilies, and grated ginger in ghee until golden brown."
+          },
+          {
+            "instruction": "Add the greens paste and cook until it thickens."
+          },
+          {
+            "instruction": "Meanwhile, knead cornmeal with water to make a dough. Roll into rotis (flatbreads)."
+          },
+          {
+            "instruction": "Cook the rotis on a griddle until golden brown."
+          },
+          {
+            "instruction": "Serve hot saag with makki di roti and a dollop of ghee."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-16",
+      "sourceTitle": "Japanese Ramen Soup",
+      "sourceUrl": "https://dummyjson.com/recipes/16",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Japanese Ramen Soup",
+        "description": "Japanese style recipe. Difficulty: Medium. Prep 20 min, cook 25 min. Tags: Ramen, Japanese, Soup, Asian.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/16.webp",
+        "totalYieldGrams": 700,
+        "defaultServingGrams": 350,
+        "servingCount": 2,
+        "categories": [
+          "DINNER",
+          "CHICKEN",
+          "SOUP",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "EGGS",
+          "WHEAT",
+          "GLUTEN",
+          "SOYBEANS",
+          "SESAME"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Ramen noodles",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Chicken broth",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Soy sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Mirin",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sesame oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Shiitake mushrooms, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Bok choy, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green onions, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Soft-boiled eggs",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Grilled chicken slices",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Norwegian seaweed (nori)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cook ramen noodles according to package instructions and set aside."
+          },
+          {
+            "instruction": "In a pot, combine chicken broth, soy sauce, mirin, and sesame oil. Bring to a simmer."
+          },
+          {
+            "instruction": "Add sliced shiitake mushrooms and chopped bok choy. Cook until vegetables are tender."
+          },
+          {
+            "instruction": "Divide the cooked noodles into serving bowls and ladle the hot broth over them."
+          },
+          {
+            "instruction": "Top with green onions, soft-boiled eggs, grilled chicken slices, and nori."
+          },
+          {
+            "instruction": "Serve hot and enjoy the authentic Japanese ramen!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-17",
+      "sourceTitle": "Moroccan Chickpea Tagine",
+      "sourceUrl": "https://dummyjson.com/recipes/17",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Moroccan Chickpea Tagine",
+        "description": "Moroccan style recipe. Difficulty: Easy. Prep 15 min, cook 30 min. Tags: Tagine, Chickpea, Moroccan.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/17.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "VEGETARIAN",
+          "VEGETABLES"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Chickpeas, cooked",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomatoes, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Carrots, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cumin",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coriander",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cinnamon",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Paprika",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Vegetable broth",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Olives",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh cilantro, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a tagine or large pot, sauté chopped onions and minced garlic until softened."
+          },
+          {
+            "instruction": "Add diced carrots, chopped tomatoes, and cooked chickpeas."
+          },
+          {
+            "instruction": "Season with cumin, coriander, cinnamon, and paprika. Stir to coat."
+          },
+          {
+            "instruction": "Pour in vegetable broth and bring to a simmer. Cook until carrots are tender."
+          },
+          {
+            "instruction": "Stir in olives and garnish with fresh cilantro before serving."
+          },
+          {
+            "instruction": "Serve this flavorful Moroccan dish with couscous or crusty bread."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-18",
+      "sourceTitle": "Korean Bibimbap",
+      "sourceUrl": "https://dummyjson.com/recipes/18",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Korean Bibimbap",
+        "description": "Korean style recipe. Difficulty: Medium. Prep 30 min, cook 20 min. Tags: Bibimbap, Korean, Rice.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/18.webp",
+        "totalYieldGrams": 700,
+        "defaultServingGrams": 350,
+        "servingCount": 2,
+        "categories": [
+          "DINNER",
+          "MEAT",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "EGGS",
+          "SESAME"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Cooked white rice",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Beef bulgogi (marinated and grilled beef slices)",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Carrots, julienned and sautéed",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Spinach, blanched and seasoned",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Zucchini, sliced and grilled",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Bean sprouts, blanched",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fried egg",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Gochujang (Korean red pepper paste)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sesame oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Toasted sesame seeds",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Arrange cooked white rice in a bowl."
+          },
+          {
+            "instruction": "Top with beef bulgogi, sautéed carrots, seasoned spinach, grilled zucchini, and blanched bean sprouts."
+          },
+          {
+            "instruction": "Place a fried egg on top and drizzle with gochujang and sesame oil."
+          },
+          {
+            "instruction": "Sprinkle with toasted sesame seeds before serving."
+          },
+          {
+            "instruction": "Mix everything together before enjoying this delicious Korean bibimbap!"
+          },
+          {
+            "instruction": "Feel free to customize with additional vegetables or protein."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-19",
+      "sourceTitle": "Greek Moussaka",
+      "sourceUrl": "https://dummyjson.com/recipes/19",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Greek Moussaka",
+        "description": "Greek style recipe. Difficulty: Medium. Prep 45 min, cook 45 min. Tags: Moussaka, Greek.",
+        "mealType": "DINNER",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/19.webp",
+        "totalYieldGrams": 2100,
+        "defaultServingGrams": 350,
+        "servingCount": 6,
+        "categories": [
+          "DINNER",
+          "MEAT",
+          "MEDITERRANEAN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "MILK",
+          "EGGS",
+          "WHEAT",
+          "GLUTEN",
+          "TREE_NUTS"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Eggplants, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Ground lamb or beef",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomatoes, crushed",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red wine",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cinnamon",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Allspice",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Nutmeg",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Milk",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Flour",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Parmesan cheese",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Egg yolks",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Preheat oven to 375°F (190°C)."
+          },
+          {
+            "instruction": "Sauté sliced eggplants in olive oil until browned. Set aside."
+          },
+          {
+            "instruction": "In the same pan, cook chopped onions and minced garlic until softened."
+          },
+          {
+            "instruction": "Add ground lamb or beef and brown. Stir in crushed tomatoes, red wine, and spices."
+          },
+          {
+            "instruction": "In a separate saucepan, make béchamel sauce: melt butter, whisk in flour, add milk, and cook until thickened."
+          },
+          {
+            "instruction": "Remove from heat and stir in Parmesan cheese and egg yolks."
+          },
+          {
+            "instruction": "In a baking dish, layer eggplants and meat mixture. Top with béchamel sauce."
+          },
+          {
+            "instruction": "Bake for 40-45 minutes until golden brown. Let it cool before slicing."
+          },
+          {
+            "instruction": "Serve slices of moussaka warm and enjoy this Greek classic!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-20",
+      "sourceTitle": "Butter Chicken (Murgh Makhani)",
+      "sourceUrl": "https://dummyjson.com/recipes/20",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Butter Chicken (Murgh Makhani)",
+        "description": "Pakistani style recipe. Difficulty: Medium. Prep 30 min, cook 25 min. Tags: Butter chicken, Curry, Indian, Pakistani, Asian.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/20.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "CHICKEN",
+          "MEDITERRANEAN",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken thighs, boneless and skinless",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Yogurt",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ginger-garlic paste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garam masala",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Kashmiri red chili powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomato puree",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Butter",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Heavy cream",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Kasuri methi (dried fenugreek leaves)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sugar",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Marinate chicken thighs in a mixture of yogurt, ginger-garlic paste, garam masala, and Kashmiri red chili powder."
+          },
+          {
+            "instruction": "In a pan, melt butter and sauté the marinated chicken until browned."
+          },
+          {
+            "instruction": "Add tomato puree and cook until the oil separates. Stir in heavy cream."
+          },
+          {
+            "instruction": "Sprinkle kasuri methi, sugar, and salt. Simmer until the chicken is fully cooked."
+          },
+          {
+            "instruction": "Serve this creamy butter chicken over rice or with naan for an authentic Pakistani/Indian experience."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-21",
+      "sourceTitle": "Thai Green Curry",
+      "sourceUrl": "https://dummyjson.com/recipes/21",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Thai Green Curry",
+        "description": "Thai style recipe. Difficulty: Medium. Prep 20 min, cook 30 min. Tags: Curry, Thai.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/21.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "CHICKEN",
+          "FISH",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "MILK",
+          "EGGS",
+          "TREE_NUTS",
+          "FISH"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken thighs, boneless and skinless",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green curry paste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coconut milk",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fish sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sugar",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Eggplant, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Bell peppers, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Basil leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Jasmine rice for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a pot, simmer green curry paste in coconut milk."
+          },
+          {
+            "instruction": "Add chicken, fish sauce, and sugar. Cook until chicken is tender."
+          },
+          {
+            "instruction": "Stir in sliced eggplant and bell peppers. Simmer until vegetables are cooked."
+          },
+          {
+            "instruction": "Garnish with fresh basil leaves."
+          },
+          {
+            "instruction": "Serve hot over jasmine rice and enjoy this Thai classic!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-22",
+      "sourceTitle": "Mango Lassi",
+      "sourceUrl": "https://dummyjson.com/recipes/22",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Mango Lassi",
+        "description": "Indian style recipe. Difficulty: Easy. Prep 10 min, cook 0 min. Tags: Lassi, Mango, Indian, Pakistani, Asian.",
+        "mealType": "SNACK",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/22.webp",
+        "totalYieldGrams": 360,
+        "defaultServingGrams": 180,
+        "servingCount": 2,
+        "categories": [
+          "SNACK"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Ripe mango, peeled and diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Yogurt",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Milk",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Honey",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cardamom powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ice cubes",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a blender, combine diced mango, yogurt, milk, honey, and cardamom powder."
+          },
+          {
+            "instruction": "Blend until smooth and creamy."
+          },
+          {
+            "instruction": "Add ice cubes and blend again until the lassi is chilled."
+          },
+          {
+            "instruction": "Pour into glasses and garnish with a sprinkle of cardamom."
+          },
+          {
+            "instruction": "Enjoy this refreshing Mango Lassi!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-23",
+      "sourceTitle": "Italian Tiramisu",
+      "sourceUrl": "https://dummyjson.com/recipes/23",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Italian Tiramisu",
+        "description": "Italian style recipe. Difficulty: Medium. Prep 30 min, cook 0 min. Tags: Tiramisu, Italian.",
+        "mealType": "SNACK",
+        "marketRegion": "EU",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/23.webp",
+        "totalYieldGrams": 1080,
+        "defaultServingGrams": 180,
+        "servingCount": 6,
+        "categories": [
+          "SNACK",
+          "DESSERT",
+          "MEDITERRANEAN"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Espresso, brewed and cooled",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ladyfinger cookies",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Mascarpone cheese",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Heavy cream",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sugar",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cocoa powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a bowl, whip heavy cream until stiff peaks form."
+          },
+          {
+            "instruction": "In another bowl, mix mascarpone cheese and sugar until smooth."
+          },
+          {
+            "instruction": "Gently fold the whipped cream into the mascarpone mixture."
+          },
+          {
+            "instruction": "Dip ladyfinger cookies into brewed espresso and layer them in a serving dish."
+          },
+          {
+            "instruction": "Spread a layer of the mascarpone mixture over the cookies."
+          },
+          {
+            "instruction": "Repeat layers and finish with a dusting of cocoa powder."
+          },
+          {
+            "instruction": "Chill in the refrigerator for a few hours before serving."
+          },
+          {
+            "instruction": "Indulge in the decadence of this classic Italian Tiramisu!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-24",
+      "sourceTitle": "Turkish Kebabs",
+      "sourceUrl": "https://dummyjson.com/recipes/24",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Turkish Kebabs",
+        "description": "Turkish style recipe. Difficulty: Easy. Prep 25 min, cook 15 min. Tags: Kebabs, Turkish, Grilling.",
+        "mealType": "DINNER",
+        "marketRegion": "TR",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/24.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "MEAT",
+          "TURKISH",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Ground lamb or beef",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, grated",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Parsley, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cumin",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coriander",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Red pepper flakes",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Salt and pepper to taste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Flatbread for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tahini sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a bowl, mix ground meat, grated onions, minced garlic, chopped parsley, and spices."
+          },
+          {
+            "instruction": "Form the mixture into kebab shapes and grill until fully cooked."
+          },
+          {
+            "instruction": "Serve the kebabs on flatbread with a drizzle of tahini sauce."
+          },
+          {
+            "instruction": "Enjoy these flavorful Turkish Kebabs with your favorite sides."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-25",
+      "sourceTitle": "Blueberry Banana Smoothie",
+      "sourceUrl": "https://dummyjson.com/recipes/25",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Blueberry Banana Smoothie",
+        "description": "Smoothie style recipe. Difficulty: Easy. Prep 10 min, cook 0 min. Tags: Smoothie, Blueberry, Banana.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/25.webp",
+        "totalYieldGrams": 180,
+        "defaultServingGrams": 180,
+        "servingCount": 1,
+        "categories": [
+          "BREAKFAST",
+          "QUICK_MEAL",
+          "MEDITERRANEAN"
+        ],
+        "allergens": [
+          "MILK",
+          "TREE_NUTS"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Blueberries, fresh or frozen",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Banana, peeled and sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Almond milk",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Honey",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Chia seeds (optional)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a blender, combine blueberries, banana, Greek yogurt, almond milk, and honey."
+          },
+          {
+            "instruction": "Blend until smooth and creamy."
+          },
+          {
+            "instruction": "Add chia seeds for extra nutrition and blend briefly."
+          },
+          {
+            "instruction": "Pour into a glass and enjoy this nutritious Blueberry Banana Smoothie!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-26",
+      "sourceTitle": "Mexican Street Corn (Elote)",
+      "sourceUrl": "https://dummyjson.com/recipes/26",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Mexican Street Corn (Elote)",
+        "description": "Mexican style recipe. Difficulty: Easy. Prep 15 min, cook 15 min. Tags: Elote, Mexican, Street food.",
+        "mealType": "SNACK",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/26.webp",
+        "totalYieldGrams": 720,
+        "defaultServingGrams": 180,
+        "servingCount": 4,
+        "categories": [
+          "SNACK"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Corn on the cob",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Mayonnaise",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cotija cheese, crumbled",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Chili powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Lime wedges",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Grill or roast corn on the cob until kernels are charred."
+          },
+          {
+            "instruction": "Brush each cob with mayonnaise, then sprinkle with crumbled Cotija cheese and chili powder."
+          },
+          {
+            "instruction": "Serve with lime wedges for squeezing over the top."
+          },
+          {
+            "instruction": "Enjoy this delicious and flavorful Mexican Street Corn!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-27",
+      "sourceTitle": "Russian Borscht",
+      "sourceUrl": "https://dummyjson.com/recipes/27",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Russian Borscht",
+        "description": "Russian style recipe. Difficulty: Medium. Prep 30 min, cook 40 min. Tags: Borscht, Russian, Soup.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/27.webp",
+        "totalYieldGrams": 2100,
+        "defaultServingGrams": 350,
+        "servingCount": 6,
+        "categories": [
+          "DINNER",
+          "MEAT",
+          "SOUP",
+          "VEGETABLES",
+          "HIGH_PROTEIN"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Beets, peeled and shredded",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cabbage, shredded",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Potatoes, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Carrots, grated",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomato paste",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Beef or vegetable broth",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic, minced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Bay leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Sour cream for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a pot, sauté chopped onions and garlic until softened."
+          },
+          {
+            "instruction": "Add shredded beets, cabbage, diced potatoes, grated carrots, and tomato paste."
+          },
+          {
+            "instruction": "Pour in broth and add bay leaves. Simmer until vegetables are tender."
+          },
+          {
+            "instruction": "Serve hot with a dollop of sour cream on top."
+          },
+          {
+            "instruction": "Enjoy the hearty and comforting flavors of Russian Borscht!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-28",
+      "sourceTitle": "South Indian Masala Dosa",
+      "sourceUrl": "https://dummyjson.com/recipes/28",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "South Indian Masala Dosa",
+        "description": "Indian style recipe. Difficulty: Medium. Prep 40 min, cook 20 min. Tags: Dosa, Indian, Asian.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/28.webp",
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "BREAKFAST"
+        ],
+        "allergens": [
+          "TREE_NUTS"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Dosa batter (fermented rice and urad dal batter)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Potatoes, boiled and mashed",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Onions, finely chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Mustard seeds",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cumin seeds",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Curry leaves",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Turmeric powder",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Green chilies, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ghee",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Coconut chutney for serving",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a pan, heat ghee and add mustard seeds, cumin seeds, and curry leaves."
+          },
+          {
+            "instruction": "Add chopped onions, green chilies, and turmeric powder. Sauté until onions are golden brown."
+          },
+          {
+            "instruction": "Mix in boiled and mashed potatoes. Cook until well combined and seasoned."
+          },
+          {
+            "instruction": "Spread dosa batter on a hot griddle to make thin pancakes."
+          },
+          {
+            "instruction": "Place a spoonful of the potato mixture in the center, fold, and serve hot."
+          },
+          {
+            "instruction": "Pair with coconut chutney for a delicious South Indian meal."
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-29",
+      "sourceTitle": "Lebanese Falafel Wrap",
+      "sourceUrl": "https://dummyjson.com/recipes/29",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Lebanese Falafel Wrap",
+        "description": "Lebanese style recipe. Difficulty: Easy. Prep 15 min, cook 10 min. Tags: Falafel, Lebanese, Wrap.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/29.webp",
+        "totalYieldGrams": 700,
+        "defaultServingGrams": 350,
+        "servingCount": 2,
+        "categories": [
+          "LUNCH",
+          "VEGETABLES"
+        ],
+        "allergens": [
+          "WHEAT"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Falafel balls",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Whole wheat or regular wraps",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tomatoes, diced",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cucumbers, sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Red onions, thinly sliced",
+            "portionSize": 1,
+            "portionUnit": "SLICE",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Lettuce, shredded",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Tahini sauce",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Fresh parsley, chopped",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Warm falafel balls according to package instructions."
+          },
+          {
+            "instruction": "Place a generous serving of falafel in the center of each wrap."
+          },
+          {
+            "instruction": "Top with diced tomatoes, sliced cucumbers, red onions, shredded lettuce, and fresh parsley."
+          },
+          {
+            "instruction": "Drizzle with tahini sauce and wrap tightly."
+          },
+          {
+            "instruction": "Enjoy this Lebanese Falafel Wrap filled with fresh and flavorful ingredients!"
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "dummyjson-30",
+      "sourceTitle": "Brazilian Caipirinha",
+      "sourceUrl": "https://dummyjson.com/recipes/30",
+      "license": "DummyJSON public placeholder API terms - internal QA only",
+      "recommendedImportStatus": "PILOT_REVIEW_ONLY",
+      "recipe": {
+        "name": "Brazilian Caipirinha",
+        "description": "Brazilian style recipe. Difficulty: Easy. Prep 5 min, cook 0 min. Tags: Caipirinha, Brazilian, Cocktail.",
+        "mealType": "SNACK",
+        "marketRegion": "GLOBAL",
+        "language": "en",
+        "imageUrl": "https://cdn.dummyjson.com/recipe-images/30.webp",
+        "totalYieldGrams": 180,
+        "defaultServingGrams": 180,
+        "servingCount": 1,
+        "categories": [
+          "SNACK"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Cachaça (Brazilian sugarcane spirit)",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Lime, cut into wedges",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Granulated sugar",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Ice cubes",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "In a glass, muddle lime wedges with granulated sugar to release the juice."
+          },
+          {
+            "instruction": "Fill the glass with ice cubes."
+          },
+          {
+            "instruction": "Pour cachaça over the ice and stir well."
+          },
+          {
+            "instruction": "Sip and enjoy the refreshing taste of the Brazilian Caipirinha!"
+          },
+          {
+            "instruction": "Adjust sugar and lime to suit your taste preferences."
+          }
+        ]
+      }
+    }
+  ]
+}

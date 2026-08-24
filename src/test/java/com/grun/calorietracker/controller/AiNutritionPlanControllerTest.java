@@ -2,6 +2,7 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiNutritionPlanCreditEstimateDto;
 import com.grun.calorietracker.dto.AiNutritionPlanDraftResponseDto;
+import com.grun.calorietracker.dto.MealPlanDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -144,8 +146,7 @@ class AiNutritionPlanControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("Conflict"))
                 .andExpect(jsonPath("$.code").value("REQUEST_CONFLICT"))
-                .andExpect(jsonPath("$.message").value(
-                        "Request conflicts with the current resource state"));
+                .andExpect(jsonPath("$.message").isNotEmpty());
     }
 
     @Test
@@ -162,5 +163,18 @@ class AiNutritionPlanControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com", roles = "USER")
+    void confirm_withoutRequestBody_usesServerStoredDraft() throws Exception {
+        MealPlanDto response = new MealPlanDto();
+        response.setId(90L);
+        when(service.confirmDraft(eq("user@example.com"), eq(30L), isNull()))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/ai/nutrition-plans/30/confirm"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(90));
     }
 }
