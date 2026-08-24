@@ -1,0 +1,62 @@
+{
+  "registry_version": "local-food-source-registry-v1",
+  "verified_at": "2026-08-02",
+  "sources": [
+    {
+      "source_registry_id": "USDA_FOODDATA_PUBLIC",
+      "data_source": "USDA_FOODDATA",
+      "catalog_types": ["GENERIC_INGREDIENT"],
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source_url": "https://fdc.nal.usda.gov/",
+      "terms_url": "https://fdc.nal.usda.gov/api-guide/",
+      "attribution": "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central.",
+      "review_allowed": true,
+      "production_allowed": true,
+      "production_allowed_with_record_approval": false,
+      "status": "VERIFIED_ALLOWED"
+    },
+    {
+      "source_registry_id": "COFID_2021_OGL",
+      "data_source": "COFID",
+      "catalog_types": ["GENERIC_INGREDIENT", "LOCAL_DISH"],
+      "license_id": "OGL-3.0",
+      "license_url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+      "source_url": "https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid",
+      "terms_url": "https://www.gov.uk/help/terms-conditions",
+      "attribution": "Contains public sector information licensed under the Open Government Licence v3.0; preserve any third-party exceptions identified by the source.",
+      "review_allowed": true,
+      "production_allowed": true,
+      "production_allowed_with_record_approval": false,
+      "status": "VERIFIED_ALLOWED_WITH_ATTRIBUTION"
+    },
+    {
+      "source_registry_id": "TURKOMP_CONTRACT_REQUIRED",
+      "data_source": "LOCAL_CURATED",
+      "catalog_types": ["GENERIC_INGREDIENT", "LOCAL_DISH"],
+      "license_id": "CONTRACT_REQUIRED",
+      "license_url": "https://turkomp.tarimorman.gov.tr/useofdata",
+      "source_url": "https://turkomp.tarimorman.gov.tr/",
+      "terms_url": "https://turkomp.tarimorman.gov.tr/useofdata",
+      "attribution": "Not authorized for this release. A data sales/use agreement and recorded scope are required before ingestion.",
+      "review_allowed": false,
+      "production_allowed": false,
+      "production_allowed_with_record_approval": false,
+      "status": "BLOCKED_CONTRACT_REQUIRED"
+    },
+    {
+      "source_registry_id": "GRUN_LOCAL_ESTIMATE_V1",
+      "data_source": "LOCAL_CURATED",
+      "catalog_types": ["LOCAL_DISH"],
+      "license_id": "GRUN-INTERNAL-REVIEW-ONLY",
+      "license_url": "",
+      "source_url": "docs/LOCAL_FOOD_CATALOG_AUG08_DESIGN.md",
+      "terms_url": "",
+      "attribution": "Internal review profile; every production row requires explicit named approval.",
+      "review_allowed": true,
+      "production_allowed": false,
+      "production_allowed_with_record_approval": true,
+      "status": "REVIEW_ONLY_RECORD_APPROVAL_REQUIRED"
+    }
+  ]
+}

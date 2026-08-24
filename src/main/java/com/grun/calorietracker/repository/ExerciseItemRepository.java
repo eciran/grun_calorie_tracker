@@ -14,6 +14,7 @@ import java.util.Optional;
 @Repository
 public interface ExerciseItemRepository extends JpaRepository<ExerciseItemEntity, Long>, JpaSpecificationExecutor<ExerciseItemEntity> {
     Optional<ExerciseItemEntity> findByMetCode(String metCode);
+    Optional<ExerciseItemEntity> findFirstByNameIgnoreCase(String name);
 
     long countByTechniqueReviewStatus(ExerciseTechniqueReviewStatus status);
     long countByReviewDueAtBefore(LocalDateTime cutoff);

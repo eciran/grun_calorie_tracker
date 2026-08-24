@@ -126,12 +126,19 @@ public class FoodItemServiceImpl implements FoodItemService {
     @Transactional(readOnly = true)
     @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + @foodProductCacheUserScopeResolver.resolve(#email)", unless = "#result == null")
     public FoodProductDto getFoodItemById(Long id, String email) {
+        return getFoodItemById(id, email, PreferredLanguage.EN);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "foodProductById", key = "#id + ':' + @foodProductCacheUserScopeResolver.resolve(#email) + ':' + (#language == null ? 'EN' : #language.name())", unless = "#result == null")
+    public FoodProductDto getFoodItemById(Long id, String email, PreferredLanguage language) {
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
         if (isRejected(product) || !isVisibleToUser(product, email)) {
             throw new ProductNotFoundException("Product not found: " + id);
         }
-        return toProductDto(product);
+        return toProductDto(product, language);
     }
 
     @Override
@@ -1189,7 +1196,10 @@ public class FoodItemServiceImpl implements FoodItemService {
             return result;
         }
         foodItemServingOptionRepository
-                .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(productIds)
+                .findByFoodItemIdInAndQualityStatusOrderByFoodItemIdAscIsDefaultDescLabelAsc(
+                        productIds,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                )
                 .forEach(option -> result
                         .computeIfAbsent(option.getFoodItem().getId(), ignored -> new ArrayList<>())
                         .add(option));
@@ -1304,7 +1314,10 @@ public class FoodItemServiceImpl implements FoodItemService {
 
     private FoodProductDto toProductDto(FoodItemEntity product, PreferredLanguage language) {
         List<FoodItemServingOptionEntity> servingOptions =
-                foodItemServingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product);
+                foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
+                        product,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                );
         PreferredLanguage resolvedLanguage = resolveLanguage(language);
         FoodItemLocalizationEntity localization = foodItemLocalizationRepository
                 .findByFoodItemIdAndLanguageAndActiveTrue(product.getId(), resolvedLanguage)

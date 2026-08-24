@@ -13,6 +13,7 @@ import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -138,6 +139,7 @@ class FoodProductImportServiceImplTest {
         assertEquals("GRun Yogurt", inserted.getName());
         assertEquals(MarketRegion.TR, inserted.getMarketRegion());
         assertEquals(ImageStatus.NEEDS_REVIEW, inserted.getImageStatus());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, inserted.getNutritionReferenceUnit());
     }
 
     @Test

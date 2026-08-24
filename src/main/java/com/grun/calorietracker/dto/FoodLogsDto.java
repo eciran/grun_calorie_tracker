@@ -55,6 +55,9 @@ public class FoodLogsDto {
     @Schema(description = "Portion converted to grams for nutrition calculations.", example = "100.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double normalizedPortionGrams;
 
+    @Schema(description = "Portion converted to milliliters when volume conversion is available.", example = "250.0", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double normalizedPortionMilliliters;
+
     @Schema(description = "Calories captured at log time for the entered portion.", example = "155.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double snapshotCalories;
 

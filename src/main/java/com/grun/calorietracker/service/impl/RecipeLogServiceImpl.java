@@ -263,6 +263,6 @@ public class RecipeLogServiceImpl implements RecipeLogService {
     }
 
     private String normalizeMealType(String mealType) {
-        return mealType == null || mealType.isBlank() ? null : mealType.trim().toUpperCase();
+        return mealType == null || mealType.isBlank() ? null : mealType.trim().toUpperCase(java.util.Locale.ROOT);
     }
 }

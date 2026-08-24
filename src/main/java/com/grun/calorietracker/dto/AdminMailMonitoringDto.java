@@ -20,7 +20,7 @@ public class AdminMailMonitoringDto {
     private String providerBaseUrl;
     @Schema(description = "Configured sender email.", example = "no-reply@grun.app")
     private String fromEmail;
-    @Schema(description = "Configured sender display name.", example = "GRun")
+    @Schema(description = "Configured sender display name.", example = "GRUN")
     private String fromName;
     @Schema(description = "Provider status message safe for admin UI.")
     private String statusMessage;

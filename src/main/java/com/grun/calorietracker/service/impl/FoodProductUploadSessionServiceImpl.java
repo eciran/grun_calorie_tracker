@@ -22,6 +22,7 @@ import com.grun.calorietracker.service.evidence.FoodProductDirectUploadStorage;
 import com.grun.calorietracker.service.support.FoodProductEvidenceImageInspector;
 import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +39,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @ConditionalOnProperty(prefix = "grun.food-contribution-storage", name = "provider", havingValue = "S3")
 public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSessionService {
     private static final Set<FoodProductReviewAssetType> REQUIRED_TYPES =
@@ -107,14 +109,16 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
         for (FoodProductReviewCaseAssetEntity asset : assets) {
             FoodProductDirectUploadStorage.StoredObject stored = directStorage.inspect(asset.getStorageKey());
             if (!asset.getContentType().equalsIgnoreCase(stored.contentType())
-                    || asset.getSizeBytes() != stored.sizeBytes()
-                    || stored.sha256() == null
-                    || !asset.getSha256().equalsIgnoreCase(stored.sha256())) {
+                    || asset.getSizeBytes() != stored.sizeBytes()) {
                 throw new IllegalArgumentException("Stored product evidence metadata does not match the reserved upload.");
             }
             byte[] bytes = directStorage.readBounded(asset.getStorageKey(), properties.getMaxUploadBytes());
             FoodProductEvidenceImageInspector.Dimensions dimensions =
                     imageInspector.inspect(bytes, asset.getContentType(), asset.getSha256());
+            if (stored.sha256() == null || !asset.getSha256().equalsIgnoreCase(stored.sha256())) {
+                log.info("product_evidence_metadata_checksum_missing_or_mismatched assetId={} content_checksum_verified=true",
+                        asset.getId());
+            }
             asset.setWidth(dimensions.width());
             asset.setHeight(dimensions.height());
             asset.setUploadState(FoodProductAssetUploadState.VERIFIED);

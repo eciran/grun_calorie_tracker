@@ -129,16 +129,16 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                     AdminAuditTargetType.ADMIN_ACCOUNT, user.getId().toString(), null,
                     Map.of("sessionsRevoked", true), null);
             if (mailProperties == null) {
-                mailDeliveryService.sendTransactionalEmail(user.getEmail(), "Your GRun admin password was changed",
-                        "Your GRun admin password was changed. If you did not perform this action, contact the account owner immediately.",
-                        "<p>Your GRun admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
+                mailDeliveryService.sendTransactionalEmail(user.getEmail(), "Your GRUN admin password was changed",
+                        "Your GRUN admin password was changed. If you did not perform this action, contact the account owner immediately.",
+                        "<p>Your GRUN admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
             } else {
                 boolean turkish = user.getPreferredLanguage() == PreferredLanguage.TR;
                 long templateId = turkish ? mailProperties.getBrevo().getTemplates().getAdminPasswordChangedTr()
                         : mailProperties.getBrevo().getTemplates().getAdminPasswordChangedEn();
-                mailDeliveryService.sendTransactionalTemplate(user.getEmail(), templateId, Map.of(), "Your GRun admin password was changed",
-                        "Your GRun admin password was changed. If you did not perform this action, contact the account owner immediately.",
-                        "<p>Your GRun admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
+                mailDeliveryService.sendTransactionalTemplate(user.getEmail(), templateId, Map.of(), "Your GRUN admin password was changed",
+                        "Your GRUN admin password was changed. If you did not perform this action, contact the account owner immediately.",
+                        "<p>Your GRUN admin password was changed.</p><p>If you did not perform this action, contact the account owner immediately.</p>");
             }
         }
 
@@ -196,6 +196,8 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         if (user.getRole() != null && user.getRole().isAdminRole()) {
             return adminResetBaseUrl + (adminResetBaseUrl.contains("?") ? "&" : "?") + "passwordResetToken=" + rawToken;
         }
-        return resetBaseUrl + (resetBaseUrl.contains("?") ? "&" : "?") + "token=" + rawToken;
+        String language = user.getPreferredLanguage() == PreferredLanguage.TR ? "tr" : "en";
+        String separator = resetBaseUrl.contains("?") ? "&" : "?";
+        return resetBaseUrl + separator + "token=" + rawToken + "&lang=" + language;
     }
 }

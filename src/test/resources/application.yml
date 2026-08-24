@@ -2,7 +2,7 @@ spring:
   cache:
     type: simple
   datasource:
-    url: jdbc:h2:mem:grun_calorie_tracker_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    generate-unique-name: true
     username: sa
     password:
     driver-class-name: org.h2.Driver

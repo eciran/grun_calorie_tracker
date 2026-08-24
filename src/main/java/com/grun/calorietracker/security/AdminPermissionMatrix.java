@@ -59,6 +59,9 @@ public final class AdminPermissionMatrix {
         if (path.startsWith("/api/v1/admin/audits")) {
             return AdminPermission.AUDIT_READ;
         }
+        if (containsAny(path, "/subscriptions", "/subscription-events", "/revenuecat", "/ai/credits", "/ai/quota")) {
+            return write ? AdminPermission.FINANCE_MANAGE : AdminPermission.FINANCE_READ;
+        }
         if (path.startsWith("/api/v1/admin/users")) {
             return write ? AdminPermission.USERS_MANAGE : AdminPermission.USERS_READ;
         }
@@ -68,10 +71,7 @@ public final class AdminPermissionMatrix {
         if (containsAny(path, "/promos", "/notification-campaigns", "/engagement", "/tracking", "/growth", "/onboarding")) {
             return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
         }
-        if (containsAny(path, "/subscriptions", "/revenuecat", "/ai/credits", "/ai/quota")) {
-            return write ? AdminPermission.FINANCE_MANAGE : AdminPermission.FINANCE_READ;
-        }
-        if (containsAny(path, "/system", "/mail", "/brevo", "/push", "/ai/requests", "/ai/monitoring")) {
+        if (containsAny(path, "/system", "/mail", "/brevo", "/push", "/ai/requests", "/ai/monitoring", "/ai/meal-drafts")) {
             return write ? AdminPermission.TECHNICAL_MANAGE : AdminPermission.TECHNICAL_READ;
         }
         return AdminPermission.DASHBOARD_READ;

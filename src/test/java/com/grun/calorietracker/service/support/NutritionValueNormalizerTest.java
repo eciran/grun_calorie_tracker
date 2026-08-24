@@ -3,12 +3,34 @@ package com.grun.calorietracker.service.support;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class NutritionValueNormalizerTest {
+
+    @Test
+    void mapper_preservesExplicitNutritionReferenceUnit() {
+        FoodProductDto source = new FoodProductDto();
+        source.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
+
+        FoodItemEntity entity = FoodItemMapper.mapDtoToEntity(source);
+        FoodProductDto result = FoodItemMapper.mapEntityToDto(entity);
+
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, entity.getNutritionReferenceUnit());
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, result.getNutritionReferenceUnit());
+    }
+
+    @Test
+    void mapper_defaultsLegacyNutritionReferenceUnitToPerHundredGrams() {
+        FoodItemEntity legacy = new FoodItemEntity();
+
+        FoodProductDto result = FoodItemMapper.mapEntityToDto(legacy);
+
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, result.getNutritionReferenceUnit());
+    }
 
     @Test
     void normalizesNutritionValuesForProductResponses() {

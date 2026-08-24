@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -100,6 +101,9 @@ public class FoodProductDto {
 
     @Schema(description = "How the nutrition values were obtained. Estimated local dishes must be explicit.", example = "SOURCE_REPORTED")
     private FoodNutritionBasis nutritionBasis;
+
+    @Schema(description = "Reference quantity used by the nutrition values. This is separate from nutrition data provenance.", example = "PER_100G")
+    private FoodNutritionReferenceUnit nutritionReferenceUnit;
 
     @Schema(description = "How many times this product has been added to food logs.", example = "42")
     private Long usageCount;
@@ -209,7 +213,7 @@ public class FoodProductDto {
     @Schema(description = "User-facing product data quality label.", example = "VERIFIED")
     private ProductQualityLabel productQualityLabel;
 
-    @Schema(description = "Short user-facing data quality message.", example = "Verified by GRun")
+    @Schema(description = "Short user-facing data quality message.", example = "Verified by GRUN")
     private String productQualityMessage;
 
     @Schema(description = "Default product-specific serving option id when available.", example = "5")

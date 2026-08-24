@@ -30,6 +30,7 @@ import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
 import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.CatalogMediaService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.support.ProductIntakeCatalogMutationOrchestrator;
 import com.grun.calorietracker.service.support.ProductIntakeApplyGate;
 import com.grun.calorietracker.service.support.FoodProductIntakeMetrics;
@@ -80,6 +81,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private CatalogMediaService catalogMediaService;
     private ProductIntakeApplyGate applyGate;
     private FoodProductIntakeMetrics intakeMetrics;
+    @Autowired(required = false)
+    private PushDeliveryService pushDeliveryService;
 
     public AdminProductIntakeServiceImpl(
             FoodProductReviewCaseRepository repository,
@@ -211,7 +214,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         reviewCase.setStatus(FoodProductReviewCaseStatus.NEEDS_SUBMITTER_ACTION);
         reviewCase.setReviewNote(note.trim());
         FoodProductReviewCaseEntity saved = repository.save(reviewCase);
-        if (saved.getSubmittedBy() != null) notificationRepository.save(evidenceNotification(saved, note));
+        if (saved.getSubmittedBy() != null) saveAndPush(evidenceNotification(saved, note));
         return action(saved);
     }
 
@@ -325,7 +328,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     }
 
     private Object validatedApplyValue(ProductIntakeApplyField field, Map<String, Object> submitted) {
-        String key = field == ProductIntakeApplyField.PRODUCT_NAME ? "productName" : field.name().toLowerCase();
+        String key = field == ProductIntakeApplyField.PRODUCT_NAME ? "productName" : field.name().toLowerCase(java.util.Locale.ROOT);
         if (!submitted.containsKey(key)) throw new IllegalArgumentException("Selected field is missing from the accepted submission: " + field);
         Object raw = submitted.get(key);
         if (field == ProductIntakeApplyField.PRODUCT_NAME) {
@@ -354,7 +357,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         }
     }
     private String applyFieldName(ProductIntakeApplyField field) {
-        return field == ProductIntakeApplyField.PRODUCT_NAME ? "name" : field.name().toLowerCase();
+        return field == ProductIntakeApplyField.PRODUCT_NAME ? "name" : field.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     private Object currentValue(com.grun.calorietracker.entity.FoodItemEntity food, ProductIntakeApplyField field) {
@@ -500,7 +503,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         try {
             ProductIntakeApplyField applyField = "productName".equals(field)
                     ? ProductIntakeApplyField.PRODUCT_NAME
-                    : ProductIntakeApplyField.valueOf(field.toUpperCase());
+                    : ProductIntakeApplyField.valueOf(field.toUpperCase(java.util.Locale.ROOT));
             return isHighImpact(applyField, oldValue, newValue);
         } catch (IllegalArgumentException ignored) {
             return false;
@@ -532,7 +535,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
 
     private void notifySuccessfulDecision(FoodProductReviewCaseEntity reviewCase, boolean publication) {
         if (reviewCase.getSubmittedBy() == null || reviewCase.getStatus() != FoodProductReviewCaseStatus.APPLIED) return;
-        notificationRepository.save(decisionNotification(reviewCase,
+        saveAndPush(decisionNotification(reviewCase,
                 publication ? "Product contribution published" : "Product contribution applied",
                 publication ? "Your contribution is now available in the product catalog." : "Your verified contribution improved an existing catalog product.",
                 "VIEW_APPLIED_PRODUCT", "SUCCESS"));
@@ -540,8 +543,13 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
 
     private void notifyRejectedDecision(FoodProductReviewCaseEntity reviewCase) {
         if (reviewCase.getSubmittedBy() == null || reviewCase.getStatus() != FoodProductReviewCaseStatus.REJECTED) return;
-        notificationRepository.save(decisionNotification(reviewCase, "Product contribution reviewed",
+        saveAndPush(decisionNotification(reviewCase, "Product contribution reviewed",
                 "Your product contribution was not applied to the catalog.", "VIEW_PRODUCT_CONTRIBUTION", "INFO"));
+    }
+
+    private void saveAndPush(NotificationEntity notification) {
+        NotificationEntity saved = notificationRepository.save(notification);
+        if (pushDeliveryService != null) pushDeliveryService.deliver(saved);
     }
 
     private NotificationEntity decisionNotification(FoodProductReviewCaseEntity reviewCase, String title, String message,

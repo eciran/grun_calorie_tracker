@@ -18,6 +18,7 @@ public class TestFeedbackProperties {
     private java.time.Duration screenshotAdminReadUrlTtl = java.time.Duration.ofMinutes(5);
     private java.time.Duration screenshotPendingTtl = java.time.Duration.ofHours(1);
     private int screenshotRetentionDays = 28;
+    private long screenshotMaxUploadBytes = 20L * 1024L * 1024L;
 
     public boolean isEnabledFor(String environment) {
         if (!enabled || environment == null || environment.isBlank()) {
@@ -45,6 +46,8 @@ public class TestFeedbackProperties {
     public void setScreenshotPendingTtl(java.time.Duration value) { screenshotPendingTtl = value; }
     public int getScreenshotRetentionDays() { return screenshotRetentionDays; }
     public void setScreenshotRetentionDays(int value) { screenshotRetentionDays = value; }
+    public long getScreenshotMaxUploadBytes() { return screenshotMaxUploadBytes; }
+    public void setScreenshotMaxUploadBytes(long value) { screenshotMaxUploadBytes = value; }
     public int getIdempotencyRetentionDays() { return idempotencyRetentionDays; }
     public void setIdempotencyRetentionDays(int value) { this.idempotencyRetentionDays = value; }
 }

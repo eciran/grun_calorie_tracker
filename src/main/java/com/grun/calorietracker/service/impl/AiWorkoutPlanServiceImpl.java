@@ -43,9 +43,10 @@ import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import com.grun.calorietracker.service.support.AiIdempotencySupport;
 import com.grun.calorietracker.service.support.AiUxContractFactory;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.ExerciseCatalogResolver;
+import com.grun.calorietracker.service.support.ExerciseCatalogCandidateSelector;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
@@ -77,6 +79,8 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
     private final UserTimeZoneSupport userTimeZoneSupport;
+    private final ExerciseCatalogResolver exerciseCatalogResolver;
+    private final ExerciseCatalogCandidateSelector exerciseCatalogCandidateSelector;
 
     @Override
     public AiWorkoutPlanCreditEstimateDto estimateCreditCost(
@@ -147,7 +151,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         try {
             SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
             charged = true;
-            AiWorkoutPlanDraftResponseDto response = normalize(activeProvider().createWorkoutPlanDraft(request));
+            AiWorkoutPlanDraftResponseDto response = normalize(activeProvider().createWorkoutPlanDraft(request), request.getLanguage());
             response.setQuotaConsumedAmount(creditCost);
             response.setAiBaseRemainingThisPeriod(quota.getAiBaseRemainingThisPeriod());
             response.setAiAddonRemainingThisPeriod(quota.getAiAddonRemainingThisPeriod());
@@ -203,7 +207,9 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
             throw new IllegalArgumentException("AI workout plan draft is not open for confirmation.");
         }
 
-        AiWorkoutPlanDraftResponseDto plan = normalize(request.getPlan());
+        AiWorkoutPlanDraftResponseDto plan = normalize(request.getPlan(),
+                user.getPreferredLanguage() == null ? null : user.getPreferredLanguage().name());
+        assertFullyCatalogBacked(plan);
         plan.getDays().forEach(day -> {
             day.setScheduledDate(null);
             day.setScheduledStartTime(null);
@@ -343,7 +349,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         workoutPlanRepository.save(entity);
     }
 
-    private AiWorkoutPlanDraftResponseDto normalize(AiWorkoutPlanDraftResponseDto response) {
+    private AiWorkoutPlanDraftResponseDto normalize(AiWorkoutPlanDraftResponseDto response, String language) {
         if (response == null) {
             throw new IllegalArgumentException("AI workout provider returned an empty response.");
         }
@@ -361,9 +367,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         if (response.getDays() == null || response.getDays().isEmpty() || response.getDays().size() > MAX_DAYS) {
             throw new IllegalArgumentException("AI workout provider returned an invalid number of plan days.");
         }
-        for (AiWorkoutPlanDayDto day : response.getDays()) {
-            validateDay(day);
-        }
+        for (AiWorkoutPlanDayDto day : response.getDays()) validateDay(day, language);
         normalizeQuality(response);
         if (response.getWarnings() == null) {
             response.setWarnings(List.of());
@@ -412,7 +416,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
                 .anyMatch(exercise -> Boolean.TRUE.equals(exercise.getReviewRequired()) || exercise.getExerciseItemId() == null);
     }
 
-    private void validateDay(AiWorkoutPlanDayDto day) {
+    private void validateDay(AiWorkoutPlanDayDto day, String language) {
         if (day == null || day.getDayLabel() == null || day.getDayLabel().isBlank()) {
             throw new IllegalArgumentException("AI workout provider returned a day without a label.");
         }
@@ -426,25 +430,32 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
             throw new IllegalArgumentException("AI workout provider returned an invalid number of exercises.");
         }
         for (AiWorkoutPlanExerciseDto exercise : day.getExercises()) {
-            normalizeExercise(exercise, day);
+            normalizeExercise(exercise, day, language);
             validateExercise(exercise);
         }
     }
 
-    private void normalizeExercise(AiWorkoutPlanExerciseDto exercise, AiWorkoutPlanDayDto day) {
+    private void normalizeExercise(AiWorkoutPlanExerciseDto exercise, AiWorkoutPlanDayDto day, String language) {
         if (exercise == null) {
             return;
         }
         if (exercise.getExerciseItemId() != null && exercise.getExerciseItemId() <= 0) {
             exercise.setExerciseItemId(null);
         }
+        exerciseCatalogResolver.resolve(exercise, language).ifPresentOrElse(item -> {
+            exercise.setExerciseItemId(item.getId());
+            exercise.setReviewRequired(false);
+        }, () -> {
+            exercise.setExerciseItemId(null);
+            exercise.setReviewRequired(true);
+        });
         if (exercise.getMeasurementType() == ExerciseLogMeasurementType.DURATION
                 && (exercise.getDurationMinutes() == null || exercise.getDurationMinutes() <= 0)) {
             int fallbackDuration = Math.max(1, day.getEstimatedDurationMinutes() / Math.max(1, day.getExercises().size()));
             exercise.setDurationMinutes(fallbackDuration);
             exercise.setReviewRequired(true);
             if (isBlank(exercise.getSafetyNote())) {
-                exercise.setSafetyNote("Duration was estimated by GRun because the AI provider omitted it; review before following this plan.");
+                exercise.setSafetyNote("Duration was estimated by GRUN because the AI provider omitted it; review before following this plan.");
             }
         }
     }
@@ -626,15 +637,19 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
     }
 
     private List<Map<String, Object>> toExerciseCatalogContext(AiWorkoutPlanDraftRequestDto request) {
-        List<Long> excluded = request.getExcludedExerciseItemIds() == null ? List.of() : request.getExcludedExerciseItemIds();
-        return exerciseItemRepository.findAll(PageRequest.of(0, 80)).getContent().stream()
-                .filter(item -> Boolean.TRUE.equals(item.getActive()))
-                .filter(item -> Boolean.TRUE.equals(item.getAiEligible()))
-                .filter(item -> item.getTechniqueReviewStatus() == ExerciseTechniqueReviewStatus.APPROVED)
-                .filter(item -> item.getId() == null || !excluded.contains(item.getId()))
-                .limit(30)
+        return exerciseCatalogCandidateSelector.select(exerciseItemRepository.findAll(), request).stream()
                 .map(this::toExerciseCatalogItem)
                 .toList();
+    }
+
+    private void assertFullyCatalogBacked(AiWorkoutPlanDraftResponseDto plan) {
+        List<String> unmatched = new ArrayList<>();
+        plan.getDays().stream().flatMap(day -> day.getExercises().stream())
+                .filter(exercise -> exercise.getExerciseItemId() == null || Boolean.TRUE.equals(exercise.getReviewRequired()))
+                .map(AiWorkoutPlanExerciseDto::getName).forEach(unmatched::add);
+        if (!unmatched.isEmpty()) {
+            throw new IllegalArgumentException("Workout plan contains exercises that are not linked to the approved catalog: " + String.join(", ", unmatched));
+        }
     }
 
     private Map<String, Object> toExerciseCatalogItem(ExerciseItemEntity item) {

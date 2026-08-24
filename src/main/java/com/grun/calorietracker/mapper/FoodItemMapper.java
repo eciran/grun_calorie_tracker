@@ -48,6 +48,9 @@ public class FoodItemMapper {
         entity.setMarketRegions(marketRegions);
         entity.setPreparationState(dto.getPreparationState());
         entity.setNutritionBasis(dto.getNutritionBasis() != null ? dto.getNutritionBasis() : com.grun.calorietracker.enums.FoodNutritionBasis.SOURCE_REPORTED);
+        entity.setNutritionReferenceUnit(dto.getNutritionReferenceUnit() != null
+                ? dto.getNutritionReferenceUnit()
+                : com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
         entity.setUsageCount(dto.getUsageCount());
         entity.setQualityScore(dto.getQualityScore());
         entity.setConfidenceScore(dto.getConfidenceScore());
@@ -122,6 +125,9 @@ public class FoodItemMapper {
         dto.setMarketRegions(marketRegions);
         dto.setPreparationState(entity.getPreparationState());
         dto.setNutritionBasis(entity.getNutritionBasis());
+        dto.setNutritionReferenceUnit(entity.getNutritionReferenceUnit() != null
+                ? entity.getNutritionReferenceUnit()
+                : com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
         dto.setUsageCount(entity.getUsageCount());
         dto.setQualityScore(entity.getQualityScore());
         dto.setConfidenceScore(entity.getConfidenceScore());
@@ -216,7 +222,7 @@ public class FoodItemMapper {
 
     private static String resolveQualityMessage(ProductQualityLabel label) {
         return switch (label) {
-            case VERIFIED -> "Verified by GRun";
+            case VERIFIED -> "Verified by GRUN";
             case COMMUNITY -> "User-created food";
             case IMPORTED -> "Imported data, review recommended";
             case NEEDS_REVIEW -> "Nutrition data needs review";

@@ -39,7 +39,6 @@ public class S3FoodProductDirectUploadStorage implements FoodProductDirectUpload
                 .bucket(bucket())
                 .key(object.storageKey())
                 .contentType(object.contentType())
-                .contentLength(object.sizeBytes())
                 .serverSideEncryption(ServerSideEncryption.AES256)
                 .metadata(Map.of("sha256", object.sha256()))
                 .build();

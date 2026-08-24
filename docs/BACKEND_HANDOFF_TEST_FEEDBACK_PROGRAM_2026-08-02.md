@@ -3,6 +3,10 @@
 Status: COMPLETE_DEVICE_PENDING
 Date: 2026-08-03
 
+## Device QA Update - 2026-08-09
+
+The automated contract remains complete. Device QA now starts on iOS using a paid Apple Developer membership and an EAS development/internal build. Android evidence follows and is still mandatory for final completion. See `IOS_FIRST_TEST_BUILD_READINESS_2026-08-09.md`.
+
 ## Scope
 
 This system is only for authenticated Android and iOS preview/internal builds. It is not a production customer-feedback feature and it does not assign tasks to testers.
@@ -58,7 +62,7 @@ Automated evidence completed:
 - mobile TypeScript check
 - mobile test-feedback contract
 
-Device evidence still required for both Android and iOS:
+Device evidence is still required for both platforms, in this order: iOS first, Android second.
 1. Preview build shows the launcher after login.
 2. Production profile does not show the launcher.
 3. Each result type can be submitted.

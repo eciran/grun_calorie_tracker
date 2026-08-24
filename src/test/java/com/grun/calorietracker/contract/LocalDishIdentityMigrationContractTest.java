@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,7 +15,7 @@ class LocalDishIdentityMigrationContractTest {
     void migrationAddsNullableFamilyVariantIdentityAndFocusedIndex() throws IOException {
         String migration = Files.readString(
                 Path.of("src/main/resources/db/migration/V208__add_local_dish_identity.sql")
-        ).toLowerCase();
+        ).toLowerCase(Locale.ROOT);
 
         assertTrue(migration.contains("add column if not exists dish_family_key varchar(160)"));
         assertTrue(migration.contains("add column if not exists dish_variant_key varchar(160)"));

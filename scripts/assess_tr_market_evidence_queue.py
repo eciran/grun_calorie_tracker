@@ -139,7 +139,7 @@ def promotion_failures(
     failures: list[str] = []
     if evidence.get("evidenceType") not in ALLOWED_EVIDENCE_TYPES:
         failures.append("UNSUPPORTED_EVIDENCE_TYPE")
-    if not evidence.get("evidenceSourceId", "").strip():
+    if not str(evidence.get("evidenceSourceId") or "").strip():
         failures.append("MISSING_EVIDENCE_SOURCE_ID")
     if not valid_evidence_url(evidence.get("evidenceUrl", "")):
         failures.append("INVALID_EVIDENCE_URL")
@@ -160,7 +160,7 @@ def promotion_failures(
         failures.append("PERSISTENT_STORAGE_NOT_ALLOWED")
     if evidence.get("reviewDecision") != "APPROVED":
         failures.append("ADMIN_REVIEW_NOT_APPROVED")
-    if not evidence.get("reviewerId", "").strip():
+    if not str(evidence.get("reviewerId") or "").strip():
         failures.append("MISSING_REVIEWER_ID")
     return failures
 
@@ -202,7 +202,7 @@ def main() -> int:
     duplicate_evidence = Counter()
     if evidence_path:
         for row in read_rows(evidence_path):
-            barcode = row.get("barcode", "").strip()
+            barcode = str(row.get("barcode") or "").strip()
             if barcode in evidence_by_barcode:
                 duplicate_evidence[barcode] += 1
             else:

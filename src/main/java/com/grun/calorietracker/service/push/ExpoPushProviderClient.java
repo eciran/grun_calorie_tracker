@@ -89,7 +89,7 @@ public class ExpoPushProviderClient implements PushProviderClient {
         if (notification.getTitle() != null && !notification.getTitle().isBlank()) {
             return notification.getTitle();
         }
-        return notification.getType() == null ? "GRun" : "GRun " + notification.getType().replace('_', ' ');
+        return notification.getType() == null ? "GRUN" : "GRUN " + notification.getType().replace('_', ' ');
     }
 
     @SuppressWarnings("unchecked")

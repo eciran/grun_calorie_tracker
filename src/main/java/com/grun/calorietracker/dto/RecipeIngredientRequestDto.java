@@ -13,6 +13,10 @@ public class RecipeIngredientRequestDto {
     @Schema(description = "Optional catalog food product id. Omit for AI/manual snapshot ingredients.", example = "12")
     private Long foodItemId;
 
+    @Positive
+    @Schema(description = "Optional verified serving option id belonging to foodItemId.", example = "41")
+    private Long servingOptionId;
+
     @Size(max = 220)
     @Schema(description = "Ingredient display name used when no catalog foodItemId is selected.", example = "Lean Steak")
     private String snapshotFoodName;
@@ -21,7 +25,7 @@ public class RecipeIngredientRequestDto {
     @Schema(description = "Ingredient amount in the selected unit.", example = "150.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double portionSize;
 
-    @Schema(description = "Ingredient unit. Defaults to GRAM when omitted. TABLESPOON normalizes to 15g/ml, TEASPOON normalizes to 5g/ml, and SLICE uses product servingSizeGrams like PIECE when catalog data is available.", example = "TABLESPOON", allowableValues = {"GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"})
+    @Schema(description = "Ingredient unit. Defaults to GRAM when omitted. Household units require a compatible verified product serving option unless a safe product conversion is explicitly available.", example = "TABLESPOON", allowableValues = {"GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"})
     private FoodPortionUnit portionUnit;
 
     @Schema(description = "Snapshot calories per 100g/ml used when no catalog foodItemId is selected.", example = "190.0")

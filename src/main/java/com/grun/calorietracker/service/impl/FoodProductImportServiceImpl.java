@@ -19,6 +19,7 @@ import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.FoodServingOptionSource;
@@ -344,6 +345,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setCatalogType(catalogType);
         product.setPreparationState(preparationState);
         product.setNutritionBasis(resolveNutritionBasis(row, catalogType));
+        product.setNutritionReferenceUnit(resolveNutritionReferenceUnit(row));
         mergeMarketAvailability(product, row, regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
 
@@ -622,6 +624,32 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return catalogType == FoodCatalogType.LOCAL_DISH
                     ? FoodNutritionBasis.ESTIMATED
                     : FoodNutritionBasis.SOURCE_REPORTED;
+        }
+    }
+
+    private FoodNutritionReferenceUnit resolveNutritionReferenceUnit(CsvRow row) {
+        String value = firstText(
+                row,
+                "nutrition_reference_unit",
+                "nutritionreferenceunit",
+                "nutrition_unit",
+                "nutritionunit"
+        );
+        if (value == null) {
+            return FoodNutritionReferenceUnit.PER_100G;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT)
+                .replace('-', '_')
+                .replace(' ', '_');
+        if ("100G".equals(normalized) || "PER100G".equals(normalized)) {
+            normalized = FoodNutritionReferenceUnit.PER_100G.name();
+        } else if ("100ML".equals(normalized) || "PER100ML".equals(normalized)) {
+            normalized = FoodNutritionReferenceUnit.PER_100ML.name();
+        }
+        try {
+            return FoodNutritionReferenceUnit.valueOf(normalized);
+        } catch (IllegalArgumentException exception) {
+            return FoodNutritionReferenceUnit.PER_100G;
         }
     }
 

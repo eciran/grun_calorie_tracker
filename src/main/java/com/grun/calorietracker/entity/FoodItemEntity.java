@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -85,6 +86,9 @@ public class FoodItemEntity {
 
     @Enumerated(EnumType.STRING)
     private FoodNutritionBasis nutritionBasis;
+
+    @Enumerated(EnumType.STRING)
+    private FoodNutritionReferenceUnit nutritionReferenceUnit;
 
     private Long usageCount;
     private Long searchSelectionCount = 0L;

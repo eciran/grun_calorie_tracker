@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -162,6 +163,31 @@ class FoodProductUploadSessionServiceImplTest {
         assertTrue(result.assets().stream().allMatch(value -> value.width() == 1200 && value.height() == 800));
         assertTrue(result.assets().stream().allMatch(value -> value.uploadState()
                 == com.grun.calorietracker.enums.FoodProductAssetUploadState.VERIFIED));
+    }
+
+    @Test
+    void finalizesWhenS3ChecksumMetadataIsMissingButDownloadedContentIsVerified() {
+        UserEntity user = user();
+        FoodProductUploadSessionEntity session = uploadSession(user, "metadata-fallback", LocalDateTime.now().plusMinutes(5));
+        FoodProductReviewCaseAssetEntity front = asset(session, 1L, FoodProductReviewAssetType.FRONT_PACKAGE);
+        FoodProductReviewCaseAssetEntity nutrition = asset(session, 2L, FoodProductReviewAssetType.NUTRITION_LABEL);
+        byte[] bytes = new byte[]{1, 2, 3};
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(sessionRepository.findById("metadata-fallback")).thenReturn(Optional.of(session));
+        when(assetRepository.findAllByUploadSessionIdOrderByAssetTypeAsc("metadata-fallback")).thenReturn(List.of(front, nutrition));
+        when(directStorage.inspect(any())).thenAnswer(invocation -> new FoodProductDirectUploadStorage.StoredObject(
+                invocation.getArgument(0), "image/jpeg", 1024, null
+        ));
+        when(directStorage.readBounded(any(), any(Long.class))).thenReturn(bytes);
+        when(imageInspector.inspect(bytes, "image/jpeg", "a".repeat(64)))
+                .thenReturn(new FoodProductEvidenceImageInspector.Dimensions(1200, 800));
+        when(assetRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.finalizeUpload(user.getEmail(), "metadata-fallback");
+
+        assertEquals(com.grun.calorietracker.enums.FoodProductUploadSessionStatus.FINALIZED, result.status());
+        verify(imageInspector, times(2)).inspect(bytes, "image/jpeg", "a".repeat(64));
     }
 
     @Test

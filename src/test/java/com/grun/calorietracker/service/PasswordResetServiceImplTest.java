@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.PasswordResetRequestDto;
 import com.grun.calorietracker.dto.PasswordResetResponseDto;
 import com.grun.calorietracker.entity.PasswordResetTokenEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.PasswordResetTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -104,6 +105,26 @@ class PasswordResetServiceImplTest {
         assertThat(savedToken.getTokenHash()).isNotBlank();
         assertThat(savedToken.getExpiresAt()).isAfter(LocalDateTime.now());
         verify(passwordResetMailSender).sendPasswordResetToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void requestPasswordReset_includesPreferredLanguageInLandingPageLink() {
+        PasswordResetRequestDto request = new PasswordResetRequestDto();
+        request.setEmail("user@example.com");
+        user.setPreferredLanguage(PreferredLanguage.TR);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of());
+
+        passwordResetService.requestPasswordReset(request);
+
+        ArgumentCaptor<String> linkCaptor = ArgumentCaptor.forClass(String.class);
+        verify(passwordResetMailSender).sendPasswordResetToken(
+                org.mockito.ArgumentMatchers.eq("user@example.com"), anyString(), linkCaptor.capture());
+        assertThat(linkCaptor.getValue())
+                .startsWith("http://localhost:8080/reset-password?token=")
+                .endsWith("&lang=tr");
     }
 
     @Test

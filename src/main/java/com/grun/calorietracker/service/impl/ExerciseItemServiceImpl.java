@@ -162,7 +162,7 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     }
 
     private String normalizeMetCode(String metCode) {
-        return metCode == null ? null : metCode.trim().toUpperCase();
+        return metCode == null ? null : metCode.trim().toUpperCase(Locale.ROOT);
     }
 
     private Specification<ExerciseItemEntity> buildSearchSpecification(String query,

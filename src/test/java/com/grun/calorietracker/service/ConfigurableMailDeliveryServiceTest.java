@@ -34,7 +34,7 @@ class ConfigurableMailDeliveryServiceTest {
         server.expect(requestTo("https://api.brevo.com/v3/smtp/email"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().json("""
-                        {"sender":{"email":"no-reply@grun.app","name":"GRun"},
+                        {"sender":{"email":"no-reply@grun.app","name":"GRUN"},
                          "to":[{"email":"user@example.com"}],
                          "templateId":101,
                          "params":{"verificationUrl":"https://app.grun/verify"}}
@@ -61,14 +61,14 @@ class ConfigurableMailDeliveryServiceTest {
                         {
                           "sender": {
                             "email": "no-reply@grun.app",
-                            "name": "GRun"
+                            "name": "GRUN"
                           },
                           "to": [
                             {
                               "email": "user@example.com"
                             }
                           ],
-                          "subject": "Verify your GRun email",
+                          "subject": "Verify your GRUN email",
                           "textContent": "Verify text",
                           "htmlContent": "<p>Verify html</p>"
                         }
@@ -77,7 +77,7 @@ class ConfigurableMailDeliveryServiceTest {
 
         service.sendTransactionalEmail(
                 "user@example.com",
-                "Verify your GRun email",
+                "Verify your GRUN email",
                 "Verify text",
                 "<p>Verify html</p>"
         );
@@ -147,7 +147,7 @@ class ConfigurableMailDeliveryServiceTest {
         MailProperties properties = new MailProperties();
         properties.setProvider(MailProvider.BREVO);
         properties.setFromEmail("no-reply@grun.app");
-        properties.setFromName("GRun");
+        properties.setFromName("GRUN");
         properties.getBrevo().setApiKey("brevo-api-key");
         properties.getBrevo().setApiUrl("https://api.brevo.com/v3/smtp/email");
         return properties;

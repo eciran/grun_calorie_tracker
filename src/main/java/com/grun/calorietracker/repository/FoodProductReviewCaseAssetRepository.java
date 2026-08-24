@@ -23,7 +23,9 @@ public interface FoodProductReviewCaseAssetRepository extends JpaRepository<Food
             where asset.deletion_state in ('ACTIVE', 'FAILED')
               and (asset.expires_at <= :now
                    or review_case.status in ('WITHDRAWN', 'EXPIRED')
-                   or (asset.review_case_id is null and upload_session.expires_at <= :now))
+                   or (asset.review_case_id is null
+                       and upload_session.status <> 'FINALIZED'
+                       and upload_session.expires_at <= :now))
             order by asset.id
             for update of asset skip locked
             """, nativeQuery = true)

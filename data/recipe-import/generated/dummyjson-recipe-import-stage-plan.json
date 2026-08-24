@@ -1,0 +1,29 @@
+{
+  "source": "dummyjson",
+  "input": "data\\recipe-import\\raw\\dummyjson_recipes_50.json",
+  "availableRecipes": 50,
+  "stages": [
+    {
+      "stageSize": 30,
+      "status": "created",
+      "file": "data\\recipe-import\\generated\\dummyjson-recipe-import-stage-30.json",
+      "recipeCount": 30
+    },
+    {
+      "stageSize": 50,
+      "status": "created",
+      "file": "data\\recipe-import\\generated\\dummyjson-recipe-import-stage-50.json",
+      "recipeCount": 50
+    },
+    {
+      "stageSize": 100,
+      "status": "skipped",
+      "reason": "Only 50 source recipes available"
+    },
+    {
+      "stageSize": 150,
+      "status": "skipped",
+      "reason": "Only 50 source recipes available"
+    }
+  ]
+}

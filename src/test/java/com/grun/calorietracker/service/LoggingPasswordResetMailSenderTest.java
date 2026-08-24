@@ -45,8 +45,8 @@ class LoggingPasswordResetMailSenderTest {
         verify(mailDeliveryService).sendTransactionalTemplate(
                 eq("user@example.com"),
                 eq(201L), anyMap(),
-                eq("Reset your GRun password"),
-                eq("Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"),
+                eq("Reset your GRUN password"),
+                eq("Use this link to reset your GRUN password: https://app.grun.local/reset?token=raw-token"),
                 contains("Reset password")
         );
     }
@@ -56,7 +56,7 @@ class LoggingPasswordResetMailSenderTest {
         LoggingPasswordResetMailSender sender = new LoggingPasswordResetMailSender(mailDeliveryService, mailFailureAlertService, userRepository, properties());
         doThrow(new MailDeliveryException("Brevo rejected transactional email request with status 401 UNAUTHORIZED"))
                 .when(mailDeliveryService)
-                .sendTransactionalTemplate(eq("user@example.com"), eq(201L), anyMap(), eq("Reset your GRun password"), eq("Use this link to reset your GRun password: https://app.grun.local/reset?token=raw-token"), contains("Reset password"));
+                .sendTransactionalTemplate(eq("user@example.com"), eq(201L), anyMap(), eq("Reset your GRUN password"), eq("Use this link to reset your GRUN password: https://app.grun.local/reset?token=raw-token"), contains("Reset password"));
 
         assertThatThrownBy(() -> sender.sendPasswordResetToken(
                 "user@example.com",

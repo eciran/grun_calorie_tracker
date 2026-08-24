@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.*;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.TestFeedbackSubmissionRepository;
+import com.grun.calorietracker.repository.TestFeedbackScreenshotEventRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminTestFeedbackService;
@@ -30,6 +31,7 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
     private final TestFeedbackSubmissionRepository repository;
     private final UserRepository userRepository;
     private final AdminAuditService auditService;
+    private final TestFeedbackScreenshotEventRepository screenshotEventRepository;
     @PersistenceContext private EntityManager entityManager;
 
     @Override
@@ -46,7 +48,7 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
     @Override
     @Transactional(readOnly = true)
     public AdminTestFeedbackDto detail(Long id) {
-        return dto(requireFeedback(id));
+        return dto(requireFeedback(id), true);
     }
 
     @Override
@@ -66,7 +68,7 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
         auditService.record(adminEmail, AdminAuditActionType.RUNTIME_RECORD_CREATE,
                 AdminAuditTargetType.RUNTIME_OPERATIONS, "test-feedback:" + id,
                 oldValue, newValue, correlationId);
-        return dto(saved);
+        return dto(saved, true);
     }
 
     @Override
@@ -155,13 +157,24 @@ public class AdminTestFeedbackServiceImpl implements AdminTestFeedbackService {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Test feedback not found."));
     }
 
-    private AdminTestFeedbackDto dto(TestFeedbackSubmissionEntity e) {
+    private AdminTestFeedbackDto dto(TestFeedbackSubmissionEntity e) { return dto(e, false); }
+
+    private AdminTestFeedbackDto dto(TestFeedbackSubmissionEntity e, boolean includeScreenshotEvents) {
+        boolean screenshotAvailable = e.getScreenshotAttachedAt() != null && e.getScreenshotDeletedAt() == null
+                && e.getScreenshotExpiresAt() != null && e.getScreenshotExpiresAt().isAfter(LocalDateTime.now());
+        List<AdminTestFeedbackScreenshotEventDto> events = includeScreenshotEvents
+                ? screenshotEventRepository.findByFeedbackIdOrderByCreatedAtAscIdAsc(e.getId()).stream()
+                    .map(event -> new AdminTestFeedbackScreenshotEventDto(event.getEventType(), event.getOutcome(),
+                            event.getReportedSizeBytes(), event.getActualSizeBytes(), event.getContentType(),
+                            event.getErrorCode(), event.getDetail(), event.getCreatedAt())).toList()
+                : List.of();
+        String screenshotState = screenshotAvailable ? "ATTACHED" : events.isEmpty() ? "NOT_PROVIDED"
+                : "ERROR".equals(events.get(events.size() - 1).outcome()) ? "FAILED" : "PENDING";
         return new AdminTestFeedbackDto(e.getId(), e.getUser().getEmail(), e.getFeedbackType(), e.getStatus(),
                 e.getPlatform(), e.getRoute(), e.getPreviousRoute(), e.getDescription(), e.getAppVersion(),
                 e.getBuildNumber(), e.getEasBuildId(), e.getCommitSha(), e.getOsVersion(), e.getDeviceModel(),
                 e.getLanguageTag(), e.getMarketRegion(), e.getLastHttpStatus(), e.getLastHttpDurationMs(),
-                e.getLastCorrelationId(), e.getNetworkState(), e.getScreenshotAttachedAt() != null && e.getScreenshotDeletedAt() == null
-                        && e.getScreenshotExpiresAt() != null && e.getScreenshotExpiresAt().isAfter(LocalDateTime.now()), e.getScreenshotExpiresAt(), e.getAdminNote(),
+                e.getLastCorrelationId(), e.getNetworkState(), screenshotAvailable, e.getScreenshotExpiresAt(), screenshotState, events, e.getAdminNote(),
                 e.getReviewedBy() == null ? null : e.getReviewedBy().getEmail(), e.getReviewedAt(),
                 e.getCreatedAt(), e.getUpdatedAt());
     }

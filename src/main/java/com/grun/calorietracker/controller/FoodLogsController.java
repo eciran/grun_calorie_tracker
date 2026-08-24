@@ -51,7 +51,7 @@ public class FoodLogsController {
     @PostMapping
     @Operation(
             summary = "Create a food log",
-            description = "Adds a food entry to the authenticated user's diary. For local demo data, login as demo.user@grun.local and use the seeded GRun Demo products returned from product search."
+            description = "Adds a food entry to the authenticated user's diary. For local demo data, login as demo.user@grun.local and use the seeded GRUN Demo products returned from product search."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Food log created."),

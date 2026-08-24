@@ -27,12 +27,17 @@ public class MealTemplateItemEntity {
     @JoinColumn(name = "food_item_id", nullable = false)
     private FoodItemEntity foodItem;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "serving_option_id")
+    private FoodItemServingOptionEntity servingOption;
+
     private Double portionSize;
 
     @Enumerated(EnumType.STRING)
     private FoodPortionUnit portionUnit;
 
     private Double normalizedPortionGrams;
+    private Double normalizedPortionMilliliters;
     private LocalTime logTime;
     private Integer itemOrder;
 }

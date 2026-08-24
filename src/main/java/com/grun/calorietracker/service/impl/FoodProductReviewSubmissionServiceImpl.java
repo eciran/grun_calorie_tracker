@@ -12,6 +12,7 @@ import com.grun.calorietracker.entity.FoodProductReviewCaseEntity;
 import com.grun.calorietracker.entity.FoodProductReviewCaseExtractionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodProductAssetUploadState;
+import com.grun.calorietracker.enums.FoodProductAssetDeletionState;
 import com.grun.calorietracker.enums.FoodProductReviewCaseSource;
 import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
 import com.grun.calorietracker.enums.FoodProductUploadSessionStatus;
@@ -187,8 +188,11 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
 
     private void requireVerifiedEvidence(java.util.List<com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity> evidence) {
         if (evidence.size() != 2 || evidence.stream()
-                .anyMatch(asset -> asset.getUploadState() != FoodProductAssetUploadState.VERIFIED)) {
-            throw new RequestConflictException("Two verified evidence assets are required.");
+                .anyMatch(asset -> asset.getUploadState() != FoodProductAssetUploadState.VERIFIED
+                        || asset.getDeletionState() != FoodProductAssetDeletionState.ACTIVE
+                        || asset.getExpiresAt() == null
+                        || !asset.getExpiresAt().isAfter(LocalDateTime.now()))) {
+            throw new RequestConflictException("Two active, verified evidence assets are required.");
         }
     }
 

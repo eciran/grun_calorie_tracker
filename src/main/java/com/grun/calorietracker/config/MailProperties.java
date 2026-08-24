@@ -12,7 +12,7 @@ public class MailProperties {
 
     private MailProvider provider = MailProvider.LOG;
     private String fromEmail = "no-reply@grun.local";
-    private String fromName = "GRun";
+    private String fromName = "GRUN";
     private Brevo brevo = new Brevo();
 
     @Getter

@@ -465,7 +465,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         String withoutApplePrefix = trimmed.replaceFirst("(?i)^HKWorkoutActivityType", "");
         String normalized = withoutApplePrefix
                 .replaceAll("([a-z])([A-Z])", "$1_$2")
-                .toUpperCase()
+                .toUpperCase(java.util.Locale.ROOT)
                 .replaceAll("[^A-Z0-9]+", "_")
                 .replaceAll("^_+|_+$", "");
         if (normalized.isBlank()) {

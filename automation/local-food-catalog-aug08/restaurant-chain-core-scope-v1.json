@@ -1,0 +1,26 @@
+﻿{
+    "schema_version":  "restaurant-chain-core-scope-v1",
+    "effective_date":  "2026-08-08",
+    "selection_rule":  "MOST_POPULAR_REPRESENTATIVE_MAIN_PRODUCTS_ONLY",
+    "allowed_categories":  [
+                               "BURGER",
+                               "SANDWICH",
+                               "WRAP",
+                               "PIZZA",
+                               "CHICKEN"
+                           ],
+    "excluded_categories":  [
+                                "DESSERT",
+                                "ICE_CREAM",
+                                "BEVERAGE",
+                                "SAUCE",
+                                "SIDE"
+                            ],
+    "products_per_brand":  {
+                               "minimum":  5,
+                               "maximum":  7
+                           },
+    "market_isolation":  "STRICT",
+    "nutrition_source":  "OFFICIAL_BRAND_ONLY",
+    "release_rule":  "RIGHTS_WEIGHT_MACRO_AND_IMPORT_CONTRACT_GATES_REQUIRED"
+}

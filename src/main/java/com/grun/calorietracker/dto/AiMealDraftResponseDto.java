@@ -20,6 +20,8 @@ public class AiMealDraftResponseDto implements AiUsageMetadataCarrier {
     private AiProvider provider;
     private String model;
     private AiRequestStatus status;
+    @Schema(description = "Normalized language used for every user-visible AI-generated string.", example = "en")
+    private String outputLanguage;
     private String suggestedMealType;
     private LocalDateTime suggestedLogDate;
     private String summary;

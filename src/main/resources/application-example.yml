@@ -54,7 +54,7 @@ management:
 
 info:
   app:
-    name: GRun Calorie Tracker API
+    name: GRUN Calorie Tracker API
     version: 0.0.1-SNAPSHOT
 
 logging:
@@ -210,10 +210,21 @@ grun:
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
     from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}
-    from-name: ${GRUN_MAIL_FROM_NAME:GRun}
+    from-name: ${GRUN_MAIL_FROM_NAME:GRUN}
     brevo:
       api-key: ${GRUN_BREVO_API_KEY:}
       api-url: ${GRUN_BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
+      templates:
+        email-verification-en: ${GRUN_BREVO_TEMPLATE_EMAIL_VERIFICATION_EN:0}
+        email-verification-tr: ${GRUN_BREVO_TEMPLATE_EMAIL_VERIFICATION_TR:0}
+        password-reset-en: ${GRUN_BREVO_TEMPLATE_PASSWORD_RESET_EN:0}
+        password-reset-tr: ${GRUN_BREVO_TEMPLATE_PASSWORD_RESET_TR:0}
+        subscription-feature-change-en: ${GRUN_BREVO_TEMPLATE_SUBSCRIPTION_FEATURE_CHANGE_EN:0}
+        subscription-feature-change-tr: ${GRUN_BREVO_TEMPLATE_SUBSCRIPTION_FEATURE_CHANGE_TR:0}
+        admin-invitation-en: ${GRUN_BREVO_TEMPLATE_ADMIN_INVITATION_EN:0}
+        admin-invitation-tr: ${GRUN_BREVO_TEMPLATE_ADMIN_INVITATION_TR:0}
+        admin-password-changed-en: ${GRUN_BREVO_TEMPLATE_ADMIN_PASSWORD_CHANGED_EN:0}
+        admin-password-changed-tr: ${GRUN_BREVO_TEMPLATE_ADMIN_PASSWORD_CHANGED_TR:0}
   notifications:
     campaign-dispatch-enabled: ${GRUN_NOTIFICATION_CAMPAIGN_DISPATCH_ENABLED:true}
     campaign-dispatch-interval-ms: ${GRUN_NOTIFICATION_CAMPAIGN_DISPATCH_INTERVAL_MS:30000}

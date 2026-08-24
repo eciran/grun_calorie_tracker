@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.TestFeedbackSubmissionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.*;
 import com.grun.calorietracker.repository.TestFeedbackSubmissionRepository;
+import com.grun.calorietracker.repository.TestFeedbackScreenshotEventRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AdminTestFeedbackServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,8 @@ class AdminTestFeedbackServiceImplTest {
         when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
         when(repository.save(feedback)).thenReturn(feedback);
 
-        AdminTestFeedbackServiceImpl service = new AdminTestFeedbackServiceImpl(repository, userRepository, auditService);
+        AdminTestFeedbackServiceImpl service = new AdminTestFeedbackServiceImpl(repository, userRepository, auditService,
+                mock(TestFeedbackScreenshotEventRepository.class));
         var result = service.update(11L,
                 new AdminTestFeedbackUpdateRequestDto(TestFeedbackStatus.REVIEWING, "Reproducing"),
                 admin.getEmail(), "cid-11");

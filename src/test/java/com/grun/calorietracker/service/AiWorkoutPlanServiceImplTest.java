@@ -17,6 +17,8 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WorkoutPlanRepository;
 import com.grun.calorietracker.service.impl.AiWorkoutPlanServiceImpl;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.support.ExerciseCatalogResolver;
+import com.grun.calorietracker.service.support.ExerciseCatalogCandidateSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +54,8 @@ class AiWorkoutPlanServiceImplTest {
                 new AiProperties(), List.of(), mock(AiRequestHistoryRepository.class),
                 userRepository, mock(ExerciseItemRepository.class), workoutPlanRepository,
                 mock(SubscriptionService.class), mock(AiCreditPricingService.class), objectMapper,
-                mock(AiProviderConfigurationValidator.class), userTimeZoneSupport);
+                mock(AiProviderConfigurationValidator.class), userTimeZoneSupport,
+                mock(ExerciseCatalogResolver.class), mock(ExerciseCatalogCandidateSelector.class));
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("user@example.com");

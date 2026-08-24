@@ -30,7 +30,7 @@ class AdminEngagementAnalyticsControllerTest {
     @MockBean AdminEngagementAnalyticsService analyticsService;
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_GROWTH_READ"})
     void getSummary_forwardsServerSideFiltersAndReturnsAggregateOnly() throws Exception {
         when(analyticsService.getSummary(168, MarketRegion.TR,
                 PreferredLanguage.TR, SubscriptionPlan.PLUS)).thenReturn(summary());

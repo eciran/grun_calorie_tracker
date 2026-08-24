@@ -19,6 +19,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:mobile_food_diary_flow;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1")
+@Sql(statements = "CREATE TABLE IF NOT EXISTS user_analytics_cache_revisions (user_id BIGINT PRIMARY KEY, revision BIGINT NOT NULL DEFAULT 0, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT fk_test_analytics_revision_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)")
 @Transactional
 class MobileFoodDiaryFlowIntegrationTest {
 
@@ -125,9 +127,9 @@ class MobileFoodDiaryFlowIntegrationTest {
                         .param("date", "2026-05-23"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.foodLogs[0].foodItemId").value(customFoodId))
-                .andExpect(jsonPath("$.foodLogs[0].snapshotFiber").value(8.0))
-                .andExpect(jsonPath("$.consumedMicros.fiber").value(8.0))
-                .andExpect(jsonPath("$.consumedMicros.sodium").value(96.0));
+                .andExpect(jsonPath("$.micronutrientDetailsAvailable").value(false))
+                .andExpect(jsonPath("$.foodLogs[0].snapshotFiber").isEmpty())
+                .andExpect(jsonPath("$.consumedMicros").isEmpty());
 
         mockMvc.perform(get("/api/v1/food-logs/stats")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token))

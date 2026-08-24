@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodServingOptionDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.FoodServingOptionService;
 import com.grun.calorietracker.service.SubscriptionService;
@@ -197,7 +198,7 @@ class FoodItemControllerTest {
         FoodProductDto product = new FoodProductDto();
         product.setId(12L);
         product.setProductName("Greek yogurt");
-        when(foodItemService.getFoodItemById(12L, "user@test.com")).thenReturn(product);
+        when(foodItemService.getFoodItemById(12L, "user@test.com", PreferredLanguage.EN)).thenReturn(product);
 
         mockMvc.perform(get("/api/v1/products/12"))
                 .andExpect(status().isOk())
@@ -213,13 +214,28 @@ class FoodItemControllerTest {
         option.setFoodItemId(12L);
         option.setLabel("1 slice");
         option.setGramWeight(28.0);
-        when(foodServingOptionService.getServingOptions(12L, "user@test.com")).thenReturn(List.of(option));
+        when(foodServingOptionService.getServingOptions(12L, "user@test.com", PreferredLanguage.EN)).thenReturn(List.of(option));
 
         mockMvc.perform(get("/api/v1/products/12/serving-options"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(5L))
                 .andExpect(jsonPath("$[0].label").value("1 slice"))
                 .andExpect(jsonPath("$[0].gramWeight").value(28.0));
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getProductById_whenTurkishRequested_passesLanguageToService() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(12L);
+        product.setProductName("Tavuk Göğsü");
+        when(foodItemService.getFoodItemById(12L, "user@test.com", PreferredLanguage.TR)).thenReturn(product);
+
+        mockMvc.perform(get("/api/v1/products/12").param("language", "TR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productName").value("Tavuk Göğsü"));
+
+        verify(foodItemService).getFoodItemById(12L, "user@test.com", PreferredLanguage.TR);
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -29,12 +30,26 @@ public class UserAnalyticsCacheRevisionRepository {
     }
 
     public void incrementRevision(Long userId) {
-        jdbcTemplate.update("""
-                INSERT INTO user_analytics_cache_revisions (user_id, revision, updated_at)
-                VALUES (?, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id)
-                DO UPDATE SET revision = user_analytics_cache_revisions.revision + 1,
-                              updated_at = CURRENT_TIMESTAMP
+        int updated = updateExistingRevision(userId);
+        if (updated > 0) {
+            return;
+        }
+        try {
+            jdbcTemplate.update("""
+                    INSERT INTO user_analytics_cache_revisions (user_id, revision, updated_at)
+                    VALUES (?, 1, CURRENT_TIMESTAMP)
+                    """, userId);
+        } catch (DuplicateKeyException concurrentInsert) {
+            updateExistingRevision(userId);
+        }
+    }
+
+    private int updateExistingRevision(Long userId) {
+        return jdbcTemplate.update("""
+                UPDATE user_analytics_cache_revisions
+                   SET revision = revision + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE user_id = ?
                 """, userId);
     }
 }

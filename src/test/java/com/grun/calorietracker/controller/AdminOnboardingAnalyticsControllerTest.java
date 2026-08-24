@@ -25,7 +25,7 @@ class AdminOnboardingAnalyticsControllerTest {
     @MockitoBean private AdminOnboardingAnalyticsService analyticsService;
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_GROWTH_READ"})
     void getSummary_whenAdmin_returnsFunnelCounts() throws Exception {
         LocalDateTime now = LocalDateTime.of(2026, 7, 25, 0, 0);
         when(analyticsService.getSummary(168)).thenReturn(new AdminOnboardingAnalyticsDto(

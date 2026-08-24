@@ -39,7 +39,7 @@ class AdminCustomer360ControllerTest {
     private AdminAuditService adminAuditService;
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
     void getCustomer_returnsSanitizedSupportSummary() throws Exception {
         when(customer360Service.getCustomer(7L)).thenReturn(customer("user@example.com"));
 
@@ -53,7 +53,7 @@ class AdminCustomer360ControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
     void addSupportNote_recordsAuditedNote() throws Exception {
         AdminUserSupportNoteDto note = new AdminUserSupportNoteDto(
                 3L, "Follow up after billing correction", List.of("BILLING"),
@@ -73,7 +73,7 @@ class AdminCustomer360ControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
     void revokeSessions_requiresConfirmedReasonAndAuditsResult() throws Exception {
         when(customer360Service.getCustomer(7L)).thenReturn(customer("user@example.com"));
         when(customer360Service.revokeActiveSessions(7L)).thenReturn(2);

@@ -3909,7 +3909,7 @@ function AdminInvitationActivationView({ token, theme, toggleTheme }: { token: s
   }
   return <main className="login-page">
     <div className="login-theme-action"><button className="icon-button" type="button" onClick={toggleTheme}>{theme === "dark" ? "Light" : "Dark"}</button></div>
-    <section className="login-hero"><div><div className="login-brand-lockup"><img src="./grun/grun-app-icon.svg" alt="" /><strong>GRun Admin</strong></div><h1>Join the admin team</h1><p>Secure invitation activation. Your role is fixed by the owner and MFA enrollment follows after sign-in.</p></div></section>
+    <section className="login-hero"><div><div className="login-brand-lockup"><img src="./grun/grun-app-icon.svg" alt="" /><strong>GRUN Admin</strong></div><h1>Join the admin team</h1><p>Secure invitation activation. Your role is fixed by the owner and MFA enrollment follows after sign-in.</p></div></section>
     <form className="login-card" onSubmit={activate}>
       <div><span className="eyebrow">ADMIN INVITATION</span><h2>Activate account</h2><p>{invitation ? invitation.email + " - " + humanizeFeature(invitation.role) : "Validating your invitation..."}</p></div>
       {invitation?.status === "PENDING" && <>
@@ -6906,7 +6906,7 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
         <form className="brevo-sender-form horizontal" onSubmit={createSender}>
           <label>
             Sender name
-            <input value={createForm.name} onChange={(event) => setCreateForm({ ...createForm, name: event.target.value })} placeholder="GRun Support" required />
+            <input value={createForm.name} onChange={(event) => setCreateForm({ ...createForm, name: event.target.value })} placeholder="GRUN Support" required />
           </label>
           <label>
             Sender email
@@ -6941,7 +6941,7 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
               <div className="sender-update-fields">
                 <label>
                   Sender name
-                <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} placeholder="GRun Support" required />
+                <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} placeholder="GRUN Support" required />
                 </label>
                 <label>
                   Sender email
@@ -6962,6 +6962,15 @@ function BrevoSendersView({ onError }: { onError: (message: string | null) => vo
 }
 
 type CatalogOperationsMode = "exercises" | "sources";
+type UnmatchedAiExercise = {
+  id: number; displayName: string; normalizedName: string; language?: string; equipment?: string;
+  targetMuscleGroup?: string; occurrenceCount: number; firstSeenAt: string; lastSeenAt: string;
+  status: string; resolvedExerciseItemId?: number;
+};
+type ExerciseResolutionSummary = {
+  openNames: number; openOccurrences: number; resolvedNames: number; dismissedNames: number;
+  reviewedNames: number; resolutionRatePercent: number;
+};
 
 const EMPTY_EXERCISE: ExerciseCatalogItem = {
   name: "", metCode: "", caloriesPerMinute: 1, description: "", primaryMuscleGroup: "",
@@ -6983,6 +6992,7 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
   const [reviewNote, setReviewNote] = useState("");
   const [assignment, setAssignment] = useState({ assignee: "", dueAt: "", reason: "" });
   const [actionState, setActionState] = useState<LoadState>("ready");
+  const [resolutionIds, setResolutionIds] = useState<Record<number, string>>({});
   const exercisePath = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
     if (appliedQuery) params.set("q", appliedQuery);
@@ -6993,6 +7003,8 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
   const { data: summary, state: summaryState, reload: reloadSummary } = useEndpoint<AdminCatalogSummary>("/api/v1/admin/catalog/summary", onError);
   const { data: importJobs, state: importState, reload: reloadImports } = useEndpoint<AdminCatalogImportJob[]>("/api/v1/admin/catalog/import-jobs", onError);
   const { data: exercises, state: exerciseState, reload: reloadExercises } = useEndpoint<ExerciseCatalogPage>(exercisePath, onError);
+  const { data: unmatchedExercises, state: unmatchedState, reload: reloadUnmatched } = useEndpoint<PageResponse<UnmatchedAiExercise>>("/api/v1/admin/exercise-resolution/unmatched?status=OPEN&page=0&size=50", onError);
+  const { data: resolutionSummary, state: resolutionSummaryState, reload: reloadResolutionSummary } = useEndpoint<ExerciseResolutionSummary>("/api/v1/admin/exercise-resolution/summary", onError);
   const exerciseRows = exercises?.content ?? [];
 
   function openExercise(item?: ExerciseCatalogItem) {
@@ -7057,13 +7069,37 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
     }
   }
 
-  const combinedState = combineStates([summaryState, importState, exerciseState, actionState]);
+  async function resolveAiExercise(item: UnmatchedAiExercise) {
+    const exerciseItemId = Number(resolutionIds[item.id]);
+    if (!Number.isInteger(exerciseItemId) || exerciseItemId <= 0) return;
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/exercise-resolution/unmatched/${item.id}/resolve`, {
+        method: "POST", body: { exerciseItemId, createAlias: true }
+      });
+      setResolutionIds((current) => ({ ...current, [item.id]: "" }));
+      await Promise.all([reloadUnmatched(), reloadResolutionSummary()]);
+      setActionState("ready");
+    } catch (error) {
+      setActionState("error"); onError(formatRequestError(error));
+    }
+  }
+
+  async function dismissAiExercise(item: UnmatchedAiExercise) {
+    setActionState("loading");
+    try {
+      await request(`/api/v1/admin/exercise-resolution/unmatched/${item.id}/dismiss`, { method: "POST" });
+      await Promise.all([reloadUnmatched(), reloadResolutionSummary()]); setActionState("ready");
+    } catch (error) { setActionState("error"); onError(formatRequestError(error)); }
+  }
+
+  const combinedState = combineStates([summaryState, importState, exerciseState, unmatchedState, resolutionSummaryState, actionState]);
   return <div className="stack catalog-operations-view">
     <SectionToolbar
       title={mode === "exercises" ? "Exercise library operations" : "Catalog sources and jobs"}
       description={mode === "exercises" ? "Moderate technique, safety, media, source evidence, ownership, and active state." : "Cross-catalog coverage, source freshness, licensing evidence, and recent pipeline runs."}
       state={combinedState}
-      onReload={() => { void reloadSummary(); void reloadImports(); void reloadExercises(); }}
+      onReload={() => { void reloadSummary(); void reloadImports(); void reloadExercises(); void reloadUnmatched(); void reloadResolutionSummary(); }}
     />
     {mode === "sources" && <>
       <div className="catalog-domain-grid">
@@ -7117,6 +7153,24 @@ function CatalogOperationsView({ mode, onError }: { mode: CatalogOperationsMode;
           empty="No exercise catalog items match the filters."
         />
         <PaginationControls page={exercises?.page ?? page} pageSize={exercises?.size ?? pageSize} totalElements={exercises?.totalElements ?? 0} totalPages={Math.max(1, exercises?.totalPages ?? 1)} first={exercises?.first ?? page === 0} last={exercises?.last ?? true} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(0); }} />
+      </Panel>
+      <Panel title="Unmatched AI exercises" description="Names produced by workout generation that could not be linked safely to an approved canonical exercise. Resolving also creates a reusable alias.">
+        <div className="runtime-metric-grid">
+          <MetricCard label="Open names" value={formatValue(resolutionSummary?.openNames)} hint={`${formatValue(resolutionSummary?.openOccurrences)} generated occurrences`} />
+          <MetricCard label="Resolved" value={formatValue(resolutionSummary?.resolvedNames)} hint="Linked to canonical exercises" />
+          <MetricCard label="Dismissed" value={formatValue(resolutionSummary?.dismissedNames)} hint="Reviewed as non-catalog output" />
+          <MetricCard label="Resolution rate" value={`${formatValue(resolutionSummary?.resolutionRatePercent)}%`} hint={`${formatValue(resolutionSummary?.reviewedNames)} names reviewed`} />
+        </div>
+        <DataTable
+          columns={["AI exercise", "Context", "Occurrences", "Last seen", "Resolve to exercise ID"]}
+          rows={(unmatchedExercises?.content ?? []).map((item) => [
+            <div className="entity-cell"><strong>{item.displayName}</strong><small>{item.normalizedName} · {item.language ?? "und"}</small></div>,
+            <div className="entity-cell"><strong>{item.targetMuscleGroup ?? "Unknown muscle"}</strong><small>{item.equipment ?? "Unknown equipment"}</small></div>,
+            formatValue(item.occurrenceCount), formatDate(item.lastSeenAt),
+            <div className="inline-actions"><input aria-label={`Exercise ID for ${item.displayName}`} type="number" min="1" value={resolutionIds[item.id] ?? ""} onChange={(event) => setResolutionIds((current) => ({ ...current, [item.id]: event.target.value }))} /><button className="ghost-button" type="button" disabled={!resolutionIds[item.id] || actionState === "loading"} onClick={() => void resolveAiExercise(item)}>Link + alias</button><button className="ghost-button danger-text" type="button" disabled={actionState === "loading"} onClick={() => void dismissAiExercise(item)}>Dismiss</button></div>
+          ])}
+          empty="No unmatched AI exercises. Generated plans are resolving cleanly."
+        />
       </Panel>
       {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
         <form className="modal-card catalog-exercise-modal" onSubmit={saveExercise} onClick={(event) => event.stopPropagation()}>

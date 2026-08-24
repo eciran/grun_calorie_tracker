@@ -70,6 +70,8 @@ public class SecurityConfig {
                     auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/webhooks/revenuecat").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/email-assets/grun-logo.png").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/admin-ui/**").permitAll();
                     if (swaggerPublic) {

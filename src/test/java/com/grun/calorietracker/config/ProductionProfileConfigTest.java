@@ -32,6 +32,32 @@ class ProductionProfileConfigTest {
         assertEquals(false, valueAt(config, "grun.local.demo-seed.enabled"));
     }
 
+    @Test
+    void applicationExample_mapsEveryBrevoTemplateEnvironmentVariable() {
+        Map<String, Object> config = loadYaml("application-example.yml");
+
+        assertEquals("${GRUN_BREVO_TEMPLATE_EMAIL_VERIFICATION_EN:0}",
+                valueAt(config, "grun.mail.brevo.templates.email-verification-en"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_EMAIL_VERIFICATION_TR:0}",
+                valueAt(config, "grun.mail.brevo.templates.email-verification-tr"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_PASSWORD_RESET_EN:0}",
+                valueAt(config, "grun.mail.brevo.templates.password-reset-en"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_PASSWORD_RESET_TR:0}",
+                valueAt(config, "grun.mail.brevo.templates.password-reset-tr"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_SUBSCRIPTION_FEATURE_CHANGE_EN:0}",
+                valueAt(config, "grun.mail.brevo.templates.subscription-feature-change-en"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_SUBSCRIPTION_FEATURE_CHANGE_TR:0}",
+                valueAt(config, "grun.mail.brevo.templates.subscription-feature-change-tr"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_ADMIN_INVITATION_EN:0}",
+                valueAt(config, "grun.mail.brevo.templates.admin-invitation-en"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_ADMIN_INVITATION_TR:0}",
+                valueAt(config, "grun.mail.brevo.templates.admin-invitation-tr"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_ADMIN_PASSWORD_CHANGED_EN:0}",
+                valueAt(config, "grun.mail.brevo.templates.admin-password-changed-en"));
+        assertEquals("${GRUN_BREVO_TEMPLATE_ADMIN_PASSWORD_CHANGED_TR:0}",
+                valueAt(config, "grun.mail.brevo.templates.admin-password-changed-tr"));
+    }
+
     private Map<String, Object> loadYaml(String resourceName) {
         InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName);
         assertNotNull(stream, () -> "Missing resource: " + resourceName);

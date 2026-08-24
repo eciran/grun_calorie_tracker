@@ -45,8 +45,8 @@ class LoggingEmailVerificationMailSenderTest {
         verify(mailDeliveryService).sendTransactionalTemplate(
                 eq("user@example.com"),
                 eq(101L), anyMap(),
-                eq("Verify your GRun email"),
-                eq("Use this link to verify your GRun email: https://app.grun.local/verify?token=raw-token"),
+                eq("Verify your GRUN email"),
+                eq("Use this link to verify your GRUN email: https://app.grun.local/verify?token=raw-token"),
                 contains("Verify email")
         );
     }
@@ -56,7 +56,7 @@ class LoggingEmailVerificationMailSenderTest {
         LoggingEmailVerificationMailSender sender = new LoggingEmailVerificationMailSender(mailDeliveryService, mailFailureAlertService, userRepository, properties());
         doThrow(new MailDeliveryException("Brevo transactional email request failed"))
                 .when(mailDeliveryService)
-                .sendTransactionalTemplate(eq("user@example.com"), eq(101L), anyMap(), eq("Verify your GRun email"), eq("Use this link to verify your GRun email: https://app.grun.local/verify?token=raw-token"), contains("Verify email"));
+                .sendTransactionalTemplate(eq("user@example.com"), eq(101L), anyMap(), eq("Verify your GRUN email"), eq("Use this link to verify your GRUN email: https://app.grun.local/verify?token=raw-token"), contains("Verify email"));
 
         assertThatThrownBy(() -> sender.sendEmailVerificationToken(
                 "user@example.com",

@@ -60,6 +60,14 @@ safe dependency reason for parallel progress.
 **Started:** 2026-07-30
 **Expected files:** OCR thresholds, moderation SLA/capacity, retention and provider operational validation
 **Required verification:** Pilot quality and operational gates have measurable thresholds and rehearsal evidence
+
+## iOS-first device decision - 2026-08-09
+
+- Native OCR/Product Intake acceptance starts on iOS with Apple Vision in a paid Apple Developer EAS development/internal build.
+- `feature/unified-product-intake-review` deliberately remains unmerged until this device gate is decided.
+- A failed iOS OCR gate results in rework or removal on this isolated branch, not cleanup after a merge.
+- Android OCR evidence follows a successful iOS baseline and remains required for cross-platform completion.
+- Canonical checklist: `docs/IOS_FIRST_TEST_BUILD_READINESS_2026-08-09.md`.
 ## Blockers
 
 - `S4-ADMIN-PORTAL`: RESOLVED 2026-07-30. The portal source is the backend

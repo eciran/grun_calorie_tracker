@@ -36,7 +36,7 @@ class AdminSubscriptionProviderEventControllerTest {
     private SubscriptionProviderEventAdminService eventAdminService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void getEvents_whenAdmin_returnsProviderEvents() throws Exception {
         SubscriptionProviderEventPageDto page = new SubscriptionProviderEventPageDto();
         SubscriptionProviderEventDto event = new SubscriptionProviderEventDto();
@@ -57,7 +57,7 @@ class AdminSubscriptionProviderEventControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void getEvent_whenAdmin_returnsRawPayload() throws Exception {
         SubscriptionProviderEventDetailDto detail = new SubscriptionProviderEventDetailDto();
         detail.setId(1L);
@@ -73,7 +73,7 @@ class AdminSubscriptionProviderEventControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void retryEvent_whenAdmin_returnsRetryResult() throws Exception {
         when(eventAdminService.retryEvent(1L))
                 .thenReturn(new RevenueCatWebhookResponseDto(true, false, "evt_1", "PROCESSED", "RevenueCat event processed."));
@@ -85,7 +85,7 @@ class AdminSubscriptionProviderEventControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void getUserHistory_whenAdmin_returnsUserEvents() throws Exception {
         SubscriptionProviderEventPageDto page = new SubscriptionProviderEventPageDto();
         SubscriptionProviderEventDto event = new SubscriptionProviderEventDto();

@@ -4,16 +4,19 @@ import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import org.junit.jupiter.api.Test;
@@ -49,6 +52,9 @@ class FoodItemServiceImplTest {
 
     @Mock
     private FoodItemServingOptionRepository foodItemServingOptionRepository;
+
+    @Mock
+    private FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository;
 
     @Mock
     private OpenFoodFactsService openFoodFactsService;
@@ -173,6 +179,29 @@ class FoodItemServiceImplTest {
 
         assertEquals(12L, result.getId());
         assertEquals("Greek yogurt", result.getProductName());
+    }
+
+    @Test
+    void getFoodItemById_whenTurkishRequested_returnsLocalizedDetailName() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(12L);
+        product.setName("Chicken Breast");
+        product.setIsCustom(false);
+        FoodItemLocalizationEntity localization = new FoodItemLocalizationEntity();
+        localization.setFoodItem(product);
+        localization.setLanguage(PreferredLanguage.TR);
+        localization.setDisplayName("Tavuk Göğsü");
+        localization.setShortDisplayName("Tavuk Göğsü");
+        localization.setActive(true);
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(12L, PreferredLanguage.TR))
+                .thenReturn(Optional.of(localization));
+
+        FoodProductDto result = foodItemService.getFoodItemById(12L, "user@example.com", PreferredLanguage.TR);
+
+        assertEquals(PreferredLanguage.TR, result.getLanguage());
+        assertEquals("Tavuk Göğsü", result.getProductName());
+        assertEquals("Tavuk Göğsü", result.getDisplayName());
     }
 
     @Test

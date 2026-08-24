@@ -48,4 +48,4 @@ Report accepted contributions, uploaded bytes, PUT/GET/DELETE operations, admin 
 
 ## Current release gate
 
-The reference OCR report is a parser benchmark, not device evidence. Its current decision is `STOP_ROLLOUT_VALIDATE_AND_IMPROVE_PARSER_ON_DEVICE`; Android/iOS real-device OCR evidence must replace it before market rollout.
+The reference OCR report is a parser benchmark, not device evidence. Its current decision is `STOP_ROLLOUT_VALIDATE_AND_IMPROVE_PARSER_ON_DEVICE`. Real-device evidence is collected on iOS/Apple Vision first through a paid Apple Developer EAS development/internal build, followed by Android. The feature branch remains unmerged until the iOS gate is decided. See `IOS_FIRST_TEST_BUILD_READINESS_2026-08-09.md`.

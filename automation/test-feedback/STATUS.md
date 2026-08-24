@@ -1,7 +1,15 @@
 # Test Feedback Automation Status
 
 Program status: COMPLETE_DEVICE_PENDING
-Last run: 2026-08-03T10:52:13Z
+Last run: 2026-08-09
+
+## Device QA Decision - 2026-08-09
+
+- First native acceptance platform: iOS.
+- Paid Apple Developer enrollment and an EAS iOS development/internal build will be used.
+- Android evidence remains required after the iOS baseline.
+- The OCR/Product Intake backend branch intentionally remains separate from `development` until iOS device acceptance is known.
+- Readiness and acceptance order: `docs/IOS_FIRST_TEST_BUILD_READINESS_2026-08-09.md`.
 
 ## Sprint Matrix
 
@@ -65,5 +73,5 @@ Last run: 2026-08-03T10:52:13Z
 - Gate result: PASS; backend 8/8 tests, admin build, mobile typecheck and contract all passed.
 - Backend/admin and mobile handoff documents completed.
 - Mobile handoff commit: `55e34c5d`.
-- Program state: `COMPLETE_DEVICE_PENDING`; real Android and iOS preview evidence remains required before `COMPLETE`.
+- Program state: `COMPLETE_DEVICE_PENDING`; iOS evidence is collected first, then Android evidence remains required before `COMPLETE`.
 - No push, branch creation or deployment was performed.

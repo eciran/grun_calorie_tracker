@@ -84,7 +84,7 @@ class AdminDashboardServiceImplTest {
         when(userRepository.count()).thenReturn(10L);
         when(userRepository.countByRole(UserRole.STANDARD)).thenReturn(7L);
         when(userRepository.countByRole(UserRole.PRO)).thenReturn(2L);
-        when(userRepository.countByRole(UserRole.ADMIN)).thenReturn(1L);
+        when(userRepository.countByRoleIn(java.util.Arrays.stream(UserRole.values()).filter(UserRole::isAdminRole).toList())).thenReturn(1L);
         when(foodItemRepository.count()).thenReturn(100L);
         when(foodItemRepository.countByVerificationStatus(VerificationStatus.VERIFIED)).thenReturn(60L);
         when(foodItemRepository.countByVerificationStatus(VerificationStatus.RAW_IMPORTED)).thenReturn(25L);

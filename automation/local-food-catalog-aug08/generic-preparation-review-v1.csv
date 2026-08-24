@@ -1,0 +1,22 @@
+fdc_id,preparation_state,decision,reviewer,reviewed_at,evidence
+2259793,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Plain whole-milk yogurt is a manufactured ready-to-eat food
+330137,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Plain nonfat Greek yogurt is a manufactured ready-to-eat food
+328637,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Cheddar is a manufactured ready-to-eat cheese
+329370,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Mozzarella is a manufactured ready-to-eat cheese
+2346384,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Cottage cheese is a manufactured ready-to-eat food
+174640,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Source is manufactured quick oats but identity quarantine remains
+169736,RAW,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,USDA source explicitly identifies uncooked dry pasta
+169699,RAW,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,USDA source explicitly identifies dry uncooked couscous
+172818,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Commercial bread is manufactured and ready to eat
+172688,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Commercial whole-wheat bread is manufactured and ready to eat
+172448,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Calcium-set firm tofu is manufactured and ready to use
+171443,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Source is prepared mayonnaise but identity quarantine remains
+172336,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Canola oil is an extracted manufactured food
+330458,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Coconut oil is an extracted manufactured food
+173430,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Butter is a manufactured ready-to-use food
+2262075,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Ground flaxseed is mechanically prepared
+170155,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Source is prepared seed butter but identity quarantine remains
+170150,RAW,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,USDA source identifies whole dried sesame seeds without cooking
+174158,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Bottled water is packaged ready to consume
+746782,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Fortified fluid milk is processed and ready to consume
+746776,PREPARED,APPROVE,LOCAL-FOOD-CURATOR,2026-08-04,Fortified nonfat fluid milk is processed and ready to consume

@@ -98,7 +98,7 @@ public class FcmPushProviderClient implements PushProviderClient {
     }
 
     private String resolveTitle(NotificationEntity notification) {
-        return isBlank(notification.getTitle()) ? "GRun" : notification.getTitle();
+        return isBlank(notification.getTitle()) ? "GRUN" : notification.getTitle();
     }
 
     private boolean isBlank(String value) {

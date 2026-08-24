@@ -28,13 +28,13 @@ public class LoggingEmailVerificationMailSender implements EmailVerificationMail
             PreferredLanguage language = userRepository.findByEmail(email)
                     .map(user -> user.getPreferredLanguage()).orElse(PreferredLanguage.EN);
             boolean turkish = language == PreferredLanguage.TR;
-            String subject = turkish ? "GRun e-posta adresini doğrula" : "Verify your GRun email";
+            String subject = turkish ? "GRUN e-posta adresini doğrula" : "Verify your GRUN email";
             String text = turkish
-                    ? "GRun e-posta adresini doğrulamak için bu bağlantıyı kullan: " + verificationLink
-                    : "Use this link to verify your GRun email: " + verificationLink;
+                    ? "GRUN e-posta adresini doğrulamak için bu bağlantıyı kullan: " + verificationLink
+                    : "Use this link to verify your GRUN email: " + verificationLink;
             String html = turkish
-                    ? "<p>GRun e-posta adresini doğrulamak için aşağıdaki bağlantıyı kullan.</p><p><a href=\"%s\">E-posta adresimi doğrula</a></p><p>Bu hesabı sen oluşturmadıysan bu e-postayı yok sayabilirsin.</p>".formatted(verificationLink)
-                    : "<p>Use the link below to verify your GRun email address.</p><p><a href=\"%s\">Verify email</a></p><p>If you did not create this account, you can ignore this email.</p>".formatted(verificationLink);
+                    ? "<p>GRUN e-posta adresini doğrulamak için aşağıdaki bağlantıyı kullan.</p><p><a href=\"%s\">E-posta adresimi doğrula</a></p><p>Bu hesabı sen oluşturmadıysan bu e-postayı yok sayabilirsin.</p>".formatted(verificationLink)
+                    : "<p>Use the link below to verify your GRUN email address.</p><p><a href=\"%s\">Verify email</a></p><p>If you did not create this account, you can ignore this email.</p>".formatted(verificationLink);
             long templateId = turkish
                     ? mailProperties.getBrevo().getTemplates().getEmailVerificationTr()
                     : mailProperties.getBrevo().getTemplates().getEmailVerificationEn();

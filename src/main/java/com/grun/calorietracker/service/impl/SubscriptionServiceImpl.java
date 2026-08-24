@@ -27,6 +27,7 @@ import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.MailDeliveryService;
 import com.grun.calorietracker.service.AiCreditPricingService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.config.MailProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final MailDeliveryService mailDeliveryService;
     private final AiCreditPricingService aiCreditPricingService;
     @Autowired(required = false) private MailProperties mailProperties;
+    @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
     @Override
     public SubscriptionDto getCurrentSubscription(String email) {
@@ -704,7 +706,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             notification.setPrimaryAction("MANAGE_SUBSCRIPTION");
             notification.setIsRead(false);
             notification.setCreatedAt(LocalDateTime.now());
-            notificationRepository.save(notification);
+            NotificationEntity savedNotification = notificationRepository.save(notification);
+            if (pushDeliveryService != null) pushDeliveryService.deliver(savedNotification);
             sendFeatureRemovalEmail(user, planType, feature, effectiveFrom, entitlement.getValidUntil());
         }
     }
@@ -717,14 +720,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (user.getEmail() == null || user.getEmail().isBlank()) {
             return;
         }
-        String subject = "Your GRun plan feature is changing";
+        String subject = "Your GRUN plan feature is changing";
         String textBody = """
                 Hi,
 
                 We are changing %s availability for the %s plan from %s.
                 Your current access remains available until your current subscription period ends%s.
 
-                GRun
+                GRUN
                 """.formatted(
                 feature.name(),
                 planType.name(),

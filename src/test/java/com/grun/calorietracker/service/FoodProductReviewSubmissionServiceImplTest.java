@@ -10,6 +10,7 @@ import com.grun.calorietracker.entity.FoodProductUploadSessionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.FoodProductAssetUploadState;
+import com.grun.calorietracker.enums.FoodProductAssetDeletionState;
 import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
 import com.grun.calorietracker.enums.FoodProductUploadSessionStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -29,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -132,6 +134,8 @@ class FoodProductReviewSubmissionServiceImplTest {
     private FoodProductReviewCaseAssetEntity verifiedAsset() {
         FoodProductReviewCaseAssetEntity asset = new FoodProductReviewCaseAssetEntity();
         asset.setUploadState(FoodProductAssetUploadState.VERIFIED);
+        asset.setDeletionState(FoodProductAssetDeletionState.ACTIVE);
+        asset.setExpiresAt(LocalDateTime.now().plusDays(1));
         return asset;
     }
 }

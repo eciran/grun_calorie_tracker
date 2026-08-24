@@ -28,13 +28,13 @@ public class LoggingPasswordResetMailSender implements PasswordResetMailSender {
             PreferredLanguage language = userRepository.findByEmail(email)
                     .map(user -> user.getPreferredLanguage()).orElse(PreferredLanguage.EN);
             boolean turkish = language == PreferredLanguage.TR;
-            String subject = turkish ? "GRun şifreni sıfırla" : "Reset your GRun password";
+            String subject = turkish ? "GRUN şifreni sıfırla" : "Reset your GRUN password";
             String text = turkish
-                    ? "GRun şifreni sıfırlamak için bu bağlantıyı kullan: " + resetLink
-                    : "Use this link to reset your GRun password: " + resetLink;
+                    ? "GRUN şifreni sıfırlamak için bu bağlantıyı kullan: " + resetLink
+                    : "Use this link to reset your GRUN password: " + resetLink;
             String html = turkish
-                    ? "<p>GRun şifreni sıfırlamak için aşağıdaki bağlantıyı kullan.</p><p><a href=\"%s\">Şifremi sıfırla</a></p><p>Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin.</p>".formatted(resetLink)
-                    : "<p>Use the link below to reset your GRun password.</p><p><a href=\"%s\">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>".formatted(resetLink);
+                    ? "<p>GRUN şifreni sıfırlamak için aşağıdaki bağlantıyı kullan.</p><p><a href=\"%s\">Şifremi sıfırla</a></p><p>Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin.</p>".formatted(resetLink)
+                    : "<p>Use the link below to reset your GRUN password.</p><p><a href=\"%s\">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>".formatted(resetLink);
             long templateId = turkish
                     ? mailProperties.getBrevo().getTemplates().getPasswordResetTr()
                     : mailProperties.getBrevo().getTemplates().getPasswordResetEn();

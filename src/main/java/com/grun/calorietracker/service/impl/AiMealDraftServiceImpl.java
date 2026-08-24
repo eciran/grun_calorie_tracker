@@ -39,14 +39,17 @@ import com.grun.calorietracker.service.AiMealDraftService;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.FoodLogsService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiMealDraftLanguageValidator;
 import com.grun.calorietracker.service.support.AiIdempotencySupport;
 import com.grun.calorietracker.service.support.AiUxContractFactory;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -77,6 +80,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
 
     private final AiMealDraftSafetyService safetyService;
     private final NotificationRepository notificationRepository;
+    @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
     @Override
     public AiMealDraftResponseDto createVoiceFoodDraft(String email, String idempotencyKey, AiVoiceFoodDraftRequestDto request) {
@@ -224,12 +228,10 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         try {
             SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
             charged = true;
-            AiMealDraftResponseDto response = responseValidator.validateAndNormalize(
-                    supplier.get(),
-                    requestType,
-                    properties.getProvider(),
-                    properties.getModel()
-            );
+            String outputLanguage = resolvedRequestLocale(request, user);
+            AiMealDraftResponseDto response = validatedProviderResponse(
+                    supplier, requestType, outputLanguage);
+            response.setOutputLanguage(outputLanguage);
             response.setSafety(safetyService.reviewProviderResponse(response, requestType));
             normalizeItemsAsAiSnapshot(response);
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
@@ -329,6 +331,37 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
                 : "en";
     }
 
+    private String resolvedRequestLocale(Object request, UserEntity user) {
+        if (request instanceof AiVoiceFoodDraftRequestDto voiceRequest) {
+            return resolveOutputLocale(voiceRequest.getLocale(), user);
+        }
+        if (request instanceof AiPhotoMealDraftRequestDto photoRequest) {
+            return resolveOutputLocale(photoRequest.getLocale(), user);
+        }
+        return resolveOutputLocale(null, user);
+    }
+
+    private AiMealDraftResponseDto validatedProviderResponse(DraftSupplier supplier,
+                                                              AiRequestType requestType,
+                                                              String outputLanguage) {
+        AiMealDraftResponseDto response = normalizedProviderResponse(supplier.get(), requestType);
+        if (requiresGeneratedLanguageValidation()) {
+            AiMealDraftLanguageValidator.validate(response, outputLanguage);
+        }
+        return response;
+    }
+
+    private AiMealDraftResponseDto normalizedProviderResponse(AiMealDraftResponseDto response,
+                                                               AiRequestType requestType) {
+        return responseValidator.validateAndNormalize(
+                response, requestType, properties.getProvider(), properties.getModel());
+    }
+
+    private boolean requiresGeneratedLanguageValidation() {
+        return properties.getProvider() == AiProvider.OPENAI
+                || properties.getProvider() == AiProvider.HTTP_JSON;
+    }
+
     private Map<String, Object> toUserContext(UserEntity user) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("age", user.getAge());
@@ -414,7 +447,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         LocalDateTime logDate = null;
         for (AiMealDraftConfirmItemRequestDto item : request.getItems()) {
             validateConfirmItem(item);
-            String currentMealType = item.getMealType().trim().toUpperCase();
+            String currentMealType = item.getMealType().trim().toUpperCase(java.util.Locale.ROOT);
             if (mealType == null) {
                 mealType = currentMealType;
             } else if (!mealType.equals(currentMealType)) {
@@ -637,7 +670,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         if (providerUnit == null || confirmedUnit == null) {
             return false;
         }
-        String normalized = providerUnit.trim().toUpperCase().replace(" ", "_");
+        String normalized = providerUnit.trim().toUpperCase(java.util.Locale.ROOT).replace(" ", "_");
         normalized = switch (normalized) {
             case "G", "GRAMS" -> "GRAM";
             case "ML", "MILLILITERS", "MILLILITRES" -> "MILLILITER";
@@ -955,6 +988,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             payload.put("imageReferenceLength", photoRequest.getImageReference() == null ? 0 : photoRequest.getImageReference().length());
             payload.put("hasUserNote", photoRequest.getUserNote() != null && !photoRequest.getUserNote().isBlank());
             payload.put("userNoteLength", photoRequest.getUserNote() == null ? 0 : photoRequest.getUserNote().length());
+            payload.put("locale", photoRequest.getLocale());
             payload.put("mealType", photoRequest.getMealType());
             payload.put("logDate", photoRequest.getLogDate());
             return payload;
@@ -1014,7 +1048,8 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             notification.setCreatedAt(now);
             return notification;
         }).toList();
-        notificationRepository.saveAll(notifications);
+        List<NotificationEntity> saved = notificationRepository.saveAll(notifications);
+        if (pushDeliveryService != null) saved.forEach(pushDeliveryService::deliver);
     }
 
     @FunctionalInterface

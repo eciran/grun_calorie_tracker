@@ -216,7 +216,7 @@ public class AuthController {
     @PostMapping("/google")
     @Operation(
             summary = "Login or register with Google",
-            description = "Verifies a Google ID token obtained by the mobile client, links the Google subject to a GRun account, and returns GRun access and refresh tokens."
+            description = "Verifies a Google ID token obtained by the mobile client, links the Google subject to a GRUN account, and returns GRUN access and refresh tokens."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Google login successful."),
@@ -231,7 +231,7 @@ public class AuthController {
     @PostMapping("/apple")
     @Operation(
             summary = "Login or register with Apple",
-            description = "Verifies an Apple identity token and nonce received from the client, links the Apple subject to a GRun account, and returns GRun access and refresh tokens."
+            description = "Verifies an Apple identity token and nonce received from the client, links the Apple subject to a GRUN account, and returns GRUN access and refresh tokens."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Apple login successful."),
