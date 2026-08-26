@@ -2,6 +2,8 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.GoalCalculationMode;
+import com.grun.calorietracker.enums.GoalControlledStrategy;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -9,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 // All comments are in English as requested in the project rules.
 @Data
@@ -58,4 +61,17 @@ public class UserGoalDto {
 
     @Schema(description = "Goal creation date and time.", example = "2026-05-11T12:00:00")
     private LocalDateTime createdAt;
+
+    private GoalCalculationMode calculationMode;
+    private GoalControlledStrategy controlledStrategy;
+    private String lockedMacros;
+    private Integer macroCalculatedCalories;
+    private Integer automaticReferenceCalories;
+    private Double automaticReferenceProtein;
+    private Double automaticReferenceCarbs;
+    private Double automaticReferenceFat;
+    private LocalDateTime effectiveFrom;
+    private LocalDate effectiveLocalDate;
+    private String effectiveTimeZone;
+    private Long version;
 }

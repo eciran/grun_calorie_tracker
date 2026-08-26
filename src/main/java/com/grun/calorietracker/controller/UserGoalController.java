@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/goals")
@@ -46,6 +47,12 @@ class UserGoalController {
 
         UserGoalDto goal = userGoalService.getCurrentUserGoal(userDetails.getUsername());
         return goal == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(goal);
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<List<UserGoalDto>> getGoalHistory(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userGoalService.getGoalHistory(userDetails.getUsername()));
     }
 
     @PostMapping("/calculate")

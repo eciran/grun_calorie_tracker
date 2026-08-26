@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
+    private static final int DEFAULT_SLEEP_TARGET_MINUTES = 480;
 
     private static final int MAX_RANGE_DAYS = 366;
     private static final double CALORIE_TARGET_TOLERANCE = 0.10;
@@ -98,7 +99,13 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         ZoneId userZone = resolveUserZone(user.getTimeZone());
         validateNotFuture(endDate, userZone);
-        UserGoalDto goal = userGoalService.getCurrentUserGoal(email);
+        UserGoalDto currentGoal = userGoalService.getCurrentUserGoal(email);
+        List<UserGoalDto> storedHistory = userGoalService.getGoalHistory(email);
+        List<UserGoalDto> goalHistory = storedHistory == null || storedHistory.isEmpty()
+                ? (currentGoal == null ? List.of() : List.of(currentGoal))
+                : storedHistory;
+        UserGoalDto historicalGoal = goalForDate(goalHistory, endDate);
+        UserGoalDto goal = historicalGoal == null ? currentGoal : historicalGoal;
         int dayCount = Math.toIntExact(ChronoUnit.DAYS.between(startDate, endDate) + 1);
 
         PeriodData current = loadPeriod(email, startDate, endDate, goal);
@@ -139,12 +146,16 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
                 .filter(day -> day.getTotalMl() != null && day.getTotalMl() > 0).count();
         int fastingDays = current.fasting().getDailyTrends() == null ? 0 : (int) current.fasting().getDailyTrends().stream()
                 .filter(day -> day.getSessionCount() != null && day.getSessionCount() > 0).count();
-        int fastingTargetHitDays = current.fasting().getDailyTrends() == null ? 0 : (int) current.fasting().getDailyTrends().stream()
-                .filter(day -> day.getTargetReachedSessionCount() != null && day.getTargetReachedSessionCount() > 0).count();
+        int sleepTargetHitDays = (int) sleepSessions.stream()
+                .collect(Collectors.groupingBy(SleepSessionEntity::getSleepDate,
+                        Collectors.summingInt(SleepSessionEntity::getDurationMinutes)))
+                .values().stream()
+                .filter(totalMinutes -> totalMinutes >= DEFAULT_SLEEP_TARGET_MINUTES)
+                .count();
 
         Double averageCalories = averageCalories(current.foodByDate());
         Double averageNetCalories = averageNetCalories(current.foodByDate(), current.exerciseByDate());
-        int calorieHitDays = calorieTargetHitDays(current.foodByDate(), goal);
+        int calorieHitDays = calorieTargetHitDays(current.foodByDate(), goalHistory);
         Double adherence = adherencePercent(calorieHitDays, current.foodByDate().size());
         String timeZone = user.getTimeZone() == null || user.getTimeZone().isBlank() ? "UTC" : user.getTimeZone();
         ComparisonResult comparison = buildComparisons(current, previous, goal);
@@ -210,7 +221,7 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
                 .bodyComposition(buildBodyComposition(bodyMeasurements))
                 .weightPlateau(weightPlateau)
                 .relationships(relationships)
-                .nutrition(buildNutrition(startDate, endDate, current, goal, calorieHitDays, adherence))
+                .nutrition(buildNutrition(startDate, endDate, current, goal, goalHistory, calorieHitDays, adherence))
                 .activity(ProgressAnalyticsDto.Activity.builder()
                         .exerciseSessionCount(current.exerciseLogs().size())
                         .exerciseDays(current.exerciseDates().size())
@@ -234,7 +245,7 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
                         .exerciseDays(current.exerciseDates().size())
                         .stepTargetHitDays(value(current.steps().getTargetHitDays()))
                         .waterTargetHitDays(value(current.water().getTargetHitDays()))
-                        .fastingTargetHitDays(fastingTargetHitDays)
+                        .sleepTargetHitDays(sleepTargetHitDays)
                         .build())
                 .previousPeriod(buildPreviousPeriod(previous, comparisonStart, comparisonEnd, goal,
                         averageCalories, adherence, diaryDates.size()))
@@ -579,6 +590,7 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
             LocalDate end,
             PeriodData data,
             UserGoalDto goal,
+            List<UserGoalDto> goalHistory,
             int calorieHitDays,
             Double adherence
     ) {
@@ -588,12 +600,13 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
                     ExerciseDay exercise = data.exerciseByDate().get(date);
                     Double consumed = food == null ? null : round(food.getTotalCalories());
                     double burned = exercise == null ? 0.0 : round(exercise.calories);
+                    UserGoalDto dailyGoal = goalForDate(goalHistory, date);
                     return ProgressAnalyticsDto.DailyPoint.builder()
                             .date(date)
                             .consumedCalories(consumed)
                             .exerciseCalories(burned)
                             .exerciseAdjustedNetCalories(consumed == null ? null : round(consumed - burned))
-                            .calorieTarget(goal == null ? null : goal.getDailyCalorieGoal())
+                            .calorieTarget(dailyGoal == null ? null : dailyGoal.getDailyCalorieGoal())
                             .foodLogged(food != null)
                             .exerciseLogged(exercise != null)
                             .build();
@@ -913,6 +926,23 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
                 .filter(day -> day.getTotalCalories() != null)
                 .filter(day -> Math.abs(day.getTotalCalories() - goal.getDailyCalorieGoal()) <= tolerance)
                 .count();
+    }
+
+    private int calorieTargetHitDays(Map<LocalDate, FoodLogDailyStatsDto> food, List<UserGoalDto> goalHistory) {
+        return (int) food.entrySet().stream().filter(entry -> {
+            UserGoalDto dailyGoal = goalForDate(goalHistory, entry.getKey());
+            if (dailyGoal == null || dailyGoal.getDailyCalorieGoal() == null || dailyGoal.getDailyCalorieGoal() <= 0) return false;
+            double tolerance = dailyGoal.getDailyCalorieGoal() * CALORIE_TARGET_TOLERANCE;
+            return Math.abs(entry.getValue().getTotalCalories() - dailyGoal.getDailyCalorieGoal()) <= tolerance;
+        }).count();
+    }
+
+    private UserGoalDto goalForDate(List<UserGoalDto> history, LocalDate date) {
+        if (history == null || history.isEmpty()) return null;
+        return history.stream()
+                .filter(goal -> goal.getEffectiveLocalDate() == null || !goal.getEffectiveLocalDate().isAfter(date))
+                .findFirst()
+                .orElse(null);
     }
 
     private Double averageCalories(Map<LocalDate, FoodLogDailyStatsDto> food) {

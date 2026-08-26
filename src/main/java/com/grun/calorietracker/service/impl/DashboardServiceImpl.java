@@ -107,7 +107,9 @@ public class DashboardServiceImpl implements DashboardService {
                 exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(user.getId(), start, end)
         );
 
-        Optional<UserGoalEntity> goalOpt = goalRepository.findByUser(user);
+        Optional<UserGoalEntity> goalOpt = goalRepository
+                .findFirstByUserAndEffectiveLocalDateLessThanEqualOrderByEffectiveFromDesc(user, date)
+                .or(() -> goalRepository.findByUser(user));
         Optional<ProgressLogEntity> latestProgressOpt = progressLogRepository.findTopByUserOrderByLogDateDesc(user);
 
         Double consumedCalories = round(getDouble(foodTotals, 0) + getDouble(recipeTotals, 0));

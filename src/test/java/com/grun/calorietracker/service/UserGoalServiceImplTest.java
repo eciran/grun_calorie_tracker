@@ -147,6 +147,27 @@ class UserGoalServiceImplTest {
         assertEquals(74.0, result.getDailyFatGoal());
         assertEquals(248.0, result.getDailyCarbGoal());
         assertEquals(-0.5, result.getWeeklyWeightChangeTargetKg());
+        assertEquals(com.grun.calorietracker.enums.GoalCalculationMode.AUTO, result.getCalculationMode());
+        assertEquals(2209, result.getAutomaticReferenceCalories());
+        assertNotNull(result.getEffectiveFrom());
+        assertNotNull(result.getEffectiveLocalDate());
+        assertNotNull(result.getEffectiveTimeZone());
+    }
+
+    @Test
+    void saveUserGoal_closesExistingGoalInsteadOfDeletingHistory() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        UserGoalEntity existing = new UserGoalEntity();
+        existing.setId(7L);
+        GoalCalculationRequestDto request = goal(GoalType.LOSE_WEIGHT, ActivityLevel.MODERATE, 0.5);
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(goalRepository.findByUser(user)).thenReturn(Optional.of(existing));
+        when(goalRepository.save(any(UserGoalEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userGoalService.saveUserGoal(request, "user@example.com");
+
+        assertNotNull(existing.getEffectiveUntil());
+        org.mockito.Mockito.verify(goalRepository, org.mockito.Mockito.never()).delete(existing);
     }
 
     @Test

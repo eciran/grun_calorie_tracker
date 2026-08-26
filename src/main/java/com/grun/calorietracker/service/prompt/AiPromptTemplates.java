@@ -70,6 +70,7 @@ public final class AiPromptTemplates {
         return "Create a premium, practical nutrition plan draft from the trusted backend context and user preferences. "
                 + "Keep each day close to the supplied calorie and macro targets, provide realistic portions. "
                 + "trustedDailyTarget is authoritative. Dietary preferences may change food selection but must never override its numeric targets. "
+                + "When trustedUserContext.targetMode is MANUAL, describe the numbers as user-defined targets; never imply GRUN medically validated or recommended them. "
                 + safe(guardrails)
                 + "Each daily total must stay within these backend validation limits: calories 15% or 100 kcal, protein 20% or 20 g preferred / 45% or 40 g hard, carbohydrates 20% or 30 g preferred / 45% or 70 g hard, and fat 20% or 15 g preferred / 60% or 30 g hard. "
                 + "If trustedValidationFeedback is present, the previous output was rejected. Regenerate the complete plan and correct the stated day and numeric value so it falls inside the exact allowedRange. "

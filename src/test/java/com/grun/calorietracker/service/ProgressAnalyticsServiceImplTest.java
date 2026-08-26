@@ -122,6 +122,11 @@ class ProgressAnalyticsServiceImplTest {
                 .thenReturn(emptyWater(start, end), emptyWater(start.minusDays(7), end.minusDays(7)));
         when(fastingTrackingService.getRangeSummary(eq("analytics@grun.app"), any(), any()))
                 .thenReturn(emptyFasting(start, end), emptyFasting(start.minusDays(7), end.minusDays(7)));
+        SleepSessionEntity firstSleepPart = sleep(user, LocalDate.of(2026, 7, 3), 300);
+        SleepSessionEntity secondSleepPart = sleep(user, LocalDate.of(2026, 7, 3), 200);
+        SleepSessionEntity shortSleep = sleep(user, LocalDate.of(2026, 7, 4), 420);
+        when(sleepSessionRepository.findByUserAndSleepDateBetweenOrderByStartedAtAsc(user, start, end))
+                .thenReturn(List.of(firstSleepPart, secondSleepPart, shortSleep));
 
         List<ProgressLogEntity> rangeWeights = List.of(
                 weight(user, LocalDate.of(2026, 7, 1).atStartOfDay(), 91.0),
@@ -156,11 +161,20 @@ class ProgressAnalyticsServiceImplTest {
         assertEquals(100.0, result.getNutrition().getCalorieTargetAdherencePercent());
         assertEquals(0, result.getHabits().getCurrentDiaryStreakDays());
         assertEquals(2, result.getHabits().getBestDiaryStreakDays());
+        assertEquals(1, result.getHabits().getSleepTargetHitDays());
         assertNotNull(result.getPreviousPeriod());
         assertEquals(6, result.getComparisons().size());
         assertTrue(result.getComparisons().stream().anyMatch(metric ->
                 "EXERCISE_MINUTES".equals(metric.getCode()) && Boolean.TRUE.equals(metric.getFavorable())));
         assertTrue(result.getInsights().stream().anyMatch(insight -> "IMPROVED".equals(insight.getCode())));
+    }
+
+    private static SleepSessionEntity sleep(UserEntity user, LocalDate date, int durationMinutes) {
+        SleepSessionEntity session = new SleepSessionEntity();
+        session.setUser(user);
+        session.setSleepDate(date);
+        session.setDurationMinutes(durationMinutes);
+        return session;
     }
 
     @Test

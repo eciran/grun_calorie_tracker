@@ -36,6 +36,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
     private final AiRequestHistoryRepository historyRepository;
     private final UserRepository userRepository;
     private final GoalRepository goalRepository;
+    private final GoalTargetAcknowledgementRepository goalTargetAcknowledgementRepository;
     private final MealPlanRepository mealPlanRepository;
     private final WorkoutPlanRepository workoutPlanRepository;
     private final MealPlanService mealPlanService;
@@ -193,10 +194,17 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         plan.setSourceAiRequest(history);
         plan.setSchemaVersion(reviewed.getSchemaVersion());
         plan.setPromptVersion(history.getPromptVersion());
-        mealPlanRepository.findByUserAndStatus(user, MealPlanStatus.ACTIVE)
+        List<MealPlanEntity> previousActivePlans = mealPlanRepository
+                .findByUserAndStatus(user, MealPlanStatus.ACTIVE)
                 .stream()
                 .filter(active -> !active.getId().equals(plan.getId()))
-                .forEach(active -> active.setStatus(MealPlanStatus.DRAFT));
+                .toList();
+        previousActivePlans.forEach(active -> active.setStatus(MealPlanStatus.DRAFT));
+        if (!previousActivePlans.isEmpty()) {
+            // The database allows only one ACTIVE plan per user. Flush demotions first so
+            // Hibernate cannot activate the new plan before updating the previous one.
+            mealPlanRepository.saveAllAndFlush(previousActivePlans);
+        }
         plan.setStatus(MealPlanStatus.ACTIVE);
         plan.getItems().forEach(item -> {
             item.setSourceAiRequest(history);
@@ -802,6 +810,11 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         context.put("goalType", goal.getGoalType());
         context.put("activityLevel", goal.getActivityLevel());
         context.put("targetWeightKg", goal.getTargetWeight());
+        context.put("targetMode", goal.getCalculationMode());
+        context.put("userAcknowledgedManualTargets",
+                goal.getCalculationMode() == GoalCalculationMode.MANUAL
+                        && goal.getId() != null
+                        && goalTargetAcknowledgementRepository.existsByGoalId(goal.getId()));
         return context;
     }
 

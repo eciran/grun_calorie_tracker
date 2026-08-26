@@ -80,6 +80,28 @@ public class GlobalExceptionHandler {
         return path != null && path.matches(".*/api/v1/ai/meal-drafts/\\d+/confirm$");
     }
 
+    private boolean isAiRecipeDraftConfirmRequest(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.matches(".*/api/v1/ai/recipes/\\d+/confirm$");
+    }
+
+    private String aiRecipeConfirmErrorCode(String message) {
+        if (message == null) return "INVALID_REQUEST";
+        if (message.startsWith("Recipe can contain at most 8 categories")) return "RECIPE_CATEGORY_LIMIT_EXCEEDED";
+        if (message.startsWith("Recipe can contain at most 40 ingredients")) return "RECIPE_INGREDIENT_LIMIT_EXCEEDED";
+        if (message.startsWith("Recipe can contain at most 30 cooking steps")) return "RECIPE_STEP_LIMIT_EXCEEDED";
+        return "INVALID_REQUEST";
+    }
+
+    private String aiRecipeConfirmMessage(String code, HttpServletRequest request) {
+        return switch (code) {
+            case "RECIPE_CATEGORY_LIMIT_EXCEEDED" -> resolveMessage("error.recipe.category-limit", "A recipe can have at most 8 categories.", request);
+            case "RECIPE_INGREDIENT_LIMIT_EXCEEDED" -> resolveMessage("error.recipe.ingredient-limit", "A recipe can have at most 40 ingredients.", request);
+            case "RECIPE_STEP_LIMIT_EXCEEDED" -> resolveMessage("error.recipe.step-limit", "A recipe can have at most 30 cooking steps.", request);
+            default -> resolveMessage("error.invalid.request", "Check the recipe information and try again.", request);
+        };
+    }
+
     private ResponseEntity<ApiErrorResponseDto> buildDomainResponse(HttpStatus status,
                                                                     String code,
                                                                     String message,
@@ -357,6 +379,10 @@ public class GlobalExceptionHandler {
                     List.of(),
                     request
             );
+        }
+        if (isAiRecipeDraftConfirmRequest(request)) {
+            String code = aiRecipeConfirmErrorCode(ex.getMessage());
+            return buildDomainResponse(HttpStatus.BAD_REQUEST, code, aiRecipeConfirmMessage(code, request), List.of(), request);
         }
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
     }

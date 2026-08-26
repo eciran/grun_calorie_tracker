@@ -41,7 +41,12 @@ admin-ui/tsconfig.tsbuildinfo
 .codex/
 outputs/
 docs/
+!docs/
+docs/*
+!docs/ADVANCED_MACRO_TARGETS_ROADMAP_2026-08-24.md
 logs/
+.deploy-snapshot-*/
+.mvn-home/
 
 ### AWS local/deployment notes ###
 docs/*AWS*.md

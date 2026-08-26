@@ -22,7 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
+import java.util.List;
 
 @Service
 @Slf4j
@@ -52,17 +55,39 @@ public class UserGoalServiceImpl implements UserGoalService {
         // must never leave the user without their previously active goal.
         UserGoalDto calculatedGoal = buildCalculatedGoalDto(goalData, user);
 
+        LocalDateTime effectiveAt = LocalDateTime.now();
         userGoalRepository.findByUser(user).ifPresent(existing -> {
-            log.info("Deleting existing goal for user: {}", email);
-            userGoalRepository.delete(existing);
+            log.info("Closing existing goal for user: {}", email);
+            existing.setEffectiveUntil(effectiveAt);
+            userGoalRepository.save(existing);
         });
 
         UserGoalEntity newGoal = UserGoalMapper.toEntity(calculatedGoal, user);
+        ZoneId zoneId = resolveZone(user);
+        newGoal.setCalculationMode(com.grun.calorietracker.enums.GoalCalculationMode.AUTO);
+        newGoal.setMacroCalculatedCalories((int) Math.round(
+                newGoal.getDailyProteinGoal() * 4 + newGoal.getDailyCarbGoal() * 4 + newGoal.getDailyFatGoal() * 9));
+        newGoal.setAutomaticReferenceCalories(newGoal.getDailyCalorieGoal());
+        newGoal.setAutomaticReferenceProtein(newGoal.getDailyProteinGoal());
+        newGoal.setAutomaticReferenceCarbs(newGoal.getDailyCarbGoal());
+        newGoal.setAutomaticReferenceFat(newGoal.getDailyFatGoal());
+        newGoal.setEffectiveFrom(effectiveAt);
+        newGoal.setEffectiveLocalDate(LocalDate.now(zoneId));
+        newGoal.setEffectiveTimeZone(zoneId.getId());
         UserGoalEntity saved = userGoalRepository.save(newGoal);
 
         log.info("New goal saved for user: {} with id {}", email, saved.getId());
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.GOAL);
         return UserGoalMapper.toDto(saved);
+    }
+
+    private static ZoneId resolveZone(UserEntity user) {
+        try {
+            return user.getTimeZone() == null || user.getTimeZone().isBlank()
+                    ? ZoneId.of("UTC") : ZoneId.of(user.getTimeZone());
+        } catch (RuntimeException ignored) {
+            return ZoneId.of("UTC");
+        }
     }
 
     @Override
@@ -290,6 +315,25 @@ public class UserGoalServiceImpl implements UserGoalService {
     }
 
     @Override
+    public UserGoalDto getGoalForDate(String email, LocalDate date) {
+        UserEntity user = userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        return userGoalRepository
+                .findFirstByUserAndEffectiveLocalDateLessThanEqualOrderByEffectiveFromDesc(user, date)
+                .map(UserGoalMapper::toDto)
+                .orElse(null);
+    }
+
+    @Override
+    public List<UserGoalDto> getGoalHistory(String email) {
+        UserEntity user = userService.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
+        return userGoalRepository.findAllByUserOrderByEffectiveFromDesc(user).stream()
+                .map(UserGoalMapper::toDto)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public void deleteGoalByUser(String email) {
         UserEntity user = userService.findByEmail(email)
@@ -298,7 +342,10 @@ public class UserGoalServiceImpl implements UserGoalService {
             throw new InvalidCredentialsException("Invalid credential");
         }
         Optional<UserGoalEntity> existingGoal = userGoalRepository.findByUser(user);
-        existingGoal.ifPresent(userGoalRepository::delete);
+        existingGoal.ifPresent(goal -> {
+            goal.setEffectiveUntil(LocalDateTime.now());
+            userGoalRepository.save(goal);
+        });
         if (existingGoal.isPresent()) {
             analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.GOAL);
         }

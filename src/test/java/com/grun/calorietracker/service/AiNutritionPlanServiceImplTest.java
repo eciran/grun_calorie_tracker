@@ -38,6 +38,7 @@ class AiNutritionPlanServiceImplTest {
     private AiRequestHistoryRepository historyRepository;
     private UserRepository userRepository;
     private GoalRepository goalRepository;
+    private GoalTargetAcknowledgementRepository goalTargetAcknowledgementRepository;
     private MealPlanRepository mealPlanRepository;
     private WorkoutPlanRepository workoutPlanRepository;
     private MealPlanService mealPlanService;
@@ -59,6 +60,7 @@ class AiNutritionPlanServiceImplTest {
         historyRepository = mock(AiRequestHistoryRepository.class);
         userRepository = mock(UserRepository.class);
         goalRepository = mock(GoalRepository.class);
+        goalTargetAcknowledgementRepository = mock(GoalTargetAcknowledgementRepository.class);
         mealPlanRepository = mock(MealPlanRepository.class);
         workoutPlanRepository = mock(WorkoutPlanRepository.class);
         mealPlanService = mock(MealPlanService.class);
@@ -68,7 +70,7 @@ class AiNutritionPlanServiceImplTest {
         objectMapper = new ObjectMapper().findAndRegisterModules();
         service = new AiNutritionPlanServiceImpl(
                 properties, List.of(provider), historyRepository, userRepository,
-                goalRepository, mealPlanRepository, workoutPlanRepository, mealPlanService,
+                goalRepository, goalTargetAcknowledgementRepository, mealPlanRepository, workoutPlanRepository, mealPlanService,
                 subscriptionService, aiCreditPricingService, nutritionPreferenceService, objectMapper,
                 new AiProviderConfigurationValidatorImpl(
                         properties,
@@ -728,6 +730,7 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(history, plan.getSourceAiRequest());
         assertEquals(MealPlanStatus.ACTIVE, plan.getStatus());
         assertEquals(MealPlanStatus.DRAFT, previousActive.getStatus());
+        verify(mealPlanRepository).saveAllAndFlush(List.of(previousActive));
         assertEquals(history, plan.getItems().get(0).getSourceAiRequest());
         ArgumentCaptor<MealPlanRequestDto> requestCaptor =
                 ArgumentCaptor.forClass(MealPlanRequestDto.class);

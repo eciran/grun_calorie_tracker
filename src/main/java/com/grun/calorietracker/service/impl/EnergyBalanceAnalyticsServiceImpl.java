@@ -88,7 +88,10 @@ public class EnergyBalanceAnalyticsServiceImpl implements EnergyBalanceAnalytics
         List<DeviceDataEntity> healthMetrics = deviceDataRepository
                 .findByUserAndRecordedAtGreaterThanEqualAndRecordedAtLessThanOrderByRecordedAtAsc(
                         context.user(), start, endExclusive);
-        ActivityLevel activityLevel = goalRepository.findByUser(context.user())
+        ActivityLevel activityLevel = goalRepository
+                .findFirstByUserAndEffectiveLocalDateLessThanEqualOrderByEffectiveFromDesc(
+                        context.user(), context.endDate())
+                .or(() -> goalRepository.findByUser(context.user()))
                 .map(goal -> goal.getActivityLevel())
                 .orElse(null);
         List<ExerciseLogsEntity> exerciseLogs = exerciseLogRepository

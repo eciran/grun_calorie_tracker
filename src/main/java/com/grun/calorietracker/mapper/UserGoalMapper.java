@@ -24,6 +24,18 @@ public class UserGoalMapper {
         entity.setGoalType(dto.getGoalType());
         entity.setActivityLevel(dto.getActivityLevel());
         entity.setCreatedAt(dto.getCreatedAt());
+        entity.setCalculationMode(dto.getCalculationMode());
+        entity.setControlledStrategy(dto.getControlledStrategy());
+        entity.setLockedMacros(dto.getLockedMacros());
+        entity.setMacroCalculatedCalories(dto.getMacroCalculatedCalories());
+        entity.setAutomaticReferenceCalories(dto.getAutomaticReferenceCalories());
+        entity.setAutomaticReferenceProtein(dto.getAutomaticReferenceProtein());
+        entity.setAutomaticReferenceCarbs(dto.getAutomaticReferenceCarbs());
+        entity.setAutomaticReferenceFat(dto.getAutomaticReferenceFat());
+        entity.setEffectiveFrom(dto.getEffectiveFrom());
+        entity.setEffectiveLocalDate(dto.getEffectiveLocalDate());
+        entity.setEffectiveTimeZone(dto.getEffectiveTimeZone());
+        entity.setVersion(dto.getVersion());
         return entity;
     }
 
@@ -42,6 +54,18 @@ public class UserGoalMapper {
         dto.setGoalType(entity.getGoalType());
         dto.setActivityLevel(entity.getActivityLevel());
         dto.setCreatedAt(entity.getCreatedAt());
+        dto.setCalculationMode(entity.getCalculationMode());
+        dto.setControlledStrategy(entity.getControlledStrategy());
+        dto.setLockedMacros(entity.getLockedMacros());
+        dto.setMacroCalculatedCalories(entity.getMacroCalculatedCalories());
+        dto.setAutomaticReferenceCalories(entity.getAutomaticReferenceCalories());
+        dto.setAutomaticReferenceProtein(entity.getAutomaticReferenceProtein());
+        dto.setAutomaticReferenceCarbs(entity.getAutomaticReferenceCarbs());
+        dto.setAutomaticReferenceFat(entity.getAutomaticReferenceFat());
+        dto.setEffectiveFrom(entity.getEffectiveFrom());
+        dto.setEffectiveLocalDate(entity.getEffectiveLocalDate());
+        dto.setEffectiveTimeZone(entity.getEffectiveTimeZone());
+        dto.setVersion(entity.getVersion());
         return dto;
     }
 }

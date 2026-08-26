@@ -215,7 +215,7 @@ public class ProgressAnalyticsDto {
         private int exerciseDays;
         private int stepTargetHitDays;
         private int waterTargetHitDays;
-        private int fastingTargetHitDays;
+        private int sleepTargetHitDays;
     }
 
     @Data
