@@ -4,5 +4,6 @@ public enum AiProvider {
     DISABLED,
     LOG,
     HTTP_JSON,
-    OPENAI
+    OPENAI,
+    GEMINI
 }

@@ -32,6 +32,9 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
         if (properties.getProvider() == AiProvider.OPENAI) {
             validateOpenAi();
         }
+        if (properties.getProvider() == AiProvider.GEMINI) {
+            validateGemini();
+        }
     }
 
     private void validateHttpJson() {
@@ -66,6 +69,25 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
         }
         if (openai.getMaxRepairAttempts() < 0 || openai.getMaxRepairAttempts() > 1) {
             throw new IllegalArgumentException("OpenAI provider max repair attempts must be 0 or 1.");
+        }
+    }
+
+    private void validateGemini() {
+        AiProperties.Gemini gemini = properties.getGemini();
+        if (gemini == null || isBlank(gemini.getBaseUrl())) {
+            throw new IllegalArgumentException("Gemini provider base URL is not configured.");
+        }
+        if (gemini.getBaseUrl().startsWith("http://")) {
+            throw new IllegalArgumentException("Gemini provider base URL must use HTTPS.");
+        }
+        if (isBlank(gemini.getApiKey())) {
+            throw new IllegalArgumentException("Gemini provider API key is not configured.");
+        }
+        if (gemini.getTimeout() == null || gemini.getTimeout().isZero() || gemini.getTimeout().isNegative()) {
+            throw new IllegalArgumentException("Gemini provider timeout must be positive.");
+        }
+        if (gemini.getMaxOutputTokens() <= 0) {
+            throw new IllegalArgumentException("Gemini provider max output tokens must be positive.");
         }
     }
     private boolean isBlank(String value) {

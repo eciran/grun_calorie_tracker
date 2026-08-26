@@ -74,6 +74,20 @@ class AiProviderConfigurationValidatorImplTest {
 
         assertDoesNotThrow(() -> validator(properties).validateConfiguredForDraft());
     }
+
+    @Test
+    void validateConfiguredForDraft_whenGeminiMissingSecret_throws() {
+        AiProperties properties = geminiProperties();
+        properties.getGemini().setApiKey("");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> validator(properties).validateConfiguredForDraft());
+    }
+
+    @Test
+    void validateConfiguredForDraft_whenGeminiConfigured_accepts() {
+        assertDoesNotThrow(() -> validator(geminiProperties()).validateConfiguredForDraft());
+    }
     @Test
     void validateConfiguredForDraft_whenPromptVersionMissing_throws() {
         AiProperties properties = new AiProperties();
@@ -116,6 +130,17 @@ class AiProviderConfigurationValidatorImplTest {
         properties.getOpenai().setBaseUrl("https://api.openai.com/v1/responses");
         properties.getOpenai().setApiKey("sk-test");
         properties.getOpenai().setTimeout(Duration.ofSeconds(20));
+        return properties;
+    }
+
+    private AiProperties geminiProperties() {
+        AiProperties properties = new AiProperties();
+        properties.setEnabled(true);
+        properties.setProvider(AiProvider.GEMINI);
+        properties.setModel("gemini-3.6-flash");
+        properties.getGemini().setBaseUrl("https://generativelanguage.googleapis.test/v1beta/models");
+        properties.getGemini().setApiKey("gemini-test-key");
+        properties.getGemini().setTimeout(Duration.ofSeconds(20));
         return properties;
     }
 }

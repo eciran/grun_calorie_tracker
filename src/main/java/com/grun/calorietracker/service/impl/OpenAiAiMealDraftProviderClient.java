@@ -92,7 +92,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         int maxAlternatives = properties.getPhoto().getMaxAlternativeSnapshots();
         content.add(textContent(AiPromptTemplates.photo(writeJson(request), alternativeSnapshotsEnabled, maxAlternatives)));
         content.add(textContent(AiPromptTemplates.PHOTO_PORTION_RULES));
-        String imageReference = resolveOpenAiImageReference(request.getImageReference());
+        String imageReference = resolveManagedImageReference(request.getImageReference());
         if (isOpenAiImageReference(imageReference)) {
             content.add(imageContent(imageReference));
         } else {
@@ -130,7 +130,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         );
     }
 
-    private String nutritionPlanTargetGuardrails(AiNutritionPlanDraftRequestDto request) {
+    String nutritionPlanTargetGuardrails(AiNutritionPlanDraftRequestDto request) {
         if (request == null || request.getTrustedDailyTarget() == null) {
             return "";
         }
@@ -546,7 +546,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
     }
 
 
-    private String resolveOpenAiImageReference(String imageReference) {
+    String resolveManagedImageReference(String imageReference) {
         String managedToken = managedPhotoReferenceToken(imageReference);
         if (managedToken == null) {
             return imageReference;
@@ -639,7 +639,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return normalized.startsWith("https://") || normalized.startsWith("data:image/");
     }
 
-    private String writeJson(Object value) {
+    String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
@@ -647,7 +647,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         }
     }
 
-    private Map<String, Object> mealDraftSchema(boolean alternativeSnapshotsEnabled) {
+    Map<String, Object> mealDraftSchema(boolean alternativeSnapshotsEnabled) {
         Map<String, Object> itemProperties = props(
                 "name", stringSchema(),
                 "quantity", numberSchema(),
@@ -702,7 +702,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         ));
     }
 
-    private Map<String, Object> recipeDraftSchema() {
+    Map<String, Object> recipeDraftSchema() {
         return strictObjectSchema(props(
                 "schemaVersion", enumSchema("ai_response_v3"),
                 "summary", stringSchema(),
@@ -774,7 +774,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
     }
 
 
-    private Map<String, Object> preparationGuideSchema() {
+    Map<String, Object> preparationGuideSchema() {
         return strictObjectSchema(props(
                 "preparationMinutes", integerSchema(),
                 "cookingMinutes", integerSchema(),
@@ -808,7 +808,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH")
         ));
     }
-    private Map<String, Object> nutritionPlanSchema() {
+    Map<String, Object> nutritionPlanSchema() {
         Map<String, Object> item = strictObjectSchema(props(
                 "displayName", stringSchema(),
                 "groceryName", stringSchema(),
@@ -869,8 +869,11 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         ));
     }
 
-    private int nutritionPlanOutputTokenBudget(AiNutritionPlanDraftRequestDto request) {
-        int configuredLimit = properties.getOpenai().getMaxOutputTokens();
+    int nutritionPlanOutputTokenBudget(AiNutritionPlanDraftRequestDto request) {
+        return nutritionPlanOutputTokenBudget(request, properties.getOpenai().getMaxOutputTokens());
+    }
+
+    int nutritionPlanOutputTokenBudget(AiNutritionPlanDraftRequestDto request, int configuredLimit) {
         if (configuredLimit <= 0) {
             return configuredLimit;
         }
@@ -881,7 +884,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         int estimatedBudget = 1_800 + (days * meals * 160);
         return Math.min(configuredLimit, Math.max(3_000, estimatedBudget));
     }
-    private Map<String, Object> workoutPlanSchema() {
+    Map<String, Object> workoutPlanSchema() {
         return strictObjectSchema(props(
                 "schemaVersion", enumSchema("ai_response_v3"),
                 "name", stringSchema(),
@@ -939,7 +942,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
     }
 
 
-    private Map<String, Object> productQualityValidationSchema() {
+    Map<String, Object> productQualityValidationSchema() {
         return strictObjectSchema(props(
                 "schemaVersion", enumSchema("product_quality_response_v2"),
                 "summary", stringSchema(),
@@ -974,7 +977,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         ));
     }
 
-    private Map<String, Object> insightSchema() {
+    Map<String, Object> insightSchema() {
         return strictObjectSchema(props(
                 "schemaVersion", enumSchema("ai_response_v3"),
                 "title", stringSchema(),

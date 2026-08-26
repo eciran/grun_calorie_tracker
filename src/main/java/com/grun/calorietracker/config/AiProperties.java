@@ -18,6 +18,7 @@ public class AiProperties {
     private Photo photo = new Photo();
     private HttpJson httpJson = new HttpJson();
     private OpenAi openai = new OpenAi();
+    private Gemini gemini = new Gemini();
     private RecipeImageModeration recipeImageModeration = new RecipeImageModeration();
     private Monitoring monitoring = new Monitoring();
 
@@ -64,6 +65,18 @@ public class AiProperties {
     }
 
     @Data
+    public static class Gemini {
+        private String apiKey = "";
+        private String baseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
+        private Duration connectTimeout = Duration.ofSeconds(10);
+        private Duration timeout = Duration.ofSeconds(120);
+        private int maxOutputTokens = 12000;
+        private double inputTokenCostPer1m = 0;
+        private double outputTokenCostPer1m = 0;
+        private String costCurrency = "USD";
+    }
+
+    @Data
     public static class Monitoring {
         private int minRequestsForAlert = 5;
         private double failureRateThreshold = 0.20;
@@ -82,4 +95,3 @@ public class AiProperties {
         private double approveThreshold = 0.95;
     }
 }
-

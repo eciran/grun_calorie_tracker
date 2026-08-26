@@ -359,6 +359,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
 
     private boolean requiresGeneratedLanguageValidation() {
         return properties.getProvider() == AiProvider.OPENAI
+                || properties.getProvider() == AiProvider.GEMINI
                 || properties.getProvider() == AiProvider.HTTP_JSON;
     }
 
