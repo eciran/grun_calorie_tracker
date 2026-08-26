@@ -189,7 +189,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         syncQualityIssues(savedProducts, productImportContexts, importedBy);
         syncSearchAliases(savedProducts, productImportContexts);
         syncLocalizations(savedProducts, productImportContexts);
-        syncServingOptions(savedProducts, productImportContexts);
+        syncServingOptions(savedProducts, productImportContexts, normalizeImportMode(importMode));
         int skippedRows = parsedCsv.rows().size() - productsToSave.size();
         int reviewRequiredRows = (int) productsToSave.stream()
                 .filter(this::requiresReview)
@@ -1105,7 +1105,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
     private void syncServingOptions(
             List<FoodItemEntity> savedProducts,
-            List<ProductImportContext> productImportContexts
+            List<ProductImportContext> productImportContexts,
+            FoodProductImportMode importMode
     ) {
         List<Long> productIds = savedProducts.stream()
                 .map(FoodItemEntity::getId)
@@ -1129,12 +1130,40 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             }
 
             ServingOptionsParseResult parsed = parseServingOptions(context.row());
-            if (!parsed.valid() || parsed.options().isEmpty()) {
+            String explicitServingOptions = firstText(
+                    context.row(), "serving_options_json", "servingoptionsjson", "portion_options_json");
+            if (!parsed.valid() || explicitServingOptions == null) {
                 continue;
             }
 
             List<FoodItemServingOptionEntity> existingOptions =
                     existingOptionsByProductId.getOrDefault(product.getId(), List.of());
+            boolean replaceExisting = importMode == FoodProductImportMode.CURATED_ADMIN;
+            if (replaceExisting) {
+                Set<String> requestedKeys = parsed.options().stream()
+                        .map(option -> servingOptionKey(option.label()))
+                        .collect(java.util.stream.Collectors.toSet());
+                List<FoodItemServingOptionEntity> obsoleteOptions = existingOptions.stream()
+                        .filter(option -> !requestedKeys.contains(servingOptionKey(option.getLabel())))
+                        .toList();
+                if (!obsoleteOptions.isEmpty()) {
+                    List<Long> obsoleteIds = obsoleteOptions.stream()
+                            .map(FoodItemServingOptionEntity::getId)
+                            .filter(java.util.Objects::nonNull)
+                            .toList();
+                    if (!obsoleteIds.isEmpty()) {
+                        List<FoodItemServingOptionLocalizationEntity> obsoleteLocalizations =
+                                foodItemServingOptionLocalizationRepository.findByServingOptionIdIn(obsoleteIds);
+                        if (!obsoleteLocalizations.isEmpty()) {
+                            foodItemServingOptionLocalizationRepository.deleteAll(obsoleteLocalizations);
+                        }
+                    }
+                    foodItemServingOptionRepository.deleteAll(obsoleteOptions);
+                }
+            }
+            if (parsed.options().isEmpty()) {
+                continue;
+            }
             Map<String, FoodItemServingOptionEntity> optionsByLabel = new LinkedHashMap<>();
             existingOptions.forEach(option -> optionsByLabel.put(servingOptionKey(option.getLabel()), option));
 
@@ -1174,7 +1203,14 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 optionsByLabel.put(key, option);
             }
 
-            optionsToSave.addAll(optionsByLabel.values());
+            if (replaceExisting) {
+                parsed.options().stream()
+                        .map(option -> optionsByLabel.get(servingOptionKey(option.label())))
+                        .filter(java.util.Objects::nonNull)
+                        .forEach(optionsToSave::add);
+            } else {
+                optionsToSave.addAll(optionsByLabel.values());
+            }
             servingContexts.add(new ServingOptionSyncContext(product.getId(), parsed.options()));
         }
 
@@ -1277,7 +1313,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                     rawJson,
                     new TypeReference<List<ServingOptionImport>>() {}
             );
-            if (options == null || options.isEmpty() || options.size() > 20) {
+            // An explicit empty array is meaningful for CURATED_ADMIN imports:
+            // it removes previously stored ready-portion options.
+            if (options == null || options.size() > 20) {
                 return new ServingOptionsParseResult(List.of(), false);
             }
 

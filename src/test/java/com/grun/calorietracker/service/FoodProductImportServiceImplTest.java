@@ -402,6 +402,51 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_curatedEmptyServingOptionsRemovesExistingReadyPortions() {
+        FoodItemEntity existingProduct = new FoodItemEntity();
+        existingProduct.setId(41L);
+        existingProduct.setSourceKey("GLOBAL:GENERIC_INGREDIENT:RAW:banana");
+        existingProduct.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        existingProduct.setDataSource(FoodDataSource.USDA_FOODDATA);
+        existingProduct.setVerificationStatus(VerificationStatus.VERIFIED);
+
+        FoodItemServingOptionEntity existingOption = new FoodItemServingOptionEntity();
+        existingOption.setId(7L);
+        existingOption.setFoodItem(existingProduct);
+        existingOption.setLabel("1 portion");
+        existingOption.setUnitType(FoodServingOptionUnit.PORTION);
+        existingOption.setQuantity(1.0);
+        existingOption.setGramWeight(100.0);
+        existingOption.setIsDefault(true);
+
+        FoodItemServingOptionLocalizationEntity localization = new FoodItemServingOptionLocalizationEntity();
+        localization.setId(8L);
+        localization.setServingOption(existingOption);
+        localization.setLanguage(PreferredLanguage.TR);
+        localization.setLabel("1 porsiyon");
+
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existingProduct));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemServingOptionRepository
+                .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(any()))
+                .thenReturn(List.of(existingOption));
+        when(foodItemServingOptionLocalizationRepository.findByServingOptionIdIn(List.of(7L)))
+                .thenReturn(List.of(localization));
+
+        MockMultipartFile file = csv("""
+                catalog_type,source_key,name,calories,market_region,preparation_state,serving_options_json
+                GENERIC_INGREDIENT,GLOBAL:GENERIC_INGREDIENT:RAW:banana,Raw Banana,89,GLOBAL,RAW,"[]"
+                """);
+
+        FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, result.getUpdatedRows());
+        verify(foodItemServingOptionLocalizationRepository).deleteAll(List.of(localization));
+        verify(foodItemServingOptionRepository).deleteAll(List.of(existingOption));
+        verify(foodItemServingOptionRepository, times(0)).saveAll(any());
+    }
+
+    @Test
     void importCsv_upsertsLocalizedServingLabelsByOptionAndLanguage() {
         when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {

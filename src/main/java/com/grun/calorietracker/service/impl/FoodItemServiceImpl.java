@@ -142,13 +142,15 @@ public class FoodItemServiceImpl implements FoodItemService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // A search may cache a trusted Open Food Facts result when the local catalog has no match.
+    // Keep this transaction writable so that publication, quality issue and evidence writes are atomic.
+    @Transactional
     public List<FoodProductDto> searchFoodItems(FoodSearchCriteriaDto criteria) {
         return searchFoodItems(criteria, 0, 100).getContent();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     @Cacheable(cacheNames = "foodProductSearch", key = "T(com.grun.calorietracker.service.support.FoodProductCacheKeys).search(#criteria, #page, #size)", unless = "#result == null")
     public FoodProductSearchPageDto searchFoodItems(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;

@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +44,23 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class FoodItemServiceImplTest {
+
+    @Test
+    void searchTransactionsRemainWritableBecauseExternalFallbackPersistsCatalogData() throws Exception {
+        var pagedSearch = FoodItemServiceImpl.class.getMethod(
+                "searchFoodItems",
+                FoodSearchCriteriaDto.class,
+                int.class,
+                int.class
+        ).getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        var listSearch = FoodItemServiceImpl.class.getMethod(
+                "searchFoodItems",
+                FoodSearchCriteriaDto.class
+        ).getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+
+        assertFalse(pagedSearch.readOnly());
+        assertFalse(listSearch.readOnly());
+    }
 
     @Mock
     private FoodItemRepository foodItemRepository;
