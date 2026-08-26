@@ -242,6 +242,25 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void hasFeatureAccess_whenPaidPlanExpired_fallsBackToFreeBaselineOnly() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 10);
+        entity.setEndDate(java.time.LocalDate.now().minusDays(1));
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.FOOD_DIARY));
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.MANUAL_FOOD_LOGGING));
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.WEIGHT_PROGRESS));
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.WATER_TRACKING));
+        assertEquals(true, service.hasFeatureAccess("user@example.com", SubscriptionFeature.FASTING_BASIC));
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.MICRONUTRIENT_DETAILS));
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.MICRONUTRIENT_ANALYTICS));
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.ADVANCED_ANALYTICS));
+        assertEquals(false, service.hasFeatureAccess("user@example.com", SubscriptionFeature.HEALTH_INTEGRATION));
+    }
+
+    @Test
     void hasFeatureAccess_whenNextMealSuggestionsOnFreePlan_returnsFalse() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
 
@@ -316,7 +335,9 @@ class SubscriptionServiceImplTest {
         var result = service.getFeatureAccess("user@example.com");
 
         assertEquals(true, result.getHealthIntegration());
-        assertEquals(false, result.getWaterTracking());
+        // Free baseline capabilities remain available even when they are not
+        // present in the paid-plan entitlement snapshot.
+        assertEquals(true, result.getWaterTracking());
         verify(userSubscriptionEntitlementRepository)
                 .findActiveFeaturesForSubscription(eq(7L), eq(SubscriptionPlan.PLUS), any());
         verify(userSubscriptionEntitlementRepository, never())

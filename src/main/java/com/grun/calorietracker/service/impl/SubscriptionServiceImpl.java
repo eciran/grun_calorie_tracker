@@ -550,11 +550,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private boolean featureAllowed(SubscriptionDto subscription,
                                    FeatureAccessResolution resolution,
                                    SubscriptionFeature feature) {
+        // Core FREE capabilities must survive an expired/canceled paid subscription.
+        // An inactive paid entitlement removes paid features; it must not lock the
+        // user out of the diary, basic progress, hydration, or other FREE tools.
+        if (isFreeBaselineFeature(feature)) {
+            return true;
+        }
         if (!Boolean.TRUE.equals(subscription.getActiveEntitlement())) {
             return false;
-        }
-        if (feature == SubscriptionFeature.AD_FREE || feature == SubscriptionFeature.BARCODE_SCANNER) {
-            return true;
         }
         if (subscription.getPlanType() == SubscriptionPlan.FREE && isAiFeature(feature)) {
             return false;
@@ -566,6 +569,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 feature,
                 defaultPlanFeatureEnabled(subscription.getPlanType(), feature)
         );
+    }
+
+    private boolean isFreeBaselineFeature(SubscriptionFeature feature) {
+        return feature == SubscriptionFeature.AD_FREE
+                || feature == SubscriptionFeature.BARCODE_SCANNER
+                || feature == SubscriptionFeature.MANUAL_FOOD_LOGGING
+                || feature == SubscriptionFeature.FOOD_DIARY
+                || feature == SubscriptionFeature.WEIGHT_PROGRESS
+                || feature == SubscriptionFeature.WATER_TRACKING
+                || feature == SubscriptionFeature.WORKOUT_LOGGING
+                || feature == SubscriptionFeature.SAVED_MEAL_TEMPLATES
+                || feature == SubscriptionFeature.RECIPE_BUILDER
+                || feature == SubscriptionFeature.FASTING_BASIC
+                || feature == SubscriptionFeature.CUSTOM_FOOD_LIBRARY;
     }
 
     private record FeatureAccessResolution(boolean snapshotAvailable,
