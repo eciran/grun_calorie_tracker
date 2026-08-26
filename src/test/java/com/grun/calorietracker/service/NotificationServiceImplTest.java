@@ -21,6 +21,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,6 +42,8 @@ class NotificationServiceImplTest {
     private NotificationCampaignRecipientRepository recipientRepository;
     @Mock
     private NotificationCampaignRepository campaignRepository;
+    @Mock
+    private NotificationDefinitionPolicy definitionPolicy;
 
     private NotificationServiceImpl service;
     private UserEntity user;
@@ -49,11 +52,19 @@ class NotificationServiceImplTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         service = new NotificationServiceImpl(
-                notificationRepository, recipientRepository, campaignRepository, userRepository);
+                notificationRepository, recipientRepository, campaignRepository, userRepository, definitionPolicy);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(definitionPolicy.hiddenInAppTypes()).thenReturn(List.of());
+        when(definitionPolicy.findAll(any())).thenReturn(Map.of());
+        when(definitionPolicy.normalize(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(definitionPolicy.presentation(any(), any())).thenAnswer(invocation -> {
+            NotificationEntity notification = invocation.getArgument(0);
+            return new NotificationDefinitionPolicy.NotificationPresentation(
+                    notification.getTitle(), notification.getMessage(), notification.getSeverity(), notification.getTargetRoute());
+        });
     }
 
     @Test

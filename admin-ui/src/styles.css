@@ -7062,6 +7062,178 @@ label {
   resize: vertical;
 }
 
+.notification-definition-metrics {
+  grid-template-columns: repeat(4, minmax(142px, 1fr));
+}
+
+.notification-definition-boundary {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.notification-definition-workflow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.notification-definition-workflow > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  color: var(--muted-strong);
+}
+
+.notification-definition-workflow strong {
+  display: grid;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+}
+
+.notification-definition-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(560px, 1.65fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.notification-definition-list-panel .panel-actions input {
+  width: min(240px, 100%);
+}
+
+.notification-definition-list {
+  display: grid;
+  gap: 9px;
+  max-height: 780px;
+  overflow: auto;
+  padding-right: 3px;
+}
+
+.notification-definition-card {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  color: var(--text);
+  text-align: left;
+}
+
+.notification-definition-card:hover,
+.notification-definition-card.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.notification-definition-card-title,
+.notification-definition-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notification-definition-edit-label {
+  margin-left: auto;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.notification-definition-card code,
+.notification-definition-template-help code {
+  color: var(--primary);
+  overflow-wrap: anywhere;
+}
+
+.notification-definition-card-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.notification-definition-empty {
+  color: var(--muted);
+  text-align: center;
+}
+
+.notification-definition-editor form,
+.notification-definition-locale {
+  display: grid;
+  gap: 12px;
+}
+
+.notification-definition-locale {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.notification-definition-locale h4 {
+  margin: 0;
+}
+
+.notification-definition-toggle {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px !important;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.notification-definition-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.notification-definition-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.notification-definition-toggle small,
+.notification-definition-template-help {
+  color: var(--muted);
+}
+
+.notification-definition-template-help {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.notification-definition-actions {
+  margin-top: 4px;
+}
+
+@media (max-width: 1120px) {
+  .notification-definition-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-definition-list {
+    max-height: 420px;
+  }
+}
+
+@media (max-width: 760px) {
+  .notification-definition-workflow {
+    grid-template-columns: 1fr;
+  }
+}
+
 .campaign-audience-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

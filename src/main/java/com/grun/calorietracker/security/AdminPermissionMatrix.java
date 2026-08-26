@@ -68,7 +68,7 @@ public final class AdminPermissionMatrix {
         if (containsAny(path, "/catalog", "/products", "/recipes", "/food", "/achievements", "/exercises")) {
             return write ? AdminPermission.CATALOG_MANAGE : AdminPermission.CATALOG_READ;
         }
-        if (containsAny(path, "/promos", "/notification-campaigns", "/engagement", "/tracking", "/growth", "/onboarding")) {
+        if (containsAny(path, "/promos", "/notification-campaigns", "/notification-definitions", "/engagement", "/tracking", "/growth", "/onboarding")) {
             return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
         }
         if (containsAny(path, "/system", "/mail", "/brevo", "/push", "/ai/requests", "/ai/monitoring", "/ai/meal-drafts")) {

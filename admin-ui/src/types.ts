@@ -710,6 +710,25 @@ export type AuditEntry = {
   createdAt?: string;
 };
 
+export type NotificationDefinition = {
+  id?: number;
+  version?: number;
+  key: string;
+  displayName: string;
+  description?: string;
+  enabled: boolean;
+  protectedDefinition: boolean;
+  channel: "IN_APP" | "PUSH" | "IN_APP_AND_PUSH";
+  severity?: "INFO" | "WARNING" | "CRITICAL";
+  targetRoute?: string;
+  titleEn?: string;
+  messageEn?: string;
+  titleTr?: string;
+  messageTr?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
 export type NotificationCampaign = {
   id?: number;
   name?: string;

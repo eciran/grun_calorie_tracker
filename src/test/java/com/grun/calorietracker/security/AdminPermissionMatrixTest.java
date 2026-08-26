@@ -95,6 +95,7 @@ class AdminPermissionMatrixTest {
         assertEquals(403, execute("GET", "/api/v1/admin/system/operations/api-metrics").getStatus());
         assertEquals(403, execute("GET", "/api/v1/admin/subscriptions/provider-events").getStatus());
         assertEquals(200, execute("POST", "/api/v1/admin/notification-campaigns").getStatus());
+        assertEquals(200, execute("GET", "/api/v1/admin/notification-definitions").getStatus());
     }
 
     @Test

@@ -14,6 +14,7 @@ import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.NotificationService;
+import com.grun.calorietracker.service.NotificationDefinitionPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +35,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationCampaignRecipientRepository recipientRepository;
     private final NotificationCampaignRepository campaignRepository;
     private final UserRepository userRepository;
+    private final NotificationDefinitionPolicy definitionPolicy;
 
     @Override
     @Transactional(readOnly = true)
@@ -47,11 +50,14 @@ public class NotificationServiceImpl implements NotificationService {
                 user,
                 Boolean.TRUE.equals(unreadOnly),
                 trimToNull(type),
-                trimToNull(severity)
+                trimToNull(severity),
+                definitionPolicy.hiddenInAppTypes()
         );
         Page<NotificationEntity> notifications = notificationRepository.findAll(specification, pageable);
+        Map<String, com.grun.calorietracker.entity.NotificationDefinitionEntity> definitions = definitionPolicy.findAll(
+                notifications.getContent().stream().map(NotificationEntity::getType).toList());
         NotificationPageDto dto = new NotificationPageDto();
-        dto.setContent(notifications.getContent().stream().map(this::toDto).toList());
+        dto.setContent(notifications.getContent().stream().map(entity -> toDto(entity, definitions)).toList());
         dto.setPage(notifications.getNumber());
         dto.setSize(notifications.getSize());
         dto.setTotalElements(notifications.getTotalElements());
@@ -70,7 +76,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setIsRead(true);
         notification = notificationRepository.save(notification);
         recordCampaignEngagement(notification, user, NotificationEngagementType.OPENED);
-        return toDto(notification);
+        return toDto(notification, definitionsFor(notification));
     }
 
     @Override
@@ -84,14 +90,19 @@ public class NotificationServiceImpl implements NotificationService {
             notificationRepository.save(notification);
         }
         recordCampaignEngagement(notification, user, engagementType);
-        return toDto(notification);
+        return toDto(notification, definitionsFor(notification));
     }
 
     @Override
     @Transactional
     public NotificationReadAllResponseDto markAllAsRead(String email) {
         UserEntity user = getUser(email);
-        List<NotificationEntity> unread = notificationRepository.findByUserAndIsRead(user, false);
+        List<String> hiddenTypes = definitionPolicy.hiddenInAppTypes();
+        List<NotificationEntity> unread = notificationRepository.findByUserAndIsRead(user, false).stream()
+                .filter(notification -> Boolean.TRUE.equals(notification.getVisibleInApp()))
+                .filter(notification -> notification.getCampaign() != null
+                        || !hiddenTypes.contains(definitionPolicy.normalize(notification.getType())))
+                .toList();
         unread.forEach(notification -> {
             notification.setIsRead(true);
             recordCampaignEngagement(notification, user, NotificationEngagementType.OPENED);
@@ -147,26 +158,35 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
-    private NotificationDto toDto(NotificationEntity entity) {
+    private NotificationDto toDto(NotificationEntity entity, Map<String, com.grun.calorietracker.entity.NotificationDefinitionEntity> definitions) {
+        var definition = definitions.get(definitionPolicy.normalize(entity.getType()));
+        var presentation = definitionPolicy.presentation(entity, definition);
         NotificationDto dto = new NotificationDto();
         dto.setId(entity.getId());
-        dto.setTitle(entity.getTitle());
-        dto.setMessage(entity.getMessage());
+        dto.setTitle(presentation.title());
+        dto.setMessage(presentation.message());
         dto.setNote(entity.getNote());
         dto.setPrimaryAction(entity.getPrimaryAction());
         dto.setActionAmountMl(entity.getActionAmountMl());
         dto.setType(entity.getType());
-        dto.setSeverity(entity.getSeverity());
+        dto.setSeverity(presentation.severity());
         dto.setSource(entity.getSource());
         dto.setTargetType(entity.getTargetType());
         dto.setTargetId(entity.getTargetId());
-        dto.setTargetRoute(entity.getTargetRoute());
+        dto.setTargetRoute(presentation.targetRoute());
         dto.setRead(Boolean.TRUE.equals(entity.getIsRead()));
         dto.setCreatedAt(entity.getCreatedAt());
         return dto;
     }
 
-    private Specification<NotificationEntity> notificationSpecification(UserEntity user, boolean unreadOnly, String type, String severity) {
+    private Map<String, com.grun.calorietracker.entity.NotificationDefinitionEntity> definitionsFor(NotificationEntity notification) {
+        if (notification.getType() == null || notification.getType().isBlank()) {
+            return Map.of();
+        }
+        return definitionPolicy.findAll(List.of(notification.getType()));
+    }
+
+    private Specification<NotificationEntity> notificationSpecification(UserEntity user, boolean unreadOnly, String type, String severity, List<String> hiddenTypes) {
         return (root, query, criteriaBuilder) -> {
             var predicate = criteriaBuilder.and(
                     criteriaBuilder.equal(root.get("user"), user),
@@ -180,6 +200,13 @@ public class NotificationServiceImpl implements NotificationService {
             }
             if (severity != null) {
                 predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.get("severity"), severity));
+            }
+            if (hiddenTypes != null && !hiddenTypes.isEmpty()) {
+                predicate = criteriaBuilder.and(predicate,
+                        criteriaBuilder.or(
+                                criteriaBuilder.isNotNull(root.get("campaign")),
+                                criteriaBuilder.lower(root.get("type")).in(hiddenTypes).not()
+                        ));
             }
             return predicate;
         };

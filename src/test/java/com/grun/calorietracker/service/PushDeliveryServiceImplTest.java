@@ -25,17 +25,13 @@ class PushDeliveryServiceImplTest {
 
     private final UserPushTokenRepository userPushTokenRepository = mock(UserPushTokenRepository.class);
     private final PushDeliveryLogRepository pushDeliveryLogRepository = mock(PushDeliveryLogRepository.class);
+    private final NotificationDefinitionPolicy definitionPolicy = mock(NotificationDefinitionPolicy.class);
 
     @Test
     void deliver_whenPushDisabled_skipsWithoutTokenLookup() {
         PushProperties properties = new PushProperties();
         properties.setEnabled(false);
-        PushDeliveryServiceImpl service = new PushDeliveryServiceImpl(
-                properties,
-                userPushTokenRepository,
-                pushDeliveryLogRepository,
-                List.of(new LogPushProviderClient())
-        );
+        PushDeliveryServiceImpl service = service(properties, true);
 
         var result = service.deliver(notification(user()));
 
@@ -58,18 +54,58 @@ class PushDeliveryServiceImplTest {
         token.setEnabled(true);
         when(userPushTokenRepository.findByUserAndEnabledTrue(user)).thenReturn(List.of(token));
 
-        PushDeliveryServiceImpl service = new PushDeliveryServiceImpl(
-                properties,
-                userPushTokenRepository,
-                pushDeliveryLogRepository,
-                List.of(new LogPushProviderClient())
-        );
+        PushDeliveryServiceImpl service = service(properties, true);
 
         var result = service.deliver(notification(user));
 
         assertEquals(1, result.getAttempted());
         assertEquals(1, result.getSent());
         verify(pushDeliveryLogRepository).save(any());
+    }
+
+    @Test
+    void deliver_whenDefinitionSuppressesPush_skipsProvider() {
+        PushProperties properties = new PushProperties();
+        properties.setEnabled(true);
+        NotificationEntity notification = notification(user());
+        PushDeliveryServiceImpl service = service(properties, false);
+
+        var result = service.deliver(notification);
+
+        assertEquals(1, result.getSkipped());
+        verify(userPushTokenRepository, never()).findByUserAndEnabledTrue(any());
+    }
+
+    @Test
+    void deliver_restoresProducerCopyAfterManagedPushRendering() {
+        PushProperties properties = new PushProperties();
+        properties.setEnabled(false);
+        NotificationEntity notification = notification(user());
+        notification.setTitle("Original title");
+        when(definitionPolicy.apply(notification)).thenAnswer(invocation -> {
+            notification.setTitle("Managed title");
+            notification.setMessage("Managed message");
+            return true;
+        });
+        PushDeliveryServiceImpl service = new PushDeliveryServiceImpl(
+                properties, userPushTokenRepository, pushDeliveryLogRepository,
+                List.of(new LogPushProviderClient()), definitionPolicy);
+
+        service.deliver(notification);
+
+        assertEquals("Original title", notification.getTitle());
+        assertEquals("Step reminder", notification.getMessage());
+    }
+
+    private PushDeliveryServiceImpl service(PushProperties properties, boolean policyAllowsPush) {
+        when(definitionPolicy.apply(any(NotificationEntity.class))).thenReturn(policyAllowsPush);
+        return new PushDeliveryServiceImpl(
+                properties,
+                userPushTokenRepository,
+                pushDeliveryLogRepository,
+                List.of(new LogPushProviderClient()),
+                definitionPolicy
+        );
     }
 
     private NotificationEntity notification(UserEntity user) {

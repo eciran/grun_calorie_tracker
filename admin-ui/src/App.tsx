@@ -1,6 +1,7 @@
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { ProductIntakeView } from "./ProductIntakeView";
+import { NotificationDefinitionsView } from "./modules/notifications/NotificationDefinitionsView";
 import {
   clearTokens,
   formatRequestError,
@@ -178,6 +179,7 @@ type SectionKey =
   | "retentionPolicies"
   | "settings"
   | "notifications"
+  | "notificationDefinitions"
   | "notificationCampaigns"
   | "pushDelivery"
   | "engagement"
@@ -334,6 +336,7 @@ const sections: SectionMeta[] = [
   { key: "testFeedback", label: "Test Feedback", hint: "Preview build reports", icon: "T" },
   { key: "retentionPolicies", label: "Retention Policies", hint: "Legal data rules", icon: "R" },
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
+  { key: "notificationDefinitions", label: "Definitions", hint: "System notification policy", icon: "D" },
   { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
   { key: "pushDelivery", label: "Push Delivery", hint: "Device tokens", icon: "P" },
   { key: "engagement", label: "Product Analytics", hint: "Funnels and adoption", icon: "P" },
@@ -400,9 +403,12 @@ const navigation: NavigationItem[] = [
   navSection("ai"),
   {
     ...navSection("notifications"),
+    label: "Notifications",
+    hint: "Inbox, rules and delivery",
     children: [
       { key: "notifications", label: "Admin inbox", hint: "Operational alerts", icon: "N" },
-      navSection("notificationCampaigns"),
+      { ...navSection("notificationDefinitions"), label: "System rules", hint: "Edit automatic notification types" },
+      { ...navSection("notificationCampaigns"), label: "Broadcasts", hint: "Create and review campaigns" },
       navSection("mail"),
       navSection("pushDelivery")
     ]
@@ -434,7 +440,7 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality"), navSection("catalogExercises"), navSection("catalogSources")],
   [navSection("products"), navSection("productContributions"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
-  [navSection("notifications"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
+  [navSection("notifications"), navSection("notificationDefinitions"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
   [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps"), navSection("testFeedback")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
@@ -448,7 +454,7 @@ function permissionForSection(section: SectionKey): string {
   if (section === "users" || section === "userVerification") return "USERS_READ";
   if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSources", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
   if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
-  if (["notifications", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "testFeedback"].includes(section)) return "GROWTH_READ";
+  if (["notifications", "notificationDefinitions", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "testFeedback"].includes(section)) return "GROWTH_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
   if (section === "audits") return "AUDIT_READ";
   if (["integrations", "integrationProviders", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
@@ -890,7 +896,8 @@ export default function App() {
           {active === "settings" && <RuntimeOperationsView onError={setError} />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
-          {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} />}
+          {active === "notificationDefinitions" && <NotificationDefinitionsView onError={setError} />}
+          {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} onNavigate={navigateToSection} />}
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "engagement" && <EngagementAnalyticsView onError={setError} />}
@@ -8110,7 +8117,7 @@ function AuditsView({ onError }: { onError: (message: string | null) => void }) 
   );
 }
 
-function NotificationCampaignsView({ onError }: { onError: (message: string | null) => void }) {
+function NotificationCampaignsView({ onError, onNavigate }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void }) {
   const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "", frequencyCapHours: 24, frequencyCapMax: 3 };
   const [statusFilter, setStatusFilter] = useState("");
   const [campaignWindowDays, setCampaignWindowDays] = useState(31);
@@ -8126,6 +8133,8 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
   const [confirmSchedule, setConfirmSchedule] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [historyPreview, setHistoryPreview] = useState<{ campaign: NotificationCampaign; preview: NotificationCampaignPreview } | null>(null);
+  const composerRef = useRef<HTMLFormElement | null>(null);
+  const campaignNameRef = useRef<HTMLInputElement | null>(null);
   const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
   if (statusFilter) params.set("status", statusFilter);
   const { data, state, reload } = useEndpoint<PageResponse<NotificationCampaign>>("/api/v1/admin/notification-campaigns?" + params.toString(), onError);
@@ -8145,6 +8154,16 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
     setScheduledAt("");
     setPreview(null);
     setNotice(null);
+  }
+
+  function startNewDraft() {
+    resetDraft();
+    setActionState("idle");
+    setNotice("New campaign draft opened. Complete the form below and select Save draft.");
+    window.requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      campaignNameRef.current?.focus({ preventScroll: true });
+    });
   }
 
   function campaignPayload(source = draft) {
@@ -8228,8 +8247,11 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
       frequencyCapMax: item.frequencyCapMax ?? 3
     });
     setPreview(null);
-    setNotice(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setNotice("Editing saved draft #" + item.id + ". Update the form and select Save draft.");
+    window.requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      campaignNameRef.current?.focus({ preventScroll: true });
+    });
   }
 
   async function saveDraft(event: FormEvent) {
@@ -8324,7 +8346,8 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
   return (
     <div className="stack notification-campaign-page">
       <SectionToolbar title="Notification campaigns" state={combineStates([state, summaryState, actionState === "idle" ? "ready" : actionState])} onReload={() => { void reload(); void reloadSummary(); }}>
-        <button className="ghost-button" type="button" onClick={resetDraft}>New draft</button>
+        <button className="ghost-button" type="button" onClick={() => onNavigate("notificationDefinitions")}>Manage system rules</button>
+        <button className="primary-button" type="button" onClick={startNewDraft}>New draft</button>
       </SectionToolbar>
       {notice && <div className="form-notice">{notice}</div>}
       <div className="metric-grid compact-grid">
@@ -8357,13 +8380,13 @@ function NotificationCampaignsView({ onError }: { onError: (message: string | nu
         </div>
       </Panel>
 
-      <form className="panel campaign-composer" onSubmit={saveDraft}>
+      <form className="panel campaign-composer" ref={composerRef} onSubmit={saveDraft}>
         <div className="campaign-composer-header">
           <div><p className="eyebrow">Controlled broadcast</p><h3>{selectedId ? "Edit draft #" + selectedId : "Create campaign draft"}</h3></div>
           <button className="icon-button campaign-guide-button" type="button" aria-label="Open campaign management guide" title="Campaign management guide" onClick={() => setGuideOpen(true)}>i</button>
         </div>
         <div className="campaign-form-grid">
-          <label className="span-2">Internal campaign name<input required maxLength={160} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="July service update" /></label>
+          <label className="span-2">Internal campaign name<input ref={campaignNameRef} required maxLength={160} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="July service update" /></label>
           <label>Category<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}><option value="SYSTEM">System information</option><option value="MARKETING">Marketing / promotion</option></select></label>
           <label>Channel<select value={draft.channel} onChange={(event) => setDraft({ ...draft, channel: event.target.value })}><option value="IN_APP">In-app only</option><option value="PUSH">Push only</option><option value="IN_APP_AND_PUSH">In-app and push</option></select></label>
           <label className="span-2">User-facing title<input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Planned maintenance" /></label>
@@ -8621,6 +8644,7 @@ function NotificationsView({ onError, onNavigate }: { onError: (message: string 
   return (
     <div className="stack">
       <SectionToolbar title="Admin notifications" state={combineStates([state, actionState])} onReload={reload}>
+        <button className="ghost-button" type="button" onClick={() => onNavigate("notificationDefinitions")}>Manage notification rules</button>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
         <button className="primary-button" type="button" disabled={actionState === "loading"} onClick={markAllRead}>Mark all read</button>
       </SectionToolbar>

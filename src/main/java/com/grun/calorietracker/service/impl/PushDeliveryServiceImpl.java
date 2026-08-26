@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.PushDeliveryStatus;
 import com.grun.calorietracker.repository.PushDeliveryLogRepository;
 import com.grun.calorietracker.repository.UserPushTokenRepository;
 import com.grun.calorietracker.service.PushDeliveryService;
+import com.grun.calorietracker.service.NotificationDefinitionPolicy;
 import com.grun.calorietracker.service.push.PushProviderClient;
 import com.grun.calorietracker.service.push.PushProviderSendResult;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class PushDeliveryServiceImpl implements PushDeliveryService {
     private final UserPushTokenRepository userPushTokenRepository;
     private final PushDeliveryLogRepository pushDeliveryLogRepository;
     private final List<PushProviderClient> clients;
+    private final NotificationDefinitionPolicy definitionPolicy;
 
     @Override
     @Transactional
@@ -34,45 +36,66 @@ public class PushDeliveryServiceImpl implements PushDeliveryService {
         if (notification == null || notification.getUser() == null) {
             return new PushDeliveryResultDto(0, 0, 0, 0);
         }
-        if (!pushProperties.isEnabled()
-                || !Boolean.TRUE.equals(notification.getUser().getPushNotificationsEnabled())) {
-            return new PushDeliveryResultDto(0, 0, 1, 0);
+        NotificationSnapshot snapshot = NotificationSnapshot.capture(notification);
+        try {
+            boolean pushAllowed = definitionPolicy.apply(notification);
+            if (!pushAllowed) return new PushDeliveryResultDto(0, 0, 1, 0);
+            if (!pushProperties.isEnabled()
+                    || !Boolean.TRUE.equals(notification.getUser().getPushNotificationsEnabled())) {
+                return new PushDeliveryResultDto(0, 0, 1, 0);
+            }
+
+            Map<com.grun.calorietracker.enums.PushProvider, PushProviderClient> byProvider = new EnumMap<>(com.grun.calorietracker.enums.PushProvider.class);
+            clients.forEach(client -> byProvider.put(client.provider(), client));
+            PushProviderClient client = byProvider.get(pushProperties.getProvider());
+            if (client == null) {
+                return new PushDeliveryResultDto(0, 0, 0, 1);
+            }
+
+            List<UserPushTokenEntity> tokens = userPushTokenRepository.findByUserAndEnabledTrue(notification.getUser());
+            int sent = 0;
+            int failed = 0;
+            for (UserPushTokenEntity token : tokens) {
+                if (token.getProvider() != pushProperties.getProvider()) {
+                    continue;
+                }
+                PushProviderSendResult result = client.send(token, notification);
+                if (result.invalidToken()) {
+                    token.setEnabled(false);
+                    token.setRevokedAt(java.time.LocalDateTime.now());
+                    userPushTokenRepository.save(token);
+                }
+                PushDeliveryLogEntity log = new PushDeliveryLogEntity();
+                log.setNotification(notification);
+                log.setPushToken(token);
+                log.setProvider(pushProperties.getProvider());
+                log.setStatus(result.sent() ? PushDeliveryStatus.SENT : PushDeliveryStatus.FAILED);
+                log.setProviderMessageId(result.providerMessageId());
+                log.setErrorMessage(result.errorMessage());
+                pushDeliveryLogRepository.save(log);
+                if (result.sent()) {
+                    sent++;
+                } else {
+                    failed++;
+                }
+            }
+            return new PushDeliveryResultDto(tokens.size(), sent, Math.max(0, tokens.size() - sent - failed), failed);
+        } finally {
+            snapshot.restore(notification);
+        }
+    }
+
+    private record NotificationSnapshot(String title, String message, String severity, String targetRoute) {
+        private static NotificationSnapshot capture(NotificationEntity notification) {
+            return new NotificationSnapshot(notification.getTitle(), notification.getMessage(),
+                    notification.getSeverity(), notification.getTargetRoute());
         }
 
-        Map<com.grun.calorietracker.enums.PushProvider, PushProviderClient> byProvider = new EnumMap<>(com.grun.calorietracker.enums.PushProvider.class);
-        clients.forEach(client -> byProvider.put(client.provider(), client));
-        PushProviderClient client = byProvider.get(pushProperties.getProvider());
-        if (client == null) {
-            return new PushDeliveryResultDto(0, 0, 0, 1);
+        private void restore(NotificationEntity notification) {
+            notification.setTitle(title);
+            notification.setMessage(message);
+            notification.setSeverity(severity);
+            notification.setTargetRoute(targetRoute);
         }
-
-        List<UserPushTokenEntity> tokens = userPushTokenRepository.findByUserAndEnabledTrue(notification.getUser());
-        int sent = 0;
-        int failed = 0;
-        for (UserPushTokenEntity token : tokens) {
-            if (token.getProvider() != pushProperties.getProvider()) {
-                continue;
-            }
-            PushProviderSendResult result = client.send(token, notification);
-            if (result.invalidToken()) {
-                token.setEnabled(false);
-                token.setRevokedAt(java.time.LocalDateTime.now());
-                userPushTokenRepository.save(token);
-            }
-            PushDeliveryLogEntity log = new PushDeliveryLogEntity();
-            log.setNotification(notification);
-            log.setPushToken(token);
-            log.setProvider(pushProperties.getProvider());
-            log.setStatus(result.sent() ? PushDeliveryStatus.SENT : PushDeliveryStatus.FAILED);
-            log.setProviderMessageId(result.providerMessageId());
-            log.setErrorMessage(result.errorMessage());
-            pushDeliveryLogRepository.save(log);
-            if (result.sent()) {
-                sent++;
-            } else {
-                failed++;
-            }
-        }
-        return new PushDeliveryResultDto(tokens.size(), sent, Math.max(0, tokens.size() - sent - failed), failed);
     }
 }
