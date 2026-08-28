@@ -44,9 +44,11 @@ docs/
 !docs/
 docs/*
 !docs/ADVANCED_MACRO_TARGETS_ROADMAP_2026-08-24.md
+!docs/MEAL_REMINDER_AUTOMATION_SPRINT_PLAN_2026-08-28.md
 logs/
 .deploy-snapshot-*/
 .mvn-home/
+hs_err_pid*.log
 
 ### AWS local/deployment notes ###
 docs/*AWS*.md
