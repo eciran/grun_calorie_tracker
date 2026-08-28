@@ -6,7 +6,7 @@ COPY src ./src
 RUN if [ ! -f src/main/resources/application.yml ]; then \
       cp src/main/resources/application-example.yml src/main/resources/application.yml; \
     fi
-RUN mvn -B -DskipTests package
+RUN mvn -B -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre-alpine
 
