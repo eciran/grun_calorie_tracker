@@ -110,6 +110,12 @@ class AdvancedUserGoalServiceImplTest {
 
         assertEquals(first.getId(), replay.getId());
         assertEquals(11L, replay.getId());
+        assertNotNull(activeGoal.getEffectiveUntil());
+        var order = inOrder(userRepository, goalRepository);
+        order.verify(userRepository).findByEmailForUpdate(user.getEmail());
+        order.verify(goalRepository).saveAndFlush(activeGoal);
+        order.verify(goalRepository).save(argThat(value -> value != activeGoal));
+        verify(goalRepository, times(1)).saveAndFlush(activeGoal);
         verify(cacheRevisionService, times(1)).bump(user.getId(), AnalyticsMutationSource.GOAL);
         verify(saveRequestRepository, times(1)).save(any());
     }

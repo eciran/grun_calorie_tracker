@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.exception.AiQuotaExhaustedException;
+
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionFeatureAccessDto;
@@ -211,10 +213,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseGet(() -> defaultEntity(user));
         resetAiQuotaIfPeriodExpired(entity);
         SubscriptionDto current = toDto(entity);
-        if (!Boolean.TRUE.equals(current.getAiAccessAllowed())
-                || current.getAiRemainingThisPeriod() == null
+        if (!Boolean.TRUE.equals(current.getActiveEntitlement())) {
+            throw new IllegalArgumentException("An active entitlement is required for this operation.");
+        }
+        if (current.getAiRemainingThisPeriod() == null
                 || current.getAiRemainingThisPeriod() < amount) {
-            throw new IllegalArgumentException("AI quota is not available for the requested operation.");
+            throw new AiQuotaExhaustedException();
         }
         entity.setAiMonthlyQuota(current.getAiMonthlyQuota());
         int addonConsumed = Math.min(amount, safeInt(current.getAiAddonRemainingThisPeriod()));
@@ -462,7 +466,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiRemainingThisPeriod(dto.getAiBaseRemainingThisPeriod() + dto.getAiAddonRemainingThisPeriod());
         dto.setActiveEntitlement(isActiveEntitlement(dto.getStatus(), entity.getEndDate()));
         dto.setAiAccessAllowed(Boolean.TRUE.equals(dto.getActiveEntitlement()) && dto.getAiRemainingThisPeriod() > 0);
-        dto.setUpgradeRecommended(Boolean.TRUE.equals(dto.getActiveEntitlement()) && dto.getAiRemainingThisPeriod() == 0);
+        dto.setUpgradeRecommended(Boolean.TRUE.equals(dto.getActiveEntitlement())
+                && dto.getPlanType() != SubscriptionPlan.PRO && dto.getAiRemainingThisPeriod() == 0);
         dto.setAutoRenew(Boolean.TRUE.equals(entity.getAutoRenew()));
         dto.setProvider(entity.getProvider());
         dto.setProviderProductId(entity.getProviderProductId());
@@ -499,23 +504,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setDataExport(featureAllowed(subscription, resolution, SubscriptionFeature.DATA_EXPORT));
         dto.setFastingBasic(featureAllowed(subscription, resolution, SubscriptionFeature.FASTING_BASIC));
         dto.setFastingAdvanced(featureAllowed(subscription, resolution, SubscriptionFeature.FASTING_ADVANCED));
-        dto.setAiMealDrafts(featureAllowed(subscription, resolution, SubscriptionFeature.AI_MEAL_DRAFTS)
-                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        // Feature flags describe entitlement, not spendable credit. Existing results
+        // must stay accessible after the last credit; consumeAiQuota guards new work.
+        dto.setAiMealDrafts(featureAllowed(subscription, resolution, SubscriptionFeature.AI_MEAL_DRAFTS));
         dto.setAiMealDraftsCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_MEAL_DRAFTS));
-        dto.setAiWorkoutPlanner(featureAllowed(subscription, resolution, SubscriptionFeature.AI_WORKOUT_PLANNER)
-                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiWorkoutPlanner(featureAllowed(subscription, resolution, SubscriptionFeature.AI_WORKOUT_PLANNER));
         dto.setAiWorkoutPlannerCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_WORKOUT_PLANNER));
-        dto.setAiRecipeGeneration(featureAllowed(subscription, resolution, SubscriptionFeature.AI_RECIPE_GENERATION)
-                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiRecipeGeneration(featureAllowed(subscription, resolution, SubscriptionFeature.AI_RECIPE_GENERATION));
         dto.setAiRecipeGenerationCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_RECIPE_GENERATION));
-        dto.setAiMealPreparationGuide(featureAllowed(subscription, resolution, SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE)
-                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiMealPreparationGuide(featureAllowed(subscription, resolution, SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE));
         dto.setAiMealPreparationGuideCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_MEAL_PREPARATION_GUIDE));
-        dto.setAiNutritionPlan(featureAllowed(subscription, resolution, SubscriptionFeature.AI_NUTRITION_PLAN)
-                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiNutritionPlan(featureAllowed(subscription, resolution, SubscriptionFeature.AI_NUTRITION_PLAN));
         dto.setAiNutritionPlanBaseCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_NUTRITION_PLAN));
-        dto.setAiInsights(featureAllowed(subscription, resolution, SubscriptionFeature.AI_INSIGHTS)
-                && Boolean.TRUE.equals(subscription.getAiAccessAllowed()));
+        dto.setAiInsights(featureAllowed(subscription, resolution, SubscriptionFeature.AI_INSIGHTS));
         dto.setAiInsightsCreditCost(aiCreditCosts.get(SubscriptionFeature.AI_INSIGHTS));
         dto.setHealthIntegration(featureAllowed(subscription, resolution, SubscriptionFeature.HEALTH_INTEGRATION));
         dto.setAdvancedAnalytics(featureAllowed(subscription, resolution, SubscriptionFeature.ADVANCED_ANALYTICS));

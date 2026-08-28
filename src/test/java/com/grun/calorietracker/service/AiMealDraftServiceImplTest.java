@@ -34,6 +34,8 @@ import com.grun.calorietracker.service.impl.AiMealDraftSafetyServiceImpl;
 import com.grun.calorietracker.service.impl.AiProviderConfigurationValidatorImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
@@ -107,13 +109,14 @@ class AiMealDraftServiceImplTest {
         verifyNoInteractions(subscriptionService, historyRepository);
     }
 
-    @Test
-    void createVoiceFoodDraft_createsDraftConsumesQuotaAndStoresHistory() {
+    @ParameterizedTest
+    @ValueSource(ints = {14, 0})
+    void createVoiceFoodDraft_createsDraftConsumesQuotaAndStoresHistory_evenForLastCredit(int remaining) throws Exception {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(providerResponse());
         SubscriptionDto quota = new SubscriptionDto();
-        quota.setAiRemainingThisPeriod(14);
+        quota.setAiRemainingThisPeriod(remaining);
         when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
@@ -124,7 +127,7 @@ class AiMealDraftServiceImplTest {
         AiMealDraftResponseDto result = service.createVoiceFoodDraft("user@example.com", request());
 
         assertEquals(10L, result.getRequestId());
-        assertEquals(14, result.getAiRemainingThisPeriod());
+        assertEquals(remaining, result.getAiRemainingThisPeriod());
         assertEquals(null, result.getItems().get(0).getMatchedFoodItemId());
         assertEquals(true, result.getItems().get(0).getReviewRequired());
         assertEquals("AI_SNAPSHOT", result.getItems().get(0).getMatchReason());
@@ -139,6 +142,9 @@ class AiMealDraftServiceImplTest {
         assertEquals("ai-prompt-v2", captor.getValue().getPromptVersion());
         assertEquals(AiRequestStatus.DRAFT_CREATED, captor.getValue().getStatus());
         assertEquals(true, captor.getValue().getQuotaConsumed());
+        var persisted = new ObjectMapper().readTree(captor.getValue().getOutputPayload());
+        assertEquals(remaining, persisted.get("aiRemainingThisPeriod").asInt());
+        assertEquals(result.getItems().size(), persisted.get("items").size());
         assertFalse(captor.getValue().getInputPayload().contains("I ate chicken and rice"));
         org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().getInputPayload().contains("transcriptLength"));
         org.junit.jupiter.api.Assertions.assertNotNull(captor.getValue().getLatencyMs());

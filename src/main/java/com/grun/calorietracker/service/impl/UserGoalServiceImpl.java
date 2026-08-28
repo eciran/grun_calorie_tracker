@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.exception.GoalValidationException;
+
 import com.grun.calorietracker.dto.GoalCalculationResponse;
 import com.grun.calorietracker.dto.GoalCalculationRequestDto;
 import com.grun.calorietracker.dto.UserGoalDto;
@@ -11,6 +13,7 @@ import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.GoalRepository;
+import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserGoalService;
 import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
@@ -42,16 +45,17 @@ public class UserGoalServiceImpl implements UserGoalService {
     private final UserService userService;
     private final ProfileEnergyExpenditureCalculator profileEnergyCalculator;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
     public UserGoalDto saveUserGoal(GoalCalculationRequestDto goalData, String email) {
         log.info("Saving new goal for user: {}", email);
 
-        UserEntity user = userService.findByEmail(email)
+        UserEntity user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
 
-        // Calculate and validate before deleting the current goal. An invalid replacement
+        // Calculate and validate before closing the current goal. An invalid replacement
         // must never leave the user without their previously active goal.
         UserGoalDto calculatedGoal = buildCalculatedGoalDto(goalData, user);
 
@@ -59,7 +63,8 @@ public class UserGoalServiceImpl implements UserGoalService {
         userGoalRepository.findByUser(user).ifPresent(existing -> {
             log.info("Closing existing goal for user: {}", email);
             existing.setEffectiveUntil(effectiveAt);
-            userGoalRepository.save(existing);
+            // Flush the closure before the IDENTITY insert checks the active-goal unique index.
+            userGoalRepository.saveAndFlush(existing);
         });
 
         UserGoalEntity newGoal = UserGoalMapper.toEntity(calculatedGoal, user);
@@ -107,7 +112,7 @@ public class UserGoalServiceImpl implements UserGoalService {
                 || profile.getGender() == null
                 || profile.getHeight() == null
                 || profile.getWeight() == null) {
-            throw new IllegalArgumentException("Profile metrics are required for goal preview");
+            throw new GoalValidationException("GOAL_PROFILE_REQUIRED", "Profile metrics are required for goal preview");
         }
         UserEntity calculationProfile = new UserEntity();
         calculationProfile.setAge(profile.getAge());
@@ -202,7 +207,7 @@ public class UserGoalServiceImpl implements UserGoalService {
         } else {
             if (!Double.isFinite(goalData.getWeeklyWeightChangeTargetKg())
                     || Math.abs(goalData.getWeeklyWeightChangeTargetKg()) < 0.01) {
-                throw new IllegalArgumentException("Weekly weight change must be greater than zero for this goal type.");
+                throw new GoalValidationException("GOAL_WEEKLY_RATE", "Weekly weight change must be greater than zero for this goal type.");
             }
             requestedMagnitude = Math.abs(goalData.getWeeklyWeightChangeTargetKg());
         }
@@ -235,17 +240,17 @@ public class UserGoalServiceImpl implements UserGoalService {
                 || goalData.getTargetWeight() == null
                 || goalData.getGoalType() == null
                 || goalData.getActivityLevel() == null) {
-            throw new IllegalArgumentException("Target weight, goal type, and activity level are required.");
+            throw new GoalValidationException("GOAL_INPUTS_REQUIRED", "Target weight, goal type, and activity level are required.");
         }
         if (user == null
                 || user.getAge() == null
                 || user.getGender() == null
                 || user.getHeight() == null
                 || user.getWeight() == null) {
-            throw new IllegalArgumentException("Complete profile metrics are required for goal calculation.");
+            throw new GoalValidationException("GOAL_PROFILE_REQUIRED", "Complete profile metrics are required for goal calculation.");
         }
         if (!Double.isFinite(goalData.getTargetWeight()) || goalData.getTargetWeight() < 30 || goalData.getTargetWeight() > 300) {
-            throw new IllegalArgumentException("Target weight must be between 30 and 300 kg.");
+            throw new GoalValidationException("GOAL_WEIGHT_RANGE", "Target weight must be between 30 and 300 kg.");
         }
     }
 
@@ -254,22 +259,22 @@ public class UserGoalServiceImpl implements UserGoalService {
         switch (goalData.getGoalType()) {
             case LOSE_WEIGHT -> {
                 if (difference >= -WEIGHT_DIRECTION_TOLERANCE_KG) {
-                    throw new IllegalArgumentException("A weight-loss target must be lower than the current weight.");
+                    throw new GoalValidationException("GOAL_LOSS_DIRECTION", "A weight-loss target must be lower than the current weight.");
                 }
             }
             case GAIN_WEIGHT -> {
                 if (difference <= WEIGHT_DIRECTION_TOLERANCE_KG) {
-                    throw new IllegalArgumentException("A weight-gain target must be higher than the current weight.");
+                    throw new GoalValidationException("GOAL_GAIN_DIRECTION", "A weight-gain target must be higher than the current weight.");
                 }
             }
             case BUILD_MUSCLE -> {
                 if (difference < -MAINTENANCE_TOLERANCE_KG) {
-                    throw new IllegalArgumentException("A muscle-building target cannot be materially lower than the current weight.");
+                    throw new GoalValidationException("GOAL_MUSCLE_DIRECTION", "A muscle-building target cannot be materially lower than the current weight.");
                 }
             }
             case MAINTAIN_WEIGHT -> {
                 if (Math.abs(difference) > MAINTENANCE_TOLERANCE_KG) {
-                    throw new IllegalArgumentException("A maintenance target must stay within 1 kg of the current weight.");
+                    throw new GoalValidationException("GOAL_MAINTAIN_DIRECTION", "A maintenance target must stay within 1 kg of the current weight.");
                 }
             }
         }

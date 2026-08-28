@@ -1,6 +1,9 @@
 spring:
   application:
     name: grun-calorie-tracker
+  messages:
+    fallback-to-system-locale: false
+    encoding: UTF-8
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/grun_calorie_db}
     username: ${POSTGRES_USER:postgres}

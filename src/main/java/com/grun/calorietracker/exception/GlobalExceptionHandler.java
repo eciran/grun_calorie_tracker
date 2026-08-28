@@ -245,6 +245,15 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(AiQuotaExhaustedException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAiQuotaExhausted(
+            AiQuotaExhaustedException ex, HttpServletRequest request) {
+        return buildDomainResponse(HttpStatus.TOO_MANY_REQUESTS, "AI_QUOTA_EXHAUSTED",
+                resolveMessage("error.ai-quota-exhausted",
+                        "Not enough AI credits for this action. Your saved results and plans remain accessible.", request),
+                List.of(), request);
+    }
+
     @ExceptionHandler(SubscriptionFeatureAccessDeniedException.class)
     public ResponseEntity<ApiErrorResponseDto> handleSubscriptionFeatureAccessDenied(
             SubscriptionFeatureAccessDeniedException ex,
@@ -369,7 +378,14 @@ public class GlobalExceptionHandler {
         );
     }
     @ExceptionHandler(IllegalArgumentException.class)
+    // Goal failures use a safe, localized contract instead of the generic invalid-request copy.
+    // Kept separate so unrelated argument exceptions still hide diagnostic details.
     public ResponseEntity<ApiErrorResponseDto> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
+        if (ex instanceof GoalValidationException goal) {
+            return buildDomainResponse(HttpStatus.BAD_REQUEST, goal.getCode(),
+                    resolveMessage("error.goal." + goal.getCode().substring(5),
+                            "Check your goal inputs and calculate again.", request), List.of(), request);
+        }
         if (isAiMealDraftConfirmRequest(request)) {
             String code = confirmExceptionCode(ex.getMessage());
             return buildDomainResponse(

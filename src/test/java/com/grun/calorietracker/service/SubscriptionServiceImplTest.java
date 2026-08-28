@@ -1,6 +1,11 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.exception.SubscriptionFeatureAccessDeniedException;
+import com.grun.calorietracker.exception.AiQuotaExhaustedException;
+import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.service.impl.AiCreditPreviewServiceImpl;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.entity.SubscriptionPlanFeatureEntity;
@@ -198,6 +203,96 @@ class SubscriptionServiceImplTest {
         assertEquals(1, result.getAiCreditCosts().get(SubscriptionFeature.AI_WORKOUT_PLANNER));
         assertEquals(10, result.getAiRemainingThisPeriod());
     }
+    @ParameterizedTest
+    @EnumSource(value = SubscriptionPlan.class, names = {"PLUS", "PRO"})
+    void exhaustedPaidPlan_keepsAllEntitledAiFeaturesAndReturnsUnaffordablePreview(SubscriptionPlan plan) {
+        int quota = plan == SubscriptionPlan.PRO ? 150 : 50;
+        SubscriptionEntity entity = subscription(plan, SubscriptionStatus.ACTIVE, quota, quota);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        var features = service.getFeatureAccess("user@example.com");
+        assertEquals(true, features.getAiMealDrafts());
+        assertEquals(true, features.getAiWorkoutPlanner());
+        assertEquals(true, features.getAiRecipeGeneration());
+        assertEquals(true, features.getAiMealPreparationGuide());
+        assertEquals(true, features.getAiNutritionPlan());
+        assertEquals(true, features.getAiInsights());
+        assertEquals(0, features.getAiRemainingThisPeriod());
+        assertEquals(false, service.getCurrentSubscription("user@example.com").getAiAccessAllowed());
+        assertEquals(plan == SubscriptionPlan.PLUS,
+                service.getCurrentSubscription("user@example.com").getUpgradeRecommended());
+
+        var preview = new AiCreditPreviewServiceImpl(service).preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG);
+        assertEquals(false, preview.isCanAfford());
+        assertEquals(1, preview.getCreditCost());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SubscriptionPlan.class, names = {"PLUS", "PRO"})
+    void lastCredit_succeedsWithoutRevokingAccess_andNextRequestCannotOverspend(SubscriptionPlan plan) {
+        int quota = plan == SubscriptionPlan.PRO ? 150 : 50;
+        SubscriptionEntity entity = subscription(plan, SubscriptionStatus.ACTIVE, quota, quota - 1);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        var previews = new AiCreditPreviewServiceImpl(service);
+
+        assertEquals(true, previews.preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG).isCanAfford());
+        assertEquals(0, service.consumeAiQuota("user@example.com").getAiRemainingThisPeriod());
+        service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
+        service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
+        service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN);
+        assertEquals(false, previews.preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG).isCanAfford());
+        assertThrows(AiQuotaExhaustedException.class, () -> service.consumeAiQuota("user@example.com"));
+        assertEquals(quota, entity.getAiUsedThisPeriod());
+        verify(subscriptionRepository).save(entity);
+    }
+
+    @Test
+    void insufficientCreditsForPricedAction_doesNotRevokeFeatureOrCharge() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 49);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(aiCreditPricingService.fixedCost(SubscriptionFeature.AI_MEAL_DRAFTS)).thenReturn(3);
+
+        var preview = new AiCreditPreviewServiceImpl(service).preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG);
+        assertEquals(false, preview.isCanAfford());
+        assertEquals(3, preview.getCreditCost());
+        assertEquals(1, preview.getAiRemainingThisPeriod());
+        assertThrows(AiQuotaExhaustedException.class, () -> service.consumeAiQuota("user@example.com", 3));
+        assertEquals(true, service.getFeatureAccess("user@example.com").getAiMealDrafts());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    void zeroBalance_doesNotBypassDisabledPlanFeature() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 50);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionPlanFeatureRepository.findByPlanTypeOrderByFeatureAsc(SubscriptionPlan.PLUS))
+                .thenReturn(List.of(planFeature(SubscriptionPlan.PLUS, SubscriptionFeature.AI_MEAL_DRAFTS, false)));
+
+        assertThrows(SubscriptionFeatureAccessDeniedException.class,
+                () -> new AiCreditPreviewServiceImpl(service).preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG));
+        assertEquals(false, service.getFeatureAccess("user@example.com").getAiMealDrafts());
+    }
+
+    @Test
+    void freePlanWithAddonBalance_doesNotGainPaidFeatures() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
+        entity.setAiAddonQuota(10);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        assertThrows(SubscriptionFeatureAccessDeniedException.class,
+                () -> new AiCreditPreviewServiceImpl(service).preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG));
+        assertEquals(false, service.getFeatureAccess("user@example.com").getAiMealDrafts());
+    }
+
     @Test
     void getFeatureAccess_whenProPlan_enablesAdvancedAnalytics() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 0);

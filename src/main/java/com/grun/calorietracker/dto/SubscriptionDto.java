@@ -29,6 +29,7 @@ public class SubscriptionDto {
     private Integer aiAddonRemainingThisPeriod;
     private Integer aiRemainingThisPeriod;
     private Boolean activeEntitlement;
+    @Schema(description = "Legacy spending hint: active entitlement with positive credit balance. Not a feature/history access flag; use feature access and request-specific cost preview.")
     private Boolean aiAccessAllowed;
     private Boolean upgradeRecommended;
     private Boolean autoRenew;

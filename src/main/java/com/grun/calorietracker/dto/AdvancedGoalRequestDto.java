@@ -25,6 +25,8 @@ public class AdvancedGoalRequestDto {
     private String previewToken;
 
     public GoalCalculationRequestDto automaticRequest() {
-        return new GoalCalculationRequestDto(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel);
+        // Manual calories come from macros; a hidden, previously saved pace must not block the reference calculation.
+        return new GoalCalculationRequestDto(targetWeight,
+                mode == GoalCalculationMode.MANUAL ? null : weeklyWeightChangeTargetKg, goalType, activityLevel);
     }
 }

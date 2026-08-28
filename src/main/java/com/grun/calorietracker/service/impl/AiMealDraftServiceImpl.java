@@ -175,7 +175,9 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     public List<AiRequestHistoryDto> listHistory(String email, int limit) {
         UserEntity user = getUser(email);
         int safeLimit = Math.max(1, Math.min(limit, properties.getMaxHistoryLimit()));
-        return aiRequestHistoryRepository.findByUserOrderByCreatedAtDesc(user, PageRequest.of(0, safeLimit))
+        return aiRequestHistoryRepository.findUserHistoryPage(user,
+                        List.of(AiRequestType.PHOTO_MEAL_LOG, AiRequestType.VOICE_FOOD_LOG),
+                        List.of(AiRequestStatus.values()), Long.MAX_VALUE, PageRequest.of(0, safeLimit))
                 .stream()
                 .map(this::toHistoryDto)
                 .toList();

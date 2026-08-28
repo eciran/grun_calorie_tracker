@@ -8,6 +8,7 @@ import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.repository.GoalRepository;
+import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.UserGoalServiceImpl;
 import com.grun.calorietracker.service.support.ProfileEnergyExpenditureCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,13 +37,15 @@ class UserGoalServiceImplTest {
     @Mock
     private UserService userService;
     @Mock
+    private UserRepository userRepository;
+    @Mock
     private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
 
     private UserGoalServiceImpl userGoalService;
 
     @BeforeEach
     void setUp() {
-        userGoalService = new UserGoalServiceImpl(goalRepository, userService, new ProfileEnergyExpenditureCalculator(), analyticsCacheRevisionService);
+        userGoalService = new UserGoalServiceImpl(goalRepository, userService, new ProfileEnergyExpenditureCalculator(), analyticsCacheRevisionService, userRepository);
     }
 
     @Test
@@ -132,7 +135,7 @@ class UserGoalServiceImplTest {
     void saveUserGoal_persistsCalculatedCaloriesAndMacros() {
         UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
         GoalCalculationRequestDto goal = goal(GoalType.LOSE_WEIGHT, ActivityLevel.MODERATE, 0.5);
-        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
         when(goalRepository.save(any(UserGoalEntity.class))).thenAnswer(invocation -> {
             UserGoalEntity saved = invocation.getArgument(0);
@@ -160,13 +163,18 @@ class UserGoalServiceImplTest {
         UserGoalEntity existing = new UserGoalEntity();
         existing.setId(7L);
         GoalCalculationRequestDto request = goal(GoalType.LOSE_WEIGHT, ActivityLevel.MODERATE, 0.5);
-        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(goalRepository.findByUser(user)).thenReturn(Optional.of(existing));
         when(goalRepository.save(any(UserGoalEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         userGoalService.saveUserGoal(request, "user@example.com");
 
         assertNotNull(existing.getEffectiveUntil());
+        var order = org.mockito.Mockito.inOrder(userRepository, goalRepository);
+        order.verify(userRepository).findByEmailForUpdate("user@example.com");
+        order.verify(goalRepository).findByUser(user);
+        order.verify(goalRepository).saveAndFlush(existing);
+        order.verify(goalRepository).save(org.mockito.ArgumentMatchers.argThat(value -> value != existing));
         org.mockito.Mockito.verify(goalRepository, org.mockito.Mockito.never()).delete(existing);
     }
 
@@ -248,12 +256,13 @@ class UserGoalServiceImplTest {
         UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
         GoalCalculationRequestDto goal = goal(GoalType.GAIN_WEIGHT, ActivityLevel.MODERATE, 0.3);
         goal.setTargetWeight(65.0);
-        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
 
         assertThrows(IllegalArgumentException.class, () -> userGoalService.saveUserGoal(goal, "user@example.com"));
 
         verify(goalRepository, never()).delete(any(UserGoalEntity.class));
         verify(goalRepository, never()).save(any(UserGoalEntity.class));
+        verify(goalRepository, never()).saveAndFlush(any(UserGoalEntity.class));
     }
     private UserEntity user(String email, String gender, Integer age, Double height, Double weight, Double bodyFat) {
         UserEntity user = new UserEntity();

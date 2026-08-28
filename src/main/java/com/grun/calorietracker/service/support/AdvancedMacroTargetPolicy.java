@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.support;
 
+import com.grun.calorietracker.exception.GoalValidationException;
+
 import com.grun.calorietracker.dto.AdvancedGoalPreviewDto;
 import com.grun.calorietracker.dto.AdvancedGoalRequestDto;
 import com.grun.calorietracker.dto.GoalCalculationResponse;
@@ -24,7 +26,7 @@ public class AdvancedMacroTargetPolicy {
 
     public AdvancedGoalPreviewDto preview(AdvancedGoalRequestDto request, GoalCalculationResponse automatic) {
         if (request.getMode() == GoalCalculationMode.AUTO) {
-            throw new IllegalArgumentException("Use restore automatic for AUTO mode.");
+            throw new GoalValidationException("GOAL_MANUAL_MODE_REQUIRED", "Use restore automatic for AUTO mode.");
         }
         double protein;
         double carbs;
@@ -35,13 +37,13 @@ public class AdvancedMacroTargetPolicy {
             carbs = request.getCarbGrams();
             fat = request.getFatGrams();
         } else {
-            if (request.getStrategy() == null) throw new IllegalArgumentException("Controlled strategy is required.");
+            if (request.getStrategy() == null) throw new GoalValidationException("GOAL_STRATEGY_REQUIRED", "Controlled strategy is required.");
             int count = count(request);
             if (request.getStrategy() == GoalControlledStrategy.PRIORITY_MACRO_FIXED && count != 1) {
-                throw new IllegalArgumentException("Priority macro strategy requires exactly one macro.");
+                throw new GoalValidationException("GOAL_PRIORITY_MACRO_COUNT", "Priority macro strategy requires exactly one macro.");
             }
             if (request.getStrategy() == GoalControlledStrategy.CALORIES_FIXED && (count < 1 || count > 2)) {
-                throw new IllegalArgumentException("Calories-fixed strategy requires one or two macros.");
+                throw new GoalValidationException("GOAL_CONTROLLED_MACRO_COUNT", "Calories-fixed strategy requires one or two macros.");
             }
             double[] resolved = resolveControlled(request, automatic);
             protein = resolved[0]; carbs = resolved[1]; fat = resolved[2];
@@ -74,7 +76,7 @@ public class AdvancedMacroTargetPolicy {
         Double p = r.getProteinGrams(), c = r.getCarbGrams(), f = r.getFatGrams();
         double remaining = a.getCalculatedCalorieNeed()
                 - (p == null ? 0 : p * 4) - (c == null ? 0 : c * 4) - (f == null ? 0 : f * 9);
-        if (remaining <= 0) throw new IllegalArgumentException("Locked macros exceed the calorie budget.");
+        if (remaining <= 0) throw new GoalValidationException("GOAL_MACRO_BUDGET_EXCEEDED", "Locked macros exceed the calorie budget.");
         double autoP = a.getRecommendedProteinGrams() * 4.0;
         double autoC = a.getRecommendedCarbGrams() * 4.0;
         double autoF = a.getRecommendedFatGrams() * 9.0;
@@ -98,7 +100,7 @@ public class AdvancedMacroTargetPolicy {
         return (r.getProteinGrams() == null ? 0 : 1) + (r.getCarbGrams() == null ? 0 : 1) + (r.getFatGrams() == null ? 0 : 1);
     }
     private static void requireCount(AdvancedGoalRequestDto r, int expected) {
-        if (count(r) != expected) throw new IllegalArgumentException("All three macros are required for manual mode.");
+        if (count(r) != expected) throw new GoalValidationException("GOAL_MANUAL_MACROS_REQUIRED", "All three macros are required for manual mode.");
     }
     private static double round(double value) { return Math.round(value * 10.0) / 10.0; }
 }

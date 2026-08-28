@@ -1,4 +1,7 @@
 spring:
+  messages:
+    fallback-to-system-locale: false
+    encoding: UTF-8
   datasource:
     hikari:
       maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}

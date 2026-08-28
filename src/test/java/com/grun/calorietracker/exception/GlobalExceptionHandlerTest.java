@@ -19,6 +19,31 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class GlobalExceptionHandlerTest {
 
     @Test
+    void quotaFailure_hasStableCodeAndLocalizedCopyWithoutRevokingEntitlement() {
+        var messages = new org.springframework.context.support.ResourceBundleMessageSource();
+        messages.setBasename("messages");
+        messages.setDefaultEncoding("UTF-8");
+        var yaml = new org.springframework.beans.factory.config.YamlPropertiesFactoryBean();
+        yaml.setResources(new org.springframework.core.io.ClassPathResource("application-prod.yml"));
+        var configuredFallback = yaml.getObject().getProperty("spring.messages.fallback-to-system-locale");
+        assertEquals("false", configuredFallback, "Message language must not depend on the server locale");
+        messages.setFallbackToSystemLocale(Boolean.parseBoolean(configuredFallback));
+        var handler = new GlobalExceptionHandler(messages, false);
+        for (String language : java.util.List.of("en", "tr")) {
+            var request = request();
+            request.addPreferredLocale(Locale.forLanguageTag(language));
+            var response = handler.handleAiQuotaExhausted(new AiQuotaExhaustedException(), request);
+            assertEquals(429, response.getStatusCode().value());
+            assertEquals("AI_QUOTA_EXHAUSTED", response.getBody().getCode());
+            assertEquals("request-1", response.getBody().getCorrelationId());
+            assertEquals(language.equals("tr")
+                    ? "Bu işlem için yeterli YZ krediniz yok. Kayıtlı sonuçlarınıza ve planlarınıza erişmeye devam edebilirsiniz."
+                    : "Not enough AI credits for this action. Your saved results and plans remain accessible.",
+                    response.getBody().getMessage());
+        }
+    }
+
+    @Test
     void handleAdminMfaLoginException_returnsStableChallengeCode() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
         MockHttpServletRequest request = request();

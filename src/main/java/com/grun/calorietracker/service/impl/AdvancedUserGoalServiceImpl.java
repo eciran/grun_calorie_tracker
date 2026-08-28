@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.exception.GoalValidationException;
+
 import com.grun.calorietracker.dto.AdvancedGoalPreviewDto;
 import com.grun.calorietracker.dto.AdvancedGoalRequestDto;
 import com.grun.calorietracker.dto.UserGoalDto;
@@ -106,9 +108,9 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
         }
         validatePreview(request, user);
         AdvancedGoalPreviewDto preview = policy.preview(request, userGoalService.calculateGoal(request.automaticRequest(), email));
-        if (!preview.isCanSave()) throw new IllegalArgumentException("Advanced goal violates required policy constraints.");
+        if (!preview.isCanSave()) throw new GoalValidationException("GOAL_POLICY_CONSTRAINT", "Advanced goal violates required policy constraints.");
         if (preview.isRequiresAcknowledgement() && !request.isWarningsAcknowledged()) {
-            throw new IllegalArgumentException("Warnings must be acknowledged before saving.");
+            throw new GoalValidationException("GOAL_ACKNOWLEDGEMENT_REQUIRED", "Warnings must be acknowledged before saving.");
         }
         LocalDateTime now = LocalDateTime.now();
         goalRepository.findByUser(user).ifPresent(active -> {
@@ -116,7 +118,8 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
                 throw new IllegalStateException("Goal was updated by another request. Preview again.");
             }
             active.setEffectiveUntil(now);
-            goalRepository.save(active);
+            // Flush the closure before the IDENTITY insert checks the active-goal unique index.
+            goalRepository.saveAndFlush(active);
         });
         UserGoalEntity entity = new UserGoalEntity();
         entity.setUser(user);
@@ -179,7 +182,7 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
         UserEntity user = userService.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         if (user.getAge() == null || user.getAge() < 18) {
-            throw new IllegalArgumentException("Advanced macro targets are available to adults only.");
+            throw new GoalValidationException("GOAL_ADULT_ONLY", "Advanced macro targets are available to adults only.");
         }
         return user;
     }
@@ -189,14 +192,14 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
         UserEntity user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         if (user.getAge() == null || user.getAge() < 18) {
-            throw new IllegalArgumentException("Advanced macro targets are available to adults only.");
+            throw new GoalValidationException("GOAL_ADULT_ONLY", "Advanced macro targets are available to adults only.");
         }
         return user;
     }
 
     private void validatePreview(AdvancedGoalRequestDto request, UserEntity user) {
         if (request.getPreviewToken() == null || request.getPreviewToken().isBlank()) {
-            throw new IllegalArgumentException("A valid preview token is required.");
+            throw new GoalValidationException("GOAL_PREVIEW_REQUIRED", "A valid preview token is required.");
         }
         AdvancedGoalPreviewEntity preview = previewRepository.findById(request.getPreviewToken())
                 .orElseThrow(() -> new RequestConflictException("Preview is missing or expired. Preview the goal again."));
