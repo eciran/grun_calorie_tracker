@@ -61,7 +61,9 @@ public class LegacyFoodProductReviewCaseBridge {
                 null,
                 "legacy-v1",
                 true,
-                false
+                false,
+                false,
+                null
         ));
     }
 
@@ -121,7 +123,9 @@ public class LegacyFoodProductReviewCaseBridge {
                 json(Map.of("legacyCorrectionId", correction.getId())),
                 "legacy-v1",
                 correction.getImageUrl() != null,
-                false
+                false,
+                false,
+                null
         ));
     }
 

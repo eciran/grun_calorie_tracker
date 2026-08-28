@@ -31,6 +31,8 @@ public record FoodProductReviewCaseCommand(
         String correctionSummaryJson,
         String consentVersion,
         boolean temporaryEvidenceAllowed,
-        boolean publicMediaAllowed
+        boolean publicMediaAllowed,
+        boolean aiNutritionLabelProcessingAllowed,
+        String aiNutritionLabelConsentVersion
 ) {
 }

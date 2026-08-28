@@ -33,6 +33,8 @@ public record FoodProductReviewSubmitRequestDto(
         @NotBlank @Size(max = 50) String consentVersion,
         @AssertTrue boolean temporaryEvidenceAllowed,
         boolean publicMediaAllowed,
+        boolean aiNutritionLabelProcessingAllowed,
+        @Size(max = 50) String aiNutritionLabelConsentVersion,
         @Valid FoodProductOcrExtractionDto ocrExtraction
 ) {
 }

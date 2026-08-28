@@ -405,7 +405,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
                 null,
                 null,
                 false,
-                false
+                false,
+                false,
+                null
         ));
         if (reviewCase.getFoodItem() == null
                 || reviewCase.getFoodItem().getPublicationStatus()

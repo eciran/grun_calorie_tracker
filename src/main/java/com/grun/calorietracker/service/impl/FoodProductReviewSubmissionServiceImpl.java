@@ -26,11 +26,15 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewSubmissionService;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
+import com.grun.calorietracker.service.model.ProductNutritionOcrFallbackRequest;
+import com.grun.calorietracker.service.model.ProductNutritionOcrShadowRequest;
+import com.grun.calorietracker.service.model.ProductNutritionOcrShadowRequestedEvent;
 import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -48,6 +52,7 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
     private final ObjectMapper json;
     private final ProductIntakeRolloutPolicy rolloutPolicy;
     private final FoodContributionStorageProperties storageProperties;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -70,7 +75,8 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
                 request.sugar(), request.sodium(), request.nutritionBasis(), request.riskLevel(), 1,
                 encode(request.submittedFields()), encode(request.fieldConfidence()),
                 encode(request.correctionSummary()), request.consentVersion(),
-                request.temporaryEvidenceAllowed(), request.publicMediaAllowed()));
+                request.temporaryEvidenceAllowed(), request.publicMediaAllowed(),
+                request.aiNutritionLabelProcessingAllowed(), request.aiNutritionLabelConsentVersion()));
         requireOwner(review.getSubmittedBy(), user);
         if (!sessionId.equals(review.getSourceReference())) {
             throw new RequestConflictException("Idempotency key is already bound to another submission.");
@@ -83,7 +89,36 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         });
         assets.saveAll(evidence);
         saveExtraction(review, request.ocrExtraction());
+        publishShadowRequest(review, evidence, request);
         return response(review, sessionId);
+    }
+
+    private void publishShadowRequest(FoodProductReviewCaseEntity review,
+                                      java.util.List<com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity> evidence,
+                                      FoodProductReviewSubmitRequestDto request) {
+        FoodProductOcrExtractionDto extraction = request.ocrExtraction();
+        if (extraction == null || extraction.shadowV3Values() == null || extraction.shadowV4Values() == null) return;
+        var nutritionAsset = evidence.stream()
+                .filter(asset -> asset.getAssetType() == com.grun.calorietracker.enums.FoodProductReviewAssetType.NUTRITION_LABEL)
+                .findFirst().orElse(null);
+        if (nutritionAsset == null || nutritionAsset.getId() == null) return;
+        java.util.List<String> uncertainFields = extraction.decisions() == null
+                ? extraction.shadowV4Values().keySet().stream().filter(key -> !"basis".equals(key)).toList()
+                : extraction.decisions().entrySet().stream()
+                .filter(entry -> !(entry.getValue() instanceof java.util.Map<?, ?> decision)
+                        || !"AUTO_ACCEPT".equals(String.valueOf(decision.get("decision"))))
+                .map(java.util.Map.Entry::getKey).toList();
+        double localConfidence = request.fieldConfidence().values().stream()
+                .filter(Number.class::isInstance).map(Number.class::cast).mapToDouble(Number::doubleValue)
+                .min().orElse(0.5);
+        ProductNutritionOcrFallbackRequest fallback = new ProductNutritionOcrFallbackRequest(
+                review.getId(), nutritionAsset.getId(), review.getSubmittedBy().getId(), extraction.parserVersion(),
+                Math.max(0, Math.min(1, localConfidence)), uncertainFields,
+                extraction.wordBoxes() == null ? java.util.List.of() : extraction.wordBoxes(),
+                request.aiNutritionLabelProcessingAllowed(), request.aiNutritionLabelConsentVersion());
+        eventPublisher.publishEvent(new ProductNutritionOcrShadowRequestedEvent(new ProductNutritionOcrShadowRequest(
+                fallback, request.submittedFields(), extraction.shadowV3Values(), extraction.shadowV4Values(),
+                extraction.shadowUserValues() == null ? request.submittedFields() : extraction.shadowUserValues())));
     }
 
     @Override
@@ -152,6 +187,11 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         entity.setRecognizedLinesJson(encode(value.recognizedLines()));
         entity.setParsedValuesJson(encode(value.parsedValues()));
         entity.setParserWarningsJson(encode(value.parserWarnings()));
+        entity.setWordBoxesJson(encodeNullable(value.wordBoxes()));
+        entity.setFieldEvidenceJson(encodeNullable(value.fieldEvidence()));
+        entity.setQualitySignalsJson(encodeNullable(value.qualitySignals()));
+        entity.setDecisionsJson(encodeNullable(value.decisions()));
+        entity.setCorrectionAuditJson(encodeNullable(value.correctionAudit()));
         entity.setRawPayloadExpiresAt(LocalDateTime.now().plusDays(storageProperties.getPendingRetentionDays()));
         entity.setCreatedAt(LocalDateTime.now());
         extractions.save(entity);
@@ -206,6 +246,10 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         } catch (Exception exception) {
             throw new IllegalArgumentException("Invalid review metadata.", exception);
         }
+    }
+
+    private String encodeNullable(Object value) {
+        return value == null ? null : encode(value);
     }
 
     private String trim(String value) {

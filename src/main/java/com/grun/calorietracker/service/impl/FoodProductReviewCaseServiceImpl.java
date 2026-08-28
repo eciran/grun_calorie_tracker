@@ -162,6 +162,8 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
         reviewCase.setConsentVersion(trimToNull(command.consentVersion()));
         reviewCase.setTemporaryEvidenceAllowed(command.temporaryEvidenceAllowed());
         reviewCase.setPublicMediaAllowed(command.publicMediaAllowed());
+        reviewCase.setAiNutritionLabelProcessingAllowed(command.aiNutritionLabelProcessingAllowed());
+        reviewCase.setAiNutritionLabelConsentVersion(trimToNull(command.aiNutritionLabelConsentVersion()));
         try {
             return reviewCaseRepository.saveAndFlush(reviewCase);
         } catch (DataIntegrityViolationException duplicate) {

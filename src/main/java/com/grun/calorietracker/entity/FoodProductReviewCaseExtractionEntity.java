@@ -40,6 +40,16 @@ public class FoodProductReviewCaseExtractionEntity {
     private String parsedValuesJson;
     @Column(name = "parser_warnings_json", columnDefinition = "TEXT")
     private String parserWarningsJson;
+    @Column(name = "word_boxes_json", columnDefinition = "TEXT")
+    private String wordBoxesJson;
+    @Column(name = "field_evidence_json", columnDefinition = "TEXT")
+    private String fieldEvidenceJson;
+    @Column(name = "quality_signals_json", columnDefinition = "TEXT")
+    private String qualitySignalsJson;
+    @Column(name = "decisions_json", columnDefinition = "TEXT")
+    private String decisionsJson;
+    @Column(name = "correction_audit_json", columnDefinition = "TEXT")
+    private String correctionAuditJson;
     @Column(name = "raw_payload_expires_at")
     private LocalDateTime rawPayloadExpiresAt;
     @Column(name = "raw_payload_deleted_at")

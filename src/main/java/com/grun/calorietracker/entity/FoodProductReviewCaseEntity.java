@@ -87,6 +87,12 @@ public class FoodProductReviewCaseEntity {
     @Column(name = "public_media_allowed", nullable = false)
     private Boolean publicMediaAllowed;
 
+    @Column(name = "ai_nutrition_label_processing_allowed", nullable = false)
+    private Boolean aiNutritionLabelProcessingAllowed;
+
+    @Column(name = "ai_nutrition_label_consent_version", length = 50)
+    private String aiNutritionLabelConsentVersion;
+
     @Column(name = "assigned_admin_email", length = 255)
     private String assignedAdminEmail;
 
