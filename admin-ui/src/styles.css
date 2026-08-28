@@ -7498,6 +7498,181 @@ label {
     grid-column: auto;
   }
 }
+
+/* Mobile administration shell: desktop layout remains unchanged above 720px. */
+.mobile-nav-trigger,
+.mobile-nav-close,
+.mobile-nav-backdrop {
+  display: none;
+}
+
+.topbar-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  body.mobile-navigation-active {
+    overflow: hidden;
+  }
+
+  .main-panel {
+    width: 100%;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom));
+  }
+
+  .sidebar {
+    position: fixed;
+    z-index: 60;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 340px);
+    height: 100dvh;
+    padding: max(16px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom));
+    border-right: 1px solid var(--line);
+    box-shadow: var(--modal-shadow);
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .mobile-nav-backdrop {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--modal-backdrop);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+
+  .mobile-nav-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .brand {
+    position: relative;
+    padding-right: 48px;
+  }
+
+  .mobile-nav-close {
+    position: absolute;
+    top: 8px;
+    right: 2px;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--button-surface);
+    color: var(--text);
+    font-size: 1.5rem;
+  }
+
+  .nav-list {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    width: 100%;
+    min-height: 58px;
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  .topbar-title {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .topbar-title > div {
+    min-width: 0;
+  }
+
+  .topbar h1 {
+    overflow: hidden;
+    font-size: clamp(1.35rem, 7vw, 1.75rem);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar .eyebrow {
+    margin-bottom: 2px;
+    font-size: .68rem;
+  }
+
+  .mobile-nav-trigger {
+    display: grid;
+    flex: 0 0 44px;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--button-surface);
+    color: var(--text);
+    font-size: 1.25rem;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 2px 0 4px;
+    scrollbar-width: none;
+  }
+
+  .topbar-actions::-webkit-scrollbar,
+  .section-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .section-tabs {
+    width: calc(100% + 24px);
+    margin-right: -12px;
+    margin-left: -12px;
+    padding-right: 12px;
+    padding-left: 12px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .section-tabs button {
+    flex: 0 0 auto;
+    min-width: 132px;
+  }
+
+  .content-surface {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .mobile-nav-backdrop {
+    transition: none;
+  }
+}
 .contribution-filter-grid {
   grid-template-columns: repeat(2, minmax(180px, 280px));
 }
@@ -8271,8 +8446,8 @@ label {
   }
 
   .sidebar {
-    position: static;
-    height: auto;
+    position: fixed;
+    height: 100dvh;
   }
 }
 
@@ -9988,5 +10163,1161 @@ a:focus-visible {
 
   .admin-member-actions button {
     width: 100%;
+  }
+}
+
+/* Mobile data workspaces */
+@media (max-width: 720px) {
+  .responsive-data-table {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .responsive-data-table table {
+    min-width: 0;
+  }
+
+  .responsive-data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .responsive-data-table tbody,
+  .responsive-data-table tr,
+  .responsive-data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-data-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .responsive-data-table tr {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .responsive-data-table tr:hover {
+    background: var(--surface);
+  }
+
+  .responsive-data-table td {
+    display: grid;
+    grid-template-columns: minmax(94px, .42fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    min-height: 44px;
+    padding: 11px 13px;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .responsive-data-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    line-height: 1.35;
+    text-transform: uppercase;
+  }
+
+  .responsive-data-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .responsive-data-table td > .inline-actions,
+  .responsive-data-table td > .table-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .responsive-data-table td button,
+  .responsive-data-table td a {
+    min-height: 42px;
+  }
+
+  .pagination-bar {
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .pagination-bar > div:first-child {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pagination-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .pagination-actions label,
+  .pagination-actions .page-indicator {
+    grid-column: 1 / -1;
+  }
+
+  .pagination-actions label {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .pagination-actions select {
+    min-width: 88px;
+  }
+
+  .pagination-actions .page-indicator {
+    order: -1;
+    padding: 3px 0;
+    text-align: center;
+  }
+
+  .pagination-actions .pagination-edge {
+    display: none;
+  }
+
+  .pagination-actions button {
+    min-height: 44px;
+  }
+
+  .review-filter-grid,
+  .audit-filter-grid,
+  .recipe-import-filter-grid,
+  .ai-review-filter-grid,
+  .contribution-filter-grid,
+  .engagement-filter-grid,
+  .commercial-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-filter-grid button,
+  .audit-filter-grid button,
+  .recipe-import-filter-grid button,
+  .ai-review-filter-grid button,
+  .contribution-filter-grid button,
+  .engagement-filter-grid button,
+  .commercial-filter-grid button,
+  .toolbar-actions button {
+    min-height: 44px;
+  }
+
+  .toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .toolbar-actions > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  .toolbar-actions button,
+  .toolbar-actions select {
+    max-width: 100%;
+  }
+
+  .panel {
+    padding: 14px;
+    border-radius: var(--radius-lg);
+  }
+
+  .table-wrap:not(.responsive-data-table) {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 420px) {
+  .responsive-data-table td {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
+
+/* Login MFA challenge */
+.login-mfa-backdrop {
+  z-index: 80;
+}
+
+.login-mfa-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.login-mfa-dialog .confirm-dialog-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.login-mfa-dialog .confirm-dialog-copy > * {
+  margin: 0;
+}
+
+.login-mfa-dialog label {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--muted-strong);
+  font-weight: 500;
+}
+
+.login-mfa-dialog input {
+  width: 100%;
+  min-height: 52px;
+  font-size: 1.35rem;
+  letter-spacing: .34em;
+  text-align: center;
+}
+
+.login-mfa-dialog .form-error {
+  margin-bottom: 0;
+}
+
+@media (max-width: 520px) {
+  .login-mfa-dialog .confirm-dialog-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .login-mfa-dialog .confirm-dialog-icon {
+    display: none;
+  }
+}
+
+/* Final small-screen hardening */
+@media (max-width: 720px) {
+  .login-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 12px;
+    min-height: 100dvh;
+    padding: max(68px, calc(env(safe-area-inset-top) + 56px)) 12px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .login-theme-action {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: 12px;
+  }
+
+  .login-hero {
+    min-height: 0;
+    gap: 14px;
+    padding: 22px 18px;
+    border-radius: var(--radius-lg);
+  }
+
+  .login-hero .hero-copy h1,
+  .login-hero h1 {
+    margin: 16px 0 0;
+    font-size: clamp(1.45rem, 7vw, 2rem);
+    line-height: 1.18;
+  }
+
+  .login-hero .hero-copy p:last-child,
+  .login-hero > div > p {
+    display: none;
+  }
+
+  .login-brand-lockup {
+    gap: 10px;
+    padding: 9px 12px;
+  }
+
+  .login-brand-lockup img {
+    width: min(132px, 42vw);
+    max-height: 48px;
+  }
+
+  .login-brand-lockup span {
+    font-size: .7rem;
+  }
+
+  .login-card {
+    width: 100%;
+    gap: 14px;
+    padding: 18px;
+    border-radius: var(--radius-lg);
+  }
+
+  .login-card h2 {
+    font-size: 1.35rem;
+  }
+
+  .login-card input,
+  .login-card select,
+  .login-card textarea {
+    width: 100%;
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .login-card .primary-button {
+    min-height: 48px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  .stack,
+  .stack > *,
+  .content-surface,
+  .content-surface > *,
+  .section-toolbar,
+  .section-toolbar-copy,
+  .section-toolbar-title,
+  .panel-heading,
+  .panel-heading > div {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .section-toolbar-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .section-toolbar h2 {
+    font-size: 1.3rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .section-toolbar p,
+  .panel-heading p,
+  .error-banner,
+  .form-error,
+  .form-notice,
+  .status-banner,
+  .success-banner,
+  .empty-state span {
+    overflow-wrap: anywhere;
+  }
+
+  .error-banner,
+  .form-error,
+  .form-notice,
+  .status-banner,
+  .success-banner {
+    width: 100%;
+    padding: 11px 12px;
+  }
+
+  .empty-state {
+    min-height: 150px;
+    padding: 22px 16px;
+    text-align: center;
+  }
+
+  pre,
+  code,
+  .json-value,
+  .truncate {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .truncate {
+    white-space: normal;
+  }
+
+  .feature-matrix {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .feature-matrix-head,
+  .feature-matrix-row {
+    width: max-content;
+    min-width: 420px;
+  }
+
+  .admin-mfa-setup,
+  .admin-mfa-disable,
+  .admin-mfa-enroll,
+  .admin-invitation-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-mfa-verification .primary-button,
+  .admin-mfa-disable-controls .danger-button,
+  .admin-invitation-form .primary-button {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .approval-queue-toolbar label,
+  .runtime-filter-row label {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .login-hero {
+    padding: 16px;
+  }
+
+  .login-brand-lockup {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .login-brand-lockup span {
+    padding-top: 0;
+    padding-left: 10px;
+    border-top: 0;
+    border-left: 1px solid rgba(101, 18, 160, .2);
+  }
+
+  .admin-mfa-qr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-mfa-qr-frame {
+    width: min(220px, 100%);
+    justify-self: center;
+  }
+
+  .admin-mfa-recovery > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Mobile forms, detail dialogs and approval flows */
+@media (max-width: 720px) {
+  .modal-backdrop {
+    place-items: end center;
+    padding: max(8px, env(safe-area-inset-top)) 0 0;
+  }
+
+  .product-modal,
+  .user-modal,
+  .audit-modal,
+  .modal-card,
+  .modal-card.compact {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    overscroll-behavior: contain;
+  }
+
+  .modal-header {
+    position: sticky;
+    z-index: 4;
+    top: 0;
+    align-items: flex-start;
+    padding: 16px;
+    background: var(--surface);
+  }
+
+  .modal-header > div {
+    min-width: 0;
+  }
+
+  .modal-header h2 {
+    font-size: 1.25rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-header p {
+    margin-bottom: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-header .icon-button,
+  .modal-header .modal-icon-close {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .modal-body,
+  .user-detail-layout,
+  .audit-detail-layout,
+  .admin-member-modal .modal-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .modal-body label,
+  .modal-body input,
+  .modal-body select,
+  .modal-body textarea,
+  .user-detail-layout input,
+  .user-detail-layout select,
+  .user-detail-layout textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .modal-body input,
+  .modal-body select,
+  .user-detail-layout input,
+  .user-detail-layout select {
+    min-height: 44px;
+  }
+
+  .modal-body textarea,
+  .user-detail-layout textarea {
+    min-height: 104px;
+  }
+
+  .readonly-grid,
+  .audit-value-grid,
+  .detail-grid,
+  .detail-grid.editable,
+  .nutrition-input-grid,
+  .serving-edit-grid,
+  .campaign-form-grid,
+  .commercial-form-grid,
+  .catalog-exercise-form-grid,
+  .ai-refund-form-grid,
+  .admin-member-modal .admin-security-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-grid.editable .editable-detail:first-child,
+  .detail-grid.editable .editable-detail:nth-child(2),
+  .campaign-form-grid .span-2,
+  .campaign-form-grid .span-4,
+  .catalog-exercise-form-grid .wide-field,
+  .admin-member-modal .wide-field {
+    grid-column: auto;
+  }
+
+  .product-image-frame,
+  .product-review-modal .product-image-frame {
+    width: 100%;
+    max-width: none;
+    height: min(34dvh, 280px);
+    min-height: 180px;
+  }
+
+  .modal-actions,
+  .admin-member-actions,
+  .modal-backdrop .form-actions,
+  .approval-decision-panel .form-actions {
+    position: sticky;
+    z-index: 4;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    gap: 8px;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .modal-actions > button,
+  .admin-member-actions > button,
+  .modal-backdrop .form-actions > button,
+  .approval-decision-panel .form-actions > button {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .confirm-backdrop {
+    place-items: center;
+    padding: 16px;
+  }
+
+  .confirm-dialog {
+    width: 100%;
+    max-width: 520px;
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    border-radius: var(--radius-xl);
+  }
+
+  .confirm-dialog-content {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px 16px;
+  }
+
+  .confirm-dialog-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .confirm-dialog > .modal-actions {
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .approval-decision-panel {
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .approval-decision-panel pre,
+  .json-value,
+  .audit-value-block {
+    max-width: 100%;
+    overflow-x: auto;
+    font-size: .78rem;
+  }
+
+  .inline-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Mobile dashboards, metrics and analytics */
+@media (max-width: 720px) {
+  .metric-grid,
+  .metrics-grid,
+  .user-summary-grid,
+  .review-workspace-summary,
+  .health-summary-grid,
+  .audit-summary-grid,
+  .revenuecat-metric-grid,
+  .runtime-metric-grid,
+  .commercial-metrics,
+  .growth-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card,
+  .growth-kpi-card,
+  .revenuecat-metric-card {
+    min-width: 0;
+    min-height: 112px;
+    padding: 13px;
+  }
+
+  .metric-card strong,
+  .growth-kpi-card > strong {
+    font-size: clamp(1.35rem, 7vw, 1.75rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .metric-card small,
+  .growth-kpi-card small,
+  .revenuecat-metric-card small {
+    overflow-wrap: anywhere;
+  }
+
+  .chart-grid,
+  .mail-chart-grid,
+  .ai-analytics-chart-grid,
+  .campaign-analytics-chart-grid,
+  .catalog-quality-chart-grid,
+  .recipe-operations-chart-grid,
+  .promotion-operations-chart-grid,
+  .reliability-chart-grid,
+  .growth-primary-grid,
+  .growth-breakdown-grid,
+  .engagement-flow-grid,
+  .engagement-lower-grid,
+  .revenuecat-chart-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    max-width: 100%;
+    gap: 12px;
+    overflow: visible;
+  }
+
+  .chart-card,
+  .mail-chart-card,
+  .ai-analytics-chart-grid > .panel,
+  .campaign-chart-panel,
+  .catalog-quality-chart-panel,
+  .recipe-operations-chart-panel,
+  .promotion-operations-chart-panel,
+  .reliability-chart-card,
+  .revenuecat-chart-card {
+    grid-column: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding-right: 12px;
+    padding-left: 12px;
+    overflow: hidden;
+  }
+
+  .growth-echart,
+  .engagement-funnel-chart,
+  .feature-adoption-chart,
+  .revenuecat-echart,
+  .ai-outcome-echart,
+  .ai-latency-echart,
+  .ai-economics-echart,
+  .campaign-delivery-echart,
+  .campaign-engagement-echart,
+  .campaign-status-echart,
+  .catalog-quality-echart,
+  .catalog-quality-trend-echart,
+  .recipe-operations-echart,
+  .recipe-submission-trend-echart,
+  .promotion-operations-echart,
+  .promotion-redemption-trend-echart,
+  .reliability-echart,
+  .admin-chart-loading,
+  .chart-loading {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: 260px;
+    min-height: 260px;
+  }
+
+  .feature-adoption-chart,
+  .catalog-quality-trend-echart,
+  .recipe-submission-trend-echart,
+  .promotion-redemption-trend-echart {
+    height: 280px;
+    min-height: 280px;
+  }
+
+  .catalog-quality-summary,
+  .engagement-inline-metrics,
+  .commercial-preview-summary,
+  .campaign-history-summary,
+  .recipe-import-resolution-summary,
+  .quality-suggestion-summary,
+  .ai-inspection-summary,
+  .ai-refund-summary,
+  .quota-summary-strip,
+  .access-summary-strip,
+  .sender-update-summary {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .growth-coverage-strip,
+  .campaign-performance-toolbar,
+  .recipe-operations-analytics-head,
+  .promotion-operations-analytics-head,
+  .reliability-toolbar,
+  .mail-chart-heading,
+  .revenuecat-chart-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .segmented-control,
+  .dashboard-range,
+  .reliability-toolbar {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .segmented-control button,
+  .dashboard-range button,
+  .reliability-toolbar button {
+    flex: 1 0 auto;
+    min-height: 42px;
+  }
+
+  .reliability-toolbar > span {
+    margin-left: 0;
+  }
+
+  .panel-heading h3,
+  .chart-card h3,
+  .campaign-chart-panel h3,
+  .catalog-quality-chart-panel h3,
+  .recipe-operations-chart-panel h3,
+  .promotion-operations-chart-panel h3,
+  .reliability-chart-card h3 {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 420px) {
+  .metric-grid,
+  .metrics-grid,
+  .user-summary-grid,
+  .review-workspace-summary,
+  .health-summary-grid,
+  .audit-summary-grid,
+  .revenuecat-metric-grid,
+  .runtime-metric-grid,
+  .commercial-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .growth-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .growth-kpi-card {
+    grid-template-rows: auto auto auto 1fr;
+    gap: 3px;
+    min-height: 96px;
+    padding: 8px 7px;
+    border-radius: 10px;
+  }
+
+  .growth-kpi-card > span {
+    font-size: .64rem;
+    line-height: 1.15;
+  }
+
+  .growth-kpi-card > strong {
+    font-size: 1.08rem;
+    line-height: 1.1;
+  }
+
+  .growth-kpi-card > small {
+    min-height: 14px;
+    font-size: .58rem;
+    line-height: 1.15;
+  }
+
+  .growth-kpi-card footer {
+    gap: 3px;
+  }
+
+  .growth-kpi-card footer i {
+    max-width: 100%;
+    padding: 2px 4px;
+    overflow: hidden;
+    font-size: .54rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .growth-kpi-card footer span {
+    font-size: .55rem;
+  }
+}
+
+/* Shared compact summaries: keep short operational data scannable on mobile. */
+@media (max-width: 720px) {
+  .metric-grid,
+  .user-summary-grid,
+  .review-workspace-summary,
+  .health-summary-grid,
+  .audit-summary-grid,
+  .runtime-metric-grid,
+  .notification-definition-metrics,
+  .test-feedback-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .metric-card {
+    align-content: start;
+    gap: 4px;
+    min-height: 98px;
+    padding: 10px 8px 9px;
+    border-radius: 11px;
+  }
+
+  .metric-card::before {
+    height: 3px;
+  }
+
+  .metric-card span {
+    overflow: hidden;
+    font-size: .66rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .metric-card strong {
+    font-size: clamp(1.05rem, 4.5vw, 1.32rem);
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  .metric-card small {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: .58rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .health-status-card {
+    gap: 4px;
+    min-height: 98px;
+    padding: 10px 8px;
+    border-radius: 11px;
+  }
+
+  .health-status-card span,
+  .health-status-card small {
+    font-size: .6rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .health-status-card strong {
+    font-size: 1.08rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .revenuecat-metric-grid,
+  .commercial-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .revenuecat-metric-card {
+    gap: 5px;
+    min-height: 104px;
+    padding: 11px 10px;
+    border-radius: 11px;
+  }
+
+  .revenuecat-metric-card strong {
+    font-size: 1.2rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .revenuecat-metric-card span,
+  .revenuecat-metric-card small {
+    font-size: .65rem;
+    line-height: 1.25;
+  }
+
+  .operation-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .operation-card {
+    align-content: start;
+    gap: 4px;
+    min-height: 104px;
+    padding: 9px 7px;
+    border-radius: 11px;
+  }
+
+  .operation-card.good,
+  .operation-card.warn,
+  .operation-card.danger {
+    border-left-width: 3px;
+  }
+
+  .operation-card span {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: .64rem;
+    line-height: 1.18;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .operation-card strong {
+    font-size: 1.12rem;
+    line-height: 1.1;
+  }
+
+  .operation-card small {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: .57rem;
+    line-height: 1.22;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .stack,
+  .view-stack {
+    gap: 11px;
+  }
+
+  .panel {
+    padding: 13px;
+    border-radius: 14px;
+  }
+
+  .panel h3 {
+    margin-bottom: 10px;
+  }
+
+  .section-toolbar {
+    gap: 9px;
+  }
+
+  .readonly-grid,
+  .detail-grid:not(.editable) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .compact-readonly-grid,
+  .macro-strip,
+  .quota-summary-strip,
+  .quality-run-meta-grid,
+  .quality-impact-grid,
+  .campaign-history-facts,
+  .commercial-preview-summary,
+  .engagement-inline-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .quality-suggestion-summary,
+  .revenuecat-chart-summary,
+  .reliability-status-strip,
+  .sender-update-summary,
+  .campaign-history-summary,
+  .config-check-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .detail-item,
+  .metric-pill,
+  .quota-summary-strip > div,
+  .quality-run-meta-grid article,
+  .quality-impact-grid article,
+  .quality-suggestion-summary > div,
+  .campaign-history-facts > div,
+  .commercial-preview-summary > div,
+  .engagement-inline-metrics span,
+  .revenuecat-chart-summary div,
+  .config-check {
+    min-width: 0;
+    min-height: 0;
+    padding: 8px;
+    border-radius: 9px;
+  }
+
+  .detail-item span,
+  .metric-pill span,
+  .quota-summary-strip span,
+  .quality-run-meta-grid span,
+  .quality-impact-grid span,
+  .quality-suggestion-summary span,
+  .campaign-history-facts span,
+  .commercial-preview-summary span,
+  .revenuecat-chart-summary span {
+    font-size: .61rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-item strong,
+  .metric-pill strong,
+  .quota-summary-strip strong,
+  .quality-run-meta-grid strong,
+  .quality-impact-grid strong,
+  .quality-suggestion-summary strong,
+  .campaign-history-facts strong,
+  .commercial-preview-summary strong,
+  .revenuecat-chart-summary strong {
+    font-size: .84rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .reliability-status-strip span {
+    min-width: 0;
+    padding: 7px 8px;
+    font-size: .62rem;
+  }
+
+  .campaign-history-summary > div {
+    min-height: 66px;
+    padding: 8px 9px;
+  }
+
+  .mail-monitor-grid,
+  .mail-counter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .mail-policy-grid,
+  .controlled-ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .notification-definition-workflow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .notification-definition-workflow > span {
+    align-items: flex-start;
+    gap: 5px;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: .59rem;
+    line-height: 1.2;
+  }
+
+  .notification-definition-workflow strong {
+    flex-basis: 20px;
+    width: 20px;
+    height: 20px;
+    font-size: .65rem;
+  }
+
+  .canonical-workbench-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 7px;
+  }
+
+  .canonical-workbench-strip > div {
+    min-width: 0;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface-soft);
+  }
+
+  .canonical-workbench-strip span {
+    font-size: .6rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
   }
 }

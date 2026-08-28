@@ -634,6 +634,7 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => readStoredTheme());
   const [openNavGroup, setOpenNavGroup] = useState<SectionKey | null>(null);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [targetContext, setTargetContext] = useState<AdminTargetContext | null>(null);
   const [accessProfile, setAccessProfile] = useState<AdminAccessProfile | null>(null);
   const [sessionWarningOpen, setSessionWarningOpen] = useState(false);
@@ -649,6 +650,7 @@ export default function App() {
     setTargetContext(null);
     setActive(section);
     setSectionHash(section);
+    setMobileNavigationOpen(false);
   }
 
   function navigateToTarget(section: SectionKey, context?: Omit<AdminTargetContext, "section">) {
@@ -682,6 +684,19 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavigationOpen(false);
+    };
+    document.body.classList.add("mobile-navigation-active");
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("mobile-navigation-active");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileNavigationOpen]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -776,13 +791,21 @@ export default function App() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#admin-main">Skip to main content</a>
-      <aside className="sidebar">
+      <button
+        className={mobileNavigationOpen ? "mobile-nav-backdrop visible" : "mobile-nav-backdrop"}
+        onClick={() => setMobileNavigationOpen(false)}
+        type="button"
+        aria-label="Close navigation"
+        tabIndex={mobileNavigationOpen ? 0 : -1}
+      />
+      <aside className={mobileNavigationOpen ? "sidebar mobile-open" : "sidebar"} aria-label="Admin navigation">
         <div className="brand">
           <img className="brand-symbol" src="./grun/grun-app-icon.svg" alt="" aria-hidden="true" />
           <div className="brand-context">
             <img className="brand-wordmark" src="./grun/grun-wordmark.svg" alt="GRUN" />
             <span>Operations</span>
           </div>
+          <button className="mobile-nav-close" onClick={() => setMobileNavigationOpen(false)} type="button" aria-label="Close navigation">×</button>
         </div>
         <nav className="nav-list" aria-label="Admin sections">
           {visibleNavigation.map((section) => (
@@ -844,9 +867,20 @@ export default function App() {
 
       <main className="main-panel" id="admin-main" ref={mainRef} tabIndex={-1}>
         <header className="topbar">
-          <div>
+          <div className="topbar-title">
+            <button
+              className="mobile-nav-trigger"
+              onClick={() => setMobileNavigationOpen(true)}
+              type="button"
+              aria-label="Open navigation"
+              aria-expanded={mobileNavigationOpen}
+            >
+              <span aria-hidden="true">☰</span>
+            </button>
+            <div>
             <p className="eyebrow">Admin workspace</p>
             <h1>{activeMeta.label}</h1>
+            </div>
           </div>
           <div className="topbar-actions">
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
@@ -968,6 +1002,7 @@ function LoginView({
   const [busy, setBusy] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [showMfa, setShowMfa] = useState(false);
+  const [mfaError, setMfaError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
@@ -982,16 +1017,44 @@ function LoginView({
         setResetNotice(result.message ?? "If the email exists, a password reset link has been sent.");
         return;
       }
-      const response = await login(email, password, mfaCode);
+      const response = await login(email, password);
       saveTokens(response);
       onLogin();
     } catch (err) {
       const message = formatRequestError(err);
-      if (message.toLowerCase().includes("mfa") || message.toLowerCase().includes("authenticator")) setShowMfa(true);
-      setError(message);
+      if (message.toLowerCase().includes("mfa") || message.toLowerCase().includes("authenticator")) {
+        setMfaCode("");
+        setMfaError(null);
+        setShowMfa(true);
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitMfa(event: FormEvent) {
+    event.preventDefault();
+    if (mfaCode.length !== 6) return;
+    setBusy(true);
+    setMfaError(null);
+    try {
+      const response = await login(email, password, mfaCode);
+      saveTokens(response);
+      onLogin();
+    } catch (err) {
+      setMfaError(formatRequestError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeMfa() {
+    if (busy) return;
+    setShowMfa(false);
+    setMfaCode("");
+    setMfaError(null);
   }
 
   return (
@@ -1023,17 +1086,47 @@ function LoginView({
           Password
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Admin password" />
         </label>}
-        {!forgotMode && showMfa && <label>Authenticator or recovery code<input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={32} placeholder="6-digit code" /></label>}
         {notice && !forgotMode && <div className="form-notice">{notice}</div>}
         {resetNotice && <div className="form-notice">{resetNotice}</div>}
         {error && <div className="form-error">{error}</div>}
         <button className="primary-button" disabled={busy || !email.trim() || (!forgotMode && !password)} type="submit">
           {busy ? "Working..." : forgotMode ? "Send reset link" : "Sign in"}
         </button>
-        <button className="text-button" type="button" onClick={() => { setForgotMode((current) => !current); setError(null); setResetNotice(null); }}>
+        <button className="text-button" type="button" onClick={() => { setForgotMode((current) => !current); setError(null); setResetNotice(null); closeMfa(); }}>
           {forgotMode ? "Back to admin login" : "Forgot password?"}
         </button>
       </form>
+      {showMfa && <div className="modal-backdrop confirm-backdrop login-mfa-backdrop" role="presentation">
+        <form className="confirm-dialog login-mfa-dialog" onSubmit={submitMfa} role="dialog" aria-modal="true" aria-labelledby="login-mfa-title">
+          <div className="confirm-dialog-content">
+            <div className="confirm-dialog-icon neutral" aria-hidden="true">6</div>
+            <div className="confirm-dialog-copy">
+              <p className="eyebrow">Secure verification</p>
+              <h2 id="login-mfa-title">Enter your 6-digit code</h2>
+              <p>Open your authenticator app and enter the current code to complete sign-in.</p>
+              <label>
+                Authenticator code
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  aria-invalid={Boolean(mfaError)}
+                />
+              </label>
+              {mfaError && <div className="form-error" role="alert">{mfaError}</div>}
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button className="ghost-button" disabled={busy} onClick={closeMfa} type="button">Cancel</button>
+            <button className="primary-button" disabled={busy || mfaCode.length !== 6} type="submit">{busy ? "Verifying..." : "Verify and sign in"}</button>
+          </div>
+        </form>
+      </div>}
     </main>
   );
 }

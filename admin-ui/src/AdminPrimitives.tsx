@@ -145,7 +145,7 @@ export function DataTable<T = unknown>({
   }
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap responsive-data-table">
       <table>
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
@@ -162,7 +162,7 @@ export function DataTable<T = unknown>({
               onKeyDown={(event) => handleRowKeyDown(event, index)}
               tabIndex={onRowClick ? 0 : undefined}
             >
-              {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
+              {row.map((cell, cellIndex) => <td data-label={columns[cellIndex] ?? "Value"} key={cellIndex}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
@@ -210,11 +210,11 @@ export function PaginationControls({
             <option value={100}>100</option>
           </select>
         </label>
-        <button aria-label="First page" className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(0)} type="button">First</button>
+        <button aria-label="First page" className="ghost-button pagination-edge" disabled={first || page <= 0} onClick={() => onPageChange(0)} type="button">First</button>
         <button aria-label="Previous page" className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(Math.max(0, page - 1))} type="button">Previous</button>
         <span className="page-indicator" aria-current="page">Page {formatNumber(page + 1)} / {formatNumber(safeTotalPages)}</span>
         <button aria-label="Next page" className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(Math.min(safeTotalPages - 1, page + 1))} type="button">Next</button>
-        <button aria-label="Last page" className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(safeTotalPages - 1)} type="button">Last</button>
+        <button aria-label="Last page" className="ghost-button pagination-edge" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(safeTotalPages - 1)} type="button">Last</button>
       </div>
     </nav>
   );

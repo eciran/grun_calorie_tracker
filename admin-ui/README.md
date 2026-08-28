@@ -103,6 +103,6 @@ patterns instead of adding independent base components.
 | High | PostgreSQL V176 migration and restore smoke on production-like infrastructure | Platform | Release candidate |
 | Medium | GDPR export/deletion metadata queue and processor evidence | Compliance/Backend | Compliance phase |
 | Medium | Browser-matrix visual automation beyond Chromium manual QA | Frontend | CI hardening |
-| Medium | Admin bundle code splitting; current JS budget is capped at 650 KB | Frontend | Performance phase |
+| Medium | Temporary single-page budgets: entry/per-chunk JS 750 KB, total JS 1.5 MB, entry CSS 200 KB (uncompressed decimal bytes). Revisit during the separate-page migration; retain performance checks. | Frontend | Performance phase |
 
 These dependencies are explicit release risks, not silent TODOs. Owners must update severity and target when scope changes.

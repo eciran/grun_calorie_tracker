@@ -41,7 +41,21 @@
 .screenshot-state-not_provided { color: var(--muted); background: var(--surface-muted); }
 .test-feedback-review h3, .test-feedback-review small { grid-column: 1 / -1; }
 @media (max-width: 900px) { .test-feedback-metrics, .test-feedback-filters, .test-feedback-meta-grid { grid-template-columns: 1fr 1fr; } .test-feedback-detail-grid { grid-template-columns: 1fr; } .test-feedback-report, .test-feedback-submission, .test-feedback-review, .test-feedback-upload-events { grid-column: auto; } .test-feedback-review { grid-template-columns: 1fr; } }
-@media (max-width: 600px) { .test-feedback-metrics, .test-feedback-filters, .test-feedback-meta-grid { grid-template-columns: 1fr; } .test-feedback-modal { width: calc(100vw - 16px); } }
+@media (max-width: 600px) {
+  .test-feedback-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .test-feedback-filters,
+  .test-feedback-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .test-feedback-modal {
+    width: calc(100vw - 16px);
+  }
+}
 
 .test-feedback-screenshot-panel { display: grid; gap: 9px; margin-bottom: 14px; }
 .test-feedback-screenshot-panel > a:first-of-type { display: block; border-radius: 8px; line-height: 0; }
