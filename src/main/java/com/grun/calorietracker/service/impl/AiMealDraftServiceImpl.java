@@ -85,13 +85,15 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     @Override
     public AiMealDraftResponseDto createVoiceFoodDraft(String email, String idempotencyKey, AiVoiceFoodDraftRequestDto request) {
         safetyService.validateVoiceRequest(request);
-        return createDraft(email, idempotencyKey, AiRequestType.VOICE_FOOD_LOG, request, () -> activeProvider().createVoiceFoodDraft(request));
+        return createDraft(email, idempotencyKey, AiRequestType.VOICE_FOOD_LOG, request,
+                () -> activeProvider(AiRequestType.VOICE_FOOD_LOG).createVoiceFoodDraft(request));
     }
 
     @Override
     public AiMealDraftResponseDto createPhotoMealDraft(String email, String idempotencyKey, AiPhotoMealDraftRequestDto request) {
         safetyService.validatePhotoRequest(request);
-        return createDraft(email, idempotencyKey, AiRequestType.PHOTO_MEAL_LOG, request, () -> activeProvider().createPhotoMealDraft(request));
+        return createDraft(email, idempotencyKey, AiRequestType.PHOTO_MEAL_LOG, request,
+                () -> activeProvider(AiRequestType.PHOTO_MEAL_LOG).createPhotoMealDraft(request));
     }
 
     @Override
@@ -188,7 +190,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
                                                AiRequestType requestType,
                                                Object request,
                                                DraftSupplier supplier) {
-        providerConfigurationValidator.validateConfiguredForDraft();
+        providerConfigurationValidator.validateConfiguredForDraft(requestType);
         UserEntity user = getUser(email);
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_MEAL_DRAFTS);
         enrichRequestContext(request, user);
@@ -201,8 +203,8 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
         history.setRequestType(requestType);
-        history.setProvider(properties.getProvider());
-        history.setModel(properties.getModel());
+        history.setProvider(properties.resolveProvider(requestType));
+        history.setModel(properties.resolveModel(requestType));
         history.setPromptVersion(properties.getPromptVersion());
         history.setStatus(AiRequestStatus.PROCESSING);
         history.setIdempotencyKey(key);
@@ -356,7 +358,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
     private AiMealDraftResponseDto normalizedProviderResponse(AiMealDraftResponseDto response,
                                                                AiRequestType requestType) {
         return responseValidator.validateAndNormalize(
-                response, requestType, properties.getProvider(), properties.getModel());
+                response, requestType, properties.getProvider(), properties.resolveModel(requestType));
     }
 
     private boolean requiresGeneratedLanguageValidation() {
@@ -379,14 +381,15 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         context.put("unitPreference", user.getUnitPreference());
         return context;
     }
-    private AiMealDraftProviderClient activeProvider() {
+    private AiMealDraftProviderClient activeProvider(AiRequestType requestType) {
         Map<AiProvider, AiMealDraftProviderClient> clients = new EnumMap<>(AiProvider.class);
         for (AiMealDraftProviderClient client : providerClients) {
             clients.put(client.provider(), client);
         }
-        AiMealDraftProviderClient client = clients.get(properties.getProvider());
+        AiProvider provider = properties.resolveProvider(requestType);
+        AiMealDraftProviderClient client = clients.get(provider);
         if (client == null) {
-            throw new IllegalArgumentException("AI provider is not configured: " + properties.getProvider());
+            throw new IllegalArgumentException("AI provider is not configured: " + provider);
         }
         return client;
     }

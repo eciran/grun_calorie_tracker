@@ -368,6 +368,7 @@ class OnboardingServiceImplTest {
         draft.setPreferredLanguage(PreferredLanguage.EN);
         draft.setTimeZone("Europe/Dublin");
         draft.setUnitPreference(UnitPreference.METRIC);
+        draft.setPreferencesSelectionConfirmed(true);
         draft.setStatus(OnboardingStatus.IN_PROGRESS);
         return draft;
     }

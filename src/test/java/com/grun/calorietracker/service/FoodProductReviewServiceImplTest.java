@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
@@ -14,10 +16,13 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodCanonicalResolutionState;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageSource;
@@ -26,6 +31,7 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
@@ -74,6 +80,9 @@ class FoodProductReviewServiceImplTest {
     private FoodProductReviewAuditRepository foodProductReviewAuditRepository;
 
     @Mock
+    private FoodItemSearchAliasRepository foodItemSearchAliasRepository;
+
+    @Mock
     private FoodProductQualityIssueRepository foodProductQualityIssueRepository;
 
     @Mock
@@ -88,6 +97,127 @@ class FoodProductReviewServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+    }
+
+    @Test
+    void createAdminCatalogProduct_createsInternalReviewProductWithProvenance() {
+        AdminFoodProductCreateRequestDto request = new AdminFoodProductCreateRequestDto();
+        request.setName("bell pepper");
+        request.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        request.setMarketRegion(MarketRegion.UK_IE);
+        request.setPreparationState(FoodPreparationState.RAW);
+        request.setCalories(31.0);
+        request.setProtein(1.0);
+        request.setCarbs(6.0);
+        request.setFat(0.3);
+        request.setSourceName("USDA FoodData Central");
+        request.setSourceUrl("https://fdc.nal.usda.gov/example");
+        request.setReviewNote("Matched to raw sweet pepper values.");
+
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> {
+            FoodItemEntity saved = invocation.getArgument(0);
+            saved.setId(42L);
+            return saved;
+        });
+
+        FoodProductDto result = foodProductReviewService.createAdminCatalogProduct(request, "admin@grun.app");
+
+        assertEquals(42L, result.getId());
+        assertEquals("Bell Pepper", result.getProductName());
+        assertEquals(FoodDataSource.ADMIN_IMPORT, result.getDataSource());
+        assertEquals(VerificationStatus.NEEDS_REVIEW, result.getVerificationStatus());
+        assertEquals(31.0, result.getCalories());
+
+        ArgumentCaptor<FoodItemEntity> productCaptor = ArgumentCaptor.forClass(FoodItemEntity.class);
+        verify(foodItemRepository).save(productCaptor.capture());
+        assertEquals("USDA FoodData Central", productCaptor.getValue().getAdminSourceName());
+        assertEquals("https://fdc.nal.usda.gov/example", productCaptor.getValue().getAdminSourceUrl());
+        assertEquals("Matched to raw sweet pepper values.", productCaptor.getValue().getAdminCreationNote());
+        assertTrue(productCaptor.getValue().getSourceKey().startsWith("admin-manual:"));
+
+        ArgumentCaptor<FoodProductReviewAuditEntity> auditCaptor = ArgumentCaptor.forClass(FoodProductReviewAuditEntity.class);
+        verify(foodProductReviewAuditRepository).save(auditCaptor.capture());
+        assertEquals(FoodProductReviewAuditAction.CREATE, auditCaptor.getValue().getActionType());
+    }
+
+    @Test
+    void preflightAdminCatalogProduct_returnsDuplicateAndNutritionWarning() {
+        AdminFoodProductCreateRequestDto request = adminProductRequest();
+        request.setCalories(200.0);
+        request.setProtein(1.0);
+        request.setCarbs(4.0);
+        request.setFat(1.0);
+        request.setSugar(6.0);
+
+        FoodItemEntity duplicate = new FoodItemEntity();
+        duplicate.setId(9L);
+        duplicate.setName("Bell Pepper");
+        duplicate.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        duplicate.setMarketRegion(MarketRegion.UK_IE);
+        when(foodItemRepository.findAdminCreationDuplicateCandidates(any(), any(), eq(MarketRegion.UK_IE), eq(FoodCatalogType.GENERIC_INGREDIENT), any()))
+                .thenReturn(List.of(duplicate));
+
+        AdminFoodProductPreflightDto result = foodProductReviewService.preflightAdminCatalogProduct(request);
+
+        assertEquals(1, result.getDuplicateCandidates().size());
+        assertEquals(9L, result.getDuplicateCandidates().get(0).getId());
+        assertEquals(2, result.getNutritionWarnings().size());
+    }
+
+    @Test
+    void createAdminCatalogProduct_whenDuplicateNotConfirmed_rejectsCreation() {
+        AdminFoodProductCreateRequestDto request = adminProductRequest();
+        FoodItemEntity duplicate = new FoodItemEntity();
+        duplicate.setId(9L);
+        duplicate.setName("Bell Pepper");
+        when(foodItemRepository.findAdminCreationDuplicateCandidates(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(duplicate));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> foodProductReviewService.createAdminCatalogProduct(request, "admin@grun.app")
+        );
+
+        assertTrue(error.getMessage().contains("Potential duplicate"));
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void createAdminCatalogProduct_withIngredientAlias_persistsSearchAlias() {
+        AdminFoodProductCreateRequestDto request = adminProductRequest();
+        request.setName("Sweet Pepper");
+        request.setSearchAlias("bell pepper");
+        request.setSearchAliasLanguage(com.grun.calorietracker.enums.PreferredLanguage.EN);
+        when(foodItemRepository.findAdminCreationDuplicateCandidates(any(), any(), any(), any(), any())).thenReturn(List.of());
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> {
+            FoodItemEntity saved = invocation.getArgument(0);
+            saved.setId(43L);
+            return saved;
+        });
+        when(foodItemSearchAliasRepository.save(any(FoodItemSearchAliasEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        foodProductReviewService.createAdminCatalogProduct(request, "admin@grun.app");
+
+        ArgumentCaptor<FoodItemSearchAliasEntity> aliasCaptor = ArgumentCaptor.forClass(FoodItemSearchAliasEntity.class);
+        verify(foodItemSearchAliasRepository).save(aliasCaptor.capture());
+        assertEquals("bell pepper", aliasCaptor.getValue().getAlias());
+        assertEquals("bell pepper", aliasCaptor.getValue().getNormalizedAlias());
+        assertTrue(aliasCaptor.getValue().getActive());
+    }
+
+    private AdminFoodProductCreateRequestDto adminProductRequest() {
+        AdminFoodProductCreateRequestDto request = new AdminFoodProductCreateRequestDto();
+        request.setName("bell pepper");
+        request.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        request.setMarketRegion(MarketRegion.UK_IE);
+        request.setPreparationState(FoodPreparationState.RAW);
+        request.setCalories(31.0);
+        request.setProtein(1.0);
+        request.setCarbs(6.0);
+        request.setFat(0.3);
+        request.setSourceName("USDA FoodData Central");
+        request.setSourceUrl("https://fdc.nal.usda.gov/example");
+        return request;
     }
 
     @Test

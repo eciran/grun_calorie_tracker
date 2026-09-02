@@ -13,7 +13,6 @@ import com.grun.calorietracker.dto.FastingSessionPageDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
 import com.grun.calorietracker.entity.FastingPlanEntity;
 import com.grun.calorietracker.entity.FastingSessionEntity;
-import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FastingPlanType;
@@ -23,11 +22,10 @@ import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FastingPlanRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
-import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FastingTrackingService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
-import com.grun.calorietracker.service.PushDeliveryService;
+import com.grun.calorietracker.service.notification.BehaviorReminderNotificationService;
 import com.grun.calorietracker.service.support.FastingSafetyPolicy;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
@@ -58,7 +56,6 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
 
     private static final int DEFAULT_FASTING_HOURS = 16;
     private static final int DEFAULT_EATING_WINDOW_HOURS = 8;
-    private static final String FASTING_REMINDER_TYPE = "fasting_reminder";
     private static final List<ReminderCopy> FASTING_REMINDER_COPY_EN = List.of(
             new ReminderCopy("Almost at the finish line", "Your fasting window is nearly complete. Nicely done."),
             new ReminderCopy("The countdown is on", "Not long now. Your eating window is just around the corner."),
@@ -67,21 +64,20 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
             new ReminderCopy("Final stretch", "A little more patience, then it is time to wrap up your fast.")
     );
     private static final List<ReminderCopy> FASTING_REMINDER_COPY_TR = List.of(
-            new ReminderCopy("Hedefe Ã§ok az kaldÄ±", "OruÃ§ sÃ¼ren neredeyse tamamlandÄ±. Harika gidiyorsun."),
-            new ReminderCopy("Geri sayÄ±m baÅŸladÄ±", "Yemek pencerene Ã§ok az kaldÄ±."),
-            new ReminderCopy("GÃ¼Ã§lÃ¼ bir final", "Orucunu tamamlamaya yaklaÅŸtÄ±n. BÃ¶yle devam et."),
-            new ReminderCopy("Neredeyse tamam", "OruÃ§ zamanlayÄ±cÄ±n harika ilerlediÄŸini sÃ¶ylÃ¼yor."),
-            new ReminderCopy("Son dÃ¼zlÃ¼k", "Biraz daha sabÄ±r; oruÃ§ sÃ¼ren yakÄ±nda tamamlanacak.")
+            new ReminderCopy("Hedefe çok az kaldı", "Oruç süren neredeyse tamamlandı. Harika gidiyorsun."),
+            new ReminderCopy("Geri sayım başladı", "Yemek pencerene çok az kaldı."),
+            new ReminderCopy("Güçlü bir final", "Orucunu tamamlamaya yaklaştın. Böyle devam et."),
+            new ReminderCopy("Neredeyse tamam", "Oruç zamanlayıcın harika ilerlediğini söylüyor."),
+            new ReminderCopy("Son düzlük", "Biraz daha sabır; oruç süren yakında tamamlanacak.")
     );
     private static final int DEFAULT_SESSION_PAGE_SIZE = 20;
     private static final int MAX_SESSION_PAGE_SIZE = 100;
 
     private final FastingPlanRepository fastingPlanRepository;
     private final FastingSessionRepository fastingSessionRepository;
-    private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final UserTimeZoneSupport userTimeZoneSupport;
-    private final PushDeliveryService pushDeliveryService;
+    private final BehaviorReminderNotificationService behaviorReminderNotificationService;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserAnalyticsCacheGateway analyticsCacheGateway;
     private final UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
@@ -356,21 +352,7 @@ public class FastingTrackingServiceImpl implements FastingTrackingService {
         dueSessions.forEach(session -> {
             LocalDateTime userNow = userTimeZoneSupport.now(session.getUser());
             ReminderCopy copy = randomCopy(reminderCopyFor(session.getUser().getPreferredLanguage()));
-            NotificationEntity notification = new NotificationEntity();
-            notification.setUser(session.getUser());
-            notification.setType(FASTING_REMINDER_TYPE);
-            notification.setTitle(copy.title());
-            notification.setMessage(copy.message());
-            notification.setSeverity("INFO");
-            notification.setSource("FASTING_REMINDER");
-            notification.setTargetType("FASTING_SESSION");
-            notification.setTargetId(String.valueOf(session.getId()));
-            notification.setTargetRoute("fasting");
-            notification.setPrimaryAction("VIEW_FASTING");
-            notification.setIsRead(false);
-            notification.setCreatedAt(userNow);
-            NotificationEntity saved = notificationRepository.save(notification);
-            pushDeliveryService.deliver(saved);
+            behaviorReminderNotificationService.enqueueFasting(session, userNow, copy.title(), copy.message());
             session.setReminderSentAt(userNow);
         });
         fastingSessionRepository.saveAll(dueSessions);

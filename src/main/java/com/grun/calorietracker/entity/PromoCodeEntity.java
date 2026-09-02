@@ -90,6 +90,9 @@ public class PromoCodeEntity {
     @Column(length = 160)
     private String providerProductId;
 
+    @Column(nullable = false)
+    private boolean storeOfferCodeRequired;
+
     @Column(nullable = false, length = 255)
     private String createdBy;
 

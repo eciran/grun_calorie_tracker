@@ -149,6 +149,11 @@ grun:
       max-item-calories: ${GRUN_AI_SAFETY_MAX_ITEM_CALORIES:3000}
       max-total-calories: ${GRUN_AI_SAFETY_MAX_TOTAL_CALORIES:6000}
     photo:
+      provider: ${GRUN_AI_PHOTO_PROVIDER:OPENAI}
+      model: ${GRUN_AI_PHOTO_MODEL:gpt-5.6-terra}
+      input-token-cost-per-1m: ${GRUN_AI_PHOTO_INPUT_TOKEN_COST_PER_1M:2.00}
+      output-token-cost-per-1m: ${GRUN_AI_PHOTO_OUTPUT_TOKEN_COST_PER_1M:12.00}
+      cost-currency: ${GRUN_AI_PHOTO_COST_CURRENCY:USD}
       max-image-reference-length: ${GRUN_AI_PHOTO_MAX_IMAGE_REFERENCE_LENGTH:2048}
       allowed-reference-prefixes: ${GRUN_AI_PHOTO_ALLOWED_REFERENCE_PREFIXES:s3://,https://}
       max-upload-bytes: ${GRUN_AI_PHOTO_MAX_UPLOAD_BYTES:5242880}
@@ -221,7 +226,7 @@ grun:
       quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 40 2 * * *}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
-    from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}
+    from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@gruncalorietracker.com}
     from-name: ${GRUN_MAIL_FROM_NAME:GRUN}
     brevo:
       api-key: ${GRUN_BREVO_API_KEY:}
@@ -240,6 +245,22 @@ grun:
   notifications:
     campaign-dispatch-enabled: ${GRUN_NOTIFICATION_CAMPAIGN_DISPATCH_ENABLED:true}
     campaign-dispatch-interval-ms: ${GRUN_NOTIFICATION_CAMPAIGN_DISPATCH_INTERVAL_MS:30000}
+    producer-migration:
+      water-enabled: ${GRUN_NOTIFICATION_MIGRATE_WATER:false}
+      step-enabled: ${GRUN_NOTIFICATION_MIGRATE_STEP:false}
+      basic-fasting-enabled: ${GRUN_NOTIFICATION_MIGRATE_BASIC_FASTING:false}
+    delivery:
+      enabled: ${GRUN_NOTIFICATION_DELIVERY_ENABLED:false}
+      stage: ${GRUN_NOTIFICATION_RELEASE_STAGE:OFF}
+      test-user-ids: ${GRUN_NOTIFICATION_TEST_USER_IDS:}
+      pilot-user-ids: ${GRUN_NOTIFICATION_PILOT_USER_IDS:}
+      live-percentage: ${GRUN_NOTIFICATION_LIVE_PERCENTAGE:0}
+      scan-ms: ${GRUN_NOTIFICATION_DELIVERY_SCAN_MS:5000}
+      outbox-batch-size: ${GRUN_NOTIFICATION_DELIVERY_OUTBOX_BATCH_SIZE:100}
+      lease: ${GRUN_NOTIFICATION_DELIVERY_LEASE:2m}
+      base-retry-delay: ${GRUN_NOTIFICATION_DELIVERY_BASE_RETRY_DELAY:2m}
+      default-ttl: ${GRUN_NOTIFICATION_DELIVERY_DEFAULT_TTL:24h}
+      max-attempts: ${GRUN_NOTIFICATION_DELIVERY_MAX_ATTEMPTS:3}
   account-link:
     authorization-ttl-seconds: ${GRUN_ACCOUNT_LINK_AUTHORIZATION_TTL_SECONDS:300}
     provider-proof-max-age-seconds: ${GRUN_ACCOUNT_LINK_PROVIDER_PROOF_MAX_AGE_SECONDS:300}
@@ -304,4 +325,4 @@ grun:
 
   admin-invitation:
     expiration-hours: ${GRUN_ADMIN_INVITATION_EXPIRATION_HOURS:48}
-    base-url: ${GRUN_ADMIN_INVITATION_BASE_URL:https://admin.grun.app/?adminInvitation=true}
+    base-url: ${GRUN_ADMIN_INVITATION_BASE_URL:https://admin.gruncalorietracker.com/?adminInvitation=true}

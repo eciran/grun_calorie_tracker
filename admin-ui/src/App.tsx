@@ -2,6 +2,9 @@ import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, useEffect, useMemo
 import { QRCodeSVG } from "qrcode.react";
 import { ProductIntakeView } from "./ProductIntakeView";
 import { NotificationDefinitionsView } from "./modules/notifications/NotificationDefinitionsView";
+import { MealReminderAutomationView } from "./modules/notifications/MealReminderAutomationView";
+import { SubscriptionNotificationOperationsView } from "./modules/notifications/SubscriptionNotificationOperationsView";
+import { FreePromotionPolicyView } from "./modules/FreePromotionPolicyView";
 import {
   clearTokens,
   formatRequestError,
@@ -173,13 +176,16 @@ type SectionKey =
   | "subscriptionAccess"
   | "subscriptionAiQuotas"
   | "subscriptionEvents"
+  | "subscriptionNotifications"
   | "promotions"
+  | "freePromotion"
   | "ai"
   | "audits"
   | "retentionPolicies"
   | "settings"
   | "notifications"
   | "notificationDefinitions"
+  | "mealReminderAutomation"
   | "notificationCampaigns"
   | "pushDelivery"
   | "engagement"
@@ -329,7 +335,9 @@ const sections: SectionMeta[] = [
   { key: "subscriptionAccess", label: "User Access", hint: "Resolved rights", icon: "U" },
   { key: "subscriptionAiQuotas", label: "AI Quotas", hint: "Credits", icon: "Q" },
   { key: "subscriptionEvents", label: "Provider Events", hint: "Webhook audit", icon: "E" },
+  { key: "subscriptionNotifications", label: "Account Notifications", hint: "Lifecycle delivery controls", icon: "N" },
   { key: "promotions", label: "Promotions", hint: "Offers and conversion", icon: "%" },
+  { key: "freePromotion", label: "Free Paywall", hint: "Frequency and rollout", icon: "P" },
   { key: "ai", label: "AI Ops", hint: "Requests/provider", icon: "A" },
   { key: "settings", label: "Settings", hint: "App config", icon: "G" },
   { key: "audits", label: "Audit Logs", hint: "Admin actions", icon: "L" },
@@ -337,6 +345,7 @@ const sections: SectionMeta[] = [
   { key: "retentionPolicies", label: "Retention Policies", hint: "Legal data rules", icon: "R" },
   { key: "notifications", label: "Admin Inbox", hint: "Personal alerts", icon: "N" },
   { key: "notificationDefinitions", label: "Definitions", hint: "System notification policy", icon: "D" },
+  { key: "mealReminderAutomation", label: "Meal Reminders", hint: "Schedule, preview and release", icon: "M" },
   { key: "notificationCampaigns", label: "Campaigns", hint: "Broadcast messages", icon: "C" },
   { key: "pushDelivery", label: "Push Delivery", hint: "Device tokens", icon: "P" },
   { key: "engagement", label: "Product Analytics", hint: "Funnels and adoption", icon: "P" },
@@ -397,6 +406,7 @@ const navigation: NavigationItem[] = [
     children: [
       { key: "subscriptions", label: "Plans & entitlements", hint: "Plan rules and user access", icon: "S" },
       navSection("subscriptionEvents"),
+      navSection("subscriptionNotifications"),
       navSection("promotions")
     ]
   },
@@ -408,6 +418,7 @@ const navigation: NavigationItem[] = [
     children: [
       { key: "notifications", label: "Admin inbox", hint: "Operational alerts", icon: "N" },
       { ...navSection("notificationDefinitions"), label: "System rules", hint: "Edit automatic notification types" },
+      { ...navSection("mealReminderAutomation"), label: "Meal reminders", hint: "Preview and safely release reminders" },
       { ...navSection("notificationCampaigns"), label: "Broadcasts", hint: "Create and review campaigns" },
       navSection("mail"),
       navSection("pushDelivery")
@@ -422,7 +433,7 @@ const navigation: NavigationItem[] = [
   },
   {
     ...navSection("engagement"),
-    children: [navSection("engagement"), navSection("tracking")]
+    children: [navSection("engagement"), navSection("tracking"), navSection("freePromotion")]
   },
   {
     ...navSection("system"),
@@ -439,10 +450,10 @@ const sectionTabGroups: SectionMeta[][] = [
   [navSection("users"), navSection("admins"), navSection("userVerification")],
   [navSection("foodOps"), navSection("foodImports"), navSection("foodRegions"), navSection("foodQuality"), navSection("catalogExercises"), navSection("catalogSources")],
   [navSection("products"), navSection("productContributions"), navSection("productDuplicates"), navSection("productImages"), navSection("productNutrition"), navSection("productRejected")],
-  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions")],
-  [navSection("notifications"), navSection("notificationDefinitions"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
+  [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionEntitlements"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("subscriptionNotifications"), navSection("promotions")],
+  [navSection("notifications"), navSection("notificationDefinitions"), navSection("mealReminderAutomation"), navSection("notificationCampaigns"), navSection("mail"), navSection("brevoSenders"), navSection("mailEvents"), navSection("pushDelivery")],
   [navSection("integrations"), navSection("integrationProviders"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
-  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps"), navSection("testFeedback")],
+  [navSection("engagement"), navSection("tracking"), navSection("trackingWater"), navSection("trackingFasting"), navSection("trackingSteps"), navSection("freePromotion"), navSection("testFeedback")],
   [navSection("system"), navSection("systemRuntime"), navSection("systemDatabase"), navSection("systemProviders"), navSection("systemProduction"), navSection("audits"), navSection("retentionPolicies")]
 ];
 
@@ -453,8 +464,8 @@ function permissionForSection(section: SectionKey): string {
   if (section === "admins") return "ADMIN_TEAM_READ";
   if (section === "users" || section === "userVerification") return "USERS_READ";
   if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSources", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
-  if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
-  if (["notifications", "notificationDefinitions", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "testFeedback"].includes(section)) return "GROWTH_READ";
+  if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "subscriptionNotifications", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
+  if (["notifications", "notificationDefinitions", "mealReminderAutomation", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "freePromotion", "testFeedback"].includes(section)) return "GROWTH_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
   if (section === "audits") return "AUDIT_READ";
   if (["integrations", "integrationProviders", "mail", "brevoSenders", "mailEvents", "pushDelivery", "ai", "system", "systemRuntime", "systemDatabase", "systemProviders", "systemProduction", "settings"].includes(section)) return "TECHNICAL_READ";
@@ -925,16 +936,19 @@ export default function App() {
           {active === "subscriptionAccess" && <SubscriptionsView mode="access" onError={setError} />}
           {active === "subscriptionAiQuotas" && <SubscriptionsView mode="aiQuotas" onError={setError} />}
           {active === "subscriptionEvents" && <SubscriptionEventsView onError={setError} targetContext={targetContext?.section === "subscriptionEvents" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
+          {active === "subscriptionNotifications" && <SubscriptionNotificationOperationsView onError={setError} />}
           {active === "promotions" && <PromotionsView onError={setError} />}
           {active === "ai" && <AiReviewView onError={setError} targetContext={targetContext?.section === "ai" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "settings" && <RuntimeOperationsView onError={setError} />}
           {active === "audits" && <AuditsView onError={setError} />}
           {active === "retentionPolicies" && <RetentionPoliciesView onError={setError} />}
           {active === "notificationDefinitions" && <NotificationDefinitionsView onError={setError} />}
+          {active === "mealReminderAutomation" && <MealReminderAutomationView accessProfile={accessProfile} onError={setError} onNavigate={navigateToSection} />}
           {active === "notificationCampaigns" && <NotificationCampaignsView onError={setError} onNavigate={navigateToSection} />}
           {active === "notifications" && <NotificationsView onError={setError} onNavigate={navigateToTarget} />}
           {active === "pushDelivery" && <PushDeliveryView onError={setError} />}
           {active === "engagement" && <EngagementAnalyticsView onError={setError} />}
+          {active === "freePromotion" && <FreePromotionPolicyView accessProfile={accessProfile} onError={setError} />}
           {active === "testFeedback" && <TestFeedbackView onError={setError} />}
           {active === "tracking" && <TrackingMonitoringView mode="overview" onError={setError} />}
           {active === "trackingWater" && <TrackingMonitoringView mode="water" onError={setError} />}
@@ -2339,6 +2353,48 @@ type AdminRecipeCreateForm = {
   ingredients: AdminRecipeIngredientForm[];
 };
 
+type AdminCatalogProductCreateForm = {
+  name: string;
+  catalogType: string;
+  marketRegion: string;
+  preparationState: string;
+  brand: string;
+  calories: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+  sugar: string;
+  sourceName: string;
+  sourceUrl: string;
+  reviewNote: string;
+  saveSearchAlias: boolean;
+  searchAlias: string;
+  searchAliasLanguage: string;
+};
+
+function emptyAdminCatalogProductForm(name = "", marketRegion = "GLOBAL", language = "EN"): AdminCatalogProductCreateForm {
+  return {
+    name,
+    catalogType: "GENERIC_INGREDIENT",
+    marketRegion: marketRegion || "GLOBAL",
+    preparationState: "UNSPECIFIED",
+    brand: "",
+    calories: "",
+    protein: "",
+    carbs: "",
+    fat: "",
+    fiber: "",
+    sugar: "",
+    sourceName: "",
+    sourceUrl: "",
+    reviewNote: "",
+    saveSearchAlias: true,
+    searchAlias: name,
+    searchAliasLanguage: language.toUpperCase() === "TR" ? "TR" : "EN"
+  };
+}
+
 const emptyRecipeCreateForm: AdminRecipeCreateForm = {
   ownerEmail: "",
   name: "",
@@ -2404,8 +2460,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [reviewingImportId, setReviewingImportId] = useState<number | null>(null);
   const [selectedImportCandidate, setSelectedImportCandidate] = useState<AdminRecipeImportCandidate | null>(null);
   const [importIngredientSearchIndex, setImportIngredientSearchIndex] = useState<number | null>(null);
+  const [importIngredientSearchQuery, setImportIngredientSearchQuery] = useState("");
+  const [importIngredientProductId, setImportIngredientProductId] = useState("");
   const [importIngredientSearchResults, setImportIngredientSearchResults] = useState<FoodProduct[]>([]);
   const [importIngredientSearchState, setImportIngredientSearchState] = useState<LoadState>("idle");
+  const [showImportProductCreate, setShowImportProductCreate] = useState(false);
+  const [creatingImportProduct, setCreatingImportProduct] = useState(false);
+  const [importProductCreateForm, setImportProductCreateForm] = useState<AdminCatalogProductCreateForm>(() => emptyAdminCatalogProductForm());
+  const [importProductPreflight, setImportProductPreflight] = useState<{ duplicateCandidates?: FoodProduct[]; nutritionWarnings?: string[] } | null>(null);
   const [recipeFiltersOpen, setRecipeFiltersOpen] = useState(false);
   const [recipeAnalyticsWindowDays, setRecipeAnalyticsWindowDays] = useState(30);
   const [recipeImportStateOpen, setRecipeImportStateOpen] = useState(false);
@@ -2559,8 +2621,25 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     setIngredientSearchState("idle");
   }
 
-  async function searchImportIngredientProducts(index: number, ingredientName?: string) {
-    const searchText = (ingredientName ?? "").trim();
+  function openImportIngredientResolver(index: number, ingredientName?: string, foodItemId?: number) {
+    setImportIngredientSearchIndex(index);
+    setImportIngredientSearchQuery((ingredientName ?? "").trim());
+    setImportIngredientProductId(foodItemId ? String(foodItemId) : "");
+    setImportIngredientSearchResults([]);
+    setImportIngredientSearchState("idle");
+    setShowImportProductCreate(false);
+    setImportProductCreateForm(emptyAdminCatalogProductForm(ingredientName, selectedImportCandidate?.marketRegion, selectedImportCandidate?.language));
+    setImportProductPreflight(null);
+    onError(null);
+  }
+
+  function updateImportProductCreateForm<K extends keyof AdminCatalogProductCreateForm>(key: K, value: AdminCatalogProductCreateForm[K]) {
+    setImportProductCreateForm((current) => ({ ...current, [key]: value }));
+    setImportProductPreflight(null);
+  }
+
+  async function searchImportIngredientProducts(index: number) {
+    const searchText = importIngredientSearchQuery.trim();
     if (!searchText || searchText.length < 2) {
       onError("Ingredient search needs at least 2 characters.");
       return;
@@ -2582,17 +2661,19 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
     }
   }
 
-  async function mapImportIngredient(index: number, product: FoodProduct) {
-    if (!selectedImportCandidate?.id || !product.id) return;
+  async function mapImportIngredientById(index: number, foodItemId: number) {
+    if (!selectedImportCandidate?.id) return;
     setReviewingImportId(selectedImportCandidate.id);
     onError(null);
     try {
       const updated = await request<AdminRecipeImportCandidate>(`/api/v1/admin/recipes/imports/${selectedImportCandidate.id}/ingredients/${index}`, {
         method: "PATCH",
-        body: { foodItemId: product.id }
+        body: { foodItemId }
       });
       setSelectedImportCandidate(updated);
       setImportIngredientSearchIndex(null);
+      setImportIngredientSearchQuery("");
+      setImportIngredientProductId("");
       setImportIngredientSearchResults([]);
       setImportIngredientSearchState("idle");
       await reloadImports();
@@ -2600,6 +2681,70 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       onError(formatRequestError(err));
     } finally {
       setReviewingImportId(null);
+    }
+  }
+
+  async function mapImportIngredient(index: number, product: FoodProduct) {
+    if (!product.id) return;
+    await mapImportIngredientById(index, product.id);
+  }
+
+  async function mapImportIngredientFromInput(index: number) {
+    const normalizedId = importIngredientProductId.trim();
+    if (!/^\d+$/.test(normalizedId) || Number(normalizedId) <= 0) {
+      onError("Enter a valid positive product ID.");
+      return;
+    }
+    await mapImportIngredientById(index, Number(normalizedId));
+  }
+
+  async function createAndMapImportProduct(event: FormEvent, index: number) {
+    event.preventDefault();
+    const calories = numericOrNull(importProductCreateForm.calories);
+    if (calories === null || calories < 0) {
+      onError("Calories per 100g is required and must be zero or greater.");
+      return;
+    }
+    setCreatingImportProduct(true);
+    onError(null);
+    try {
+      const body = {
+        name: importProductCreateForm.name.trim(),
+        catalogType: importProductCreateForm.catalogType,
+        marketRegion: importProductCreateForm.marketRegion,
+        preparationState: importProductCreateForm.preparationState,
+        brand: importProductCreateForm.brand.trim() || null,
+        calories,
+        protein: numericOrNull(importProductCreateForm.protein),
+        carbs: numericOrNull(importProductCreateForm.carbs),
+        fat: numericOrNull(importProductCreateForm.fat),
+        fiber: numericOrNull(importProductCreateForm.fiber),
+        sugar: numericOrNull(importProductCreateForm.sugar),
+        sourceName: importProductCreateForm.sourceName.trim(),
+        sourceUrl: importProductCreateForm.sourceUrl.trim(),
+        reviewNote: importProductCreateForm.reviewNote.trim() || null,
+        searchAlias: importProductCreateForm.saveSearchAlias ? importProductCreateForm.searchAlias.trim() || null : null,
+        searchAliasLanguage: importProductCreateForm.saveSearchAlias ? importProductCreateForm.searchAliasLanguage : null,
+        allowPotentialDuplicate: Boolean(importProductPreflight?.duplicateCandidates?.length),
+        confirmNutritionWarnings: Boolean(importProductPreflight?.nutritionWarnings?.length)
+      };
+      if (!importProductPreflight) {
+        const preflight = await request<{ duplicateCandidates?: FoodProduct[]; nutritionWarnings?: string[] }>("/api/v1/admin/products/preflight", { method: "POST", body });
+        if (preflight.duplicateCandidates?.length || preflight.nutritionWarnings?.length) {
+          setImportProductPreflight(preflight);
+          return;
+        }
+      }
+      const product = await request<FoodProduct>("/api/v1/admin/products", { method: "POST", body });
+      if (!product.id) {
+        throw new Error("Created product did not return an ID.");
+      }
+      setImportIngredientProductId(String(product.id));
+      await mapImportIngredientById(index, product.id);
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setCreatingImportProduct(false);
     }
   }
 
@@ -3015,22 +3160,120 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                               className="ghost-button compact-button"
                               type="button"
                               disabled={selectedImportCandidate.status !== "PENDING" || reviewingImportId === selectedImportCandidate.id}
-                              onClick={() => searchImportIngredientProducts(ingredientIndex, ingredient.ingredientName)}
+                              onClick={() => openImportIngredientResolver(ingredientIndex, ingredient.ingredientName, ingredient.foodItemId)}
                             >
                               {isMapped ? "Change" : "Find"}
                             </button>
                           </div>
                         </div>
                         {isActiveSearch && (
-                          <div className="ingredient-search-results recipe-import-product-results">
-                            {importIngredientSearchState === "loading" && <span>Searching products...</span>}
-                            {importIngredientSearchState === "ready" && importIngredientSearchResults.length === 0 && <span>No product found. Create or import the product first, then map again.</span>}
-                            {importIngredientSearchResults.map((product) => (
-                              <button className="ingredient-search-result" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
-                                <strong>{productName(product)}</strong>
-                                <span>{productIngredientLabel(product)}</span>
+                          <div className="recipe-import-resolver">
+                            <label className="recipe-import-resolver-field">
+                              Manual product search
+                              <div className="inline-input-action">
+                                <input autoFocus value={importIngredientSearchQuery} onChange={(event) => setImportIngredientSearchQuery(event.target.value)} onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void searchImportIngredientProducts(ingredientIndex);
+                                  }
+                                }} placeholder="Search another name, brand or barcode" />
+                                <button className="ghost-button" type="button" disabled={importIngredientSearchState === "loading"} onClick={() => searchImportIngredientProducts(ingredientIndex)}>
+                                  {importIngredientSearchState === "loading" ? "Searching..." : "Search"}
+                                </button>
+                              </div>
+                            </label>
+                            <label className="recipe-import-resolver-field">
+                              Map by product ID
+                              <div className="inline-input-action">
+                                <input value={importIngredientProductId} onChange={(event) => setImportIngredientProductId(event.target.value)} onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void mapImportIngredientFromInput(ingredientIndex);
+                                  }
+                                }} inputMode="numeric" placeholder="Product ID" />
+                                <button className="ghost-button" type="button" disabled={reviewingImportId === selectedImportCandidate.id} onClick={() => mapImportIngredientFromInput(ingredientIndex)}>
+                                  {reviewingImportId === selectedImportCandidate.id ? "Mapping..." : "Map ID"}
+                                </button>
+                              </div>
+                            </label>
+                            <div className="ingredient-search-results recipe-import-product-results">
+                              {importIngredientSearchState === "idle" && <span>Change the suggested query if the catalog uses a different product name.</span>}
+                              {importIngredientSearchState === "loading" && <span>Searching products...</span>}
+                              {importIngredientSearchState === "ready" && importIngredientSearchResults.length === 0 && <span>No product found for this search. Try another name or map a known product ID.</span>}
+                              {importIngredientSearchResults.map((product) => (
+                                <button className="ingredient-search-result recipe-import-product-result" key={product.id ?? product.normalizedBarcode ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
+                                  <strong>{productName(product)}</strong>
+                                  <span>{productIngredientLabel(product)}</span>
+                                  <span>{productNutritionLabel(product)}</span>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="recipe-import-create-toggle">
+                              <span>Product not in the shared catalog?</span>
+                              <button className="ghost-button" type="button" onClick={() => setShowImportProductCreate((current) => !current)}>
+                                {showImportProductCreate ? "Close product form" : "Create product"}
                               </button>
-                            ))}
+                            </div>
+                            {showImportProductCreate && (
+                              <form className="recipe-import-product-create-form" onSubmit={(event) => createAndMapImportProduct(event, ingredientIndex)}>
+                                <div className="recipe-import-product-create-head">
+                                  <div>
+                                    <strong>Create shared catalog product</strong>
+                                    <span>Nutrition values must be per 100g. The product will remain in internal review and will be mapped to this ingredient automatically.</span>
+                                  </div>
+                                  <Badge value="Needs review" tone="warn" />
+                                </div>
+                                <div className="recipe-import-product-create-grid">
+                                  <label>Product name<input required maxLength={255} value={importProductCreateForm.name} onChange={(event) => updateImportProductCreateForm("name", event.target.value)} /></label>
+                                  <label>Catalog type<select value={importProductCreateForm.catalogType} onChange={(event) => updateImportProductCreateForm("catalogType", event.target.value)}><option value="GENERIC_INGREDIENT">Generic ingredient</option><option value="BRANDED_PRODUCT">Branded product</option></select></label>
+                                  <label>Region<select value={importProductCreateForm.marketRegion} onChange={(event) => updateImportProductCreateForm("marketRegion", event.target.value)}>{MARKET_REGIONS.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}</select></label>
+                                  <label>Preparation<select value={importProductCreateForm.preparationState} onChange={(event) => updateImportProductCreateForm("preparationState", event.target.value)}>{["UNSPECIFIED", "RAW", "COOKED", "BOILED", "GRILLED", "FRIED", "BAKED", "ROASTED", "STEAMED", "PREPARED"].map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}</select></label>
+                                  <label>Brand (optional)<input maxLength={255} value={importProductCreateForm.brand} onChange={(event) => updateImportProductCreateForm("brand", event.target.value)} /></label>
+                                  <label>Calories / 100g<input required min="0" step="0.1" type="number" value={importProductCreateForm.calories} onChange={(event) => updateImportProductCreateForm("calories", event.target.value)} /></label>
+                                  <label>Protein / 100g<input min="0" step="0.1" type="number" value={importProductCreateForm.protein} onChange={(event) => updateImportProductCreateForm("protein", event.target.value)} /></label>
+                                  <label>Carbs / 100g<input min="0" step="0.1" type="number" value={importProductCreateForm.carbs} onChange={(event) => updateImportProductCreateForm("carbs", event.target.value)} /></label>
+                                  <label>Fat / 100g<input min="0" step="0.1" type="number" value={importProductCreateForm.fat} onChange={(event) => updateImportProductCreateForm("fat", event.target.value)} /></label>
+                                  <label>Fiber / 100g<input min="0" step="0.1" type="number" value={importProductCreateForm.fiber} onChange={(event) => updateImportProductCreateForm("fiber", event.target.value)} /></label>
+                                  <label>Sugar / 100g<input min="0" step="0.1" type="number" value={importProductCreateForm.sugar} onChange={(event) => updateImportProductCreateForm("sugar", event.target.value)} /></label>
+                                  <label>Source name<input required maxLength={160} placeholder="USDA FoodData Central" value={importProductCreateForm.sourceName} onChange={(event) => updateImportProductCreateForm("sourceName", event.target.value)} /></label>
+                                  <label className="recipe-import-product-create-wide">Source URL<input required type="url" maxLength={1000} placeholder="https://..." value={importProductCreateForm.sourceUrl} onChange={(event) => updateImportProductCreateForm("sourceUrl", event.target.value)} /></label>
+                                  <label className="recipe-import-product-create-wide">Review note<textarea maxLength={500} rows={2} value={importProductCreateForm.reviewNote} onChange={(event) => updateImportProductCreateForm("reviewNote", event.target.value)} placeholder="How the values were selected or converted" /></label>
+                                </div>
+                                <div className="recipe-import-alias-option">
+                                  <label className="checkbox-row">
+                                    <input type="checkbox" checked={importProductCreateForm.saveSearchAlias} onChange={(event) => updateImportProductCreateForm("saveSearchAlias", event.target.checked)} />
+                                    <span>Save the imported ingredient name as a searchable alias for this product.</span>
+                                  </label>
+                                  {importProductCreateForm.saveSearchAlias && (
+                                    <div className="recipe-import-alias-fields">
+                                      <label>Search alias<input required maxLength={255} value={importProductCreateForm.searchAlias} onChange={(event) => updateImportProductCreateForm("searchAlias", event.target.value)} /></label>
+                                      <label>Language<select value={importProductCreateForm.searchAliasLanguage} onChange={(event) => updateImportProductCreateForm("searchAliasLanguage", event.target.value)}><option value="EN">English</option><option value="TR">Turkish</option></select></label>
+                                    </div>
+                                  )}
+                                </div>
+                                {importProductPreflight && (
+                                  <div className="recipe-import-preflight">
+                                    <strong>Review before creating</strong>
+                                    {(importProductPreflight.nutritionWarnings ?? []).map((warning) => <p className="recipe-import-preflight-warning" key={warning}>{warning}</p>)}
+                                    {(importProductPreflight.duplicateCandidates ?? []).length > 0 && <span>Potential catalog matches were found. Use an existing product when appropriate.</span>}
+                                    <div className="recipe-import-preflight-candidates">
+                                      {(importProductPreflight.duplicateCandidates ?? []).map((product) => (
+                                        <button className="ingredient-search-result recipe-import-product-result" key={product.id ?? productName(product)} type="button" onClick={() => mapImportIngredient(ingredientIndex, product)}>
+                                          <strong>{productName(product)}</strong>
+                                          <span>{productIngredientLabel(product)}</span>
+                                          <span>{productNutritionLabel(product)}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="recipe-import-product-create-actions">
+                                  <button className="primary-button" type="submit" disabled={creatingImportProduct || reviewingImportId === selectedImportCandidate.id}>
+                                    {creatingImportProduct ? "Checking..." : importProductPreflight ? "Create anyway and map" : "Check and create"}
+                                  </button>
+                                </div>
+                              </form>
+                            )}
                           </div>
                         )}
                       </article>
@@ -5283,7 +5526,7 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
   const [summaryWindowHours, setSummaryWindowHours] = useState(24);
   const [policyActionState, setPolicyActionState] = useState<LoadState>("idle");
   const [rollbackConfirmationOpen, setRollbackConfirmationOpen] = useState(false);
-  const [policyDraft, setPolicyDraft] = useState({ circuitOpen: false, failureRateThreshold: "0.20", rejectionRateThreshold: "0.40", maxTokensPer24Hours: "1000000", maxCostPer24Hours: "20", costCurrency: "USD", activeModel: "", activePromptVersion: "", reason: "" });
+  const [policyDraft, setPolicyDraft] = useState({ circuitOpen: false, failureRateThreshold: "0.20", rejectionRateThreshold: "0.40", maxTokensPer24Hours: "1000000", maxCostPer24Hours: "20", costCurrency: "USD", activeModel: "", activePhotoProvider: "OPENAI", activePhotoModel: "", activePromptVersion: "", reason: "" });
   const [smokeState, setSmokeState] = useState<LoadState>("idle");
   const [refundState, setRefundState] = useState<LoadState>("idle");
   const [smokeResult, setSmokeResult] = useState<string | null>(null);
@@ -5306,6 +5549,15 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     ...Object.keys(summary?.estimatedCostByCurrency ?? {}),
     ...Object.keys(summary?.subscriptionRevenueByCurrency ?? {})
   ]).size > 0;
+  const photoStatuses = (summary?.requestStatuses ?? []).filter((item) => item.requestType === "PHOTO_MEAL_LOG");
+  const photoSegments = (summary?.segments ?? []).filter((item) => item.requestType === "PHOTO_MEAL_LOG");
+  const photoRequestCount = photoStatuses.reduce((total, item) => total + safeNumber(item.requestCount), 0);
+  const photoTokenCount = photoStatuses.reduce((total, item) => total + safeNumber(item.totalTokens), 0);
+  const photoCostByCurrency = photoSegments.reduce<Record<string, number>>((totals, item) => {
+    const currency = item.costCurrency || policy?.photoCostCurrency || "USD";
+    totals[currency] = (totals[currency] ?? 0) + safeNumber(item.estimatedCost);
+    return totals;
+  }, {});
   const focusedRequestId = targetContext?.targetType === "AI_REQUEST" ? targetContext.targetId : undefined;
   useEffect(() => {
     if (!policy) return;
@@ -5317,6 +5569,8 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
       maxCostPer24Hours: String(policy.maxCostPer24Hours ?? 20),
       costCurrency: policy.costCurrency ?? "USD",
       activeModel: policy.activeModel ?? "",
+      activePhotoProvider: policy.activePhotoProvider ?? "OPENAI",
+      activePhotoModel: policy.activePhotoModel ?? policy.activeModel ?? "",
       activePromptVersion: policy.activePromptVersion ?? "",
       reason: ""
     });
@@ -5355,6 +5609,8 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           maxCostPer24Hours: Number(policyDraft.maxCostPer24Hours),
           costCurrency: policyDraft.costCurrency.trim().toUpperCase(),
           activeModel: policyDraft.activeModel.trim(),
+          activePhotoProvider: policyDraft.activePhotoProvider,
+          activePhotoModel: policyDraft.activePhotoModel.trim(),
           activePromptVersion: policyDraft.activePromptVersion.trim(),
           reason: policyDraft.reason.trim()
         }
@@ -5391,11 +5647,11 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
       await reloadPolicy();
     }
   }
-  async function runProviderSmoke() {
+  async function runProviderSmoke(smokeRequestType: "VOICE_FOOD_LOG" | "PHOTO_MEAL_LOG") {
     setSmokeState("loading");
     setSmokeResult(null);
     try {
-      const result = await request<unknown>("/api/v1/admin/system/ai-provider/smoke", { method: "POST" });
+      const result = await request<unknown>(`/api/v1/admin/system/ai-provider/smoke?requestType=${encodeURIComponent(smokeRequestType)}`, { method: "POST" });
       setSmokeResult(JSON.stringify(result, null, 2));
       setSmokeState("ready");
     } catch (error) {
@@ -5474,7 +5730,8 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
     <div className="stack ai-operations-view">
       <SectionToolbar title="AI request operations" state={combineStates([state, summaryState, policyState, policyActionState, smokeState, refundState])} onReload={() => { void reload(); void reloadSummary(); }}>
         <button className="ghost-button" type="button" onClick={resetFilters}>Reset filters</button>
-        <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={runProviderSmoke}>Provider smoke test</button>
+        <button className="ghost-button" type="button" disabled={smokeState === "loading"} onClick={() => void runProviderSmoke("VOICE_FOOD_LOG")}>Voice smoke test</button>
+        <button className="primary-button" type="button" disabled={smokeState === "loading"} onClick={() => void runProviderSmoke("PHOTO_MEAL_LOG")}>Photo model smoke test</button>
       </SectionToolbar>
       {targetContext && <TargetContextBanner context={targetContext} onClear={onClearTarget} />}
 
@@ -5503,6 +5760,17 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           <MetricCard label="Success / rejection" value={`${formatFailureRate(summary?.successRate)} / ${formatFailureRate(summary?.rejectionRate)}`} hint="Reviewable output and user rejection rates" />
           <MetricCard label="Subscription revenue" value={formatCurrencyBreakdown(summary?.subscriptionRevenueByCurrency)} hint="Processed store revenue in the same window" />
           <MetricCard label="AI cost / revenue" value={formatRatioBreakdown(summary?.costToRevenueRatioByCurrency)} hint="Only matching currencies are compared" />
+        </div>
+      </Panel>
+
+      <Panel title="Photo analysis economics" description="Photo meal analysis is routed and costed independently from the other AI operations.">
+        <div className="metric-grid compact-grid">
+          <MetricCard label="Active photo provider" value={policy?.activePhotoProvider ?? policyDraft.activePhotoProvider} hint={policy?.activePhotoModel ?? policyDraft.activePhotoModel} />
+          <MetricCard label="Photo requests" value={formatValue(photoRequestCount)} hint={summaryWindowLabel(summaryWindowHours)} />
+          <MetricCard label="Photo tokens" value={formatValue(photoTokenCount)} hint="Input and output tokens combined" />
+          <MetricCard label="Photo estimated cost" value={formatCurrencyBreakdown(photoCostByCurrency)} hint="Only PHOTO_MEAL_LOG requests" />
+          <MetricCard label="Photo input rate" value={formatAiCostAmount(policy?.photoInputTokenCostPer1m, policy?.photoCostCurrency)} hint="Per 1M input tokens" />
+          <MetricCard label="Photo output rate" value={formatAiCostAmount(policy?.photoOutputTokenCostPer1m, policy?.photoCostCurrency)} hint="Per 1M output tokens" />
         </div>
       </Panel>
 
@@ -5548,6 +5816,8 @@ function AiReviewView({ onError, targetContext, onClearTarget }: { onError: (mes
           <label>24h cost budget<input min="0.01" step="0.01" type="number" value={policyDraft.maxCostPer24Hours} onChange={(event) => setPolicyDraft((current) => ({ ...current, maxCostPer24Hours: event.target.value }))} /></label>
           <label>Currency<input maxLength={12} value={policyDraft.costCurrency} onChange={(event) => setPolicyDraft((current) => ({ ...current, costCurrency: event.target.value.toUpperCase() }))} /></label>
           <label>Active model<input value={policyDraft.activeModel} onChange={(event) => setPolicyDraft((current) => ({ ...current, activeModel: event.target.value }))} /></label>
+          <label>Photo analysis provider<select value={policyDraft.activePhotoProvider} onChange={(event) => setPolicyDraft((current) => ({ ...current, activePhotoProvider: event.target.value }))}><option value="OPENAI">OpenAI</option><option value="GEMINI">Gemini</option><option value="HTTP_JSON">HTTP JSON</option><option value="LOG">Log (non-production)</option></select><small>The provider is explicit; it is not inferred from the model name.</small></label>
+          <label>Photo analysis model<input value={policyDraft.activePhotoModel} onChange={(event) => setPolicyDraft((current) => ({ ...current, activePhotoModel: event.target.value }))} /><small>Used only for PHOTO_MEAL_LOG. All other AI features continue using Active model.</small></label>
           <label>Prompt version<input value={policyDraft.activePromptVersion} onChange={(event) => setPolicyDraft((current) => ({ ...current, activePromptVersion: event.target.value }))} /></label>
           <label className="span-4">Admin reason<textarea placeholder="Why this reliability or deployment policy is changing" value={policyDraft.reason} onChange={(event) => setPolicyDraft((current) => ({ ...current, reason: event.target.value }))} /></label>
           <div className="span-4 modal-actions inline-actions">
@@ -11533,7 +11803,7 @@ function parseOptionalNumber(value: string): number | null {
 }
 
 function productName(item: FoodProduct): string {
-  return item.productName ?? item.name ?? "Unnamed product";
+  return item.displayName ?? item.productName ?? item.name ?? item.canonicalName ?? "Unnamed product";
 }
 
 function productIngredientLabel(item: FoodProduct): string {
@@ -11542,9 +11812,21 @@ function productIngredientLabel(item: FoodProduct): string {
     item.brand || null,
     item.barcode || null,
     item.marketRegion || null,
-    typeof item.calories === "number" ? `${formatValue(item.calories)} kcal` : null
+    item.catalogType || null,
+    item.preparationState || null,
+    item.verificationStatus || null
   ].filter(Boolean);
   return parts.length ? parts.join(" | ") : "Product selected";
+}
+
+function productNutritionLabel(item: FoodProduct): string {
+  const nutrients = [
+    typeof item.calories === "number" ? `${formatValue(item.calories)} kcal` : null,
+    typeof item.protein === "number" ? `P ${formatValue(item.protein)}g` : null,
+    typeof item.carbs === "number" ? `C ${formatValue(item.carbs)}g` : null,
+    typeof item.fat === "number" ? `F ${formatValue(item.fat)}g` : null
+  ].filter(Boolean);
+  return nutrients.length ? `${nutrients.join(" | ")} per 100g` : "Nutrition values unavailable";
 }
 
 function readNumber(data: SystemHealth | null, key: string): number | undefined {
@@ -11588,13 +11870,15 @@ type PromotionDraft = {
   targetProductId: string; currency: string; eligibilityRule: string;
   perUserLimit: string; globalLimit: string; campaignKey: string;
   providerOfferId: string; providerProductId: string; startAt: string; endAt: string;
+  storeOfferCodeRequired: boolean;
 };
 
 const EMPTY_PROMOTION: PromotionDraft = {
   code: "", name: "", description: "", discountPercent: "0", promoType: "CAMPAIGN",
   targetStore: "ALL", targetPlan: "", targetRegion: "", targetProductId: "",
   currency: "EUR", eligibilityRule: "ALL_USERS", perUserLimit: "1", globalLimit: "",
-  campaignKey: "", providerOfferId: "", providerProductId: "", startAt: "", endAt: ""
+  campaignKey: "", providerOfferId: "", providerProductId: "", startAt: "", endAt: "",
+  storeOfferCodeRequired: true
 };
 
 function PromotionsView({ onError }: { onError: (message: string | null) => void }) {
@@ -11669,7 +11953,8 @@ request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${re
       perUserLimit: String(item.perUserLimit ?? 1), globalLimit: item.globalLimit == null ? "" : String(item.globalLimit),
       campaignKey: item.campaignKey ?? "", providerOfferId: item.providerOfferId ?? "",
       providerProductId: item.providerProductId ?? "", startAt: item.startAt?.slice(0, 16) ?? "",
-      endAt: item.endAt?.slice(0, 16) ?? ""
+      endAt: item.endAt?.slice(0, 16) ?? "",
+      storeOfferCodeRequired: item.storeOfferCodeRequired ?? false
     });
   }
 
@@ -11832,11 +12117,12 @@ request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${re
               <label>Global limit<input min="1" type="number" value={draft.globalLimit} onChange={(event) => setDraft({ ...draft, globalLimit: event.target.value })} placeholder="Unlimited" /></label>
               <label>Start time<input type="datetime-local" value={draft.startAt} onChange={(event) => setDraft({ ...draft, startAt: event.target.value })} /></label>
               <label>End time<input type="datetime-local" value={draft.endAt} onChange={(event) => setDraft({ ...draft, endAt: event.target.value })} /></label>
-              <label>Provider offer ID<input maxLength={160} value={draft.providerOfferId} onChange={(event) => setDraft({ ...draft, providerOfferId: event.target.value })} /></label>
-              <label>Provider product ID<input maxLength={160} value={draft.providerProductId} onChange={(event) => setDraft({ ...draft, providerProductId: event.target.value })} /></label>
+              <label>RevenueCat offering ID (optional for native code)<input maxLength={160} value={draft.providerOfferId} onChange={(event) => setDraft({ ...draft, providerOfferId: event.target.value })} /></label>
+              <label>Store product ID<input required={draft.storeOfferCodeRequired} maxLength={160} value={draft.providerProductId} onChange={(event) => setDraft({ ...draft, providerProductId: event.target.value })} /></label>
               <label>Campaign key<input maxLength={120} value={draft.campaignKey} onChange={(event) => setDraft({ ...draft, campaignKey: event.target.value })} /></label>
               <label>Eligibility rule<select required value={draft.eligibilityRule} onChange={(event) => setDraft({ ...draft, eligibilityRule: event.target.value })}><option value="ALL_USERS">All users</option><option value="NO_PRIOR_PROMO_REDEMPTION">No prior promo</option><option value="FIRST_PAID_PURCHASE">First paid purchase</option><option value="LAPSED_SUBSCRIBER">Lapsed subscriber</option><option value="ADMIN_SUPPORT_ONLY">Admin support only</option></select></label>
             </div>
+            <label className="checkbox-row"><input type="checkbox" checked={draft.storeOfferCodeRequired} onChange={(event) => setDraft({ ...draft, storeOfferCodeRequired: event.target.checked })} /><span>Require a verified App Store / Play offer code. The admin Code must exactly match the store offer code.</span></label>
             <label>Description<textarea maxLength={600} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
             <div className="inline-actions commercial-form-actions"><button className="primary-button" disabled={actionState === "loading"} type="submit">{editingId ? "Save draft" : "Create draft"}</button>{editingId && <button className="ghost-button" onClick={resetDraft} type="button">Cancel edit</button>}</div>
           </form>
@@ -11845,7 +12131,8 @@ request<AdminPromotionRedemptionPage>(`/api/v1/admin/promotions/redemptions?${re
         <Panel title="Store guardrails" description="Commercial configuration cannot silently grant paid access.">
           <div className="commercial-guardrails">
             <div><strong>Provider truth</strong><span>Paid entitlement still requires a verified RevenueCat, App Store or Google Play event.</span></div>
-            <div><strong>Mapping check</strong><span>Store-targeted offers require both offer and product identifiers before activation.</span></div>
+            <div><strong>Verified partner code</strong><span>Native code campaigns are attributed only when RevenueCat returns the exact App Store or Play offer code.</span></div>
+            <div><strong>Mapping check</strong><span>Native code campaigns require a store product ID; RevenueCat offering ID remains optional.</span></div>
             <div><strong>Immutable redemption key</strong><span>Provider redemptions use a unique idempotency key to block duplicate conversion credit.</span></div>
             <div><strong>Lifecycle separation</strong><span>Intro, win-back, support grant and campaign offers stay distinguishable in reporting.</span></div>
           </div>

@@ -37,7 +37,7 @@ public class OnboardingCompleteRequestDto {
     private LocalDate birthDate;
 
     @NotBlank(message = "{validation.user-profile.gender.required}")
-    @Pattern(regexp = "(?i)MALE|FEMALE", message = "{validation.user-profile.gender.invalid}")
+    @Pattern(regexp = "(?i)MALE|FEMALE|OTHER", message = "{validation.user-profile.gender.invalid}")
     @Schema(description = "User gender value used by calculations.", example = "MALE", requiredMode = Schema.RequiredMode.REQUIRED)
     private String gender;
 

@@ -58,8 +58,43 @@ public class AdminNotificationDefinitionServiceImpl implements AdminNotification
         if (!entity.getKey().equals(request.getKey().trim().toLowerCase(java.util.Locale.ROOT))) {
             throw new IllegalArgumentException("Notification definition key cannot be changed.");
         }
+        if (entity.isProtectedDefinition() && entity.getKey().startsWith("meal_reminder_")) {
+            throw new IllegalArgumentException("Meal reminder copy requires the protected approval workflow.");
+        }
+        if (entity.isProtectedDefinition() && (entity.getKey().startsWith("subscription_")
+                && !"subscription_provider_alert".equals(entity.getKey())
+                || "ai_addon_purchased".equals(entity.getKey()))) {
+            throw new IllegalArgumentException("Subscription lifecycle copy requires the protected approval workflow.");
+        }
         if (entity.isProtectedDefinition() && !request.isEnabled()) {
             throw new IllegalArgumentException("Protected security notifications cannot be disabled.");
+        }
+        Map<String, Object> before = auditValue(entity);
+        apply(entity, request);
+        entity.setUpdatedBy(adminEmail);
+        entity.setUpdatedAt(LocalDateTime.now());
+        entity = repository.save(entity);
+        auditService.record(adminEmail, AdminAuditActionType.NOTIFICATION_DEFINITION_UPDATE,
+                AdminAuditTargetType.NOTIFICATION_DEFINITION, entity.getId().toString(), before, auditValue(entity), correlationId);
+        return toDto(entity);
+    }
+
+    @Override
+    @Transactional
+    public AdminNotificationDefinitionDto publishProtected(Long id, AdminNotificationDefinitionRequestDto request,
+            String adminEmail, String correlationId) {
+        NotificationDefinitionEntity entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification definition not found"));
+        boolean subscriptionDefinition = entity.isProtectedDefinition()
+                && (entity.getKey().startsWith("subscription_") || "ai_addon_purchased".equals(entity.getKey()));
+        if (!subscriptionDefinition || "subscription_provider_alert".equals(entity.getKey())) {
+            throw new IllegalArgumentException("Only protected user subscription definitions use this approval workflow.");
+        }
+        if (!entity.getKey().equals(request.getKey().trim().toLowerCase(java.util.Locale.ROOT))) {
+            throw new IllegalArgumentException("Notification definition key cannot be changed.");
+        }
+        if (!request.isEnabled()) {
+            throw new IllegalArgumentException("Protected subscription account notifications cannot be disabled.");
         }
         Map<String, Object> before = auditValue(entity);
         apply(entity, request);

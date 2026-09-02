@@ -43,6 +43,8 @@ public class AiOperationsPolicyServiceImpl implements AiOperationsPolicyService 
         AiOperationsPolicyEntity policy = requiredPolicy();
         requireCurrentVersion(policy, request.getVersion());
         policy.setPreviousModel(effectiveModel(policy));
+        policy.setPreviousPhotoModel(effectivePhotoModel(policy));
+        policy.setPreviousPhotoProvider(effectivePhotoProvider(policy));
         policy.setPreviousPromptVersion(effectivePromptVersion(policy));
         policy.setCircuitOpen(request.getCircuitOpen());
         policy.setFailureRateThreshold(request.getFailureRateThreshold());
@@ -51,6 +53,10 @@ public class AiOperationsPolicyServiceImpl implements AiOperationsPolicyService 
         policy.setMaxCostPer24Hours(request.getMaxCostPer24Hours());
         policy.setCostCurrency(request.getCostCurrency().trim().toUpperCase(Locale.ROOT));
         policy.setActiveModel(request.getActiveModel().trim());
+        policy.setActivePhotoModel(isBlank(request.getActivePhotoModel())
+                ? request.getActiveModel().trim()
+                : request.getActivePhotoModel().trim());
+        policy.setActivePhotoProvider(request.getActivePhotoProvider());
         policy.setActivePromptVersion(request.getActivePromptVersion().trim());
         policy.setChangeReason(request.getReason().trim());
         policy.setUpdatedBy(adminEmail);
@@ -65,14 +71,22 @@ public class AiOperationsPolicyServiceImpl implements AiOperationsPolicyService 
     public AdminAiOperationsPolicyDto rollback(String adminEmail, AdminAiOperationsRollbackRequestDto request) {
         AiOperationsPolicyEntity policy = requiredPolicy();
         requireCurrentVersion(policy, request.getVersion());
-        if (isBlank(policy.getPreviousModel()) || isBlank(policy.getPreviousPromptVersion())) {
+        if (isBlank(policy.getPreviousModel()) || isBlank(policy.getPreviousPhotoModel())
+                || policy.getPreviousPhotoProvider() == null
+                || isBlank(policy.getPreviousPromptVersion())) {
             throw new IllegalArgumentException("No previous AI model and prompt deployment is available.");
         }
         String currentModel = effectiveModel(policy);
+        String currentPhotoModel = effectivePhotoModel(policy);
+        var currentPhotoProvider = effectivePhotoProvider(policy);
         String currentPrompt = effectivePromptVersion(policy);
         policy.setActiveModel(policy.getPreviousModel());
+        policy.setActivePhotoModel(policy.getPreviousPhotoModel());
+        policy.setActivePhotoProvider(policy.getPreviousPhotoProvider());
         policy.setActivePromptVersion(policy.getPreviousPromptVersion());
         policy.setPreviousModel(currentModel);
+        policy.setPreviousPhotoModel(currentPhotoModel);
+        policy.setPreviousPhotoProvider(currentPhotoProvider);
         policy.setPreviousPromptVersion(currentPrompt);
         policy.setChangeReason(request.getReason().trim());
         policy.setUpdatedBy(adminEmail);
@@ -113,6 +127,8 @@ public class AiOperationsPolicyServiceImpl implements AiOperationsPolicyService 
 
     private void applyRuntimeConfiguration(AiOperationsPolicyEntity policy) {
         if (!isBlank(policy.getActiveModel())) aiProperties.setModel(policy.getActiveModel());
+        if (!isBlank(policy.getActivePhotoModel())) aiProperties.getPhoto().setModel(policy.getActivePhotoModel());
+        if (policy.getActivePhotoProvider() != null) aiProperties.getPhoto().setProvider(policy.getActivePhotoProvider());
         if (!isBlank(policy.getActivePromptVersion())) aiProperties.setPromptVersion(policy.getActivePromptVersion());
         AiProperties.Monitoring monitoring = aiProperties.getMonitoring();
         monitoring.setFailureRateThreshold(policy.getFailureRateThreshold());
@@ -131,8 +147,16 @@ public class AiOperationsPolicyServiceImpl implements AiOperationsPolicyService 
         dto.setMaxCostPer24Hours(policy.getMaxCostPer24Hours());
         dto.setCostCurrency(policy.getCostCurrency());
         dto.setActiveModel(effectiveModel(policy));
+        dto.setActivePhotoModel(effectivePhotoModel(policy));
+        dto.setActivePhotoProvider(effectivePhotoProvider(policy));
+        dto.setPhotoInputTokenCostPer1m(aiProperties.getPhoto().getInputTokenCostPer1m());
+        dto.setPhotoOutputTokenCostPer1m(aiProperties.getPhoto().getOutputTokenCostPer1m());
+        dto.setPhotoCostCurrency(aiProperties.getPhoto().getCostCurrency());
         dto.setActivePromptVersion(effectivePromptVersion(policy));
-        dto.setRollbackAvailable(!isBlank(policy.getPreviousModel()) && !isBlank(policy.getPreviousPromptVersion()));
+        dto.setRollbackAvailable(!isBlank(policy.getPreviousModel())
+                && !isBlank(policy.getPreviousPhotoModel())
+                && policy.getPreviousPhotoProvider() != null
+                && !isBlank(policy.getPreviousPromptVersion()));
         dto.setUpdatedBy(policy.getUpdatedBy());
         dto.setUpdatedAt(policy.getUpdatedAt());
         return dto;
@@ -144,6 +168,18 @@ public class AiOperationsPolicyServiceImpl implements AiOperationsPolicyService 
 
     private String effectivePromptVersion(AiOperationsPolicyEntity policy) {
         return isBlank(policy.getActivePromptVersion()) ? aiProperties.getPromptVersion() : policy.getActivePromptVersion();
+    }
+
+    private String effectivePhotoModel(AiOperationsPolicyEntity policy) {
+        String configured = aiProperties.getPhoto().getModel();
+        String fallback = isBlank(configured) ? aiProperties.getModel() : configured;
+        return isBlank(policy.getActivePhotoModel()) ? fallback : policy.getActivePhotoModel();
+    }
+
+    private com.grun.calorietracker.enums.AiProvider effectivePhotoProvider(AiOperationsPolicyEntity policy) {
+        return policy.getActivePhotoProvider() == null
+                ? aiProperties.resolveProvider(com.grun.calorietracker.enums.AiRequestType.PHOTO_MEAL_LOG)
+                : policy.getActivePhotoProvider();
     }
 
     private boolean isBlank(String value) {

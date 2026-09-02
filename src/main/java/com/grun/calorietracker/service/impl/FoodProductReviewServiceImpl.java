@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
+import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.grun.calorietracker.dto.FoodCanonicalCandidateAssessmentDto;
 import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
@@ -25,14 +27,18 @@ import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodCanonicalResolutionState;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
@@ -75,6 +81,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -574,6 +581,155 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 duplicateKeys.isFirst(),
                 duplicateKeys.isLast()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminFoodProductPreflightDto preflightAdminCatalogProduct(AdminFoodProductCreateRequestDto request) {
+        validateAdminCatalogProductRequest(request);
+        String name = FoodProductNormalizationRules.normalizeProductDisplayName(request.getName());
+        String normalizedName = FoodProductNormalizationRules.normalizeSearchAlias(name);
+        List<FoodItemEntity> duplicateEntities = foodItemRepository.findAdminCreationDuplicateCandidates(
+                name,
+                normalizedName,
+                request.getMarketRegion(),
+                request.getCatalogType(),
+                PageRequest.of(0, 8)
+        );
+        List<FoodProductDto> duplicates = (duplicateEntities == null ? List.<FoodItemEntity>of() : duplicateEntities)
+                .stream()
+                .map(FoodItemMapper::mapEntityToDto)
+                .toList();
+        return new AdminFoodProductPreflightDto(duplicates, buildNutritionWarnings(request));
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
+    public FoodProductDto createAdminCatalogProduct(AdminFoodProductCreateRequestDto request, String reviewedBy) {
+        AdminFoodProductPreflightDto preflight = preflightAdminCatalogProduct(request);
+        if (!preflight.getDuplicateCandidates().isEmpty() && !Boolean.TRUE.equals(request.getAllowPotentialDuplicate())) {
+            throw new IllegalArgumentException("Potential duplicate product found. Confirm duplicate creation or use an existing product.");
+        }
+        if (!preflight.getNutritionWarnings().isEmpty() && !Boolean.TRUE.equals(request.getConfirmNutritionWarnings())) {
+            throw new IllegalArgumentException("Nutrition values need confirmation before creation.");
+        }
+
+        String name = FoodProductNormalizationRules.normalizeProductDisplayName(request.getName());
+        if (name == null) {
+            throw new IllegalArgumentException("Product name is required.");
+        }
+
+        FoodItemEntity product = new FoodItemEntity();
+        product.setName(name);
+        product.setDisplayName(name);
+        product.setShortDisplayName(name);
+        product.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(request.getBrand()));
+        product.setSourceKey("admin-manual:" + UUID.randomUUID());
+        product.setDataSource(FoodDataSource.ADMIN_IMPORT);
+        product.setCatalogType(request.getCatalogType());
+        product.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        product.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        product.setMarketRegion(request.getMarketRegion());
+        product.getMarketRegions().add(request.getMarketRegion());
+        product.setPreparationState(request.getPreparationState());
+        product.setNutritionBasis(FoodNutritionBasis.SOURCE_REPORTED);
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        product.setCalories(NutritionValueNormalizer.calories(request.getCalories()));
+        product.setProtein(NutritionValueNormalizer.macro(request.getProtein()));
+        product.setCarbs(NutritionValueNormalizer.macro(request.getCarbs()));
+        product.setFat(NutritionValueNormalizer.macro(request.getFat()));
+        product.setFiber(NutritionValueNormalizer.macro(request.getFiber()));
+        product.setSugar(NutritionValueNormalizer.macro(request.getSugar()));
+        product.setUsageCount(0L);
+        product.setIsCustom(false);
+        product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
+        product.setAdminSourceName(request.getSourceName().trim());
+        product.setAdminSourceUrl(request.getSourceUrl().trim());
+        product.setAdminCreationNote(trimToNull(request.getReviewNote()));
+        FoodProductQualityRules.updateQualityAndReviewPriority(product);
+
+        FoodItemEntity saved = foodItemRepository.save(product);
+        FoodProductReviewAuditEntity audit = new FoodProductReviewAuditEntity();
+        audit.setFoodItem(saved);
+        audit.setReviewedBy(saved.getReviewedBy());
+        audit.setActionType(FoodProductReviewAuditAction.CREATE);
+        audit.setFieldName("product");
+        audit.setNewValue(saved.getName());
+        audit.setNote("Admin catalog product created from " + saved.getAdminSourceName() + ".");
+        foodProductReviewAuditRepository.save(audit);
+
+        String aliasText = trimToNull(request.getSearchAlias());
+        String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(aliasText);
+        if (normalizedAlias != null && !normalizedAlias.equals(FoodProductNormalizationRules.normalizeSearchAlias(saved.getName()))) {
+            FoodItemSearchAliasEntity alias = new FoodItemSearchAliasEntity();
+            alias.setFoodItem(saved);
+            alias.setAlias(aliasText);
+            alias.setNormalizedAlias(normalizedAlias);
+            alias.setLanguage(request.getSearchAliasLanguage() == null ? PreferredLanguage.EN : request.getSearchAliasLanguage());
+            alias.setAliasType(FoodSearchAliasType.ADMIN_MANUAL);
+            alias.setSource("recipe-import-resolution");
+            alias.setActive(true);
+            foodItemSearchAliasRepository.save(alias);
+
+            FoodProductReviewAuditEntity aliasAudit = new FoodProductReviewAuditEntity();
+            aliasAudit.setFoodItem(saved);
+            aliasAudit.setReviewedBy(saved.getReviewedBy());
+            aliasAudit.setActionType(FoodProductReviewAuditAction.SEARCH_ALIAS_CHANGE);
+            aliasAudit.setFieldName("searchAlias");
+            aliasAudit.setNewValue(aliasText + "|true");
+            aliasAudit.setNote("Alias created during recipe ingredient resolution.");
+            foodProductReviewAuditRepository.save(aliasAudit);
+        }
+        return FoodItemMapper.mapEntityToDto(saved);
+    }
+
+    private void validateAdminCatalogProductRequest(AdminFoodProductCreateRequestDto request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Product create request must not be empty.");
+        }
+        if (request.getCatalogType() == null || request.getCatalogType() == FoodCatalogType.USER_CUSTOM || request.getCatalogType() == FoodCatalogType.LOCAL_DISH) {
+            throw new IllegalArgumentException("Recipe ingredient products must be generic ingredients or branded products.");
+        }
+        if (request.getMarketRegion() == null || request.getPreparationState() == null) {
+            throw new IllegalArgumentException("Market region and preparation state are required.");
+        }
+        if (FoodProductNormalizationRules.normalizeProductDisplayName(request.getName()) == null) {
+            throw new IllegalArgumentException("Product name is required.");
+        }
+        if (request.getCalories() == null || request.getCalories() < 0 || request.getCalories() > 900) {
+            throw new IllegalArgumentException("Calories per 100g must be between 0 and 900.");
+        }
+        for (Double value : List.of(
+                valueOrZero(request.getProtein()), valueOrZero(request.getCarbs()), valueOrZero(request.getFat()),
+                valueOrZero(request.getFiber()), valueOrZero(request.getSugar()))) {
+            if (value < 0 || value > 100) {
+                throw new IllegalArgumentException("Nutrition grams per 100g must be between 0 and 100.");
+            }
+        }
+        if (trimToNull(request.getSourceName()) == null || trimToNull(request.getSourceUrl()) == null) {
+            throw new IllegalArgumentException("Source name and URL are required.");
+        }
+    }
+
+    private List<String> buildNutritionWarnings(AdminFoodProductCreateRequestDto request) {
+        List<String> warnings = new ArrayList<>();
+        double protein = valueOrZero(request.getProtein());
+        double carbs = valueOrZero(request.getCarbs());
+        double fat = valueOrZero(request.getFat());
+        if (request.getSugar() != null && request.getCarbs() != null && request.getSugar() > request.getCarbs()) {
+            warnings.add("Sugar is greater than total carbohydrates.");
+        }
+        double macroCalories = protein * 4 + carbs * 4 + fat * 9;
+        double difference = Math.abs(request.getCalories() - macroCalories);
+        if ((protein > 0 || carbs > 0 || fat > 0) && difference > 50 && difference / Math.max(request.getCalories(), 1) > 0.20) {
+            warnings.add("Calories differ materially from the energy calculated from protein, carbohydrates, and fat.");
+        }
+        return warnings;
+    }
+
+    private double valueOrZero(Double value) {
+        return value == null ? 0.0 : value;
     }
     @Override
     @Transactional

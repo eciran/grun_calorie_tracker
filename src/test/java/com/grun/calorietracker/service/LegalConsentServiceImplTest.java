@@ -83,4 +83,21 @@ class LegalConsentServiceImplTest {
         assertEquals(1, result.size());
         assertEquals(LegalConsentType.TERMS_OF_SERVICE, result.get(0).getConsentType());
     }
+
+    @Test
+    void hasActiveConsent_usesLatestDecision() {
+        UserConsentEntity revoked = new UserConsentEntity();
+        revoked.setStatus(LegalConsentStatus.REVOKED);
+        UserConsentEntity accepted = new UserConsentEntity();
+        accepted.setStatus(LegalConsentStatus.ACCEPTED);
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(user));
+        when(userConsentRepository.findByUserAndConsentTypeOrderByCreatedAtDesc(
+                user, LegalConsentType.PERSONALIZATION_PROCESSING))
+                .thenReturn(List.of(revoked, accepted));
+
+        boolean active = service.hasActiveConsent(
+                "user@grun.app", LegalConsentType.PERSONALIZATION_PROCESSING);
+
+        assertEquals(false, active);
+    }
 }

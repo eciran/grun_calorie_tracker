@@ -1,0 +1,6 @@
+package com.grun.calorietracker.enums;
+
+public enum MealReminderAttemptStatus {
+    PENDING, PROCESSING, PROVIDER_ACCEPTED, RECEIPT_DELIVERED, RECEIPT_FAILED,
+    FAILED_RETRYABLE, FAILED_FINAL, INVALID_TOKEN, UNKNOWN
+}

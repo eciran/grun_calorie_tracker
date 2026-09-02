@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -38,6 +39,19 @@ public class ExpoPushProviderClient implements PushProviderClient {
 
     @Override
     public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification) {
+        return sendInternal(token, notification, null);
+    }
+
+    @Override
+    public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification, Duration timeToLive) {
+        if (timeToLive == null || timeToLive.isZero() || timeToLive.isNegative()) {
+            return PushProviderSendResult.failed("Push TTL has expired");
+        }
+        return sendInternal(token, notification, timeToLive);
+    }
+
+    private PushProviderSendResult sendInternal(
+            UserPushTokenEntity token, NotificationEntity notification, Duration timeToLive) {
         if (properties.getExpo().getUrl() == null || properties.getExpo().getUrl().isBlank()) {
             return PushProviderSendResult.failed("Expo push URL is not configured.");
         }
@@ -46,19 +60,20 @@ public class ExpoPushProviderClient implements PushProviderClient {
         if (properties.getExpo().getAccessToken() != null && !properties.getExpo().getAccessToken().isBlank()) {
             headers.setBearerAuth(properties.getExpo().getAccessToken());
         }
-        Map<String, Object> body = Map.of(
-                "to", token.getTokenValue(),
-                "title", resolveTitle(notification),
-                "body", notification.getMessage(),
-                "data", Map.of(
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("to", token.getTokenValue());
+        body.put("title", resolveTitle(notification));
+        body.put("body", notification.getMessage());
+        body.put("data", Map.of(
                         "notificationId", notification.getId(),
                         "type", valueOrEmpty(notification.getType()),
                         "targetRoute", valueOrEmpty(notification.getTargetRoute()),
                         "targetId", valueOrEmpty(notification.getTargetId()),
+                        "recipientUserId", notification.getUser() == null ? "" : notification.getUser().getId().toString(),
+                        "reminderContextVersion", "1",
                         "primaryAction", valueOrEmpty(notification.getPrimaryAction()),
-                        "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()
-                )
-        );
+                        "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()));
+        if (timeToLive != null) body.put("ttl", Math.max(1L, timeToLive.toSeconds()));
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
@@ -77,7 +92,7 @@ public class ExpoPushProviderClient implements PushProviderClient {
             return PushProviderSendResult.failed(error);
         } catch (RestClientException ex) {
             log.warn("expo_push_failed tokenId={} notificationId={} reason={}", token.getId(), notification.getId(), ex.getMessage());
-            return PushProviderSendResult.failed(ex.getMessage());
+            return PushProviderSendResult.uncertain(ex.getMessage());
         }
     }
 

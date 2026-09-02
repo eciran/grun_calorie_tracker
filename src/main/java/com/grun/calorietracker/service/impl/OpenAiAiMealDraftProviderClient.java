@@ -195,6 +195,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 ),
                 maxOutputTokens
         );
+        payload.put("model", properties.resolveModel(requestType));
 
         String responseBody = null;
         String outputText = null;
@@ -204,7 +205,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
             outputText = normalizeJsonOutput(extractOutputText(root));
             try {
                 T result = readProviderOutput(outputText, responseType);
-                attachUsageMetadata(result, root.path("usage"));
+                attachUsageMetadata(result, requestType, root.path("usage"));
                 return result;
             } catch (JsonProcessingException parseException) {
                 return repairInvalidOutput(
@@ -343,6 +344,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                     ),
                     maxOutputTokens
             );
+            repairPayload.put("model", properties.resolveModel(requestType));
 
             String repairedOutput = null;
             try {
@@ -351,7 +353,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 usages.add(repairRoot.path("usage"));
                 repairedOutput = normalizeJsonOutput(extractOutputText(repairRoot));
                 T result = readProviderOutput(repairedOutput, responseType);
-                attachUsageMetadata(result, usages.toArray(JsonNode[]::new));
+                attachUsageMetadata(result, requestType, usages.toArray(JsonNode[]::new));
                 log.info("openai_provider_json_repair_succeeded requestType={} promptVersion={} attempt={}",
                         requestType,
                         properties.getPromptVersion(),
@@ -374,7 +376,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return new AiProviderException("OpenAI provider returned an invalid JSON response: " + error);
     }
 
-    private void attachUsageMetadata(Object result, JsonNode... usages) {
+    private void attachUsageMetadata(Object result, AiRequestType requestType, JsonNode... usages) {
         if (!(result instanceof AiUsageMetadataCarrier carrier)) {
             return;
         }
@@ -388,8 +390,8 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         carrier.setPromptTokens(inputTokens);
         carrier.setCompletionTokens(outputTokens);
         carrier.setTotalTokens(totalTokens);
-        carrier.setEstimatedCost(estimateCost(inputTokens, outputTokens));
-        carrier.setCostCurrency(properties.getOpenai().getCostCurrency());
+        carrier.setEstimatedCost(estimateCost(requestType, inputTokens, outputTokens));
+        carrier.setCostCurrency(costCurrency(requestType));
     }
 
     private Integer sumUsageTokens(JsonNode[] usages, String field) {
@@ -411,15 +413,26 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return node != null && node.isNumber() ? node.asInt() : null;
     }
 
-    private Double estimateCost(Integer inputTokens, Integer outputTokens) {
-        double inputCost = properties.getOpenai().getInputTokenCostPer1m();
-        double outputCost = properties.getOpenai().getOutputTokenCostPer1m();
+    private Double estimateCost(AiRequestType requestType, Integer inputTokens, Integer outputTokens) {
+        boolean photo = requestType == AiRequestType.PHOTO_MEAL_LOG;
+        double inputCost = photo
+                ? properties.getPhoto().getInputTokenCostPer1m()
+                : properties.getOpenai().getInputTokenCostPer1m();
+        double outputCost = photo
+                ? properties.getPhoto().getOutputTokenCostPer1m()
+                : properties.getOpenai().getOutputTokenCostPer1m();
         if ((inputTokens == null && outputTokens == null) || (inputCost <= 0 && outputCost <= 0)) {
             return null;
         }
         double total = (inputTokens == null ? 0 : inputTokens) * inputCost
                 + (outputTokens == null ? 0 : outputTokens) * outputCost;
         return total / 1_000_000d;
+    }
+
+    private String costCurrency(AiRequestType requestType) {
+        return requestType == AiRequestType.PHOTO_MEAL_LOG
+                ? properties.getPhoto().getCostCurrency()
+                : properties.getOpenai().getCostCurrency();
     }
 
     private String normalizeJsonOutput(String outputText) {

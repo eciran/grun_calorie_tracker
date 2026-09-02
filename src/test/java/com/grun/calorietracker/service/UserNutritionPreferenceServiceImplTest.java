@@ -22,6 +22,7 @@ class UserNutritionPreferenceServiceImplTest {
 
     private UserRepository userRepository;
     private UserNutritionPreferenceRepository preferenceRepository;
+    private LegalConsentService legalConsentService;
     private UserNutritionPreferenceServiceImpl service;
     private UserEntity user;
 
@@ -29,11 +30,44 @@ class UserNutritionPreferenceServiceImplTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         preferenceRepository = mock(UserNutritionPreferenceRepository.class);
-        service = new UserNutritionPreferenceServiceImpl(userRepository, preferenceRepository);
+        legalConsentService = mock(LegalConsentService.class);
+        service = new UserNutritionPreferenceServiceImpl(userRepository, preferenceRepository, legalConsentService);
         user = new UserEntity();
         user.setId(4L);
         user.setEmail("user@example.com");
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+    }
+
+    @Test
+    void getForPersonalization_withoutConsent_doesNotExposeStoredPreferences() {
+        when(legalConsentService.hasActiveConsent(
+                "user@example.com", com.grun.calorietracker.enums.LegalConsentType.PERSONALIZATION_PROCESSING))
+                .thenReturn(false);
+
+        UserNutritionPreferenceDto result = service.getForPersonalization("user@example.com");
+
+        assertTrue(result.getAllergens().isEmpty());
+        assertTrue(result.getExcludedFoods().isEmpty());
+        assertTrue(result.getDietaryPreferences().isEmpty());
+        verifyNoInteractions(preferenceRepository);
+    }
+
+    @Test
+    void getForPersonalization_withConsent_returnsStoredPreferences() {
+        UserNutritionPreferenceEntity entity = new UserNutritionPreferenceEntity();
+        entity.setUser(user);
+        entity.setAllergens(Set.of(RecipeAllergen.MILK));
+        entity.setExcludedFoods(List.of("Pork"));
+        entity.setDietaryPreferences(List.of("Vegetarian"));
+        when(legalConsentService.hasActiveConsent(
+                "user@example.com", com.grun.calorietracker.enums.LegalConsentType.PERSONALIZATION_PROCESSING))
+                .thenReturn(true);
+        when(preferenceRepository.findByUser(user)).thenReturn(Optional.of(entity));
+
+        UserNutritionPreferenceDto result = service.getForPersonalization("user@example.com");
+
+        assertEquals(List.of("Vegetarian"), result.getDietaryPreferences());
+        assertEquals(Set.of(RecipeAllergen.MILK), result.getAllergens());
     }
 
     @Test

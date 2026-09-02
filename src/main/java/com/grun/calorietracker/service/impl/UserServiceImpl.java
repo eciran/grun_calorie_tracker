@@ -16,6 +16,7 @@ import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserAgeSupport;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
+import com.grun.calorietracker.service.reminder.MealReminderInteractionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -52,6 +53,7 @@ public class UserServiceImpl implements UserService {
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserAgeSupport userAgeSupport;
+    private final MealReminderInteractionService mealReminderInteractionService;
     private final int maxFailedLoginAttempts;
     private final int loginLockMinutes;
 
@@ -63,6 +65,7 @@ public class UserServiceImpl implements UserService {
                            UserTimeZoneSupport userTimeZoneSupport,
                            UserAgeSupport userAgeSupport,
                            UserAnalyticsCacheRevisionService analyticsCacheRevisionService,
+                           MealReminderInteractionService mealReminderInteractionService,
                            @Value("${grun.security.login.max-failed-attempts:" + DEFAULT_MAX_FAILED_LOGIN_ATTEMPTS + "}") int maxFailedLoginAttempts,
                            @Value("${grun.security.login.lock-minutes:" + DEFAULT_LOGIN_LOCK_MINUTES + "}") int loginLockMinutes) {
         this.userRepository = userRepository;
@@ -73,6 +76,7 @@ public class UserServiceImpl implements UserService {
         this.userTimeZoneSupport = userTimeZoneSupport;
         this.userAgeSupport = userAgeSupport;
         this.analyticsCacheRevisionService = analyticsCacheRevisionService;
+        this.mealReminderInteractionService = mealReminderInteractionService;
         this.maxFailedLoginAttempts = Math.max(1, maxFailedLoginAttempts);
         this.loginLockMinutes = Math.max(1, loginLockMinutes);
     }
@@ -458,6 +462,8 @@ public class UserServiceImpl implements UserService {
         if (request.getPushNotificationsEnabled() != null) {
             user.setPushNotificationsEnabled(request.getPushNotificationsEnabled());
         }
+        boolean mealReminderOptOut = Boolean.TRUE.equals(user.getMealRemindersEnabled())
+                && Boolean.FALSE.equals(request.getMealRemindersEnabled());
         if (request.getMealRemindersEnabled() != null) {
             user.setMealRemindersEnabled(request.getMealRemindersEnabled());
         }
@@ -498,7 +504,11 @@ public class UserServiceImpl implements UserService {
         if (request.getMarketingNotificationsEnabled() != null) {
             user.setMarketingNotificationsEnabled(request.getMarketingNotificationsEnabled());
         }
-        return toNotificationPreferenceDto(userRepository.save(user));
+        UserEntity saved = userRepository.save(user);
+        if (mealReminderOptOut) {
+            mealReminderInteractionService.recordOptOut(saved);
+        }
+        return toNotificationPreferenceDto(saved);
     }
 
     private boolean valueChanged(Object currentValue, Object newValue) {

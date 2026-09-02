@@ -321,6 +321,7 @@ public class OnboardingServiceImpl implements OnboardingService {
         draft.setPreferredLanguage(preferences.getPreferredLanguage());
         draft.setTimeZone(userTimeZoneSupport.normalize(preferences.getTimeZone()));
         draft.setUnitPreference(preferences.getUnitPreference());
+        draft.setPreferencesSelectionConfirmed(true);
     }
 
     private void applyGoal(OnboardingDraftEntity draft, OnboardingGoalStepDto goal) {
@@ -458,7 +459,8 @@ public class OnboardingServiceImpl implements OnboardingService {
     }
 
     private boolean preferencesComplete(OnboardingDraftEntity draft) {
-        return draft.getMarketRegion() != null
+        return draft.isPreferencesSelectionConfirmed()
+                && draft.getMarketRegion() != null
                 && draft.getPreferredLanguage() != null
                 && hasText(draft.getTimeZone())
                 && draft.getUnitPreference() != null;
@@ -596,7 +598,9 @@ public class OnboardingServiceImpl implements OnboardingService {
         return null;
     }
     private boolean supportedGender(String value) {
-        return "MALE".equalsIgnoreCase(value) || "FEMALE".equalsIgnoreCase(value);
+        return "MALE".equalsIgnoreCase(value)
+                || "FEMALE".equalsIgnoreCase(value)
+                || "OTHER".equalsIgnoreCase(value);
     }
     private boolean hasText(String value) {
         return value != null && !value.isBlank();

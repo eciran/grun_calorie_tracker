@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -43,6 +44,19 @@ public class FcmPushProviderClient implements PushProviderClient {
 
     @Override
     public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification) {
+        return sendInternal(token, notification, null);
+    }
+
+    @Override
+    public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification, Duration timeToLive) {
+        if (timeToLive == null || timeToLive.isZero() || timeToLive.isNegative()) {
+            return PushProviderSendResult.failed("Push TTL has expired");
+        }
+        return sendInternal(token, notification, timeToLive);
+    }
+
+    private PushProviderSendResult sendInternal(
+            UserPushTokenEntity token, NotificationEntity notification, Duration timeToLive) {
         String projectId = properties.getFcm().getProjectId();
         String accessToken;
         try {
@@ -59,23 +73,24 @@ public class FcmPushProviderClient implements PushProviderClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(accessToken);
-        Map<String, Object> body = Map.of(
-                "message", Map.of(
-                        "token", token.getTokenValue(),
-                        "notification", Map.of(
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("token", token.getTokenValue());
+        message.put("notification", Map.of(
                                 "title", resolveTitle(notification),
-                                "body", notification.getMessage()
-                        ),
-                        "data", Map.of(
+                                "body", notification.getMessage()));
+        message.put("data", Map.of(
                                 "notificationId", String.valueOf(notification.getId()),
                                 "type", valueOrEmpty(notification.getType()),
                                 "targetRoute", valueOrEmpty(notification.getTargetRoute()),
                                 "targetId", valueOrEmpty(notification.getTargetId()),
+                                "recipientUserId", notification.getUser() == null ? "" : notification.getUser().getId().toString(),
+                                "reminderContextVersion", "1",
                                 "primaryAction", valueOrEmpty(notification.getPrimaryAction()),
-                                "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()
-                        )
-                )
-        );
+                                "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()));
+        if (timeToLive != null) {
+            message.put("android", Map.of("ttl", Math.max(1L, timeToLive.toSeconds()) + "s"));
+        }
+        Map<String, Object> body = Map.of("message", message);
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), Map.class);
@@ -89,7 +104,7 @@ public class FcmPushProviderClient implements PushProviderClient {
             return PushProviderSendResult.failed(bodyText);
         } catch (RestClientException ex) {
             log.warn("fcm_push_failed tokenId={} notificationId={} reason={}", token.getId(), notification.getId(), ex.getMessage());
-            return PushProviderSendResult.failed(ex.getMessage());
+            return PushProviderSendResult.uncertain(ex.getMessage());
         }
     }
 

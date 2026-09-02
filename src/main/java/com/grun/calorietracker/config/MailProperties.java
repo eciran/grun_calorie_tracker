@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class MailProperties {
 
     private MailProvider provider = MailProvider.LOG;
-    private String fromEmail = "no-reply@grun.local";
+    private String fromEmail = "no-reply@gruncalorietracker.com";
     private String fromName = "GRUN";
     private Brevo brevo = new Brevo();
 

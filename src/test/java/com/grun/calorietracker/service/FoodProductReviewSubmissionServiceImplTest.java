@@ -3,8 +3,10 @@ package com.grun.calorietracker.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.FoodContributionStorageProperties;
 import com.grun.calorietracker.dto.FoodProductOcrExtractionDto;
+import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductReviewSubmitRequestDto;
 import com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity;
+import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodProductReviewCaseEntity;
 import com.grun.calorietracker.entity.FoodProductUploadSessionEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -18,6 +20,7 @@ import com.grun.calorietracker.service.model.ProductNutritionOcrShadowRequestedE
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
+import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseExtractionRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
 import com.grun.calorietracker.repository.FoodProductUploadSessionRepository;
@@ -50,6 +53,8 @@ class FoodProductReviewSubmissionServiceImplTest {
     private final FoodProductReviewCaseRepository reviews = mock(FoodProductReviewCaseRepository.class);
     private final FoodProductReviewCaseExtractionRepository extractions = mock(FoodProductReviewCaseExtractionRepository.class);
     private final FoodProductReviewCaseService cases = mock(FoodProductReviewCaseService.class);
+    private final UserProductLibraryService userProductLibrary = mock(UserProductLibraryService.class);
+    private final FoodItemRepository foodItems = mock(FoodItemRepository.class);
     private final ProductIntakeRolloutPolicy rollout = mock(ProductIntakeRolloutPolicy.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private FoodProductReviewSubmissionServiceImpl service;
@@ -59,7 +64,8 @@ class FoodProductReviewSubmissionServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new FoodProductReviewSubmissionServiceImpl(users, sessions, assets, reviews, extractions,
-                cases, new ObjectMapper(), rollout, new FoodContributionStorageProperties(), events);
+                cases, userProductLibrary, foodItems, new ObjectMapper(), rollout,
+                new FoodContributionStorageProperties(), events);
         user = new UserEntity();
         user.setId(12L);
         user.setEmail("user@grun.test");
@@ -72,6 +78,14 @@ class FoodProductReviewSubmissionServiceImplTest {
         when(assets.findAllByUploadSessionIdOrderByAssetTypeAsc(session.getId()))
                 .thenReturn(List.of(verifiedAsset(1L, FoodProductReviewAssetType.FRONT_PACKAGE),
                         verifiedAsset(2L, FoodProductReviewAssetType.NUTRITION_LABEL)));
+        FoodProductDto customFood = new FoodProductDto();
+        customFood.setId(501L);
+        customFood.setProductName("Test product");
+        FoodItemEntity customEntity = new FoodItemEntity();
+        customEntity.setId(501L);
+        customEntity.setName("Test product");
+        when(userProductLibrary.createCustomFood(any(), any())).thenReturn(customFood);
+        when(foodItems.getReferenceById(501L)).thenReturn(customEntity);
     }
 
     @Test
@@ -88,6 +102,27 @@ class FoodProductReviewSubmissionServiceImplTest {
         assertEquals("ML_KIT", saved.getValue().getEngine());
         assertEquals("nutrition-parser-v1", saved.getValue().getParserVersion());
         assertEquals(90L, saved.getValue().getReviewCase().getId());
+        assertEquals(501L, review.getUserCustomFood().getId());
+        verify(userProductLibrary).createCustomFood(any(), any());
+    }
+
+    @Test
+    void reusesLinkedCustomFoodWhenTheSubmissionIsRetried() {
+        FoodProductReviewCaseEntity review = review(user, session.getId());
+        FoodItemEntity existingCustomFood = new FoodItemEntity();
+        existingCustomFood.setId(777L);
+        existingCustomFood.setName("Existing private product");
+        review.setUserCustomFood(existingCustomFood);
+        when(cases.finalizeCase(any(FoodProductReviewCaseCommand.class))).thenReturn(review);
+        when(extractions.findByReviewCaseId(90L)).thenReturn(Optional.of(
+                new com.grun.calorietracker.entity.FoodProductReviewCaseExtractionEntity()));
+
+        var result = service.submit(user.getEmail(), session.getId(), request());
+
+        assertEquals(777L, result.customFoodId());
+        assertEquals("Existing private product", result.customFoodName());
+        assertEquals(true, result.replayed());
+        verify(userProductLibrary, never()).createCustomFood(any(), any());
     }
 
     @Test

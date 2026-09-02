@@ -6,17 +6,16 @@ import com.grun.calorietracker.dto.WaterGoalRequestDto;
 import com.grun.calorietracker.dto.WaterLogDto;
 import com.grun.calorietracker.dto.WaterLogRequestDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsRequestDto;
-import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.entity.WaterReminderSettingsEntity;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
-import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.impl.WaterTrackingServiceImpl;
+import com.grun.calorietracker.service.notification.BehaviorReminderNotificationService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,9 +45,7 @@ class WaterTrackingServiceImplTest {
     @Mock
     private WaterReminderSettingsRepository waterReminderSettingsRepository;
     @Mock
-    private NotificationRepository notificationRepository;
-    @Mock
-    private PushDeliveryService pushDeliveryService;
+    private BehaviorReminderNotificationService behaviorReminderNotificationService;
     @Mock
     private SubscriptionService subscriptionService;
     @Mock
@@ -67,11 +64,10 @@ class WaterTrackingServiceImplTest {
         service = new WaterTrackingServiceImpl(
                 waterLogRepository,
                 waterReminderSettingsRepository,
-                notificationRepository,
                 userRepository,
                 properties,
                 new UserTimeZoneSupport(),
-                pushDeliveryService,
+                behaviorReminderNotificationService,
                 subscriptionService,
                 analyticsCacheRevisionService,
                 analyticsCacheGateway,
@@ -400,7 +396,8 @@ class WaterTrackingServiceImplTest {
         int created = service.createDueReminderNotifications();
 
         assertEquals(1, created);
-        verify(notificationRepository).save(any(NotificationEntity.class));
+        verify(behaviorReminderNotificationService).enqueueWater(
+                org.mockito.ArgumentMatchers.eq(settings), any(LocalDateTime.class), any(String.class), any(String.class));
         verify(waterReminderSettingsRepository).saveAll(List.of(settings));
     }
 
@@ -411,11 +408,10 @@ class WaterTrackingServiceImplTest {
         service = new WaterTrackingServiceImpl(
                 waterLogRepository,
                 waterReminderSettingsRepository,
-                notificationRepository,
                 userRepository,
                 properties,
                 new UserTimeZoneSupport(),
-                pushDeliveryService,
+                behaviorReminderNotificationService,
                 subscriptionService,
                 analyticsCacheRevisionService,
                 analyticsCacheGateway,
@@ -426,7 +422,7 @@ class WaterTrackingServiceImplTest {
 
         assertEquals(0, created);
         verify(waterReminderSettingsRepository, never()).findByEnabledTrue();
-        verify(notificationRepository, never()).save(any(NotificationEntity.class));
+        verify(behaviorReminderNotificationService, never()).enqueueWater(any(), any(), any(), any());
     }
 
     @Test
@@ -439,7 +435,7 @@ class WaterTrackingServiceImplTest {
         int created = service.createDueReminderNotifications();
 
         assertEquals(0, created);
-        verify(notificationRepository, never()).save(any(NotificationEntity.class));
+        verify(behaviorReminderNotificationService, never()).enqueueWater(any(), any(), any(), any());
     }
 
     @Test
@@ -454,8 +450,7 @@ class WaterTrackingServiceImplTest {
         int created = service.createDueReminderNotifications();
 
         assertEquals(0, created);
-        verify(notificationRepository, never()).save(any(NotificationEntity.class));
-        verify(pushDeliveryService, never()).deliver(any(NotificationEntity.class));
+        verify(behaviorReminderNotificationService, never()).enqueueWater(any(), any(), any(), any());
     }
 
     private WaterLogEntity waterLog(Long id, Integer amountMl) {

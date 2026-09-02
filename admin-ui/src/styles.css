@@ -4657,6 +4657,120 @@ label {
   max-height: 220px;
 }
 
+.recipe-import-resolver {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.recipe-import-resolver-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.recipe-import-resolver-field .inline-input-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.recipe-import-product-result span:last-child {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.recipe-import-create-toggle,
+.recipe-import-product-create-head,
+.recipe-import-product-create-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recipe-import-create-toggle span,
+.recipe-import-product-create-head span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.recipe-import-product-create-form {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.recipe-import-product-create-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.recipe-import-product-create-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recipe-import-product-create-grid label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.recipe-import-product-create-wide {
+  grid-column: 1 / -1;
+}
+
+.recipe-import-alias-option,
+.recipe-import-preflight {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.recipe-import-alias-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.3fr);
+  gap: 10px;
+}
+
+.recipe-import-alias-fields label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.recipe-import-preflight > span,
+.recipe-import-preflight p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.recipe-import-preflight-warning {
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning-text) !important;
+}
+
+.recipe-import-preflight-candidates {
+  display: grid;
+  gap: 8px;
+}
+
 .recipe-import-detail-modal .readonly-value,
 .recipe-import-detail-modal .detail-value {
   overflow-wrap: anywhere;
@@ -4673,6 +4787,29 @@ label {
 
   .recipe-import-ingredient-actions .ghost-button {
     width: 100%;
+  }
+
+  .recipe-import-resolver-field .inline-input-action {
+    grid-template-columns: 1fr;
+  }
+
+  .recipe-import-create-toggle,
+  .recipe-import-product-create-head,
+  .recipe-import-product-create-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recipe-import-product-create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recipe-import-alias-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .recipe-import-product-create-wide {
+    grid-column: auto;
   }
 }
 
@@ -7060,6 +7197,45 @@ label {
 .campaign-form-grid textarea {
   min-height: 96px;
   resize: vertical;
+}
+
+/* Meal reminder automation: isolated from broadcasts, system rules and push delivery. */
+.meal-reminder-automation-view { max-width: 1480px; margin: 0 auto; }
+.meal-reminder-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.meal-reminder-two-column { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr); gap: 18px; align-items: start; }
+.meal-reminder-safety { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--success) 38%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--success) 7%, var(--surface)); }
+.meal-reminder-safety.stopped { border-color: color-mix(in srgb, var(--danger) 48%, var(--line)); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
+.meal-reminder-safety div { display: grid; gap: 4px; }
+.meal-reminder-safety span { color: var(--muted); }
+.meal-reminder-policy-form, .meal-reminder-preview-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.meal-reminder-policy-form label, .meal-reminder-preview-form label, .meal-reminder-two-column > .panel label { display: grid; gap: 6px; min-width: 0; font-weight: 650; }
+.meal-reminder-policy-form small, .meal-reminder-preview-form small, .meal-reminder-two-column > .panel small { color: var(--muted); font-weight: 400; }
+.meal-reminder-policy-form .span-2 { grid-column: 1 / -1; }
+.meal-reminder-draft-state { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.meal-reminder-release-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.meal-reminder-preview-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.meal-reminder-preview-form .toggle-field { align-content: center; grid-template-columns: auto 1fr; }
+.meal-reminder-time-compare { grid-column: 1 / -2; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; border-radius: 10px; background: var(--surface-soft); color: var(--muted); }
+.meal-reminder-preview-time strong { color: var(--text); }
+.meal-reminder-preview-result { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.meal-reminder-preview-result.eligible { border-color: color-mix(in srgb, var(--success) 45%, var(--line)); }
+.meal-reminder-preview-result.suppressed { border-color: color-mix(in srgb, var(--warning) 45%, var(--line)); }
+.meal-reminder-preview-result h4, .meal-reminder-preview-result p { margin: 4px 0; }
+.meal-reminder-preview-result details { min-width: 210px; }
+.meal-reminder-preview-result code { display: block; margin-top: 8px; white-space: normal; }
+.meal-reminder-pagination { justify-content: flex-end; margin-top: 12px; }
+
+@media (max-width: 1050px) {
+  .meal-reminder-two-column { grid-template-columns: 1fr; }
+  .meal-reminder-preview-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .meal-reminder-time-compare { grid-column: 1 / -1; }
+}
+
+@media (max-width: 680px) {
+  .meal-reminder-metrics, .meal-reminder-policy-form, .meal-reminder-preview-form, .meal-reminder-time-compare { grid-template-columns: 1fr; }
+  .meal-reminder-policy-form .span-2, .meal-reminder-time-compare { grid-column: auto; }
+  .meal-reminder-release-actions { grid-template-columns: 1fr; }
+  .meal-reminder-preview-result, .meal-reminder-safety, .meal-reminder-draft-state { align-items: stretch; flex-direction: column; }
 }
 
 .notification-definition-metrics {

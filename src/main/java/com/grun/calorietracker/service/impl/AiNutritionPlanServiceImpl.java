@@ -85,7 +85,8 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
                         "Complete onboarding and calorie targets before generating a nutrition plan."));
         MealPlanNutritionSnapshotDto target = target(goal);
         request.setTrustedDailyTarget(target);
-        request.setTrustedUserContext(userContext(user, goal));
+        request.setTrustedUserContext(userContext(
+                user, goal, nutritionPreferenceService.isPersonalizationAllowed(email)));
         applyPersistentNutritionPreferences(email, request);
         request.setTrustedWorkoutContext(workoutContext(user, request));
 
@@ -798,13 +799,16 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         return cleaned.length() > 160 ? cleaned.substring(0, 160) : cleaned;
     }
 
-    private Map<String, Object> userContext(UserEntity user, UserGoalEntity goal) {
+    private Map<String, Object> userContext(
+            UserEntity user, UserGoalEntity goal, boolean personalizationAllowed) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("age", user.getAge());
         context.put("gender", user.getGender());
         context.put("heightCm", user.getHeight());
         context.put("weightKg", user.getWeight());
-        context.put("marketRegion", user.getMarketRegion());
+        if (personalizationAllowed) {
+            context.put("marketRegion", user.getMarketRegion());
+        }
         context.put("preferredLanguage", user.getPreferredLanguage());
         context.put("unitPreference", user.getUnitPreference());
         context.put("goalType", goal.getGoalType());
@@ -840,7 +844,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
 
     private void applyPersistentNutritionPreferences(
             String email, AiNutritionPlanDraftRequestDto request) {
-        UserNutritionPreferenceDto persistent = nutritionPreferenceService.get(email);
+        UserNutritionPreferenceDto persistent = nutritionPreferenceService.getForPersonalization(email);
         if (persistent == null) {
             persistent = new UserNutritionPreferenceDto();
         }

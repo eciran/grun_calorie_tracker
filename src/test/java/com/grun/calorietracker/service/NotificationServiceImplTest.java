@@ -9,6 +9,7 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.NotificationCampaignRecipientRepository;
 import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.NotificationEngagementRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,8 @@ class NotificationServiceImplTest {
     private NotificationCampaignRepository campaignRepository;
     @Mock
     private NotificationDefinitionPolicy definitionPolicy;
+    @Mock
+    private NotificationEngagementRepository engagementRepository;
 
     private NotificationServiceImpl service;
     private UserEntity user;
@@ -52,7 +55,8 @@ class NotificationServiceImplTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         service = new NotificationServiceImpl(
-                notificationRepository, recipientRepository, campaignRepository, userRepository, definitionPolicy);
+                notificationRepository, recipientRepository, campaignRepository, userRepository, definitionPolicy,
+                engagementRepository);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");

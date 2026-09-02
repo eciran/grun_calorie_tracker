@@ -45,6 +45,28 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
                                                @Param("store") String store);
 
     @Query("""
+            select count(event) from SubscriptionProviderEventEntity event
+            where event.productId = :productId
+              and lower(event.storeOfferCode) = lower(:offerCode)
+              and (:store is null or event.store = :store)
+              and event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+            """)
+    long countStoreOfferCodeObservations(@Param("productId") String productId,
+                                         @Param("offerCode") String offerCode,
+                                         @Param("store") String store);
+
+    @Query("""
+            select max(event.processedAt) from SubscriptionProviderEventEntity event
+            where event.productId = :productId
+              and lower(event.storeOfferCode) = lower(:offerCode)
+              and (:store is null or event.store = :store)
+              and event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED
+            """)
+    LocalDateTime lastStoreOfferCodeObservation(@Param("productId") String productId,
+                                                 @Param("offerCode") String offerCode,
+                                                 @Param("store") String store);
+
+    @Query("""
             select event.purchaseCurrency, coalesce(sum(event.priceAmountMinor), 0)
             from SubscriptionProviderEventEntity event
             where event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.PROCESSED

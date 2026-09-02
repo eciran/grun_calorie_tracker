@@ -3,9 +3,11 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.UserNutritionPreferenceDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserNutritionPreferenceEntity;
+import com.grun.calorietracker.enums.LegalConsentType;
 import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserNutritionPreferenceService;
+import com.grun.calorietracker.service.LegalConsentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ public class UserNutritionPreferenceServiceImpl
 
     private final UserRepository userRepository;
     private final UserNutritionPreferenceRepository preferenceRepository;
+    private final LegalConsentService legalConsentService;
 
     @Override
     @Transactional(readOnly = true)
@@ -32,6 +35,22 @@ public class UserNutritionPreferenceServiceImpl
         return preferenceRepository.findByUser(user)
                 .map(this::toDto)
                 .orElseGet(UserNutritionPreferenceDto::new);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserNutritionPreferenceDto getForPersonalization(String email) {
+        if (!isPersonalizationAllowed(email)) {
+            return new UserNutritionPreferenceDto();
+        }
+        return get(email);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isPersonalizationAllowed(String email) {
+        return legalConsentService.hasActiveConsent(
+                email, LegalConsentType.PERSONALIZATION_PROCESSING);
     }
 
     @Override

@@ -95,6 +95,9 @@ public class OnboardingDraftEntity {
     @Column(name = "unit_preference", length = 20)
     private UnitPreference unitPreference;
 
+    @Column(name = "preferences_selection_confirmed", nullable = false)
+    private boolean preferencesSelectionConfirmed;
+
     @Column(name = "target_weight")
     private Double targetWeight;
 

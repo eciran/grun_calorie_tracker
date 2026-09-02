@@ -1,6 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
+import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
@@ -26,6 +28,7 @@ import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionScanResultDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
+import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
@@ -87,6 +90,54 @@ class AdminFoodProductReviewControllerTest {
 
     @MockBean
     private ProductQualitySuggestionService productQualitySuggestionService;
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void preflightCatalogProduct_whenAdmin_returnsDuplicateCandidatesAndWarnings() throws Exception {
+        AdminFoodProductCreateRequestDto request = adminProductRequest();
+        FoodProductDto duplicate = new FoodProductDto();
+        duplicate.setId(9L);
+        duplicate.setProductName("Bell Pepper");
+        when(foodProductReviewService.preflightAdminCatalogProduct(any()))
+                .thenReturn(new AdminFoodProductPreflightDto(List.of(duplicate), List.of("Calories need confirmation.")));
+
+        mockMvc.perform(post("/api/v1/admin/products/preflight")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.duplicateCandidates[0].id").value(9))
+                .andExpect(jsonPath("$.nutritionWarnings[0]").value("Calories need confirmation."));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void createCatalogProduct_whenAdmin_passesActorToService() throws Exception {
+        AdminFoodProductCreateRequestDto request = adminProductRequest();
+        FoodProductDto created = new FoodProductDto();
+        created.setId(42L);
+        created.setProductName("Bell Pepper");
+        when(foodProductReviewService.createAdminCatalogProduct(any(), eq("admin@test.com"))).thenReturn(created);
+
+        mockMvc.perform(post("/api/v1/admin/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42));
+
+        verify(foodProductReviewService).createAdminCatalogProduct(any(), eq("admin@test.com"));
+    }
+
+    private AdminFoodProductCreateRequestDto adminProductRequest() {
+        AdminFoodProductCreateRequestDto request = new AdminFoodProductCreateRequestDto();
+        request.setName("Bell Pepper");
+        request.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        request.setMarketRegion(MarketRegion.UK_IE);
+        request.setPreparationState(FoodPreparationState.RAW);
+        request.setCalories(31.0);
+        request.setSourceName("USDA FoodData Central");
+        request.setSourceUrl("https://fdc.nal.usda.gov/example");
+        return request;
+    }
 
     @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})

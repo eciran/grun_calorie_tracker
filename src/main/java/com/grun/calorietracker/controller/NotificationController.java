@@ -4,8 +4,12 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.NotificationDto;
 import com.grun.calorietracker.dto.NotificationPageDto;
 import com.grun.calorietracker.dto.NotificationReadAllResponseDto;
+import com.grun.calorietracker.dto.MealReminderInteractionRequestDto;
+import com.grun.calorietracker.dto.MealReminderNotificationContextDto;
 import com.grun.calorietracker.enums.NotificationEngagementType;
 import com.grun.calorietracker.service.NotificationService;
+import com.grun.calorietracker.service.reminder.MealReminderInteractionService;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -23,6 +27,8 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -33,6 +39,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final MealReminderInteractionService mealReminderInteractionService;
+
+    @PostMapping("/meal-reminders/{id}/resolve")
+    @Operation(summary = "Resolve and record a meal reminder open",
+            description = "Account-bound, idempotent routing context. It never treats push kcal copy as current diary truth.")
+    public ResponseEntity<MealReminderNotificationContextDto> resolveMealReminder(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody @Valid MealReminderInteractionRequestDto request) {
+        return ResponseEntity.ok(mealReminderInteractionService.resolveAndRecordOpen(
+                userDetails.getUsername(), id, request));
+    }
 
     @GetMapping
     @Operation(
@@ -91,9 +109,10 @@ public class NotificationController {
     public ResponseEntity<NotificationDto> recordEngagement(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id,
-            @PathVariable NotificationEngagementType engagementType) {
+            @PathVariable NotificationEngagementType engagementType,
+            @RequestParam(defaultValue = "IN_APP") String source) {
         return ResponseEntity.ok(notificationService.recordEngagement(
-                userDetails.getUsername(), id, engagementType));
+                userDetails.getUsername(), id, engagementType, source));
     }
 
     @PatchMapping("/read-all")

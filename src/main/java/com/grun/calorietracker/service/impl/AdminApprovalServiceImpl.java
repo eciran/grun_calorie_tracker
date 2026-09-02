@@ -25,6 +25,8 @@ public class AdminApprovalServiceImpl implements AdminApprovalService {
     private final AdminAiMealDraftService adminAiMealDraftService;
     private final AdminNotificationCampaignService campaignService;
     private final RuntimeOperationsService runtimeOperationsService;
+    private final AdminMealReminderAutomationService mealReminderAutomationService;
+    private final AdminSubscriptionNotificationService subscriptionNotificationService;
     private final AdminAuditService auditService;
     private final Validator validator;
 
@@ -83,6 +85,15 @@ public class AdminApprovalServiceImpl implements AdminApprovalService {
             case AI_QUOTA_REFUND -> adminAiMealDraftService.refundQuota(checker,target,convert(payload,AdminAiQuotaRefundRequestDto.class));
             case NOTIFICATION_CAMPAIGN_SCHEDULE -> { AdminNotificationCampaignScheduleRequestDto dto=convert(payload,AdminNotificationCampaignScheduleRequestDto.class); campaignService.schedule(target,dto.getScheduledAt(),checker,correlationId); }
             case RUNTIME_POLICY_UPDATE -> runtimeOperationsService.updatePolicy(checker,convert(payload,AdminRuntimeOperationsPolicyUpdateRequestDto.class));
+            case SUBSCRIPTION_NOTIFICATION_POLICY_PUBLISH -> subscriptionNotificationService.publishApproved(
+                    convert(payload, AdminSubscriptionNotificationPolicyRequestDto.class), checker, correlationId);
+            case SUBSCRIPTION_NOTIFICATION_DEFINITION_PUBLISH -> subscriptionNotificationService.publishDefinitionApproved(
+                    target, convert(payload, AdminNotificationDefinitionRequestDto.class), checker, correlationId);
+            case MEAL_REMINDER_POLICY_PUBLISH -> mealReminderAutomationService.publishApproved(target,checker,correlationId,false);
+            case MEAL_REMINDER_POLICY_ROLLBACK -> mealReminderAutomationService.publishApproved(target,checker,correlationId,true);
+            case MEAL_REMINDER_DEFINITION_PUBLISH -> mealReminderAutomationService.publishDefinitionApproved(target,convert(payload,AdminNotificationDefinitionRequestDto.class),checker,correlationId);
+            case MEAL_REMINDER_REOPEN -> mealReminderAutomationService.reopenApproved(target,checker,correlationId);
+            case MEAL_REMINDER_TEST_SEND -> mealReminderAutomationService.testSendApproved(target,checker,correlationId);
         }
     }
 
@@ -104,6 +115,11 @@ public class AdminApprovalServiceImpl implements AdminApprovalService {
             case AI_QUOTA_REFUND -> convert(payload,AdminAiQuotaRefundRequestDto.class);
             case NOTIFICATION_CAMPAIGN_SCHEDULE -> convert(payload,AdminNotificationCampaignScheduleRequestDto.class);
             case RUNTIME_POLICY_UPDATE -> convert(payload,AdminRuntimeOperationsPolicyUpdateRequestDto.class);
+            case SUBSCRIPTION_NOTIFICATION_POLICY_PUBLISH -> convert(payload,AdminSubscriptionNotificationPolicyRequestDto.class);
+            case SUBSCRIPTION_NOTIFICATION_DEFINITION_PUBLISH -> convert(payload,AdminNotificationDefinitionRequestDto.class);
+            case MEAL_REMINDER_POLICY_PUBLISH, MEAL_REMINDER_POLICY_ROLLBACK,
+                    MEAL_REMINDER_REOPEN, MEAL_REMINDER_TEST_SEND -> Map.of();
+            case MEAL_REMINDER_DEFINITION_PUBLISH -> convert(payload,AdminNotificationDefinitionRequestDto.class);
         };
         if (!validator.validate(typed).isEmpty()) throw new IllegalArgumentException("Approval payload failed validation.");
         try { return objectMapper.writeValueAsString(typed); } catch(Exception e){ throw new IllegalArgumentException("Approval payload is invalid."); }

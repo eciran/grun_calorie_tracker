@@ -30,11 +30,15 @@ function Join-Unique([object[]] $Values) {
     return (@($Values | ForEach-Object { ([string] $_).Trim() } | Where-Object { $_ } | Select-Object -Unique) -join ';')
 }
 
-function Display-Name([string] $BaseName, [string] $State, [string] $Language) {
+function Display-Name([string] $BaseName, [string] $State, [string] $Language, [string] $Category, [string] $Identity) {
     $prefixes = if ($Language -eq 'TR') {
         @{ RAW='Çiğ'; COOKED='Pişmiş'; BOILED='Haşlanmış'; GRILLED='Izgara'; FRIED='Kızartılmış'; BAKED='Fırınlanmış'; ROASTED='Fırınlanmış'; STEAMED='Buharda'; PREPARED='Hazırlanmış'; UNSPECIFIED='' }
     } else {
         @{ RAW='Raw'; COOKED='Cooked'; BOILED='Boiled'; GRILLED='Grilled'; FRIED='Fried'; BAKED='Baked'; ROASTED='Roasted'; STEAMED='Steamed'; PREPARED='Prepared'; UNSPECIFIED='' }
+    }
+    if ($Language -eq 'TR' -and $State -eq 'RAW' -and
+        $Category -notin @('MEAT', 'FISH', 'NUT', 'SEED') -and $Identity -ne 'egg') {
+        return $BaseName
     }
     $prefix = $prefixes[$State]
     if ($null -eq $prefix) { throw "Unsupported preparation state: $State" }
@@ -80,8 +84,8 @@ foreach ($entry in $manifest.entries) {
         $baseEn = [string] $entry.displayNames.EN
         $baseTr = [string] $entry.displayNames.TR
         $state = [string] $variant.state
-        $displayEn = Display-Name $baseEn $state 'EN'
-        $displayTr = Display-Name $baseTr $state 'TR'
+        $displayEn = Display-Name $baseEn $state 'EN' ([string] $entry.category) ([string] $entry.identity)
+        $displayTr = Display-Name $baseTr $state 'TR' ([string] $entry.category) ([string] $entry.identity)
         $servingJson = '[' + ($variant.serving | ConvertTo-Json -Depth 8 -Compress) + ']'
         $servingAmount = if ($null -ne $variant.serving.gramWeight) { $variant.serving.gramWeight } else { $variant.serving.mlVolume }
         $servingUnit = if ($null -ne $variant.serving.gramWeight) { 'g' } else { 'ml' }

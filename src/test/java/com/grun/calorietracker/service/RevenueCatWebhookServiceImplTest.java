@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.RevenueCatProperties;
 import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
+import com.grun.calorietracker.dto.PromoProviderRedemptionCommand;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -16,6 +17,7 @@ import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.RevenueCatWebhookServiceImpl;
+import com.grun.calorietracker.service.notification.RevenueCatLifecycleNotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -32,6 +34,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class RevenueCatWebhookServiceImplTest {
 
@@ -53,6 +57,9 @@ class RevenueCatWebhookServiceImplTest {
     @Mock
     private PromoProviderRedemptionService promoProviderRedemptionService;
 
+    @Mock
+    private RevenueCatLifecycleNotificationService lifecycleNotificationService;
+
     private RevenueCatWebhookServiceImpl service;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private UserEntity user;
@@ -65,8 +72,12 @@ class RevenueCatWebhookServiceImplTest {
         properties.getProducts().setPro(List.of("grun_pro_monthly", "grun_pro_yearly"));
         properties.getProducts().setPlus(List.of("grun_plus_monthly", "grun_plus_yearly"));
         properties.getProducts().getAiAddonQuotas().put("grun_ai_15_credits", 15);
+        properties.getProducts().getAiAddonQuotas().put("grun_ai_50_credits", 50);
         properties.getProducts().getAiAddonValidityDays().put("grun_ai_15_credits", 30);
-        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService, promoProviderRedemptionService);
+        properties.getProducts().getAiAddonValidityDays().put("grun_ai_50_credits", 30);
+        service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository,
+                notificationRepository, subscriptionRepository, subscriptionService, promoProviderRedemptionService,
+                lifecycleNotificationService);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -105,8 +116,21 @@ class RevenueCatWebhookServiceImplTest {
         assertEquals(SubscriptionPlan.PRO, captor.getValue().getPlanType());
         assertEquals(SubscriptionStatus.ACTIVE, captor.getValue().getStatus());
         assertEquals("grun_pro_monthly", captor.getValue().getProviderProductId());
+        assertEquals(true, captor.getValue().getGrantPlanCreditAllocation());
+        assertNotNull(captor.getValue().getPurchasedAt());
+        assertNotNull(captor.getValue().getProviderEventAt());
+        assertEquals(64, captor.getValue().getCreditAllocationKey().length());
         verify(eventRepository).save(any(SubscriptionProviderEventEntity.class));
         verify(promoProviderRedemptionService).recordVerifiedPurchase(any());
+        verify(lifecycleNotificationService).enqueue(
+                org.mockito.ArgumentMatchers.eq(user),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.RevenueCatEventType.INITIAL_PURCHASE),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(SubscriptionPlan.PRO),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(false));
     }
 
     @Test
@@ -123,6 +147,8 @@ class RevenueCatWebhookServiceImplTest {
         assertEquals(true, result.getDuplicate());
         assertEquals("IGNORED", result.getStatus());
         verify(subscriptionService, never()).applyProviderEvent(any(), any());
+        verify(lifecycleNotificationService, never()).enqueue(any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean());
         verify(eventRepository, never()).save(any());
     }
 
@@ -150,6 +176,24 @@ class RevenueCatWebhookServiceImplTest {
         ArgumentCaptor<SubscriptionProviderEventCommand> captor = ArgumentCaptor.forClass(SubscriptionProviderEventCommand.class);
         verify(subscriptionService).applyProviderEvent(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
         assertEquals(15, captor.getValue().getAiAddonQuotaAmount());
+        assertEquals(30, captor.getValue().getAiAddonValidityDays());
+    }
+
+    @Test
+    void processWebhook_whenFiftyCreditAddonPurchased_grantsConfiguredQuota() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_addon_50","type":"NON_RENEWING_PURCHASE","app_user_id":"user:1","product_id":"grun_ai_50_credits","transaction_id":"tx_addon_50","event_timestamp_ms":1771950000000}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionService.applyProviderEvent(any(), any())).thenReturn(new SubscriptionDto());
+        when(eventRepository.save(any(SubscriptionProviderEventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        ArgumentCaptor<SubscriptionProviderEventCommand> captor = ArgumentCaptor.forClass(SubscriptionProviderEventCommand.class);
+        verify(subscriptionService).applyProviderEvent(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
+        assertEquals(50, captor.getValue().getAiAddonQuotaAmount());
         assertEquals(30, captor.getValue().getAiAddonValidityDays());
     }
 
@@ -200,7 +244,9 @@ class RevenueCatWebhookServiceImplTest {
     void processWebhook_whenAuthorizationNotConfigured_throwsAccessDenied() throws Exception {
         RevenueCatProperties properties = new RevenueCatProperties();
         RevenueCatWebhookServiceImpl unsecuredService =
-                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository, notificationRepository, subscriptionRepository, subscriptionService, promoProviderRedemptionService);
+                new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository,
+                        notificationRepository, subscriptionRepository, subscriptionService,
+                        promoProviderRedemptionService, lifecycleNotificationService);
         String payload = """
                 {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
                 """;
@@ -225,6 +271,164 @@ class RevenueCatWebhookServiceImplTest {
         ArgumentCaptor<SubscriptionProviderEventEntity> captor = ArgumentCaptor.forClass(SubscriptionProviderEventEntity.class);
         verify(eventRepository).save(captor.capture());
         assertEquals(SubscriptionProviderEventStatus.FAILED, captor.getValue().getStatus());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+    }
+
+    @Test
+    void processWebhook_storeOfferCode_isAuditedAndPassedToPromotionAttribution() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_offer","type":"INITIAL_PURCHASE","app_user_id":"user:1",
+                "product_id":"grun_pro_monthly","transaction_id":"tx_offer","original_transaction_id":"otx_offer",
+                "purchased_at_ms":1771950000000,"expiration_at_ms":1774628400000,"event_timestamp_ms":1771950000000,
+                "environment":"SANDBOX","store":"APP_STORE","offer_code":"PARTNER15"}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionService.applyProviderEvent(any(), any())).thenReturn(new SubscriptionDto());
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        ArgumentCaptor<PromoProviderRedemptionCommand> promo = ArgumentCaptor.forClass(PromoProviderRedemptionCommand.class);
+        verify(promoProviderRedemptionService).recordVerifiedPurchase(promo.capture());
+        assertEquals("PARTNER15", promo.getValue().offerCode());
+        ArgumentCaptor<SubscriptionProviderEventEntity> audit = ArgumentCaptor.forClass(SubscriptionProviderEventEntity.class);
+        verify(eventRepository, org.mockito.Mockito.atLeastOnce()).save(audit.capture());
+        assertEquals("PARTNER15", audit.getAllValues().get(0).getStoreOfferCode());
+    }
+
+    @Test
+    void processWebhook_samePurchaseWithDifferentEventIdsProducesSameAllocationIdentity() throws Exception {
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionService.applyProviderEvent(any(), any())).thenReturn(new SubscriptionDto());
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        String template = """
+                {"event":{"id":"%s","type":"INITIAL_PURCHASE","app_user_id":"user:1",
+                "product_id":"grun_pro_monthly","transaction_id":"tx_same","original_transaction_id":"otx_same",
+                "purchased_at_ms":1771950000000,"expiration_at_ms":1774628400000,"event_timestamp_ms":%d,
+                "environment":"SANDBOX","store":"APP_STORE"}}
+                """;
+
+        service.processWebhook("Bearer rc-secret", objectMapper.readTree(template.formatted("evt_a", 1771950000100L)));
+        service.processWebhook("Bearer rc-secret", objectMapper.readTree(template.formatted("evt_b", 1771950000200L)));
+
+        ArgumentCaptor<SubscriptionProviderEventCommand> captor = ArgumentCaptor.forClass(SubscriptionProviderEventCommand.class);
+        verify(subscriptionService, org.mockito.Mockito.times(2)).applyProviderEvent(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
+        assertEquals(captor.getAllValues().get(0).getCreditAllocationKey(), captor.getAllValues().get(1).getCreditAllocationKey());
+        assertFalse(captor.getAllValues().get(0).getProviderEventId().equals(captor.getAllValues().get(1).getProviderEventId()));
+    }
+
+    @Test
+    void processWebhook_uncancellationReenablesWithoutNewCreditAllocation() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_uncancel","type":"UNCANCELLATION","app_user_id":"user:1",
+                "product_id":"grun_plus_monthly","transaction_id":"tx_1","original_transaction_id":"otx_1",
+                "purchased_at_ms":1771950000000,"expiration_at_ms":1774628400000,"event_timestamp_ms":1771950001000}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionService.applyProviderEvent(any(), any())).thenReturn(new SubscriptionDto());
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        ArgumentCaptor<SubscriptionProviderEventCommand> captor = ArgumentCaptor.forClass(SubscriptionProviderEventCommand.class);
+        verify(subscriptionService).applyProviderEvent(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
+        assertFalse(Boolean.TRUE.equals(captor.getValue().getGrantPlanCreditAllocation()));
+        assertEquals(null, captor.getValue().getCreditAllocationKey());
+    }
+
+    @Test
+    void processWebhook_productChangeIsOnlyAuditedUntilEffectivePurchaseEventArrives() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_change","type":"PRODUCT_CHANGE","app_user_id":"user:1",
+                "product_id":"grun_plus_monthly","new_product_id":"grun_pro_monthly",
+                "transaction_id":"tx_change","event_timestamp_ms":1771950000000}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        assertEquals("PROCESSED", result.getStatus());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+        verify(lifecycleNotificationService).enqueue(
+                org.mockito.ArgumentMatchers.eq(user),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.RevenueCatEventType.PRODUCT_CHANGE),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(SubscriptionPlan.PRO),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(false));
+        ArgumentCaptor<SubscriptionProviderEventEntity> audit = ArgumentCaptor.forClass(SubscriptionProviderEventEntity.class);
+        verify(eventRepository).save(audit.capture());
+        assertEquals("grun_pro_monthly", audit.getValue().getNewProductId());
+    }
+
+    @Test
+    void processWebhook_subscriptionPauseNotifiesWithoutEndingCurrentEntitlement() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_pause","type":"SUBSCRIPTION_PAUSED","app_user_id":"user:1",
+                "product_id":"grun_pro_monthly","expiration_at_ms":1788134400000,
+                "event_timestamp_ms":1785456000000}}
+                """;
+        SubscriptionEntity current = new SubscriptionEntity();
+        current.setPlanType(SubscriptionPlan.PRO);
+        current.setStatus(SubscriptionStatus.ACTIVE);
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(current));
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        assertEquals("PROCESSED", result.getStatus());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+        verify(lifecycleNotificationService).enqueue(
+                org.mockito.ArgumentMatchers.eq(user),
+                org.mockito.ArgumentMatchers.eq(com.grun.calorietracker.enums.RevenueCatEventType.SUBSCRIPTION_PAUSED),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(SubscriptionPlan.PRO),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(false));
+    }
+
+    @Test
+    void processWebhook_transferRemainsIgnoredAndDoesNotNotifyEitherAccount() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_transfer","type":"TRANSFER","app_user_id":"user:1",
+                "event_timestamp_ms":1785456000000}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        assertEquals("IGNORED", result.getStatus());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
+        verify(lifecycleNotificationService, never()).enqueue(any(), any(), any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void processWebhook_purchaseWithoutStablePeriodIdentityFailsClosed() throws Exception {
+        String payload = """
+                {"event":{"id":"evt_incomplete","type":"INITIAL_PURCHASE","app_user_id":"user:1",
+                "product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
+                """;
+        when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+
+        assertEquals("FAILED", result.getStatus());
         verify(subscriptionService, never()).applyProviderEvent(any(), any());
     }
 

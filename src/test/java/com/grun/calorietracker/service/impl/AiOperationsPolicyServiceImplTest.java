@@ -4,6 +4,7 @@ import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AdminAiOperationsPolicyUpdateRequestDto;
 import com.grun.calorietracker.dto.AdminAiOperationsRollbackRequestDto;
 import com.grun.calorietracker.entity.AiOperationsPolicyEntity;
+import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.exception.AiProviderException;
 import com.grun.calorietracker.repository.AiOperationsPolicyRepository;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
@@ -36,6 +37,10 @@ class AiOperationsPolicyServiceImplTest {
         var result = service.update("ops@grun.app", request);
 
         assertEquals("gpt-next", result.getActiveModel());
+        assertEquals(AiProvider.OPENAI, result.getActivePhotoProvider());
+        assertEquals("gpt-photo-next", result.getActivePhotoModel());
+        assertEquals(AiProvider.OPENAI, properties.getPhoto().getProvider());
+        assertEquals("gpt-photo-next", properties.getPhoto().getModel());
         assertEquals("prompt-v3", properties.getPromptVersion());
         assertEquals(0.1, properties.getMonitoring().getFailureRateThreshold());
         verify(policyRepository).saveAndFlush(policy);
@@ -52,6 +57,20 @@ class AiOperationsPolicyServiceImplTest {
     }
 
     @Test
+    void update_whenLegacyClientOmitsPhotoModel_fallsBackToGeneralModel() {
+        AiOperationsPolicyEntity policy = policy();
+        when(policyRepository.findById(1L)).thenReturn(Optional.of(policy));
+        when(policyRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        AdminAiOperationsPolicyUpdateRequestDto request = updateRequest();
+        request.setActivePhotoModel(null);
+
+        var result = service.update("ops@grun.app", request);
+
+        assertEquals("gpt-next", result.getActivePhotoModel());
+        assertEquals("gpt-next", properties.getPhoto().getModel());
+    }
+
+    @Test
     void assertRequestAllowed_whenCircuitIsOpen_blocksProviderCall() {
         AiOperationsPolicyEntity policy = policy();
         policy.setCircuitOpen(true);
@@ -64,6 +83,8 @@ class AiOperationsPolicyServiceImplTest {
     void rollback_restoresPreviousModelAndPrompt() {
         AiOperationsPolicyEntity policy = policy();
         policy.setPreviousModel("gpt-stable");
+        policy.setPreviousPhotoProvider(AiProvider.GEMINI);
+        policy.setPreviousPhotoModel("gpt-photo-stable");
         policy.setPreviousPromptVersion("prompt-v1");
         when(policyRepository.findById(1L)).thenReturn(Optional.of(policy));
         when(policyRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -74,6 +95,10 @@ class AiOperationsPolicyServiceImplTest {
         var result = service.rollback("ops@grun.app", request);
 
         assertEquals("gpt-stable", result.getActiveModel());
+        assertEquals(AiProvider.GEMINI, result.getActivePhotoProvider());
+        assertEquals("gpt-photo-stable", result.getActivePhotoModel());
+        assertEquals(AiProvider.GEMINI, properties.getPhoto().getProvider());
+        assertEquals("gpt-photo-stable", properties.getPhoto().getModel());
         assertEquals("prompt-v1", properties.getPromptVersion());
     }
 
@@ -88,6 +113,8 @@ class AiOperationsPolicyServiceImplTest {
         policy.setMaxCostPer24Hours(20d);
         policy.setCostCurrency("USD");
         policy.setActiveModel("gpt-current");
+        policy.setActivePhotoProvider(AiProvider.GEMINI);
+        policy.setActivePhotoModel("gpt-photo-current");
         policy.setActivePromptVersion("prompt-v2");
         policy.setChangeReason("Initial policy");
         policy.setUpdatedBy("system");
@@ -105,6 +132,8 @@ class AiOperationsPolicyServiceImplTest {
         request.setMaxCostPer24Hours(40d);
         request.setCostCurrency("USD");
         request.setActiveModel("gpt-next");
+        request.setActivePhotoProvider(AiProvider.OPENAI);
+        request.setActivePhotoModel("gpt-photo-next");
         request.setActivePromptVersion("prompt-v3");
         request.setReason("Controlled production rollout");
         return request;

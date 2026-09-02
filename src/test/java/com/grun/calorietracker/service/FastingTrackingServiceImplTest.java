@@ -7,16 +7,16 @@ import com.grun.calorietracker.dto.FastingSessionFinishRequestDto;
 import com.grun.calorietracker.dto.FastingSessionStartRequestDto;
 import com.grun.calorietracker.entity.FastingPlanEntity;
 import com.grun.calorietracker.entity.FastingSessionEntity;
-import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FastingPlanType;
 import com.grun.calorietracker.enums.FastingSessionStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FastingPlanRepository;
 import com.grun.calorietracker.repository.FastingSessionRepository;
-import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.FastingTrackingServiceImpl;
+import com.grun.calorietracker.service.notification.BehaviorReminderNotificationService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +35,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,11 +46,9 @@ class FastingTrackingServiceImplTest {
     @Mock
     private FastingSessionRepository fastingSessionRepository;
     @Mock
-    private NotificationRepository notificationRepository;
-    @Mock
     private UserRepository userRepository;
     @Mock
-    private PushDeliveryService pushDeliveryService;
+    private BehaviorReminderNotificationService behaviorReminderNotificationService;
     @Mock private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     @Mock private com.grun.calorietracker.service.support.UserAnalyticsCacheGateway analyticsCacheGateway;
     @Mock private com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory analyticsCacheKeyFactory;
@@ -63,10 +62,9 @@ class FastingTrackingServiceImplTest {
         service = new FastingTrackingServiceImpl(
                 fastingPlanRepository,
                 fastingSessionRepository,
-                notificationRepository,
                 userRepository,
                 new UserTimeZoneSupport(),
-                pushDeliveryService,
+                behaviorReminderNotificationService,
                 analyticsCacheRevisionService,
                 analyticsCacheGateway,
                 analyticsCacheKeyFactory,
@@ -296,13 +294,19 @@ class FastingTrackingServiceImplTest {
         plan.setReminderEnabled(true);
         session.setPlan(plan);
         session.setTargetEndAt(LocalDateTime.now().plusMinutes(20));
+        user.setPreferredLanguage(PreferredLanguage.TR);
 
         when(fastingSessionRepository.findReminderCandidateSessions(any(FastingSessionStatus.class))).thenReturn(List.of(session));
 
         int created = service.createDueReminderNotifications();
 
         assertEquals(1, created);
-        verify(notificationRepository).save(any(NotificationEntity.class));
+        verify(behaviorReminderNotificationService).enqueueFasting(
+                org.mockito.ArgumentMatchers.eq(session),
+                any(LocalDateTime.class),
+                argThat(title -> List.of("Hedefe çok az kaldı", "Geri sayım başladı", "Güçlü bir final", "Neredeyse tamam", "Son düzlük")
+                        .contains(title)),
+                argThat(message -> !message.matches(".*[ÃÄÅ].*")));
         verify(fastingSessionRepository).saveAll(List.of(session));
     }
 

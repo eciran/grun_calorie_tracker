@@ -32,6 +32,7 @@ class PromoProviderRedemptionServiceImplTest {
         service = new PromoProviderRedemptionServiceImpl(promos, redemptions, users);
         promo = new PromoCodeEntity();
         promo.setId(8L); promo.setStatus(PromoStatus.ACTIVE); promo.setActive(true);
+        promo.setCode("PARTNER15");
         promo.setProviderProductId("plus.monthly"); promo.setProviderOfferId("welcome");
         promo.setTargetStore(PromoStore.APPLE_APP_STORE); promo.setEligibilityRule(PromoEligibilityRule.ALL_USERS);
         promo.setPerUserLimit(1); promo.setUsedCount(0); promo.setCurrency("EUR");
@@ -76,13 +77,46 @@ class PromoProviderRedemptionServiceImplTest {
     @Test
     void storeMismatch_doesNotAttributePromotion() {
         PromoProviderRedemptionCommand google = new PromoProviderRedemptionCommand(4L, "event-3", "plus.monthly",
-                "welcome", "PLAY_STORE", 499L, "EUR", SubscriptionPlan.FREE, null);
+                "welcome", null, "PLAY_STORE", 499L, "EUR", SubscriptionPlan.FREE, null);
         service.recordVerifiedPurchase(google);
         verify(redemptions, never()).save(any());
     }
 
+    @Test
+    void verifiedStoreOfferCode_matchesExactAdminCampaignCode() {
+        promo.setStoreOfferCodeRequired(true);
+
+        service.recordVerifiedPurchase(command("event-4", "partner15"));
+
+        ArgumentCaptor<AppliedPromoEntity> saved = ArgumentCaptor.forClass(AppliedPromoEntity.class);
+        verify(redemptions).save(saved.capture());
+        assertEquals(PromoRedemptionStatus.CONVERTED, saved.getValue().getStatus());
+        assertEquals(1, promo.getUsedCount());
+    }
+
+    @Test
+    void requiredStoreOfferCode_withoutWebhookCode_doesNotAttribute() {
+        promo.setStoreOfferCodeRequired(true);
+
+        service.recordVerifiedPurchase(command("event-5", null));
+
+        verify(redemptions, never()).save(any());
+        assertEquals(0, promo.getUsedCount());
+    }
+
+    @Test
+    void unknownStoreOfferCode_doesNotFallBackToLegacyCampaign() {
+        service.recordVerifiedPurchase(command("event-6", "OTHER_CODE"));
+
+        verify(redemptions, never()).save(any());
+    }
+
     private PromoProviderRedemptionCommand command(String eventId) {
-        return new PromoProviderRedemptionCommand(4L, eventId, "plus.monthly", "welcome", "APP_STORE",
+        return command(eventId, null);
+    }
+
+    private PromoProviderRedemptionCommand command(String eventId, String offerCode) {
+        return new PromoProviderRedemptionCommand(4L, eventId, "plus.monthly", "welcome", offerCode, "APP_STORE",
                 499L, "eur", SubscriptionPlan.FREE, null);
     }
 }

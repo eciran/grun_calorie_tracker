@@ -50,7 +50,7 @@ class AiProviderSmokeServiceImplTest {
         properties.setProvider(AiProvider.HTTP_JSON);
         properties.setModel("provider-model");
         doThrow(new IllegalArgumentException("HTTP JSON AI provider API key is not configured."))
-                .when(validator).validateConfiguredForDraft();
+                .when(validator).validateConfiguredForDraft(AiRequestType.PHOTO_MEAL_LOG);
 
         AiProviderSmokeServiceImpl service = new AiProviderSmokeServiceImpl(properties, validator, List.of(client));
 

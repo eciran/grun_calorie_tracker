@@ -1,6 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AiRequestHistoryDetailDto;
+import com.grun.calorietracker.dto.AiRequestHistoryPageDto;
+import com.grun.calorietracker.dto.AiRequestRecoveryDto;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,6 +41,30 @@ import java.util.List;
 public class AiRequestHistoryController {
 
     private final AiRequestHistoryService aiRequestHistoryService;
+
+    @GetMapping("/recovery")
+    @Operation(summary = "Find my interrupted AI request by its original key",
+            description = "Read-only metadata lookup. found=false does not authorize an automatic retry; an original request may still be arriving. The key stays out of the URL.")
+    public ResponseEntity<AiRequestRecoveryDto> recoverByKey(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam AiRequestType requestType,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(aiRequestHistoryService.recoverByKey(userDetails.getUsername(), requestType, idempotencyKey));
+    }
+
+    @GetMapping("/history/page")
+    @Operation(summary = "Page through my AI history",
+            description = "Metadata only, newest request id first. Pass nextBeforeId as beforeId for older records. Omitted filters include all types/statuses; no AI generation or credit consumption.")
+    public ResponseEntity<AiRequestHistoryPageDto> listHistoryPage(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) List<AiRequestType> requestTypes,
+            @RequestParam(required = false) List<AiRequestStatus> statuses,
+            @RequestParam(required = false) @Min(1) Long beforeId,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int limit) {
+        return ResponseEntity.ok(aiRequestHistoryService.listHistoryPage(
+                userDetails.getUsername(), requestTypes, statuses, beforeId, limit));
+    }
 
     @GetMapping("/history")
     @Operation(

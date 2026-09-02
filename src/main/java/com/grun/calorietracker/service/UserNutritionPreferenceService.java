@@ -6,5 +6,9 @@ public interface UserNutritionPreferenceService {
 
     UserNutritionPreferenceDto get(String email);
 
+    UserNutritionPreferenceDto getForPersonalization(String email);
+
+    boolean isPersonalizationAllowed(String email);
+
     UserNutritionPreferenceDto update(String email, UserNutritionPreferenceDto request);
 }

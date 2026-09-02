@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.config.FoodContributionStorageProperties;
 import com.grun.calorietracker.dto.FoodProductEvidenceResubmitRequestDto;
+import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductOcrExtractionDto;
 import com.grun.calorietracker.dto.FoodProductReviewSubmitRequestDto;
 import com.grun.calorietracker.dto.FoodProductReviewSubmitResponseDto;
@@ -23,8 +24,10 @@ import com.grun.calorietracker.repository.FoodProductReviewCaseExtractionReposit
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
 import com.grun.calorietracker.repository.FoodProductUploadSessionRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewSubmissionService;
+import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.grun.calorietracker.service.model.ProductNutritionOcrFallbackRequest;
 import com.grun.calorietracker.service.model.ProductNutritionOcrShadowRequest;
@@ -49,6 +52,8 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
     private final FoodProductReviewCaseRepository reviewCases;
     private final FoodProductReviewCaseExtractionRepository extractions;
     private final FoodProductReviewCaseService cases;
+    private final UserProductLibraryService userProductLibrary;
+    private final FoodItemRepository foodItems;
     private final ObjectMapper json;
     private final ProductIntakeRolloutPolicy rolloutPolicy;
     private final FoodContributionStorageProperties storageProperties;
@@ -89,8 +94,10 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         });
         assets.saveAll(evidence);
         saveExtraction(review, request.ocrExtraction());
+        boolean replayed = review.getUserCustomFood() != null;
+        ensureUserCustomFood(email, review, request);
         publishShadowRequest(review, evidence, request);
-        return response(review, sessionId);
+        return response(review, sessionId, replayed);
     }
 
     private void publishShadowRequest(FoodProductReviewCaseEntity review,
@@ -147,7 +154,7 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         assets.saveAll(evidence);
         var submitted = cases.transition(caseId, FoodProductReviewCaseStatus.SUBMITTED,
                 email, "Updated evidence submitted by user");
-        return response(submitted, sessionId);
+        return response(submitted, sessionId, false);
     }
 
     @Override
@@ -173,7 +180,7 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         }
         var withdrawn = cases.transition(caseId, FoodProductReviewCaseStatus.WITHDRAWN,
                 email, "Withdrawn by submitter");
-        return response(withdrawn, withdrawn.getSourceReference());
+        return response(withdrawn, withdrawn.getSourceReference(), false);
     }
 
     private void saveExtraction(FoodProductReviewCaseEntity review, FoodProductOcrExtractionDto value) {
@@ -204,8 +211,42 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
                 value.getCreatedAt(), value.getUpdatedAt());
     }
 
-    private FoodProductReviewSubmitResponseDto response(FoodProductReviewCaseEntity review, String sessionId) {
-        return new FoodProductReviewSubmitResponseDto(review.getId(), review.getStatus(), sessionId);
+    private FoodProductReviewSubmitResponseDto response(
+            FoodProductReviewCaseEntity review,
+            String sessionId,
+            boolean replayed
+    ) {
+        var customFood = review.getUserCustomFood();
+        return new FoodProductReviewSubmitResponseDto(
+                review.getId(), review.getStatus(), sessionId, replayed,
+                customFood == null ? null : customFood.getId(),
+                customFood == null ? null : customFood.getName());
+    }
+
+    private void ensureUserCustomFood(
+            String email,
+            FoodProductReviewCaseEntity review,
+            FoodProductReviewSubmitRequestDto request
+    ) {
+        if (review.getUserCustomFood() != null) return;
+        CustomFoodRequestDto custom = new CustomFoodRequestDto();
+        custom.setName(request.productName());
+        custom.setBrand(request.brand());
+        custom.setCalories(request.calories());
+        custom.setProtein(request.protein());
+        custom.setFat(request.fat());
+        custom.setCarbs(request.carbs());
+        custom.setFiber(request.fiber());
+        custom.setSugar(request.sugar());
+        custom.setSodium(request.sodium());
+        custom.setServingSizeGrams(100.0);
+        custom.setServingUnit("100 g");
+        var created = userProductLibrary.createCustomFood(email, custom);
+        if (created == null || created.getId() == null) {
+            throw new IllegalStateException("The private custom food could not be created.");
+        }
+        review.setUserCustomFood(foodItems.getReferenceById(created.getId()));
+        reviewCases.save(review);
     }
 
     private FoodProductReviewCaseEntity ownedCase(Long caseId, UserEntity user) {

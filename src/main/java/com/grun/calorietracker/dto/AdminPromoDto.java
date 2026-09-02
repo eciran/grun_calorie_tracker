@@ -11,6 +11,7 @@ public record AdminPromoDto(
         String targetProductId, PromoStore targetStore, MarketRegion targetRegion,
         String currency, PromoEligibilityRule eligibilityRule, Integer perUserLimit, Integer globalLimit,
         Integer usedCount, String campaignKey, String providerOfferId, String providerProductId,
+        boolean storeOfferCodeRequired,
         boolean providerMappingReady, String createdBy, LocalDateTime createdAt,
         String updatedBy, LocalDateTime updatedAt, String deactivatedReason
 ) {}

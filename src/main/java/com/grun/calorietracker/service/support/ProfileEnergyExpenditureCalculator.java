@@ -46,6 +46,8 @@ public class ProfileEnergyExpenditureCalculator {
             sexOffset = 5.0;
         } else if ("FEMALE".equalsIgnoreCase(user.getGender())) {
             sexOffset = -161.0;
+        } else if ("OTHER".equalsIgnoreCase(user.getGender())) {
+            sexOffset = -78.0;
         } else {
             return Optional.empty();
         }
@@ -53,7 +55,10 @@ public class ProfileEnergyExpenditureCalculator {
                 + 6.25 * user.getHeight()
                 - 5.0 * user.getAge()
                 + sexOffset;
-        return Optional.of(new RestingEnergyEstimate(round(resting), "MIFFLIN_ST_JEOR"));
+        String formula = "OTHER".equalsIgnoreCase(user.getGender())
+                ? "MIFFLIN_ST_JEOR_NEUTRAL_ESTIMATE"
+                : "MIFFLIN_ST_JEOR";
+        return Optional.of(new RestingEnergyEstimate(round(resting), formula));
     }
 
     private boolean hasValidWeight(UserEntity user) {

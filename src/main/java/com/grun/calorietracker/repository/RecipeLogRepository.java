@@ -2,6 +2,7 @@ package com.grun.calorietracker.repository;
 
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.repository.projection.MealReminderMealAggregateProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +12,22 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RecipeLogRepository extends JpaRepository<RecipeLogEntity, Long> {
+    @Query(value = """
+            SELECT r.user_id AS userId,
+                   UPPER(r.meal_type) AS mealType,
+                   COUNT(*) AS recordCount,
+                   COALESCE(SUM(COALESCE(r.snapshot_calories, 0)), 0) AS calories
+            FROM recipe_logs r
+            WHERE r.user_id IN (:userIds)
+              AND r.log_date >= :start
+              AND r.log_date < :end
+            GROUP BY r.user_id, UPPER(r.meal_type)
+            """, nativeQuery = true)
+    List<MealReminderMealAggregateProjection> aggregateMealReminderByUsersAndDate(
+            @Param("userIds") List<Long> userIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
     long countByUser(UserEntity user);
 
     List<RecipeLogEntity> findByUserOrderByLogDateAsc(UserEntity user);

@@ -80,7 +80,8 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         subscriptionService.assertFeatureAccess(email, SubscriptionFeature.AI_RECIPE_GENERATION);
         UserEntity user = getUser(email);
         applyPersistentNutritionPreferences(email, request);
-        request.setUserContext(toUserContext(user));
+        request.setUserContext(toUserContext(
+                user, nutritionPreferenceService.isPersonalizationAllowed(email)));
         String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
         AiRecipeDraftResponseDto previous = existingDraft(user, key);
         if (previous != null) {
@@ -369,7 +370,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
             String email,
             AiRecipeDraftRequestDto request
     ) {
-        UserNutritionPreferenceDto persistent = nutritionPreferenceService.get(email);
+        UserNutritionPreferenceDto persistent = nutritionPreferenceService.getForPersonalization(email);
         if (persistent == null) {
             return;
         }
@@ -654,7 +655,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
-    private Map<String, Object> toUserContext(UserEntity user) {
+    private Map<String, Object> toUserContext(UserEntity user, boolean personalizationAllowed) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("age", user.getAge());
         context.put("gender", user.getGender());
@@ -662,7 +663,9 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
         context.put("weightKg", user.getWeight());
         context.put("bodyFatPercentage", user.getBodyFatPercentage());
         context.put("bmi", user.getBmi());
-        context.put("marketRegion", user.getMarketRegion());
+        if (personalizationAllowed) {
+            context.put("marketRegion", user.getMarketRegion());
+        }
         context.put("preferredLanguage", user.getPreferredLanguage());
         context.put("timeZone", user.getTimeZone());
         context.put("unitPreference", user.getUnitPreference());

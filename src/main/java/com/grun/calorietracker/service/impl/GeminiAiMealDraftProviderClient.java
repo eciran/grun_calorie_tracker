@@ -184,14 +184,14 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
         String responseBody = null;
         try {
-            responseBody = restOperations.postForObject(endpoint(), new HttpEntity<>(payload, headers), String.class);
+            responseBody = restOperations.postForObject(endpoint(requestType), new HttpEntity<>(payload, headers), String.class);
             JsonNode root = objectMapper.readTree(responseBody);
             ensureComplete(root);
             String output = normalizeJsonOutput(extractOutputText(root));
             T result = objectMapper.copy()
                     .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
                     .readValue(output, responseType);
-            attachUsageMetadata(result, root.path("usageMetadata"));
+            attachUsageMetadata(result, requestType, root.path("usageMetadata"));
             return result;
         } catch (RestClientResponseException ex) {
             String error = extractProviderError(ex.getResponseBodyAsString());
@@ -212,9 +212,9 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
         }
     }
 
-    private String endpoint() {
+    private String endpoint(AiRequestType requestType) {
         String base = properties.getGemini().getBaseUrl().replaceAll("/+$", "");
-        return base + "/" + properties.getModel() + ":generateContent";
+        return base + "/" + properties.resolveModel(requestType) + ":generateContent";
     }
 
     private int maxOutputTokens() {
@@ -295,7 +295,7 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return trimmed;
     }
 
-    private void attachUsageMetadata(Object result, JsonNode usage) {
+    private void attachUsageMetadata(Object result, AiRequestType requestType, JsonNode usage) {
         if (!(result instanceof AiUsageMetadataCarrier carrier)) {
             return;
         }
@@ -314,22 +314,33 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
             effectiveTotal = (input == null ? 0 : input) + (output == null ? 0 : output);
         }
         carrier.setTotalTokens(effectiveTotal);
-        carrier.setEstimatedCost(estimateCost(input, output));
-        carrier.setCostCurrency(properties.getGemini().getCostCurrency());
+        carrier.setEstimatedCost(estimateCost(requestType, input, output));
+        carrier.setCostCurrency(costCurrency(requestType));
     }
 
     private Integer integerOrNull(JsonNode node) {
         return node != null && node.isNumber() ? node.asInt() : null;
     }
 
-    private Double estimateCost(Integer input, Integer output) {
-        double inputRate = properties.getGemini().getInputTokenCostPer1m();
-        double outputRate = properties.getGemini().getOutputTokenCostPer1m();
+    private Double estimateCost(AiRequestType requestType, Integer input, Integer output) {
+        boolean photo = requestType == AiRequestType.PHOTO_MEAL_LOG;
+        double inputRate = photo
+                ? properties.getPhoto().getInputTokenCostPer1m()
+                : properties.getGemini().getInputTokenCostPer1m();
+        double outputRate = photo
+                ? properties.getPhoto().getOutputTokenCostPer1m()
+                : properties.getGemini().getOutputTokenCostPer1m();
         if ((input == null && output == null) || (inputRate <= 0 && outputRate <= 0)) {
             return null;
         }
         return ((input == null ? 0 : input) * inputRate
                 + (output == null ? 0 : output) * outputRate) / 1_000_000d;
+    }
+
+    private String costCurrency(AiRequestType requestType) {
+        return requestType == AiRequestType.PHOTO_MEAL_LOG
+                ? properties.getPhoto().getCostCurrency()
+                : properties.getGemini().getCostCurrency();
     }
 
     private String extractProviderError(String body) {

@@ -8,10 +8,10 @@ param(
 $ErrorActionPreference = "Stop"
 $specs = @{
     'dill weed fresh'=@('Fresh Dill','Taze Dereotu','dereotu',10,'PORTION','RAW'); 'mint fresh'=@('Fresh Mint','Taze Nane','nane',10,'PORTION','RAW')
-    'leeks raw'=@('Raw Leek','Çiğ Pırasa','pırasa',100,'PORTION','RAW'); 'okra raw'=@('Raw Okra','Çiğ Bamya','bamya',100,'PORTION','RAW')
-    'green beans raw'=@('Raw Green Beans','Çiğ Taze Fasulye','taze fasulye',100,'PORTION','RAW'); 'celery raw'=@('Raw Celery','Çiğ Kereviz','kereviz',100,'PORTION','RAW')
-    'artichokes raw'=@('Raw Artichoke','Çiğ Enginar','enginar',100,'PORTION','RAW'); 'chard raw'=@('Raw Chard','Çiğ Pazı','pazı',100,'PORTION','RAW')
-    'pumpkin raw'=@('Raw Pumpkin','Çiğ Bal Kabağı','bal kabağı',100,'PORTION','RAW'); 'watermelon raw'=@('Raw Watermelon','Karpuz','karpuz',200,'SLICE','RAW')
+    'leeks raw'=@('Raw Leek','Pırasa','pırasa',100,'PORTION','RAW'); 'okra raw'=@('Raw Okra','Bamya','bamya',100,'PORTION','RAW')
+    'green beans raw'=@('Raw Green Beans','Taze Fasulye','taze fasulye',100,'PORTION','RAW'); 'celery raw'=@('Raw Celery','Kereviz','kereviz',100,'PORTION','RAW')
+    'artichokes raw'=@('Raw Artichoke','Enginar','enginar',100,'PORTION','RAW'); 'chard raw'=@('Raw Chard','Pazı','pazı',100,'PORTION','RAW')
+    'pumpkin raw'=@('Raw Pumpkin','Bal Kabağı','bal kabağı',100,'PORTION','RAW'); 'watermelon raw'=@('Raw Watermelon','Karpuz','karpuz',200,'SLICE','RAW')
     'cantaloupe raw'=@('Raw Melon','Kavun','kavun',200,'SLICE','RAW'); 'figs raw'=@('Raw Fig','Taze İncir','incir',50,'PIECE','RAW')
     'apricots raw'=@('Raw Apricot','Taze Kayısı','kayısı',35,'PIECE','RAW'); 'cherries sweet raw'=@('Raw Sweet Cherries','Kiraz','kiraz',100,'PORTION','RAW')
     'pomegranate raw'=@('Raw Pomegranate','Nar','nar',100,'PORTION','RAW'); 'flour wheat all purpose'=@('Wheat Flour','Buğday Unu','un;buğday unu',100,'PORTION','PREPARED')

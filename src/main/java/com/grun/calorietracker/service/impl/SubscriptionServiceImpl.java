@@ -24,6 +24,7 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionPlanFeatureRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
+import com.grun.calorietracker.repository.SubscriptionCreditAllocationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.MailDeliveryService;
@@ -41,6 +42,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -62,6 +64,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final NotificationRepository notificationRepository;
     private final MailDeliveryService mailDeliveryService;
     private final AiCreditPricingService aiCreditPricingService;
+    private final SubscriptionCreditAllocationRepository subscriptionCreditAllocationRepository;
     @Autowired(required = false) private MailProperties mailProperties;
     @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
@@ -223,7 +226,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setAiMonthlyQuota(current.getAiMonthlyQuota());
         int addonConsumed = Math.min(amount, safeInt(current.getAiAddonRemainingThisPeriod()));
         entity.setAiAddonUsed(safeInt(entity.getAiAddonUsed()) + addonConsumed);
-        entity.setAiUsedThisPeriod(current.getAiUsedThisPeriod() + amount);
+        normalizeUsageCounters(entity);
+        int planConsumed = amount - addonConsumed;
+        entity.setAiPlanUsedThisPeriod(safeInt(entity.getAiPlanUsedThisPeriod()) + planConsumed);
+        syncTotalUsage(entity);
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(subscriptionRepository.save(entity));
     }
@@ -243,6 +249,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseGet(() -> defaultEntity(user));
         entity.setAiMonthlyQuota(resolveQuota(entity.getPlanType(), entity.getAiMonthlyQuota()));
         entity.setAiUsedThisPeriod(0);
+        entity.setAiPlanUsedThisPeriod(0);
         entity.setAiAddonUsed(0);
         ensureQuotaPeriod(entity);
         entity.setUpdatedAt(LocalDateTime.now());
@@ -285,13 +292,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
                 .orElseGet(() -> defaultEntity(user));
         ensureQuotaPeriod(entity);
+        normalizeUsageCounters(entity);
         int used = safeInt(entity.getAiUsedThisPeriod());
         if (amount > used) {
             throw new IllegalArgumentException("AI quota refund amount must not exceed used quota.");
         }
         int addonRefund = Math.min(amount, safeInt(entity.getAiAddonUsed()));
         entity.setAiAddonUsed(safeInt(entity.getAiAddonUsed()) - addonRefund);
-        entity.setAiUsedThisPeriod(used - amount);
+        int planRefund = amount - addonRefund;
+        entity.setAiPlanUsedThisPeriod(Math.max(0, safeInt(entity.getAiPlanUsedThisPeriod()) - planRefund));
+        syncTotalUsage(entity);
         entity.setUpdatedAt(LocalDateTime.now());
         return toDto(subscriptionRepository.save(entity));
     }
@@ -299,22 +309,28 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional
     public SubscriptionDto applyProviderEvent(Long userId, SubscriptionProviderEventCommand command) {
-        UserEntity user = userRepository.findById(userId)
+        UserEntity user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         SubscriptionEntity entity = subscriptionRepository.findByUserId(userId)
                 .orElseGet(() -> defaultEntity(user));
         entity.setUser(user);
+        normalizeUsageCounters(entity);
         clearExpiredAiAddonQuota(entity);
+
+        boolean lifecycleStateEvent = command.getPlanType() != null || command.getStatus() != null
+                || (Boolean.TRUE.equals(command.getRefund()) && command.getAiAddonQuotaAmount() == null);
+        if (lifecycleStateEvent && command.getProviderEventAt() != null && entity.getLastProviderEventAt() != null
+                && command.getProviderEventAt().isBefore(entity.getLastProviderEventAt())) {
+            return toDto(entity);
+        }
 
         boolean refreshEntitlements = false;
         if (Boolean.TRUE.equals(command.getRefund())) {
             if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
                 entity.setAiAddonQuota(Math.max(0, safeInt(entity.getAiAddonQuota()) - command.getAiAddonQuotaAmount()));
                 int adjustedAddonUsed = Math.min(safeInt(entity.getAiAddonUsed()), safeInt(entity.getAiAddonQuota()));
-                int removedConsumedAddon = safeInt(entity.getAiAddonUsed()) - adjustedAddonUsed;
                 entity.setAiAddonUsed(adjustedAddonUsed);
-                entity.setAiUsedThisPeriod(Math.max(0,
-                        safeInt(entity.getAiUsedThisPeriod()) - removedConsumedAddon));
+                syncTotalUsage(entity);
                 if (safeInt(entity.getAiAddonQuota()) == 0) {
                     entity.setAiAddonQuotaExpiresAt(null);
                 }
@@ -333,12 +349,18 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), expiresAt));
         } else if (command.getPlanType() != null && command.getStatus() != null) {
             refreshEntitlements = true;
+            boolean newAllocation = reservePlanCreditAllocation(userId, command);
             entity.setPlanType(command.getPlanType());
             entity.setStatus(command.getStatus());
             entity.setBillingPeriod(resolveBillingPeriod(command.getStartDate(), command.getEndDate()));
             entity.setStartDate(command.getStartDate() == null ? LocalDate.now() : command.getStartDate());
             entity.setEndDate(command.getEndDate());
             entity.setAiMonthlyQuota(resolveQuota(command.getPlanType(), null));
+            if (newAllocation) {
+                entity.setAiPlanUsedThisPeriod(0);
+                syncTotalUsage(entity);
+                entity.setAiCreditAllocationKey(command.getCreditAllocationKey());
+            }
             entity.setAiQuotaPeriodStartDate(entity.getStartDate());
             entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(entity.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), entity.getEndDate()));
             entity.setAutoRenew(Boolean.TRUE.equals(command.getAutoRenew()));
@@ -359,6 +381,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setProviderTransactionId(trimToNull(command.getProviderTransactionId()));
         entity.setProviderOriginalTransactionId(trimToNull(command.getProviderOriginalTransactionId()));
         entity.setLastProviderEventId(trimToNull(command.getProviderEventId()));
+        if (lifecycleStateEvent && command.getProviderEventAt() != null) {
+            entity.setLastProviderEventAt(command.getProviderEventAt());
+        }
         entity.setUpdatedAt(LocalDateTime.now());
         SubscriptionEntity saved = subscriptionRepository.save(entity);
         if (refreshEntitlements) {
@@ -410,6 +435,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setAiMonthlyQuota(quota);
         entity.setAiUsedThisPeriod(used);
         entity.setAiAddonUsed(Math.min(safeInt(entity.getAiAddonUsed()), Math.min(safeInt(entity.getAiAddonQuota()), used)));
+        entity.setAiPlanUsedThisPeriod(Math.max(0, used - safeInt(entity.getAiAddonUsed())));
         entity.setAiQuotaPeriodStartDate(resolvePeriodStart(request.getStartDate()));
         entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(request.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), request.getEndDate()));
         entity.setAutoRenew(!downgradingToFree && (request.getAutoRenew() == null || Boolean.TRUE.equals(request.getAutoRenew())));
@@ -460,7 +486,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAiAddonUsed(Math.min(dto.getAiAddonQuota(), safeInt(entity.getAiAddonUsed())));
         dto.setAiTotalQuotaThisPeriod(dto.getAiMonthlyQuota() + dto.getAiAddonQuota());
         dto.setAiUsedThisPeriod(safeInt(entity.getAiUsedThisPeriod()));
-        int baseUsed = Math.max(0, dto.getAiUsedThisPeriod() - dto.getAiAddonUsed());
+        normalizeUsageCounters(entity);
+        dto.setAiUsedThisPeriod(safeInt(entity.getAiUsedThisPeriod()));
+        dto.setAiPlanUsedThisPeriod(safeInt(entity.getAiPlanUsedThisPeriod()));
+        int baseUsed = dto.getAiPlanUsedThisPeriod();
         dto.setAiBaseRemainingThisPeriod(Math.max(0, dto.getAiMonthlyQuota() - baseUsed));
         dto.setAiAddonRemainingThisPeriod(Math.max(0, dto.getAiAddonQuota() - dto.getAiAddonUsed()));
         dto.setAiRemainingThisPeriod(dto.getAiBaseRemainingThisPeriod() + dto.getAiAddonRemainingThisPeriod());
@@ -471,6 +500,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.setAutoRenew(Boolean.TRUE.equals(entity.getAutoRenew()));
         dto.setProvider(entity.getProvider());
         dto.setProviderProductId(entity.getProviderProductId());
+        dto.setAiCreditAllocationReference(entity.getAiCreditAllocationKey());
         return dto;
     }
 
@@ -603,7 +633,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private boolean defaultPlanFeatureEnabled(SubscriptionPlan planType, SubscriptionFeature feature) {
         if (feature == SubscriptionFeature.ADVANCED_ANALYTICS
-                || feature == SubscriptionFeature.MICRONUTRIENT_ANALYTICS) {
+                || feature == SubscriptionFeature.MICRONUTRIENT_ANALYTICS
+                || feature == SubscriptionFeature.AI_NUTRITION_PLAN
+                || feature == SubscriptionFeature.AI_WORKOUT_PLANNER) {
             return planType == SubscriptionPlan.PRO;
         }
         if (feature == SubscriptionFeature.NEXT_MEAL_SUGGESTIONS) {
@@ -806,6 +838,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         entity.setAiAddonUsed(0);
         entity.setAiAddonQuotaExpiresAt(null);
         entity.setAiUsedThisPeriod(0);
+        entity.setAiPlanUsedThisPeriod(0);
         entity.setAiQuotaPeriodStartDate(LocalDate.now());
         entity.setAiQuotaPeriodEndDate(null);
         entity.setAutoRenew(false);
@@ -823,6 +856,21 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return command.getAiAddonValidityDays() == null || command.getAiAddonValidityDays() <= 0
                 ? 30
                 : command.getAiAddonValidityDays();
+    }
+
+    private boolean reservePlanCreditAllocation(Long userId, SubscriptionProviderEventCommand command) {
+        if (!Boolean.TRUE.equals(command.getGrantPlanCreditAllocation())) return false;
+        String allocationKey = trimToNull(command.getCreditAllocationKey());
+        if (allocationKey == null || !allocationKey.matches("[a-f0-9]{64}") || command.getPurchasedAt() == null
+                || command.getPlanType() == null || command.getProviderEventId() == null) {
+            throw new IllegalArgumentException("Verified plan credit allocation identity is incomplete.");
+        }
+        PaymentProvider provider = command.getProvider() == null ? PaymentProvider.REVENUECAT : command.getProvider();
+        int quota = resolveQuota(command.getPlanType(), null);
+        return subscriptionCreditAllocationRepository.reserve(userId, provider.name(), allocationKey,
+                command.getPlanType().name(), quota, command.getPurchasedAt(), command.getExpirationAt(),
+                trimToNull(command.getProviderTransactionId()), trimToNull(command.getProviderOriginalTransactionId()),
+                command.getProviderEventId(), Instant.now()) == 1;
     }
 
     private BillingPeriod resolveBillingPeriod(LocalDate startDate, LocalDate endDate) {
@@ -880,7 +928,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             ensureQuotaPeriod(entity);
             return;
         }
-        entity.setAiUsedThisPeriod(safeInt(entity.getAiAddonUsed()));
+        normalizeUsageCounters(entity);
+        entity.setAiPlanUsedThisPeriod(0);
+        syncTotalUsage(entity);
         entity.setAiQuotaPeriodStartDate(LocalDate.now());
         entity.setAiQuotaPeriodEndDate(resolvePeriodEnd(entity.getBillingPeriod(), entity.getAiQuotaPeriodStartDate(), entity.getEndDate()));
     }
@@ -935,12 +985,27 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private void clearExpiredAiAddonQuota(SubscriptionEntity entity) {
+        normalizeUsageCounters(entity);
         if (entity.getAiAddonQuotaExpiresAt() != null && entity.getAiAddonQuotaExpiresAt().isBefore(LocalDate.now())) {
-            entity.setAiUsedThisPeriod(Math.max(0, safeInt(entity.getAiUsedThisPeriod()) - safeInt(entity.getAiAddonUsed())));
             entity.setAiAddonQuota(0);
             entity.setAiAddonUsed(0);
             entity.setAiAddonQuotaExpiresAt(null);
+            syncTotalUsage(entity);
         }
+    }
+
+    private void normalizeUsageCounters(SubscriptionEntity entity) {
+        int addonUsed = Math.max(0, Math.min(safeInt(entity.getAiAddonQuota()), safeInt(entity.getAiAddonUsed())));
+        int planUsed = entity.getAiPlanUsedThisPeriod() == null
+                ? Math.max(0, safeInt(entity.getAiUsedThisPeriod()) - addonUsed)
+                : Math.max(0, entity.getAiPlanUsedThisPeriod());
+        entity.setAiAddonUsed(addonUsed);
+        entity.setAiPlanUsedThisPeriod(planUsed);
+        entity.setAiUsedThisPeriod(planUsed + addonUsed);
+    }
+
+    private void syncTotalUsage(SubscriptionEntity entity) {
+        entity.setAiUsedThisPeriod(safeInt(entity.getAiPlanUsedThisPeriod()) + safeInt(entity.getAiAddonUsed()));
     }
 
     private LocalDate maxDate(LocalDate current, LocalDate candidate) {

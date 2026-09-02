@@ -18,7 +18,7 @@ public class ProfileBodyUpdateRequestDto {
     @Schema(description = "Date of birth. Overrides legacy age when supplied.", example = "1994-06-18")
     private LocalDate birthDate;
 
-    @Pattern(regexp = "(?i)MALE|FEMALE", message = "{validation.user-profile.gender.invalid}")
+    @Pattern(regexp = "(?i)MALE|FEMALE|OTHER", message = "{validation.user-profile.gender.invalid}")
     private String gender;
 
     @Min(value = 100, message = "{validation.user-profile.height.min}")

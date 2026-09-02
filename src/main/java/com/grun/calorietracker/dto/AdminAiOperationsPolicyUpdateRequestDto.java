@@ -1,5 +1,7 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.AiProvider;
+
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -28,6 +30,10 @@ public class AdminAiOperationsPolicyUpdateRequestDto {
     private String costCurrency;
     @NotBlank @Size(max = 120) @Pattern(regexp = "[A-Za-z0-9._:-]+")
     private String activeModel;
+    @Size(max = 120) @Pattern(regexp = "[A-Za-z0-9._:-]+")
+    private String activePhotoModel;
+    @NotNull
+    private AiProvider activePhotoProvider;
     @NotBlank @Size(max = 120) @Pattern(regexp = "[A-Za-z0-9._:-]+")
     private String activePromptVersion;
     @NotBlank @Size(min = 8, max = 500)

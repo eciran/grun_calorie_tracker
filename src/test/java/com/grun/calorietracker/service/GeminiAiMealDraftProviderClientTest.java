@@ -69,12 +69,13 @@ class GeminiAiMealDraftProviderClientTest {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
         AiProperties properties = properties();
+        properties.getPhoto().setModel("gemini-photo-premium");
         ObjectMapper mapper = new ObjectMapper();
         OpenAiAiMealDraftProviderClient contract = new OpenAiAiMealDraftProviderClient(properties, restTemplate, mapper);
         GeminiAiMealDraftProviderClient client = new GeminiAiMealDraftProviderClient(
                 properties, restTemplate, mapper, contract);
 
-        server.expect(requestTo("https://generativelanguage.googleapis.test/v1beta/models/gemini-3.6-flash:generateContent"))
+        server.expect(requestTo("https://generativelanguage.googleapis.test/v1beta/models/gemini-photo-premium:generateContent"))
                 .andExpect(jsonPath("$.contents[0].parts[2].inlineData.mimeType").value("image/jpeg"))
                 .andExpect(jsonPath("$.contents[0].parts[2].inlineData.data").value("AQID"))
                 .andRespond(withSuccess("""

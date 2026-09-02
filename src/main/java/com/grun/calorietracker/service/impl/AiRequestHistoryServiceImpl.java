@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AiRequestHistoryDetailDto;
+import com.grun.calorietracker.dto.AiRequestHistoryDto;
+import com.grun.calorietracker.dto.AiRequestHistoryPageDto;
+import com.grun.calorietracker.dto.AiRequestRecoveryDto;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiRequestStatus;
@@ -13,6 +16,7 @@ import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiRequestHistoryService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
+import com.grun.calorietracker.service.support.AiIdempotencySupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -28,6 +32,57 @@ public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+
+    @Override
+    @Transactional(readOnly = true)
+    public AiRequestRecoveryDto recoverByKey(String email, AiRequestType requestType, String idempotencyKey) {
+        UserEntity user = getUser(email);
+        if (requestType == null) throw new IllegalArgumentException("AI request type is required.");
+        String key = AiIdempotencySupport.normalizeKey(idempotencyKey);
+        // No provider, entitlement, quota, completion acknowledgement or retry side effects.
+        return aiRequestHistoryRepository.findByUserAndRequestTypeAndIdempotencyKey(user, requestType, key)
+                .map(history -> new AiRequestRecoveryDto(true, toSummary(history)))
+                .orElseGet(() -> new AiRequestRecoveryDto(false, null));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AiRequestHistoryPageDto listHistoryPage(String email, List<AiRequestType> requestTypes,
+                                                  List<AiRequestStatus> statuses, Long beforeId, int limit) {
+        UserEntity user = getUser(email);
+        if (limit < 1 || limit > 100 || (beforeId != null && beforeId < 1)) {
+            throw new IllegalArgumentException("Invalid history page bounds.");
+        }
+        var types = requestTypes == null || requestTypes.isEmpty() ? List.of(AiRequestType.values()) : requestTypes;
+        var states = statuses == null || statuses.isEmpty() ? List.of(AiRequestStatus.values()) : statuses;
+        // ID ordering provides a stable cursor even when timestamps tie or new requests arrive.
+        var rows = aiRequestHistoryRepository.findUserHistoryPage(user, types, states,
+                beforeId == null ? Long.MAX_VALUE : beforeId, PageRequest.of(0, limit + 1));
+        var items = rows.stream().limit(limit).map(this::toSummary).toList();
+        Long next = rows.size() > limit ? items.get(items.size() - 1).getId() : null;
+        return new AiRequestHistoryPageDto(items, next);
+    }
+
+    private AiRequestHistoryDto toSummary(AiRequestHistoryEntity entity) {
+        AiRequestHistoryDto dto = new AiRequestHistoryDto();
+        dto.setId(entity.getId());
+        dto.setRequestType(entity.getRequestType());
+        dto.setProvider(entity.getProvider());
+        dto.setModel(entity.getModel());
+        dto.setPromptVersion(entity.getPromptVersion());
+        dto.setStatus(entity.getStatus());
+        dto.setQuotaConsumed(entity.getQuotaConsumed());
+        dto.setQuotaConsumedAmount(entity.getQuotaConsumedAmount());
+        dto.setQuotaRefundedAmount(entity.getQuotaRefundedAmount());
+        dto.setLatencyMs(entity.getLatencyMs());
+        dto.setTotalTokens(entity.getTotalTokens());
+        dto.setEstimatedCost(entity.getEstimatedCost());
+        dto.setCostCurrency(entity.getCostCurrency());
+        dto.setRejectionReason(entity.getRejectionReason());
+        dto.setHasRejectionFeedback(entity.getRejectionFeedback() != null && !entity.getRejectionFeedback().isBlank());
+        dto.setCreatedAt(entity.getCreatedAt());
+        return dto;
+    }
 
     @Override
     public List<AiRequestHistoryDetailDto> listHistory(String email, AiRequestType requestType, AiRequestStatus status, int limit) {

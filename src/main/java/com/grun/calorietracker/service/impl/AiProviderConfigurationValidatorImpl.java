@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.enums.AiProvider;
+import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.AiOperationsPolicyService;
 import lombok.RequiredArgsConstructor;
@@ -16,23 +17,30 @@ public class AiProviderConfigurationValidatorImpl implements AiProviderConfigura
 
     @Override
     public void validateConfiguredForDraft() {
+        validateConfiguredForDraft(null);
+    }
+
+    @Override
+    public void validateConfiguredForDraft(AiRequestType requestType) {
         operationsPolicyService.assertRequestAllowed();
-        if (!properties.isEnabled() || properties.getProvider() == AiProvider.DISABLED) {
+        AiProvider provider = properties.resolveProvider(requestType);
+        String model = properties.resolveModel(requestType);
+        if (!properties.isEnabled() || provider == null || provider == AiProvider.DISABLED) {
             throw new IllegalArgumentException("AI meal draft provider is disabled.");
         }
-        if (isBlank(properties.getModel()) || "not-configured".equalsIgnoreCase(properties.getModel().trim())) {
+        if (isBlank(model) || "not-configured".equalsIgnoreCase(model.trim())) {
             throw new IllegalArgumentException("AI model is not configured.");
         }
         if (isBlank(properties.getPromptVersion())) {
             throw new IllegalArgumentException("AI prompt version is not configured.");
         }
-        if (properties.getProvider() == AiProvider.HTTP_JSON) {
+        if (provider == AiProvider.HTTP_JSON) {
             validateHttpJson();
         }
-        if (properties.getProvider() == AiProvider.OPENAI) {
+        if (provider == AiProvider.OPENAI) {
             validateOpenAi();
         }
-        if (properties.getProvider() == AiProvider.GEMINI) {
+        if (provider == AiProvider.GEMINI) {
             validateGemini();
         }
     }

@@ -29,6 +29,7 @@ import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
+import com.grun.calorietracker.service.support.DailyCalorieBudgetSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,12 +108,14 @@ public class DashboardServiceImpl implements DashboardService {
                 exerciseLogRepository.getSummaryTotalsByUserAndDateBetween(user.getId(), start, end)
         );
 
-        Optional<UserGoalEntity> goalOpt = goalRepository
-                .findFirstByUserAndEffectiveLocalDateLessThanEqualOrderByEffectiveFromDesc(user, date)
-                .or(() -> goalRepository.findByUser(user));
+        DailyCalorieBudgetSupport.ResolvedGoal resolvedGoal =
+                DailyCalorieBudgetSupport.resolveGoal(goalRepository, user, date);
+        Optional<UserGoalEntity> goalOpt = Optional.ofNullable(resolvedGoal.goal());
         Optional<ProgressLogEntity> latestProgressOpt = progressLogRepository.findTopByUserOrderByLogDateDesc(user);
 
-        Double consumedCalories = round(getDouble(foodTotals, 0) + getDouble(recipeTotals, 0));
+        DailyCalorieBudgetSupport.DailyCalorieBudget calorieBudget = DailyCalorieBudgetSupport.calculate(
+                resolvedGoal, getDouble(foodTotals, 0), getDouble(recipeTotals, 0));
+        Double consumedCalories = calorieBudget.consumedCalories();
         Double consumedProtein = round(getDouble(foodTotals, 1) + getDouble(recipeTotals, 1));
         Double consumedCarbs = round(getDouble(foodTotals, 2) + getDouble(recipeTotals, 2));
         Double consumedFat = round(getDouble(foodTotals, 3) + getDouble(recipeTotals, 3));
@@ -122,7 +125,7 @@ public class DashboardServiceImpl implements DashboardService {
         Integer totalExerciseMinutes = getInteger(exerciseTotals, 1);
 
         boolean hasActiveGoal = goalOpt.isPresent();
-        Integer targetCalories = goalOpt.map(UserGoalEntity::getDailyCalorieGoal).orElse(0);
+        Integer targetCalories = calorieBudget.targetCalories();
         Double targetProtein = goalOpt.map(UserGoalEntity::getDailyProteinGoal).orElse(0.0);
         Double targetFat = goalOpt.map(UserGoalEntity::getDailyFatGoal).orElse(0.0);
         Double targetCarbs = goalOpt.map(UserGoalEntity::getDailyCarbGoal).orElse(0.0);
@@ -151,7 +154,7 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTargetCalories(targetCalories);
         dto.setConsumedCalories(consumedCalories);
         dto.setBurnedCalories(burnedCalories);
-        dto.setRemainingCalories(round(targetCalories - consumedCalories));
+        dto.setRemainingCalories(calorieBudget.remainingCalories());
         dto.setNetCalories(round(consumedCalories - burnedCalories));
         dto.setExerciseCaloriesAddedToBudget(false);
         dto.setCalorieProgressPercent(percent(consumedCalories, targetCalories.doubleValue()));

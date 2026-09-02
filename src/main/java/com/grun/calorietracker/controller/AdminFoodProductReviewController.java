@@ -1,5 +1,7 @@
 package com.grun.calorietracker.controller;
 
+import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
 import com.grun.calorietracker.dto.AdminProductQualityAiValidationRequestDto;
 import com.grun.calorietracker.dto.AdminProductQualityAiValidationResultDto;
@@ -86,6 +88,32 @@ public class AdminFoodProductReviewController {
     private final FoodProductReviewService foodProductReviewService;
     private final FoodProductImportService foodProductImportService;
     private final ProductQualitySuggestionService productQualitySuggestionService;
+
+    @PostMapping("/preflight")
+    @Operation(summary = "Check an admin catalog product before creation", description = "Returns potential duplicates and nutrition consistency warnings without writing catalog data.")
+    public ResponseEntity<AdminFoodProductPreflightDto> preflightCatalogProduct(
+            @RequestBody @Valid AdminFoodProductCreateRequestDto request) {
+        return ResponseEntity.ok(foodProductReviewService.preflightAdminCatalogProduct(request));
+    }
+
+    @PostMapping
+    @Operation(
+            summary = "Create a shared catalog product",
+            description = "Creates a sourced, per-100g product in internal review state. Intended for admin recipe ingredient resolution and other catalog operations."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Catalog product created."),
+            @ApiResponse(responseCode = "400", description = "Request validation failed."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodProductDto> createCatalogProduct(
+            @RequestBody @Valid AdminFoodProductCreateRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.createAdminCatalogProduct(
+                request,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
 
     @PostMapping(value = "/import", consumes = "multipart/form-data")
     @Operation(

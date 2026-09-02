@@ -122,13 +122,19 @@ class OpenAiAiMealDraftProviderClientTest {
     void createPhotoMealDraft_whenHttpsImageReference_includesInputImage() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        OpenAiAiMealDraftProviderClient client = new OpenAiAiMealDraftProviderClient(properties(), restTemplate, new ObjectMapper());
+        AiProperties properties = properties();
+        properties.getPhoto().setProvider(AiProvider.OPENAI);
+        properties.getPhoto().setModel("gpt-5.6-terra");
+        properties.getPhoto().setInputTokenCostPer1m(2.0d);
+        properties.getPhoto().setOutputTokenCostPer1m(12.0d);
+        properties.getPhoto().setCostCurrency("USD");
+        OpenAiAiMealDraftProviderClient client = new OpenAiAiMealDraftProviderClient(properties, restTemplate, new ObjectMapper());
 
         AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
         request.setImageReference("https://cdn.grun.test/meal.jpg");
 
         server.expect(requestTo("https://api.openai.test/v1/responses"))
-                .andExpect(jsonPath("$.model").value("gpt-5.4-mini"))
+                .andExpect(jsonPath("$.model").value("gpt-5.6-terra"))
                 .andExpect(jsonPath("$.input[1].content[0].text")
                         .value(org.hamcrest.Matchers.containsString("never create one item per piece")))
                 .andExpect(jsonPath("$.input[1].content[1].text")
@@ -137,13 +143,15 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedTotalWeightGrams").exists())
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.alternativeCandidates").doesNotExist())
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.unit.enum[1]").value("MILLILITER"))
-                .andRespond(withSuccess(outputTextResponse("""
+                .andRespond(withSuccess(outputMessageResponse("""
                         {"summary":"Photo draft.","items":[{"name":"Meal","quantity":1,"unit":"plate","estimatedCalories":500,"confidence":0.6}]}
                         """), MediaType.APPLICATION_JSON));
 
         AiMealDraftResponseDto response = client.createPhotoMealDraft(request);
 
         assertEquals("Photo draft.", response.getSummary());
+        assertEquals(0.006d, response.getEstimatedCost(), 0.0000001d);
+        assertEquals("USD", response.getCostCurrency());
         server.verify();
     }
     @Test
@@ -203,6 +211,7 @@ class OpenAiAiMealDraftProviderClientTest {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
         AiProperties properties = properties();
+        properties.getPhoto().setModel("gpt-photo-premium");
         properties.getPhoto().setStorageDirectory(tempDir.toString());
         properties.getPhoto().setPublicBaseUrl("https://api.grun.test");
         String token = "1893456000000-test-photo.jpg";
@@ -213,6 +222,7 @@ class OpenAiAiMealDraftProviderClientTest {
         request.setImageReference("https://api.grun.test/api/v1/ai/meal-drafts/photo-references/" + token);
 
         server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.model").value("gpt-photo-premium"))
                 .andExpect(jsonPath("$.input[1].content[2].type").value("input_image"))
                 .andExpect(jsonPath("$.input[1].content[2].detail").value("high"))
                 .andExpect(jsonPath("$.input[1].content[2].image_url")

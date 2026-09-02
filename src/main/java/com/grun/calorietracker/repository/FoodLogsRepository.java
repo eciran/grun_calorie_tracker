@@ -3,6 +3,7 @@ package com.grun.calorietracker.repository;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.repository.projection.MealReminderMealAggregateProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -19,6 +20,24 @@ import java.util.Optional;
 
 @Repository
 public interface FoodLogsRepository extends JpaRepository<FoodLogsEntity, Long> {
+    @Query(value = """
+            SELECT f.user_id AS userId,
+                   UPPER(f.meal_type) AS mealType,
+                   COUNT(*) AS recordCount,
+                   COALESCE(SUM(COALESCE(f.snapshot_calories,
+                       COALESCE(fi.calories, 0) * COALESCE(f.normalized_portion_grams, f.portion_size, 0) / 100.0)), 0) AS calories
+            FROM food_logs f
+            LEFT JOIN food_items fi ON f.food_id = fi.id
+            WHERE f.user_id IN (:userIds)
+              AND f.log_date >= :start
+              AND f.log_date < :end
+            GROUP BY f.user_id, UPPER(f.meal_type)
+            """, nativeQuery = true)
+    List<MealReminderMealAggregateProjection> aggregateMealReminderByUsersAndDate(
+            @Param("userIds") List<Long> userIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
     List<FoodLogsEntity> findByUser(UserEntity user);
     Page<FoodLogsEntity> findByUserOrderByLogDateDesc(UserEntity user, Pageable pageable);
     long countByUser(UserEntity user);

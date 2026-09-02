@@ -35,6 +35,17 @@ class ProfileEnergyExpenditureCalculatorTest {
     }
 
     @Test
+    void calculate_usesNeutralEstimateForOtherGenderWhenBodyFatIsUnavailable() {
+        UserEntity user = user("OTHER", 30, 170.0, 70.0, null);
+
+        var result = calculator.calculate(user, ActivityLevel.SEDENTARY).orElseThrow();
+
+        assertEquals(1534.5, result.restingEnergyCalories());
+        assertEquals(1841.4, result.totalDailyEnergyCalories());
+        assertEquals("MIFFLIN_ST_JEOR_NEUTRAL_ESTIMATE", result.formula());
+    }
+
+    @Test
     void calculateResting_allowsKatchMcArdleWithoutMifflinOnlyFields() {
         UserEntity user = new UserEntity();
         user.setWeight(70.0);

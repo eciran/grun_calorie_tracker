@@ -68,6 +68,28 @@ class AdminNotificationDefinitionServiceImplTest {
         verify(repository, never()).save(any());
     }
 
+    @Test
+    void legacyUpdateCannotBypassMealReminderApproval() {
+        NotificationDefinitionEntity entity = entity("meal_reminder_lunch", true);
+        when(repository.findById(7L)).thenReturn(Optional.of(entity));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.update(7L, request("meal_reminder_lunch"), "admin@grun.app", "cid-4"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void legacyUpdateCannotBypassSubscriptionLifecycleApproval() {
+        NotificationDefinitionEntity entity = entity("subscription_billing_issue", true);
+        when(repository.findById(7L)).thenReturn(Optional.of(entity));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.update(7L, request("subscription_billing_issue"), "admin@grun.app", "cid-5"));
+
+        assertTrue(exception.getMessage().contains("protected approval workflow"));
+        verify(repository, never()).save(any());
+    }
+
     private AdminNotificationDefinitionRequestDto request(String key) {
         AdminNotificationDefinitionRequestDto request = new AdminNotificationDefinitionRequestDto();
         request.setKey(key);

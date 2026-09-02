@@ -38,6 +38,7 @@ public class AdminPromoRequestDto {
     private String providerOfferId;
     @Size(max = 160)
     private String providerProductId;
+    private boolean storeOfferCodeRequired;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
 }

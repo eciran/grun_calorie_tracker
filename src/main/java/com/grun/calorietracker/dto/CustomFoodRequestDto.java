@@ -14,6 +14,9 @@ public class CustomFoodRequestDto {
     @Schema(description = "Custom food name.", example = "Homemade lentil soup", requiredMode = Schema.RequiredMode.REQUIRED)
     private String name;
 
+    @Schema(description = "Optional brand shown in the user's private food library.", example = "GRUN Foods")
+    private String brand;
+
     @NotNull(message = "{validation.custom-food.calories.required}")
     @PositiveOrZero(message = "{validation.custom-food.nutrition.non-negative}")
     @Schema(description = "Calories per 100 grams.", example = "92.0", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -30,6 +33,15 @@ public class CustomFoodRequestDto {
     @PositiveOrZero(message = "{validation.custom-food.nutrition.non-negative}")
     @Schema(description = "Carbohydrate grams per 100 grams.", example = "12.1")
     private Double carbs;
+
+    @PositiveOrZero(message = "{validation.custom-food.nutrition.non-negative}")
+    private Double fiber;
+
+    @PositiveOrZero(message = "{validation.custom-food.nutrition.non-negative}")
+    private Double sugar;
+
+    @PositiveOrZero(message = "{validation.custom-food.nutrition.non-negative}")
+    private Double sodium;
 
     @PositiveOrZero(message = "{validation.custom-food.nutrition.non-negative}")
     @Schema(description = "Optional default serving size in grams.", example = "250.0")

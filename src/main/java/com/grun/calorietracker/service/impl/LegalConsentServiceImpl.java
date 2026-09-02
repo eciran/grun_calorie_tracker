@@ -4,6 +4,8 @@ import com.grun.calorietracker.dto.UserConsentDto;
 import com.grun.calorietracker.dto.UserConsentRequestDto;
 import com.grun.calorietracker.entity.UserConsentEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.LegalConsentStatus;
+import com.grun.calorietracker.enums.LegalConsentType;
 import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.LegalConsentService;
@@ -47,6 +49,18 @@ public class LegalConsentServiceImpl implements LegalConsentService {
         return userConsentRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasActiveConsent(String userEmail, LegalConsentType consentType) {
+        UserEntity user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+        return userConsentRepository.findByUserAndConsentTypeOrderByCreatedAtDesc(user, consentType)
+                .stream()
+                .findFirst()
+                .map(consent -> consent.getStatus() == LegalConsentStatus.ACCEPTED)
+                .orElse(false);
     }
 
     private UserConsentDto toDto(UserConsentEntity entity) {

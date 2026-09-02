@@ -18,7 +18,7 @@ public class AdminMailMonitoringDto {
     private boolean providerReachable;
     @Schema(description = "Provider API base URL without credentials.", example = "https://api.brevo.com")
     private String providerBaseUrl;
-    @Schema(description = "Configured sender email.", example = "no-reply@grun.app")
+    @Schema(description = "Configured sender email.", example = "no-reply@gruncalorietracker.com")
     private String fromEmail;
     @Schema(description = "Configured sender display name.", example = "GRUN")
     private String fromName;

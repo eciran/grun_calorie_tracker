@@ -135,12 +135,17 @@ public class AdminPromoServiceImpl implements AdminPromoService {
     public AdminPromoReconciliationDto reconcile(Long id, String adminEmail, String correlationId) {
         PromoCodeEntity entity = requirePromo(id);
         List<String> issues = new ArrayList<>();
-        if (!providerMappingReady(entity)) issues.add("Provider offer and product mapping are incomplete.");
+        if (!providerMappingReady(entity)) issues.add(providerMappingIssue(entity));
+        if (entity.isStoreOfferCodeRequired() && entity.getDiscountPercent() <= 0) issues.add("Store offer code campaigns require a positive discount.");
         String providerStore = providerStore(entity.getTargetStore());
-        long observed = hasText(entity.getProviderProductId())
-                ? providerEventRepository.countPromoMappingObservations(entity.getProviderProductId(), trimToNull(entity.getProviderOfferId()), providerStore) : 0;
-        LocalDateTime lastObserved = hasText(entity.getProviderProductId())
-                ? providerEventRepository.lastPromoMappingObservation(entity.getProviderProductId(), trimToNull(entity.getProviderOfferId()), providerStore) : null;
+        long observed = !hasText(entity.getProviderProductId()) ? 0
+                : entity.isStoreOfferCodeRequired()
+                ? providerEventRepository.countStoreOfferCodeObservations(entity.getProviderProductId(), entity.getCode(), providerStore)
+                : providerEventRepository.countPromoMappingObservations(entity.getProviderProductId(), trimToNull(entity.getProviderOfferId()), providerStore);
+        LocalDateTime lastObserved = !hasText(entity.getProviderProductId()) ? null
+                : entity.isStoreOfferCodeRequired()
+                ? providerEventRepository.lastStoreOfferCodeObservation(entity.getProviderProductId(), entity.getCode(), providerStore)
+                : providerEventRepository.lastPromoMappingObservation(entity.getProviderProductId(), trimToNull(entity.getProviderOfferId()), providerStore);
         if (providerMappingReady(entity) && observed == 0) issues.add("Mapping is configured but no processed provider event has been observed yet.");
         boolean ready = providerMappingReady(entity);
         AdminPromoReconciliationDto result = new AdminPromoReconciliationDto(entity.getId(), entity.getTargetStore(),
@@ -393,12 +398,16 @@ public class AdminPromoServiceImpl implements AdminPromoService {
         List<String> issues = new ArrayList<>();
         if (entity.getEndAt() != null && !entity.getEndAt().isAfter(LocalDateTime.now())) issues.add("End time is in the past.");
         if (entity.getStartAt() != null && entity.getEndAt() != null && !entity.getEndAt().isAfter(entity.getStartAt())) issues.add("End time must be after start time.");
-        if (!providerMappingReady(entity)) issues.add("Provider offer and product mapping are incomplete.");
+        if (!providerMappingReady(entity)) issues.add(providerMappingIssue(entity));
+        if (entity.isStoreOfferCodeRequired() && entity.getDiscountPercent() <= 0) issues.add("Store offer code campaigns require a positive discount.");
         if (entity.getGlobalLimit() != null && entity.getUsedCount() >= entity.getGlobalLimit()) issues.add("Global redemption limit is exhausted.");
         return issues;
     }
 
     private boolean providerMappingReady(PromoCodeEntity entity) {
+        if (entity.isStoreOfferCodeRequired()) {
+            return entity.getTargetStore() != PromoStore.REVENUECAT && hasText(entity.getProviderProductId());
+        }
         return entity.getTargetStore() == PromoStore.ALL
                 || (hasText(entity.getProviderOfferId()) && hasText(entity.getProviderProductId()));
     }
@@ -421,6 +430,7 @@ public class AdminPromoServiceImpl implements AdminPromoService {
         entity.setCampaignKey(trimToNull(request.getCampaignKey()));
         entity.setProviderOfferId(trimToNull(request.getProviderOfferId()));
         entity.setProviderProductId(trimToNull(request.getProviderProductId()));
+        entity.setStoreOfferCodeRequired(request.isStoreOfferCodeRequired());
         entity.setStartAt(request.getStartAt());
         entity.setEndAt(request.getEndAt());
         entity.setExpirationDate(request.getEndAt() == null ? null : request.getEndAt().toLocalDate());
@@ -445,6 +455,7 @@ public class AdminPromoServiceImpl implements AdminPromoService {
         value.put("targetPlan", entity.getTargetPlan());
         value.put("discountPercent", entity.getDiscountPercent());
         value.put("providerMappingReady", providerMappingReady(entity));
+        value.put("storeOfferCodeRequired", entity.isStoreOfferCodeRequired());
         return value;
     }
 
@@ -458,7 +469,7 @@ public class AdminPromoServiceImpl implements AdminPromoService {
                 entity.getDiscountPercent(), effectiveStatus, entity.getPromoType(), effectiveActive, entity.getStartAt(),
                 entity.getEndAt(), entity.getTargetPlan(), entity.getTargetProductId(), entity.getTargetStore(), entity.getTargetRegion(),
                 entity.getCurrency(), entity.getEligibilityRule(), entity.getPerUserLimit(), entity.getGlobalLimit(), entity.getUsedCount(),
-                entity.getCampaignKey(), entity.getProviderOfferId(), entity.getProviderProductId(), providerMappingReady(entity),
+                entity.getCampaignKey(), entity.getProviderOfferId(), entity.getProviderProductId(), entity.isStoreOfferCodeRequired(), providerMappingReady(entity),
                 entity.getCreatedBy(), entity.getCreatedAt(), entity.getUpdatedBy(), entity.getUpdatedAt(), entity.getDeactivatedReason());
     }
 
@@ -477,6 +488,12 @@ public class AdminPromoServiceImpl implements AdminPromoService {
                         numberValue(row[1])
                 ))
                 .toList();
+    }
+
+    private String providerMappingIssue(PromoCodeEntity entity) {
+        return entity.isStoreOfferCodeRequired()
+                ? "Verified store offer code campaigns require a store product ID and cannot target RevenueCat directly."
+                : "Provider offer and product mapping are incomplete.";
     }
 
     private long numberValue(Object value) {

@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.enums.AiProvider;
+import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.service.impl.AiProviderConfigurationValidatorImpl;
 import org.junit.jupiter.api.Test;
 
@@ -73,6 +74,19 @@ class AiProviderConfigurationValidatorImplTest {
         AiProperties properties = openAiProperties();
 
         assertDoesNotThrow(() -> validator(properties).validateConfiguredForDraft());
+    }
+
+    @Test
+    void validateConfiguredForDraft_whenPhotoUsesOpenAiAndGeneralUsesGemini_validatesPhotoProvider() {
+        AiProperties properties = geminiProperties();
+        properties.getGemini().setApiKey("");
+        properties.getOpenai().setBaseUrl("https://api.openai.com/v1/responses");
+        properties.getOpenai().setApiKey("sk-test");
+        properties.getOpenai().setTimeout(Duration.ofSeconds(20));
+        properties.getPhoto().setProvider(AiProvider.OPENAI);
+        properties.getPhoto().setModel("gpt-5.6-terra");
+
+        assertDoesNotThrow(() -> validator(properties).validateConfiguredForDraft(AiRequestType.PHOTO_MEAL_LOG));
     }
 
     @Test

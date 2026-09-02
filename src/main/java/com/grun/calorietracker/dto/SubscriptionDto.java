@@ -25,6 +25,7 @@ public class SubscriptionDto {
     private Integer aiAddonUsed;
     private Integer aiTotalQuotaThisPeriod;
     private Integer aiUsedThisPeriod;
+    private Integer aiPlanUsedThisPeriod;
     private Integer aiBaseRemainingThisPeriod;
     private Integer aiAddonRemainingThisPeriod;
     private Integer aiRemainingThisPeriod;
@@ -35,6 +36,8 @@ public class SubscriptionDto {
     private Boolean autoRenew;
     private PaymentProvider provider;
     private String providerProductId;
+    @Schema(description = "Opaque id of the currently applied plan-credit allocation. It changes only when a verified new plan period/allocation is applied.")
+    private String aiCreditAllocationReference;
 
     @JsonProperty("plan")
     @Schema(description = "Mobile-friendly alias for planType.", example = "PLUS")

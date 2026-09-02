@@ -7,6 +7,7 @@ import com.grun.calorietracker.config.RevenueCatProperties;
 import com.grun.calorietracker.dto.RevenueCatWebhookEventDto;
 import com.grun.calorietracker.dto.RevenueCatWebhookResponseDto;
 import com.grun.calorietracker.dto.PromoProviderRedemptionCommand;
+import com.grun.calorietracker.dto.SubscriptionDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
@@ -27,6 +28,7 @@ import com.grun.calorietracker.service.RevenueCatWebhookService;
 import com.grun.calorietracker.service.PromoProviderRedemptionService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.PushDeliveryService;
+import com.grun.calorietracker.service.notification.RevenueCatLifecycleNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,6 +66,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
     private final PromoProviderRedemptionService promoProviderRedemptionService;
+    private final RevenueCatLifecycleNotificationService lifecycleNotificationService;
     @Autowired(required = false) private PushDeliveryService pushDeliveryService;
 
     @Override
@@ -115,22 +119,40 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             }
             audit.setUser(user.get());
             assertRevenueCatCustomerBinding(user.get(), event);
+            SubscriptionEntity previousSubscription = subscriptionRepository.findByUser(user.get()).orElse(null);
+            SubscriptionPlan previousPlan = previousSubscription == null ? SubscriptionPlan.FREE : previousSubscription.getPlanType();
+            SubscriptionStatus previousStatus = previousSubscription == null ? null : previousSubscription.getStatus();
             SubscriptionProviderEventCommand command = toCommand(event, providerEventId);
             if (command == null) {
+                RevenueCatEventType providerType = RevenueCatEventType.from(event.getType());
+                if (isNotificationOnlyLifecycleEvent(providerType)) {
+                    SubscriptionPlan notificationPlan = providerType == RevenueCatEventType.PRODUCT_CHANGE
+                            ? resolvePlanForProduct(event.getNewProductId()) : previousPlan;
+                    if (notificationPlan == null || notificationPlan == SubscriptionPlan.FREE) {
+                        throw new IllegalArgumentException("RevenueCat lifecycle notification could not resolve a paid plan.");
+                    }
+                    lifecycleNotificationService.enqueue(user.get(), providerType, providerEventId,
+                            notificationPlan,
+                            toLocalDate(firstNonNull(event.getExpirationAtMs(), event.getEventTimestampMs())),
+                            null, null, false);
+                    audit.setStatus(SubscriptionProviderEventStatus.PROCESSED);
+                    audit.setProcessedAt(LocalDateTime.now());
+                    eventRepository.save(audit);
+                    return new RevenueCatWebhookResponseDto(true, false, providerEventId, "PROCESSED",
+                            "RevenueCat lifecycle event recorded without changing current entitlement state.");
+                }
                 audit.setStatus(SubscriptionProviderEventStatus.IGNORED);
                 audit.setProcessedAt(LocalDateTime.now());
                 eventRepository.save(audit);
                 return new RevenueCatWebhookResponseDto(true, false, providerEventId, "IGNORED", "Event type does not change backend entitlement state.");
             }
-            SubscriptionEntity previousSubscription = subscriptionRepository.findByUser(user.get()).orElse(null);
-            SubscriptionPlan previousPlan = previousSubscription == null ? SubscriptionPlan.FREE : previousSubscription.getPlanType();
-            SubscriptionStatus previousStatus = previousSubscription == null ? null : previousSubscription.getStatus();
-            subscriptionService.applyProviderEvent(user.get().getId(), command);
+            SubscriptionDto appliedSubscription = subscriptionService.applyProviderEvent(user.get().getId(), command);
             if (isPromoAttributionEvent(event)) {
                 promoProviderRedemptionService.recordVerifiedPurchase(new PromoProviderRedemptionCommand(
                         user.get().getId(), providerEventId, event.getProductId(), event.getPresentedOfferingId(),
-                        event.getStore(), toMinorUnits(event), event.getCurrency(), previousPlan, previousStatus));
+                        event.getOfferCode(), event.getStore(), toMinorUnits(event), event.getCurrency(), previousPlan, previousStatus));
             }
+            enqueueLifecycleNotification(user.get(), event, providerEventId, command, appliedSubscription, previousPlan);
             audit.setStatus(SubscriptionProviderEventStatus.PROCESSED);
             audit.setProcessedAt(LocalDateTime.now());
             eventRepository.save(audit);
@@ -222,8 +244,10 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         audit.setProviderAppUserId(firstNonBlank(event.getAppUserId(), event.getOriginalAppUserId()));
         audit.setEventType(event.getType());
         audit.setProductId(event.getProductId());
+        audit.setNewProductId(event.getNewProductId());
         audit.setStore(event.getStore());
         audit.setPresentedOfferingId(event.getPresentedOfferingId());
+        audit.setStoreOfferCode(event.getOfferCode());
         audit.setPurchaseCurrency(event.getCurrency() == null ? null : event.getCurrency().trim().toUpperCase(Locale.ROOT));
         audit.setPriceAmountMinor(toMinorUnits(event));
         audit.setEntitlementIds(String.join(",", entitlementIds(event)));
@@ -287,6 +311,10 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 command.setStartDate(toLocalDate(firstNonNull(event.getPurchasedAtMs(), event.getEventTimestampMs())));
                 command.setEndDate(toLocalDate(event.getExpirationAtMs()));
                 command.setAutoRenew(true);
+                if (type == RevenueCatEventType.INITIAL_PURCHASE || type == RevenueCatEventType.RENEWAL) {
+                    command.setGrantPlanCreditAllocation(true);
+                    command.setCreditAllocationKey(resolveCreditAllocationKey(event, plan));
+                }
                 return command;
             }
             case CANCELLATION -> {
@@ -342,7 +370,58 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         command.setProviderSubscriptionId(firstNonBlank(event.getOriginalTransactionId(), event.getTransactionId()));
         command.setProviderTransactionId(event.getTransactionId());
         command.setProviderOriginalTransactionId(event.getOriginalTransactionId());
+        command.setEventType(RevenueCatEventType.from(event.getType()));
+        command.setProviderEventAt(toInstant(event.getEventTimestampMs()));
+        command.setPurchasedAt(toInstant(event.getPurchasedAtMs()));
+        command.setExpirationAt(toInstant(event.getExpirationAtMs()));
         return command;
+    }
+
+    private boolean isNotificationOnlyLifecycleEvent(RevenueCatEventType type) {
+        return type == RevenueCatEventType.PRODUCT_CHANGE || type == RevenueCatEventType.SUBSCRIPTION_PAUSED;
+    }
+
+    private void enqueueLifecycleNotification(UserEntity user, RevenueCatWebhookEventDto.Event event,
+            String providerEventId, SubscriptionProviderEventCommand command,
+            SubscriptionDto appliedSubscription, SubscriptionPlan previousPlan) {
+        SubscriptionPlan notificationPlan = command.getPlanType();
+        if ((notificationPlan == null || notificationPlan == SubscriptionPlan.FREE) && appliedSubscription != null) {
+            notificationPlan = appliedSubscription.getPlanType();
+        }
+        if (notificationPlan == null || notificationPlan == SubscriptionPlan.FREE) notificationPlan = previousPlan;
+
+        LocalDate relevantDate = command.getEndDate();
+        if (relevantDate == null && appliedSubscription != null) relevantDate = appliedSubscription.getEndDate();
+        if (relevantDate == null) {
+            relevantDate = toLocalDate(firstNonNull(event.getExpirationAtMs(), event.getEventTimestampMs()));
+        }
+        LocalDate addOnValidUntil = appliedSubscription == null ? null : appliedSubscription.getAiAddonQuotaExpiresAt();
+        lifecycleNotificationService.enqueue(user, RevenueCatEventType.from(event.getType()), providerEventId,
+                notificationPlan, relevantDate, command.getAiAddonQuotaAmount(), addOnValidUntil,
+                Boolean.TRUE.equals(command.getRefund()) && command.getAiAddonQuotaAmount() == null);
+    }
+
+    private String resolveCreditAllocationKey(RevenueCatWebhookEventDto.Event event, SubscriptionPlan plan) {
+        if (event.getPurchasedAtMs() == null) {
+            throw new IllegalArgumentException("RevenueCat plan credit allocation requires purchased_at_ms.");
+        }
+        String transaction = firstNonBlank(event.getTransactionId(), event.getOriginalTransactionId());
+        if (transaction == null) {
+            throw new IllegalArgumentException("RevenueCat plan credit allocation requires a transaction id.");
+        }
+        String canonical = String.join("|",
+                normalize(event.getEnvironment()), normalize(event.getStore()), plan.name(),
+                normalize(event.getProductId()), normalize(transaction), String.valueOf(event.getPurchasedAtMs()));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable.", impossible);
+        }
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private SubscriptionPlan resolvePlan(RevenueCatWebhookEventDto.Event event) {
@@ -353,6 +432,12 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         if (matchesAny(entitlements, properties.getEntitlements().getPlus()) || matchesProduct(event.getProductId(), properties.getProducts().getPlus(), "plus")) {
             return SubscriptionPlan.PLUS;
         }
+        return null;
+    }
+
+    private SubscriptionPlan resolvePlanForProduct(String productId) {
+        if (matchesProduct(productId, properties.getProducts().getPro(), "pro")) return SubscriptionPlan.PRO;
+        if (matchesProduct(productId, properties.getProducts().getPlus(), "plus")) return SubscriptionPlan.PLUS;
         return null;
     }
 
@@ -436,6 +521,10 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             return null;
         }
         return Instant.ofEpochMilli(epochMs).atZone(ZoneOffset.UTC).toLocalDate();
+    }
+
+    private Instant toInstant(Long epochMs) {
+        return epochMs == null ? null : Instant.ofEpochMilli(epochMs);
     }
 
     private Long firstNonNull(Long first, Long second) {

@@ -36,14 +36,20 @@ public class SubscriptionProviderEventEntity {
     @Column(name = "event_type", length = 100)
     private String eventType;
 
-@Column(name = "product_id", length = 255)
+    @Column(name = "product_id", length = 255)
     private String productId;
+
+    @Column(name = "new_product_id", length = 255)
+    private String newProductId;
 
     @Column(length = 40)
     private String store;
 
     @Column(name = "presented_offering_id", length = 255)
     private String presentedOfferingId;
+
+    @Column(name = "store_offer_code", length = 160)
+    private String storeOfferCode;
 
     @Column(name = "purchase_currency", length = 3)
     private String purchaseCurrency;

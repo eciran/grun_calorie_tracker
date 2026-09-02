@@ -29,6 +29,9 @@ public class RevenueCatWebhookEventDto {
         @JsonProperty("product_id")
         private String productId;
 
+        @JsonProperty("new_product_id")
+        private String newProductId;
+
         @JsonProperty("entitlement_id")
         private String entitlementId;
 
@@ -58,6 +61,9 @@ public class RevenueCatWebhookEventDto {
 
         @JsonProperty("presented_offering_id")
         private String presentedOfferingId;
+
+        @JsonProperty("offer_code")
+        private String offerCode;
 
         @JsonProperty("price_in_purchased_currency")
         private BigDecimal priceInPurchasedCurrency;

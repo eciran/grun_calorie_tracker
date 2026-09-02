@@ -10,4 +10,6 @@ public interface NotificationService {
     NotificationDto markAsRead(String email, Long notificationId);
     NotificationReadAllResponseDto markAllAsRead(String email);
     NotificationDto recordEngagement(String email, Long notificationId, NotificationEngagementType engagementType);
+    NotificationDto recordEngagement(String email, Long notificationId, NotificationEngagementType engagementType,
+            String source);
 }

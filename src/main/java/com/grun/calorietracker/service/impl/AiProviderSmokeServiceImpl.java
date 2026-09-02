@@ -29,9 +29,9 @@ public class AiProviderSmokeServiceImpl implements AiProviderSmokeService {
         AiRequestType safeType = requestType == null ? AiRequestType.VOICE_FOOD_LOG : requestType;
         AiProviderSmokeResponseDto response = baseResponse(safeType);
         try {
-            configurationValidator.validateConfiguredForDraft();
+            configurationValidator.validateConfiguredForDraft(safeType);
             response.setConfigured(true);
-            AiMealDraftProviderClient client = resolveClient();
+            AiMealDraftProviderClient client = resolveClient(safeType);
             AiMealDraftResponseDto draft = safeType == AiRequestType.PHOTO_MEAL_LOG
                     ? client.createPhotoMealDraft(photoSmokeRequest())
                     : client.createVoiceFoodDraft(voiceSmokeRequest());
@@ -49,8 +49,8 @@ public class AiProviderSmokeServiceImpl implements AiProviderSmokeService {
 
     private AiProviderSmokeResponseDto baseResponse(AiRequestType requestType) {
         AiProviderSmokeResponseDto response = new AiProviderSmokeResponseDto();
-        response.setProvider(properties.getProvider());
-        response.setModel(properties.getModel());
+        response.setProvider(properties.resolveProvider(requestType));
+        response.setModel(properties.resolveModel(requestType));
         response.setRequestType(requestType);
         response.setConfigured(false);
         response.setProviderReachable(false);
@@ -59,8 +59,8 @@ public class AiProviderSmokeServiceImpl implements AiProviderSmokeService {
         return response;
     }
 
-    private AiMealDraftProviderClient resolveClient() {
-        AiProvider provider = properties.getProvider();
+    private AiMealDraftProviderClient resolveClient(AiRequestType requestType) {
+        AiProvider provider = properties.resolveProvider(requestType);
         return providerClients.stream()
                 .filter(client -> client.provider() == provider)
                 .findFirst()
@@ -78,7 +78,7 @@ public class AiProviderSmokeServiceImpl implements AiProviderSmokeService {
 
     private AiPhotoMealDraftRequestDto photoSmokeRequest() {
         AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
-        request.setImageReference("https://example.com/grun-ai-smoke-meal.jpg");
+        request.setImageReference("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
         request.setUserNote("Smoke test only: simple lunch plate.");
         request.setMealType("LUNCH");
         request.setLogDate(LocalDateTime.now());

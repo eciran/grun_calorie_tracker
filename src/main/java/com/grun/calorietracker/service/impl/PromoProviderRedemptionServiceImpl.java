@@ -46,6 +46,7 @@ public class PromoProviderRedemptionServiceImpl implements PromoProviderRedempti
                 .filter(promo -> storeMatches(promo.getTargetStore(), command.store()))
                 .filter(promo -> blank(promo.getProviderOfferId()) || promo.getProviderOfferId().equals(command.offeringId()))
                 .filter(promo -> blank(promo.getTargetProductId()) || promo.getTargetProductId().equals(command.productId()))
+                .filter(promo -> offerCodeMatches(promo, command.offerCode()))
                 .toList();
         if (matches.isEmpty()) return;
         if (matches.size() > 1) {
@@ -122,6 +123,13 @@ public class PromoProviderRedemptionServiceImpl implements PromoProviderRedempti
         if (providerStore == null) return false;
         return configured == PromoStore.APPLE_APP_STORE && "APP_STORE".equalsIgnoreCase(providerStore)
                 || configured == PromoStore.GOOGLE_PLAY && "PLAY_STORE".equalsIgnoreCase(providerStore);
+    }
+
+    private boolean offerCodeMatches(PromoCodeEntity promo, String providerOfferCode) {
+        if (promo.isStoreOfferCodeRequired()) {
+            return !blank(providerOfferCode) && promo.getCode().equalsIgnoreCase(providerOfferCode.trim());
+        }
+        return blank(providerOfferCode) || promo.getCode().equalsIgnoreCase(providerOfferCode.trim());
     }
 
     private boolean isLapsed(SubscriptionStatus status) {

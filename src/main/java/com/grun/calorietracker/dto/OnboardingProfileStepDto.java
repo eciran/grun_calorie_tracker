@@ -27,7 +27,7 @@ public class OnboardingProfileStepDto {
     @Schema(description = "Date of birth used by the backend to derive age in the user's time zone.", example = "1994-06-18")
     private LocalDate birthDate;
 
-    @Pattern(regexp = "(?i)MALE|FEMALE", message = "{validation.user-profile.gender.invalid}")
+    @Pattern(regexp = "(?i)MALE|FEMALE|OTHER", message = "{validation.user-profile.gender.invalid}")
     private String gender;
 
     @Min(value = 100, message = "{validation.user-profile.height.min}")

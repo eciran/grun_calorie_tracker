@@ -57,6 +57,8 @@ class UserServiceImplTest {
     private UserTimeZoneSupport userTimeZoneSupport = new UserTimeZoneSupport();
     @Mock
     private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    @Mock
+    private com.grun.calorietracker.service.reminder.MealReminderInteractionService mealReminderInteractionService;
 
     private UserEntity testUser;
 
@@ -72,6 +74,7 @@ class UserServiceImplTest {
                 userTimeZoneSupport,
                 new com.grun.calorietracker.service.support.UserAgeSupport(),
                 analyticsCacheRevisionService,
+                mealReminderInteractionService,
                 5,
                 15
         );

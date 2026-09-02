@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.NotificationPageDto;
 import com.grun.calorietracker.dto.NotificationReadAllResponseDto;
 import com.grun.calorietracker.entity.NotificationCampaignRecipientEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
+import com.grun.calorietracker.entity.NotificationEngagementEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.NotificationEngagementType;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -12,6 +13,7 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.NotificationCampaignRecipientRepository;
 import com.grun.calorietracker.repository.NotificationCampaignRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.NotificationEngagementRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.NotificationService;
 import com.grun.calorietracker.service.NotificationDefinitionPolicy;
@@ -24,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -36,6 +39,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationCampaignRepository campaignRepository;
     private final UserRepository userRepository;
     private final NotificationDefinitionPolicy definitionPolicy;
+    private final NotificationEngagementRepository engagementRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,6 +86,13 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public NotificationDto recordEngagement(String email, Long notificationId, NotificationEngagementType engagementType) {
+        return recordEngagement(email, notificationId, engagementType, "IN_APP");
+    }
+
+    @Override
+    @Transactional
+    public NotificationDto recordEngagement(String email, Long notificationId,
+            NotificationEngagementType engagementType, String source) {
         UserEntity user = getUser(email);
         NotificationEntity notification = notificationRepository.findByIdAndUser(notificationId, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
@@ -89,8 +100,24 @@ public class NotificationServiceImpl implements NotificationService {
             notification.setIsRead(true);
             notificationRepository.save(notification);
         }
+        recordPlatformEngagement(notification, user, engagementType, source);
         recordCampaignEngagement(notification, user, engagementType);
         return toDto(notification, definitionsFor(notification));
+    }
+
+    private void recordPlatformEngagement(NotificationEntity notification, UserEntity user,
+            NotificationEngagementType engagementType, String source) {
+        String normalizedSource = source == null ? "IN_APP" : source.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!normalizedSource.equals("IN_APP") && !normalizedSource.equals("PUSH")) {
+            throw new IllegalArgumentException("Notification engagement source must be IN_APP or PUSH.");
+        }
+        if (engagementRepository.existsByNotificationIdAndUserIdAndEngagementType(
+                notification.getId(), user.getId(), engagementType)) return;
+        NotificationEngagementEntity engagement = new NotificationEngagementEntity();
+        engagement.setNotification(notification); engagement.setUser(user);
+        engagement.setEngagementType(engagementType); engagement.setSource(normalizedSource);
+        engagement.setCreatedAt(Instant.now());
+        engagementRepository.save(engagement);
     }
 
     @Override

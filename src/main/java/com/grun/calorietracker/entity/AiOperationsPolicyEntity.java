@@ -3,9 +3,12 @@ package com.grun.calorietracker.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.Data;
+import com.grun.calorietracker.enums.AiProvider;
 
 import java.time.LocalDateTime;
 
@@ -32,9 +35,19 @@ public class AiOperationsPolicyEntity {
     @Column(length = 120)
     private String activeModel;
     @Column(length = 120)
+    private String activePhotoModel;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private AiProvider activePhotoProvider;
+    @Column(length = 120)
     private String activePromptVersion;
     @Column(length = 120)
     private String previousModel;
+    @Column(length = 120)
+    private String previousPhotoModel;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private AiProvider previousPhotoProvider;
     @Column(length = 120)
     private String previousPromptVersion;
     @Column(nullable = false, length = 500)

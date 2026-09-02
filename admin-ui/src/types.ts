@@ -921,6 +921,11 @@ export type AiOperationsPolicy = {
   maxCostPer24Hours?: number;
   costCurrency?: string;
   activeModel?: string;
+  activePhotoProvider?: string;
+  activePhotoModel?: string;
+  photoInputTokenCostPer1m?: number;
+  photoOutputTokenCostPer1m?: number;
+  photoCostCurrency?: string;
   activePromptVersion?: string;
   rollbackAvailable?: boolean;
   updatedBy?: string;
@@ -1212,6 +1217,7 @@ export type AdminPromotion = {
   campaignKey?: string;
   providerOfferId?: string;
   providerProductId?: string;
+  storeOfferCodeRequired?: boolean;
   providerMappingReady?: boolean;
   createdBy?: string;
   createdAt?: string;
@@ -1300,6 +1306,28 @@ export type AdminApprovalRequest = {
 export type AdminApprovalPage = {
   content?: AdminApprovalRequest[]; page?: number; size?: number; totalElements?: number;
   totalPages?: number; first?: boolean; last?: boolean;
+};
+export type MealReminderMode = "OFF" | "DRY_RUN" | "PILOT" | "LIVE";
+export type MealReminderPolicy = {
+  id: number; version: number; policyVersion: string; status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  mode: MealReminderMode; deploymentGateEnabled: boolean; pushGateEnabled: boolean; kcalEnabled: boolean;
+  breakfastTime: string; lunchTime: string; dinnerTime: string; slotAgeMinutes: number;
+  maxDaily: number; maxRolling: number; maxCatchups: number; minimumGapMinutes: number; routineGapMinutes: number;
+  quietStart: string; quietEnd: string; pilotUserIds: number[]; emergencyStopped: boolean;
+  stopReason?: string; updatedBy: string; updatedAt: string; publishedAt?: string;
+};
+export type MealReminderDecisionRecord = {
+  id?: number; subjectRef?: string; evaluatedAt?: string; localDate?: string; policyVersion?: string;
+  candidate?: string; slot?: string; shouldSend?: boolean; reason?: string; kcalReason?: string;
+  message?: string; copy?: { title?: string; body?: string };
+};
+export type MealReminderSummary = {
+  mode: MealReminderMode; deploymentGateEnabled: boolean; pushGateEnabled: boolean;
+  emergencyStopped: boolean; occurrenceCount: number; outboxCount: number;
+  providerAcceptedCount: number; receiptDeliveredCount: number; receiptFailedCount: number;
+  uniqueOpenCount: number; mealLogWithin2hCount: number; correlatedMealLogCount: number;
+  reminderOptOutCount: number; uniqueOpenRate: number; mealLogWithin2hRate: number;
+  reminderOptOutRate: number; measurementNote: string;
 };
 export type AdminMfaStatus = {
   enabled?: boolean;

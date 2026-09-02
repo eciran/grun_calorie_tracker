@@ -8,7 +8,6 @@ import com.grun.calorietracker.dto.StepManualLogRequestDto;
 import com.grun.calorietracker.dto.StepManualLogResponseDto;
 import com.grun.calorietracker.dto.StepRangeSummaryDto;
 import com.grun.calorietracker.entity.DeviceDataEntity;
-import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.StepGoalEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
@@ -18,15 +17,14 @@ import com.grun.calorietracker.exception.DuplicateManualStepLogException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.DeviceDataRepository;
-import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
-import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.StepTrackingService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
+import com.grun.calorietracker.service.notification.BehaviorReminderNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -50,7 +48,6 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     private static final int DEFAULT_TARGET_STEPS = 10000;
     private static final int MAX_RANGE_DAYS = 366;
     private static final int MAX_DAILY_TOTAL_STEPS = 120000;
-    private static final String STEP_REMINDER_TYPE = "step_reminder";
     private static final List<ReminderCopy> STEP_REMINDER_COPY_EN = List.of(
             new ReminderCopy("Tiny walk, big mood", "A short walk could be the plot twist your day needs."),
             new ReminderCopy("Your steps are waiting", "Stretch those legs and give your step count a little boost."),
@@ -69,8 +66,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
     private final UserRepository userRepository;
     private final StepGoalRepository stepGoalRepository;
     private final DeviceDataRepository deviceDataRepository;
-    private final NotificationRepository notificationRepository;
-    private final PushDeliveryService pushDeliveryService;
+    private final BehaviorReminderNotificationService behaviorReminderNotificationService;
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserAnalyticsCacheGateway analyticsCacheGateway;
@@ -255,20 +251,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
         dueGoals.forEach(goal -> {
             LocalDateTime userNow = userTimeZoneSupport.now(goal.getUser());
             ReminderCopy copy = randomCopy(reminderCopyFor(goal.getUser().getPreferredLanguage()));
-            NotificationEntity notification = new NotificationEntity();
-            notification.setUser(goal.getUser());
-            notification.setType(STEP_REMINDER_TYPE);
-            notification.setTitle(copy.title());
-            notification.setMessage(copy.message());
-            notification.setSeverity("INFO");
-            notification.setSource("STEP_REMINDER");
-            notification.setTargetType("STEP_TRACKING");
-            notification.setTargetRoute("steps");
-            notification.setPrimaryAction("VIEW_STEPS");
-            notification.setIsRead(false);
-            notification.setCreatedAt(userNow);
-            NotificationEntity saved = notificationRepository.save(notification);
-            pushDeliveryService.deliver(saved);
+            behaviorReminderNotificationService.enqueueStep(goal, userNow, copy.title(), copy.message());
             goal.setLastReminderAt(userNow);
         });
         stepGoalRepository.saveAll(dueGoals);
@@ -537,9 +520,7 @@ public class StepTrackingServiceImpl implements StepTrackingService {
 
     private boolean isReminderDue(StepGoalEntity goal) {
         UserEntity user = goal.getUser();
-        if (user == null
-                || !Boolean.TRUE.equals(user.getPushNotificationsEnabled())
-                || !Boolean.TRUE.equals(user.getStepRemindersEnabled())) {
+        if (!behaviorReminderNotificationService.shouldEvaluateStep(user)) {
             return false;
         }
         LocalDateTime userNow = userTimeZoneSupport.now(user);

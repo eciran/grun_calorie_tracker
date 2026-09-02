@@ -216,10 +216,14 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     private void updateManualNutrition(FoodItemEntity product, CustomFoodRequestDto request) {
         product.setName(request.getName().trim());
+        product.setBrand(trimToNull(request.getBrand()));
         product.setCalories(request.getCalories());
         product.setProtein(request.getProtein());
         product.setFat(request.getFat());
         product.setCarbs(request.getCarbs());
+        product.setFiber(request.getFiber());
+        product.setSugar(request.getSugar());
+        product.setSodium(request.getSodium());
         product.setServingSizeGrams(request.getServingSizeGrams());
         product.setServingUnit(trimToNull(request.getServingUnit()));
     }

@@ -8,6 +8,7 @@ public record PromoProviderRedemptionCommand(
         String providerEventId,
         String productId,
         String offeringId,
+        String offerCode,
         String store,
         Long amountMinor,
         String currency,

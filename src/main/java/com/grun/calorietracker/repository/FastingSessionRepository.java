@@ -20,6 +20,11 @@ import java.util.Optional;
 
 @Repository
 public interface FastingSessionRepository extends JpaRepository<FastingSessionEntity, Long> {
+    @Query("select distinct session.user.id from FastingSessionEntity session where session.user.id in :userIds and session.status = :status")
+    List<Long> findDistinctUserIdsByStatus(
+            @Param("userIds") List<Long> userIds,
+            @Param("status") FastingSessionStatus status);
+
     Optional<FastingSessionEntity> findTopByUserAndStatusOrderByStartedAtDesc(UserEntity user, FastingSessionStatus status);
     Optional<FastingSessionEntity> findByIdAndUser(Long id, UserEntity user);
 

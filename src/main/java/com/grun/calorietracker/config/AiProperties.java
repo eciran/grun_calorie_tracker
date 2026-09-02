@@ -1,6 +1,7 @@
 package com.grun.calorietracker.config;
 
 import com.grun.calorietracker.enums.AiProvider;
+import com.grun.calorietracker.enums.AiRequestType;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -22,6 +23,21 @@ public class AiProperties {
     private RecipeImageModeration recipeImageModeration = new RecipeImageModeration();
     private Monitoring monitoring = new Monitoring();
 
+    public String resolveModel(AiRequestType requestType) {
+        if (requestType == AiRequestType.PHOTO_MEAL_LOG
+                && photo.getModel() != null && !photo.getModel().isBlank()) {
+            return photo.getModel().trim();
+        }
+        return model;
+    }
+
+    public AiProvider resolveProvider(AiRequestType requestType) {
+        if (requestType == AiRequestType.PHOTO_MEAL_LOG && photo.getProvider() != null) {
+            return photo.getProvider();
+        }
+        return provider;
+    }
+
     @Data
     public static class Safety {
         private boolean enabled = true;
@@ -31,6 +47,11 @@ public class AiProperties {
 
     @Data
     public static class Photo {
+        private AiProvider provider;
+        private String model = "";
+        private double inputTokenCostPer1m = 0;
+        private double outputTokenCostPer1m = 0;
+        private String costCurrency = "USD";
         private int maxImageReferenceLength = 2048;
         private String allowedReferencePrefixes = "s3://grun-meals/";
         private long maxUploadBytes = 5 * 1024 * 1024;

@@ -328,7 +328,8 @@ class AiNutritionPlanServiceImplTest {
         preference.setAllergens(Set.of(RecipeAllergen.MILK));
         preference.setExcludedFoods(List.of("pork"));
         preference.setDietaryPreferences(List.of("high fiber"));
-        when(nutritionPreferenceService.get("user@example.com")).thenReturn(preference);
+        when(nutritionPreferenceService.getForPersonalization("user@example.com")).thenReturn(preference);
+        when(nutritionPreferenceService.isPersonalizationAllowed("user@example.com")).thenReturn(true);
         when(provider.provider()).thenReturn(AiProvider.LOG);
         when(provider.createNutritionPlanDraft(any())).thenReturn(validResponse());
         when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(

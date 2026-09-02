@@ -43,6 +43,23 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     Optional<FoodItemEntity> findByBarcode(String barcode);
     Optional<FoodItemEntity> findByNormalizedBarcode(String normalizedBarcode);
     Optional<FoodItemEntity> findBySourceKey(String sourceKey);
+    @Query("""
+            SELECT DISTINCT f
+            FROM FoodItemEntity f
+            LEFT JOIN f.searchAliases alias
+            WHERE (lower(f.name) = lower(:name) OR alias.normalizedAlias = :normalizedName)
+              AND (:marketRegion IS NULL OR f.marketRegion = :marketRegion)
+              AND (:catalogType IS NULL OR f.catalogType = :catalogType)
+              AND (f.verificationStatus IS NULL OR f.verificationStatus <> com.grun.calorietracker.enums.VerificationStatus.REJECTED)
+            ORDER BY f.qualityScore DESC NULLS LAST, f.id ASC
+            """)
+    List<FoodItemEntity> findAdminCreationDuplicateCandidates(
+            @Param("name") String name,
+            @Param("normalizedName") String normalizedName,
+            @Param("marketRegion") MarketRegion marketRegion,
+            @Param("catalogType") com.grun.calorietracker.enums.FoodCatalogType catalogType,
+            Pageable pageable
+    );
     @EntityGraph(attributePaths = "marketRegions")
     List<FoodItemEntity> findByNormalizedBarcodeIn(List<String> normalizedBarcodes, Sort sort);
     @EntityGraph(attributePaths = "marketRegions")

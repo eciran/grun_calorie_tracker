@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import com.grun.calorietracker.dto.AdminSubscriptionUpdateRequestDto;
 import com.grun.calorietracker.entity.SubscriptionPlanFeatureEntity;
 import com.grun.calorietracker.dto.SubscriptionDto;
+import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserSubscriptionEntitlementEntity;
@@ -17,9 +18,12 @@ import com.grun.calorietracker.enums.BillingPeriod;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.enums.SubscriptionPlan;
 import com.grun.calorietracker.enums.SubscriptionStatus;
+import com.grun.calorietracker.enums.PaymentProvider;
+import com.grun.calorietracker.enums.RevenueCatEventType;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionPlanFeatureRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
+import com.grun.calorietracker.repository.SubscriptionCreditAllocationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.MailDeliveryService;
@@ -33,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.List;
+import java.time.Instant;
 
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
@@ -70,6 +76,9 @@ class SubscriptionServiceImplTest {
     @Mock
     private AiCreditPricingService aiCreditPricingService;
 
+    @Mock
+    private SubscriptionCreditAllocationRepository subscriptionCreditAllocationRepository;
+
     private SubscriptionServiceImpl service;
 
     private UserEntity user;
@@ -80,7 +89,7 @@ class SubscriptionServiceImplTest {
         service = new SubscriptionServiceImpl(
                 subscriptionRepository, userRepository, subscriptionPlanFeatureRepository,
                 userSubscriptionEntitlementRepository, notificationRepository, mailDeliveryService,
-                aiCreditPricingService);
+                aiCreditPricingService, subscriptionCreditAllocationRepository);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -187,7 +196,8 @@ class SubscriptionServiceImplTest {
         var result = service.getFeatureAccess("user@example.com");
 
         assertEquals(SubscriptionPlan.PLUS, result.getPlanType());
-        assertEquals(true, result.getAiWorkoutPlanner());
+        assertEquals(false, result.getAiWorkoutPlanner());
+        assertEquals(false, result.getAiNutritionPlan());
         assertEquals(true, result.getHealthIntegration());
         assertEquals(true, result.getNextMealSuggestions());
         assertEquals(false, result.getGroceryList());
@@ -205,7 +215,7 @@ class SubscriptionServiceImplTest {
     }
     @ParameterizedTest
     @EnumSource(value = SubscriptionPlan.class, names = {"PLUS", "PRO"})
-    void exhaustedPaidPlan_keepsAllEntitledAiFeaturesAndReturnsUnaffordablePreview(SubscriptionPlan plan) {
+    void exhaustedPaidPlan_keepsEntitledAiFeaturesAndReturnsUnaffordablePreview(SubscriptionPlan plan) {
         int quota = plan == SubscriptionPlan.PRO ? 150 : 50;
         SubscriptionEntity entity = subscription(plan, SubscriptionStatus.ACTIVE, quota, quota);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
@@ -213,10 +223,10 @@ class SubscriptionServiceImplTest {
 
         var features = service.getFeatureAccess("user@example.com");
         assertEquals(true, features.getAiMealDrafts());
-        assertEquals(true, features.getAiWorkoutPlanner());
+        assertEquals(plan == SubscriptionPlan.PRO, features.getAiWorkoutPlanner());
         assertEquals(true, features.getAiRecipeGeneration());
         assertEquals(true, features.getAiMealPreparationGuide());
-        assertEquals(true, features.getAiNutritionPlan());
+        assertEquals(plan == SubscriptionPlan.PRO, features.getAiNutritionPlan());
         assertEquals(true, features.getAiInsights());
         assertEquals(0, features.getAiRemainingThisPeriod());
         assertEquals(false, service.getCurrentSubscription("user@example.com").getAiAccessAllowed());
@@ -243,8 +253,15 @@ class SubscriptionServiceImplTest {
         assertEquals(true, previews.preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG).isCanAfford());
         assertEquals(0, service.consumeAiQuota("user@example.com").getAiRemainingThisPeriod());
         service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
-        service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
-        service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN);
+        if (plan == SubscriptionPlan.PRO) {
+            service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER);
+            service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN);
+        } else {
+            assertThrows(SubscriptionFeatureAccessDeniedException.class,
+                    () -> service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_WORKOUT_PLANNER));
+            assertThrows(SubscriptionFeatureAccessDeniedException.class,
+                    () -> service.assertFeatureAccess("user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN));
+        }
         assertEquals(false, previews.preview("user@example.com", AiRequestType.PHOTO_MEAL_LOG).isCanAfford());
         assertThrows(AiQuotaExhaustedException.class, () -> service.consumeAiQuota("user@example.com"));
         assertEquals(quota, entity.getAiUsedThisPeriod());
@@ -639,6 +656,100 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void applyProviderEvent_plusExhaustedToNewPro_grantsFresh150WithoutLosingAddon() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 54);
+        entity.setAiAddonQuota(10); entity.setAiAddonUsed(4);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(5));
+        stubProviderApply(entity, 1);
+
+        SubscriptionDto result = service.applyProviderEvent(1L, planCommand(SubscriptionPlan.PRO, "a".repeat(64), Instant.parse("2026-08-29T10:00:00Z")));
+
+        assertEquals(150, result.getAiMonthlyQuota());
+        assertEquals(0, result.getAiPlanUsedThisPeriod());
+        assertEquals(4, result.getAiAddonUsed());
+        assertEquals(156, result.getAiRemainingThisPeriod());
+        assertEquals("a".repeat(64), result.getAiCreditAllocationReference());
+        assertEquals(4, entity.getAiUsedThisPeriod());
+        verify(userRepository).findByIdForUpdate(1L);
+    }
+
+    @Test
+    void applyProviderEvent_duplicateAllocation_preservesConsumptionAndDoesNotRegrant() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 16);
+        entity.setAiPlanUsedThisPeriod(12); entity.setAiAddonQuota(10); entity.setAiAddonUsed(4);
+        entity.setAiCreditAllocationKey("a".repeat(64));
+        stubProviderApply(entity, 0);
+
+        SubscriptionDto result = service.applyProviderEvent(1L, planCommand(SubscriptionPlan.PRO, "a".repeat(64), Instant.parse("2026-08-29T10:00:00Z")));
+
+        assertEquals(12, result.getAiPlanUsedThisPeriod());
+        assertEquals(4, result.getAiAddonUsed());
+        assertEquals(144, result.getAiRemainingThisPeriod());
+        assertEquals("a".repeat(64), result.getAiCreditAllocationReference());
+    }
+
+    @Test
+    void applyProviderEvent_uncancellationDoesNotCreateOrResetAllocation() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.CANCELED, 50, 25);
+        entity.setAiPlanUsedThisPeriod(25);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var command = planCommand(SubscriptionPlan.PLUS, null, Instant.parse("2026-08-29T11:00:00Z"));
+        command.setGrantPlanCreditAllocation(false); command.setEventType(RevenueCatEventType.UNCANCELLATION);
+
+        SubscriptionDto result = service.applyProviderEvent(1L, command);
+
+        assertEquals(25, result.getAiPlanUsedThisPeriod());
+        assertEquals(25, result.getAiRemainingThisPeriod());
+        verify(subscriptionCreditAllocationRepository, never()).reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void applyProviderEvent_newRenewalResetsOnlyPlanConsumption() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 105);
+        entity.setAiPlanUsedThisPeriod(100); entity.setAiAddonQuota(10); entity.setAiAddonUsed(5);
+        stubProviderApply(entity, 1);
+        var command = planCommand(SubscriptionPlan.PRO, "b".repeat(64), Instant.parse("2026-09-29T10:00:00Z"));
+        command.setEventType(RevenueCatEventType.RENEWAL);
+
+        SubscriptionDto result = service.applyProviderEvent(1L, command);
+
+        assertEquals(0, result.getAiPlanUsedThisPeriod());
+        assertEquals(5, result.getAiAddonUsed());
+        assertEquals(155, result.getAiRemainingThisPeriod());
+    }
+
+    @Test
+    void applyProviderEvent_olderLifecycleEventCannotOverwriteNewerPro() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 8);
+        entity.setAiPlanUsedThisPeriod(8);
+        entity.setLastProviderEventAt(Instant.parse("2026-08-29T12:00:00Z"));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        var command = planCommand(SubscriptionPlan.PLUS, "c".repeat(64), Instant.parse("2026-08-29T11:59:59Z"));
+
+        SubscriptionDto result = service.applyProviderEvent(1L, command);
+
+        assertEquals(SubscriptionPlan.PRO, result.getPlanType());
+        assertEquals(8, result.getAiPlanUsedThisPeriod());
+        verify(subscriptionCreditAllocationRepository, never()).reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    void applyProviderEvent_incompleteAllocationIdentityFailsClosed() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 50);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        var command = planCommand(SubscriptionPlan.PRO, null, Instant.parse("2026-08-29T10:00:00Z"));
+        command.setGrantPlanCreditAllocation(true);
+
+        assertThrows(IllegalArgumentException.class, () -> service.applyProviderEvent(1L, command));
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
     void refundConsumedAiQuota_decreasesUsedQuotaWithoutChangingTotalQuota() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 15, 7);
 
@@ -887,6 +998,27 @@ class SubscriptionServiceImplTest {
         entity.setAiUsedThisPeriod(used);
         entity.setAutoRenew(true);
         return entity;
+    }
+
+    private SubscriptionProviderEventCommand planCommand(SubscriptionPlan plan, String key, Instant eventAt) {
+        var command = new SubscriptionProviderEventCommand();
+        command.setProvider(PaymentProvider.REVENUECAT); command.setProviderEventId("evt-plan");
+        command.setProviderCustomerId("user:1"); command.setProviderProductId("grun_" + plan.name().toLowerCase() + "_monthly");
+        command.setProviderTransactionId("tx-plan"); command.setProviderOriginalTransactionId("otx-plan");
+        command.setPlanType(plan); command.setStatus(SubscriptionStatus.ACTIVE); command.setAutoRenew(true);
+        command.setStartDate(java.time.LocalDate.of(2026, 8, 29)); command.setEndDate(java.time.LocalDate.of(2026, 9, 28));
+        command.setProviderEventAt(eventAt); command.setPurchasedAt(eventAt); command.setExpirationAt(eventAt.plusSeconds(30L * 86400));
+        command.setEventType(RevenueCatEventType.INITIAL_PURCHASE); command.setGrantPlanCreditAllocation(key != null);
+        command.setCreditAllocationKey(key);
+        return command;
+    }
+
+    private void stubProviderApply(SubscriptionEntity entity, int reservationResult) {
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptionCreditAllocationRepository.reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(reservationResult);
     }
     private SubscriptionPlanFeatureEntity planFeature(SubscriptionPlan plan, SubscriptionFeature feature, boolean enabled) {
         SubscriptionPlanFeatureEntity entity = new SubscriptionPlanFeatureEntity();

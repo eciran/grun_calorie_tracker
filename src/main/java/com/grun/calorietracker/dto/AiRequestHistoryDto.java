@@ -17,6 +17,8 @@ public class AiRequestHistoryDto {
     private String promptVersion;
     private AiRequestStatus status;
     private Boolean quotaConsumed;
+    private Integer quotaConsumedAmount;
+    private Integer quotaRefundedAmount;
     private Long latencyMs;
     private Integer totalTokens;
     private Double estimatedCost;

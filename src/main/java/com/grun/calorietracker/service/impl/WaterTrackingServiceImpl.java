@@ -11,7 +11,6 @@ import com.grun.calorietracker.dto.WaterLogRequestDto;
 import com.grun.calorietracker.dto.WaterRangeSummaryDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsDto;
 import com.grun.calorietracker.dto.WaterReminderSettingsRequestDto;
-import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.WaterLogEntity;
 import com.grun.calorietracker.entity.WaterReminderSettingsEntity;
@@ -20,17 +19,16 @@ import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
-import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.WaterLogRepository;
 import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
-import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.WaterTrackingService;
 import com.grun.calorietracker.service.UserAnalyticsCacheRevisionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
+import com.grun.calorietracker.service.notification.BehaviorReminderNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -48,7 +46,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WaterTrackingServiceImpl implements WaterTrackingService {
 
-    private static final String WATER_REMINDER_TYPE = "water_reminder";
     private static final List<ReminderCopy> WATER_REMINDER_COPY_EN = List.of(
             new ReminderCopy("Tiny sip, big win", "Your water bottle called. It misses you."),
             new ReminderCopy("Hydration check-in", "A few sips now, future you says thanks."),
@@ -69,11 +66,10 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
 
     private final WaterLogRepository waterLogRepository;
     private final WaterReminderSettingsRepository waterReminderSettingsRepository;
-    private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final WaterTrackingProperties waterTrackingProperties;
     private final UserTimeZoneSupport userTimeZoneSupport;
-    private final PushDeliveryService pushDeliveryService;
+    private final BehaviorReminderNotificationService behaviorReminderNotificationService;
     private final SubscriptionService subscriptionService;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserAnalyticsCacheGateway analyticsCacheGateway;
@@ -267,21 +263,7 @@ public class WaterTrackingServiceImpl implements WaterTrackingService {
         dueSettings.forEach(settings -> {
             LocalDateTime userNow = userTimeZoneSupport.now(settings.getUser());
             ReminderCopy copy = randomCopy(reminderCopyFor(settings.getUser().getPreferredLanguage()));
-            NotificationEntity notification = new NotificationEntity();
-            notification.setUser(settings.getUser());
-            notification.setType(WATER_REMINDER_TYPE);
-            notification.setTitle(copy.title());
-            notification.setMessage(copy.message());
-            notification.setSeverity("INFO");
-            notification.setSource("WATER_REMINDER");
-            notification.setTargetType("WATER_TRACKING");
-            notification.setTargetRoute("water");
-            notification.setPrimaryAction("QUICK_ADD_WATER");
-            notification.setActionAmountMl(250);
-            notification.setIsRead(false);
-            notification.setCreatedAt(userNow);
-            NotificationEntity saved = notificationRepository.save(notification);
-            pushDeliveryService.deliver(saved);
+            behaviorReminderNotificationService.enqueueWater(settings, userNow, copy.title(), copy.message());
             settings.setLastReminderAt(userNow);
         });
         waterReminderSettingsRepository.saveAll(dueSettings);

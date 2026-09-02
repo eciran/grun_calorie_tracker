@@ -92,11 +92,13 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
         result.setTargetCarbs(portion(summary.getRemainingCarbs(), allocation.ratio()));
         result.setTargetFat(portion(summary.getRemainingFat(), allocation.ratio()));
 
-        UserNutritionPreferenceDto preferences = nutritionPreferenceService.get(email);
+        UserNutritionPreferenceDto preferences = nutritionPreferenceService.getForPersonalization(email);
+        boolean personalizationAllowed = nutritionPreferenceService.isPersonalizationAllowed(email);
         result.setRecipeSuggestions(findRecipeSuggestions(
                 email,
                 user,
                 preferences,
+                personalizationAllowed,
                 result.getMealType(),
                 result.getTargetCalories(),
                 result.getTargetProtein()
@@ -158,6 +160,7 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
             String email,
             UserEntity user,
             UserNutritionPreferenceDto preferences,
+            boolean personalizationAllowed,
             String mealType,
             Double targetCalories,
             Double targetProtein) {
@@ -166,7 +169,7 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
                 ? Set.of()
                 : new LinkedHashSet<>(preferences.getAllergens());
         List<RecipeDto> recipes = loadCandidates(
-                email, mealType, user, categories, allergens);
+                email, mealType, user, categories, allergens, personalizationAllowed);
 
         return recipes.stream()
                 .filter(recipe -> !containsExcludedFood(recipe, preferences.getExcludedFoods()))
@@ -184,18 +187,19 @@ public class NextMealSuggestionServiceImpl implements NextMealSuggestionService 
             String mealType,
             UserEntity user,
             Set<RecipeCategory> categories,
-            Set<RecipeAllergen> allergens) {
+            Set<RecipeAllergen> allergens,
+            boolean personalizationAllowed) {
         String language = user.getPreferredLanguage() == null
                 ? null
                 : user.getPreferredLanguage().name().toLowerCase(Locale.ROOT);
         RecipePageDto exact = recipeService.getPublicRecipes(
-                email, null, mealType, user.getMarketRegion(), language,
+                email, null, mealType, personalizationAllowed ? user.getMarketRegion() : null, language,
                 categories, allergens, RecipePublicSort.NEWEST, 0, RECIPE_CANDIDATE_LIMIT);
         if (hasContent(exact)) {
             return exact.getContent();
         }
         RecipePageDto regional = recipeService.getPublicRecipes(
-                email, null, mealType, user.getMarketRegion(), null,
+                email, null, mealType, personalizationAllowed ? user.getMarketRegion() : null, null,
                 categories, allergens, RecipePublicSort.NEWEST, 0, RECIPE_CANDIDATE_LIMIT);
         if (hasContent(regional)) {
             return regional.getContent();

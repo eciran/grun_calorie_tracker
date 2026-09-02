@@ -43,6 +43,7 @@ public class NotificationDefinitionPolicy {
 
     public boolean apply(NotificationEntity notification, NotificationDefinitionEntity definition) {
         if (notification == null || definition == null || notification.getCampaign() != null) return true;
+        if ("MEAL_REMINDER".equals(notification.getSource())) return true;
         if (!definition.isEnabled()) {
             return false;
         }
@@ -64,6 +65,11 @@ public class NotificationDefinitionPolicy {
     }
 
     public NotificationPresentation presentation(NotificationEntity notification, NotificationDefinitionEntity definition) {
+        return presentation(notification, definition, Collections.emptyMap());
+    }
+
+    public NotificationPresentation presentation(NotificationEntity notification, NotificationDefinitionEntity definition,
+                                                   Map<String, String> parameters) {
         if (definition == null || notification.getCampaign() != null) {
             return new NotificationPresentation(notification.getTitle(), notification.getMessage(), notification.getSeverity(), notification.getTargetRoute());
         }
@@ -73,18 +79,28 @@ public class NotificationDefinitionPolicy {
         String originalMessage = notification.getMessage();
         String titleTemplate = language == PreferredLanguage.TR ? definition.getTitleTr() : definition.getTitleEn();
         String messageTemplate = language == PreferredLanguage.TR ? definition.getMessageTr() : definition.getMessageEn();
-        String title = titleTemplate == null || titleTemplate.isBlank() ? originalTitle : render(titleTemplate, originalTitle, originalMessage, notification.getNote());
-        String message = messageTemplate == null || messageTemplate.isBlank() ? originalMessage : render(messageTemplate, originalTitle, originalMessage, notification.getNote());
+        String title = titleTemplate == null || titleTemplate.isBlank() ? originalTitle : render(titleTemplate, originalTitle, originalMessage, notification.getNote(), parameters);
+        String message = messageTemplate == null || messageTemplate.isBlank() ? originalMessage : render(messageTemplate, originalTitle, originalMessage, notification.getNote(), parameters);
         String severity = definition.getSeverity() == null || definition.getSeverity().isBlank() ? notification.getSeverity() : definition.getSeverity();
         String route = definition.getTargetRoute() == null || definition.getTargetRoute().isBlank() ? notification.getTargetRoute() : definition.getTargetRoute();
         return new NotificationPresentation(title, message, severity, route);
     }
 
     private String render(String template, String title, String message, String note) {
-        return template
+        return render(template, title, message, note, Collections.emptyMap());
+    }
+
+    private String render(String template, String title, String message, String note, Map<String, String> parameters) {
+        String rendered = template
                 .replace("{originalTitle}", title == null ? "" : title)
                 .replace("{originalMessage}", message == null ? "" : message)
                 .replace("{note}", note == null ? "" : note);
+        if (parameters != null) {
+            for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                rendered = rendered.replace("{" + entry.getKey() + "}", entry.getValue() == null ? "" : entry.getValue());
+            }
+        }
+        return rendered;
     }
 
     public record NotificationPresentation(String title, String message, String severity, String targetRoute) {}

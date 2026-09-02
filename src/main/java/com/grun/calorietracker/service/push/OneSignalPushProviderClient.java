@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,26 +42,40 @@ public class OneSignalPushProviderClient implements PushProviderClient {
 
     @Override
     public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification) {
+        return sendInternal(token, notification, null);
+    }
+
+    @Override
+    public PushProviderSendResult send(UserPushTokenEntity token, NotificationEntity notification, Duration timeToLive) {
+        if (timeToLive == null || timeToLive.isZero() || timeToLive.isNegative()) {
+            return PushProviderSendResult.failed("Push TTL has expired");
+        }
+        return sendInternal(token, notification, timeToLive);
+    }
+
+    private PushProviderSendResult sendInternal(
+            UserPushTokenEntity token, NotificationEntity notification, Duration timeToLive) {
         if (isBlank(properties.getOnesignal().getAppId()) || isBlank(properties.getOnesignal().getApiKey())) {
             return PushProviderSendResult.failed("OneSignal app id or api key is not configured.");
         }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", "Basic " + properties.getOnesignal().getApiKey());
-        Map<String, Object> body = Map.of(
-                "app_id", properties.getOnesignal().getAppId(),
-                "include_player_ids", List.of(token.getTokenValue()),
-                "headings", Map.of("en", notification.getTitle() == null ? "GRUN" : notification.getTitle()),
-                "contents", Map.of("en", notification.getMessage()),
-                "data", Map.of(
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("app_id", properties.getOnesignal().getAppId());
+        body.put("include_player_ids", List.of(token.getTokenValue()));
+        body.put("headings", Map.of("en", notification.getTitle() == null ? "GRUN" : notification.getTitle()));
+        body.put("contents", Map.of("en", notification.getMessage()));
+        body.put("data", Map.of(
                         "notificationId", notification.getId(),
                         "type", valueOrEmpty(notification.getType()),
                         "targetRoute", valueOrEmpty(notification.getTargetRoute()),
                         "targetId", valueOrEmpty(notification.getTargetId()),
+                        "recipientUserId", notification.getUser() == null ? "" : notification.getUser().getId().toString(),
+                        "reminderContextVersion", "1",
                         "primaryAction", valueOrEmpty(notification.getPrimaryAction()),
-                        "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()
-                )
-        );
+                        "actionAmountMl", notification.getActionAmountMl() == null ? "" : notification.getActionAmountMl().toString()));
+        if (timeToLive != null) body.put("ttl", Math.max(1L, timeToLive.toSeconds()));
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
@@ -72,7 +87,7 @@ public class OneSignalPushProviderClient implements PushProviderClient {
             return PushProviderSendResult.sent(id == null ? null : id.toString());
         } catch (RestClientException ex) {
             log.warn("onesignal_push_failed tokenId={} notificationId={} reason={}", token.getId(), notification.getId(), ex.getMessage());
-            return PushProviderSendResult.failed(ex.getMessage());
+            return PushProviderSendResult.uncertain(ex.getMessage());
         }
     }
 

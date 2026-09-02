@@ -6,6 +6,8 @@ import com.grun.calorietracker.enums.SubscriptionStatus;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.Instant;
+import com.grun.calorietracker.enums.RevenueCatEventType;
 
 @Data
 public class SubscriptionProviderEventCommand {
@@ -24,4 +26,10 @@ public class SubscriptionProviderEventCommand {
     private Integer aiAddonQuotaAmount;
     private Integer aiAddonValidityDays;
     private Boolean refund;
+    private RevenueCatEventType eventType;
+    private Instant providerEventAt;
+    private Instant purchasedAt;
+    private Instant expirationAt;
+    private Boolean grantPlanCreditAllocation;
+    private String creditAllocationKey;
 }

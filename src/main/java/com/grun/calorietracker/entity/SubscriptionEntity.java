@@ -9,6 +9,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "subscriptions")
@@ -52,6 +53,11 @@ public class SubscriptionEntity {
 
     private Integer aiUsedThisPeriod;
 
+    private Integer aiPlanUsedThisPeriod;
+
+    @Column(length = 64)
+    private String aiCreditAllocationKey;
+
     private LocalDate aiQuotaPeriodStartDate;
 
     private LocalDate aiQuotaPeriodEndDate;
@@ -72,6 +78,8 @@ public class SubscriptionEntity {
     private String providerOriginalTransactionId;
 
     private String lastProviderEventId;
+
+    private Instant lastProviderEventAt;
 
     private LocalDateTime updatedAt;
 }

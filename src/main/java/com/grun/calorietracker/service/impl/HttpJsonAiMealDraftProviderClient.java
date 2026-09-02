@@ -59,7 +59,8 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
 
     @Override
     public AiMealDraftResponseDto createPhotoMealDraft(AiPhotoMealDraftRequestDto request) {
-        return callProvider(new ProviderRequest(AiRequestType.PHOTO_MEAL_LOG, properties.getModel(), request), AiMealDraftResponseDto.class);
+        return callProvider(new ProviderRequest(AiRequestType.PHOTO_MEAL_LOG,
+                properties.resolveModel(AiRequestType.PHOTO_MEAL_LOG), request), AiMealDraftResponseDto.class);
     }
 
     @Override
@@ -102,7 +103,7 @@ public class HttpJsonAiMealDraftProviderClient implements AiMealDraftProviderCli
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(properties.getHttpJson().getApiKey());
         headers.set("X-GRun-AI-Provider", "HTTP_JSON");
-        headers.set("X-GRun-AI-Model", properties.getModel());
+        headers.set("X-GRun-AI-Model", payload.model());
 
         try {
             T response = restOperations.postForObject(

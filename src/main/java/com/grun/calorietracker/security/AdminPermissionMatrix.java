@@ -59,6 +59,15 @@ public final class AdminPermissionMatrix {
         if (path.startsWith("/api/v1/admin/audits")) {
             return AdminPermission.AUDIT_READ;
         }
+        if (path.startsWith("/api/v1/admin/meal-reminder-automation")) {
+            return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
+        }
+        if (path.startsWith("/api/v1/admin/free-promotion")) {
+            return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
+        }
+        if (path.startsWith("/api/v1/admin/subscription-notifications")) {
+            return write ? AdminPermission.FINANCE_MANAGE : AdminPermission.FINANCE_READ;
+        }
         if (containsAny(path, "/subscriptions", "/subscription-events", "/revenuecat", "/ai/credits", "/ai/quota")) {
             return write ? AdminPermission.FINANCE_MANAGE : AdminPermission.FINANCE_READ;
         }

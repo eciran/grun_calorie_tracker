@@ -110,7 +110,8 @@ class NextMealSuggestionServiceImplTest {
         preferences.setAllergens(Set.of(RecipeAllergen.MILK));
         preferences.setDietaryPreferences(List.of("HIGH_PROTEIN"));
         preferences.setExcludedFoods(List.of("pork"));
-        when(nutritionPreferenceService.get(EMAIL)).thenReturn(preferences);
+        when(nutritionPreferenceService.getForPersonalization(EMAIL)).thenReturn(preferences);
+        when(nutritionPreferenceService.isPersonalizationAllowed(EMAIL)).thenReturn(true);
         when(recipeService.getPublicRecipes(
                 eq(EMAIL), eq(null), eq("LUNCH"), eq(MarketRegion.UK_IE), eq("en"),
                 any(), eq(Set.of(RecipeAllergen.MILK)), any(), eq(0), eq(50)))
@@ -143,7 +144,8 @@ class NextMealSuggestionServiceImplTest {
         lunch.setMealType("LUNCH");
         when(recipeLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                 eq(user), any(), any())).thenReturn(List.of(lunch));
-        when(nutritionPreferenceService.get(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(nutritionPreferenceService.getForPersonalization(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(nutritionPreferenceService.isPersonalizationAllowed(EMAIL)).thenReturn(true);
         when(recipeService.getPublicRecipes(
                 eq(EMAIL), eq(null), eq("DINNER"), eq(MarketRegion.UK_IE), eq("en"),
                 any(), any(), any(), eq(0), eq(50)))
@@ -172,7 +174,8 @@ class NextMealSuggestionServiceImplTest {
                 eq(user), any(), any())).thenReturn(List.of());
         when(recipeLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                 eq(user), any(), any())).thenReturn(List.of());
-        when(nutritionPreferenceService.get(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(nutritionPreferenceService.getForPersonalization(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(nutritionPreferenceService.isPersonalizationAllowed(EMAIL)).thenReturn(true);
         when(recipeService.getPublicRecipes(
                 eq(EMAIL), eq(null), eq("BREAKFAST"), eq(MarketRegion.UK_IE), eq("en"),
                 any(), any(), any(), eq(0), eq(50)))
@@ -206,7 +209,8 @@ class NextMealSuggestionServiceImplTest {
                 eq(user), any(), any())).thenReturn(List.of(breakfast, lunch, dinner));
         when(recipeLogRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                 eq(user), any(), any())).thenReturn(List.of());
-        when(nutritionPreferenceService.get(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(nutritionPreferenceService.getForPersonalization(EMAIL)).thenReturn(new UserNutritionPreferenceDto());
+        when(nutritionPreferenceService.isPersonalizationAllowed(EMAIL)).thenReturn(true);
         when(recipeService.getPublicRecipes(
                 eq(EMAIL), eq(null), eq("SNACK"), eq(MarketRegion.UK_IE), eq("en"),
                 any(), any(), any(), eq(0), eq(50)))

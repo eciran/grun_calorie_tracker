@@ -3,7 +3,10 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.NotificationDto;
 import com.grun.calorietracker.dto.NotificationPageDto;
 import com.grun.calorietracker.dto.NotificationReadAllResponseDto;
+import com.grun.calorietracker.dto.MealReminderNotificationContextDto;
+import com.grun.calorietracker.dto.MealReminderInteractionRequestDto;
 import com.grun.calorietracker.service.NotificationService;
+import com.grun.calorietracker.service.reminder.MealReminderInteractionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -18,6 +21,7 @@ import java.util.List;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +34,9 @@ class NotificationControllerTest {
 
     @MockBean
     private NotificationService notificationService;
+
+    @MockBean
+    private MealReminderInteractionService mealReminderInteractionService;
 
     @Test
     @WithMockUser(username = "user@example.com")
@@ -81,6 +88,22 @@ class NotificationControllerTest {
         mockMvc.perform(patch("/api/v1/notifications/read-all"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updatedCount").value(3));
+    }
+
+    @Test
+    @WithMockUser(username = "user@example.com")
+    void resolveMealReminderUsesAuthenticatedAccountContext() throws Exception {
+        when(mealReminderInteractionService.resolveAndRecordOpen(
+                "user@example.com", 10L, new MealReminderInteractionRequestDto("tap-10", "COLD_START")))
+                .thenReturn(new MealReminderNotificationContextDto(10L, 20L,
+                        java.time.LocalDate.of(2026, 8, 29), "MEAL_ADD", "LUNCH", "diary", false, 1));
+
+        mockMvc.perform(post("/api/v1/notifications/meal-reminders/10/resolve")
+                        .contentType("application/json")
+                        .content("{\"eventId\":\"tap-10\",\"source\":\"COLD_START\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.destination").value("MEAL_ADD"))
+                .andExpect(jsonPath("$.mealType").value("LUNCH"));
     }
 
     private NotificationDto notification() {

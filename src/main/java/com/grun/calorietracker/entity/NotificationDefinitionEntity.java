@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.NotificationCampaignChannel;
+import com.grun.calorietracker.enums.NotificationClassification;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -36,6 +37,13 @@ public class NotificationDefinitionEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private NotificationCampaignChannel channel = NotificationCampaignChannel.IN_APP_AND_PUSH;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private NotificationClassification classification = NotificationClassification.USER_REQUESTED_RESULT;
+
+    @Column(name = "parameter_schema_json", nullable = false, columnDefinition = "TEXT")
+    private String parameterSchemaJson = "{}";
 
     @Column(length = 16)
     private String severity;

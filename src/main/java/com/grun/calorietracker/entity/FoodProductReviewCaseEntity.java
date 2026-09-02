@@ -50,6 +50,10 @@ public class FoodProductReviewCaseEntity {
     @JoinColumn(name = "food_item_id")
     private FoodItemEntity foodItem;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_custom_food_id")
+    private FoodItemEntity userCustomFood;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "resolution_mode", nullable = false, length = 30)
     private FoodProductResolutionMode resolutionMode;

@@ -39,10 +39,16 @@ export function NotificationDefinitionsView({ onError }: { onError: (message: st
   const [draft, setDraft] = useState<NotificationDefinitionDraft>(EMPTY_DRAFT);
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [approvalReason, setApprovalReason] = useState("");
   const editorRef = useRef<HTMLFormElement | null>(null);
   const displayNameRef = useRef<HTMLInputElement | null>(null);
 
   const selected = definitions.find((definition) => definition.id === selectedId) ?? null;
+  const isMealReminderDefinition = Boolean(selected?.protectedDefinition && selected.key.startsWith("meal_reminder_"));
+  const isSubscriptionDefinition = Boolean(selected?.protectedDefinition
+    && (selected.key.startsWith("subscription_") || selected.key === "ai_addon_purchased")
+    && selected.key !== "subscription_provider_alert");
+  const requiresApproval = isMealReminderDefinition || isSubscriptionDefinition;
   const visibleDefinitions = useMemo(() => {
     const query = filter.trim().toLocaleLowerCase();
     if (!query) return definitions;
@@ -82,6 +88,7 @@ export function NotificationDefinitionsView({ onError }: { onError: (message: st
       messageTr: definition.messageTr ?? ""
     });
     setNotice(null);
+    setApprovalReason("");
     window.requestAnimationFrame(() => {
       editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       displayNameRef.current?.focus({ preventScroll: true });
@@ -125,10 +132,25 @@ export function NotificationDefinitionsView({ onError }: { onError: (message: st
       messageTr: draft.messageTr.trim() || null
     };
     try {
-      const saved = await request<NotificationDefinition>(
-        selectedId ? `/api/v1/admin/notification-definitions/${selectedId}` : "/api/v1/admin/notification-definitions",
-        { method: selectedId ? "PUT" : "POST", body: payload }
-      );
+      if (isMealReminderDefinition && selectedId) {
+        await request(`/api/v1/admin/meal-reminder-automation/definitions/${selectedId}/publish-request`, {
+          method: "POST", body: { definition: payload, reason: approvalReason.trim() }
+        });
+        setNotice("Meal reminder copy publication is pending maker-checker approval. Active copy has not changed.");
+        setActionState("ready");
+        setApprovalReason("");
+        return;
+      }
+      if (isSubscriptionDefinition && selectedId) {
+        await request(`/api/v1/admin/subscription-notifications/definitions/${selectedId}/publish-request`, {
+          method: "POST", body: { definition: payload, reason: approvalReason.trim() }
+        });
+        setNotice("Subscription notification publication is pending maker-checker approval. Active copy has not changed.");
+        setActionState("ready");
+        setApprovalReason("");
+        return;
+      }
+      const saved = await request<NotificationDefinition>(selectedId ? `/api/v1/admin/notification-definitions/${selectedId}` : "/api/v1/admin/notification-definitions", { method: selectedId ? "PUT" : "POST", body: payload });
       setSelectedId(saved.id ?? null);
       setNotice(selectedId ? "Notification definition updated." : "Notification definition created.");
       setActionState("ready");
@@ -212,14 +234,14 @@ export function NotificationDefinitionsView({ onError }: { onError: (message: st
         >
           <form ref={editorRef} onSubmit={(event) => void save(event)}>
             {notice && <div className={`form-notice ${actionState === "error" ? "warning" : ""}`} role="status">{notice}</div>}
-            {selected?.protectedDefinition && <div className="form-notice warning">This safety-critical definition cannot be disabled. Its copy and route can still be corrected.</div>}
+            {selected?.protectedDefinition && <div className="form-notice warning">{requiresApproval ? "This user-facing definition is protected. Changes create an approval request; active copy remains unchanged until a different authorized admin approves it." : "This safety-critical definition cannot be disabled."}</div>}
             <div className="campaign-form-grid notification-definition-form-grid">
               <label className="span-2">Display name<input ref={displayNameRef} required maxLength={120} value={draft.displayName} onChange={(event) => update("displayName", event.target.value)} /></label>
               <label className="span-2">Event key<input required disabled={Boolean(selectedId)} maxLength={80} pattern="[a-z0-9_]+" value={draft.key} onChange={(event) => update("key", event.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLocaleLowerCase())} /></label>
               <label className="span-4">Operational description<input maxLength={500} value={draft.description} onChange={(event) => update("description", event.target.value)} /></label>
-              <label>Channel<select value={draft.channel} onChange={(event) => update("channel", event.target.value as NotificationDefinitionDraft["channel"])}><option value="IN_APP">In-app</option><option value="PUSH">Push</option><option value="IN_APP_AND_PUSH">In-app + push</option></select></label>
-              <label>Severity<select value={draft.severity} onChange={(event) => update("severity", event.target.value as NotificationDefinitionDraft["severity"])}><option value="">Keep event default</option><option value="INFO">Info</option><option value="WARNING">Warning</option><option value="CRITICAL">Critical</option></select></label>
-              <label className="span-2">Target route<input maxLength={255} placeholder="/notifications or app route" value={draft.targetRoute} onChange={(event) => update("targetRoute", event.target.value)} /></label>
+              <label>Channel<select disabled={isMealReminderDefinition} value={draft.channel} onChange={(event) => update("channel", event.target.value as NotificationDefinitionDraft["channel"])}><option value="IN_APP">In-app</option><option value="PUSH">Push</option><option value="IN_APP_AND_PUSH">In-app + push</option></select></label>
+              <label>Severity<select disabled={isMealReminderDefinition} value={draft.severity} onChange={(event) => update("severity", event.target.value as NotificationDefinitionDraft["severity"])}><option value="">Keep event default</option><option value="INFO">Info</option><option value="WARNING">Warning</option><option value="CRITICAL">Critical</option></select></label>
+              <label className="span-2">Target route<input disabled={isMealReminderDefinition} maxLength={255} placeholder="/notifications or app route" value={draft.targetRoute} onChange={(event) => update("targetRoute", event.target.value)} /></label>
               <label className="notification-definition-toggle span-4"><input checked={draft.enabled} disabled={Boolean(selected?.protectedDefinition)} type="checkbox" onChange={(event) => update("enabled", event.target.checked)} /><span><strong>Definition enabled</strong><small>Disabling suppresses both in-app visibility and push delivery for this event type.</small></span></label>
               <div className="notification-definition-locale span-2">
                 <h4>English (en)</h4>
@@ -232,10 +254,11 @@ export function NotificationDefinitionsView({ onError }: { onError: (message: st
                 <label>Mesaj değişikliği<textarea maxLength={1000} placeholder="Boşsa mevcut olay mesajı kullanılır" value={draft.messageTr} onChange={(event) => update("messageTr", event.target.value)} /></label>
               </div>
             </div>
-            <p className="notification-definition-template-help">Allowed placeholders: <code>{"{originalTitle}"}</code>, <code>{"{originalMessage}"}</code>, <code>{"{note}"}</code>. Empty localized fields preserve the producer's current copy.</p>
+            <p className="notification-definition-template-help">{isMealReminderDefinition ? <>Meal reminder placeholders are typed: only dinner-kcal copy may use <code>{"{remainingKcal}"}</code>. TR and EN fields are required.</> : <>Allowed placeholders: <code>{"{originalTitle}"}</code>, <code>{"{originalMessage}"}</code>, <code>{"{note}"}</code>. Empty localized fields preserve the producer's current copy.</>}</p>
+            {requiresApproval && <label className="wide-field">Required approval reason<textarea required maxLength={500} value={approvalReason} onChange={(event) => setApprovalReason(event.target.value)} placeholder="Explain why this user-facing copy should change." /><small>{approvalReason.length}/500</small></label>}
             <div className="inline-actions notification-definition-actions">
               {selectedId && <button className="ghost-button" type="button" onClick={reset}>Cancel editing</button>}
-              <button className="primary-button" disabled={actionState === "loading"} type="submit">{actionState === "loading" ? "Saving..." : selectedId ? "Save changes" : "Create definition"}</button>
+              <button className="primary-button" disabled={actionState === "loading" || (requiresApproval && !approvalReason.trim())} type="submit">{actionState === "loading" ? "Saving..." : requiresApproval ? "Request copy publication" : selectedId ? "Save changes" : "Create definition"}</button>
             </div>
           </form>
         </Panel>

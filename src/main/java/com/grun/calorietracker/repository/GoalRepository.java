@@ -11,6 +11,9 @@ import java.util.List;
 import java.time.LocalDate;
 
 public interface GoalRepository extends JpaRepository<UserGoalEntity, Long> {
+    @Query("select g from UserGoalEntity g join fetch g.user where g.user.id in :userIds")
+    List<UserGoalEntity> findAllByUserIdIn(@Param("userIds") List<Long> userIds);
+
     @Query("select g from UserGoalEntity g where g.user = :user and g.effectiveUntil is null order by g.effectiveFrom desc")
     Optional<UserGoalEntity> findByUser(@Param("user") UserEntity user);
     List<UserGoalEntity> findAllByUserOrderByEffectiveFromDesc(UserEntity user);

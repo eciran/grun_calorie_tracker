@@ -136,7 +136,8 @@ class AiRecipeDraftServiceImplTest {
         preference.setDietaryPreferences(List.of("VEGAN"));
         preference.setExcludedFoods(List.of("pork"));
         preference.setAllergens(Set.of(RecipeAllergen.MILK));
-        when(nutritionPreferenceService.get("user@example.com")).thenReturn(preference);
+        when(nutritionPreferenceService.getForPersonalization("user@example.com")).thenReturn(preference);
+        when(nutritionPreferenceService.isPersonalizationAllowed("user@example.com")).thenReturn(true);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse());

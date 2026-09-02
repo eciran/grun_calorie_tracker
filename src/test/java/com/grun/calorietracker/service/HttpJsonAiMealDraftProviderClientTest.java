@@ -2,6 +2,7 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.config.AiProperties;
 import com.grun.calorietracker.dto.AiMealDraftResponseDto;
+import com.grun.calorietracker.dto.AiPhotoMealDraftRequestDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
@@ -77,6 +78,37 @@ class HttpJsonAiMealDraftProviderClientTest {
                 .andRespond(withBadRequest());
 
         assertThrows(IllegalArgumentException.class, () -> client.createVoiceFoodDraft(request()));
+        server.verify();
+    }
+
+    @Test
+    void createPhotoMealDraft_usesPhotoSpecificModel() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        AiProperties properties = properties();
+        properties.getPhoto().setModel("provider-photo-model-v2");
+        HttpJsonAiMealDraftProviderClient client = new HttpJsonAiMealDraftProviderClient(properties, restTemplate);
+
+        server.expect(requestTo("https://ai.example.test/meal-drafts"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-GRun-AI-Model", "provider-photo-model-v2"))
+                .andExpect(jsonPath("$.requestType").value("PHOTO_MEAL_LOG"))
+                .andExpect(jsonPath("$.model").value("provider-photo-model-v2"))
+                .andRespond(withSuccess("""
+                        {
+                          "requestType": "PHOTO_MEAL_LOG",
+                          "provider": "HTTP_JSON",
+                          "model": "provider-photo-model-v2",
+                          "status": "DRAFT_CREATED",
+                          "items": [{"name":"Meal","quantity":1,"unit":"portion","estimatedCalories":300,"confidence":0.8}]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://images.example.test/meal.jpg");
+        AiMealDraftResponseDto response = client.createPhotoMealDraft(request);
+
+        assertEquals("provider-photo-model-v2", response.getModel());
         server.verify();
     }
 

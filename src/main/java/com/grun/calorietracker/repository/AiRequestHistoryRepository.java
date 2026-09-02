@@ -18,6 +18,18 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHistoryEntity, Long> {
+    @Query("""
+            select history from AiRequestHistoryEntity history
+            where history.user = :user and history.id < :beforeId
+              and history.requestType in :requestTypes and history.status in :statuses
+            order by history.id desc
+            """)
+    List<AiRequestHistoryEntity> findUserHistoryPage(
+            @Param("user") UserEntity user,
+            @Param("requestTypes") List<AiRequestType> requestTypes,
+            @Param("statuses") List<AiRequestStatus> statuses,
+            @Param("beforeId") long beforeId, Pageable pageable);
+
     List<AiRequestHistoryEntity> findByUserOrderByCreatedAtDesc(UserEntity user, Pageable pageable);
     List<AiRequestHistoryEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
     List<AiRequestHistoryEntity> findByUserAndRequestTypeOrderByCreatedAtDesc(UserEntity user, AiRequestType requestType, Pageable pageable);
@@ -139,5 +151,4 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     List<Object[]> summarizeOperationsSegmentsAfter(@Param("createdAfter") LocalDateTime createdAfter);
     void deleteByUser(UserEntity user);
 }
-
 

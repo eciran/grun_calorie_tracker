@@ -40,6 +40,15 @@ public class FoodItemEntity {
     private String sourceKey;
     private String canonicalFoodKey;
 
+    @Column(name = "admin_source_name", length = 160)
+    private String adminSourceName;
+
+    @Column(name = "admin_source_url", length = 1000)
+    private String adminSourceUrl;
+
+    @Column(name = "admin_creation_note", length = 500)
+    private String adminCreationNote;
+
     @Column(name = "dish_family_key", length = 160)
     private String dishFamilyKey;
 

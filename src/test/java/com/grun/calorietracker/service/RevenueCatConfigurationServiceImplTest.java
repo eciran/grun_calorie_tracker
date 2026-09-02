@@ -25,7 +25,9 @@ class RevenueCatConfigurationServiceImplTest {
         properties.getProducts().getPlus().add("grun_plus_monthly");
         properties.getProducts().getPro().add("grun_pro_monthly");
         properties.getProducts().getAiAddonQuotas().put("grun_ai_15_credits", 15);
+        properties.getProducts().getAiAddonQuotas().put("grun_ai_50_credits", 50);
         properties.getProducts().getAiAddonValidityDays().put("grun_ai_15_credits", 14);
+        properties.getProducts().getAiAddonValidityDays().put("grun_ai_50_credits", 30);
         service = new RevenueCatConfigurationServiceImpl(properties);
     }
 
@@ -40,6 +42,7 @@ class RevenueCatConfigurationServiceImplTest {
         assertThat(result.getWarnings()).isEmpty();
         assertThat(result.getProProductIds()).contains("grun_pro_monthly");
         assertThat(result.getAiAddonQuotas()).containsEntry("grun_ai_15_credits", 15);
+        assertThat(result.getAiAddonQuotas()).containsEntry("grun_ai_50_credits", 50);
     }
 
     @Test

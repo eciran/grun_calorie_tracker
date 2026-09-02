@@ -1,5 +1,7 @@
 package com.grun.calorietracker.service;
 
+import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
@@ -26,6 +28,8 @@ import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface FoodProductReviewService {
+    AdminFoodProductPreflightDto preflightAdminCatalogProduct(AdminFoodProductCreateRequestDto request);
+    FoodProductDto createAdminCatalogProduct(AdminFoodProductCreateRequestDto request, String reviewedBy);
     List<FoodProductDto> getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, int page, int size);

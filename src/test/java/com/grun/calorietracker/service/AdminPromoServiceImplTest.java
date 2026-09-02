@@ -99,6 +99,33 @@ class AdminPromoServiceImplTest {
         assertEquals(2, result.redemptionTrend().get(6).duplicateAttempts());
         assertEquals("LIMIT", result.rejectionCategories().get(0).name());
     }
+
+    @Test
+    void activate_allowsVerifiedStoreOfferCodeWithProductMappingOnly() {
+        PromoCodeEntity entity = entity(PromoStore.APPLE_APP_STORE);
+        entity.setStoreOfferCodeRequired(true);
+        entity.setProviderProductId("grun_plus_monthly");
+        when(promoRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(entity));
+        when(promoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminPromoDto result = service.activate(3L, "admin@grun.local", "cid-code");
+
+        assertEquals(PromoStatus.ACTIVE, result.status());
+        assertTrue(result.storeOfferCodeRequired());
+        assertTrue(result.providerMappingReady());
+    }
+
+    @Test
+    void activate_blocksVerifiedStoreOfferCodeWithoutProductMapping() {
+        PromoCodeEntity entity = entity(PromoStore.APPLE_APP_STORE);
+        entity.setStoreOfferCodeRequired(true);
+        when(promoRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(entity));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.activate(3L, "admin@grun.local", "cid-code-missing"));
+
+        verify(promoRepository, never()).save(any());
+    }
     private AdminPromoRequestDto request(PromoStore store) {
         AdminPromoRequestDto request = new AdminPromoRequestDto();
         request.setCode("welcome_20");

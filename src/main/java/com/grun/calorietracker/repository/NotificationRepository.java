@@ -21,6 +21,8 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     Page<NotificationEntity> findByUserAndTypeAndIsRead(UserEntity user, String type, Boolean isRead, Pageable pageable);
     Optional<NotificationEntity> findByIdAndUser(Long id, UserEntity user);
     List<NotificationEntity> findByUserAndIsRead(UserEntity user, Boolean isRead);
+    Optional<NotificationEntity> findTopByUserAndSourceInOrderByCreatedAtDesc(
+            UserEntity user, List<String> sources);
     long countByTypeAndCreatedAtAfter(String type, LocalDateTime createdAt);
     long deleteByUser(UserEntity user);
 }

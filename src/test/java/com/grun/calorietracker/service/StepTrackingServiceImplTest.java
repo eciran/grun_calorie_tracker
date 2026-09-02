@@ -9,10 +9,10 @@ import com.grun.calorietracker.enums.HealthProvider;
 import com.grun.calorietracker.exception.DuplicateManualStepLogException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.DeviceDataRepository;
-import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.StepGoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.StepTrackingServiceImpl;
+import com.grun.calorietracker.service.notification.BehaviorReminderNotificationService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.Test;
 
@@ -36,8 +36,7 @@ class StepTrackingServiceImplTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final StepGoalRepository stepGoalRepository = mock(StepGoalRepository.class);
     private final DeviceDataRepository deviceDataRepository = mock(DeviceDataRepository.class);
-    private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
-    private final PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
+    private final BehaviorReminderNotificationService behaviorReminderNotificationService = mock(BehaviorReminderNotificationService.class);
     private final UserTimeZoneSupport userTimeZoneSupport = mock(UserTimeZoneSupport.class);
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService = mock(UserAnalyticsCacheRevisionService.class);
     private final com.grun.calorietracker.service.support.UserAnalyticsCacheGateway analyticsCacheGateway = mock(com.grun.calorietracker.service.support.UserAnalyticsCacheGateway.class);
@@ -46,8 +45,7 @@ class StepTrackingServiceImplTest {
             userRepository,
             stepGoalRepository,
             deviceDataRepository,
-            notificationRepository,
-            pushDeliveryService,
+            behaviorReminderNotificationService,
             userTimeZoneSupport,
             analyticsCacheRevisionService,
             analyticsCacheGateway,
@@ -56,6 +54,8 @@ class StepTrackingServiceImplTest {
 
     @org.junit.jupiter.api.BeforeEach
     void configureCache() {
+        org.mockito.Mockito.lenient().when(behaviorReminderNotificationService.shouldEvaluateStep(any()))
+                .thenReturn(true);
         org.mockito.Mockito.lenient().when(analyticsCacheRevisionService.requireIdentity(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity(1L, 0L, "Europe/Dublin"));
         org.mockito.Mockito.lenient().when(analyticsCacheKeyFactory.key(
@@ -170,8 +170,8 @@ class StepTrackingServiceImplTest {
 
         assertEquals(1, created);
         assertEquals(now, goal.getLastReminderAt());
-        verify(notificationRepository).save(any());
-        verify(pushDeliveryService).deliver(any());
+        verify(behaviorReminderNotificationService).enqueueStep(
+                org.mockito.ArgumentMatchers.eq(goal), org.mockito.ArgumentMatchers.eq(now), any(String.class), any(String.class));
     }
 
     @Test
@@ -196,8 +196,21 @@ class StepTrackingServiceImplTest {
         int created = service.createDueReminderNotifications();
 
         assertEquals(0, created);
-        verify(notificationRepository, never()).save(any());
-        verify(pushDeliveryService, never()).deliver(any());
+        verify(behaviorReminderNotificationService, never()).enqueueStep(any(), any(), any(), any());
+    }
+
+    @Test
+    void createDueReminderNotifications_whenLegacyPreferencesAreOff_skipsReminder() {
+        UserEntity user = user();
+        StepGoalEntity goal = goal(user, 10000);
+        goal.setReminderEnabled(true);
+        when(stepGoalRepository.findByReminderEnabledTrue()).thenReturn(List.of(goal));
+        when(behaviorReminderNotificationService.shouldEvaluateStep(user)).thenReturn(false);
+
+        int created = service.createDueReminderNotifications();
+
+        assertEquals(0, created);
+        verify(behaviorReminderNotificationService, never()).enqueueStep(any(), any(), any(), any());
     }
 
     @Test
