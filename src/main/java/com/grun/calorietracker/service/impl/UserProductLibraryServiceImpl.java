@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.enums.CatalogPublicationStatus;
@@ -11,16 +12,20 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.MealTemplateItemRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserProductLibraryService;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
@@ -28,8 +33,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -40,14 +47,16 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     private final UserRepository userRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final FoodLogsRepository foodLogsRepository;
     private final MealTemplateItemRepository mealTemplateItemRepository;
     private final UserFavoriteRepository userFavoriteRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public List<FoodProductDto> getRecentProducts(String email, int limit) {
+    public List<FoodProductDto> getRecentProducts(String email, int limit, PreferredLanguage requestedLanguage) {
         UserEntity user = getUser(email);
+        PreferredLanguage language = resolveLanguage(requestedLanguage, user);
         List<Long> ids = foodLogsRepository.findRecentAvailableFoodItemIds(
                 user.getId(),
                 VerificationStatus.REJECTED.name(),
@@ -56,12 +65,13 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         );
         Map<Long, FoodItemEntity> productsById = new LinkedHashMap<>();
         foodItemRepository.findAllById(ids).forEach(product -> productsById.put(product.getId(), product));
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations = loadLocalizations(ids, language);
         return ids.stream()
                 .map(productsById::get)
                 .filter(product -> product != null)
                 .filter(product -> product.getVerificationStatus() != VerificationStatus.REJECTED)
                 .filter(product -> isVisibleToUser(product, user))
-                .map(FoodItemMapper::mapEntityToDto)
+                .map(product -> toLocalizedDto(product, language, localizations))
                 .toList();
     }
 
@@ -77,7 +87,8 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
     @Transactional(readOnly = true)
     public List<FoodProductDto> getFavoriteProducts(String email, int page, int size) {
         UserEntity user = getUser(email);
-        return userFavoriteRepository.findAvailableFavorites(
+        PreferredLanguage language = resolveLanguage(null, user);
+        List<FoodItemEntity> products = userFavoriteRepository.findAvailableFavorites(
                         user,
                         VerificationStatus.REJECTED,
                         PageRequest.of(safePage(page), safePageSize(size))
@@ -85,8 +96,10 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
                 .map(UserFavoriteEntity::getFoodItem)
                 .filter(product -> product.getVerificationStatus() != VerificationStatus.REJECTED)
                 .filter(product -> isVisibleToUser(product, user))
-                .map(FoodItemMapper::mapEntityToDto)
                 .toList();
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations = loadLocalizations(
+                products.stream().map(FoodItemEntity::getId).toList(), language);
+        return products.stream().map(product -> toLocalizedDto(product, language, localizations)).toList();
     }
 
     @Override
@@ -101,7 +114,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
                     created.setFoodItem(product);
                     return userFavoriteRepository.save(created);
                 });
-        return FoodItemMapper.mapEntityToDto(favorite.getFoodItem());
+        return toLocalizedDto(favorite.getFoodItem(), resolveLanguage(null, user), null);
     }
 
     @Override
@@ -248,5 +261,68 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     private String trimToNull(String value) {
         return value == null || value.trim().isEmpty() ? null : value.trim();
+    }
+
+    private PreferredLanguage resolveLanguage(PreferredLanguage requestedLanguage, UserEntity user) {
+        if (requestedLanguage != null) {
+            return requestedLanguage;
+        }
+        return user != null && user.getPreferredLanguage() != null ? user.getPreferredLanguage() : PreferredLanguage.EN;
+    }
+
+    private Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> loadLocalizations(
+            List<Long> productIds,
+            PreferredLanguage language
+    ) {
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> result = new HashMap<>();
+        if (productIds == null || productIds.isEmpty()) {
+            return result;
+        }
+        Set<PreferredLanguage> languages = language == PreferredLanguage.EN
+                ? Set.of(PreferredLanguage.EN)
+                : Set.of(language, PreferredLanguage.EN);
+        foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(productIds, languages)
+                .forEach(localization -> result
+                        .computeIfAbsent(localization.getFoodItem().getId(), ignored -> new HashMap<>())
+                        .put(localization.getLanguage(), localization));
+        return result;
+    }
+
+    private FoodProductDto toLocalizedDto(
+            FoodItemEntity product,
+            PreferredLanguage language,
+            Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations
+    ) {
+        FoodProductDto dto = FoodItemMapper.mapEntityToDto(product);
+        FoodItemLocalizationEntity localization = null;
+        if (localizations != null) {
+            Map<PreferredLanguage, FoodItemLocalizationEntity> byLanguage = localizations.get(product.getId());
+            if (byLanguage != null) {
+                localization = byLanguage.get(language);
+                if (localization == null) localization = byLanguage.get(PreferredLanguage.EN);
+            }
+        } else {
+            localization = foodItemLocalizationRepository
+                    .findByFoodItemIdAndLanguageAndActiveTrue(product.getId(), language)
+                    .or(() -> language == PreferredLanguage.EN
+                            ? java.util.Optional.empty()
+                            : foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(
+                                    product.getId(), PreferredLanguage.EN))
+                    .orElse(null);
+        }
+        dto.setLanguage(language);
+        if (localization == null) {
+            return dto;
+        }
+        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(localization.getDisplayName());
+        String shortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(localization.getShortDisplayName());
+        if (displayName != null) dto.setDisplayName(displayName);
+        if (shortDisplayName != null) dto.setShortDisplayName(shortDisplayName);
+        else if (displayName != null) dto.setShortDisplayName(displayName);
+        boolean explicitPreparation = product.getPreparationState() != null
+                && product.getPreparationState() != FoodPreparationState.UNSPECIFIED;
+        String productName = explicitPreparation ? dto.getDisplayName() : dto.getShortDisplayName();
+        dto.setProductName(productName != null ? productName : dto.getDisplayName());
+        return dto;
     }
 }

@@ -10,6 +10,7 @@ import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.dto.RecipeLogDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
@@ -17,12 +18,14 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
@@ -55,6 +58,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
 
     private final FoodLogsRepository foodLogsRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final RecipeLogRepository recipeLogRepository;
     private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final UserRepository userRepository;
@@ -73,6 +77,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         FoodLogsEntity entity = new FoodLogsEntity();
         entity.setUser(user);
         entity.setFoodItem(foodItem);
+        entity.setDisplayName(resolveFoodDisplayName(foodItem, user));
         entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
         entity.setPortionSize(dto.getPortionSize());
         entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
@@ -176,6 +181,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (foodItem != null) {
             ensureFoodItemAvailableToUser(foodItem, user);
             entity.setFoodItem(foodItem);
+            entity.setDisplayName(resolveFoodDisplayName(foodItem, user));
             entity.setServingOption(resolveServingOption(dto.getServingOptionId(), foodItem));
             entity.setPortionSize(dto.getPortionSize());
             entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
@@ -824,11 +830,13 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setId(entity.getId());
         if (entity.getFoodItem() != null) {
             dto.setFoodItemId(entity.getFoodItem().getId());
-            dto.setFoodName(entity.getFoodItem().getName());
+            String localizedName = resolveFoodDisplayName(entity.getFoodItem(), entity.getUser());
+            dto.setFoodName(localizedName);
+            dto.setDisplayName(localizedName);
         } else {
             dto.setFoodName(entity.getDisplayName());
+            dto.setDisplayName(entity.getDisplayName());
         }
-        dto.setDisplayName(entity.getDisplayName());
         dto.setEstimated(Boolean.TRUE.equals(entity.getEstimated()));
         dto.setAiRequestId(entity.getAiRequestId());
         dto.setAiConfidence(entity.getAiConfidence());
@@ -863,6 +871,40 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setMealType(entity.getMealType());
         dto.setLogDate(entity.getLogDate());
         return dto;
+    }
+
+    private String resolveFoodDisplayName(FoodItemEntity foodItem, UserEntity user) {
+        PreferredLanguage language = user != null && user.getPreferredLanguage() != null
+                ? user.getPreferredLanguage()
+                : PreferredLanguage.EN;
+
+        FoodItemLocalizationEntity localization = foodItemLocalizationRepository
+                .findByFoodItemIdAndLanguageAndActiveTrue(foodItem.getId(), language)
+                .orElseGet(() -> language == PreferredLanguage.EN
+                        ? null
+                        : foodItemLocalizationRepository
+                                .findByFoodItemIdAndLanguageAndActiveTrue(foodItem.getId(), PreferredLanguage.EN)
+                                .orElse(null));
+
+        String localizedName = localization == null
+                ? null
+                : firstDisplayName(localization.getShortDisplayName(), localization.getDisplayName());
+        String fallbackName = firstDisplayName(
+                foodItem.getShortDisplayName(),
+                foodItem.getDisplayName(),
+                foodItem.getName()
+        );
+        return localizedName != null ? localizedName : fallbackName;
+    }
+
+    private String firstDisplayName(String... candidates) {
+        for (String candidate : candidates) {
+            String normalized = FoodProductNormalizationRules.normalizeProductDisplayName(candidate);
+            if (normalized != null && !normalized.isBlank()) {
+                return normalized;
+            }
+        }
+        return "";
     }
 
     private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem) {

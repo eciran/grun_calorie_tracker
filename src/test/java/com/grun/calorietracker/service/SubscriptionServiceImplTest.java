@@ -706,6 +706,52 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void applyProviderEvent_subscriptionRefundRevokesEntitlementAndCreditAllocation() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 18);
+        entity.setAiPlanUsedThisPeriod(18);
+        stubProviderApply(entity, 0);
+        var command = new SubscriptionProviderEventCommand();
+        command.setProvider(PaymentProvider.REVENUECAT);
+        command.setProviderEventId("evt-refund");
+        command.setProviderTransactionId("tx-plan");
+        command.setProviderOriginalTransactionId("otx-plan");
+        command.setProviderEventAt(Instant.parse("2026-09-01T10:00:00Z"));
+        command.setEventType(RevenueCatEventType.CANCELLATION);
+        command.setRefund(true);
+        command.setEndDate(java.time.LocalDate.of(2026, 9, 1));
+
+        SubscriptionDto result = service.applyProviderEvent(1L, command);
+
+        assertEquals(SubscriptionStatus.REFUNDED, result.getStatus());
+        assertEquals(false, result.getActiveEntitlement());
+        assertEquals(0, result.getAiMonthlyQuota());
+        assertEquals(18, result.getAiPlanUsedThisPeriod());
+        verify(subscriptionCreditAllocationRepository).revokeForRefund(
+                1L, "REVENUECAT", "tx-plan", "otx-plan", "evt-refund", "CUSTOMER_SUPPORT",
+                Instant.parse("2026-09-01T10:00:00Z"));
+    }
+
+    @Test
+    void applyProviderEvent_refundReversedRestoresEntitlementWithoutResettingUsage() {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.REFUNDED, 0, 18);
+        entity.setAiPlanUsedThisPeriod(18);
+        stubProviderApply(entity, 0);
+        var command = planCommand(SubscriptionPlan.PRO, null, Instant.parse("2026-09-02T10:00:00Z"));
+        command.setProviderEventId("evt-refund-reversed");
+        command.setEventType(RevenueCatEventType.REFUND_REVERSED);
+
+        SubscriptionDto result = service.applyProviderEvent(1L, command);
+
+        assertEquals(SubscriptionStatus.ACTIVE, result.getStatus());
+        assertEquals(true, result.getActiveEntitlement());
+        assertEquals(150, result.getAiMonthlyQuota());
+        assertEquals(18, result.getAiPlanUsedThisPeriod());
+        verify(subscriptionCreditAllocationRepository).restoreAfterRefundReversal(
+                1L, "REVENUECAT", "tx-plan", "otx-plan");
+        verify(subscriptionCreditAllocationRepository, never()).reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void applyProviderEvent_newRenewalResetsOnlyPlanConsumption() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 105);
         entity.setAiPlanUsedThisPeriod(100); entity.setAiAddonQuota(10); entity.setAiAddonUsed(5);

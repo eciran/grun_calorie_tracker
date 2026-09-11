@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(
@@ -65,6 +66,51 @@ public class SubscriptionProviderEventEntity {
 
     @Column(name = "original_transaction_id", length = 255)
     private String originalTransactionId;
+
+    @Column(name = "period_type", length = 40)
+    private String periodType;
+
+    @Column(length = 40)
+    private String environment;
+
+    @Column(name = "cancel_reason", length = 80)
+    private String cancelReason;
+
+    @Column(name = "expiration_reason", length = 80)
+    private String expirationReason;
+
+    @Column(name = "provider_event_at")
+    private Instant providerEventAt;
+
+    @Column(name = "purchased_at")
+    private Instant purchasedAt;
+
+    @Column(name = "expiration_at")
+    private Instant expirationAt;
+
+    @Column(name = "apple_refund_consent_status", length = 40)
+    private String appleRefundConsentStatus;
+
+    @Column(name = "apple_refund_consent_version", length = 80)
+    private String appleRefundConsentVersion;
+
+    @Column(name = "plan_quota_snapshot")
+    private Integer planQuotaSnapshot;
+
+    @Column(name = "plan_used_snapshot")
+    private Integer planUsedSnapshot;
+
+    @Column(name = "addon_quota_snapshot")
+    private Integer addonQuotaSnapshot;
+
+    @Column(name = "addon_used_snapshot")
+    private Integer addonUsedSnapshot;
+
+    @Column(name = "entitlement_delivered_snapshot")
+    private Boolean entitlementDeliveredSnapshot;
+
+    @Column(name = "entitlement_active_snapshot")
+    private Boolean entitlementActiveSnapshot;
 
     @ManyToOne
     @JoinColumn(name = "user_id")

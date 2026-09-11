@@ -1,8 +1,10 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.AdminRecipeDto;
+import com.grun.calorietracker.dto.AdminRecipeImportCandidateRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
+import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -57,8 +60,33 @@ class AdminRecipeServiceImplTest {
     private NotificationRepository notificationRepository;
     @Mock
     private PushDeliveryService pushDeliveryService;
+    @Mock
+    private RecipeMediaCacheService recipeMediaCacheService;
     @InjectMocks
     private AdminRecipeServiceImpl service;
+
+    @Test
+    void importedIngredients_useReviewedGramEstimateForCatalogMappings() {
+        AdminRecipeImportCandidateRequestDto.IngredientPayload ingredient =
+                new AdminRecipeImportCandidateRequestDto.IngredientPayload();
+        ingredient.setFoodItemId(20159L);
+        ingredient.setIngredientName("egg");
+        ingredient.setPortionSize(4.0);
+        ingredient.setPortionUnit(FoodPortionUnit.PIECE);
+        ingredient.setEstimatedGrams(200.0);
+
+        @SuppressWarnings("unchecked")
+        List<RecipeIngredientRequestDto> mapped = ReflectionTestUtils.invokeMethod(
+                service,
+                "toRecipeIngredients",
+                List.of(ingredient)
+        );
+
+        assertEquals(1, mapped.size());
+        assertEquals(20159L, mapped.get(0).getFoodItemId());
+        assertEquals(200.0, mapped.get(0).getPortionSize());
+        assertEquals(FoodPortionUnit.GRAM, mapped.get(0).getPortionUnit());
+    }
 
     @Test
     void getOperationsAnalytics_returnsAggregatePrivacySafeMetrics() {

@@ -27,7 +27,9 @@ public class AdminMealReminderAutomationServiceImpl implements AdminMealReminder
  private final MealReminderAdminTestSendRepository testSends;
  private final UserRepository users;
  private final NotificationDefinitionRepository definitions;
- private final MealReminderCandidateWorker candidateWorker;
+ private final NotificationRepository notifications;
+ private final NotificationDefinitionPolicy definitionPolicy;
+ private final PushDeliveryService pushDeliveryService;
  private final MealReminderDeliveryProperties deployment;
  private final PushProperties push;
  private final AdminAuditService audit;
@@ -133,9 +135,29 @@ public class AdminMealReminderAutomationServiceImpl implements AdminMealReminder
   if(!pilot.contains(userId))throw new IllegalArgumentException("Test sends are limited to the approved pilot cohort.");
   UserEntity user=users.findById(userId).orElseThrow(()->new IllegalArgumentException("Test user not found."));
   if(!Boolean.TRUE.equals(user.getPushNotificationsEnabled())||!Boolean.TRUE.equals(user.getMealRemindersEnabled()))throw new IllegalArgumentException("User notification preferences are disabled.");
-  Instant now=analyticsClock.instant();if(testSends.countByUserIdAndRequestedAtAfter(userId,now.minus(Duration.ofHours(1)))>=1)throw new IllegalArgumentException("Test send rate limit exceeded.");
+  if(!deployment.isDeliveryEnabled()||!push.isEnabled()||effectiveMode(active)==MealReminderContract.Mode.OFF)throw new IllegalArgumentException("Meal reminder delivery is disabled.");
+  Instant now=analyticsClock.instant();if(notifications.countByUserAndSourceAndCreatedAtAfter(user,"MEAL_REMINDER",LocalDateTime.ofInstant(now.minus(Duration.ofHours(1)),ZoneOffset.UTC))>=1)throw new IllegalArgumentException("Test send rate limit exceeded.");
   testSends.deleteByRequestedAtBefore(now.minus(Duration.ofDays(30)));MealReminderAdminTestSendEntity log=new MealReminderAdminTestSendEntity();log.setUser(user);log.setRequestedBy(checker);log.setRequestedAt(now);testSends.save(log);
-  candidateWorker.evaluate(userId,now);audit.record(checker,AdminAuditActionType.MEAL_REMINDER_TEST_SEND,AdminAuditTargetType.MEAL_REMINDER_AUTOMATION,userId.toString(),null,Map.of("approvedTestAccount",true),cid);
+  MealReminderContract.Message message=testMessage(user,active,now);NotificationEntity notification=testNotification(user,message,now);
+  notifications.saveAndFlush(notification);PushDeliveryResultDto result=pushDeliveryService.deliver(notification);
+  if(result.getSent()<1)throw new IllegalArgumentException("No enabled device token accepted the Meal Reminder test.");
+  audit.record(checker,AdminAuditActionType.MEAL_REMINDER_TEST_SEND,AdminAuditTargetType.MEAL_REMINDER_AUTOMATION,userId.toString(),null,
+   Map.of("approvedTestAccount",true,"definitionKey",message.definitionKey(),"attempted",result.getAttempted(),"sent",result.getSent(),"failed",result.getFailed()),cid);
+ }
+
+ private MealReminderContract.Message testMessage(UserEntity user,MealReminderPolicyEntity policy,Instant now){
+  ZoneId zone;try{zone=ZoneId.of(user.getTimeZone());}catch(RuntimeException ignored){zone=ZoneOffset.UTC;}
+  LocalTime localTime=now.atZone(zone).toLocalTime();
+  if(localTime.isBefore(policy.getLunchTime()))return MealReminderContract.Message.BREAKFAST;
+  if(localTime.isBefore(policy.getDinnerTime()))return MealReminderContract.Message.LUNCH;
+  return MealReminderContract.Message.DINNER;
+ }
+
+ private NotificationEntity testNotification(UserEntity user,MealReminderContract.Message message,Instant now){
+  String language=user.getPreferredLanguage()==PreferredLanguage.TR?"tr":"en";MealReminderContract.Copy fallback=MealReminderContract.initialCopy(message,language);
+  NotificationEntity notification=new NotificationEntity();notification.setUser(user);notification.setType(message.definitionKey());notification.setTitle(fallback.title());notification.setMessage(fallback.body());
+  notification.setSeverity("INFO");notification.setSource("MEAL_REMINDER");notification.setTargetType("DAILY_DIARY");notification.setTargetId(now.atZone(ZoneOffset.UTC).toLocalDate().toString());notification.setTargetRoute("diary");notification.setPrimaryAction("OPEN_DIARY");notification.setVisibleInApp(true);notification.setIsRead(false);notification.setCreatedAt(LocalDateTime.ofInstant(now,ZoneOffset.UTC));
+  NotificationDefinitionPolicy.NotificationPresentation managed=definitionPolicy.presentation(notification,definitionPolicy.find(message.definitionKey()));notification.setTitle(managed.title());notification.setMessage(managed.message());notification.setSeverity(managed.severity());notification.setTargetRoute(managed.targetRoute());return notification;
  }
 
  private MealReminderPolicyEntity active(){return policies.findFirstByStatus(MealReminderPolicyStatus.ACTIVE).orElseThrow(()->new IllegalStateException("Active meal reminder policy is missing."));}

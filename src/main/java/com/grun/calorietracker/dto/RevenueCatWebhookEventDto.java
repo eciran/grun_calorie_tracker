@@ -26,6 +26,14 @@ public class RevenueCatWebhookEventDto {
         @JsonProperty("original_app_user_id")
         private String originalAppUserId;
 
+        private List<String> aliases;
+
+        @JsonProperty("transferred_from")
+        private List<String> transferredFrom;
+
+        @JsonProperty("transferred_to")
+        private List<String> transferredTo;
+
         @JsonProperty("product_id")
         private String productId;
 
@@ -72,5 +80,8 @@ public class RevenueCatWebhookEventDto {
 
         @JsonProperty("cancel_reason")
         private String cancelReason;
+
+        @JsonProperty("expiration_reason")
+        private String expirationReason;
     }
 }

@@ -15,7 +15,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
@@ -63,6 +63,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.content[0].read").value(false))
                 .andExpect(jsonPath("$.content[0].type").value("subscription"))
                 .andExpect(jsonPath("$.content[0].severity").value("CRITICAL"))
+                .andExpect(jsonPath("$.content[0].createdAt").value("2026-05-27T14:00:00Z"))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
@@ -117,7 +118,7 @@ class NotificationControllerTest {
         dto.setTargetId("42");
         dto.setTargetRoute("subscriptionEvents");
         dto.setRead(false);
-        dto.setCreatedAt(LocalDateTime.of(2026, 5, 27, 14, 0));
+        dto.setCreatedAt(Instant.parse("2026-05-27T14:00:00Z"));
         return dto;
     }
 }

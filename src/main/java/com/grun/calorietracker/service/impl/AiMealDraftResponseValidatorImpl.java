@@ -45,12 +45,24 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
             response.setSuggestedMealType(response.getSuggestedMealType().trim().toUpperCase());
         }
         validateItems(response.getItems());
-        if (expectedType == AiRequestType.PHOTO_MEAL_LOG) {
+        if (expectedType == AiRequestType.VOICE_FOOD_LOG) {
+            normalizeVoiceEstimateMetadata(response.getItems());
+        } else if (expectedType == AiRequestType.PHOTO_MEAL_LOG) {
             normalizeCountablePhotoPortions(response.getItems());
             response.setItems(mergeDuplicatePhotoItems(response.getItems()));
         }
         normalizeQuality(response);
         return response;
+    }
+
+    private void normalizeVoiceEstimateMetadata(List<AiMealDraftItemDto> items) {
+        for (AiMealDraftItemDto item : items) {
+            String method = item.getPortionEstimateMethod();
+            if (method != null && method.toUpperCase(Locale.ROOT).contains("VISUAL_ESTIMATE")) {
+                item.setPortionEstimateMethod("TEXT_INFERRED");
+            }
+            item.setVisibleInPhoto(null);
+        }
     }
 
     private void validateItems(List<AiMealDraftItemDto> items) {

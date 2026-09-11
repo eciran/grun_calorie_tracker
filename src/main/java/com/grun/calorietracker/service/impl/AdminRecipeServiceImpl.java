@@ -44,6 +44,7 @@ import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminRecipeService;
 import com.grun.calorietracker.service.RecipeService;
+import com.grun.calorietracker.service.RecipeMediaCacheService;
 import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.support.FoodPortionCalculator;
 import jakarta.persistence.criteria.Join;
@@ -80,6 +81,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
     private final RecipeUserInteractionRepository recipeUserInteractionRepository;
     private final FoodItemRepository foodItemRepository;
     private final RecipeService recipeService;
+    private final RecipeMediaCacheService recipeMediaCacheService;
     private final AdminAuditService adminAuditService;
     private final NotificationRepository notificationRepository;
     private final PushDeliveryService pushDeliveryService;
@@ -295,6 +297,55 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
 
         Map<String, Object> before = auditState(recipe);
         boolean changed = false;
+        if (request.getName() != null) {
+            String name = trimToNull(request.getName());
+            if (name == null) throw new IllegalArgumentException("Recipe name is required.");
+            if (!Objects.equals(recipe.getName(), name)) {
+                recipe.setName(name);
+                changed = true;
+            }
+        }
+        if (request.getDescription() != null) {
+            String description = trimToNull(request.getDescription());
+            if (!Objects.equals(recipe.getDescription(), description)) {
+                recipe.setDescription(description);
+                changed = true;
+            }
+        }
+        if (request.getMealType() != null) {
+            String mealType = normalizeMealType(request.getMealType());
+            if (!Objects.equals(recipe.getMealType(), mealType)) {
+                recipe.setMealType(mealType);
+                changed = true;
+            }
+        }
+        if (request.getMarketRegion() != null && !Objects.equals(recipe.getMarketRegion(), request.getMarketRegion())) {
+            recipe.setMarketRegion(request.getMarketRegion());
+            changed = true;
+        }
+        if (request.getLanguage() != null) {
+            String language = trimToNull(request.getLanguage());
+            if (!Objects.equals(recipe.getLanguage(), language)) {
+                recipe.setLanguage(language);
+                changed = true;
+            }
+        }
+        if (request.getTotalYieldGrams() != null && !Objects.equals(recipe.getTotalYieldGrams(), request.getTotalYieldGrams())) {
+            recipe.setTotalYieldGrams(request.getTotalYieldGrams());
+            changed = true;
+        }
+        if (request.getDefaultServingGrams() != null && !Objects.equals(recipe.getDefaultServingGrams(), request.getDefaultServingGrams())) {
+            recipe.setDefaultServingGrams(request.getDefaultServingGrams());
+            changed = true;
+        }
+        if (request.getServingCount() != null && !Objects.equals(recipe.getServingCount(), request.getServingCount())) {
+            recipe.setServingCount(request.getServingCount());
+            changed = true;
+        }
+        if (recipe.getTotalYieldGrams() != null && recipe.getDefaultServingGrams() != null
+                && recipe.getDefaultServingGrams() > recipe.getTotalYieldGrams()) {
+            throw new IllegalArgumentException("Default serving grams must not exceed total yield grams.");
+        }
         if (request.getVerificationStatus() != null
                 && !Objects.equals(recipe.getVerificationStatus(), request.getVerificationStatus())) {
             recipe.setVerificationStatus(request.getVerificationStatus());
@@ -344,6 +395,12 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         if (recipe.getVerificationStatus() == VerificationStatus.REJECTED
                 && recipe.getVisibility() != RecipeVisibility.PRIVATE) {
             recipe.setVisibility(RecipeVisibility.PRIVATE);
+            changed = true;
+        }
+        if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
+                && recipe.getVerificationStatus() == VerificationStatus.VERIFIED
+                && recipe.getImageStatus() == ImageStatus.APPROVED
+                && recipeMediaCacheService.cacheApprovedImage(recipe)) {
             changed = true;
         }
         if (recipe.getVisibility() == RecipeVisibility.PUBLIC_ADMIN
@@ -762,8 +819,18 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             }
             RecipeIngredientRequestDto dto = new RecipeIngredientRequestDto();
             dto.setFoodItemId(ingredient.getFoodItemId());
-            dto.setPortionSize(ingredient.getPortionSize() == null ? ingredient.getEstimatedGrams() : ingredient.getPortionSize());
-            dto.setPortionUnit(ingredient.getPortionUnit() == null ? com.grun.calorietracker.enums.FoodPortionUnit.GRAM : ingredient.getPortionUnit());
+            if (ingredient.getEstimatedGrams() != null && ingredient.getEstimatedGrams() > 0) {
+                // Import candidates already carry a reviewed gram estimate. Use it as the
+                // canonical amount so mapped products do not require a product-specific
+                // PIECE/SLICE conversion or an unsupported ml-to-gram conversion.
+                dto.setPortionSize(ingredient.getEstimatedGrams());
+                dto.setPortionUnit(com.grun.calorietracker.enums.FoodPortionUnit.GRAM);
+            } else {
+                dto.setPortionSize(ingredient.getPortionSize());
+                dto.setPortionUnit(ingredient.getPortionUnit() == null
+                        ? com.grun.calorietracker.enums.FoodPortionUnit.GRAM
+                        : ingredient.getPortionUnit());
+            }
             mapped.add(dto);
         }
         return mapped;

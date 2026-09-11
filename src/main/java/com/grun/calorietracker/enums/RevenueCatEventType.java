@@ -10,6 +10,7 @@ public enum RevenueCatEventType {
     PRODUCT_CHANGE,
     NON_RENEWING_PURCHASE,
     SUBSCRIPTION_PAUSED,
+    REFUND_REVERSED,
     TRANSFER,
     UNKNOWN;
 

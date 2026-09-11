@@ -170,8 +170,8 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
             item.setGroceryName(index == 2 ? "Salmon" : item.getDisplayName());
             item.setPreparationMethod(index == 2 ? FoodPreparationState.BAKED : FoodPreparationState.PREPARED);
             item.setDescription("Snapshot-based suggestion for user review.");
-            item.setQuantity(1.0);
-            item.setUnit(FoodPortionUnit.SERVING);
+            item.setQuantity(250.0);
+            item.setUnit(FoodPortionUnit.GRAM);
             item.setNutrition(mealNutrition);
             item.setShortPreparationState("Prepared");
             item.setWorkoutRelation(MealPlanWorkoutRelation.NONE);

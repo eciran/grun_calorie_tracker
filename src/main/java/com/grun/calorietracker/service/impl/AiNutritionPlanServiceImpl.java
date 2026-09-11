@@ -30,6 +30,11 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
 
     private static final double CALORIE_TOTAL_TOLERANCE = 8.0;
     private static final double MACRO_TOTAL_TOLERANCE = 3.0;
+    private static final Set<FoodPortionUnit> NUTRITION_PLAN_MEASURABLE_UNITS = Set.of(
+            FoodPortionUnit.GRAM,
+            FoodPortionUnit.MILLILITER,
+            FoodPortionUnit.TABLESPOON,
+            FoodPortionUnit.TEASPOON);
 
     private final AiProperties properties;
     private final List<AiMealDraftProviderClient> providerClients;
@@ -381,6 +386,8 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
                 || message.contains("invalid number of days")
                 || message.contains("invalid meal count")
                 || message.contains("unexpected plan date")
+                || message.contains("unsupported nutrition-plan portion unit")
+                || message.contains("duplicate item name")
                 || message.contains("invalid quality metadata");
     }
 
@@ -430,12 +437,19 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             throw new IllegalArgumentException("AI nutrition provider returned an invalid meal type.");
         }
         meal.setMealType(meal.getMealType().toUpperCase(Locale.ROOT));
-        if (meal.getItems() == null || meal.getItems().isEmpty() || meal.getItems().size() > 12) {
+        if (meal.getItems() == null || meal.getItems().isEmpty() || meal.getItems().size() > 6) {
             throw new IllegalArgumentException("AI nutrition provider returned invalid meal items.");
         }
         MealPlanNutritionSnapshotDto sum = emptyNutrition();
+        Set<String> displayNames = new HashSet<>();
+        Set<String> groceryNames = new HashSet<>();
         for (AiNutritionPlanItemDto item : meal.getItems()) {
             validateItem(item, request, date, meal.getSuggestedTime());
+            if (!displayNames.add(itemKey(item.getDisplayName()))
+                    || !groceryNames.add(itemKey(item.getGroceryName()))) {
+                throw new IllegalArgumentException(
+                        "AI nutrition provider returned a duplicate item name within one meal.");
+            }
             add(sum, item.getNutrition());
         }
         if (meal.getTotalNutrition() == null) {
@@ -459,6 +473,10 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         if (item.getQuantity() == null || !Double.isFinite(item.getQuantity())
                 || item.getQuantity() <= 0 || item.getQuantity() > 100_000 || item.getUnit() == null) {
             throw new IllegalArgumentException("AI nutrition provider returned an invalid item portion.");
+        }
+        if (!NUTRITION_PLAN_MEASURABLE_UNITS.contains(item.getUnit())) {
+            throw new IllegalArgumentException(
+                    "AI nutrition provider returned an unsupported nutrition-plan portion unit.");
         }
         nutrition(item.getNutrition(), "item nutrition");
         item.setAllergens(cleanList(item.getAllergens(), 20, 120));
@@ -487,6 +505,11 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
                         "AI nutrition provider included a food that conflicts with the user's allergen profile.");
             }
         }
+    }
+
+    private String itemKey(String value) {
+        return FoodProductNormalizationRules.normalizeProductDisplayName(value)
+                .toLowerCase(Locale.ROOT);
     }
 
     private RecipeAllergen parseAllergen(String value) {

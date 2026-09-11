@@ -183,6 +183,42 @@ class MealReminderDecisionEngineTest {
     }
 
     @Test
+    void configuredMealTimesUseEachUsersLocalTimezoneAcrossDublinDaylightSaving() {
+        MealReminderPolicy policy = new MealReminderPolicy(
+                "local-time-policy", MealReminderContract.Mode.DRY_RUN, false, true,
+                Map.of(
+                        MealReminderContract.Meal.BREAKFAST, LocalTime.of(9, 0),
+                        MealReminderContract.Meal.LUNCH, LocalTime.of(13, 0),
+                        MealReminderContract.Meal.DINNER, LocalTime.of(19, 0)),
+                Duration.ofMinutes(60), 3, 3, 1,
+                Duration.ofMinutes(180), Duration.ofMinutes(30),
+                LocalTime.MIDNIGHT, LocalTime.MIDNIGHT);
+        List<MealReminderContract.MealState> states = List.of(
+                MealReminderContract.MealState.RECORDED,
+                MealReminderContract.MealState.RECORDED,
+                MealReminderContract.MealState.MISSING);
+        MealReminderRuntimeState runtime = MealReminderRuntimeState.eligible("en");
+
+        MealReminderDecision istanbulSummer = evaluateAtLocalDinner(
+                "2026-07-15T16:15:00Z", LocalDate.of(2026, 7, 15), "Europe/Istanbul", states, policy, runtime);
+        MealReminderDecision istanbulWinter = evaluateAtLocalDinner(
+                "2026-01-15T16:15:00Z", LocalDate.of(2026, 1, 15), "Europe/Istanbul", states, policy, runtime);
+        MealReminderDecision dublinSummer = evaluateAtLocalDinner(
+                "2026-07-15T18:15:00Z", LocalDate.of(2026, 7, 15), "Europe/Dublin", states, policy, runtime);
+        MealReminderDecision dublinWinter = evaluateAtLocalDinner(
+                "2026-01-15T19:15:00Z", LocalDate.of(2026, 1, 15), "Europe/Dublin", states, policy, runtime);
+
+        assertEquals(Instant.parse("2026-07-15T16:00:00Z"), istanbulSummer.eligibleAt());
+        assertEquals(Instant.parse("2026-01-15T16:00:00Z"), istanbulWinter.eligibleAt());
+        assertEquals(Instant.parse("2026-07-15T18:00:00Z"), dublinSummer.eligibleAt());
+        assertEquals(Instant.parse("2026-01-15T19:00:00Z"), dublinWinter.eligibleAt());
+        assertTrue(istanbulSummer.shouldSend());
+        assertTrue(istanbulWinter.shouldSend());
+        assertTrue(dublinSummer.shouldSend());
+        assertTrue(dublinWinter.shouldSend());
+    }
+
+    @Test
     void cooldownBoundariesAreInclusiveAndPolicyCannotRelaxSafetyMinimums() {
         Instant now = breakfastInstant();
         DailyMealReminderSnapshot snapshot = snapshot(now,
@@ -300,13 +336,45 @@ class MealReminderDecisionEngineTest {
             LocalTime quietStart,
             LocalTime quietEnd
     ) {
+        return snapshotForDate(evaluatedAt, date, "Europe/Dublin", mealStates, remaining, calorieReliable,
+                targetValid, preferences, fasting, quietStart, quietEnd);
+    }
+
+    private DailyMealReminderSnapshot snapshotForDate(
+            Instant evaluatedAt,
+            LocalDate date,
+            String timeZone,
+            List<MealReminderContract.MealState> mealStates,
+            Double remaining,
+            boolean calorieReliable,
+            boolean targetValid,
+            boolean preferences,
+            DailyMealReminderSnapshot.ActivityState fasting,
+            LocalTime quietStart,
+            LocalTime quietEnd
+    ) {
         Map<MealReminderContract.Meal, DailyMealReminderSnapshot.MealTotals> totals = totals(mealStates);
         double consumed = totals.values().stream().mapToDouble(DailyMealReminderSnapshot.MealTotals::calories).sum();
         return new DailyMealReminderSnapshot(
-                42L, evaluatedAt, date, "Europe/Dublin", 9L, 2L,
+                42L, evaluatedAt, date, timeZone, 9L, 2L,
                 "EFFECTIVE_DATE", "AUTOMATIC", targetValid ? 2000 : 0,
                 consumed, 0.0, consumed, remaining, calorieReliable, targetValid,
                 totals, states(mealStates), fasting, preferences, preferences, quietStart, quietEnd);
+    }
+
+    private MealReminderDecision evaluateAtLocalDinner(
+            String evaluatedAt,
+            LocalDate localDate,
+            String timeZone,
+            List<MealReminderContract.MealState> mealStates,
+            MealReminderPolicy policy,
+            MealReminderRuntimeState runtime
+    ) {
+        Instant now = Instant.parse(evaluatedAt);
+        DailyMealReminderSnapshot snapshot = snapshotForDate(now, localDate, timeZone, mealStates,
+                null, true, true, true, DailyMealReminderSnapshot.ActivityState.INACTIVE,
+                LocalTime.MIDNIGHT, LocalTime.MIDNIGHT);
+        return new MealReminderDecisionEngine(Clock.fixed(now, ZoneOffset.UTC)).evaluate(snapshot, policy, runtime);
     }
 
     private static Map<MealReminderContract.Meal, DailyMealReminderSnapshot.MealTotals> totals(

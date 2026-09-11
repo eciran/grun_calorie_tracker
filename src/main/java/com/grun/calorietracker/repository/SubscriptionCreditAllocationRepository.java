@@ -29,4 +29,41 @@ public interface SubscriptionCreditAllocationRepository extends JpaRepository<Su
                 @Param("originalTransactionId") String originalTransactionId,
                 @Param("providerEventId") String providerEventId,
                 @Param("createdAt") Instant createdAt);
+
+    @Modifying
+    @Query(value = """
+            UPDATE subscription_credit_allocations
+               SET revoked_at = :revokedAt,
+                   revoked_by_event_id = :providerEventId,
+                   revocation_reason = :reason
+             WHERE user_id = :userId
+               AND provider = :provider
+               AND revoked_at IS NULL
+               AND (transaction_id = :transactionId
+                    OR (:transactionId IS NULL AND original_transaction_id = :originalTransactionId))
+            """, nativeQuery = true)
+    int revokeForRefund(@Param("userId") Long userId,
+                        @Param("provider") String provider,
+                        @Param("transactionId") String transactionId,
+                        @Param("originalTransactionId") String originalTransactionId,
+                        @Param("providerEventId") String providerEventId,
+                        @Param("reason") String reason,
+                        @Param("revokedAt") Instant revokedAt);
+
+    @Modifying
+    @Query(value = """
+            UPDATE subscription_credit_allocations
+               SET revoked_at = NULL,
+                   revoked_by_event_id = NULL,
+                   revocation_reason = NULL
+             WHERE user_id = :userId
+               AND provider = :provider
+               AND revoked_at IS NOT NULL
+               AND (transaction_id = :transactionId
+                    OR (:transactionId IS NULL AND original_transaction_id = :originalTransactionId))
+            """, nativeQuery = true)
+    int restoreAfterRefundReversal(@Param("userId") Long userId,
+                                   @Param("provider") String provider,
+                                   @Param("transactionId") String transactionId,
+                                   @Param("originalTransactionId") String originalTransactionId);
 }

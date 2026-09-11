@@ -248,8 +248,15 @@ public class FoodItemController {
     public ResponseEntity<java.util.List<FoodProductDto>> getRecentProducts(
             @Parameter(description = "Maximum recent product count. Maximum 50.", example = "10")
             @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit,
+            @Parameter(description = "Preferred response language. Defaults to user profile language, then Accept-Language, then EN.", example = "TR")
+            @RequestParam(required = false) PreferredLanguage language,
+            @RequestHeader(name = "Accept-Language", required = false) String acceptLanguage,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(userProductLibraryService.getRecentProducts(userDetails.getUsername(), limit));
+        return ResponseEntity.ok(userProductLibraryService.getRecentProducts(
+                userDetails.getUsername(),
+                limit,
+                resolveSearchLanguage(language, acceptLanguage, userDetails)
+        ));
     }
 
     @DeleteMapping("/recent")

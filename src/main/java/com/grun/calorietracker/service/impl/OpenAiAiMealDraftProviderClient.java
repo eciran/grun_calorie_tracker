@@ -827,7 +827,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "groceryName", stringSchema(),
                 "preparationMethod", enumSchema("UNSPECIFIED", "RAW", "COOKED", "BOILED", "GRILLED", "FRIED", "BAKED", "ROASTED", "STEAMED", "PREPARED"),
                 "quantity", numberSchema(),
-                "unit", enumSchema("GRAM", "MILLILITER", "TABLESPOON", "TEASPOON", "SLICE", "SERVING", "PIECE"),
+                "unit", requiredEnumSchema("GRAM", "MILLILITER", "TABLESPOON", "TEASPOON"),
                 "nutrition", coreNutritionSchema(),
                 "allergens", arraySchema(stringSchema()),
                 "shortPreparationState", stringSchema(),
@@ -1067,6 +1067,10 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> enumSchema(String... values) {
         return Map.of("type", List.of("string", "null"), "enum", nullableEnumValues(values));
+    }
+
+    private Map<String, Object> requiredEnumSchema(String... values) {
+        return Map.of("type", "string", "enum", List.of(values));
     }
 
     private List<Object> nullableEnumValues(String... values) {

@@ -57,6 +57,21 @@ class AiMealDraftResponseValidatorImplTest {
     }
 
     @Test
+    void validateAndNormalize_whenVoiceProviderReturnsVisualMetadata_normalizesToVoiceSemantics() {
+        AiMealDraftItemDto voiceItem = item();
+        voiceItem.setPortionEstimateMethod("VISUAL_ESTIMATE");
+        voiceItem.setVisibleInPhoto(true);
+        AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setItems(List.of(voiceItem));
+
+        AiMealDraftResponseDto result = validator.validateAndNormalize(
+                response, AiRequestType.VOICE_FOOD_LOG, AiProvider.OPENAI, "model");
+
+        assertEquals("TEXT_INFERRED", result.getItems().get(0).getPortionEstimateMethod());
+        assertEquals(null, result.getItems().get(0).getVisibleInPhoto());
+    }
+
+    @Test
     void validateAndNormalize_whenConfidenceInvalid_throws() {
         AiMealDraftItemDto item = item();
         item.setConfidence(1.5);

@@ -493,6 +493,99 @@ class AiNutritionPlanServiceImplTest {
     }
 
     @Test
+    void createDraft_whenProviderReturnsServing_repairsWithGramAmounts() {
+        prepareUserAndGoal();
+        when(provider.provider()).thenReturn(AiProvider.LOG);
+        AiNutritionPlanDraftResponseDto invalid = validResponse();
+        invalid.getDays().get(0).getMeals().get(0).getItems().get(0)
+                .setUnit(FoodPortionUnit.SERVING);
+        AiNutritionPlanDraftResponseDto repaired = validResponse();
+        when(provider.createNutritionPlanDraft(any())).thenReturn(invalid, repaired);
+        when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                any(), any(), any())).thenReturn(Optional.empty());
+        when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiRemainingThisPeriod(8);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+
+        AiNutritionPlanDraftResponseDto result = service.createDraft(
+                "user@example.com", "nutrition-key-serving-repair", request());
+
+        assertTrue(result.getDays().stream()
+                .flatMap(day -> day.getMeals().stream())
+                .flatMap(meal -> meal.getItems().stream())
+                .allMatch(item -> item.getUnit() == FoodPortionUnit.GRAM));
+        verify(provider, times(2)).createNutritionPlanDraft(any());
+        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+    }
+
+    @Test
+    void createDraft_acceptsSupportedMeasurableUnits() {
+        prepareUserAndGoal();
+        when(provider.provider()).thenReturn(AiProvider.LOG);
+        AiNutritionPlanDraftResponseDto milliliters = validResponse();
+        milliliters.getDays().get(0).getMeals().get(0).getItems().get(0)
+                .setUnit(FoodPortionUnit.MILLILITER);
+        AiNutritionPlanDraftResponseDto tablespoons = validResponse();
+        tablespoons.getDays().get(0).getMeals().get(0).getItems().get(0)
+                .setUnit(FoodPortionUnit.TABLESPOON);
+        AiNutritionPlanDraftResponseDto teaspoons = validResponse();
+        teaspoons.getDays().get(0).getMeals().get(0).getItems().get(0)
+                .setUnit(FoodPortionUnit.TEASPOON);
+        when(provider.createNutritionPlanDraft(any()))
+                .thenReturn(milliliters, tablespoons, teaspoons);
+        when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                any(), any(), any())).thenReturn(Optional.empty());
+        when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiRemainingThisPeriod(8);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+
+        assertEquals(FoodPortionUnit.MILLILITER, service.createDraft(
+                "user@example.com", "nutrition-key-ml", request())
+                .getDays().get(0).getMeals().get(0).getItems().get(0).getUnit());
+        assertEquals(FoodPortionUnit.TABLESPOON, service.createDraft(
+                "user@example.com", "nutrition-key-tbsp", request())
+                .getDays().get(0).getMeals().get(0).getItems().get(0).getUnit());
+        assertEquals(FoodPortionUnit.TEASPOON, service.createDraft(
+                "user@example.com", "nutrition-key-tsp", request())
+                .getDays().get(0).getMeals().get(0).getItems().get(0).getUnit());
+        verify(provider, times(3)).createNutritionPlanDraft(any());
+    }
+
+    @Test
+    void createDraft_whenProviderRepeatsAnItemName_repairsWithDistinctItems() {
+        prepareUserAndGoal();
+        when(provider.provider()).thenReturn(AiProvider.LOG);
+        AiNutritionPlanDraftResponseDto invalid = validResponse();
+        AiNutritionPlanMealDto invalidMeal = invalid.getDays().get(0).getMeals().get(0);
+        AiNutritionPlanItemDto duplicate = new AiNutritionPlanItemDto();
+        duplicate.setDisplayName(invalidMeal.getItems().get(0).getDisplayName());
+        duplicate.setGroceryName("different grocery product");
+        duplicate.setPreparationMethod(FoodPreparationState.RAW);
+        duplicate.setQuantity(100.0);
+        duplicate.setUnit(FoodPortionUnit.GRAM);
+        duplicate.setNutrition(nutrition(100.0, 5.0, 10.0, 2.0));
+        duplicate.setWorkoutRelation(MealPlanWorkoutRelation.NONE);
+        invalidMeal.setItems(List.of(invalidMeal.getItems().get(0), duplicate));
+        AiNutritionPlanDraftResponseDto repaired = validResponse();
+        when(provider.createNutritionPlanDraft(any())).thenReturn(invalid, repaired);
+        when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(
+                any(), any(), any())).thenReturn(Optional.empty());
+        when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        SubscriptionDto quota = new SubscriptionDto();
+        quota.setAiRemainingThisPeriod(8);
+        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+
+        AiNutritionPlanDraftResponseDto result = service.createDraft(
+                "user@example.com", "nutrition-key-duplicate-repair", request());
+
+        assertEquals(1, result.getDays().get(0).getMeals().get(0).getItems().size());
+        verify(provider, times(2)).createNutritionPlanDraft(any());
+        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+    }
+
+    @Test
     void createDraft_withExistingIdempotencyKey_returnsStoredDraft() throws Exception {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
@@ -844,8 +937,8 @@ class AiNutritionPlanServiceImplTest {
         item.setDisplayName(name);
         item.setGroceryName(name);
         item.setPreparationMethod(FoodPreparationState.UNSPECIFIED);
-        item.setQuantity(1.0);
-        item.setUnit(FoodPortionUnit.SERVING);
+        item.setQuantity(250.0);
+        item.setUnit(FoodPortionUnit.GRAM);
         item.setNutrition(nutrition(1000.0, 60.0, 115.0, 32.5));
         item.setWorkoutRelation(MealPlanWorkoutRelation.NONE);
         AiNutritionPlanMealDto meal = new AiNutritionPlanMealDto();

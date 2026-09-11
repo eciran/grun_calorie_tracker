@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
@@ -43,6 +44,7 @@ class FoodServingOptionServiceImplTest {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setId(12L);
         foodItem.setIsCustom(false);
+        foodItem.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
         FoodItemServingOptionEntity option = new FoodItemServingOptionEntity();
         option.setId(5L);
         option.setFoodItem(foodItem);

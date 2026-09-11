@@ -8,14 +8,18 @@ import com.grun.calorietracker.dto.MealMacroDistributionDto;
 import com.grun.calorietracker.dto.MicronutrientTotalsDto;
 import com.grun.calorietracker.dto.WeightTrendDto;
 import com.grun.calorietracker.entity.ExerciseLogsEntity;
+import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.SubscriptionFeature;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
@@ -30,6 +34,7 @@ import com.grun.calorietracker.service.support.UserAnalyticsCacheGateway;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheIdentity;
 import com.grun.calorietracker.service.support.UserAnalyticsCacheKeyFactory;
 import com.grun.calorietracker.service.support.DailyCalorieBudgetSupport;
+import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +57,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserService userService;
     private final GoalRepository goalRepository;
     private final FoodLogsRepository foodLogsRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final ExerciseLogRepository exerciseLogRepository;
     private final ProgressLogRepository progressLogRepository;
     private final RecipeLogRepository recipeLogRepository;
@@ -77,7 +83,8 @@ public class DashboardServiceImpl implements DashboardService {
                 date,
                 identity.timeZone(),
                 micronutrientsAllowed,
-                healthAllowed
+                healthAllowed,
+                "nutrition-quality-v2"
         );
         return analyticsCacheGateway.get(
                 UserAnalyticsCacheNames.DASHBOARD_DAILY_SUMMARY,
@@ -258,11 +265,13 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setId(entity.getId());
         if (entity.getFoodItem() != null) {
             dto.setFoodItemId(entity.getFoodItem().getId());
-            dto.setFoodName(entity.getFoodItem().getName());
+            String localizedName = resolveFoodDisplayName(entity.getFoodItem(), entity.getUser());
+            dto.setFoodName(localizedName);
+            dto.setDisplayName(localizedName);
         } else {
             dto.setFoodName(entity.getDisplayName());
+            dto.setDisplayName(entity.getDisplayName());
         }
-        dto.setDisplayName(entity.getDisplayName());
         dto.setEstimated(Boolean.TRUE.equals(entity.getEstimated()));
         dto.setAiRequestId(entity.getAiRequestId());
         dto.setAiConfidence(entity.getAiConfidence());
@@ -408,27 +417,50 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private Integer calculateNutritionQualityScore(DailySummaryDto dto) {
-        int achieved = 0;
-        int evaluated = 0;
-        if (dto.getTargetProtein() != null && dto.getTargetProtein() > 0) {
-            evaluated++;
-            if (Boolean.TRUE.equals(dto.getProteinTargetHit())) {
-                achieved++;
-            }
+        if (dto.getConsumedCalories() == null || dto.getConsumedCalories() <= 0
+                || dto.getTargetCalories() == null || dto.getTargetCalories() <= 0) {
+            return null;
         }
-        if (dto.getFiberTargetHit() != null) {
-            evaluated++;
-            if (Boolean.TRUE.equals(dto.getFiberTargetHit())) {
-                achieved++;
-            }
+
+        // Compare nutrient progress with how much of the daily energy budget has been consumed.
+        // This avoids rating an otherwise balanced breakfast poorly merely because the full-day
+        // protein and fibre targets have not been completed yet.
+        double intakeProgress = clamp(dto.getConsumedCalories() / dto.getTargetCalories(), 0.10, 1.0);
+        double weightedScore = 0.0;
+        double evaluatedWeight = 0.0;
+
+        if (dto.getTargetProtein() != null && dto.getTargetProtein() > 0
+                && dto.getConsumedProtein() != null) {
+            double proteinPace = (dto.getConsumedProtein() / dto.getTargetProtein()) / intakeProgress;
+            weightedScore += clamp(proteinPace, 0.0, 1.0) * 45.0;
+            evaluatedWeight += 45.0;
         }
-        if (dto.getSodiumWarning() != null) {
-            evaluated++;
-            if (!Boolean.TRUE.equals(dto.getSodiumWarning())) {
-                achieved++;
-            }
+
+        MicronutrientTotalsDto consumed = dto.getConsumedMicros();
+        MicronutrientTotalsDto target = dto.getTargetMicros();
+        if (consumed != null && target != null
+                && consumed.getFiber() != null && target.getFiber() != null && target.getFiber() > 0) {
+            double fiberPace = (consumed.getFiber() / target.getFiber()) / intakeProgress;
+            weightedScore += clamp(fiberPace, 0.0, 1.0) * 35.0;
+            evaluatedWeight += 35.0;
         }
-        return evaluated == 0 ? null : (int) Math.round(achieved * 100.0 / evaluated);
+
+        if (consumed != null && target != null
+                && consumed.getSodium() != null && target.getSodium() != null && target.getSodium() > 0) {
+            double sodiumPace = (consumed.getSodium() / target.getSodium()) / intakeProgress;
+            double sodiumScore = sodiumPace <= 1.0 ? 1.0 : clamp(2.0 - sodiumPace, 0.0, 1.0);
+            weightedScore += sodiumScore * 20.0;
+            evaluatedWeight += 20.0;
+        }
+
+        // A single known nutrient is not enough evidence for a meaningful quality score.
+        return evaluatedWeight < 60.0
+                ? null
+                : (int) Math.round(clamp(weightedScore / evaluatedWeight, 0.0, 1.0) * 100.0);
+    }
+
+    private double clamp(double value, double minimum, double maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 
     private List<MealMacroDistributionDto> calculateMealMacroDistribution(List<FoodLogsDto> foodLogs, Double totalCalories) {
@@ -477,6 +509,35 @@ public class DashboardServiceImpl implements DashboardService {
             dto.setTrendDirection("INSUFFICIENT_DATA");
         }
         return dto;
+    }
+
+    private String resolveFoodDisplayName(FoodItemEntity foodItem, UserEntity user) {
+        PreferredLanguage language = user != null && user.getPreferredLanguage() != null
+                ? user.getPreferredLanguage()
+                : PreferredLanguage.EN;
+        FoodItemLocalizationEntity localization = foodItemLocalizationRepository
+                .findByFoodItemIdAndLanguageAndActiveTrue(foodItem.getId(), language)
+                .orElseGet(() -> language == PreferredLanguage.EN
+                        ? null
+                        : foodItemLocalizationRepository
+                                .findByFoodItemIdAndLanguageAndActiveTrue(foodItem.getId(), PreferredLanguage.EN)
+                                .orElse(null));
+        String localizedName = localization == null
+                ? null
+                : firstDisplayName(localization.getShortDisplayName(), localization.getDisplayName());
+        String fallbackName = firstDisplayName(
+                foodItem.getShortDisplayName(), foodItem.getDisplayName(), foodItem.getName());
+        return localizedName != null ? localizedName : fallbackName;
+    }
+
+    private String firstDisplayName(String... candidates) {
+        for (String candidate : candidates) {
+            String normalized = FoodProductNormalizationRules.normalizeProductDisplayName(candidate);
+            if (normalized != null && !normalized.isBlank()) {
+                return normalized;
+            }
+        }
+        return "";
     }
 
     private Double averageWeight(List<ProgressLogEntity> logs) {

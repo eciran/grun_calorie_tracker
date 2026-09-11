@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.*;
 import com.grun.calorietracker.enums.MealReminderOccurrenceStatus;
 import com.grun.calorietracker.enums.MealReminderOutboxStatus;
 import com.grun.calorietracker.repository.*;
+import com.grun.calorietracker.service.NotificationDefinitionPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ public class MealReminderReservationService {
     private final NotificationRepository notificationRepository;
     private final MealReminderOutboxRepository outboxRepository;
     private final MealReminderPolicyFactory policyFactory;
+    private final NotificationDefinitionPolicy definitionPolicy;
 
     @Transactional
     public ReservationResult reserve(UserEntity user, MealReminderDecision decision, Instant now) {
@@ -92,6 +94,12 @@ public class MealReminderReservationService {
         notification.setVisibleInApp(true);
         notification.setIsRead(false);
         notification.setCreatedAt(java.time.LocalDateTime.ofInstant(now, java.time.ZoneOffset.UTC));
+        NotificationDefinitionPolicy.NotificationPresentation managed = definitionPolicy.presentation(
+                notification, definitionPolicy.find(decision.message().definitionKey()), decision.safeParameters());
+        notification.setTitle(managed.title());
+        notification.setMessage(managed.message());
+        notification.setSeverity(managed.severity());
+        notification.setTargetRoute(managed.targetRoute());
         return notification;
     }
 

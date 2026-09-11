@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -88,6 +89,7 @@ class NotificationServiceImplTest {
         assertEquals("Review the change before continuing.", result.getContent().get(0).getNote());
         assertEquals("VIEW_DETAILS", result.getContent().get(0).getPrimaryAction());
         assertEquals(250, result.getContent().get(0).getActionAmountMl());
+        assertEquals(Instant.parse("2026-05-27T14:00:00Z"), result.getContent().get(0).getCreatedAt());
     }
 
     @Test

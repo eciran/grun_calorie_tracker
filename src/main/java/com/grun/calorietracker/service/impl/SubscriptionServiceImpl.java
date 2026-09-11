@@ -338,6 +338,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 entity.setStatus(SubscriptionStatus.REFUNDED);
                 entity.setEndDate(command.getEndDate() == null ? LocalDate.now() : command.getEndDate());
                 entity.setAutoRenew(false);
+                entity.setAiMonthlyQuota(0);
+                subscriptionCreditAllocationRepository.revokeForRefund(
+                        userId,
+                        providerName(command),
+                        command.getProviderTransactionId(),
+                        command.getProviderOriginalTransactionId(),
+                        command.getProviderEventId(),
+                        "CUSTOMER_SUPPORT",
+                        command.getProviderEventAt() == null ? Instant.now() : command.getProviderEventAt());
             }
         } else if (command.getAiAddonQuotaAmount() != null && command.getAiAddonQuotaAmount() > 0) {
             if (entity.getPlanType() == SubscriptionPlan.FREE || !isActiveEntitlement(entity.getStatus(), entity.getEndDate())) {
@@ -349,6 +358,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             entity.setAiAddonQuotaExpiresAt(maxDate(entity.getAiAddonQuotaExpiresAt(), expiresAt));
         } else if (command.getPlanType() != null && command.getStatus() != null) {
             refreshEntitlements = true;
+            if (command.getEventType() == com.grun.calorietracker.enums.RevenueCatEventType.REFUND_REVERSED) {
+                subscriptionCreditAllocationRepository.restoreAfterRefundReversal(
+                        userId,
+                        providerName(command),
+                        command.getProviderTransactionId(),
+                        command.getProviderOriginalTransactionId());
+            }
             boolean newAllocation = reservePlanCreditAllocation(userId, command);
             entity.setPlanType(command.getPlanType());
             entity.setStatus(command.getStatus());
@@ -856,6 +872,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return command.getAiAddonValidityDays() == null || command.getAiAddonValidityDays() <= 0
                 ? 30
                 : command.getAiAddonValidityDays();
+    }
+
+    private String providerName(SubscriptionProviderEventCommand command) {
+        return (command.getProvider() == null ? PaymentProvider.REVENUECAT : command.getProvider()).name();
     }
 
     private boolean reservePlanCreditAllocation(Long userId, SubscriptionProviderEventCommand command) {

@@ -244,12 +244,26 @@ class FoodItemControllerTest {
         FoodProductDto product = new FoodProductDto();
         product.setId(3L);
         product.setProductName("Greek yogurt");
-        when(userProductLibraryService.getRecentProducts("user@test.com", 10)).thenReturn(List.of(product));
+        when(userProductLibraryService.getRecentProducts("user@test.com", 10, PreferredLanguage.EN)).thenReturn(List.of(product));
 
         mockMvc.perform(get("/api/v1/products/recent"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(3L))
                 .andExpect(jsonPath("$[0].productName").value("Greek yogurt"));
+
+        verify(userProductLibraryService).getRecentProducts("user@test.com", 10, PreferredLanguage.EN);
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void getRecentProducts_whenTurkishRequested_passesLanguageToService() throws Exception {
+        when(userProductLibraryService.getRecentProducts("user@test.com", 10, PreferredLanguage.TR))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/products/recent").param("language", "TR"))
+                .andExpect(status().isOk());
+
+        verify(userProductLibraryService).getRecentProducts("user@test.com", 10, PreferredLanguage.TR);
     }
 
     @Test

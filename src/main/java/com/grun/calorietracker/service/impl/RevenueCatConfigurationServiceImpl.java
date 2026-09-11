@@ -93,7 +93,7 @@ public class RevenueCatConfigurationServiceImpl implements RevenueCatConfigurati
         String productId = request.getProductId();
 
         return switch (eventType) {
-            case INITIAL_PURCHASE, RENEWAL, UNCANCELLATION -> validateSubscriptionMapping(productId, entitlementIds);
+            case INITIAL_PURCHASE, RENEWAL, UNCANCELLATION, REFUND_REVERSED -> validateSubscriptionMapping(productId, entitlementIds);
             case NON_RENEWING_PURCHASE -> validateAiAddonMapping(productId);
             case UNKNOWN -> response(false, "FAILED", null, null, null, "Unknown RevenueCat event type.");
             default -> response(true, "IGNORED", null, null, null, "Event type does not change backend entitlement state.");

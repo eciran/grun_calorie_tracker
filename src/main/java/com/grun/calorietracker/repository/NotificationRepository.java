@@ -24,5 +24,6 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     Optional<NotificationEntity> findTopByUserAndSourceInOrderByCreatedAtDesc(
             UserEntity user, List<String> sources);
     long countByTypeAndCreatedAtAfter(String type, LocalDateTime createdAt);
+    long countByUserAndSourceAndCreatedAtAfter(UserEntity user, String source, LocalDateTime createdAt);
     long deleteByUser(UserEntity user);
 }

@@ -23,7 +23,7 @@ public class AiNutritionPlanMealDto {
     private String summary;
 
     @NotEmpty
-    @Size(max = 12)
+    @Size(max = 6)
     @Valid
     private List<AiNutritionPlanItemDto> items = new ArrayList<>();
 

@@ -30,6 +30,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -41,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/v1/recipes")
@@ -184,6 +186,7 @@ public class RecipeController {
     public ResponseEntity<Resource> getRecipeImage(@PathVariable String filename) {
         Resource resource = recipeImageService.loadRecipeImage(filename);
         return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
                 .contentType(mediaType(filename))
                 .body(resource);
     }

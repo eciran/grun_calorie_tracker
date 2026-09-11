@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.FoodLogRecentPortionDto;
 import com.grun.calorietracker.dto.FoodLogsDto;
 import com.grun.calorietracker.dto.QuickCalorieLogRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -18,9 +19,11 @@ import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.FoodServingOptionSource;
 import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
@@ -54,6 +57,8 @@ class FoodLogsServiceImplTest {
     private FoodLogsRepository foodLogsRepository;
     @Mock
     private FoodItemRepository foodItemRepository;
+    @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
     @Mock
     private RecipeLogRepository recipeLogRepository;
     @Mock
@@ -169,6 +174,64 @@ class FoodLogsServiceImplTest {
         assertNotNull(foodItem.getReviewPriority());
         verify(foodLogsRepository, times(1)).save(any(FoodLogsEntity.class));
         verify(foodItemRepository).save(foodItem);
+    }
+
+    @Test
+    void getFoodLogById_usesTurkishLocalizedNameInsteadOfCanonicalSourceName() {
+        user.setPreferredLanguage(PreferredLanguage.TR);
+        foodItem.setName("Peaches, yellow, raw");
+        foodItem.setDisplayName("Yellow Peach");
+        foodItem.setShortDisplayName("Raw Peach");
+
+        FoodItemLocalizationEntity localization = new FoodItemLocalizationEntity();
+        localization.setFoodItem(foodItem);
+        localization.setLanguage(PreferredLanguage.TR);
+        localization.setDisplayName("Şeftali");
+        localization.setShortDisplayName("Şeftali");
+        localization.setActive(true);
+
+        FoodLogsEntity existingLog = new FoodLogsEntity();
+        existingLog.setId(42L);
+        existingLog.setUser(user);
+        existingLog.setFoodItem(foodItem);
+        existingLog.setDisplayName("Peaches, yellow, raw");
+        existingLog.setLogDate(LocalDateTime.of(2026, 9, 6, 21, 15));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(42L, user)).thenReturn(Optional.of(existingLog));
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(1L, PreferredLanguage.TR))
+                .thenReturn(Optional.of(localization));
+
+        FoodLogsDto result = foodLogsService.getFoodLogById(42L, "test@test.com");
+
+        assertEquals("Şeftali", result.getFoodName());
+        assertEquals("Şeftali", result.getDisplayName());
+        assertNotEquals("Peaches, yellow, raw", result.getFoodName());
+    }
+
+    @Test
+    void getFoodLogById_withoutLocalization_usesProfessionalShortNameBeforeCanonicalName() {
+        user.setPreferredLanguage(PreferredLanguage.EN);
+        foodItem.setName("Peaches, yellow, raw");
+        foodItem.setDisplayName("Yellow Peach");
+        foodItem.setShortDisplayName("Raw Peach");
+
+        FoodLogsEntity existingLog = new FoodLogsEntity();
+        existingLog.setId(43L);
+        existingLog.setUser(user);
+        existingLog.setFoodItem(foodItem);
+        existingLog.setLogDate(LocalDateTime.of(2026, 9, 6, 21, 15));
+
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(43L, user)).thenReturn(Optional.of(existingLog));
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(1L, PreferredLanguage.EN))
+                .thenReturn(Optional.empty());
+
+        FoodLogsDto result = foodLogsService.getFoodLogById(43L, "test@test.com");
+
+        assertEquals("Raw Peach", result.getFoodName());
+        assertEquals("Raw Peach", result.getDisplayName());
+        assertNotEquals("Peaches, yellow, raw", result.getFoodName());
     }
 
     @Test

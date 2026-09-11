@@ -103,12 +103,20 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.nutrition.properties.vitaminA").doesNotExist())
                 .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.nutrition.properties.fiber").exists())
                 .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.groceryName").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.unit.enum.length()").value(4))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.unit.enum[0]").value("GRAM"))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.unit.enum[1]").value("MILLILITER"))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.unit.enum[2]").value("TABLESPOON"))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.unit.enum[3]").value("TEASPOON"))
                 .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.items.properties.items.items.properties.preparationMethod.enum[6]").value("BAKED"))
                 .andExpect(jsonPath("$.input[0].content[0].text")
                         .value(org.hamcrest.Matchers.containsString("Request type: AI_NUTRITION_PLAN")))
                 .andExpect(jsonPath("$.input[1].content[0].text")
                         .value(org.hamcrest.Matchers.containsString(
                                 "fat target=60.0 preferredRange=45.0..75.0 hardRange=24.0..96.0")))
+                .andExpect(jsonPath("$.input[1].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString(
+                                "Use GRAM for solid foods and MILLILITER for liquids")))
                 .andRespond(withSuccess(outputTextResponse("{}"), MediaType.APPLICATION_JSON));
 
         AiNutritionPlanDraftResponseDto response = client.createNutritionPlanDraft(request);

@@ -76,6 +76,7 @@ public class RevenueCatLifecycleNotificationService {
             case BILLING_ISSUE -> NotificationEventType.SUBSCRIPTION_BILLING_ISSUE;
             case PRODUCT_CHANGE -> NotificationEventType.SUBSCRIPTION_PLAN_CHANGED;
             case SUBSCRIPTION_PAUSED -> NotificationEventType.SUBSCRIPTION_PAUSED;
+            case REFUND_REVERSED -> NotificationEventType.SUBSCRIPTION_RESUMED;
             case NON_RENEWING_PURCHASE -> NotificationEventType.AI_ADDON_PURCHASED;
             case TRANSFER, UNKNOWN -> null;
         };

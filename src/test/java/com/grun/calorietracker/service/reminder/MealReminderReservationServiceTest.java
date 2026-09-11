@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.MealReminderDailyBudgetEntity;
 import com.grun.calorietracker.entity.MealReminderOccurrenceEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.*;
+import com.grun.calorietracker.service.NotificationDefinitionPolicy;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -65,15 +66,16 @@ class MealReminderReservationServiceTest {
         final NotificationRepository notifications = mock(NotificationRepository.class);
         final MealReminderOutboxRepository outboxes = mock(MealReminderOutboxRepository.class);
         final MealReminderPolicyFactory policyFactory = mock(MealReminderPolicyFactory.class);
+        final NotificationDefinitionPolicy definitionPolicy = mock(NotificationDefinitionPolicy.class);
         final UserEntity user = new UserEntity();
         final MealReminderReservationService service = new MealReminderReservationService(
-                properties, budgets, occurrences, notifications, outboxes, policyFactory);
+                properties, budgets, occurrences, notifications, outboxes, policyFactory, definitionPolicy);
 
         Fixture() { user.setId(11L); when(policyFactory.current()).thenReturn(new MealReminderPolicy(
                 "test", MealReminderContract.Mode.PILOT, true, true, MealReminderContract.DEFAULT_TIMES,
                 MealReminderContract.MAX_SLOT_AGE, 3, 3, 1, MealReminderContract.MIN_MEAL_REMINDER_GAP,
                 MealReminderContract.ROUTINE_REMINDER_GAP, MealReminderContract.DEFAULT_QUIET_START,
-                MealReminderContract.DEFAULT_QUIET_END)); }
+                MealReminderContract.DEFAULT_QUIET_END)); when(definitionPolicy.presentation(any(),isNull(),any())).thenAnswer(invocation->{var notification=(com.grun.calorietracker.entity.NotificationEntity)invocation.getArgument(0);return new NotificationDefinitionPolicy.NotificationPresentation(notification.getTitle(),notification.getMessage(),notification.getSeverity(),notification.getTargetRoute());}); }
 
         MealReminderDecision decision() {
             return new MealReminderDecision(

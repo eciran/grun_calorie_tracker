@@ -12,7 +12,9 @@ import com.grun.calorietracker.dto.SubscriptionProviderEventCommand;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
+import com.grun.calorietracker.entity.UserConsentEntity;
 import com.grun.calorietracker.entity.UserEntity;
+import com.grun.calorietracker.enums.LegalConsentType;
 import com.grun.calorietracker.enums.PaymentProvider;
 import com.grun.calorietracker.enums.RevenueCatEventType;
 import com.grun.calorietracker.enums.SubscriptionPlan;
@@ -24,6 +26,7 @@ import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.UserConsentRepository;
 import com.grun.calorietracker.service.RevenueCatWebhookService;
 import com.grun.calorietracker.service.PromoProviderRedemptionService;
 import com.grun.calorietracker.service.SubscriptionService;
@@ -47,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,6 +72,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     private final PromoProviderRedemptionService promoProviderRedemptionService;
     private final RevenueCatLifecycleNotificationService lifecycleNotificationService;
     @Autowired(required = false) private PushDeliveryService pushDeliveryService;
+    @Autowired(required = false) private UserConsentRepository userConsentRepository;
 
     @Override
     @Transactional
@@ -108,6 +113,17 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         SubscriptionProviderEventEntity audit = existingEvent.orElseGet(() -> buildAuditEvent(event, providerEventId, payload));
         audit.setProcessingError(null);
         try {
+            RevenueCatEventType eventType = RevenueCatEventType.from(event.getType());
+            if (eventType == RevenueCatEventType.TRANSFER) {
+                Optional<Long> destinationUserId = resolveUniqueBackendUserId(event.getTransferredTo());
+                destinationUserId.flatMap(userRepository::findById).ifPresent(audit::setUser);
+                destinationUserId.map(id -> "user:" + id).ifPresent(audit::setProviderAppUserId);
+                audit.setStatus(SubscriptionProviderEventStatus.IGNORED);
+                audit.setProcessedAt(LocalDateTime.now());
+                eventRepository.save(audit);
+                return new RevenueCatWebhookResponseDto(true, false, providerEventId, "IGNORED",
+                        "RevenueCat transfer event recorded; entitlement changes are applied by lifecycle purchase events.");
+            }
             Optional<UserEntity> user = resolveUser(event);
             if (user.isEmpty()) {
                 audit.setStatus(SubscriptionProviderEventStatus.FAILED);
@@ -120,6 +136,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             audit.setUser(user.get());
             assertRevenueCatCustomerBinding(user.get(), event);
             SubscriptionEntity previousSubscription = subscriptionRepository.findByUser(user.get()).orElse(null);
+            captureRefundEvidence(audit, user.get(), previousSubscription, eventType);
             SubscriptionPlan previousPlan = previousSubscription == null ? SubscriptionPlan.FREE : previousSubscription.getPlanType();
             SubscriptionStatus previousStatus = previousSubscription == null ? null : previousSubscription.getStatus();
             SubscriptionProviderEventCommand command = toCommand(event, providerEventId);
@@ -253,6 +270,13 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         audit.setEntitlementIds(String.join(",", entitlementIds(event)));
         audit.setTransactionId(event.getTransactionId());
         audit.setOriginalTransactionId(event.getOriginalTransactionId());
+        audit.setPeriodType(event.getPeriodType());
+        audit.setEnvironment(event.getEnvironment());
+        audit.setCancelReason(event.getCancelReason());
+        audit.setExpirationReason(event.getExpirationReason());
+        audit.setProviderEventAt(toInstant(event.getEventTimestampMs()));
+        audit.setPurchasedAt(toInstant(event.getPurchasedAtMs()));
+        audit.setExpirationAt(toInstant(event.getExpirationAtMs()));
         audit.setStatus(SubscriptionProviderEventStatus.FAILED);
         audit.setRawPayload(payload.toString());
         audit.setReceivedAt(LocalDateTime.now());
@@ -260,24 +284,79 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     }
 
     private Optional<UserEntity> resolveUser(RevenueCatWebhookEventDto.Event event) {
-        Long appUserId = parseAppUserId(event.getAppUserId());
-        Long originalAppUserId = parseAppUserId(event.getOriginalAppUserId());
-        if (appUserId == null && originalAppUserId == null) {
-            return Optional.empty();
+        Long currentUserId = parseBackendUserId(event.getAppUserId());
+        if (currentUserId != null) {
+            return userRepository.findById(currentUserId);
         }
-        if (appUserId != null && originalAppUserId != null && !appUserId.equals(originalAppUserId)) {
-            throw new IllegalArgumentException("RevenueCat app_user_id and original_app_user_id refer to different users.");
-        }
-        return userRepository.findById(appUserId == null ? originalAppUserId : appUserId);
+
+        List<String> fallbackIds = Stream.concat(
+                        Stream.of(event.getOriginalAppUserId()),
+                        event.getAliases() == null ? Stream.empty() : event.getAliases().stream())
+                .toList();
+        return resolveUniqueBackendUserId(fallbackIds).flatMap(userRepository::findById);
     }
 
-    private Long parseAppUserId(String value) {
+    private void captureRefundEvidence(SubscriptionProviderEventEntity audit,
+                                       UserEntity user,
+                                       SubscriptionEntity subscription,
+                                       RevenueCatEventType eventType) {
+        boolean isRefundEvent = eventType == RevenueCatEventType.REFUND_REVERSED
+                || (eventType == RevenueCatEventType.CANCELLATION
+                && REFUND_CANCEL_REASON.equalsIgnoreCase(audit.getCancelReason()));
+        if (!isRefundEvent) {
+            return;
+        }
+
+        if (userConsentRepository != null) {
+            Optional<UserConsentEntity> latestConsent = userConsentRepository
+                    .findByUserAndConsentTypeOrderByCreatedAtDesc(user, LegalConsentType.APPLE_REFUND_CONSUMPTION_SHARING)
+                    .stream()
+                    .findFirst();
+            latestConsent.ifPresent(consent -> {
+                audit.setAppleRefundConsentStatus(consent.getStatus() == null ? null : consent.getStatus().name());
+                audit.setAppleRefundConsentVersion(consent.getVersion());
+            });
+        }
+
+        boolean delivered = subscription != null
+                && subscription.getPlanType() != null
+                && subscription.getPlanType() != SubscriptionPlan.FREE;
+        boolean active = delivered
+                && (subscription.getStatus() == SubscriptionStatus.ACTIVE
+                || subscription.getStatus() == SubscriptionStatus.TRIALING)
+                && (subscription.getEndDate() == null || !subscription.getEndDate().isBefore(LocalDate.now()));
+        audit.setEntitlementDeliveredSnapshot(delivered);
+        audit.setEntitlementActiveSnapshot(active);
+        if (subscription != null) {
+            audit.setPlanQuotaSnapshot(subscription.getAiMonthlyQuota());
+            audit.setPlanUsedSnapshot(subscription.getAiPlanUsedThisPeriod());
+            audit.setAddonQuotaSnapshot(subscription.getAiAddonQuota());
+            audit.setAddonUsedSnapshot(subscription.getAiAddonUsed());
+        }
+    }
+
+    private Optional<Long> resolveUniqueBackendUserId(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return Optional.empty();
+        }
+        List<Long> userIds = values.stream()
+                .map(this::parseBackendUserId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (userIds.size() > 1) {
+            throw new IllegalArgumentException("RevenueCat customer references multiple backend users.");
+        }
+        return userIds.stream().findFirst();
+    }
+
+    private Long parseBackendUserId(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         Matcher matcher = APP_USER_ID.matcher(value.trim());
         if (!matcher.matches()) {
-            throw new IllegalArgumentException("RevenueCat app_user_id must use the backend-issued user:<id> format.");
+            return null;
         }
         return Long.parseLong(matcher.group(1));
     }
@@ -332,6 +411,20 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 command.setStatus(SubscriptionStatus.EXPIRED);
                 command.setEndDate(toLocalDate(firstNonNull(event.getExpirationAtMs(), event.getEventTimestampMs())));
                 command.setAutoRenew(false);
+                return command;
+            }
+            case REFUND_REVERSED -> {
+                SubscriptionPlan plan = resolvePlan(event);
+                if (plan == null) {
+                    failStrictProductMapping(event, "Refund-reversed product or entitlement is not mapped to PLUS or PRO.");
+                    return null;
+                }
+                command.setPlanType(plan);
+                command.setStatus(SubscriptionStatus.ACTIVE);
+                command.setStartDate(toLocalDate(firstNonNull(event.getPurchasedAtMs(), event.getEventTimestampMs())));
+                command.setEndDate(toLocalDate(event.getExpirationAtMs()));
+                command.setAutoRenew(true);
+                command.setGrantPlanCreditAllocation(false);
                 return command;
             }
             case BILLING_ISSUE -> {

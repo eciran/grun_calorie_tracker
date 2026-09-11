@@ -3,7 +3,7 @@ package com.grun.calorietracker.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Schema(description = "User notification entry.")
@@ -21,5 +21,6 @@ public class NotificationDto {
     private String targetId;
     private String targetRoute;
     private Boolean read;
-    private LocalDateTime createdAt;
+    @Schema(description = "UTC creation timestamp with an explicit offset.", example = "2026-09-06T14:11:00Z")
+    private Instant createdAt;
 }

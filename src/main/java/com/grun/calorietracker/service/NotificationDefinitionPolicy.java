@@ -81,6 +81,11 @@ public class NotificationDefinitionPolicy {
         String messageTemplate = language == PreferredLanguage.TR ? definition.getMessageTr() : definition.getMessageEn();
         String title = titleTemplate == null || titleTemplate.isBlank() ? originalTitle : render(titleTemplate, originalTitle, originalMessage, notification.getNote(), parameters);
         String message = messageTemplate == null || messageTemplate.isBlank() ? originalMessage : render(messageTemplate, originalTitle, originalMessage, notification.getNote(), parameters);
+        // Orchestrated notifications are persisted with their parameters already rendered.
+        // A later list/push read does not carry those parameters, so never replace good
+        // persisted copy with a template that still contains visible placeholders.
+        if (hasUnresolvedPlaceholder(title)) title = originalTitle;
+        if (hasUnresolvedPlaceholder(message)) message = originalMessage;
         String severity = definition.getSeverity() == null || definition.getSeverity().isBlank() ? notification.getSeverity() : definition.getSeverity();
         String route = definition.getTargetRoute() == null || definition.getTargetRoute().isBlank() ? notification.getTargetRoute() : definition.getTargetRoute();
         return new NotificationPresentation(title, message, severity, route);
@@ -101,6 +106,10 @@ public class NotificationDefinitionPolicy {
             }
         }
         return rendered;
+    }
+
+    private boolean hasUnresolvedPlaceholder(String value) {
+        return value != null && value.matches(".*\\{[A-Za-z][A-Za-z0-9_]*}.*");
     }
 
     public record NotificationPresentation(String title, String message, String severity, String targetRoute) {}

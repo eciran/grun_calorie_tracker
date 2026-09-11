@@ -140,6 +140,59 @@ class GoldenFoodSearchQualityGateTest {
         assertTrue(metrics.p95Milliseconds() <= MAX_P95_MILLISECONDS, failureMessage("search p95", metrics));
     }
 
+    @Test
+    void searchMakesImportedInternalReviewProductsDiscoverableAcrossRegions() {
+        FoodItemEntity candidate = product(
+                "Unreviewed Imported Granola",
+                "EU:TEST:UNREVIEWED_GRANOLA",
+                VerificationStatus.RAW_IMPORTED
+        );
+        candidate.setPublicationStatus(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW);
+        candidate.setMarketRegion(MarketRegion.EU);
+        candidate.setUsageCount(25L);
+        foodItemRepository.save(candidate);
+
+        FoodProductQualityIssueEntity warning = new FoodProductQualityIssueEntity();
+        warning.setFoodItem(candidate);
+        warning.setIssueType(FoodProductQualityIssue.SUSPICIOUS_MACROS);
+        warning.setIdentifier(candidate.getSourceKey());
+        warning.setReason("Visible search warning");
+        warning.setResolved(false);
+        foodProductQualityIssueRepository.save(warning);
+
+        FoodItemEntity rejected = product(
+                "Unreviewed Imported Granola Rejected",
+                "EU:TEST:REJECTED_GRANOLA",
+                VerificationStatus.REJECTED
+        );
+        rejected.setPublicationStatus(com.grun.calorietracker.enums.CatalogPublicationStatus.HIDDEN);
+        rejected.setMarketRegion(MarketRegion.EU);
+        foodItemRepository.save(rejected);
+        entityManager.flush();
+        entityManager.clear();
+
+        FoodItemServiceImpl service = new FoodItemServiceImpl(
+                foodItemRepository,
+                foodItemLocalizationRepository,
+                foodItemServingOptionRepository,
+                foodItemServingOptionLocalizationRepository,
+                Mockito.mock(OpenFoodFactsService.class),
+                new FoodProductQualityIssueTracker(foodProductQualityIssueRepository),
+                Mockito.mock(FoodProductEvidenceService.class),
+                Mockito.mock(CatalogPublicationService.class)
+        );
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("unreviewed imported granola");
+        criteria.setMarketRegion(MarketRegion.TR);
+        criteria.setPreferredLanguage(PreferredLanguage.TR);
+
+        FoodProductSearchPageDto result = service.searchFoodItems(criteria, 0, 20);
+
+        assertTrue(result.getContent().stream().anyMatch(item -> candidate.getSourceKey().equals(item.getSourceKey())));
+        assertTrue(result.getContent().stream().noneMatch(item -> rejected.getSourceKey().equals(item.getSourceKey())));
+        assertEquals(candidate.getId(), service.getFoodItemById(candidate.getId(), "user@example.com").getId());
+    }
+
     private GoldenFixture readFixture(ObjectMapper objectMapper) throws Exception {
         try (InputStream input = new ClassPathResource("golden-food-search-v1.json").getInputStream()) {
             return objectMapper.readValue(input, GoldenFixture.class);

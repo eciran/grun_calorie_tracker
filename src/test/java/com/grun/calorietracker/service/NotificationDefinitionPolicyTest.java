@@ -10,6 +10,7 @@ import com.grun.calorietracker.repository.NotificationDefinitionRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -61,6 +62,21 @@ class NotificationDefinitionPolicyTest {
         assertTrue(pushAllowed);
         assertFalse(notification.getVisibleInApp());
         assertEquals("Original title", notification.getTitle());
+    }
+
+    @Test
+    void presentation_withoutOccurrenceParametersPreservesResolvedStoredCopy() {
+        NotificationEntity notification = notification(new UserEntity());
+        notification.setTitle("Subscription renewed");
+        notification.setMessage("Your Pro subscription renewed successfully.");
+        NotificationDefinitionEntity definition = definition(true, NotificationCampaignChannel.IN_APP);
+        definition.setTitleEn("Subscription renewed");
+        definition.setMessageEn("Your {planName} subscription has been renewed. It ends on {periodEndDate}.");
+
+        var presentation = policy.presentation(notification, definition, Map.of());
+
+        assertEquals("Subscription renewed", presentation.title());
+        assertEquals("Your Pro subscription renewed successfully.", presentation.message());
     }
 
     @Test

@@ -88,7 +88,8 @@ public class FoodServingOptionServiceImpl implements FoodServingOptionService {
         if (product.getPublicationStatus() == null) {
             return !Boolean.TRUE.equals(product.getIsCustom()) || isOwnedBy(product, email);
         }
-        if (product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) {
+        if (product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED
+                || product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW) {
             return true;
         }
         if (product.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PRIVATE_USER) {

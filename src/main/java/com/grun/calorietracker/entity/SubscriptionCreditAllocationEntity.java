@@ -38,4 +38,10 @@ public class SubscriptionCreditAllocationEntity {
     private String firstProviderEventId;
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+    @Column(name = "revoked_by_event_id", length = 255)
+    private String revokedByEventId;
+    @Column(name = "revocation_reason", length = 80)
+    private String revocationReason;
 }

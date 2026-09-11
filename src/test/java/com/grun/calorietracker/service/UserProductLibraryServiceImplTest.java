@@ -3,12 +3,15 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFavoriteEntity;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.MealTemplateItemRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
@@ -42,6 +45,8 @@ class UserProductLibraryServiceImplTest {
     @Mock
     private FoodItemRepository foodItemRepository;
     @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
+    @Mock
     private FoodLogsRepository foodLogsRepository;
     @Mock
     private MealTemplateItemRepository mealTemplateItemRepository;
@@ -65,6 +70,35 @@ class UserProductLibraryServiceImplTest {
         List<FoodProductDto> result = service.getRecentProducts("user@test.com", 10);
 
         assertEquals(List.of("Latest", "Earlier"), result.stream().map(FoodProductDto::getProductName).toList());
+    }
+
+    @Test
+    void getRecentProducts_usesRequestedTurkishLocalization() {
+        UserEntity user = user();
+        user.setPreferredLanguage(PreferredLanguage.TR);
+        FoodItemEntity peach = product(8L, "Peaches, yellow, raw");
+        peach.setDisplayName("Yellow Peach");
+        peach.setShortDisplayName("Raw Peach");
+        FoodItemLocalizationEntity localization = new FoodItemLocalizationEntity();
+        localization.setFoodItem(peach);
+        localization.setLanguage(PreferredLanguage.TR);
+        localization.setDisplayName("Şeftali");
+        localization.setShortDisplayName("Şeftali");
+        localization.setActive(true);
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findRecentAvailableFoodItemIds(eq(1L), eq("REJECTED"), eq(null), any(Pageable.class)))
+                .thenReturn(List.of(8L));
+        when(foodItemRepository.findAllById(List.of(8L))).thenReturn(List.of(peach));
+        when(foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(
+                eq(List.of(8L)), eq(java.util.Set.of(PreferredLanguage.TR, PreferredLanguage.EN))))
+                .thenReturn(List.of(localization));
+
+        List<FoodProductDto> result = service.getRecentProducts("user@test.com", 10, PreferredLanguage.TR);
+
+        assertEquals("Şeftali", result.get(0).getProductName());
+        assertEquals("Şeftali", result.get(0).getDisplayName());
+        assertEquals(PreferredLanguage.TR, result.get(0).getLanguage());
     }
 
     @Test

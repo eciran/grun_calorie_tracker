@@ -20,6 +20,8 @@ assert.match(view, /Meal log within 2h/, "Release monitoring must expose the con
 assert.match(view, /Reminder opt-out/, "Release monitoring must expose opt-out rate.");
 assert.match(view, /correlation only/, "Admin metrics must not claim causality.");
 assert.match(view, /Admin\/browser time:[\s\S]*Example user-local time:/, "Admin and user-local time must be compared.");
+assert.match(view, /Breakfast time \(user local\)[\s\S]*Lunch time \(user local\)[\s\S]*Dinner time \(user local\)/, "Policy meal times must be labelled as user-local.");
+assert.match(view, /saved IANA timezone[\s\S]*Europe\/Dublin daylight-saving[\s\S]*Europe\/Istanbul remains UTC\+3/, "Timezone and daylight-saving behavior must be explicit.");
 assert.match(view, /An earlier meal is missing,[\s\S]*meal-specific evening reminder is skipped/, "Previous-meal suppression needs friendly copy.");
 assert.match(view, /does not replay expired slots/, "Reopen must explain no-backfill behavior.");
 assert.match(view, /DataTable caption="Meal reminder decision records"/, "Decision records need accessible output.");

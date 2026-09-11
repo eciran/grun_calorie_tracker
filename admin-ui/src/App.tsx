@@ -2435,6 +2435,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRecipe, setSelectedRecipe] = useState<AdminRecipe | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftMealType, setDraftMealType] = useState("");
+  const [draftMarketRegion, setDraftMarketRegion] = useState("");
+  const [draftLanguage, setDraftLanguage] = useState("");
+  const [draftTotalYieldGrams, setDraftTotalYieldGrams] = useState("");
+  const [draftDefaultServingGrams, setDraftDefaultServingGrams] = useState("");
+  const [draftServingCount, setDraftServingCount] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
   const [draftVisibility, setDraftVisibility] = useState("");
   const [draftArchived, setDraftArchived] = useState("false");
@@ -2594,14 +2602,11 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       onError("Search with at least 2 characters.");
       return;
     }
-    const params = new URLSearchParams({ q: searchText, page: "0", size: "8" });
-    if (createForm.marketRegion) params.set("region", createForm.marketRegion);
     setActiveIngredientSearchIndex(index);
     setIngredientSearchState("loading");
     onError(null);
     try {
-      const result = await request<PageResponse<FoodProduct>>(`/api/v1/products/search?${params.toString()}`);
-      setIngredientSearchResults(result.content ?? []);
+      setIngredientSearchResults(await searchAdminRecipeMappingProducts(searchText, createForm.marketRegion));
       setIngredientSearchState("ready");
     } catch (err) {
       setIngredientSearchResults([]);
@@ -2644,15 +2649,15 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       onError("Ingredient search needs at least 2 characters.");
       return;
     }
-    const params = new URLSearchParams({ q: searchText, page: "0", size: "8" });
-    if (selectedImportCandidate?.marketRegion) params.set("region", selectedImportCandidate.marketRegion);
     setImportIngredientSearchIndex(index);
     setImportIngredientSearchState("loading");
     setImportIngredientSearchResults([]);
     onError(null);
     try {
-      const result = await request<PageResponse<FoodProduct>>(`/api/v1/products/search?${params.toString()}`);
-      setImportIngredientSearchResults(result.content ?? []);
+      setImportIngredientSearchResults(await searchAdminRecipeMappingProducts(
+        searchText,
+        selectedImportCandidate?.marketRegion
+      ));
       setImportIngredientSearchState("ready");
     } catch (err) {
       setImportIngredientSearchResults([]);
@@ -2894,6 +2899,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
   }
   function openRecipe(recipe: AdminRecipe) {
     setSelectedRecipe(recipe);
+    setDraftName(recipe.name ?? "");
+    setDraftDescription(recipe.description ?? "");
+    setDraftMealType(recipe.mealType ?? "");
+    setDraftMarketRegion(recipe.marketRegion ?? "");
+    setDraftLanguage(recipe.language ?? "");
+    setDraftTotalYieldGrams(recipe.totalYieldGrams == null ? "" : String(recipe.totalYieldGrams));
+    setDraftDefaultServingGrams(recipe.defaultServingGrams == null ? "" : String(recipe.defaultServingGrams));
+    setDraftServingCount(recipe.servingCount == null ? "" : String(recipe.servingCount));
     setDraftStatus(recipe.verificationStatus ?? "");
     setDraftVisibility(recipe.visibility ?? "");
     setDraftArchived(recipe.archived ? "true" : "false");
@@ -2907,6 +2920,8 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
 
   function closeRecipe() {
     setSelectedRecipe(null);
+    setDraftName("");
+    setDraftDescription("");
     setDraftImageUrl("");
     setDraftImageStatus("");
     setDraftImageSource("");
@@ -2926,6 +2941,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       const updated = await request<AdminRecipe>(`/api/v1/admin/recipes/${selectedRecipe.id}/review`, {
         method: "PATCH",
         body: {
+          name: draftName.trim(),
+          description: draftDescription,
+          mealType: draftMealType || null,
+          marketRegion: draftMarketRegion || null,
+          language: draftLanguage || null,
+          totalYieldGrams: numericOrNull(draftTotalYieldGrams),
+          defaultServingGrams: numericOrNull(draftDefaultServingGrams),
+          servingCount: numericOrNull(draftServingCount),
           verificationStatus: draftStatus || null,
           visibility: draftVisibility || null,
           archived: draftArchived === "true",
@@ -2941,6 +2964,56 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       await reload();
       closeRecipe();
       setSavedNotice("Saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRecipeFromDiscover() {
+    if (!selectedRecipe?.id || saving) return;
+    setSaving(true);
+    onError(null);
+    try {
+      await request<AdminRecipe>(`/api/v1/admin/recipes/${selectedRecipe.id}/review`, {
+        method: "PATCH",
+        body: {
+          verificationStatus: "NEEDS_REVIEW",
+          visibility: "PRIVATE",
+          archived: false,
+          reviewNote: reviewNote || "Removed from public recipe discovery by admin."
+        }
+      });
+      await reload();
+      closeRecipe();
+      setSavedNotice("Removed from Discover");
+      window.setTimeout(() => setSavedNotice(null), 2200);
+    } catch (err) {
+      onError(formatRequestError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleRecipeArchive() {
+    if (!selectedRecipe?.id || saving) return;
+    const restoring = Boolean(selectedRecipe.archived);
+    setSaving(true);
+    onError(null);
+    try {
+      if (restoring) {
+        await request<AdminRecipe>(`/api/v1/admin/recipes/${selectedRecipe.id}/review`, {
+          method: "PATCH",
+          body: { archived: false, visibility: "PRIVATE", verificationStatus: "NEEDS_REVIEW", reviewNote: "Restored by admin." }
+        });
+      } else {
+        await request<void>(`/api/v1/admin/recipes/${selectedRecipe.id}`, { method: "DELETE" });
+      }
+      await reload();
+      closeRecipe();
+      setSavedNotice(restoring ? "Recipe restored as private" : "Recipe archived");
       window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
       onError(formatRequestError(err));
@@ -3197,7 +3270,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                               </div>
                             </label>
                             <div className="ingredient-search-results recipe-import-product-results">
-                              {importIngredientSearchState === "idle" && <span>Change the suggested query if the catalog uses a different product name.</span>}
+                              {importIngredientSearchState === "idle" && <span>Search covers all shared admin catalog regions and review states. Product ID, region, publication, and verification state are shown in each result.</span>}
                               {importIngredientSearchState === "loading" && <span>Searching products...</span>}
                               {importIngredientSearchState === "ready" && importIngredientSearchResults.length === 0 && <span>No product found for this search. Try another name or map a known product ID.</span>}
                               {importIngredientSearchResults.map((product) => (
@@ -3571,7 +3644,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
       </CollapsiblePanel>
 
       <DataTable
-        columns={["Recipe", "Owner", "State", "Engagement", "Nutrition"]}
+        columns={["Recipe", "Owner", "State", "Engagement", "Nutrition", "Actions"]}
         rows={rows.map((recipe) => [
           <div className="entity-cell">
             <strong>{recipe.name ?? "-"}</strong>
@@ -3590,7 +3663,10 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
           <div className="table-stack">
             <span>{formatValue(recipe.calories)} kcal</span>
             <small>{formatValue(recipe.totalYieldGrams)} g total | P {formatValue(recipe.protein)} / C {formatValue(recipe.carbs)} / F {formatValue(recipe.fat)}</small>
-          </div>
+          </div>,
+          <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); openRecipe(recipe); }}>
+            Edit / moderate
+          </button>
         ])}
         rowData={rows}
         onRowClick={openRecipe}
@@ -3613,7 +3689,7 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
             <header className="modal-header">
               <div>
                 <p className="eyebrow">Recipe review</p>
-                <h2>{selectedRecipe.name ?? "-"}</h2>
+                <h2>{draftName || selectedRecipe.name || "-"}</h2>
                 <span>{selectedRecipe.ownerEmail ?? "Unknown owner"}</span>
               </div>
               <button className="icon-button" onClick={closeRecipe} type="button" aria-label="Close">x</button>
@@ -3625,17 +3701,40 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
               <div className="product-detail-stack">
                 <div className="detail-grid editable">
                   <DetailItem label="Owner" value={selectedRecipe.ownerEmail} />
-                  <DetailItem label="Meal type" value={selectedRecipe.mealType} />
                   <DetailItem label="Visibility" value={selectedRecipe.visibility} />
-                  <DetailItem label="Region" value={selectedRecipe.marketRegion} />
                   <DetailItem label="Image status" value={selectedRecipe.imageStatus} />
                   <DetailItem label="Image source" value={selectedRecipe.imageSource} />
-                  <DetailItem label="Yield" value={`${formatValue(selectedRecipe.totalYieldGrams)} g`} />
-                  <DetailItem label="Serving" value={`${formatValue(selectedRecipe.defaultServingGrams)} g`} />
                   <DetailItem label="Saved count" value={formatValue(selectedRecipe.savedCount)} />
                   <DetailItem label="Favorite count" value={formatValue(selectedRecipe.favoriteCount)} />
                   <DetailItem label="Rating count" value={formatValue(selectedRecipe.ratingCount)} />
                   <DetailItem label="Average rating" value={(selectedRecipe.averageRating ?? 0) > 0 ? selectedRecipe.averageRating?.toFixed(1) : "-"} />
+                  <EditableDetail label="Recipe name">
+                    <input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={160} />
+                  </EditableDetail>
+                  <EditableDetail label="Meal type">
+                    <select value={draftMealType} onChange={(event) => setDraftMealType(event.target.value)}>
+                      <option value="">None</option>
+                      {MEAL_TYPES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+                    </select>
+                  </EditableDetail>
+                  <EditableDetail label="Region">
+                    <select value={draftMarketRegion} onChange={(event) => setDraftMarketRegion(event.target.value)}>
+                      <option value="">None</option>
+                      {MARKET_REGIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </EditableDetail>
+                  <EditableDetail label="Language">
+                    <input value={draftLanguage} onChange={(event) => setDraftLanguage(event.target.value)} maxLength={12} placeholder="en / tr" />
+                  </EditableDetail>
+                  <EditableDetail label="Total yield (g)">
+                    <input type="number" min="0.01" step="0.01" value={draftTotalYieldGrams} onChange={(event) => setDraftTotalYieldGrams(event.target.value)} />
+                  </EditableDetail>
+                  <EditableDetail label="Default serving (g)">
+                    <input type="number" min="0.01" step="0.01" value={draftDefaultServingGrams} onChange={(event) => setDraftDefaultServingGrams(event.target.value)} />
+                  </EditableDetail>
+                  <EditableDetail label="Serving count">
+                    <input type="number" min="1" step="1" value={draftServingCount} onChange={(event) => setDraftServingCount(event.target.value)} />
+                  </EditableDetail>
                   <EditableDetail label="Image URL">
                     <input value={draftImageUrl} onChange={(event) => setDraftImageUrl(event.target.value)} placeholder="https://..." />
                   </EditableDetail>
@@ -3670,6 +3769,9 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
                     </select>
                   </EditableDetail>
                 </div>
+                <EditableDetail label="Description">
+                  <textarea value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} maxLength={1000} placeholder="Recipe description" />
+                </EditableDetail>
                 <div className="detail-grid compact">
                   <DetailItem label="Calories" value={`${formatValue(selectedRecipe.calories)} kcal`} />
                   <DetailItem label="Protein" value={`${formatValue(selectedRecipe.protein)} g`} />
@@ -3726,6 +3828,14 @@ function RecipeAdminView({ onError }: { onError: (message: string | null) => voi
             </div>
             <footer className="modal-actions">
               <button className="ghost-button" onClick={closeRecipe} type="button">Cancel</button>
+              {(selectedRecipe.visibility === "PUBLIC_ADMIN" || draftVisibility === "PUBLIC_ADMIN") && !selectedRecipe.archived && (
+                <button className="ghost-button danger-text" disabled={saving} onClick={removeRecipeFromDiscover} type="button">
+                  Remove from Discover
+                </button>
+              )}
+              <button className="ghost-button danger-text" disabled={saving} onClick={toggleRecipeArchive} type="button">
+                {selectedRecipe.archived ? "Restore as private" : "Archive recipe"}
+              </button>
               <button
                 className="ghost-button danger-text"
                 disabled={saving}
@@ -6373,15 +6483,17 @@ function SubscriptionEventsView({ onError, targetContext, onClearTarget }: { onE
         </div>
       </Panel>
       <DataTable
-        columns={["ID", "Provider", "Event", "Product", "User", "Status", "Received", "Processed"]}
+        columns={["ID", "Provider", "Event", "Product", "User", "Environment", "Reason", "Status", "Event time", "Processed"]}
         rows={rows.map((item) => [
           <TargetAwareValue value={item.id ?? "-"} focused={isTargetMatch(focusedEventId, item.id)} />,
           item.provider ?? "-",
           item.eventType ?? item.providerEventId ?? "-",
           item.productId ?? "-",
           item.userEmail ?? item.userId ?? item.providerAppUserId ?? "-",
+          item.environment ?? "-",
+          item.cancelReason ?? item.expirationReason ?? "-",
           <Badge value={item.status} tone={subscriptionEventTone(item.status)} />,
-          formatDate(item.receivedAt),
+          formatDate(item.providerEventAt ?? item.receivedAt),
           formatDate(item.processedAt)
         ])}
         rowData={rows}
@@ -9723,7 +9835,7 @@ function ProductCell({ item }: { item: FoodProduct }) {
   return (
     <div className="entity-cell">
       <strong>{productName(item)}</strong>
-      <small>{item.brand ?? item.barcode ?? "-"}</small>
+      <small>{[item.id ? `#${item.id}` : null, item.brand ?? item.barcode ?? null].filter(Boolean).join(" | ") || "-"}</small>
     </div>
   );
 }
@@ -9764,7 +9876,7 @@ function ProductReviewModal({
           <div>
             <p className="eyebrow">Product review</p>
             <h2>{productName(item)}</h2>
-            <span>{item.brand ?? item.barcode ?? "No brand or barcode"}</span>
+            <span>{[item.id ? `Product ID #${item.id}` : null, item.brand ?? item.barcode ?? null].filter(Boolean).join(" | ") || "No brand or barcode"}</span>
           </div>
           <button className="icon-button" onClick={onClose} type="button" aria-label="Close">x</button>
         </header>
@@ -9775,6 +9887,8 @@ function ProductReviewModal({
           <div className="product-detail-stack">
             <ProductQualityWorkbench product={item} onError={onError} />
             <div className="detail-grid editable">
+              <DetailItem label="Product ID" value={formatValue(item.id)} />
+              <DetailItem label="Publication status" value={item.publicationStatus ?? "-"} />
               <EditableDetail label="Product name">
                 <input value={draft.productName} onChange={(event) => updateDraft("productName", event.target.value)} />
               </EditableDetail>
@@ -10426,7 +10540,20 @@ function SubscriptionEventModal({
           <DetailItem label="User" value={event.userEmail ?? event.userId ?? event.providerAppUserId} />
           <DetailItem label="Transaction" value={event.transactionId} />
           <DetailItem label="Original transaction" value={event.originalTransactionId} />
+          <DetailItem label="Period type" value={event.periodType} />
+          <DetailItem label="Environment" value={event.environment} />
+          <DetailItem label="Cancellation reason" value={event.cancelReason} />
+          <DetailItem label="Expiration reason" value={event.expirationReason} />
           <DetailItem label="Status" value={event.status} />
+          <DetailItem label="Provider event time" value={formatDate(event.providerEventAt)} />
+          <DetailItem label="Purchased" value={formatDate(event.purchasedAt)} />
+          <DetailItem label="Expires" value={formatDate(event.expirationAt)} />
+          <DetailItem label="Apple refund consent" value={event.appleRefundConsentStatus} />
+          <DetailItem label="Consent version" value={event.appleRefundConsentVersion} />
+          <DetailItem label="Entitlement delivered" value={formatValue(event.entitlementDeliveredSnapshot)} />
+          <DetailItem label="Entitlement active before event" value={formatValue(event.entitlementActiveSnapshot)} />
+          <DetailItem label="Plan AI usage snapshot" value={`${formatValue(event.planUsedSnapshot)} / ${formatValue(event.planQuotaSnapshot)}`} />
+          <DetailItem label="Add-on AI usage snapshot" value={`${formatValue(event.addonUsedSnapshot)} / ${formatValue(event.addonQuotaSnapshot)}`} />
           <DetailItem label="Received" value={formatDate(event.receivedAt)} />
           <DetailItem label="Processed" value={formatDate(event.processedAt)} />
         </div>
@@ -11814,9 +11941,43 @@ function productIngredientLabel(item: FoodProduct): string {
     item.marketRegion || null,
     item.catalogType || null,
     item.preparationState || null,
+    item.publicationStatus || null,
     item.verificationStatus || null
   ].filter(Boolean);
   return parts.length ? parts.join(" | ") : "Product selected";
+}
+
+async function searchAdminRecipeMappingProducts(searchText: string, preferredRegion?: string): Promise<FoodProduct[]> {
+  const verificationStatuses = ["VERIFIED", "NEEDS_REVIEW", "RAW_IMPORTED"];
+  const pages = await Promise.all(verificationStatuses.map((verificationStatus) => {
+    const params = new URLSearchParams({
+      query: searchText,
+      verificationStatus,
+      page: "0",
+      size: "25"
+    });
+    return request<PageResponse<FoodProduct>>(`/api/v1/admin/products/review?${params.toString()}`);
+  }));
+  const productsById = new Map<number | string, FoodProduct>();
+  for (const product of pages.flatMap((page) => page.content ?? [])) {
+    productsById.set(product.id ?? `${product.sourceKey ?? ""}:${productName(product)}`, product);
+  }
+  const normalizedQuery = searchText.trim().toLocaleLowerCase();
+  const verificationRank: Record<string, number> = { VERIFIED: 0, NEEDS_REVIEW: 1, RAW_IMPORTED: 2 };
+  return [...productsById.values()]
+    .sort((left, right) => {
+      const leftExact = productName(left).trim().toLocaleLowerCase() === normalizedQuery ? 0 : 1;
+      const rightExact = productName(right).trim().toLocaleLowerCase() === normalizedQuery ? 0 : 1;
+      if (leftExact !== rightExact) return leftExact - rightExact;
+      const leftRegion = left.marketRegion === preferredRegion ? 0 : left.marketRegion === "GLOBAL" ? 1 : 2;
+      const rightRegion = right.marketRegion === preferredRegion ? 0 : right.marketRegion === "GLOBAL" ? 1 : 2;
+      if (leftRegion !== rightRegion) return leftRegion - rightRegion;
+      const leftVerification = verificationRank[left.verificationStatus ?? ""] ?? 3;
+      const rightVerification = verificationRank[right.verificationStatus ?? ""] ?? 3;
+      if (leftVerification !== rightVerification) return leftVerification - rightVerification;
+      return productName(left).localeCompare(productName(right));
+    })
+    .slice(0, 20);
 }
 
 function productNutritionLabel(item: FoodProduct): string {

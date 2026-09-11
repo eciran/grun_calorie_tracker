@@ -2,8 +2,7 @@
     "version":  "golden-food-search-v1",
     "description":  "Stable search quality cases for generic staples, localization, spelling variants, preparation states and market fallbacks.",
     "defaultForbiddenSourceKeys":  [
-                                       "GOLDEN:FORBIDDEN:REJECTED",
-                                       "GOLDEN:FORBIDDEN:BLOCKED"
+                                       "GOLDEN:FORBIDDEN:REJECTED"
                                    ],
     "thresholds":  {
                        "top1Rate":  0.95,

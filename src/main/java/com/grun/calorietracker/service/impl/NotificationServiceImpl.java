@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -202,7 +203,7 @@ public class NotificationServiceImpl implements NotificationService {
         dto.setTargetId(entity.getTargetId());
         dto.setTargetRoute(presentation.targetRoute());
         dto.setRead(Boolean.TRUE.equals(entity.getIsRead()));
-        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setCreatedAt(entity.getCreatedAt() == null ? null : entity.getCreatedAt().toInstant(ZoneOffset.UTC));
         return dto;
     }
 

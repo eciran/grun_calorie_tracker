@@ -69,7 +69,7 @@ public class DailySummaryDto {
     @Schema(description = "Remaining amount for nutrients with both target and consumed values. Unknown consumption remains null and is never treated as zero.")
     private MicronutrientTotalsDto remainingMicros;
 
-    @Schema(description = "Nutrition quality score from 0 to 100 using only available protein, fiber, and sodium indicators.")
+    @Schema(description = "Nutrition quality score from 0 to 100. Protein and fiber adequacy and sodium density are evaluated against progress through the daily calorie budget; unavailable nutrients do not count as failures.")
     private Integer nutritionQualityScore;
 
     @Schema(description = "Whether protein target is reached on this summary date.", example = "true")

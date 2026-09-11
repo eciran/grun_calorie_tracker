@@ -186,9 +186,9 @@ public class FoodItemServiceImpl implements FoodItemService {
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(criteriaBuilder.equal(
-                    root.get("publicationStatus"),
-                    CatalogPublicationStatus.PUBLISHED
+            predicates.add(root.get("publicationStatus").in(
+                    CatalogPublicationStatus.PUBLISHED,
+                    CatalogPublicationStatus.INTERNAL_REVIEW
             ));
             predicates.add(criteriaBuilder.or(
                     criteriaBuilder.isNull(root.get("verificationStatus")),
@@ -198,16 +198,6 @@ public class FoodItemServiceImpl implements FoodItemService {
                     criteriaBuilder.isNull(root.get("isCustom")),
                     criteriaBuilder.isFalse(root.get("isCustom"))
             ));
-            predicates.add(criteriaBuilder.not(criteriaBuilder.exists(blockingQualityIssueSubquery(root, query, criteriaBuilder))));
-            predicates.add(criticalNutritionEligibilityPredicate(root, criteriaBuilder));
-
-            var blockedPrimaryIdsSubquery = query.subquery(Long.class);
-            var blockedPrimaryIssueRoot = blockedPrimaryIdsSubquery.from(FoodProductQualityIssueEntity.class);
-            blockedPrimaryIdsSubquery.select(blockedPrimaryIssueRoot.get("foodItem").get("id"));
-            blockedPrimaryIdsSubquery.where(
-                    criteriaBuilder.isFalse(blockedPrimaryIssueRoot.get("resolved")),
-                    blockedPrimaryIssueRoot.get("issueType").in(blockingUserSearchQualityIssues())
-            );
 
             var canonicalResolutionSubquery = query.subquery(String.class);
             var canonicalResolutionRoot = canonicalResolutionSubquery.from(FoodCanonicalResolutionEntity.class);
@@ -220,13 +210,11 @@ public class FoodItemServiceImpl implements FoodItemService {
                             root.get("canonicalFoodKey")
                     ),
                     criteriaBuilder.notEqual(resolvedPrimary, root),
-                    criteriaBuilder.equal(
-                            resolvedPrimary.get("publicationStatus"),
-                            CatalogPublicationStatus.PUBLISHED
+                    resolvedPrimary.get("publicationStatus").in(
+                            CatalogPublicationStatus.PUBLISHED,
+                            CatalogPublicationStatus.INTERNAL_REVIEW
                     ),
-                    visibleVerificationStatusPredicate(resolvedPrimary, criteriaBuilder),
-                    criticalNutritionEligibilityPredicate(resolvedPrimary, criteriaBuilder),
-                    criteriaBuilder.not(resolvedPrimary.get("id").in(blockedPrimaryIdsSubquery))
+                    visibleVerificationStatusPredicate(resolvedPrimary, criteriaBuilder)
             );
             predicates.add(criteriaBuilder.not(criteriaBuilder.exists(canonicalResolutionSubquery)));
 
@@ -329,7 +317,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("calories"), criteria.getMaxCalories()));
             }
 
-            if (criteria.getMarketRegion() != null) {
+            if (criteria.getMarketRegion() != null && searchQuery == null) {
                 List<MarketRegion> visibleRegions = expandRegionFallbacks
                         ? resolveSearchRegions(criteria.getMarketRegion())
                         : List.of(criteria.getMarketRegion());
@@ -556,14 +544,7 @@ public class FoodItemServiceImpl implements FoodItemService {
             if (coreFoodQuery) {
                 orders.add(buildDerivedProductPenalty(root, criteriaBuilder, searchQuery));
             }
-            orders.add(criteriaBuilder.asc(criteriaBuilder.length(root.get("name"))));
         }
-
-        orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
-                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.VERIFIED), 0)
-                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.NEEDS_REVIEW), 1)
-                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.RAW_IMPORTED), 2)
-                .otherwise(3)));
 
         if (searchQuery == null) {
             orders.add(buildCatalogTypeRank(root, criteriaBuilder));
@@ -581,9 +562,17 @@ public class FoodItemServiceImpl implements FoodItemService {
             orders.add(criteriaBuilder.asc(regionRank.otherwise(regions.size())));
         }
 
-        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("qualityScore"), 0)));
-        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("usageCount"), 0L)));
         orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("searchSelectionCount"), 0L)));
+        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("usageCount"), 0L)));
+        orders.add(criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.VERIFIED), 0)
+                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.NEEDS_REVIEW), 1)
+                .when(criteriaBuilder.equal(root.get("verificationStatus"), VerificationStatus.RAW_IMPORTED), 2)
+                .otherwise(3)));
+        orders.add(criteriaBuilder.desc(criteriaBuilder.coalesce(root.get("qualityScore"), 0)));
+        if (searchQuery != null) {
+            orders.add(criteriaBuilder.asc(criteriaBuilder.length(root.get("name"))));
+        }
         orders.add(criteriaBuilder.asc(root.get("name")));
         return orders;
     }
@@ -1053,7 +1042,8 @@ public class FoodItemServiceImpl implements FoodItemService {
             return !Boolean.TRUE.equals(product.getIsCustom())
                     || isOwnedBy(product, email);
         }
-        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
+        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED
+                || product.getPublicationStatus() == CatalogPublicationStatus.INTERNAL_REVIEW) {
             return true;
         }
         if (product.getPublicationStatus() != CatalogPublicationStatus.PRIVATE_USER) {

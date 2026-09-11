@@ -13,4 +13,12 @@ class MealReminderAdminSqlContractTest {
    assertFalse(sql.contains("push_token"));
   }
  }
+
+ @Test void routineCooldownConstraintMatchesThirtyMinuteProductContract() throws Exception {
+  try(var in=getClass().getResourceAsStream("/db/migration/V256__align_meal_reminder_routine_cooldown.sql")){
+   assertNotNull(in);String sql=new String(in.readAllBytes(),StandardCharsets.UTF_8).toLowerCase();
+   assertTrue(sql.contains("drop constraint if exists meal_reminder_policies_routine_gap_minutes_check"));
+   assertTrue(sql.contains("check (routine_gap_minutes >= 30)"));
+  }
+ }
 }

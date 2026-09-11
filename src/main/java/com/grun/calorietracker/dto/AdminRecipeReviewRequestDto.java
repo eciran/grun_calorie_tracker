@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.util.List;
@@ -17,6 +18,29 @@ import java.util.Set;
 @Data
 @Schema(description = "Admin recipe review update request.")
 public class AdminRecipeReviewRequestDto {
+    @Size(max = 160)
+    private String name;
+
+    @Size(max = 1000)
+    private String description;
+
+    @Size(max = 40)
+    private String mealType;
+
+    private com.grun.calorietracker.enums.MarketRegion marketRegion;
+
+    @Size(max = 12)
+    private String language;
+
+    @Positive
+    private Double totalYieldGrams;
+
+    @Positive
+    private Double defaultServingGrams;
+
+    @Positive
+    private Integer servingCount;
+
     @Schema(description = "Admin verification decision for the recipe.", example = "VERIFIED")
     private VerificationStatus verificationStatus;
 

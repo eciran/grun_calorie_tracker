@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.DailySummaryDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.RecipeLogRepository;
@@ -35,6 +36,9 @@ class DashboardServiceImplTest {
 
     @Mock
     private FoodLogsRepository foodLogsRepository;
+
+    @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
 
     @Mock
     private ExerciseLogRepository exerciseLogRepository;
@@ -69,6 +73,7 @@ class DashboardServiceImplTest {
                 userService,
                 goalRepository,
                 foodLogsRepository,
+                foodItemLocalizationRepository,
                 exerciseLogRepository,
                 progressLogRepository,
                 recipeLogRepository,
@@ -243,6 +248,7 @@ class DashboardServiceImplTest {
         user.setId(1L);
         user.setEmail("user@example.com");
         user.setWeight(82.0);
+        user.setPreferredLanguage(com.grun.calorietracker.enums.PreferredLanguage.TR);
         LocalDate date = LocalDate.of(2026, 5, 21);
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = date.plusDays(1).atStartOfDay();
@@ -250,7 +256,11 @@ class DashboardServiceImplTest {
         com.grun.calorietracker.entity.FoodLogsEntity foodLog = new com.grun.calorietracker.entity.FoodLogsEntity();
         foodLog.setId(10L);
         foodLog.setUser(user);
-        foodLog.setDisplayName("Test food");
+        com.grun.calorietracker.entity.FoodItemEntity foodItem = new com.grun.calorietracker.entity.FoodItemEntity();
+        foodItem.setId(49565L);
+        foodItem.setName("Peaches, yellow, raw");
+        foodLog.setFoodItem(foodItem);
+        foodLog.setDisplayName("Peaches, yellow, raw");
         foodLog.setSnapshotCalories(100.0);
         foodLog.setSnapshotProtein(5.0);
         foodLog.setSnapshotCarbs(10.0);
@@ -261,6 +271,12 @@ class DashboardServiceImplTest {
         foodLog.setLogDate(start);
 
         when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        com.grun.calorietracker.entity.FoodItemLocalizationEntity localization =
+                new com.grun.calorietracker.entity.FoodItemLocalizationEntity();
+        localization.setDisplayName("Şeftali");
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguageAndActiveTrue(
+                49565L, com.grun.calorietracker.enums.PreferredLanguage.TR))
+                .thenReturn(Optional.of(localization));
         when(subscriptionService.hasFeatureAccess("user@example.com", com.grun.calorietracker.enums.SubscriptionFeature.MICRONUTRIENT_DETAILS))
                 .thenReturn(false);
         when(foodLogsRepository.getSummaryTotalsByUserAndDateBetween(1L, start, end))
@@ -283,8 +299,61 @@ class DashboardServiceImplTest {
         assertEquals(false, result.getMicronutrientDetailsAvailable());
         assertNull(result.getConsumedMicros());
         assertEquals(100.0, result.getFoodLogs().get(0).getSnapshotCalories());
+        assertEquals("Şeftali", result.getFoodLogs().get(0).getFoodName());
+        assertEquals("Şeftali", result.getFoodLogs().get(0).getDisplayName());
         assertNull(result.getFoodLogs().get(0).getSnapshotFiber());
         assertNull(result.getFoodLogs().get(0).getSnapshotSodium());
         assertNull(result.getFoodLogs().get(0).getSnapshotVitaminC());
+    }
+
+    @Test
+    void nutritionQualityScore_tracksNutrientPaceInsteadOfRequiringFullDayTargets() throws Exception {
+        DailySummaryDto summary = qualitySummary(1000.0, 2000, 50.0, 100.0, 12.5, 600.0);
+
+        assertEquals(100, invokeNutritionQualityScore(summary));
+    }
+
+    @Test
+    void nutritionQualityScore_penalizesExcessSodiumGraduallyAndIgnoresUnavailableNutrients() throws Exception {
+        DailySummaryDto highSodium = qualitySummary(1000.0, 2000, 50.0, 100.0, 12.5, 2000.0);
+        assertEquals(80, invokeNutritionQualityScore(highSodium));
+
+        DailySummaryDto sodiumUnavailable = qualitySummary(1000.0, 2000, 50.0, 100.0, 12.5, null);
+        assertEquals(100, invokeNutritionQualityScore(sodiumUnavailable));
+    }
+
+    @Test
+    void nutritionQualityScore_requiresMoreThanOneKnownNutrient() throws Exception {
+        DailySummaryDto summary = qualitySummary(1000.0, 2000, 50.0, 100.0, null, null);
+
+        assertNull(invokeNutritionQualityScore(summary));
+    }
+
+    private DailySummaryDto qualitySummary(Double calories,
+                                            Integer targetCalories,
+                                            Double protein,
+                                            Double targetProtein,
+                                            Double fiber,
+                                            Double sodium) {
+        DailySummaryDto summary = new DailySummaryDto();
+        summary.setConsumedCalories(calories);
+        summary.setTargetCalories(targetCalories);
+        summary.setConsumedProtein(protein);
+        summary.setTargetProtein(targetProtein);
+        com.grun.calorietracker.dto.MicronutrientTotalsDto consumed = new com.grun.calorietracker.dto.MicronutrientTotalsDto();
+        consumed.setFiber(fiber);
+        consumed.setSodium(sodium);
+        summary.setConsumedMicros(consumed);
+        com.grun.calorietracker.dto.MicronutrientTotalsDto target = new com.grun.calorietracker.dto.MicronutrientTotalsDto();
+        target.setFiber(25.0);
+        target.setSodium(2000.0);
+        summary.setTargetMicros(target);
+        return summary;
+    }
+
+    private Integer invokeNutritionQualityScore(DailySummaryDto summary) throws Exception {
+        var method = DashboardServiceImpl.class.getDeclaredMethod("calculateNutritionQualityScore", DailySummaryDto.class);
+        method.setAccessible(true);
+        return (Integer) method.invoke(dashboardService, summary);
     }
 }

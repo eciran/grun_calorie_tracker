@@ -675,12 +675,27 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 event.getProvider() == null ? null : event.getProvider().name(),
                 event.getEventType(),
                 event.getProductId(),
-                event.getEntitlementIds(),
-                event.getTransactionId(),
-                event.getOriginalTransactionId(),
-                event.getStatus() == null ? null : event.getStatus().name(),
-                event.getReceivedAt(),
-                event.getProcessedAt()
+                  event.getEntitlementIds(),
+                  event.getTransactionId(),
+                  event.getOriginalTransactionId(),
+                  event.getPeriodType(),
+                  event.getEnvironment(),
+                  event.getCancelReason(),
+                  event.getExpirationReason(),
+                  event.getProviderEventAt(),
+                  event.getPurchasedAt(),
+                  event.getExpirationAt(),
+                  event.getAppleRefundConsentStatus(),
+                  event.getAppleRefundConsentVersion(),
+                  event.getPlanQuotaSnapshot(),
+                  event.getPlanUsedSnapshot(),
+                  event.getAddonQuotaSnapshot(),
+                  event.getAddonUsedSnapshot(),
+                  event.getEntitlementDeliveredSnapshot(),
+                  event.getEntitlementActiveSnapshot(),
+                  event.getStatus() == null ? null : event.getStatus().name(),
+                  event.getReceivedAt(),
+                  event.getProcessedAt()
         );
     }
 
