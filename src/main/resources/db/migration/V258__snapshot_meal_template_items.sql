@@ -1,0 +1,50 @@
+-- Freeze existing catalog templates at migration time; new templates copy diary snapshots.
+ALTER TABLE meal_template_items ALTER COLUMN food_item_id DROP NOT NULL;
+ALTER TABLE meal_template_items
+    ADD COLUMN display_name VARCHAR(255),
+    ADD COLUMN estimated BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN ai_request_id BIGINT,
+    ADD COLUMN ai_confidence DOUBLE PRECISION,
+    ADD COLUMN snapshot_calories DOUBLE PRECISION,
+    ADD COLUMN snapshot_protein DOUBLE PRECISION,
+    ADD COLUMN snapshot_carbs DOUBLE PRECISION,
+    ADD COLUMN snapshot_fat DOUBLE PRECISION,
+    ADD COLUMN snapshot_fiber DOUBLE PRECISION,
+    ADD COLUMN snapshot_sugar DOUBLE PRECISION,
+    ADD COLUMN snapshot_saturated_fat DOUBLE PRECISION,
+    ADD COLUMN snapshot_sodium DOUBLE PRECISION,
+    ADD COLUMN snapshot_potassium DOUBLE PRECISION,
+    ADD COLUMN snapshot_cholesterol DOUBLE PRECISION,
+    ADD COLUMN snapshot_calcium DOUBLE PRECISION,
+    ADD COLUMN snapshot_iron DOUBLE PRECISION,
+    ADD COLUMN snapshot_magnesium DOUBLE PRECISION,
+    ADD COLUMN snapshot_zinc DOUBLE PRECISION,
+    ADD COLUMN snapshot_vitamin_a DOUBLE PRECISION,
+    ADD COLUMN snapshot_vitamin_c DOUBLE PRECISION,
+    ADD COLUMN snapshot_vitamin_d DOUBLE PRECISION,
+    ADD COLUMN snapshot_vitamin_e DOUBLE PRECISION,
+    ADD COLUMN snapshot_vitamin_b12 DOUBLE PRECISION;
+
+UPDATE meal_template_items t
+SET display_name = f.name,
+    snapshot_calories = ROUND(((COALESCE(f.calories, 0)) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_protein = ROUND(((COALESCE(f.protein, 0)) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_carbs = ROUND(((COALESCE(f.carbs, 0)) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_fat = ROUND(((COALESCE(f.fat, 0)) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_fiber = ROUND(((f.fiber) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_sugar = ROUND(((f.sugar) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_saturated_fat = ROUND(((f.saturated_fat) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_sodium = ROUND(((f.sodium) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_potassium = ROUND(((f.potassium) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_cholesterol = ROUND(((f.cholesterol) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_calcium = ROUND(((f.calcium) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_iron = ROUND(((f.iron) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_magnesium = ROUND(((f.magnesium) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_zinc = ROUND(((f.zinc) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_vitamin_a = ROUND(((f.vitamin_a) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_vitamin_c = ROUND(((f.vitamin_c) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_vitamin_d = ROUND(((f.vitamin_d) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_vitamin_e = ROUND(((f.vitamin_e) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision,
+    snapshot_vitamin_b12 = ROUND(((f.vitamin_b12) * COALESCE(CASE WHEN f.nutrition_reference_unit = 'PER_100ML' THEN t.normalized_portion_milliliters ELSE t.normalized_portion_grams END, t.portion_size, 0) / 100.0)::numeric, 2)::double precision
+FROM food_items f
+WHERE f.id = t.food_item_id;

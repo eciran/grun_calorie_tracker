@@ -177,6 +177,28 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
+    void getFoodLogById_keepsTemplateSnapshotNameAfterCatalogRename() {
+        foodItem.setName("Changed catalog name");
+        FoodLogsEntity log = new FoodLogsEntity();
+        log.setId(42L);
+        log.setUser(user);
+        log.setFoodItem(foodItem);
+        log.setSource(FoodLogSource.TEMPLATE);
+        log.setDisplayName("Saved meal name");
+        log.setSnapshotCalories(155.0);
+        log.setLogDate(LocalDateTime.of(2026, 9, 14, 12, 0));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByIdAndUser(42L, user)).thenReturn(Optional.of(log));
+
+        FoodLogsDto result = foodLogsService.getFoodLogById(42L, "test@test.com");
+
+        assertEquals("Saved meal name", result.getFoodName());
+        assertEquals("Saved meal name", result.getDisplayName());
+        assertEquals(155.0, result.getSnapshotCalories());
+        verifyNoInteractions(foodItemLocalizationRepository);
+    }
+
+    @Test
     void getFoodLogById_usesTurkishLocalizedNameInsteadOfCanonicalSourceName() {
         user.setPreferredLanguage(PreferredLanguage.TR);
         foodItem.setName("Peaches, yellow, raw");

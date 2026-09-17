@@ -830,7 +830,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setId(entity.getId());
         if (entity.getFoodItem() != null) {
             dto.setFoodItemId(entity.getFoodItem().getId());
-            String localizedName = resolveFoodDisplayName(entity.getFoodItem(), entity.getUser());
+            String localizedName = entity.getSource() == FoodLogSource.TEMPLATE
+                    && entity.getDisplayName() != null && !entity.getDisplayName().isBlank()
+                    ? entity.getDisplayName()
+                    : resolveFoodDisplayName(entity.getFoodItem(), entity.getUser());
             dto.setFoodName(localizedName);
             dto.setDisplayName(localizedName);
         } else {

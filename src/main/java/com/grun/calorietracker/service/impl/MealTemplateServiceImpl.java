@@ -82,7 +82,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
                 item.setServingOption(source.getServingOption());
                 item.setPortionSize(source.getPortionSize());
                 item.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
-                NormalizedFoodPortion normalized = source.getNormalizedPortionGrams() != null
+                NormalizedFoodPortion normalized = source.getFoodItem() == null || source.getNormalizedPortionGrams() != null
                         || source.getNormalizedPortionMilliliters() != null
                         ? new NormalizedFoodPortion(source.getNormalizedPortionGrams(), source.getNormalizedPortionMilliliters(), null)
                         : FoodPortionCalculator.normalize(
@@ -95,6 +95,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
                 item.setNormalizedPortionMilliliters(normalized.milliliters());
                 item.setLogTime(source.getLogDate() == null ? null : source.getLogDate().toLocalTime());
                 item.setItemOrder(index);
+                captureSnapshot(item, source);
                 items.add(item);
             }
         }
@@ -172,7 +173,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         log.setPortionUnit(FoodPortionCalculator.resolveUnit(item.getPortionUnit()));
         log.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
         log.setNormalizedPortionMilliliters(item.getNormalizedPortionMilliliters());
-        applyNutritionSnapshot(log, item.getFoodItem());
+        restoreSnapshot(item, log);
         log.setMealType(mealType);
         log.setSource(FoodLogSource.TEMPLATE);
         log.setLogDate(request.getTargetDate().atTime(item.getLogTime() == null ? LocalTime.NOON : item.getLogTime()));
@@ -197,14 +198,10 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     private MealTemplateItemDto toItemDto(MealTemplateItemEntity item) {
         MealTemplateItemDto dto = new MealTemplateItemDto();
         FoodItemEntity foodItem = item.getFoodItem();
-        Double referenceAmount = foodItem.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML
-                ? item.getNormalizedPortionMilliliters()
-                : item.getNormalizedPortionGrams();
-        if (referenceAmount == null) {
-            referenceAmount = item.getPortionSize();
-        }
-        dto.setFoodItemId(foodItem.getId());
-        dto.setFoodName(foodItem.getName());
+        FoodLogsEntity snapshot = new FoodLogsEntity();
+        restoreSnapshot(item, snapshot);
+        dto.setFoodItemId(foodItem == null ? null : foodItem.getId());
+        dto.setFoodName(snapshot.getDisplayName());
         dto.setPortionSize(item.getPortionSize());
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(item.getPortionUnit()));
         if (item.getServingOption() != null) {
@@ -213,10 +210,10 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         }
         dto.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
         dto.setNormalizedPortionMilliliters(item.getNormalizedPortionMilliliters());
-        dto.setCalories(calculateNutritionValue(foodItem.getCalories(), referenceAmount));
-        dto.setProtein(calculateNutritionValue(foodItem.getProtein(), referenceAmount));
-        dto.setCarbs(calculateNutritionValue(foodItem.getCarbs(), referenceAmount));
-        dto.setFat(calculateNutritionValue(foodItem.getFat(), referenceAmount));
+        dto.setCalories(snapshot.getSnapshotCalories());
+        dto.setProtein(snapshot.getSnapshotProtein());
+        dto.setCarbs(snapshot.getSnapshotCarbs());
+        dto.setFat(snapshot.getSnapshotFat());
         return dto;
     }
     private MealTemplateItemEntity toTemplateItem(MealTemplateEntity template,
@@ -244,6 +241,12 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         item.setNormalizedPortionMilliliters(normalized.milliliters());
         item.setLogTime(LocalTime.NOON);
         item.setItemOrder(itemOrder);
+        FoodLogsEntity snapshot = new FoodLogsEntity();
+        snapshot.setFoodItem(foodItem);
+        snapshot.setNormalizedPortionGrams(normalized.grams());
+        snapshot.setNormalizedPortionMilliliters(normalized.milliliters());
+        applyNutritionSnapshot(snapshot, foodItem);
+        captureSnapshot(item, snapshot);
         return item;
     }
 
@@ -252,7 +255,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         dto.setId(log.getId());
         if (log.getFoodItem() != null) {
             dto.setFoodItemId(log.getFoodItem().getId());
-            dto.setFoodName(log.getFoodItem().getName());
+            dto.setFoodName(log.getDisplayName() == null ? log.getFoodItem().getName() : log.getDisplayName());
         } else {
             dto.setFoodName(log.getDisplayName());
         }
@@ -293,12 +296,94 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         return dto;
     }
 
+    private void captureSnapshot(MealTemplateItemEntity item, FoodLogsEntity source) {
+        String name = source.getDisplayName();
+        if (name == null || name.isBlank()) {
+            name = source.getFoodItem() == null ? null : source.getFoodItem().getName();
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Meal entry has no display name");
+        }
+        FoodLogsEntity nutrition = source;
+        // Older catalog diary entries may predate persisted nutrition snapshots.
+        if (source.getSnapshotCalories() == null && source.getSnapshotProtein() == null
+                && source.getSnapshotCarbs() == null && source.getSnapshotFat() == null) {
+            if (source.getFoodItem() == null) {
+                throw new IllegalArgumentException("Meal entry has no nutrition snapshot");
+            }
+            nutrition = new FoodLogsEntity();
+            nutrition.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
+            nutrition.setNormalizedPortionMilliliters(item.getNormalizedPortionMilliliters());
+            applyNutritionSnapshot(nutrition, source.getFoodItem());
+        }
+        item.setDisplayName(name);
+        item.setEstimated(Boolean.TRUE.equals(source.getEstimated()));
+        item.setAiRequestId(source.getAiRequestId());
+        item.setAiConfidence(source.getAiConfidence());
+        item.setSnapshotCalories(nutrition.getSnapshotCalories());
+        item.setSnapshotProtein(nutrition.getSnapshotProtein());
+        item.setSnapshotCarbs(nutrition.getSnapshotCarbs());
+        item.setSnapshotFat(nutrition.getSnapshotFat());
+        item.setSnapshotFiber(nutrition.getSnapshotFiber());
+        item.setSnapshotSugar(nutrition.getSnapshotSugar());
+        item.setSnapshotSaturatedFat(nutrition.getSnapshotSaturatedFat());
+        item.setSnapshotSodium(nutrition.getSnapshotSodium());
+        item.setSnapshotPotassium(nutrition.getSnapshotPotassium());
+        item.setSnapshotCholesterol(nutrition.getSnapshotCholesterol());
+        item.setSnapshotCalcium(nutrition.getSnapshotCalcium());
+        item.setSnapshotIron(nutrition.getSnapshotIron());
+        item.setSnapshotMagnesium(nutrition.getSnapshotMagnesium());
+        item.setSnapshotZinc(nutrition.getSnapshotZinc());
+        item.setSnapshotVitaminA(nutrition.getSnapshotVitaminA());
+        item.setSnapshotVitaminC(nutrition.getSnapshotVitaminC());
+        item.setSnapshotVitaminD(nutrition.getSnapshotVitaminD());
+        item.setSnapshotVitaminE(nutrition.getSnapshotVitaminE());
+        item.setSnapshotVitaminB12(nutrition.getSnapshotVitaminB12());
+    }
+
+    private void restoreSnapshot(MealTemplateItemEntity item, FoodLogsEntity log) {
+        // Compatibility for legacy in-memory items; persisted rows are backfilled by V258.
+        if (item.getDisplayName() == null && item.getFoodItem() != null) {
+            log.setDisplayName(item.getFoodItem().getName());
+            log.setNormalizedPortionGrams(item.getNormalizedPortionGrams());
+            log.setNormalizedPortionMilliliters(item.getNormalizedPortionMilliliters());
+            applyNutritionSnapshot(log, item.getFoodItem());
+            return;
+        }
+        log.setDisplayName(item.getDisplayName());
+        log.setEstimated(Boolean.TRUE.equals(item.getEstimated()));
+        log.setAiRequestId(item.getAiRequestId());
+        log.setAiConfidence(item.getAiConfidence());
+        log.setSnapshotCalories(item.getSnapshotCalories());
+        log.setSnapshotProtein(item.getSnapshotProtein());
+        log.setSnapshotCarbs(item.getSnapshotCarbs());
+        log.setSnapshotFat(item.getSnapshotFat());
+        log.setSnapshotFiber(item.getSnapshotFiber());
+        log.setSnapshotSugar(item.getSnapshotSugar());
+        log.setSnapshotSaturatedFat(item.getSnapshotSaturatedFat());
+        log.setSnapshotSodium(item.getSnapshotSodium());
+        log.setSnapshotPotassium(item.getSnapshotPotassium());
+        log.setSnapshotCholesterol(item.getSnapshotCholesterol());
+        log.setSnapshotCalcium(item.getSnapshotCalcium());
+        log.setSnapshotIron(item.getSnapshotIron());
+        log.setSnapshotMagnesium(item.getSnapshotMagnesium());
+        log.setSnapshotZinc(item.getSnapshotZinc());
+        log.setSnapshotVitaminA(item.getSnapshotVitaminA());
+        log.setSnapshotVitaminC(item.getSnapshotVitaminC());
+        log.setSnapshotVitaminD(item.getSnapshotVitaminD());
+        log.setSnapshotVitaminE(item.getSnapshotVitaminE());
+        log.setSnapshotVitaminB12(item.getSnapshotVitaminB12());
+    }
+
     private UserEntity getUser(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
     }
 
     private void ensureFoodAvailable(FoodItemEntity foodItem, UserEntity user) {
+        if (foodItem == null) {
+            return;
+        }
         if (Boolean.TRUE.equals(foodItem.getIsCustom())
                 && (foodItem.getCreatedByUser() == null || !user.getId().equals(foodItem.getCreatedByUser().getId()))) {
             throw new ProductNotFoundException("Custom food item is not available to this user");
@@ -309,6 +394,9 @@ public class MealTemplateServiceImpl implements MealTemplateService {
     }
 
     private void markFoodItemUsed(FoodItemEntity foodItem) {
+        if (foodItem == null) {
+            return;
+        }
         FoodProductQualityRules.markUsed(foodItem);
         foodItemRepository.save(foodItem);
     }
@@ -360,7 +448,7 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         if (servingOption == null) {
             return;
         }
-        if (servingOption.getFoodItem() == null
+        if (foodItem == null || servingOption.getFoodItem() == null
                 || !foodItem.getId().equals(servingOption.getFoodItem().getId())
                 || servingOption.getQualityStatus() != com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED) {
             throw new IllegalArgumentException("Meal template serving option is no longer available.");

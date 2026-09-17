@@ -311,6 +311,124 @@ class MealTemplateServiceImplTest {
         assertEquals(100.0, result.get(0).getTotalCalories());
     }
 
+    @Test
+    void aiAndCatalogMealSnapshotsSurviveSourceChangesAndApplyWithoutCatalogLookup() throws Exception {
+        UserEntity user = user();
+        FoodItemEntity food = product();
+        FoodLogsEntity catalog = sourceLog(user, food);
+        catalog.setDisplayName("Saved egg");
+        catalog.setSnapshotCalories(155.0);
+        FoodLogsEntity ai = sourceLog(user, null);
+        ai.setDisplayName("Breaded fried chicken strips");
+        ai.setEstimated(true);
+        ai.setAiRequestId(42L);
+        ai.setAiConfidence(0.87);
+        String[] nutrients = {"Calories", "Protein", "Carbs", "Fat", "Fiber", "Sugar", "SaturatedFat", "Sodium", "Potassium", "Cholesterol", "Calcium", "Iron", "Magnesium", "Zinc", "VitaminA", "VitaminC", "VitaminD", "VitaminE", "VitaminB12"};
+        for (int i = 0; i < nutrients.length; i++) {
+            FoodLogsEntity.class.getMethod("setSnapshot" + nutrients[i], Double.class).invoke(ai, 10.0 + i);
+        }
+        ai.setSnapshotCalories(594.0);
+        ai.setSnapshotVitaminD(null);
+        MealTemplateCreateRequestDto create = new MealTemplateCreateRequestDto();
+        create.setName("Lunch");
+        create.setMealType("lunch");
+        create.setSourceDate(LocalDate.of(2026, 9, 13));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(any(), any(), any(), any()))
+                .thenReturn(List.of(ai, catalog));
+        java.util.concurrent.atomic.AtomicReference<MealTemplateEntity> saved = new java.util.concurrent.atomic.AtomicReference<>();
+        when(mealTemplateRepository.save(any(MealTemplateEntity.class))).thenAnswer(invocation -> {
+            MealTemplateEntity template = invocation.getArgument(0);
+            template.setId(50L);
+            saved.set(template);
+            return template;
+        });
+        MealTemplateDto result = service.createFromLoggedMeal("user@test.com", create);
+        assertEquals(749.0, result.getTotalCalories());
+        org.junit.jupiter.api.Assertions.assertNull(result.getItems().get(0).getFoodItemId());
+        assertEquals("Breaded fried chicken strips", result.getItems().get(0).getFoodName());
+        MealTemplateItemEntity snapshot = saved.get().getItems().get(0);
+        for (String nutrient : nutrients) {
+            assertEquals(FoodLogsEntity.class.getMethod("getSnapshot" + nutrient).invoke(ai),
+                    MealTemplateItemEntity.class.getMethod("getSnapshot" + nutrient).invoke(snapshot), nutrient);
+        }
+        ai.setSnapshotCalories(1.0);
+        ai.setDisplayName("Changed");
+        catalog.setSnapshotCalories(2.0);
+        food.setCalories(999.0);
+        food.setName("Changed catalog");
+        when(mealTemplateRepository.findByIdAndUser(50L, user)).thenReturn(Optional.of(saved.get()));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        MealTemplateApplyRequestDto apply = new MealTemplateApplyRequestDto();
+        apply.setTargetDate(LocalDate.of(2026, 9, 14));
+        List<FoodLogsDto> logs = service.applyTemplate("user@test.com", 50L, apply);
+        assertEquals(594.0, logs.get(0).getSnapshotCalories());
+        assertEquals(155.0, logs.get(1).getSnapshotCalories());
+        assertEquals("Saved egg", logs.get(1).getFoodName());
+        assertEquals("Breaded fried chicken strips", logs.get(0).getFoodName());
+        assertEquals(true, logs.get(0).getEstimated());
+        assertEquals(42L, logs.get(0).getAiRequestId());
+        assertEquals(0.87, logs.get(0).getAiConfidence());
+        assertEquals(FoodLogSource.TEMPLATE, logs.get(0).getSource());
+        for (String nutrient : nutrients) {
+            assertEquals(MealTemplateItemEntity.class.getMethod("getSnapshot" + nutrient).invoke(snapshot),
+                    FoodLogsDto.class.getMethod("getSnapshot" + nutrient).invoke(logs.get(0)), nutrient);
+        }
+        org.mockito.Mockito.verify(foodItemRepository, org.mockito.Mockito.never()).findById(any());
+        org.mockito.Mockito.verify(foodItemRepository).save(food);
+    }
+
+    @Test
+    void aiOnlyMealCanBeSavedListedAndAppliedWithoutProductWrites() {
+        UserEntity user = user();
+        FoodLogsEntity ai = sourceLog(user, null);
+        ai.setDisplayName("AI lunch");
+        ai.setSnapshotCalories(0.0);
+        ai.setEstimated(true);
+        MealTemplateCreateRequestDto create = new MealTemplateCreateRequestDto();
+        create.setName("Lunch");
+        create.setMealType("lunch");
+        create.setSourceDate(LocalDate.of(2026, 9, 13));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(any(), any(), any(), any()))
+                .thenReturn(List.of(ai));
+        java.util.concurrent.atomic.AtomicReference<MealTemplateEntity> saved = new java.util.concurrent.atomic.AtomicReference<>();
+        when(mealTemplateRepository.save(any(MealTemplateEntity.class))).thenAnswer(invocation -> {
+            MealTemplateEntity template = invocation.getArgument(0);
+            saved.set(template);
+            return template;
+        });
+        service.createFromLoggedMeal("user@test.com", create);
+        when(mealTemplateRepository.findByUserOrderByCreatedAtDesc(any(), any())).thenReturn(List.of(saved.get()));
+        assertEquals(0.0, service.getTemplates("user@test.com", 0, 10).get(0).getTotalCalories());
+        when(mealTemplateRepository.findByIdAndUser(50L, user)).thenReturn(Optional.of(saved.get()));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        MealTemplateApplyRequestDto apply = new MealTemplateApplyRequestDto();
+        apply.setTargetDate(LocalDate.of(2026, 9, 14));
+        assertEquals("AI lunch", service.applyTemplate("user@test.com", 50L, apply).get(0).getFoodName());
+        org.mockito.Mockito.verifyNoInteractions(foodItemRepository, foodItemServingOptionRepository);
+    }
+
+    @Test
+    void sourceWithForeignCustomFoodIsStillRejected() {
+        UserEntity user = user();
+        FoodItemEntity food = product();
+        food.setIsCustom(true);
+        UserEntity other = new UserEntity();
+        other.setId(99L);
+        food.setCreatedByUser(other);
+        MealTemplateCreateRequestDto create = new MealTemplateCreateRequestDto();
+        create.setName("Lunch");
+        create.setMealType("lunch");
+        create.setSourceDate(LocalDate.of(2026, 9, 13));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.findByUserAndMealTypeAndLogDateBetween(any(), any(), any(), any()))
+                .thenReturn(List.of(sourceLog(user, food)));
+        assertThrows(com.grun.calorietracker.exception.ProductNotFoundException.class,
+                () -> service.createFromLoggedMeal("user@test.com", create));
+        org.mockito.Mockito.verifyNoInteractions(mealTemplateRepository);
+    }
+
     private UserEntity user() {
         UserEntity user = new UserEntity();
         user.setId(1L);
