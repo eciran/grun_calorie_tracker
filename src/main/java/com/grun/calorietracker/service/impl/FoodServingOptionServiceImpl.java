@@ -68,6 +68,7 @@ public class FoodServingOptionServiceImpl implements FoodServingOptionService {
                                 )
                         ));
         return options.stream()
+                .filter(option -> com.grun.calorietracker.service.support.FoodPortionUnitResolver.supportsOption(foodItem, option))
                 .map(option -> {
                     FoodServingOptionDto dto = FoodServingOptionMapper.toDto(option);
                     Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity> byLanguage =

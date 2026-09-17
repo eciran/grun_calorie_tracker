@@ -58,11 +58,14 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
     private final ProductIntakeRolloutPolicy rolloutPolicy;
     private final FoodContributionStorageProperties storageProperties;
     private final ApplicationEventPublisher eventPublisher;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.grun.calorietracker.repository.FoodItemServingOptionRepository contributionServingOptions;
 
     @Override
     @Transactional
     public synchronized FoodProductReviewSubmitResponseDto submit(
             String email, String sessionId, FoodProductReviewSubmitRequestDto request) {
+        com.grun.calorietracker.service.support.ManualContributionNutrition.validate(request.submittedFields());
         UserEntity user = user(email);
         rolloutPolicy.requireAvailable(user);
         var session = sessions.findById(sessionId)
@@ -241,11 +244,48 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
         custom.setSodium(request.sodium());
         custom.setServingSizeGrams(100.0);
         custom.setServingUnit("100 g");
+        // Nutrition is normalized per 100 g; retain the user's portion as the default serving.
+        if ("MANUAL".equals(request.submittedFields().get("entryMethod"))
+                && request.submittedFields().containsKey("servingSizeGrams")) {
+            Object amount = request.submittedFields().get("servingSizeGrams");
+            if (!(amount instanceof Number grams) || !Double.isFinite(grams.doubleValue())
+                    || grams.doubleValue() <= 0 || grams.doubleValue() > 100_000) {
+                throw new IllegalArgumentException("A positive serving weight in grams is required.");
+            }
+            Object label = request.submittedFields().get("servingUnit");
+            if (label != null && (!(label instanceof String) || ((String) label).length() > 100)) {
+                throw new IllegalArgumentException("Serving label must be at most 100 characters.");
+            }
+            custom.setServingSizeGrams(grams.doubleValue());
+            custom.setServingUnit(label instanceof String text && !text.isBlank() ? text.trim() : "serving");
+        }
+        var nutrition = request.submittedFields();
+        com.grun.calorietracker.service.support.ManualContributionNutrition.apply(custom, nutrition);
+        boolean liquid = custom.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML;
+        double servingAmount = com.grun.calorietracker.service.support.ManualContributionNutrition.serving(nutrition);
+        if (liquid) {
+            custom.setServingSizeGrams(null);
+            custom.setServingUnit(nutrition.get("servingUnit") instanceof String label ? label : "100 ml");
+        }
         var created = userProductLibrary.createCustomFood(email, custom);
         if (created == null || created.getId() == null) {
             throw new IllegalStateException("The private custom food could not be created.");
         }
-        review.setUserCustomFood(foodItems.getReferenceById(created.getId()));
+        var privateFood = foodItems.getReferenceById(created.getId());
+        if (liquid) {
+            var option = new com.grun.calorietracker.entity.FoodItemServingOptionEntity();
+            option.setFoodItem(privateFood);
+            option.setLabel(custom.getServingUnit());
+            option.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.SERVING);
+            option.setQuantity(1.0);
+            option.setMlVolume(servingAmount);
+            option.setGramWeight(null);
+            option.setIsDefault(true);
+            option.setSource(com.grun.calorietracker.enums.FoodServingOptionSource.USER);
+            option.setQualityStatus(com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED);
+            contributionServingOptions.save(option);
+        }
+        review.setUserCustomFood(privateFood);
         reviewCases.save(review);
     }
 
@@ -268,7 +308,10 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
     }
 
     private void requireVerifiedEvidence(java.util.List<com.grun.calorietracker.entity.FoodProductReviewCaseAssetEntity> evidence) {
-        if (evidence.size() != 2 || evidence.stream()
+        if (evidence.size() != 2
+                || evidence.stream().noneMatch(asset -> asset.getAssetType() == com.grun.calorietracker.enums.FoodProductReviewAssetType.FRONT_PACKAGE)
+                || evidence.stream().noneMatch(asset -> asset.getAssetType() == com.grun.calorietracker.enums.FoodProductReviewAssetType.NUTRITION_LABEL)
+                || evidence.stream()
                 .anyMatch(asset -> asset.getUploadState() != FoodProductAssetUploadState.VERIFIED
                         || asset.getDeletionState() != FoodProductAssetDeletionState.ACTIVE
                         || asset.getExpiresAt() == null

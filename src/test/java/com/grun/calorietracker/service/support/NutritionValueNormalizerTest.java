@@ -111,7 +111,7 @@ class NutritionValueNormalizerTest {
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM), dto.getAllowedPortionUnits());
         assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
     }
 
@@ -120,46 +120,61 @@ class NutritionValueNormalizerTest {
         FoodItemEntity entity = new FoodItemEntity();
         entity.setName("Milk");
         entity.setServingUnit("ml");
+        entity.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.MILLILITER, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(java.util.List.of(FoodPortionUnit.MILLILITER), dto.getAllowedPortionUnits());
         assertEquals(FoodPortionUnit.MILLILITER, dto.getDefaultPortionUnit());
     }
 
     @Test
-    void productResponseForCountableFoodExposesPieceAsDefaultPortionUnit() {
+    void productResponseForCountableFoodDoesNotInventPieceConversion() {
         FoodItemEntity entity = new FoodItemEntity();
         entity.setName("Egg");
         entity.setServingUnit("piece");
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.PIECE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
-        assertEquals(FoodPortionUnit.PIECE, dto.getDefaultPortionUnit());
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM), dto.getAllowedPortionUnits());
+        assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
     }
 
     @Test
-    void productResponseForSliceableFoodExposesSliceAsDefaultPortionUnit() {
+    void productResponseForSliceableFoodDoesNotInventSliceConversion() {
         FoodItemEntity entity = new FoodItemEntity();
         entity.setName("Wholemeal Bread");
         entity.setServingUnit("slice");
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.SLICE, FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
-        assertEquals(FoodPortionUnit.SLICE, dto.getDefaultPortionUnit());
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM), dto.getAllowedPortionUnits());
+        assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
     }
 
     @Test
-    void productResponseForSpoonableFoodExposesSpoonUnits() {
+    void productResponseForSpoonableFoodDoesNotInventSpoonConversion() {
         FoodItemEntity entity = new FoodItemEntity();
         entity.setName("Olive Oil");
         entity.setServingUnit("g");
 
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
 
-        assertEquals(java.util.List.of(FoodPortionUnit.GRAM, FoodPortionUnit.TABLESPOON, FoodPortionUnit.TEASPOON, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM), dto.getAllowedPortionUnits());
+        assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
+    }
+
+    @Test
+    void productResponsePreservesExplicitMassServing() {
+        FoodItemEntity entity = new FoodItemEntity();
+        entity.setName("Milk");
+        entity.setServingUnit("ml");
+        entity.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        entity.setServingSizeGrams(240.0);
+
+        FoodProductDto dto = FoodItemMapper.mapEntityToDto(entity);
+
+        assertEquals(java.util.List.of(FoodPortionUnit.GRAM, FoodPortionUnit.SERVING), dto.getAllowedPortionUnits());
         assertEquals(FoodPortionUnit.GRAM, dto.getDefaultPortionUnit());
     }
 }

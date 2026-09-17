@@ -313,6 +313,16 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (!inserted && importMode == FoodProductImportMode.RAW_EXTERNAL && isCuratedProduct(product)) {
             return new RowResult(product, false, null);
         }
+        FoodNutritionReferenceUnit referenceUnit;
+        try {
+            referenceUnit = resolveNutritionReferenceUnit(row);
+            if (firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null
+                    && product != null && product.getNutritionReferenceUnit() != null) {
+                referenceUnit = product.getNutritionReferenceUnit();
+            }
+        } catch (IllegalArgumentException exception) {
+            return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), sourceKey, exception.getMessage()));
+        }
         if (inserted) {
             product = new FoodItemEntity();
             product.setUsageCount(0L);
@@ -345,7 +355,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setCatalogType(catalogType);
         product.setPreparationState(preparationState);
         product.setNutritionBasis(resolveNutritionBasis(row, catalogType));
-        product.setNutritionReferenceUnit(resolveNutritionReferenceUnit(row));
+        product.setNutritionReferenceUnit(referenceUnit);
         mergeMarketAvailability(product, row, regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
 
@@ -649,7 +659,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         try {
             return FoodNutritionReferenceUnit.valueOf(normalized);
         } catch (IllegalArgumentException exception) {
-            return FoodNutritionReferenceUnit.PER_100G;
+            throw new IllegalArgumentException("Unsupported nutrition reference unit: " + value
+                    + ". Supply PER_100G or PER_100ML from the nutrition source.");
         }
     }
 
@@ -842,6 +853,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             RegionResolution regionResolution
     ) {
         String identifier = resolveWarningIdentifier(row, product);
+        if (firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null) {
+            addWarning(warningCounts, warnings, row, identifier, "MISSING_NUTRITION_REFERENCE_UNIT",
+                    "Nutrition reference unit was not supplied. Existing basis was retained, or legacy PER_100G used for a new row; verify against the source before publication.");
+        }
         if (regionResolution.missing()) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_REGION", "Product has no explicit market region and was imported as GLOBAL.");
         }

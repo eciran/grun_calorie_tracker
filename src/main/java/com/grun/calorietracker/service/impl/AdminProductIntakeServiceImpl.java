@@ -306,6 +306,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         if (catalogMutationOrchestrator == null) throw new IllegalStateException("Catalog mutation orchestrator is unavailable.");
         applyGate.requireAcceptedEvidence(reviewCase);
         Map<String, Object> submitted = submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>());
+        var submittedReference = com.grun.calorietracker.service.support.ManualContributionNutrition.reference(submitted);
+        var targetReference = food.getNutritionReferenceUnit() == null ? com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G : food.getNutritionReferenceUnit();
+        if (submittedReference != targetReference) throw new IllegalArgumentException("Nutrition reference units differ; reconcile grams and milliliters before applying this review.");
         EnumMap<ProductIntakeApplyField, Object> values = new EnumMap<>(ProductIntakeApplyField.class);
         for (ProductIntakeApplyField field : fields) values.put(field, validatedApplyValue(field, submitted));
         boolean highImpact = values.entrySet().stream().anyMatch(entry -> isHighImpact(entry.getKey(), currentValue(food, entry.getKey()), entry.getValue()));
@@ -335,7 +338,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
             if (!(raw instanceof String text) || text.isBlank()) throw new IllegalArgumentException("Product name cannot be blank.");
             return text.trim();
         }
-        if (field == ProductIntakeApplyField.BRAND) return raw == null || raw.toString().isBlank() ? null : raw.toString().trim();
+        if (field == ProductIntakeApplyField.BRAND) {
+            if (raw != null && !(raw instanceof String)) throw new IllegalArgumentException("Brand must be text.");
+            return com.grun.calorietracker.service.support.FoodProductNormalizationRules.normalizeBrandDisplayName((String) raw);
+        }
         Double value;
         try { value = raw instanceof Number number ? number.doubleValue() : Double.valueOf(raw.toString().replace(',', '.')); }
         catch (RuntimeException failure) { throw new IllegalArgumentException("Selected nutrition field is not numeric: " + field, failure); }

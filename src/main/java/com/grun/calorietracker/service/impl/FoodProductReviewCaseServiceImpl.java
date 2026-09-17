@@ -204,6 +204,7 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
         candidate.setImageStatus(ImageStatus.NEEDS_REVIEW);
         candidate.setMarketRegion(command.marketRegion());
         candidate.setNutritionBasis(command.nutritionBasis());
+        candidate.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
         candidate.setCalories(command.calories());
         candidate.setProtein(command.protein());
         candidate.setFat(command.fat());
@@ -211,6 +212,8 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
         candidate.setFiber(command.fiber());
         candidate.setSugar(command.sugar());
         candidate.setSodium(command.sodium());
+        com.grun.calorietracker.service.support.ManualContributionNutrition.apply(candidate,
+                com.grun.calorietracker.service.support.ManualContributionNutrition.parse(command.submittedValuesJson()));
         candidate.setIsCustom(false);
         candidate.setUsageCount(0L);
         candidate.setSearchSelectionCount(0L);

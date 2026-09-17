@@ -9,6 +9,9 @@ import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeReportDto;
 import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
+import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
@@ -61,6 +64,8 @@ class RecipeServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private FoodItemRepository foodItemRepository;
+    @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
     @Mock
     private FoodItemServingOptionRepository foodItemServingOptionRepository;
     @Mock
@@ -526,6 +531,52 @@ class RecipeServiceImplTest {
         request.setIngredients(ingredients);
 
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe("user@test.com", request));
+    }
+
+    @Test
+    void recipeIngredientName_usesViewersTurkishShortDisplayName() {
+        assertIngredientName(PreferredLanguage.TR, "Domates", "Üzüm Domates, Çiğ", "Grape Tomatoes", "Domates");
+    }
+
+    @Test
+    void recipeIngredientName_usesTurkishDisplayWhenShortNameIsBlank() {
+        assertIngredientName(PreferredLanguage.TR, " ", "Domates", "Grape Tomatoes", "Domates");
+    }
+
+    @Test
+    void recipeIngredientName_usesEnglishForEnglishViewer() {
+        assertIngredientName(PreferredLanguage.EN, "Domates", "Domates", "Grape Tomatoes", "Grape Tomatoes");
+    }
+
+    @Test
+    void recipeIngredientName_fallsBackToEnglishThenCatalogDisplayName() {
+        assertIngredientName(PreferredLanguage.TR, null, null, "Grape Tomatoes", "Grape Tomatoes");
+        assertIngredientName(PreferredLanguage.TR, null, null, null, "Catalog Tomato");
+    }
+
+    private void assertIngredientName(PreferredLanguage language, String shortTr, String displayTr,
+                                      String displayEn, String expected) {
+        UserEntity viewer = user();
+        viewer.setPreferredLanguage(language);
+        RecipeEntity recipe = publicRecipeEntity();
+        recipe.setOwnerUser(viewer);
+        recipe.setLanguage("EN"); // Ingredient display follows the viewer, not the recipe's language.
+        FoodItemEntity food = recipe.getIngredients().get(0).getFoodItem();
+        food.setName("Tomatoes, grape, raw");
+        food.setShortDisplayName("Catalog Tomato");
+        FoodItemLocalizationEntity tr = new FoodItemLocalizationEntity();
+        tr.setFoodItem(food); tr.setLanguage(PreferredLanguage.TR);
+        tr.setShortDisplayName(shortTr); tr.setDisplayName(displayTr);
+        FoodItemLocalizationEntity en = new FoodItemLocalizationEntity();
+        en.setFoodItem(food); en.setLanguage(PreferredLanguage.EN); en.setDisplayName(displayEn);
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(viewer));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, viewer)).thenReturn(Optional.of(recipe));
+        when(foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(any(), any()))
+                .thenReturn(List.of(tr, en));
+        RecipeDto dto = service.getRecipe("user@test.com", 10L);
+        assertEquals(expected, dto.getIngredients().get(0).getFoodName());
+        assertEquals("Tomatoes, grape, raw", food.getName());
+        assertEquals(200.0, dto.getIngredients().get(0).getPortionSize());
     }
 
     private RecipeRequestDto recipeRequest(Double totalYieldGrams, Double defaultServingGrams, Integer servingCount) {

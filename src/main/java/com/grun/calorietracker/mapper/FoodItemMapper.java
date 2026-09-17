@@ -105,7 +105,7 @@ public class FoodItemMapper {
         dto.setDisplayName(resolveDisplayName(entity));
         dto.setShortDisplayName(resolveShortDisplayName(entity));
         dto.setProductName(dto.getShortDisplayName() != null ? dto.getShortDisplayName() : dto.getDisplayName());
-        dto.setBrand(entity.getBrand());
+        dto.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(entity.getBrand()));
         dto.setImageUrl(entity.getImageUrl());
         dto.setExternalImageUrl(entity.getExternalImageUrl());
         dto.setDisplayImageUrl(entity.getDisplayImageUrl());

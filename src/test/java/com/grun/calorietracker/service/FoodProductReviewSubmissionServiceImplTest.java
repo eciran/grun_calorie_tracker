@@ -30,6 +30,8 @@ import com.grun.calorietracker.service.model.FoodProductReviewCaseCommand;
 import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.times;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -103,6 +105,58 @@ class FoodProductReviewSubmissionServiceImplTest {
         assertEquals("nutrition-parser-v1", saved.getValue().getParserVersion());
         assertEquals(90L, saved.getValue().getReviewCase().getId());
         assertEquals(501L, review.getUserCustomFood().getId());
+        verify(userProductLibrary).createCustomFood(any(), any());
+    }
+
+    @Test
+    void randomShortBarcodeRejectsReviewBeforePrivateFoodAndReturns400() throws Exception {
+        var realCases = new com.grun.calorietracker.service.impl.FoodProductReviewCaseServiceImpl(reviews, foodItems);
+        var realSubmission = new FoodProductReviewSubmissionServiceImpl(users, sessions, assets, reviews, extractions,
+                realCases, userProductLibrary, foodItems, new ObjectMapper(), rollout,
+                new FoodContributionStorageProperties(), events);
+        var mapper = new ObjectMapper();
+        var payload = mapper.valueToTree(request());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("barcode", "848484");
+        var invalid = mapper.treeToValue(payload, FoodProductReviewSubmitRequestDto.class);
+
+        var failure = assertThrows(IllegalArgumentException.class,
+                () -> realSubmission.submit(user.getEmail(), session.getId(), invalid));
+
+        assertEquals("Barcode has an invalid GTIN check digit", failure.getMessage());
+        verify(reviews, never()).saveAndFlush(any());
+        verify(foodItems, never()).saveAndFlush(any());
+        verify(userProductLibrary, never()).createCustomFood(any(), any());
+        var handler = new com.grun.calorietracker.exception.GlobalExceptionHandler(
+                new org.springframework.context.support.StaticMessageSource(), false);
+        var http = new org.springframework.mock.web.MockHttpServletRequest("POST",
+                "/api/v1/products/review-cases/upload-sessions/session-1/submit");
+        var response = handler.handleIllegalArgumentException(failure, http);
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals("INVALID_REQUEST", response.getBody().getCode());
+    }
+
+    @Test
+    void validBarcodePassesRealReviewCreationAndLinksPrivateFood() {
+        var realCases = new com.grun.calorietracker.service.impl.FoodProductReviewCaseServiceImpl(reviews, foodItems);
+        var realSubmission = new FoodProductReviewSubmissionServiceImpl(users, sessions, assets, reviews, extractions,
+                realCases, userProductLibrary, foodItems, new ObjectMapper(), rollout,
+                new FoodContributionStorageProperties(), events);
+        when(foodItems.saveAndFlush(any(FoodItemEntity.class))).thenAnswer(invocation -> {
+            FoodItemEntity food = invocation.getArgument(0);
+            food.setId(700L);
+            return food;
+        });
+        when(reviews.saveAndFlush(any(FoodProductReviewCaseEntity.class))).thenAnswer(invocation -> {
+            FoodProductReviewCaseEntity review = invocation.getArgument(0);
+            review.setId(90L);
+            return review;
+        });
+
+        var result = realSubmission.submit(user.getEmail(), session.getId(), request());
+
+        assertEquals(90L, result.caseId());
+        assertEquals(501L, result.customFoodId());
+        verify(reviews).saveAndFlush(any());
         verify(userProductLibrary).createCustomFood(any(), any());
     }
 
@@ -223,6 +277,122 @@ class FoodProductReviewSubmissionServiceImplTest {
         var response = service.withdraw(user.getEmail(), 90L);
 
         assertEquals(FoodProductReviewCaseStatus.WITHDRAWN, response.status());
+    }
+
+    @Test
+    void manualSubmissionCreatesPrivateFoodAndPendingReviewWithoutOcr() {
+        FoodProductReviewCaseEntity review = review(user, session.getId());
+        review.setStatus(FoodProductReviewCaseStatus.SUBMITTED);
+        when(cases.finalizeCase(any(FoodProductReviewCaseCommand.class))).thenReturn(review);
+        FoodProductReviewSubmitRequestDto old = request();
+        var manual = new FoodProductReviewSubmitRequestDto(old.idempotencyKey(), old.barcode(), old.marketRegion(),
+                old.productName(), old.brand(), old.calories(), old.protein(), old.fat(), old.carbs(),
+                old.fiber(), old.sugar(), old.sodium(), old.nutritionBasis(), old.riskLevel(),
+                Map.of("entryMethod", "MANUAL", "basis", "PER_100G"), Map.of(), Map.of("entryMethod", "MANUAL"),
+                old.consentVersion(), true, false, false, null, null);
+        var result = service.submit(user.getEmail(), session.getId(), manual);
+        assertEquals(501L, result.customFoodId());
+        assertEquals(FoodProductReviewCaseStatus.SUBMITTED, result.status());
+        verify(extractions, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(events);
+        var command = ArgumentCaptor.forClass(FoodProductReviewCaseCommand.class);
+        verify(cases).finalizeCase(command.capture());
+        assertEquals(false, command.getValue().aiNutritionLabelProcessingAllowed());
+        assertEquals(false, command.getValue().publicMediaAllowed());
+        var privateRequest = ArgumentCaptor.forClass(com.grun.calorietracker.dto.CustomFoodRequestDto.class);
+        verify(userProductLibrary).createCustomFood(org.mockito.ArgumentMatchers.eq(user.getEmail()), privateRequest.capture());
+        assertEquals(100.0, privateRequest.getValue().getServingSizeGrams());
+        assertEquals(old.calories(), privateRequest.getValue().getCalories());
+    }
+
+    @Test
+    void manualServingPreserves31GramBarAndNormalizedNutrition() {
+        FoodProductReviewCaseEntity review = review(user, session.getId());
+        review.setStatus(FoodProductReviewCaseStatus.SUBMITTED);
+        when(cases.finalizeCase(any(FoodProductReviewCaseCommand.class))).thenReturn(review);
+        FoodProductReviewSubmitRequestDto old = request();
+        var manual = new FoodProductReviewSubmitRequestDto(old.idempotencyKey(), old.barcode(), old.marketRegion(),
+                old.productName(), old.brand(), 500.0, 10.0, old.fat(), old.carbs(),
+                old.fiber(), old.sugar(), old.sodium(), old.nutritionBasis(), old.riskLevel(),
+                Map.of("entryMethod", "MANUAL", "basis", "PER_100G", "servingSizeGrams", 31.0, "servingUnit", "bar"), Map.of(), Map.of("entryMethod", "MANUAL"),
+                old.consentVersion(), true, false, false, null, null);
+        var result = service.submit(user.getEmail(), session.getId(), manual);
+        assertEquals(501L, result.customFoodId());
+        assertEquals(FoodProductReviewCaseStatus.SUBMITTED, result.status());
+        verify(extractions, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(events);
+        var command = ArgumentCaptor.forClass(FoodProductReviewCaseCommand.class);
+        verify(cases).finalizeCase(command.capture());
+        assertEquals(false, command.getValue().aiNutritionLabelProcessingAllowed());
+        assertEquals(false, command.getValue().publicMediaAllowed());
+        var privateRequest = ArgumentCaptor.forClass(com.grun.calorietracker.dto.CustomFoodRequestDto.class);
+        verify(userProductLibrary).createCustomFood(org.mockito.ArgumentMatchers.eq(user.getEmail()), privateRequest.capture());
+        assertEquals(31.0, privateRequest.getValue().getServingSizeGrams());
+        assertEquals("bar", privateRequest.getValue().getServingUnit());
+        assertEquals(500.0, privateRequest.getValue().getCalories());
+        assertEquals(155.0, privateRequest.getValue().getCalories() * privateRequest.getValue().getServingSizeGrams() / 100.0);
+        assertEquals(500.0, command.getValue().calories());
+    }
+
+    @Test
+    void rejectsMissingOrDuplicatePhotoTypesBeforeCreatingAnyFood() {
+        for (var invalid : List.of(
+                List.of(verifiedAsset(1L, FoodProductReviewAssetType.FRONT_PACKAGE)),
+                List.of(verifiedAsset(1L, FoodProductReviewAssetType.FRONT_PACKAGE),
+                        verifiedAsset(2L, FoodProductReviewAssetType.FRONT_PACKAGE)))) {
+            when(assets.findAllByUploadSessionIdOrderByAssetTypeAsc(session.getId())).thenReturn(invalid);
+            assertThrows(com.grun.calorietracker.exception.RequestConflictException.class,
+                    () -> service.submit(user.getEmail(), session.getId(), request()));
+        }
+        verify(cases, never()).finalizeCase(any());
+        verify(userProductLibrary, never()).createCustomFood(any(), any());
+    }
+
+
+    @Test
+    void manualServingRejectsInvalidWeightBeforeCreatingPrivateFood() {
+        FoodProductReviewCaseEntity review = review(user, session.getId());
+        when(cases.finalizeCase(any(FoodProductReviewCaseCommand.class))).thenReturn(review);
+        FoodProductReviewSubmitRequestDto old = request();
+        for (Object weight : List.of(0.0, -31.0, Double.NaN, Double.POSITIVE_INFINITY, "31", 100001.0)) {
+            var manual = new FoodProductReviewSubmitRequestDto(old.idempotencyKey(), old.barcode(), old.marketRegion(),
+                    old.productName(), old.brand(), old.calories(), old.protein(), old.fat(), old.carbs(),
+                    old.fiber(), old.sugar(), old.sodium(), old.nutritionBasis(), old.riskLevel(),
+                    Map.of("entryMethod", "MANUAL", "servingSizeGrams", weight), Map.of(), Map.of(),
+                    old.consentVersion(), true, false, false, null, null);
+            assertThrows(IllegalArgumentException.class, () -> service.submit(user.getEmail(), session.getId(), manual));
+        }
+        verify(userProductLibrary, never()).createCustomFood(any(), any());
+    }
+
+    @Test
+    void liquidContributionKeepsMicrosAndVolumeAndReplaysWithoutDuplicate() {
+        var options = mock(com.grun.calorietracker.repository.FoodItemServingOptionRepository.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "contributionServingOptions", options);
+        var review = review(user, session.getId());
+        when(cases.finalizeCase(any(FoodProductReviewCaseCommand.class))).thenReturn(review);
+        var old = request();
+        var fields = Map.<String,Object>of("entryMethod", "MANUAL", "nutritionReferenceUnit", "PER_100ML",
+                "servingAmount", 250.0, "servingUnit", "glass", "calcium", 120.0, "vitaminB12", 0.4, "transFat", 0.0);
+        var request = new FoodProductReviewSubmitRequestDto(old.idempotencyKey(), old.barcode(), old.marketRegion(),
+                old.productName(), old.brand(), 60.0, 3.0, 3.0, 5.0, null, null, 40.0,
+                old.nutritionBasis(), old.riskLevel(), fields, Map.of(), Map.of(), old.consentVersion(), true, false, false, null, null);
+        service.submit(user.getEmail(), session.getId(), request);
+        var saved = ArgumentCaptor.forClass(com.grun.calorietracker.dto.CustomFoodRequestDto.class);
+        verify(userProductLibrary).createCustomFood(any(), saved.capture());
+        assertEquals(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML, saved.getValue().getNutritionReferenceUnit());
+        assertEquals(120.0, saved.getValue().getCalcium());
+        assertEquals(0.4, saved.getValue().getVitaminB12());
+        assertEquals(0.0, saved.getValue().getTransFat());
+        assertNull(saved.getValue().getIron());
+        assertNull(saved.getValue().getServingSizeGrams());
+        var portion = ArgumentCaptor.forClass(com.grun.calorietracker.entity.FoodItemServingOptionEntity.class);
+        verify(options).save(portion.capture());
+        assertEquals(250.0, portion.getValue().getMlVolume());
+        assertNull(portion.getValue().getGramWeight());
+        service.submit(user.getEmail(), session.getId(), request);
+        verify(options, times(1)).save(any());
+        verify(userProductLibrary, times(1)).createCustomFood(any(), any());
     }
 
     private FoodProductReviewSubmitRequestDto request() {

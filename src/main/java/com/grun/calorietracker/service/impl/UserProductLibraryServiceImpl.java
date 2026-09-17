@@ -140,6 +140,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         product.setPublicationStatus(CatalogPublicationStatus.PRIVATE_USER);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
         product.setNutritionBasis(FoodNutritionBasis.ESTIMATED);
+
         product.setMarketRegion(user.getMarketRegion());
         product.setIsCustom(true);
         product.setCreatedByUser(user);
@@ -237,7 +238,21 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
         product.setFiber(request.getFiber());
         product.setSugar(request.getSugar());
         product.setSodium(request.getSodium());
-        product.setServingSizeGrams(request.getServingSizeGrams());
+        product.setNutritionReferenceUnit(request.getNutritionReferenceUnit() != null ? request.getNutritionReferenceUnit() : product.getNutritionReferenceUnit() != null ? product.getNutritionReferenceUnit() : com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
+        product.setSaturatedFat(request.getSaturatedFat());
+        product.setTransFat(request.getTransFat());
+        product.setCholesterol(request.getCholesterol());
+        product.setPotassium(request.getPotassium());
+        product.setCalcium(request.getCalcium());
+        product.setIron(request.getIron());
+        product.setMagnesium(request.getMagnesium());
+        product.setZinc(request.getZinc());
+        product.setVitaminA(request.getVitaminA());
+        product.setVitaminC(request.getVitaminC());
+        product.setVitaminD(request.getVitaminD());
+        product.setVitaminE(request.getVitaminE());
+        product.setVitaminB12(request.getVitaminB12());
+        product.setServingSizeGrams(product.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML ? null : request.getServingSizeGrams());
         product.setServingUnit(trimToNull(request.getServingUnit()));
     }
 

@@ -1399,6 +1399,131 @@ FoodSearchCriteriaDto bananaEnglish = new FoodSearchCriteriaDto();
         assertTrue(milkResults.stream().anyMatch(product -> "0000493141402".equals(product.getBarcode())));
     }
 
+    @Test
+    void brandSeparatorVariants_findSameProductsWithoutMergingSkus() {
+        List<String> brands = List.of("Vit Hit", "Vit-Hit", "Vit\u2022Hit", "VitHit");
+        for (int i = 0; i < brands.size(); i++) {
+            FoodItemEntity item = product("Hydration flavour " + i, "503403300000" + i, VerificationStatus.VERIFIED);
+            item.setBrand(brands.get(i));
+            foodItemRepository.save(item);
+        }
+        entityManager.flush();
+        for (String query : brands) {
+            FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+            criteria.setQuery(query);
+            var results = foodItemService.searchFoodItems(criteria, 0, 20);
+            assertEquals(4, results.getTotalElements(), query);
+            assertEquals(4, results.getContent().stream().map(p -> p.getBarcode()).distinct().count());
+        }
+        FoodSearchCriteriaDto filter = new FoodSearchCriteriaDto();
+        filter.setBrand("VitHit");
+        assertEquals(4, foodItemService.searchFoodItems(filter, 0, 20).getTotalElements());
+    }
+
+    @Test
+    void brandSeparatorMatching_doesNotCollapseNumericProductNamesOrExposeHiddenProducts() {
+        FoodItemEntity visible = product("Milk 1.5%", "123456700001", VerificationStatus.VERIFIED);
+        visible.setBrand("Vit-Hit");
+        foodItemRepository.save(visible);
+        FoodItemEntity hidden = product("Milk 15%", "123456700002", VerificationStatus.REJECTED);
+        hidden.setBrand("Vit Hit");
+        foodItemRepository.save(hidden);
+        FoodItemEntity custom = product("Private drink", "123456700003", VerificationStatus.VERIFIED);
+        custom.setBrand("VitHit");
+        custom.setIsCustom(true);
+        foodItemRepository.saveAndFlush(custom);
+        FoodSearchCriteriaDto query = new FoodSearchCriteriaDto();
+        query.setQuery("vithit");
+        assertEquals(1, foodItemService.searchFoodItems(query, 0, 20).getTotalElements());
+        query.setQuery("Milk 1.5%");
+        assertTrue(foodItemService.searchFoodItems(query, 0, 20).getContent().stream()
+                .noneMatch(p -> "123456700002".equals(p.getBarcode())));
+    }
+
+    @Test
+    void reviewedBrandAbbreviationsFindLegacyAndCanonicalRows() {
+        var legacy = product("Oat drink", "9910000000001", VerificationStatus.VERIFIED);
+        legacy.setBrand("Marks & Spencer");
+        var canonical = product("Rice drink", "9910000000002", VerificationStatus.VERIFIED);
+        canonical.setBrand("M&S");
+        foodItemRepository.saveAll(List.of(legacy, canonical));
+        entityManager.flush();
+        for (String term : List.of("Marks & Spencer", "M&S", "Marks and Spencer")) {
+            FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+            criteria.setQuery(term);
+            var page = foodItemService.searchFoodItems(criteria, 0, 20);
+            assertEquals(2, page.getTotalElements(), term);
+            assertTrue(page.getContent().stream().allMatch(item -> "M&S".equals(item.getBrand())));
+            criteria.setQuery(null);
+            criteria.setBrand(term);
+            assertEquals(2, foodItemService.searchFoodItems(criteria, 0, 20).getTotalElements(), term);
+        }
+        assertEquals("Marks & Spencer", legacy.getBrand());
+    }
+
+    @Test
+    void rangeBrandFilterKeepsLegacyRowsWithoutIncludingWholeRetailer() {
+        var plain = product("Oat drink", "9920000000001", VerificationStatus.VERIFIED);
+        plain.setBrand("Waitrose");
+        var range = product("Rice drink", "9920000000002", VerificationStatus.VERIFIED);
+        range.setBrand("Waitrose,Essential Waitrose");
+        var legacy = product("Soya drink", "9920000000003", VerificationStatus.VERIFIED);
+        legacy.setBrand("Essential Waitrose & Partners");
+        foodItemRepository.saveAll(List.of(plain, range, legacy));
+        entityManager.flush();
+        for (String term : List.of("Essential Waitrose", "Essential Waitrose & Partners")) {
+            FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+            criteria.setBrand(term);
+            var page = foodItemService.searchFoodItems(criteria, 0, 20);
+            assertEquals(2, page.getTotalElements(), term);
+            assertTrue(page.getContent().stream().noneMatch(item -> plain.getBarcode().equals(item.getBarcode())));
+            assertTrue(page.getContent().stream().anyMatch(item -> "Waitrose, Essential Waitrose".equals(item.getBrand())));
+        }
+        assertEquals("Waitrose,Essential Waitrose", range.getBrand());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "Milk,S\u00fct,Sheep Milk,Ricotta cheese made from milk",
+            "Banana,Muz,Banana Chips,Banana Bread",
+            "Broccoli,Brokoli,Broccoli Raab,Broccoli Soup",
+            "Rice,Pirin\u00e7,Rice Flour,Rice Cake",
+            "Chicken Breast,Tavuk G\u00f6\u011fs\u00fc,Chicken Breast Soup,Chicken Breast Broth"
+    })
+    void coreSearch_directFoodBeatsGenericVariantsAndNoisyAliases(String english, String turkish,
+            String variantName, String derivativeName) {
+        var direct = product(english, "9930000000001", VerificationStatus.VERIFIED);
+        direct.setMarketRegion(MarketRegion.TR);
+        var variant = product(variantName, "9930000000002", VerificationStatus.VERIFIED);
+        variant.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        variant.setMarketRegion(MarketRegion.GLOBAL);
+        variant.setUsageCount(10000L);
+        var derivative = product(derivativeName, "9930000000003", VerificationStatus.VERIFIED);
+        derivative.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        derivative.setMarketRegion(MarketRegion.GLOBAL);
+        derivative.setUsageCount(20000L);
+        foodItemRepository.saveAllAndFlush(List.of(direct, variant, derivative));
+        saveLocalization(direct, turkish);
+        var alias = new FoodItemSearchAliasEntity();
+        alias.setFoodItem(derivative);
+        alias.setAlias(turkish);
+        alias.setNormalizedAlias(com.grun.calorietracker.service.support.FoodProductNormalizationRules.normalizeSearchAlias(turkish));
+        alias.setLanguage(PreferredLanguage.TR);
+        alias.setAliasType(FoodSearchAliasType.COMMON_NAME);
+        alias.setSource("test-noisy-alias");
+        alias.setActive(true);
+        foodItemSearchAliasRepository.saveAndFlush(alias);
+        for (String queryText : List.of(english, turkish)) {
+            var criteria = new FoodSearchCriteriaDto();
+            criteria.setQuery(queryText);
+            criteria.setPreferredLanguage(PreferredLanguage.TR);
+            criteria.setMarketRegion(MarketRegion.TR);
+            var result = foodItemService.searchFoodItems(criteria, 0, 10);
+            assertEquals(direct.getId(), result.getContent().get(0).getId(), queryText);
+            assertEquals(turkish, result.getContent().get(0).getProductName());
+        }
+    }
+
     private record BrandedSearchExpectation(String query, String expectedBarcode) {
     }
     private record RegionalBrandedSearchExpectation(

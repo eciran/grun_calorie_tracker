@@ -189,6 +189,8 @@ class UserProductLibraryServiceImplTest {
                 product.getCreatedByUser() == user
                         && Boolean.TRUE.equals(product.getIsCustom())
                         && product.getDataSource() == com.grun.calorietracker.enums.FoodDataSource.MANUAL
+                        && product.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G
+                        && product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.PRIVATE_USER
                         && product.getNutritionBasis() == FoodNutritionBasis.ESTIMATED
         ));
     }
@@ -256,4 +258,45 @@ class UserProductLibraryServiceImplTest {
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         return product;
     }
+    @Test
+    void customLiquidPersistsAllMicronutrientsAndRemainsPrivate() {
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user()));
+        when(foodItemRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        var request = new CustomFoodRequestDto();
+        request.setName("Milk"); request.setCalories(60.0);
+        request.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML);
+        request.setSaturatedFat(1.0);
+        request.setTransFat(1.0);
+        request.setCholesterol(1.0);
+        request.setPotassium(1.0);
+        request.setCalcium(1.0);
+        request.setIron(1.0);
+        request.setMagnesium(1.0);
+        request.setZinc(1.0);
+        request.setVitaminA(1.0);
+        request.setVitaminC(1.0);
+        request.setVitaminD(1.0);
+        request.setVitaminE(1.0);
+        request.setVitaminB12(1.0);
+        service.createCustomFood("user@test.com", request);
+        var saved = org.mockito.ArgumentCaptor.forClass(FoodItemEntity.class);
+        verify(foodItemRepository).save(saved.capture());
+        var food = saved.getValue();
+        assertEquals(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML, food.getNutritionReferenceUnit());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.PRIVATE_USER, food.getPublicationStatus());
+        assertEquals(1.0, food.getSaturatedFat());
+        assertEquals(1.0, food.getTransFat());
+        assertEquals(1.0, food.getCholesterol());
+        assertEquals(1.0, food.getPotassium());
+        assertEquals(1.0, food.getCalcium());
+        assertEquals(1.0, food.getIron());
+        assertEquals(1.0, food.getMagnesium());
+        assertEquals(1.0, food.getZinc());
+        assertEquals(1.0, food.getVitaminA());
+        assertEquals(1.0, food.getVitaminC());
+        assertEquals(1.0, food.getVitaminD());
+        assertEquals(1.0, food.getVitaminE());
+        assertEquals(1.0, food.getVitaminB12());
+    }
+
 }

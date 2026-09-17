@@ -123,6 +123,27 @@ class AdminProductIntakeReviewActionsTest {
     }
 
     @Test
+    void applyingReviewedBrandUsesCanonicalNameAndAuditsActualChange() {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(99L);
+        food.setBrand("Vit-Hit");
+        food.setBarcode("5034033000220");
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        reviewCase.setFoodItem(food);
+        reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        reviewCase.setSubmittedValuesJson("{\"brand\":\" Vit Hit \"}");
+
+        service.applyExistingProduct(72L, "catalog@grun.app", java.util.Set.of(ProductIntakeApplyField.BRAND), false);
+
+        assertEquals("VITHIT", food.getBrand());
+        assertEquals("5034033000220", food.getBarcode());
+        assertEquals("{\"brand\":\" Vit Hit \"}", reviewCase.getSubmittedValuesJson());
+        verify(mutationOrchestrator).reconcileAndAudit(eq(food), isNull(), eq("catalog@grun.app"), eq(72L),
+                eq(java.util.Map.of("brand", "Vit-Hit")), eq(java.util.Map.of("brand", "VITHIT")));
+    }
+
+    @Test
     void applyExistingValidatesAllSelectedValuesBeforeMutation() {
         FoodItemEntity food = new FoodItemEntity(); food.setId(101L); food.setCalories(100.0); food.setProtein(4.0);
         food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
@@ -151,6 +172,25 @@ class AdminProductIntakeReviewActionsTest {
         verify(intakeMetrics).record("publish", "success");
         verify(mutationOrchestrator).reconcileAndAudit(eq(food), isNull(), eq("catalog@grun.app"), eq(72L), anyMap(), anyMap());
         verify(foods, never()).save(food);
+    }
+
+    @Test
+    void invalidBrandTypeIsRejectedBeforeAnyFieldIsWritten() {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(99L);
+        food.setBrand("Original");
+        food.setCalories(100.0);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        reviewCase.setFoodItem(food);
+        reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        reviewCase.setSubmittedValuesJson("{\"brand\":123,\"calories\":101}");
+        assertThrows(IllegalArgumentException.class, () -> service.applyExistingProduct(72L,
+                "catalog@grun.app", java.util.Set.of(ProductIntakeApplyField.BRAND, ProductIntakeApplyField.CALORIES), true));
+        assertEquals("Original", food.getBrand());
+        assertEquals(100.0, food.getCalories());
+        verify(foods, never()).save(any());
+        verifyNoInteractions(mutationOrchestrator);
     }
 
     @Test

@@ -50,6 +50,7 @@ class FoodServingOptionServiceImplTest {
         option.setFoodItem(foodItem);
         option.setLabel("1 portion Chicken Breast");
         option.setGramWeight(120.0);
+        option.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.SERVING);
         FoodItemServingOptionLocalizationEntity localization = new FoodItemServingOptionLocalizationEntity();
         localization.setServingOption(option);
         localization.setLanguage(PreferredLanguage.TR);
@@ -81,6 +82,8 @@ class FoodServingOptionServiceImplTest {
         verified.setId(7L);
         verified.setFoodItem(foodItem);
         verified.setLabel("1 slice");
+        verified.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.SLICE);
+        verified.setGramWeight(30.0);
         verified.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
 
         when(foodItemRepository.findById(13L)).thenReturn(Optional.of(foodItem));

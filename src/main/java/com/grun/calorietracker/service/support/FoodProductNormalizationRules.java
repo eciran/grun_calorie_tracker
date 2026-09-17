@@ -57,6 +57,10 @@ public final class FoodProductNormalizationRules {
     }
 
     public static String normalizeBrandDisplayName(String value) {
+        String canonical = FoodBrandDisplayRules.canonicalName(value);
+        if (canonical != null) {
+            return canonical;
+        }
         return normalizeDisplayName(value, false);
     }
 
@@ -160,6 +164,7 @@ public final class FoodProductNormalizationRules {
         }
         Set<String> terms = new LinkedHashSet<>();
         addTerm(terms, normalized);
+        FoodBrandDisplayRules.searchAliases(normalized).forEach(alias -> addTerm(terms, alias));
         addTerm(terms, stripDiacritics(normalized));
         addSynonyms(terms, normalized);
         addSynonyms(terms, stripDiacritics(normalized));

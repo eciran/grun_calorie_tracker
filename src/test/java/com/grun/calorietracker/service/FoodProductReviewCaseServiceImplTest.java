@@ -66,6 +66,8 @@ class FoodProductReviewCaseServiceImplTest {
         assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, result.getFoodItem().getPublicationStatus());
         assertEquals(VerificationStatus.NEEDS_REVIEW, result.getFoodItem().getVerificationStatus());
         assertEquals(0L, result.getFoodItem().getSearchSelectionCount());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, result.getFoodItem().getNutritionReferenceUnit());
+        assertEquals(FoodProductReviewCaseStatus.SUBMITTED, result.getStatus());
     }
 
     @Test

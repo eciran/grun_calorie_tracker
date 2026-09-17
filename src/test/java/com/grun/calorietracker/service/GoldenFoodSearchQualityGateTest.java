@@ -104,6 +104,15 @@ class GoldenFoodSearchQualityGateTest {
                 objectMapper
         );
         importGoldenCatalog(importService);
+        // Synthetic search/localization fixture, not a catalog density correction.
+        // A mass-based food needs an explicit portion mass, not an inferred ml-to-g ratio.
+        foodItemServingOptionRepository.findAll().stream()
+                .filter(option -> "GLOBAL:GENERIC_INGREDIENT:RAW:whole_milk".equals(
+                        option.getFoodItem().getSourceKey()))
+                .forEach(option -> {
+                    option.setGramWeight(240.0);
+                    option.setMlVolume(null);
+                });
         foodItemRepository.findAll().forEach(product ->
                 product.setPublicationStatus(
                         com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED
@@ -141,7 +150,7 @@ class GoldenFoodSearchQualityGateTest {
     }
 
     @Test
-    void searchMakesImportedInternalReviewProductsDiscoverableAcrossRegions() {
+    void searchKeepsInternalReviewProductsOutOfUserEndpoints() {
         FoodItemEntity candidate = product(
                 "Unreviewed Imported Granola",
                 "EU:TEST:UNREVIEWED_GRANOLA",
@@ -188,9 +197,11 @@ class GoldenFoodSearchQualityGateTest {
 
         FoodProductSearchPageDto result = service.searchFoodItems(criteria, 0, 20);
 
-        assertTrue(result.getContent().stream().anyMatch(item -> candidate.getSourceKey().equals(item.getSourceKey())));
+        assertTrue(result.getContent().stream().noneMatch(item -> candidate.getSourceKey().equals(item.getSourceKey())));
         assertTrue(result.getContent().stream().noneMatch(item -> rejected.getSourceKey().equals(item.getSourceKey())));
-        assertEquals(candidate.getId(), service.getFoodItemById(candidate.getId(), "user@example.com").getId());
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.grun.calorietracker.exception.ProductNotFoundException.class,
+                () -> service.getFoodItemById(candidate.getId(), "user@example.com"));
     }
 
     private GoldenFixture readFixture(ObjectMapper objectMapper) throws Exception {

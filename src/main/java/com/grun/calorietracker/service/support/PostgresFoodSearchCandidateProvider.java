@@ -38,7 +38,7 @@ public class PostgresFoodSearchCandidateProvider {
         List<Long> candidates = jdbcTemplate.queryForList(
                 buildSql(terms.size()),
                 Long.class,
-                buildArguments(terms)
+                buildArguments(terms, FoodBrandSearchRules.key(searchQuery))
         );
         if (candidates.size() > MAX_CANDIDATES) {
             return Optional.empty();
@@ -104,12 +104,15 @@ public class PostgresFoodSearchCandidateProvider {
                     select food_item_id from food_item_search_aliases where active = true and (%s)
                     union
                     select food_item_id from food_item_localizations where active = true and (%s)
+                    union
+                    select id from food_items where %s = ?
                 )
                 select food_item_id
                 from candidate_ids
                 order by food_item_id
                 limit %d
-                """.formatted(itemPredicate, aliasPredicate, localizationPredicate, MAX_CANDIDATES + 1);
+                """.formatted(itemPredicate, aliasPredicate, localizationPredicate,
+                        FoodBrandSearchRules.sqlExpression(), MAX_CANDIDATES + 1);
     }
 
     private String repeatedPredicate(int termCount, String... columns) {
@@ -120,11 +123,12 @@ public class PostgresFoodSearchCandidateProvider {
         return String.join(" or ", predicates);
     }
 
-    private Object[] buildArguments(Set<String> terms) {
+    private Object[] buildArguments(Set<String> terms, String brandKey) {
         List<Object> arguments = new ArrayList<>();
         appendPatterns(arguments, terms, 4);
         appendPatterns(arguments, terms, 2);
         appendPatterns(arguments, terms, 2);
+        arguments.add(brandKey);
         return arguments.toArray();
     }
 

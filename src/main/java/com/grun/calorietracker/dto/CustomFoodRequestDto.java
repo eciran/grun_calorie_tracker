@@ -49,4 +49,31 @@ public class CustomFoodRequestDto {
 
     @Schema(description = "Optional serving label.", example = "bowl")
     private String servingUnit;
+    private com.grun.calorietracker.enums.FoodNutritionReferenceUnit nutritionReferenceUnit;
+    @PositiveOrZero
+    private Double saturatedFat;
+    @PositiveOrZero
+    private Double transFat;
+    @PositiveOrZero
+    private Double cholesterol;
+    @PositiveOrZero
+    private Double potassium;
+    @PositiveOrZero
+    private Double calcium;
+    @PositiveOrZero
+    private Double iron;
+    @PositiveOrZero
+    private Double magnesium;
+    @PositiveOrZero
+    private Double zinc;
+    @PositiveOrZero
+    private Double vitaminA;
+    @PositiveOrZero
+    private Double vitaminC;
+    @PositiveOrZero
+    private Double vitaminD;
+    @PositiveOrZero
+    private Double vitaminE;
+    @PositiveOrZero
+    private Double vitaminB12;
 }

@@ -13,6 +13,11 @@ import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
+import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
+import java.util.Map;
+import java.util.HashMap;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeCookingStepEntity;
@@ -78,6 +83,7 @@ public class RecipeServiceImpl implements RecipeService {
 
     private final UserRepository userRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final FoodItemServingOptionRepository foodItemServingOptionRepository;
     private final RecipeRepository recipeRepository;
     private final RecipeReportRepository recipeReportRepository;
@@ -790,7 +796,9 @@ public class RecipeServiceImpl implements RecipeService {
         applyInteractionSummary(dto, recipe, viewer);
         dto.setCreatedAt(recipe.getCreatedAt());
         dto.setUpdatedAt(recipe.getUpdatedAt());
-        dto.setIngredients(recipe.getIngredients().stream().map(this::toIngredientDto).toList());
+        Map<Long, String> ingredientNames = ingredientDisplayNames(recipe, viewer);
+        dto.setIngredients(recipe.getIngredients().stream()
+                .map(ingredient -> toIngredientDto(ingredient, ingredientNames)).toList());
         dto.setCookingSteps(recipe.getCookingSteps().stream().map(this::toStepDto).toList());
         dto.setAllergens(recipe.getAllergens() == null ? Set.of() : new LinkedHashSet<>(recipe.getAllergens()));
         return dto;
@@ -905,11 +913,50 @@ public class RecipeServiceImpl implements RecipeService {
         target.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
     }
 
-    private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
+    private Map<Long, String> ingredientDisplayNames(RecipeEntity recipe, UserEntity viewer) {
+        PreferredLanguage language = viewer != null && viewer.getPreferredLanguage() != null
+                ? viewer.getPreferredLanguage() : PreferredLanguage.EN;
+        List<Long> ids = recipe.getIngredients().stream().map(RecipeIngredientEntity::getFoodItem)
+                .filter(Objects::nonNull).map(FoodItemEntity::getId).filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return Map.of();
+        Set<PreferredLanguage> languages = language == PreferredLanguage.EN
+                ? Set.of(PreferredLanguage.EN) : Set.of(language, PreferredLanguage.EN);
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localized = new HashMap<>();
+        foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(ids, languages)
+                .forEach(item -> localized.computeIfAbsent(item.getFoodItem().getId(), key -> new HashMap<>())
+                        .put(item.getLanguage(), item));
+        Map<Long, String> names = new HashMap<>();
+        for (RecipeIngredientEntity ingredient : recipe.getIngredients()) {
+            FoodItemEntity food = ingredient.getFoodItem();
+            if (food == null) continue;
+            Map<PreferredLanguage, FoodItemLocalizationEntity> translations = localized.getOrDefault(food.getId(), Map.of());
+            String name = localizedIngredientName(translations.get(language));
+            if (name == null) name = localizedIngredientName(translations.get(PreferredLanguage.EN));
+            if (name == null) name = firstIngredientName(food.getShortDisplayName(), food.getDisplayName(), food.getName());
+            names.put(food.getId(), name);
+        }
+        return names;
+    }
+
+    private String localizedIngredientName(FoodItemLocalizationEntity item) {
+        return item == null ? null : firstIngredientName(item.getShortDisplayName(), item.getDisplayName());
+    }
+
+    private String firstIngredientName(String... candidates) {
+        for (String candidate : candidates) {
+            String name = FoodProductNormalizationRules.normalizeProductDisplayName(candidate);
+            if (name != null && !name.isBlank()) return name;
+        }
+        return null;
+    }
+
+    private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient, Map<Long, String> names) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
         if (ingredient.getFoodItem() != null) {
             dto.setFoodItemId(ingredient.getFoodItem().getId());
-            dto.setFoodName(ingredient.getFoodItem().getName());
+            dto.setFoodName(names.getOrDefault(ingredient.getFoodItem().getId(),
+                    firstIngredientName(ingredient.getFoodItem().getShortDisplayName(),
+                            ingredient.getFoodItem().getDisplayName(), ingredient.getFoodItem().getName())));
             dto.setSnapshotIngredient(false);
         } else {
             dto.setFoodName(ingredient.getSnapshotFoodName());

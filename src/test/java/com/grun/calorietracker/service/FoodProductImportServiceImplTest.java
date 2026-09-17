@@ -200,6 +200,52 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_canonicalizesReviewedBrandsWithoutMergingDifferentBarcodes() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        MockMultipartFile file = csv("""
+                barcode,name,brand,calories,protein,fat,carbs,market_region
+                5034033000220,Lean & Green,Vit-Hit,7,0,0,1.4,UK_IE
+                5034033000800,Lean & Green,Vit Hit,7,0,0,1.4,UK_IE
+                """);
+        foodProductImportService.importCsv(file, "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> saved = captor.getValue();
+        assertEquals(2, saved.size());
+        assertEquals(List.of("VITHIT", "VITHIT"), saved.stream().map(FoodItemEntity::getBrand).toList());
+        assertEquals(2L, saved.stream().map(FoodItemEntity::getNormalizedBarcode).distinct().count());
+    }
+
+    @Test
+    void importCsv_missingBasisPreservesExistingMilliliterReference() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(1L);
+        existing.setNormalizedBarcode("5411188139904");
+        existing.setBarcode("5411188139904");
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs,market_region
+                5411188139904,Alpro Almond Milk,15,0.5,1.1,0,UK_IE
+                """), "admin@test.com");
+        assertEquals(1, result.getSavedRows());
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, existing.getNutritionReferenceUnit());
+    }
+
+    @Test
+    void importCsv_invalidExplicitBasisIsRejectedInsteadOfDefaultingToGrams() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,market_region,nutrition_reference_unit
+                5411188139904,Alpro Almond Milk,15,UK_IE,PER_SERVING
+                """), "admin@test.com");
+        assertEquals(0, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
+    }
+
+    @Test
     void importCsv_importsMultilingualSearchAliases() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1084,11 +1130,12 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(2, result.getMarketRegionCounts().get("GLOBAL"));
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_REGION"));
         assertEquals(1, result.getQualityWarningCounts().get("UNSUPPORTED_REGION"));
-        assertEquals(6, result.getWarnings().size());
-        assertEquals("MISSING_REGION", result.getWarnings().get(0).getCode());
+        assertEquals(8, result.getWarnings().size());
+        assertEquals(2, result.getQualityWarningCounts().get("MISSING_NUTRITION_REFERENCE_UNIT"));
+        assertEquals("MISSING_REGION", result.getWarnings().get(1).getCode());
         assertEquals("1111111111111", result.getWarnings().get(0).getIdentifier());
-        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(3).getCode());
-        assertEquals(76, result.getImportQualityScore());
+        assertEquals("UNSUPPORTED_REGION", result.getWarnings().get(5).getCode());
+        assertEquals(68, result.getImportQualityScore());
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -1114,11 +1161,12 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_CALORIES"));
         assertEquals(1, result.getQualityWarningCounts().get("MISSING_MACROS"));
         assertEquals(2, result.getQualityWarningCounts().get("MISSING_SERVING_SIZE"));
-        assertEquals(5, result.getWarnings().size());
-        assertEquals("MISSING_CALORIES", result.getWarnings().get(0).getCode());
+        assertEquals(7, result.getWarnings().size());
+        assertEquals(2, result.getQualityWarningCounts().get("MISSING_NUTRITION_REFERENCE_UNIT"));
+        assertEquals("MISSING_CALORIES", result.getWarnings().get(1).getCode());
         assertEquals("not-a-barcode", result.getWarnings().get(0).getIdentifier());
-        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(3).getCode());
-        assertEquals(80, result.getImportQualityScore());
+        assertEquals("INVALID_BARCODE_FORMAT", result.getWarnings().get(4).getCode());
+        assertEquals(72, result.getImportQualityScore());
         verify(foodProductQualityIssueTracker).syncImportIssues(
                 anyList(),
                 eq("admin@test.com")

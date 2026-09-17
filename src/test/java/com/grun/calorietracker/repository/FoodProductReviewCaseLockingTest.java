@@ -74,6 +74,7 @@ class FoodProductReviewCaseLockingTest {
         reviewCase.setSchemaVersion(1);
         reviewCase.setSubmittedValuesJson("{\"calories\":100}");
         reviewCase.setTemporaryEvidenceAllowed(false);
+        reviewCase.setAiNutritionLabelProcessingAllowed(false);
         reviewCase.setPublicMediaAllowed(false);
         return reviewCase;
     }
