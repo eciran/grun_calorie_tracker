@@ -122,7 +122,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         boolean charged = false;
         try {
             AiNutritionPlanDraftResponseDto response = createValidatedProviderDraft(request, target, history);
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            SubscriptionDto quota = subscriptionService.consumeAiRequestQuota(email, creditCost, history.getId());
             charged = true;
             response.setQuotaConsumedAmount(creditCost);
             response.setAiBaseRemainingThisPeriod(quota.getAiBaseRemainingThisPeriod());
@@ -145,15 +145,13 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             response.setRequestId(history.getId());
             return response;
         } catch (RuntimeException ex) {
-            if (charged) {
-                refund(user, creditCost);
-            }
+            boolean stillCharged = charged && !refund(user, history.getId());
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(json(AiSafeResponseBuilder.failurePayload(
-                    AiRequestType.AI_NUTRITION_PLAN, true, creditCost, false, user.getPreferredLanguage())));
-            history.setQuotaConsumed(false);
-            history.setQuotaConsumedAmount(0);
+                    AiRequestType.AI_NUTRITION_PLAN, true, creditCost, stillCharged, user.getPreferredLanguage())));
+            history.setQuotaConsumed(stillCharged);
+            history.setQuotaConsumedAmount(stillCharged ? creditCost : 0);
             history.setLatencyMs(elapsed(startedAt));
             historyRepository.save(history);
             if (ex instanceof AiProviderException) {
@@ -1148,11 +1146,12 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         history.setCostCurrency(response.getCostCurrency());
     }
 
-    private void refund(UserEntity user, int amount) {
+    private boolean refund(UserEntity user, Long requestId) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), amount);
+            subscriptionService.refundAiRequestQuota(user.getId(), requestId);
+            return true;
         } catch (RuntimeException ignored) {
-            // Monitoring can reconcile this rare provider-success/persistence-failure path.
+            return false;
         }
     }
 

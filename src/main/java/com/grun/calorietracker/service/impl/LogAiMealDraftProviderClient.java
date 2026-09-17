@@ -70,6 +70,7 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         AiMealDraftResponseDto response = baseResponse(AiRequestType.PHOTO_MEAL_LOG, request.getMealType(), request.getLogDate());
         response.setModel(properties.resolveModel(AiRequestType.PHOTO_MEAL_LOG));
         response.setSummary("Draft generated from image reference. Configure a real vision provider before production use.");
+        response.setPhotoOutcome("FOOD_DETECTED"); // Synthetic development fixture, not vision inference.
         response.setItems(List.of(sampleItem(request.getUserNote() == null ? request.getImageReference() : request.getUserNote())));
         return response;
     }

@@ -106,6 +106,9 @@ public class AiRequestHistoryEntity {
 
     private LocalDateTime completionNotifiedAt;
 
+    @Column(nullable = false)
+    private boolean coachingCompletionNotificationEligible = false;
+
     private LocalDateTime confirmedAt;
 
     @Enumerated(EnumType.STRING)

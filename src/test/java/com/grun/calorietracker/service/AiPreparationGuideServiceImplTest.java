@@ -81,7 +81,7 @@ class AiPreparationGuideServiceImplTest {
         when(provider.createPreparationGuide(any())).thenReturn(providerResponse(999.0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(17);
-        when(subscriptionService.consumeAiQuota("user@grun.test", 3)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@grun.test"), org.mockito.ArgumentMatchers.eq(3), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any())).thenAnswer(invocation -> {
             AiRequestHistoryEntity value = invocation.getArgument(0);
             if (value.getId() == null) value.setId(30L);
@@ -105,7 +105,7 @@ class AiPreparationGuideServiceImplTest {
         assertThat(result.getUx().getLifecycleStatus()).isEqualTo(AiClientLifecycleStatus.COMPLETED);
         assertThat(result.getUx().getCreditCharged()).isTrue();
         assertThat(result.getUx().getConfirmationRequired()).isTrue();
-        verify(subscriptionService).consumeAiQuota("user@grun.test", 3);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@grun.test"), org.mockito.ArgumentMatchers.eq(3), org.mockito.ArgumentMatchers.any());
         verify(provider, times(1)).createPreparationGuide(any());
     }
 
@@ -137,7 +137,7 @@ class AiPreparationGuideServiceImplTest {
         assertThatThrownBy(() -> service.generate("user@grun.test", 10L, 20L,
                 "prep-key-002", null)).isInstanceOf(AiProviderException.class)
                 .hasMessage("AI preparation guide could not produce a usable result.");
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -150,7 +150,7 @@ class AiPreparationGuideServiceImplTest {
         when(subscriptionService.resolveAiCreditCost(anyString(), any())).thenReturn(1);
         when(provider.createPreparationGuide(any())).thenReturn(providerResponse(240.0));
         SubscriptionDto quota = new SubscriptionDto(); quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota(anyString(), eq(1))).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(anyString(), eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any())).thenAnswer(invocation -> {
             AiRequestHistoryEntity value = invocation.getArgument(0); value.setId(31L); return value;
         });
@@ -162,7 +162,7 @@ class AiPreparationGuideServiceImplTest {
                 "user@grun.test", 10L, 20L, "prep-key-003", null);
 
         assertThat(result.getVersion()).isEqualTo(2);
-        verify(subscriptionService).consumeAiQuota("user@grun.test", 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@grun.test"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -178,7 +178,7 @@ class AiPreparationGuideServiceImplTest {
                 "user@grun.test", 10L, 20L, "prep-key-004", null);
 
         assertThat(result.getGuideId()).isEqualTo(40L);
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
         verify(provider, never()).createPreparationGuide(any());
     }
 

@@ -230,7 +230,7 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         long startedAt = System.nanoTime();
         boolean charged = false;
         try {
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            SubscriptionDto quota = subscriptionService.consumeAiRequestQuota(email, creditCost, history.getId());
             charged = true;
             String outputLanguage = resolvedRequestLocale(request, user);
             AiMealDraftResponseDto response = validatedProviderResponse(
@@ -256,10 +256,19 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, history.getId());
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
-            history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true, creditCost, !refunded, user.getPreferredLanguage())));
+            Map<String, Object> failure = AiSafeResponseBuilder.failurePayload(requestType,
+                    !(ex instanceof com.grun.calorietracker.exception.AiPhotoInputException), creditCost, !refunded, user.getPreferredLanguage());
+            if (ex instanceof com.grun.calorietracker.exception.AiPhotoInputException photoError) {
+                String message = photoError.userMessage(user.getPreferredLanguage() == com.grun.calorietracker.enums.PreferredLanguage.TR);
+                failure.put("errorCode", photoError.getCode());
+                failure.put("userMessage", message);
+                failure.put("userAction", message);
+                failure.put("nextBestActions", List.of(message));
+            }
+            history.setOutputPayload(writeJson(failure));
             history.setQuotaConsumed(!refunded);
             history.setQuotaConsumedAmount(refunded ? 0 : creditCost);
             history.setLatencyMs(elapsedMs(startedAt));
@@ -892,9 +901,9 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
+    private boolean refundConsumedQuota(UserEntity user, Long requestId) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
+            subscriptionService.refundAiRequestQuota(user.getId(), requestId);
             return true;
         } catch (RuntimeException ignored) {
             return false;

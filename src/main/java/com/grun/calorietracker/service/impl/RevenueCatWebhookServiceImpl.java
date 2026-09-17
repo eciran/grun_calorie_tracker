@@ -71,6 +71,7 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     private final SubscriptionService subscriptionService;
     private final PromoProviderRedemptionService promoProviderRedemptionService;
     private final RevenueCatLifecycleNotificationService lifecycleNotificationService;
+    private final com.grun.calorietracker.service.StoreSubscriptionOwnershipService ownershipService;
     @Autowired(required = false) private PushDeliveryService pushDeliveryService;
     @Autowired(required = false) private UserConsentRepository userConsentRepository;
 
@@ -118,6 +119,11 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 Optional<Long> destinationUserId = resolveUniqueBackendUserId(event.getTransferredTo());
                 destinationUserId.flatMap(userRepository::findById).ifPresent(audit::setUser);
                 destinationUserId.map(id -> "user:" + id).ifPresent(audit::setProviderAppUserId);
+                Optional<Long> sourceUserId = resolveUniqueBackendUserId(event.getTransferredFrom());
+                if (sourceUserId.isPresent() && destinationUserId.isPresent()
+                        && !sourceUserId.get().equals(destinationUserId.get())) {
+                    throw new IllegalArgumentException("SUBSCRIPTION_OWNERSHIP_CONFLICT: transfer between different GRUN accounts requires review; no entitlement was changed.");
+                }
                 audit.setStatus(SubscriptionProviderEventStatus.IGNORED);
                 audit.setProcessedAt(LocalDateTime.now());
                 eventRepository.save(audit);
@@ -135,6 +141,9 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             }
             audit.setUser(user.get());
             assertRevenueCatCustomerBinding(user.get(), event);
+            if (resolvePlan(event) != null && resolveAddonQuota(event.getProductId()) == null) {
+                ownershipService.assertOwner(user.get().getId(), event);
+            }
             SubscriptionEntity previousSubscription = subscriptionRepository.findByUser(user.get()).orElse(null);
             captureRefundEvidence(audit, user.get(), previousSubscription, eventType);
             SubscriptionPlan previousPlan = previousSubscription == null ? SubscriptionPlan.FREE : previousSubscription.getPlanType();
@@ -147,6 +156,9 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                             ? resolvePlanForProduct(event.getNewProductId()) : previousPlan;
                     if (notificationPlan == null || notificationPlan == SubscriptionPlan.FREE) {
                         throw new IllegalArgumentException("RevenueCat lifecycle notification could not resolve a paid plan.");
+                    }
+                    if (providerType == RevenueCatEventType.PRODUCT_CHANGE) {
+                        subscriptionService.recordScheduledChange(user.get().getId(), event);
                     }
                     lifecycleNotificationService.enqueue(user.get(), providerType, providerEventId,
                             notificationPlan,
@@ -459,6 +471,11 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         command.setProvider(PaymentProvider.REVENUECAT);
         command.setProviderCustomerId(firstNonBlank(event.getAppUserId(), event.getOriginalAppUserId()));
         command.setProviderProductId(event.getProductId());
+        if (event.getProductId() != null && event.getProductId().endsWith("_yearly")) {
+            command.setBillingPeriod(com.grun.calorietracker.enums.BillingPeriod.YEARLY);
+        } else if (event.getProductId() != null && event.getProductId().endsWith("_monthly")) {
+            command.setBillingPeriod(com.grun.calorietracker.enums.BillingPeriod.MONTHLY);
+        }
         command.setProviderEventId(providerEventId);
         command.setProviderSubscriptionId(firstNonBlank(event.getOriginalTransactionId(), event.getTransactionId()));
         command.setProviderTransactionId(event.getTransactionId());

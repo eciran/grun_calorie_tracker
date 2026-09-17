@@ -69,7 +69,8 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
             select count(s)
             from SubscriptionEntity s
             where s.status in (com.grun.calorietracker.enums.SubscriptionStatus.ACTIVE, com.grun.calorietracker.enums.SubscriptionStatus.TRIALING)
-              and coalesce(s.aiUsedThisPeriod, 0) >= (coalesce(s.aiMonthlyQuota, 0) + coalesce(s.aiAddonQuota, 0))
+              and coalesce(s.aiUsedThisPeriod, 0) >= (coalesce(s.aiMonthlyQuota, 0) + coalesce(s.aiAddonQuota, 0)
+                  + case when s.aiQuotaPeriodEndDate >= current_date then coalesce(s.aiUpgradeBonus, 0) else 0 end)
             """)
     long countActiveSubscriptionsWithExhaustedAiQuota();
 }

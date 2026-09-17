@@ -105,7 +105,7 @@ class AiRecipeDraftServiceImplTest {
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse());
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(44L);
@@ -120,7 +120,7 @@ class AiRecipeDraftServiceImplTest {
         assertEquals(true, result.getReviewRequired());
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
         verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_RECIPE_GENERATION);
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(captor.capture());
@@ -141,7 +141,7 @@ class AiRecipeDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse());
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(44L);
@@ -167,7 +167,7 @@ class AiRecipeDraftServiceImplTest {
     @Test
     void createRecipeDraft_whenQuotaUnavailable_doesNotCallProvider() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
-        when(subscriptionService.consumeAiQuota("user@example.com", 1))
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new IllegalArgumentException("AI quota is not available for the current subscription."));
 
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
@@ -186,14 +186,14 @@ class AiRecipeDraftServiceImplTest {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(providerClient.provider()).thenReturn(AiProvider.LOG);
         when(providerClient.createRecipeDraft(any())).thenReturn(invalid);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> service.createRecipeDraft("user@example.com", request()));
 
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
-        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
+        verify(subscriptionService).refundAiRequestQuota(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(captor.capture());
         assertEquals(AiRequestStatus.FAILED, captor.getValue().getStatus());
@@ -223,7 +223,7 @@ class AiRecipeDraftServiceImplTest {
         when(providerClient.createRecipeDraft(any())).thenReturn(providerResponse);
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(44L);

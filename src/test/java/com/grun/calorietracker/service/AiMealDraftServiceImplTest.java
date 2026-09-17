@@ -110,6 +110,41 @@ class AiMealDraftServiceImplTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"NO_FOOD_DETECTED", "IMAGE_UNCLEAR"})
+    void photoRejectedInputRefundsOnceAndReplaysReason(String outcome) throws Exception {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(providerClient.provider()).thenReturn(AiProvider.LOG);
+        AiMealDraftResponseDto response = providerResponse();
+        response.setPhotoOutcome(outcome);
+        response.setItems(List.of());
+        when(providerClient.createPhotoMealDraft(any())).thenReturn(response);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(new SubscriptionDto());
+        when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
+        request.setImageReference("https://api.grun.app/api/v1/ai/meal-drafts/photo-references/meal.jpg");
+        String key = "photo-no-food-test";
+        var error = assertThrows(com.grun.calorietracker.exception.AiPhotoInputException.class,
+                () -> service.createPhotoMealDraft("user@example.com", key, request));
+        assertEquals(outcome, error.getCode());
+        ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
+        verify(historyRepository, times(2)).save(captor.capture());
+        AiRequestHistoryEntity failed = captor.getValue();
+        assertEquals(AiRequestStatus.FAILED, failed.getStatus());
+        assertEquals(false, failed.getQuotaConsumed());
+        var payload = new ObjectMapper().readTree(failed.getOutputPayload());
+        assertEquals(outcome, payload.path("errorCode").asText());
+        assertEquals(false, payload.path("retryable").asBoolean());
+        when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(user, AiRequestType.PHOTO_MEAL_LOG, key))
+                .thenReturn(Optional.of(failed));
+        assertThrows(com.grun.calorietracker.exception.AiPhotoInputException.class,
+                () -> service.createPhotoMealDraft("user@example.com", key, request));
+        verify(subscriptionService, times(1)).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
+        verify(subscriptionService, times(1)).refundAiRequestQuota(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
+        verify(providerClient, times(1)).createPhotoMealDraft(any());
+        verifyNoInteractions(foodLogsService, notificationRepository);
+    }
+
+    @ParameterizedTest
     @ValueSource(ints = {14, 0})
     void createVoiceFoodDraft_createsDraftConsumesQuotaAndStoresHistory_evenForLastCredit(int remaining) throws Exception {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
@@ -117,7 +152,7 @@ class AiMealDraftServiceImplTest {
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(providerResponse());
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(remaining);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(10L);
@@ -133,7 +168,7 @@ class AiMealDraftServiceImplTest {
         assertEquals("AI_SNAPSHOT", result.getItems().get(0).getMatchReason());
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(captor.capture());
@@ -157,7 +192,7 @@ class AiMealDraftServiceImplTest {
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(providerResponse());
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(14);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(10L);
@@ -178,7 +213,7 @@ class AiMealDraftServiceImplTest {
         AiMealDraftResponseDto invalid = providerResponse();
         invalid.setItems(List.of());
         when(providerClient.createVoiceFoodDraft(any())).thenReturn(invalid);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThrows(IllegalArgumentException.class,
@@ -186,8 +221,8 @@ class AiMealDraftServiceImplTest {
 
         verify(subscriptionService).assertFeatureAccess("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
         verify(subscriptionService).resolveAiCreditCost("user@example.com", SubscriptionFeature.AI_MEAL_DRAFTS);
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
-        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
+        verify(subscriptionService).refundAiRequestQuota(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
 
         ArgumentCaptor<AiRequestHistoryEntity> captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(captor.capture());
@@ -206,7 +241,7 @@ class AiMealDraftServiceImplTest {
     @Test
     void createVoiceFoodDraft_whenQuotaUnavailable_doesNotCallProvider() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
-        when(subscriptionService.consumeAiQuota("user@example.com", 1))
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new IllegalArgumentException("AI quota is not available for the current subscription."));
 
         assertThrows(IllegalArgumentException.class,
@@ -237,7 +272,7 @@ class AiMealDraftServiceImplTest {
         when(providerClient.createPhotoMealDraft(any())).thenReturn(providerResponse());
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(14);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(11L);
@@ -276,7 +311,7 @@ class AiMealDraftServiceImplTest {
         when(providerClient.createPhotoMealDraft(any())).thenReturn(turkish);
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(14);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> {
             AiRequestHistoryEntity entity = invocation.getArgument(0);
             entity.setId(12L);
@@ -302,7 +337,7 @@ class AiMealDraftServiceImplTest {
         turkish.setSummary("Fotoğrafta bir şeker görünüyor ve ürün ağırlığı yaklaşık olarak tahmin edildi.");
         turkish.setReviewReasons(List.of("Marka ve gramaj görünmüyor; besin değeri değişebilir."));
         when(providerClient.createPhotoMealDraft(any())).thenReturn(turkish);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(new SubscriptionDto());
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(new SubscriptionDto());
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         AiPhotoMealDraftRequestDto request = new AiPhotoMealDraftRequestDto();
         request.setImageReference("https://api.grun.app/api/v1/ai/meal-drafts/photo-references/meal.jpg");
@@ -312,7 +347,7 @@ class AiMealDraftServiceImplTest {
                 () -> service.createPhotoMealDraft("user@example.com", request));
 
         verify(providerClient, times(1)).createPhotoMealDraft(any());
-        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
+        verify(subscriptionService).refundAiRequestQuota(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
     }
     @Test
     void createPhotoMealDraft_whenImageReferencePrefixNotAllowed_doesNotCallProviderOrConsumeQuota() {
@@ -641,6 +676,7 @@ class AiMealDraftServiceImplTest {
         response.setRequestType(AiRequestType.VOICE_FOOD_LOG);
         response.setProvider(AiProvider.LOG);
         response.setModel("log-draft-v1");
+        response.setPhotoOutcome("FOOD_DETECTED");
         response.setStatus(AiRequestStatus.DRAFT_CREATED);
         response.setSuggestedMealType("LUNCH");
         response.setSuggestedLogDate(LocalDateTime.of(2026, 6, 1, 13, 30));

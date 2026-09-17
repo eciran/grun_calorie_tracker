@@ -45,6 +45,9 @@ public class SubscriptionEntity {
 
     private Integer aiMonthlyQuota;
 
+    @Column(nullable = false)
+    private Integer aiUpgradeBonus = 0;
+
     private Integer aiAddonQuota;
 
     private Integer aiAddonUsed;
@@ -80,6 +83,9 @@ public class SubscriptionEntity {
     private String lastProviderEventId;
 
     private Instant lastProviderEventAt;
+    private String scheduledProductId;
+    private Instant scheduledChangeAt;
+    private Instant scheduledEventAt;
 
     private LocalDateTime updatedAt;
 }

@@ -24,6 +24,30 @@ import static org.mockito.Mockito.*;
 class AiCompletionNotificationServiceTest {
 
     @Test
+    void confirmedDailyAndWeeklyCoachingUseTheirOwnRequestDestination() {
+        for (AiRequestType type : List.of(AiRequestType.AI_DAILY_INSIGHT, AiRequestType.AI_WEEKLY_INSIGHT)) {
+            var repository = mock(AiRequestHistoryRepository.class);
+            var notifications = mock(NotificationRepository.class);
+            var push = mock(PushDeliveryService.class);
+            var history = new AiRequestHistoryEntity();
+            history.setId(88L);
+            history.setUser(new UserEntity());
+            history.setRequestType(type);
+            history.setStatus(AiRequestStatus.CONFIRMED);
+            history.setCoachingCompletionNotificationEligible(true);
+            when(repository.findPendingCompletionNotifications(anyList(), any(Pageable.class))).thenReturn(List.of(history));
+            when(notifications.save(any())).thenAnswer(call -> call.getArgument(0));
+            assertEquals(1, new AiCompletionNotificationService(repository, notifications, push, messageSource()).publishPendingNotifications());
+            var captor = ArgumentCaptor.forClass(NotificationEntity.class);
+            verify(notifications).save(captor.capture());
+            assertEquals("ai-insights", captor.getValue().getTargetRoute());
+            assertEquals("88", captor.getValue().getTargetId());
+            assertEquals("ai_request_ready", captor.getValue().getType());
+            verify(push).deliver(captor.getValue());
+        }
+    }
+
+    @Test
     void publishPendingNotifications_createsRoutedNotificationAndMarksHistory() {
         AiRequestHistoryRepository historyRepository = mock(AiRequestHistoryRepository.class);
         NotificationRepository notificationRepository = mock(NotificationRepository.class);

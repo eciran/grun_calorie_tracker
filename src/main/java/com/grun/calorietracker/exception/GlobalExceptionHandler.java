@@ -67,6 +67,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    @ExceptionHandler(AiPhotoInputException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAiPhotoInput(AiPhotoInputException ex, HttpServletRequest request) {
+        boolean turkish = "tr".equals(LocaleConfig.resolveSupportedLocale(RequestContextUtils.getLocale(request)).getLanguage());
+        return buildDomainResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getCode(), ex.userMessage(turkish), List.of(), request);
+    }
+
     private String correlationId(HttpServletRequest request) {
         Object value = request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE);
         return value == null ? request.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER) : value.toString();

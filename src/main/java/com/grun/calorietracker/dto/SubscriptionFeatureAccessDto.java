@@ -49,6 +49,7 @@ public class SubscriptionFeatureAccessDto {
     private Boolean adFree;
     private Boolean customFoodLibrary;
     private Integer aiMonthlyQuota;
+    private Integer aiUpgradeBonus;
     private Integer aiAddonQuota;
     private Integer aiUsedThisPeriod;
     private Integer aiBaseRemainingThisPeriod;

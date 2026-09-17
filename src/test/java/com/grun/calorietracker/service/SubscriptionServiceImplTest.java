@@ -79,6 +79,9 @@ class SubscriptionServiceImplTest {
     @Mock
     private SubscriptionCreditAllocationRepository subscriptionCreditAllocationRepository;
 
+    @Mock
+    private com.grun.calorietracker.repository.AiCreditDebitRepository aiCreditDebitRepository;
+
     private SubscriptionServiceImpl service;
 
     private UserEntity user;
@@ -89,7 +92,7 @@ class SubscriptionServiceImplTest {
         service = new SubscriptionServiceImpl(
                 subscriptionRepository, userRepository, subscriptionPlanFeatureRepository,
                 userSubscriptionEntitlementRepository, notificationRepository, mailDeliveryService,
-                aiCreditPricingService, subscriptionCreditAllocationRepository);
+                aiCreditPricingService, subscriptionCreditAllocationRepository, aiCreditDebitRepository);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -656,8 +659,12 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
-    void applyProviderEvent_plusExhaustedToNewPro_grantsFresh150WithoutLosingAddon() {
+    void applyProviderEvent_exhaustedPlusToPro_grants150AndPreservesAddon() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 54);
+        entity.setProvider(PaymentProvider.REVENUECAT);
+        entity.setProviderOriginalTransactionId("otx-plan");
+        entity.setAiQuotaPeriodStartDate(java.time.LocalDate.of(2026, 8, 1));
+        entity.setAiQuotaPeriodEndDate(java.time.LocalDate.of(2026, 8, 31));
         entity.setAiAddonQuota(10); entity.setAiAddonUsed(4);
         entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(5));
         stubProviderApply(entity, 1);
@@ -666,10 +673,12 @@ class SubscriptionServiceImplTest {
 
         assertEquals(150, result.getAiMonthlyQuota());
         assertEquals(0, result.getAiPlanUsedThisPeriod());
+        assertEquals(0, result.getAiUpgradeBonus());
         assertEquals(4, result.getAiAddonUsed());
         assertEquals(156, result.getAiRemainingThisPeriod());
         assertEquals("a".repeat(64), result.getAiCreditAllocationReference());
         assertEquals(4, entity.getAiUsedThisPeriod());
+        assertEquals(java.time.LocalDate.of(2026, 9, 28), entity.getAiQuotaPeriodEndDate());
         verify(userRepository).findByIdForUpdate(1L);
     }
 
@@ -754,6 +763,7 @@ class SubscriptionServiceImplTest {
     @Test
     void applyProviderEvent_newRenewalResetsOnlyPlanConsumption() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 105);
+        entity.setAiUpgradeBonus(36);
         entity.setAiPlanUsedThisPeriod(100); entity.setAiAddonQuota(10); entity.setAiAddonUsed(5);
         stubProviderApply(entity, 1);
         var command = planCommand(SubscriptionPlan.PRO, "b".repeat(64), Instant.parse("2026-09-29T10:00:00Z"));
@@ -764,6 +774,77 @@ class SubscriptionServiceImplTest {
         assertEquals(0, result.getAiPlanUsedThisPeriod());
         assertEquals(5, result.getAiAddonUsed());
         assertEquals(155, result.getAiRemainingThisPeriod());
+        assertEquals(0, result.getAiUpgradeBonus());
+    }
+
+    @Test
+    void verifiedUpgradeCarries36IntoProPoolOnlyOnceAndConsumesAddonFirst() {
+        var today = java.time.LocalDate.now();
+        var entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 14);
+        entity.setProvider(PaymentProvider.REVENUECAT);
+        entity.setProviderOriginalTransactionId("otx-plan");
+        entity.setAiQuotaPeriodStartDate(today.minusDays(7));
+        entity.setAiQuotaPeriodEndDate(today.plusDays(23));
+        entity.setAiAddonQuota(15);
+        entity.setAiAddonUsed(0);
+        entity.setAiAddonQuotaExpiresAt(today.plusDays(20));
+        stubProviderApply(entity, 1);
+        when(subscriptionCreditAllocationRepository.reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1, 0);
+        var command = planCommand(SubscriptionPlan.PRO, "d".repeat(64), today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant());
+        command.setStartDate(today);
+        command.setEndDate(today.plusMonths(1).minusDays(1));
+
+        var first = service.applyProviderEvent(1L, command);
+        assertEquals(150, first.getAiMonthlyQuota());
+        assertEquals(36, first.getAiUpgradeBonus());
+        assertEquals(186, first.getAiBaseRemainingThisPeriod());
+        assertEquals(201, first.getAiRemainingThisPeriod());
+        assertEquals(today.plusMonths(1), first.getQuotaResetDate());
+
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        var consumed = service.consumeAiQuota("user@example.com", 20);
+        assertEquals(15, consumed.getAiAddonUsed());
+        assertEquals(5, consumed.getAiPlanUsedThisPeriod());
+        assertEquals(181, consumed.getAiRemainingThisPeriod());
+
+        var repeated = service.applyProviderEvent(1L, command);
+        assertEquals(36, repeated.getAiUpgradeBonus());
+        assertEquals(181, repeated.getAiRemainingThisPeriod());
+        verify(subscriptionCreditAllocationRepository).recordUpgradeBonus(1L, "REVENUECAT", "d".repeat(64), 36);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"expired", "different-chain", "trial", "restore", "product-change"})
+    void upgradeBonusRequiresUnexpiredPaidPlusAndVerifiedSameChain(String scenario) {
+        var today = java.time.LocalDate.now();
+        var entity = subscription(SubscriptionPlan.PLUS, SubscriptionStatus.ACTIVE, 50, 14);
+        entity.setProvider(PaymentProvider.REVENUECAT);
+        entity.setProviderOriginalTransactionId("otx-plan");
+        if (scenario.equals("expired")) entity.setAiQuotaPeriodEndDate(today.minusDays(1));
+        if (scenario.equals("different-chain")) entity.setProviderOriginalTransactionId("another-chain");
+        if (scenario.equals("trial")) entity.setStatus(SubscriptionStatus.TRIALING);
+        stubProviderApply(entity, 1);
+        var command = planCommand(SubscriptionPlan.PRO, "e".repeat(64), today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant());
+        command.setStartDate(today);
+        command.setEndDate(today.plusMonths(1).minusDays(1));
+        if (scenario.equals("restore")) command.setGrantPlanCreditAllocation(false);
+        if (scenario.equals("product-change")) command.setEventType(RevenueCatEventType.PRODUCT_CHANGE);
+        var result = service.applyProviderEvent(1L, command);
+        assertEquals(0, result.getAiUpgradeBonus());
+    }
+
+    @Test
+    void expiredUpgradeBonusIsNotReportedAsSpendable() {
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 150);
+        entity.setAiUpgradeBonus(36);
+        entity.setAiQuotaPeriodEndDate(java.time.LocalDate.now().minusDays(1));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        var result = service.getCurrentSubscription("user@example.com");
+        assertEquals(0, result.getAiUpgradeBonus());
+        assertEquals(0, result.getAiRemainingThisPeriod());
     }
 
     @Test
@@ -903,6 +984,7 @@ class SubscriptionServiceImplTest {
     @Test
     void consumeAiQuota_whenBasePeriodResets_keepsUnexpiredOneOffAddonQuota() {
         SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 100, 100);
+        entity.setAiUpgradeBonus(36);
         entity.setAiAddonQuota(15);
         entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(5));
         entity.setAiAddonUsed(10);
@@ -920,6 +1002,8 @@ class SubscriptionServiceImplTest {
         assertEquals(11, result.getAiUsedThisPeriod());
         assertEquals(11, result.getAiAddonUsed());
         assertEquals(104, result.getAiRemainingThisPeriod());
+        assertEquals(0, entity.getAiUpgradeBonus());
+        assertEquals(0, result.getAiUpgradeBonus());
     }
 
     @Test
@@ -1029,6 +1113,161 @@ class SubscriptionServiceImplTest {
         assertEquals(false, result.getGroceryList());
         verify(subscriptionPlanFeatureRepository).findByPlanTypeOrderByFeatureAsc(SubscriptionPlan.PLUS);
     }
+    @Test
+    void annualPurchaseHasMonthlyCreditWindow() {
+        var today = java.time.LocalDate.now();
+        var entity = subscription(SubscriptionPlan.FREE, SubscriptionStatus.ACTIVE, 0, 0);
+        stubProviderApply(entity, 1);
+        var command = planCommand(SubscriptionPlan.PRO, "f".repeat(64), Instant.now());
+        command.setBillingPeriod(BillingPeriod.YEARLY);
+        command.setStartDate(today); command.setEndDate(today.plusYears(1));
+        var result = service.applyProviderEvent(1L, command);
+        assertEquals(BillingPeriod.YEARLY, result.getBillingPeriod());
+        assertEquals(today.plusMonths(1), result.getQuotaResetDate());
+        assertEquals(today.plusYears(1), result.getEndDate());
+    }
+
+    @Test
+    void annualCreditWindowStaysAnchoredAfterMonthsWithoutActivity() {
+        var today = java.time.LocalDate.now();
+        var anchor = today.withDayOfMonth(1).minusMonths(3);
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 140);
+        entity.setBillingPeriod(BillingPeriod.YEARLY); entity.setStartDate(anchor);
+        entity.setEndDate(anchor.plusYears(1)); entity.setAiUpgradeBonus(36);
+        entity.setAiQuotaPeriodStartDate(anchor); entity.setAiQuotaPeriodEndDate(anchor.plusYears(1).minusDays(1));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        var result = service.getCurrentSubscription("user@example.com");
+        assertEquals(today.withDayOfMonth(1).plusMonths(1), result.getQuotaResetDate());
+        assertEquals(150, result.getAiRemainingThisPeriod());
+        assertEquals(0, result.getAiUpgradeBonus());
+    }
+
+    @Test
+    void requestDebitAndRefundPreserveBucketsAndAreIdempotent() {
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 0);
+        entity.setAiAddonQuota(2); entity.setAiAddonUsed(0);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(20));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        var debits = new java.util.HashMap<Long, com.grun.calorietracker.entity.AiCreditDebitEntity>();
+        when(aiCreditDebitRepository.findById(anyLong())).thenAnswer(i -> Optional.ofNullable(debits.get(i.getArgument(0))));
+        when(aiCreditDebitRepository.save(any())).thenAnswer(i -> {
+            com.grun.calorietracker.entity.AiCreditDebitEntity debit = i.getArgument(0);
+            debits.put(debit.getRequestId(), debit); return debit;
+        });
+        service.consumeAiRequestQuota("user@example.com", 3, 100L);
+        service.consumeAiRequestQuota("user@example.com", 3, 100L);
+        assertEquals(2, entity.getAiAddonUsed()); assertEquals(1, entity.getAiPlanUsedThisPeriod());
+        assertEquals(2, debits.get(100L).getAddonAmount()); assertEquals(1, debits.get(100L).getPlanAmount());
+        service.consumeAiRequestQuota("user@example.com", 4, 101L);
+        service.refundAiRequestQuota(1L, 101L);
+        assertEquals(2, entity.getAiAddonUsed()); assertEquals(1, entity.getAiPlanUsedThisPeriod());
+        service.refundAiRequestQuota(1L, 101L);
+        assertEquals(1, entity.getAiPlanUsedThisPeriod());
+        service.refundAiRequestQuota(1L, 100L, 1);
+        assertEquals(1, entity.getAiAddonUsed()); assertEquals(1, entity.getAiPlanUsedThisPeriod());
+        service.refundAiRequestQuota(1L, 100L);
+        assertEquals(0, entity.getAiAddonUsed()); assertEquals(0, entity.getAiPlanUsedThisPeriod());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void refundFromOldAllocationCompensatesWithoutReducingNewPeriodUsage(boolean monthlyReset) {
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 9);
+        entity.setAiPlanUsedThisPeriod(9); entity.setAiCreditAllocationKey("new");
+        var debit = new com.grun.calorietracker.entity.AiCreditDebitEntity();
+        debit.setRequestId(100L); debit.setUserId(1L); debit.setPlanAmount(3); debit.setAddonAmount(0);
+        debit.setAllocationKey(monthlyReset ? "new" : "old");
+        debit.setPlanStart(monthlyReset ? entity.getAiQuotaPeriodStartDate().minusMonths(1) : entity.getAiQuotaPeriodStartDate());
+        debit.setPlanEnd(java.time.LocalDate.now().plusDays(5));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(aiCreditDebitRepository.findById(100L)).thenReturn(Optional.of(debit));
+        service.refundAiRequestQuota(1L, 100L);
+        assertEquals(9, entity.getAiPlanUsedThisPeriod());
+        assertEquals(3, entity.getAiAddonQuota());
+        assertEquals(java.time.LocalDate.now().plusDays(30), entity.getAiAddonQuotaExpiresAt());
+        assertEquals(true, debit.getRefunded());
+        service.refundAiRequestQuota(1L, 100L);
+        assertEquals(3, entity.getAiAddonQuota());
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        service.consumeAiRequestQuota("user@example.com", 2, 101L);
+        assertEquals(2, entity.getAiAddonUsed());
+        assertEquals(9, entity.getAiPlanUsedThisPeriod());
+    }
+
+    @Test
+    void expiredAddonRefundCompensatesOnlyIncrementalAmountAndPreservesNewUsage() {
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 7);
+        entity.setAiPlanUsedThisPeriod(5);
+        entity.setAiAddonQuota(15); entity.setAiAddonUsed(2);
+        var expiry = java.time.LocalDate.now().plusDays(60);
+        entity.setAiAddonQuotaExpiresAt(expiry);
+        var debit = new com.grun.calorietracker.entity.AiCreditDebitEntity();
+        debit.setRequestId(100L); debit.setUserId(1L); debit.setPlanAmount(0); debit.setAddonAmount(3);
+        debit.setAddonExpires(java.time.LocalDate.now().minusDays(1));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(aiCreditDebitRepository.findById(100L)).thenReturn(Optional.of(debit));
+        service.refundAiRequestQuota(1L, 100L, 1);
+        assertEquals(16, entity.getAiAddonQuota());
+        service.refundAiRequestQuota(1L, 100L, 1);
+        assertEquals(16, entity.getAiAddonQuota());
+        service.refundAiRequestQuota(1L, 100L);
+        assertEquals(18, entity.getAiAddonQuota());
+        assertEquals(2, entity.getAiAddonUsed());
+        assertEquals(5, entity.getAiPlanUsedThisPeriod());
+        assertEquals(expiry, entity.getAiAddonQuotaExpiresAt());
+        assertEquals(3, debit.getRefundedAmount());
+    }
+
+    @Test
+    void resetUsageCountersCannotSilentlyDiscardRequestRefund() {
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 0);
+        entity.setAiPlanUsedThisPeriod(0); entity.setAiCreditAllocationKey("same");
+        var debit = new com.grun.calorietracker.entity.AiCreditDebitEntity();
+        debit.setRequestId(100L); debit.setUserId(1L); debit.setPlanAmount(2); debit.setAddonAmount(1);
+        debit.setAllocationKey("same"); debit.setPlanStart(entity.getAiQuotaPeriodStartDate());
+        debit.setPlanEnd(entity.getAiQuotaPeriodEndDate());
+        debit.setAddonExpires(java.time.LocalDate.now().plusDays(5));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUser(user)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(aiCreditDebitRepository.findById(100L)).thenReturn(Optional.of(debit));
+        service.refundAiRequestQuota(1L, 100L);
+        assertEquals(0, entity.getAiPlanUsedThisPeriod());
+        assertEquals(3, entity.getAiAddonQuota());
+        assertEquals(3, debit.getRefundedAmount());
+    }
+
+    @Test
+    void scheduledChangePreservesCurrentPlanAndIgnoresOlderEvents() {
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 14);
+        entity.setProviderOriginalTransactionId("chain");
+        entity.setProviderProductId("grun_pro_monthly");
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        var event = new com.grun.calorietracker.dto.RevenueCatWebhookEventDto.Event();
+        event.setOriginalTransactionId("chain");
+        event.setNewProductId("grun_plus_monthly");
+        event.setEventTimestampMs(Instant.now().toEpochMilli());
+        event.setExpirationAtMs(Instant.now().plusSeconds(86400).toEpochMilli());
+        service.recordScheduledChange(1L, event);
+        assertEquals(SubscriptionPlan.PRO, entity.getPlanType());
+        assertEquals(14, entity.getAiUsedThisPeriod());
+        assertEquals("grun_plus_monthly", entity.getScheduledProductId());
+        event.setEventTimestampMs(event.getEventTimestampMs() - 1000);
+        event.setNewProductId("grun_plus_yearly");
+        service.recordScheduledChange(1L, event);
+        assertEquals("grun_plus_monthly", entity.getScheduledProductId());
+        verify(subscriptionRepository).save(entity);
+    }
+
     private SubscriptionEntity subscription(SubscriptionPlan plan, SubscriptionStatus status, int quota, int used) {
         java.time.LocalDate today = java.time.LocalDate.now();
         SubscriptionEntity entity = new SubscriptionEntity();
@@ -1044,6 +1283,38 @@ class SubscriptionServiceImplTest {
         entity.setAiUsedThisPeriod(used);
         entity.setAutoRenew(true);
         return entity;
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void addonPurchaseAndRefundPreserveSubscriptionIdentity(boolean refund) {
+        SubscriptionEntity entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.ACTIVE, 150, 0);
+        entity.setProvider(PaymentProvider.REVENUECAT);
+        entity.setProviderCustomerId("user:1");
+        entity.setProviderProductId("grun_pro_yearly");
+        entity.setProviderTransactionId("subscription-tx");
+        entity.setProviderOriginalTransactionId("subscription-chain");
+        entity.setLastProviderEventId("subscription-event");
+        entity.setAiCreditAllocationKey("a".repeat(64));
+        entity.setAiAddonQuota(15);
+        entity.setAiAddonQuotaExpiresAt(java.time.LocalDate.now().plusDays(3));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        when(subscriptionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var command = new SubscriptionProviderEventCommand();
+        command.setProvider(PaymentProvider.REVENUECAT);
+        command.setProviderProductId("grun_ai_15_credits");
+        command.setProviderTransactionId("addon-tx");
+        command.setProviderEventId("addon-event");
+        command.setAiAddonQuotaAmount(15);
+        command.setRefund(refund);
+        SubscriptionDto result = service.applyProviderEvent(1L, command);
+        assertEquals(refund ? 0 : 30, result.getAiAddonQuota());
+        assertEquals("grun_pro_yearly", result.getProviderProductId());
+        assertEquals("subscription-tx", entity.getProviderTransactionId());
+        assertEquals("subscription-chain", entity.getProviderOriginalTransactionId());
+        assertEquals("subscription-event", entity.getLastProviderEventId());
+        assertEquals("a".repeat(64), result.getAiCreditAllocationReference());
     }
 
     private SubscriptionProviderEventCommand planCommand(SubscriptionPlan plan, String key, Instant eventAt) {

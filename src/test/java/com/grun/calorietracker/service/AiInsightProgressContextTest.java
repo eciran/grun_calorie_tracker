@@ -78,8 +78,12 @@ class AiInsightProgressContextTest {
                 "user@grun.app", SubscriptionFeature.ADVANCED_ANALYTICS)).thenReturn(true);
         when(subscriptionService.resolveAiCreditCost(
                 "user@grun.app", SubscriptionFeature.AI_INSIGHTS)).thenReturn(1);
-        when(subscriptionService.consumeAiQuota("user@grun.app", 1)).thenReturn(quota);
-        when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@grun.app"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
+        when(historyRepository.save(any())).thenAnswer(invocation -> {
+            com.grun.calorietracker.entity.AiRequestHistoryEntity history = invocation.getArgument(0);
+            assertTrue(history.isCoachingCompletionNotificationEligible());
+            return history;
+        });
         when(dashboardService.getDailySummary(any(), any())).thenReturn(dailySummary());
         when(progressAnalyticsService.getAnalytics("user@grun.app", start, end, false))
                 .thenReturn(progressAnalytics());
@@ -101,6 +105,9 @@ class AiInsightProgressContextTest {
         assertEquals("PROJECTED", context.get("projectionStatus"));
         assertEquals(true, context.get("progressTrendSufficient"));
         assertTrue(response.getDataCoverage().getSignalsUsed().contains("weight and goal trend"));
+        assertEquals(7, context.get("foodLoggedDays"));
+        assertTrue(response.getPersonalizedActions().isEmpty(), "Focused coaching must not inject general nutrition actions");
+        assertTrue(response.getKeyFindings().isEmpty(), "Focused coaching must not inject unrelated fallback findings");
     }
 
     private DailySummaryDto dailySummary() {
@@ -109,6 +116,7 @@ class AiInsightProgressContextTest {
         summary.setBurnedCalories(300.0);
         summary.setTotalExerciseMinutes(45);
         summary.setHasAnyDiaryEntry(true);
+        summary.setHasFoodLogs(true);
         return summary;
     }
 

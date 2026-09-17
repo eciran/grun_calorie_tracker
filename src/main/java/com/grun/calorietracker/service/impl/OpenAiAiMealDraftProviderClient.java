@@ -100,7 +100,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         }
         return callOpenAi(AiRequestType.PHOTO_MEAL_LOG,
                 alternativeSnapshotsEnabled ? "grun_meal_draft_v4" : "grun_meal_draft",
-                mealDraftSchema(alternativeSnapshotsEnabled), content, AiMealDraftResponseDto.class);
+                photoMealDraftSchema(alternativeSnapshotsEnabled), content, AiMealDraftResponseDto.class);
     }
 
     @Override
@@ -310,6 +310,10 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
             int maxOutputTokens
     ) {
         String parseError = sanitizeError(originalException.getOriginalMessage());
+        // Text-only repair has no image evidence and must not invent a photo classification.
+        if (requestType == AiRequestType.PHOTO_MEAL_LOG) {
+            throw invalidJsonException(parseError, invalidOutput, null);
+        }
         int configuredAttempts = properties.getOpenai().getMaxRepairAttempts();
         if (!properties.getOpenai().isRepairEnabled() || configuredAttempts < 1) {
             throw invalidJsonException(parseError, invalidOutput, null);
@@ -658,6 +662,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("AI provider input could not be serialized.");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> photoMealDraftSchema(boolean alternativeSnapshotsEnabled) {
+        Map<String, Object> schema = mealDraftSchema(alternativeSnapshotsEnabled);
+        Map<String, Object> fields = new LinkedHashMap<>((Map<String, Object>) schema.get("properties"));
+        fields.put("photoOutcome", enumSchema("FOOD_DETECTED", "NO_FOOD_DETECTED", "IMAGE_UNCLEAR"));
+        return strictObjectSchema(fields);
     }
 
     Map<String, Object> mealDraftSchema(boolean alternativeSnapshotsEnabled) {

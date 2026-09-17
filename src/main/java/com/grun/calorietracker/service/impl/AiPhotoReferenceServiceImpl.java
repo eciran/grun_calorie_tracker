@@ -22,6 +22,11 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import com.grun.calorietracker.exception.RequestConflictException;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +34,51 @@ import java.util.stream.Collectors;
 public class AiPhotoReferenceServiceImpl implements AiPhotoReferenceService {
 
     private final AiProperties properties;
+
+    // The existing reference store is local to this backend instance. Never expose the upload id as a token.
+    @Override
+    public synchronized AiPhotoReferenceDto createReference(String email, MultipartFile file, String uploadId) {
+        if (uploadId == null) return createReference(email, file);
+        if (!uploadId.matches("[0-9]{13}-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            throw new IllegalArgumentException("Invalid photo upload id.");
+        }
+        validate(file);
+        long created = Long.parseLong(uploadId.substring(0, 13));
+        if (!"image/jpeg".equalsIgnoreCase(file.getContentType())) {
+            throw new IllegalArgumentException("Idempotent photo uploads require JPEG.");
+        }
+        long now = System.currentTimeMillis();
+        long expires = created + properties.getPhoto().getReferenceTtl().toMillis();
+        if (created > now + 60_000 || expires <= now) throw new IllegalArgumentException("Photo upload id expired.");
+        String token = expires + "-" + digest((email + "\u0000" + uploadId).getBytes(StandardCharsets.UTF_8)) + ".jpg";
+        Path target = storageRoot().resolve(token);
+        Path temporary = null;
+        try {
+            byte[] bytes = file.getBytes();
+            Files.createDirectories(storageRoot());
+            if (Files.exists(target)) {
+                if (!digest(Files.readAllBytes(target)).equals(digest(bytes))) {
+                    throw new RequestConflictException("Photo upload id was already used for another file.");
+                }
+            } else {
+                temporary = Files.createTempFile(storageRoot(), expires + "-upload-", ".tmp");
+                Files.write(temporary, bytes);
+                Files.move(temporary, target);
+            }
+            return new AiPhotoReferenceDto(properties.getPhoto().getPublicBaseUrl().replaceAll("/+$", "")
+                    + "/api/v1/ai/meal-drafts/photo-references/" + token, token,
+                    LocalDateTime.ofInstant(Instant.ofEpochMilli(expires), ZoneOffset.UTC));
+        } catch (IOException ex) {
+            throw new IllegalStateException("AI meal photo could not be stored.", ex);
+        } finally {
+            if (temporary != null) deleteQuietly(temporary);
+        }
+    }
+
+    private String digest(byte[] value) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value)); }
+        catch (NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }
+    }
 
     @Override
     public AiPhotoReferenceDto createReference(String email, MultipartFile file) {

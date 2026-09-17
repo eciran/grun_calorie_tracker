@@ -60,6 +60,9 @@ class RevenueCatWebhookServiceImplTest {
     @Mock
     private RevenueCatLifecycleNotificationService lifecycleNotificationService;
 
+    @Mock
+    private StoreSubscriptionOwnershipService ownershipService;
+
     private RevenueCatWebhookServiceImpl service;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private UserEntity user;
@@ -77,7 +80,7 @@ class RevenueCatWebhookServiceImplTest {
         properties.getProducts().getAiAddonValidityDays().put("grun_ai_50_credits", 30);
         service = new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository,
                 notificationRepository, subscriptionRepository, subscriptionService, promoProviderRedemptionService,
-                lifecycleNotificationService);
+                lifecycleNotificationService, ownershipService);
         user = new UserEntity();
         user.setId(1L);
         user.setEmail("user@example.com");
@@ -288,7 +291,7 @@ class RevenueCatWebhookServiceImplTest {
         RevenueCatWebhookServiceImpl unsecuredService =
                 new RevenueCatWebhookServiceImpl(properties, objectMapper, userRepository, eventRepository,
                         notificationRepository, subscriptionRepository, subscriptionService,
-                        promoProviderRedemptionService, lifecycleNotificationService);
+                        promoProviderRedemptionService, lifecycleNotificationService, ownershipService);
         String payload = """
                 {"event":{"id":"evt_1","type":"RENEWAL","app_user_id":"user:1","product_id":"grun_pro_monthly","event_timestamp_ms":1771950000000}}
                 """;
@@ -443,7 +446,7 @@ class RevenueCatWebhookServiceImplTest {
     }
 
     @Test
-    void processWebhook_transferRemainsIgnoredAndDoesNotNotifyEitherAccount() throws Exception {
+    void processWebhook_crossAccountTransferRequiresReviewWithoutGrantingEntitlements() throws Exception {
         String payload = """
                 {"event":{"id":"evt_transfer","type":"TRANSFER",
                 "transferred_from":["user:2","$RCAnonymousID:source-device-id"],
@@ -456,7 +459,7 @@ class RevenueCatWebhookServiceImplTest {
 
         var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
 
-        assertEquals("IGNORED", result.getStatus());
+        assertEquals("FAILED", result.getStatus());
         verify(subscriptionService, never()).applyProviderEvent(any(), any());
         verify(lifecycleNotificationService, never()).enqueue(any(), any(), any(), any(), any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean());
@@ -464,7 +467,23 @@ class RevenueCatWebhookServiceImplTest {
         verify(eventRepository).save(audit.capture());
         assertEquals(user, audit.getValue().getUser());
         assertEquals("user:1", audit.getValue().getProviderAppUserId());
-        assertEquals(SubscriptionProviderEventStatus.IGNORED, audit.getValue().getStatus());
+        assertEquals(SubscriptionProviderEventStatus.FAILED, audit.getValue().getStatus());
+        org.junit.jupiter.api.Assertions.assertTrue(audit.getValue().getProcessingError().startsWith("SUBSCRIPTION_OWNERSHIP_CONFLICT"));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"user:1", "$RCAnonymousID:device"})
+    void processWebhook_sameAccountOrAnonymousTransferIsNotClassifiedAsCrossAccount(String source) throws Exception {
+        String payload = """
+                {"event":{"id":"evt_same_owner_transfer","type":"TRANSFER",
+                "transferred_from":["%s"],"transferred_to":["user:1"],
+                "event_timestamp_ms":1785456000000}}
+                """.formatted(source);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
+        assertEquals("IGNORED", result.getStatus());
+        verify(subscriptionService, never()).applyProviderEvent(any(), any());
     }
 
     @Test

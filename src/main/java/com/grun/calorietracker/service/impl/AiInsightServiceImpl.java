@@ -29,6 +29,7 @@ import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import com.grun.calorietracker.service.support.AiIdempotencySupport;
 import com.grun.calorietracker.service.support.AiUxContractFactory;
+import com.grun.calorietracker.service.support.AiCoachingPresentation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -108,6 +109,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         AiRequestHistoryEntity history = new AiRequestHistoryEntity();
         history.setUser(user);
         history.setRequestType(requestType);
+        history.setCoachingCompletionNotificationEligible(true);
         history.setProvider(properties.getProvider());
         history.setModel(properties.getModel());
         history.setPromptVersion(properties.getPromptVersion());
@@ -135,7 +137,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         long startedAt = System.nanoTime();
         boolean charged = false;
         try {
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            SubscriptionDto quota = subscriptionService.consumeAiRequestQuota(email, creditCost, history.getId());
             charged = true;
             AiInsightResponseDto response = requestType == AiRequestType.AI_DAILY_INSIGHT
                     ? activeProvider().createDailyInsight(request)
@@ -162,7 +164,7 @@ public class AiInsightServiceImpl implements AiInsightService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, history.getId());
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(requestType, true, creditCost, !refunded, user.getPreferredLanguage())));
@@ -201,6 +203,7 @@ public class AiInsightServiceImpl implements AiInsightService {
                         user.getPreferredLanguage()
                 ));
             }
+            AiCoachingPresentation.clean(response);
             return response;
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Stored AI insight is unavailable.");
@@ -231,6 +234,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
         normalizeQuality(response, requestType);
         enrichStructuredInsight(response, requestType, request);
+        AiCoachingPresentation.clean(response);
         return response;
     }
 
@@ -281,9 +285,9 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
 
         if (requestType == AiRequestType.AI_DAILY_INSIGHT) {
-            enrichDailyInsight(response, context);
+            enrichDailyInsight(response, context, request.getFocus());
         } else {
-            enrichWeeklyInsight(response, context);
+            enrichWeeklyInsight(response, context, request.getFocus());
         }
         if (coverage.getConfidenceLabel() == null || coverage.getConfidenceLabel().isBlank()) {
             coverage.setConfidenceLabel(resolveConfidenceLabel(response.getConfidence(), coverage.getMissingSignals().size()));
@@ -300,7 +304,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
         return java.util.Collections.emptyMap();
     }
-    private void enrichDailyInsight(AiInsightResponseDto response, Map<String, Object> context) {
+    private void enrichDailyInsight(AiInsightResponseDto response, Map<String, Object> context, AiInsightFocus focus) {
         AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
         coverage.setDaysAnalyzed(defaultInt(coverage.getDaysAnalyzed(), 1));
         coverage.setExerciseLogged(defaultBoolean(coverage.getExerciseLogged(), bool(context.get("hasExerciseLogs"))));
@@ -316,6 +320,10 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
         addMissingSignal(coverage, "water");
         addMissingSignal(coverage, "sleep");
+
+        if (focus != null && focus != AiInsightFocus.GENERAL) {
+            return;
+        }
 
         Double consumedCalories = doubleValue(context.get("consumedCalories"));
         Double targetCalories = doubleValue(context.get("targetCalories"));
@@ -347,7 +355,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         }
     }
 
-    private void enrichWeeklyInsight(AiInsightResponseDto response, Map<String, Object> context) {
+    private void enrichWeeklyInsight(AiInsightResponseDto response, Map<String, Object> context, AiInsightFocus focus) {
         AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
         Integer days = intValue(context.get("days"));
         Integer diaryDays = intValue(context.get("diaryDays"));
@@ -371,6 +379,9 @@ public class AiInsightServiceImpl implements AiInsightService {
         addMissingSignal(coverage, "sleep");
         addMissingSignal(coverage, "water");
 
+        if (focus != null && focus != AiInsightFocus.GENERAL) {
+            return;
+        }
         if (response.getKeyFindings().isEmpty()) {
             addFinding(response, "pattern", "Logging coverage", "Logged diary data on " + formatInt(diaryDays) + " of " + formatInt(days) + " day(s).", "Diary days: " + formatInt(diaryDays) + "/" + formatInt(days) + ".", "More logged days make weekly coaching more reliable.", coverage.getDiaryDays() != null && coverage.getDaysAnalyzed() != null && coverage.getDiaryDays() < coverage.getDaysAnalyzed() ? "MEDIUM" : "LOW");
             addFinding(response, "trend", "Exercise volume", "Exercise volume for the period was " + formatDouble(exerciseMinutes) + " minute(s).", "Total exercise minutes: " + formatDouble(exerciseMinutes) + ".", "Shows whether training support is present alongside nutrition.", exerciseMinutes != null && exerciseMinutes > 0 ? "LOW" : "MEDIUM");
@@ -541,6 +552,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         double burnedCalories = 0;
         double exerciseMinutes = 0;
         int diaryDays = 0;
+        int foodLoggedDays = 0;
         for (LocalDate cursor = start; !cursor.isAfter(end); cursor = cursor.plusDays(1)) {
             DailySummaryDto summary = dashboardService.getDailySummary(email, cursor);
             days++;
@@ -550,12 +562,16 @@ public class AiInsightServiceImpl implements AiInsightService {
             if (Boolean.TRUE.equals(summary.getHasAnyDiaryEntry())) {
                 diaryDays++;
             }
+            if (Boolean.TRUE.equals(summary.getHasFoodLogs())) {
+                foodLoggedDays++;
+            }
         }
         context.put("days", days);
         context.put("averageConsumedCalories", round(consumedCalories / Math.max(days, 1)));
         context.put("averageBurnedCalories", round(burnedCalories / Math.max(days, 1)));
         context.put("totalExerciseMinutes", round(exerciseMinutes));
         context.put("diaryDays", diaryDays);
+        context.put("foodLoggedDays", foodLoggedDays);
         return context;
     }
 
@@ -657,9 +673,9 @@ public class AiInsightServiceImpl implements AiInsightService {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
+    private boolean refundConsumedQuota(UserEntity user, Long requestId) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
+            subscriptionService.refundAiRequestQuota(user.getId(), requestId);
             return true;
         } catch (RuntimeException ignored) {
             return false;

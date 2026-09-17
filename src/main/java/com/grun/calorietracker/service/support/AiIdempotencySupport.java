@@ -38,6 +38,11 @@ public final class AiIdempotencySupport {
             throw new RequestConflictException(
                     "An " + requestLabel + " request with this key is already processing.");
         }
+        if (history.getRequestType() == com.grun.calorietracker.enums.AiRequestType.PHOTO_MEAL_LOG
+                && history.getStatus() == AiRequestStatus.FAILED
+                && ("NO_FOOD_DETECTED".equals(history.getErrorMessage()) || "IMAGE_UNCLEAR".equals(history.getErrorMessage()))) {
+            throw new com.grun.calorietracker.exception.AiPhotoInputException(history.getErrorMessage());
+        }
         throw new RequestConflictException(
                 "This idempotency key was already used by a failed " + requestLabel + " request. Use a new key.");
     }

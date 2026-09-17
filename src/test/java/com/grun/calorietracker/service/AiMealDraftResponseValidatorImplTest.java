@@ -87,6 +87,7 @@ class AiMealDraftResponseValidatorImplTest {
         AiMealDraftItemDto item = item();
         item.getEstimatedNutrition().setSodium(-1.0);
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setPhotoOutcome("FOOD_DETECTED");
         response.setItems(List.of(item));
 
         assertThrows(IllegalArgumentException.class,
@@ -99,6 +100,7 @@ class AiMealDraftResponseValidatorImplTest {
         AiMealDraftItemDto second = chickenItem(315.0, 59.0, 200.0, 0.82);
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();
         response.setItems(List.of(first, second));
+        response.setPhotoOutcome("FOOD_DETECTED");
 
         AiMealDraftResponseDto result = validator.validateAndNormalize(
                 response, AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model");
@@ -121,6 +123,7 @@ class AiMealDraftResponseValidatorImplTest {
         chicken.setUnit("GRAM");
         chicken.setDetectedPieceCount(10);
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setPhotoOutcome("FOOD_DETECTED");
         response.setItems(List.of(chicken));
 
         AiMealDraftResponseDto result = validator.validateAndNormalize(
@@ -145,6 +148,7 @@ class AiMealDraftResponseValidatorImplTest {
         alternative.setEstimatedTotalWeightGrams(260.0);
         chicken.setAlternativeCandidates(List.of(alternative));
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setPhotoOutcome("FOOD_DETECTED");
         response.setItems(List.of(chicken));
 
         AiMealDraftResponseDto result = validator.validateAndNormalize(
@@ -165,6 +169,7 @@ class AiMealDraftResponseValidatorImplTest {
                 alternative("Chicken Thigh", 540.0, false),
                 alternative("Turkey Breast", null, true)));
         AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setPhotoOutcome("FOOD_DETECTED");
         response.setItems(List.of(chicken));
 
         AiMealDraftResponseDto result = validator.validateAndNormalize(
@@ -172,6 +177,40 @@ class AiMealDraftResponseValidatorImplTest {
 
         assertTrue(result.getItems().get(0).getAlternativeCandidates().isEmpty());
     }
+    @Test
+    void photoOutcomesRejectNonFoodAndUnclearWithoutCreatingDrafts() {
+        for (String outcome : List.of("NO_FOOD_DETECTED", "IMAGE_UNCLEAR")) {
+            AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+            response.setPhotoOutcome(outcome);
+            var error = assertThrows(com.grun.calorietracker.exception.AiPhotoInputException.class,
+                    () -> validator.validateAndNormalize(response, AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model"));
+            assertEquals(outcome, error.getCode());
+            assertEquals(null, response.getStatus());
+            response.setItems(List.of(item()));
+            assertThrows(com.grun.calorietracker.exception.AiProviderException.class,
+                    () -> validator.validateAndNormalize(response, AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model"));
+        }
+    }
+
+    @Test
+    void photoOutcomeMustBeExplicitAndConsistent() {
+        AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setItems(List.of(item()));
+        assertThrows(com.grun.calorietracker.exception.AiProviderException.class,
+                () -> validator.validateAndNormalize(response, AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model"));
+        response.setPhotoOutcome("UNKNOWN");
+        assertThrows(com.grun.calorietracker.exception.AiProviderException.class,
+                () -> validator.validateAndNormalize(response, AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model"));
+        response.setPhotoOutcome("FOOD_DETECTED");
+        response.getItems().get(0).setName("Almond milk");
+        response.getItems().get(0).setUnit("MILLILITER");
+        assertEquals(AiRequestStatus.DRAFT_CREATED, validator.validateAndNormalize(response,
+                AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model").getStatus());
+        response.setItems(List.of());
+        assertThrows(com.grun.calorietracker.exception.AiProviderException.class,
+                () -> validator.validateAndNormalize(response, AiRequestType.PHOTO_MEAL_LOG, AiProvider.OPENAI, "model"));
+    }
+
     private AiMealDraftItemDto item() {
         AiMealDraftItemDto item = new AiMealDraftItemDto();
         item.setName(" tomatoes ");

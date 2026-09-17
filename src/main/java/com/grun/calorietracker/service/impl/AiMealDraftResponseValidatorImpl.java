@@ -32,6 +32,9 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
         if (response == null) {
             throw new IllegalArgumentException("AI provider returned an empty response.");
         }
+        if (expectedType == AiRequestType.PHOTO_MEAL_LOG) {
+            validatePhotoOutcome(response);
+        }
         response.setRequestType(expectedType);
         response.setProvider(expectedProvider);
         response.setModel(expectedModel);
@@ -53,6 +56,25 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
         }
         normalizeQuality(response);
         return response;
+    }
+
+    private void validatePhotoOutcome(AiMealDraftResponseDto response) {
+        String outcome = response.getPhotoOutcome();
+        if (!List.of("FOOD_DETECTED", "NO_FOOD_DETECTED", "IMAGE_UNCLEAR").contains(outcome == null ? "" : outcome)) {
+            throw new com.grun.calorietracker.exception.AiProviderException("AI provider returned a missing or invalid photo outcome.");
+        }
+        if (response.getItems() == null) {
+            throw new com.grun.calorietracker.exception.AiProviderException("AI provider omitted photo items.");
+        }
+        if (!"FOOD_DETECTED".equals(outcome)) {
+            if (!response.getItems().isEmpty()) {
+                throw new com.grun.calorietracker.exception.AiProviderException("AI provider returned items for a non-food photo outcome.");
+            }
+            throw new com.grun.calorietracker.exception.AiPhotoInputException(outcome);
+        }
+        if (response.getItems().isEmpty()) {
+            throw new com.grun.calorietracker.exception.AiProviderException("AI provider detected food without items.");
+        }
     }
 
     private void normalizeVoiceEstimateMetadata(List<AiMealDraftItemDto> items) {

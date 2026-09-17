@@ -46,7 +46,12 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select history from AiRequestHistoryEntity history
-            where history.status in :statuses
+            where (history.status in :statuses
+              or (history.status = com.grun.calorietracker.enums.AiRequestStatus.CONFIRMED
+                and history.coachingCompletionNotificationEligible = true
+                and history.requestType in (
+                  com.grun.calorietracker.enums.AiRequestType.AI_DAILY_INSIGHT,
+                  com.grun.calorietracker.enums.AiRequestType.AI_WEEKLY_INSIGHT)))
               and history.completionNotifiedAt is null
             order by history.createdAt asc
             """)
@@ -151,4 +156,3 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     List<Object[]> summarizeOperationsSegmentsAfter(@Param("createdAfter") LocalDateTime createdAfter);
     void deleteByUser(UserEntity user);
 }
-

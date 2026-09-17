@@ -15,6 +15,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiPhotoReferenceServiceImplTest {
 
+    @Test
+    void uploadId_reusesReferenceAcrossServiceRestartAndRejectsChangedContent() {
+        var service = new AiPhotoReferenceServiceImpl(properties());
+        String id = System.currentTimeMillis() + "-" + java.util.UUID.randomUUID();
+        var file = new MockMultipartFile("file", "meal.jpg", "image/jpeg", new byte[]{(byte)255, (byte)216, (byte)255, 0});
+        var first = service.createReference("a@example.com", file, id);
+        var replay = new AiPhotoReferenceServiceImpl(properties()).createReference("a@example.com", file, id);
+        org.junit.jupiter.api.Assertions.assertEquals(first.getStorageToken(), replay.getStorageToken());
+        org.junit.jupiter.api.Assertions.assertNotEquals(first.getStorageToken(), service.createReference("b@example.com", file, id).getStorageToken());
+        var changed = new MockMultipartFile("file", "meal.jpg", "image/jpeg", new byte[]{(byte)255, (byte)216, (byte)255, 1});
+        assertThrows(com.grun.calorietracker.exception.RequestConflictException.class,
+                () -> service.createReference("a@example.com", changed, id));
+        assertThrows(IllegalArgumentException.class, () -> service.createReference("a@example.com", file, "invalid"));
+        assertThrows(IllegalArgumentException.class, () -> service.createReference("a@example.com", file,
+                (System.currentTimeMillis() - 3_600_000) + "-" + java.util.UUID.randomUUID()));
+    }
+
     @TempDir
     Path tempDir;
 

@@ -26,6 +26,8 @@ public class SubscriptionCreditAllocationEntity {
     private SubscriptionPlan planType;
     @Column(name = "quota_amount", nullable = false)
     private Integer quotaAmount;
+    @Column(name = "upgrade_bonus", nullable = false)
+    private Integer upgradeBonus = 0;
     @Column(name = "purchased_at", nullable = false)
     private Instant purchasedAt;
     @Column(name = "expires_at")

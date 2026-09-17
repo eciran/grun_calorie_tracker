@@ -52,6 +52,7 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.store").value(false))
                 .andExpect(jsonPath("$.max_output_tokens").value(12000))
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.sodium").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.photoOutcome").doesNotExist())
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.vitaminB12").exists())
                 .andRespond(withSuccess(outputMessageResponse("""
                         {"summary":"Draft created.","items":[{"name":"Chicken and rice","quantity":1,"unit":"serving","estimatedCalories":420,"estimatedProtein":30,"estimatedCarbs":48,"estimatedFat":12,"estimatedNutrition":{"calories":420,"protein":30,"carbs":48,"fat":12,"fiber":5,"sugar":4,"saturatedFat":3,"sodium":540,"potassium":680,"cholesterol":55,"calcium":90,"iron":2.5,"magnesium":70,"zinc":2.2,"vitaminA":180,"vitaminC":8,"vitaminD":1.2,"vitaminE":2.1,"vitaminB12":0.9},"nutritionEstimateNote":"Estimated for one serving.","confidence":0.82}]}
@@ -150,6 +151,9 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.detectedPieceCount").exists())
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedTotalWeightGrams").exists())
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.alternativeCandidates").doesNotExist())
+                .andExpect(jsonPath("$.text.format.schema.properties.photoOutcome.enum[0]").value("FOOD_DETECTED"))
+                .andExpect(jsonPath("$.text.format.schema.properties.photoOutcome.enum[1]").value("NO_FOOD_DETECTED"))
+                .andExpect(jsonPath("$.text.format.schema.properties.photoOutcome.enum[2]").value("IMAGE_UNCLEAR"))
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.unit.enum[1]").value("MILLILITER"))
                 .andRespond(withSuccess(outputMessageResponse("""
                         {"summary":"Photo draft.","items":[{"name":"Meal","quantity":1,"unit":"plate","estimatedCalories":500,"confidence":0.6}]}

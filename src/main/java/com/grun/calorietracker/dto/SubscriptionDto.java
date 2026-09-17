@@ -21,6 +21,12 @@ public class SubscriptionDto {
     private LocalDate quotaResetDate;
     private LocalDate aiAddonQuotaExpiresAt;
     private Integer aiMonthlyQuota;
+
+    @Schema(description = "One-time upgrade bonus included in this period's plan pool; not part of the recurring monthly quota.")
+    private Integer aiUpgradeBonus;
+    private String scheduledProductId;
+    private java.time.Instant scheduledChangeAt;
+    private java.time.Instant scheduledEventAt;
     private Integer aiAddonQuota;
     private Integer aiAddonUsed;
     private Integer aiTotalQuotaThisPeriod;

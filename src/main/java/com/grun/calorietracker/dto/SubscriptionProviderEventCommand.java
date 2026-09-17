@@ -19,6 +19,7 @@ public class SubscriptionProviderEventCommand {
     private String providerTransactionId;
     private String providerOriginalTransactionId;
     private SubscriptionPlan planType;
+    private com.grun.calorietracker.enums.BillingPeriod billingPeriod;
     private SubscriptionStatus status;
     private LocalDate startDate;
     private LocalDate endDate;

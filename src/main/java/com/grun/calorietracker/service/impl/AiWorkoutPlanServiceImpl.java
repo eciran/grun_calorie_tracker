@@ -149,7 +149,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         long startedAt = System.nanoTime();
         boolean charged = false;
         try {
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            SubscriptionDto quota = subscriptionService.consumeAiRequestQuota(email, creditCost, history.getId());
             charged = true;
             AiWorkoutPlanDraftResponseDto response = normalize(activeProvider().createWorkoutPlanDraft(request), request.getLanguage());
             response.setQuotaConsumedAmount(creditCost);
@@ -174,7 +174,7 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
             response.setRequestId(saved.getId());
             return response;
         } catch (RuntimeException ex) {
-            boolean refunded = !charged || refundConsumedQuota(user, creditCost);
+            boolean refunded = !charged || refundConsumedQuota(user, history.getId());
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(ex.getMessage());
             history.setOutputPayload(writeJson(AiSafeResponseBuilder.failurePayload(
@@ -708,9 +708,9 @@ public class AiWorkoutPlanServiceImpl implements AiWorkoutPlanService {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
-    private boolean refundConsumedQuota(UserEntity user, int creditCost) {
+    private boolean refundConsumedQuota(UserEntity user, Long requestId) {
         try {
-            subscriptionService.refundConsumedAiQuota(user.getId(), creditCost);
+            subscriptionService.refundAiRequestQuota(user.getId(), requestId);
             return true;
         } catch (RuntimeException ignored) {
             return false;

@@ -273,7 +273,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
             throw new IllegalArgumentException("AI quota refund amount exceeds refundable quota for this request.");
         }
 
-        SubscriptionDto subscription = subscriptionService.refundConsumedAiQuota(history.getUser().getId(), amount);
+        SubscriptionDto subscription = subscriptionService.refundAiRequestQuota(history.getUser().getId(), history.getId(), refunded + amount);
         LocalDateTime now = LocalDateTime.now();
         history.setQuotaRefundedAmount(refunded + amount);
         history.setQuotaRefundReason(request.getReason().trim());

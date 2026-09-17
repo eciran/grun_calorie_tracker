@@ -110,7 +110,7 @@ class AiNutritionPlanServiceImplTest {
         assertFalse(result.getWorkoutContextIncluded());
         assertEquals(0, result.getWorkoutContextCreditCost());
         assertEquals(6, result.getTotalCreditCost());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
         verifyNoInteractions(provider);
     }
 
@@ -131,7 +131,7 @@ class AiNutritionPlanServiceImplTest {
         assertTrue(result.getWorkoutContextIncluded());
         assertEquals(3, result.getWorkoutContextCreditCost());
         assertEquals(9, result.getTotalCreditCost());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -161,7 +161,7 @@ class AiNutritionPlanServiceImplTest {
         });
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-001", request());
@@ -173,7 +173,7 @@ class AiNutritionPlanServiceImplTest {
                 "user@example.com", SubscriptionFeature.AI_NUTRITION_PLAN);
         var order = inOrder(provider, subscriptionService);
         order.verify(provider).createNutritionPlanDraft(any());
-        order.verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+        order.verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
 
         ArgumentCaptor<AiRequestHistoryEntity> captor =
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
@@ -200,7 +200,7 @@ class AiNutritionPlanServiceImplTest {
         quota.setAiBaseRemainingThisPeriod(5);
         quota.setAiAddonRemainingThisPeriod(2);
         quota.setAiRemainingThisPeriod(7);
-        when(subscriptionService.consumeAiQuota("user@example.com", 3)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(3), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-weighted-cost", request());
@@ -209,7 +209,7 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(5, result.getAiBaseRemainingThisPeriod());
         assertEquals(2, result.getAiAddonRemainingThisPeriod());
         assertEquals(7, result.getAiRemainingThisPeriod());
-        verify(subscriptionService).consumeAiQuota("user@example.com", 3);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(3), org.mockito.ArgumentMatchers.any());
         ArgumentCaptor<AiRequestHistoryEntity> captor =
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(captor.capture());
@@ -233,7 +233,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-compact-totals", request());
@@ -245,7 +245,7 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(1800.0, day.getTotalNutrition().getSodium());
         assertEquals(3500.0, day.getTotalNutrition().getPotassium());
         assertFalse(objectMapper.writeValueAsString(result).contains("dailyMicronutrients"));
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
     }
     @Test
     void createDraft_withOptionalProfileFieldsMissing_stillUsesTrustedTargets() {
@@ -257,7 +257,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         service.createDraft("user@example.com", "nutrition-key-optional-profile", request());
 
@@ -287,7 +287,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(9);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         service.createDraft("user@example.com", "nutrition-key-telemetry", request());
 
@@ -318,7 +318,7 @@ class AiNutritionPlanServiceImplTest {
         assertThrows(AiProviderException.class, () -> service.createDraft(
                 "user@example.com", "nutrition-key-excluded-food", request()));
 
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -339,7 +339,7 @@ class AiNutritionPlanServiceImplTest {
         assertThrows(AiProviderException.class, () -> service.createDraft(
                 "user@example.com", "nutrition-key-allergen-profile", request()));
 
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
         ArgumentCaptor<AiNutritionPlanDraftRequestDto> requestCaptor =
                 ArgumentCaptor.forClass(AiNutritionPlanDraftRequestDto.class);
         verify(provider).createNutritionPlanDraft(requestCaptor.capture());
@@ -362,8 +362,8 @@ class AiNutritionPlanServiceImplTest {
         assertThrows(AiProviderException.class, () -> service.createDraft(
                 "user@example.com", "nutrition-key-002", request()));
 
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
-        verify(subscriptionService, never()).refundConsumedAiQuota(any(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
+        verify(subscriptionService, never()).refundAiRequestQuota(any(), any());
         ArgumentCaptor<AiRequestHistoryEntity> captor =
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(captor.capture());
@@ -392,7 +392,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-macro", request());
@@ -400,7 +400,7 @@ class AiNutritionPlanServiceImplTest {
         assertTrue(result.getWarnings().stream().anyMatch(value ->
                 value.contains("protein is slightly outside")));
         verify(provider, times(1)).createNutritionPlanDraft(any());
-        verify(subscriptionService, times(1)).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService, times(1)).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
         ArgumentCaptor<AiRequestHistoryEntity> historyCaptor =
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
         verify(historyRepository, times(2)).save(historyCaptor.capture());
@@ -428,7 +428,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-near-target", request());
@@ -436,7 +436,7 @@ class AiNutritionPlanServiceImplTest {
         assertTrue(result.getWarnings().stream().anyMatch(value ->
                 value.contains("protein is slightly outside")));
         verify(provider, times(1)).createNutritionPlanDraft(any());
-        verify(subscriptionService, times(1)).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService, times(1)).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -466,7 +466,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-repair", request());
@@ -477,8 +477,8 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(620, result.getTotalTokens());
         assertEquals(0.03, result.getEstimatedCost(), 0.000001);
         verify(provider, times(2)).createNutritionPlanDraft(any());
-        verify(subscriptionService, times(1)).consumeAiQuota("user@example.com", 1);
-        verify(subscriptionService, never()).refundConsumedAiQuota(any(), anyInt());
+        verify(subscriptionService, times(1)).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
+        verify(subscriptionService, never()).refundAiRequestQuota(any(), any());
 
         ArgumentCaptor<AiRequestHistoryEntity> historyCaptor =
                 ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
@@ -506,7 +506,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-serving-repair", request());
@@ -516,7 +516,7 @@ class AiNutritionPlanServiceImplTest {
                 .flatMap(meal -> meal.getItems().stream())
                 .allMatch(item -> item.getUnit() == FoodPortionUnit.GRAM));
         verify(provider, times(2)).createNutritionPlanDraft(any());
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -539,7 +539,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         assertEquals(FoodPortionUnit.MILLILITER, service.createDraft(
                 "user@example.com", "nutrition-key-ml", request())
@@ -575,14 +575,14 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 1)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-duplicate-repair", request());
 
         assertEquals(1, result.getDays().get(0).getMeals().get(0).getItems().size());
         verify(provider, times(2)).createNutritionPlanDraft(any());
-        verify(subscriptionService).consumeAiQuota("user@example.com", 1);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -602,7 +602,7 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(55L, result.getRequestId());
         verifyNoInteractions(goalRepository);
         verify(provider, never()).createNutritionPlanDraft(any());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -621,7 +621,7 @@ class AiNutritionPlanServiceImplTest {
 
         assertTrue(error.getMessage().contains("already processing"));
         verify(provider, never()).createNutritionPlanDraft(any());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -647,7 +647,7 @@ class AiNutritionPlanServiceImplTest {
         });
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 2)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-004", alignedRequest);
@@ -668,7 +668,7 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(1, session.getExerciseCount());
         assertEquals(3, session.getTotalWorkingSets());
         assertEquals(2000.0, requestCaptor.getValue().getTrustedDailyTarget().getCalories());
-        verify(subscriptionService).consumeAiQuota("user@example.com", 2);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -692,7 +692,7 @@ class AiNutritionPlanServiceImplTest {
                 "Save the workout plan schedule before generating a workout-aligned nutrition plan.",
                 error.getMessage());
         verify(provider, never()).createNutritionPlanDraft(any());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -710,7 +710,7 @@ class AiNutritionPlanServiceImplTest {
                 "user@example.com", "nutrition-key-006", alignedRequest));
 
         verify(provider, never()).createNutritionPlanDraft(any());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
     @Test
     void createDraft_workoutAlignedRejectsMissingOrForeignPlanBeforeProviderOrQuota() {
@@ -724,7 +724,7 @@ class AiNutritionPlanServiceImplTest {
                 "user@example.com", "nutrition-key-foreign-workout", alignedRequest));
 
         verify(provider, never()).createNutritionPlanDraft(any());
-        verify(subscriptionService, never()).consumeAiQuota(anyString(), anyInt());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -746,7 +746,7 @@ class AiNutritionPlanServiceImplTest {
         when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         SubscriptionDto quota = new SubscriptionDto();
         quota.setAiRemainingThisPeriod(8);
-        when(subscriptionService.consumeAiQuota("user@example.com", 2)).thenReturn(quota);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.any())).thenReturn(quota);
 
         AiNutritionPlanDraftResponseDto result = service.createDraft(
                 "user@example.com", "nutrition-key-007", alignedRequest);
@@ -756,7 +756,7 @@ class AiNutritionPlanServiceImplTest {
         assertTrue(item.getWarnings().stream().anyMatch(value ->
                 value.contains("Workout timing was not applied")));
         verify(provider, times(1)).createNutritionPlanDraft(any());
-        verify(subscriptionService).consumeAiQuota("user@example.com", 2);
+        verify(subscriptionService).consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@example.com"), org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.any());
     }
     @Test
     void confirmDraft_rejectsWorkoutScheduleChangedAfterGeneration() throws Exception {
@@ -832,7 +832,7 @@ class AiNutritionPlanServiceImplTest {
         assertTrue(requestCaptor.getValue().getItems().stream()
                 .allMatch(item -> item.getItemType() == MealPlanItemType.AI_SNAPSHOT));
         assertTrue(history.getConfirmationPayload().contains("90"));
-        verify(subscriptionService, never()).refundConsumedAiQuota(any(), anyInt());
+        verify(subscriptionService, never()).refundAiRequestQuota(any(), any());
     }
 
     @Test
@@ -853,7 +853,7 @@ class AiNutritionPlanServiceImplTest {
         assertEquals(AiRequestStatus.REJECTED, history.getStatus());
         assertEquals(AiDraftRejectReason.IRRELEVANT_RESULT, history.getRejectionReason());
         assertEquals("Meals do not fit my schedule.", history.getRejectionFeedback());
-        verify(subscriptionService, never()).refundConsumedAiQuota(any(), anyInt());
+        verify(subscriptionService, never()).refundAiRequestQuota(any(), any());
     }
     private void prepareUserAndGoal() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));

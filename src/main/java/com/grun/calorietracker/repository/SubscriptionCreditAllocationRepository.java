@@ -11,6 +11,14 @@ import java.time.Instant;
 public interface SubscriptionCreditAllocationRepository extends JpaRepository<SubscriptionCreditAllocationEntity, Long> {
     @Modifying
     @Query(value = """
+            UPDATE subscription_credit_allocations SET upgrade_bonus = :bonus
+             WHERE user_id = :userId AND provider = :provider AND allocation_key = :allocationKey
+            """, nativeQuery = true)
+    int recordUpgradeBonus(@Param("userId") Long userId, @Param("provider") String provider,
+                           @Param("allocationKey") String allocationKey, @Param("bonus") int bonus);
+
+    @Modifying
+    @Query(value = """
             INSERT INTO subscription_credit_allocations
               (user_id, provider, allocation_key, plan_type, quota_amount, purchased_at, expires_at,
                transaction_id, original_transaction_id, first_provider_event_id, created_at)

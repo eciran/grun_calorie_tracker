@@ -103,7 +103,7 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
         } else {
             parts.add(image);
         }
-        return callGemini(AiRequestType.PHOTO_MEAL_LOG, contract.mealDraftSchema(alternatives), parts,
+        return callGemini(AiRequestType.PHOTO_MEAL_LOG, contract.photoMealDraftSchema(alternatives), parts,
                 AiMealDraftResponseDto.class, maxOutputTokens());
     }
 

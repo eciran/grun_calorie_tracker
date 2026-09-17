@@ -25,6 +25,8 @@ public class AiMealDraftResponseDto implements AiUsageMetadataCarrier {
     private String suggestedMealType;
     private LocalDateTime suggestedLogDate;
     private String summary;
+    @Schema(description = "Required for photo analysis: FOOD_DETECTED, NO_FOOD_DETECTED, or IMAGE_UNCLEAR. Not used for voice drafts.")
+    private String photoOutcome;
     @Schema(description = "Stable result type used by the mobile UI to present this as an AI-estimated snapshot rather than a verified catalog result.", example = "AI_SNAPSHOT")
     private String resultType = "AI_SNAPSHOT";
     @Schema(description = "Short premium-facing explanation shown near the top of the AI result.")

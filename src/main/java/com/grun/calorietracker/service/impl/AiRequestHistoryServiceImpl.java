@@ -158,9 +158,18 @@ public class AiRequestHistoryServiceImpl implements AiRequestHistoryService {
                 : null);
         dto.setInputPayload(readJson(entity.getInputPayload()));
         JsonNode outputPayload = readJson(entity.getOutputPayload());
+        if (entity.getRequestType() == com.grun.calorietracker.enums.AiRequestType.AI_DAILY_INSIGHT
+                || entity.getRequestType() == com.grun.calorietracker.enums.AiRequestType.AI_WEEKLY_INSIGHT) {
+            outputPayload = com.grun.calorietracker.service.support.AiCoachingPresentation.cleanHistory(outputPayload);
+        }
         dto.setOutputPayload(outputPayload);
         JsonNode safeOutputPayload = resolveSafeOutputPayload(entity, outputPayload);
         dto.setSafeOutputPayload(safeOutputPayload);
+        if (entity.getStatus() == AiRequestStatus.FAILED && safeOutputPayload != null
+                && ("NO_FOOD_DETECTED".equals(safeOutputPayload.path("errorCode").asText())
+                || "IMAGE_UNCLEAR".equals(safeOutputPayload.path("errorCode").asText()))) {
+            dto.setUserMessage(safeOutputPayload.path("userMessage").asText());
+        }
         dto.setHasSafeOutputPayload(safeOutputPayload != null);
         dto.setConfirmationPayload(readJson(entity.getConfirmationPayload()));
         dto.setCreatedAt(entity.getCreatedAt());

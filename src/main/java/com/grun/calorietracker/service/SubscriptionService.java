@@ -20,6 +20,10 @@ public interface SubscriptionService {
     SubscriptionFeatureAccessDto getFeatureAccess(String email);
     SubscriptionDto consumeAiQuota(String email);
     SubscriptionDto consumeAiQuota(String email, int amount);
+    SubscriptionDto consumeAiRequestQuota(String email, int amount, Long requestId);
+    SubscriptionDto refundAiRequestQuota(Long userId, Long requestId);
+    SubscriptionDto refundAiRequestQuota(Long userId, Long requestId, int cumulativeAmount);
+    void recordScheduledChange(Long userId, com.grun.calorietracker.dto.RevenueCatWebhookEventDto.Event event);
     int resolveAiCreditCost(String email, SubscriptionFeature feature);
     SubscriptionDto resetUserAiQuota(Long userId);
     SubscriptionDto grantAiAddonQuota(Long userId, int amount, int validityDays);

@@ -73,6 +73,11 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         }
 
         long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
+        if ("POST".equals(request.getMethod()) && (path.equals("/api/v1/ai/meal-drafts/photo-references")
+                || path.equals("/api/v1/ai/meal-drafts/photo"))) {
+            log.info("ai_photo_phase phase={} status={} durationMs={}",
+                    path.endsWith("photo-references") ? "upload" : "analysis", response.getStatus(), durationMs);
+        }
         if (runtimeApiMetricsService != null) {
             runtimeApiMetricsService.record(durationMs, response.getStatus());
         }

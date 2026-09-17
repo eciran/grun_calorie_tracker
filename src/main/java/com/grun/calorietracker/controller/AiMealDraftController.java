@@ -101,8 +101,11 @@ public class AiMealDraftController {
     public ResponseEntity<AiPhotoReferenceDto> uploadPhotoReference(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "Meal photo file. Allowed content types are configured by backend.")
-            @RequestPart("file") MultipartFile file) {
-        return ResponseEntity.ok(aiPhotoReferenceService.createReference(userDetails.getUsername(), file));
+            @RequestPart("file") MultipartFile file,
+            @RequestHeader(value = "X-Photo-Upload-Id", required = false) String uploadId) {
+        return ResponseEntity.ok(uploadId == null
+                ? aiPhotoReferenceService.createReference(userDetails.getUsername(), file)
+                : aiPhotoReferenceService.createReference(userDetails.getUsername(), file, uploadId));
     }
 
     @GetMapping("/photo-references/{token}")

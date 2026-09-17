@@ -150,7 +150,7 @@ public class AiPreparationGuideServiceImpl implements AiPreparationGuideService 
         try {
             AiPreparationGuideResponseDto response = provider().createPreparationGuide(providerRequest);
             normalizeAndValidate(response, item, planId, version, creditCost);
-            SubscriptionDto quota = subscriptionService.consumeAiQuota(email, creditCost);
+            SubscriptionDto quota = subscriptionService.consumeAiRequestQuota(email, creditCost, history.getId());
             charged = true;
             response.setAiRemainingThisPeriod(quota.getAiRemainingThisPeriod());
             response.setUx(AiUxContractFactory.success(
@@ -183,20 +183,18 @@ public class AiPreparationGuideServiceImpl implements AiPreparationGuideService 
             historyRepository.save(history);
             return response;
         } catch (RuntimeException ex) {
-            if (charged) {
-                refund(user, creditCost);
-            }
+            boolean stillCharged = charged && !refund(user, history.getId());
             history.setStatus(AiRequestStatus.FAILED);
             history.setErrorMessage(safeTechnicalMessage(ex));
             history.setOutputPayload(json(AiSafeResponseBuilder.failurePayload(
                     REQUEST_TYPE,
                     true,
                     creditCost,
-                    charged,
+                    stillCharged,
                     user.getPreferredLanguage()
             )));
-            history.setQuotaConsumed(false);
-            history.setQuotaConsumedAmount(0);
+            history.setQuotaConsumed(stillCharged);
+            history.setQuotaConsumedAmount(stillCharged ? creditCost : 0);
             history.setLatencyMs(elapsed(startedAt));
             historyRepository.save(history);
             if (ex instanceof RequestConflictException) {
@@ -445,9 +443,9 @@ public class AiPreparationGuideServiceImpl implements AiPreparationGuideService 
         history.setCostCurrency(response.getCostCurrency());
     }
 
-    private void refund(UserEntity user, int amount) {
-        try { subscriptionService.refundConsumedAiQuota(user.getId(), amount); }
-        catch (RuntimeException ignored) { }
+    private boolean refund(UserEntity user, Long requestId) {
+        try { subscriptionService.refundAiRequestQuota(user.getId(), requestId); return true; }
+        catch (RuntimeException ignored) { return false; }
     }
 
     private String safeTechnicalMessage(RuntimeException ex) {

@@ -112,7 +112,7 @@ class AdminAiMealDraftServiceImplTest {
         subscription.setAiRemainingThisPeriod(11);
 
         when(historyRepository.findByIdForQuotaRefund(10L)).thenReturn(Optional.of(history));
-        when(subscriptionService.refundConsumedAiQuota(1L, 1)).thenReturn(subscription);
+        when(subscriptionService.refundAiRequestQuota(1L, 10L, 1)).thenReturn(subscription);
         when(historyRepository.save(any(AiRequestHistoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(notificationRepository.save(any(NotificationEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -124,7 +124,7 @@ class AdminAiMealDraftServiceImplTest {
         assertEquals("AI result was unrelated.", result.getQuotaRefundReason());
         assertEquals(AiQuotaRefundDecision.APPROVED, result.getQuotaRefundDecision());
         assertEquals(4, result.getSubscription().getAiUsedThisPeriod());
-        verify(subscriptionService).refundConsumedAiQuota(1L, 1);
+        verify(subscriptionService).refundAiRequestQuota(1L, 10L, 1);
         var notificationCaptor = forClass(NotificationEntity.class);
         verify(notificationRepository).save(notificationCaptor.capture());
         NotificationEntity notification = notificationCaptor.getValue();
