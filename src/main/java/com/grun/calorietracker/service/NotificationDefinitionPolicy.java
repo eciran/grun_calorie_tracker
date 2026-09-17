@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.NotificationCampaignChannel;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.NotificationDefinitionRepository;
 import lombok.RequiredArgsConstructor;
+import com.grun.calorietracker.service.support.NotificationText;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -71,7 +72,7 @@ public class NotificationDefinitionPolicy {
     public NotificationPresentation presentation(NotificationEntity notification, NotificationDefinitionEntity definition,
                                                    Map<String, String> parameters) {
         if (definition == null || notification.getCampaign() != null) {
-            return new NotificationPresentation(notification.getTitle(), notification.getMessage(), notification.getSeverity(), notification.getTargetRoute());
+            return new NotificationPresentation(NotificationText.sentenceStart(notification.getTitle(), notification), NotificationText.sentenceStart(notification.getMessage(), notification), notification.getSeverity(), notification.getTargetRoute());
         }
         PreferredLanguage language = notification.getUser() == null
                 ? PreferredLanguage.EN : notification.getUser().getPreferredLanguage();
@@ -88,7 +89,7 @@ public class NotificationDefinitionPolicy {
         if (hasUnresolvedPlaceholder(message)) message = originalMessage;
         String severity = definition.getSeverity() == null || definition.getSeverity().isBlank() ? notification.getSeverity() : definition.getSeverity();
         String route = definition.getTargetRoute() == null || definition.getTargetRoute().isBlank() ? notification.getTargetRoute() : definition.getTargetRoute();
-        return new NotificationPresentation(title, message, severity, route);
+        return new NotificationPresentation(NotificationText.sentenceStart(title, notification), NotificationText.sentenceStart(message, notification), severity, route);
     }
 
     private String render(String template, String title, String message, String note) {

@@ -48,7 +48,7 @@ public class MealReminderInteractionService {
         if (notification != null && !Boolean.TRUE.equals(notification.getIsRead())) {
             notification.setIsRead(true);
         }
-        boolean stale = !occurrence.getLocalDate().equals(LocalDate.now(timeZones.zoneId(user)));
+        boolean stale = !occurrence.getLocalDate().equals(now.atZone(timeZones.zoneId(user)).toLocalDate());
         String mealType = stale ? null : targetedMeal(occurrence.getCandidate());
         return new MealReminderNotificationContextDto(notificationId, occurrence.getId(), occurrence.getLocalDate(),
                 mealType == null ? "DAILY_DIARY" : "MEAL_ADD", mealType, "diary", stale, 1);

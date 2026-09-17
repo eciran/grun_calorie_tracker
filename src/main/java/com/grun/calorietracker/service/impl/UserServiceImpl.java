@@ -476,22 +476,9 @@ public class UserServiceImpl implements UserService {
         if (request.getFastingRemindersEnabled() != null) {
             user.setFastingRemindersEnabled(request.getFastingRemindersEnabled());
         }
-        if (Boolean.FALSE.equals(request.getQuietHoursEnabled())) {
-            user.setNotificationQuietHoursStart(null);
-            user.setNotificationQuietHoursEnd(null);
-        } else if (request.getQuietHoursStart() != null || request.getQuietHoursEnd() != null) {
-            if (request.getQuietHoursStart() == null || request.getQuietHoursEnd() == null) {
-                throw new IllegalArgumentException("quietHoursStart and quietHoursEnd must be provided together.");
-            }
-            if (request.getQuietHoursStart().equals(request.getQuietHoursEnd())) {
-                throw new IllegalArgumentException("Quiet-hours start and end must be different.");
-            }
-            user.setNotificationQuietHoursStart(request.getQuietHoursStart());
-            user.setNotificationQuietHoursEnd(request.getQuietHoursEnd());
-        } else if (Boolean.TRUE.equals(request.getQuietHoursEnabled())
-                && (user.getNotificationQuietHoursStart() == null || user.getNotificationQuietHoursEnd() == null)) {
-            throw new IllegalArgumentException("Quiet-hours times are required when enabling quiet hours.");
-        }
+        // Keep the legacy request fields compatible without re-enabling global quiet hours.
+        user.setNotificationQuietHoursStart(null);
+        user.setNotificationQuietHoursEnd(null);
         if (request.getRecipeSuggestionsEnabled() != null) {
             user.setRecipeSuggestionsEnabled(request.getRecipeSuggestionsEnabled());
         }
@@ -695,9 +682,9 @@ public class UserServiceImpl implements UserService {
                 user.getHydrationRemindersEnabled(),
                 user.getStepRemindersEnabled(),
                 user.getFastingRemindersEnabled(),
-                user.getNotificationQuietHoursStart() != null && user.getNotificationQuietHoursEnd() != null,
-                user.getNotificationQuietHoursStart(),
-                user.getNotificationQuietHoursEnd(),
+                false,
+                null,
+                null,
                 user.getRecipeSuggestionsEnabled(),
                 user.getAiInsightsEnabled(),
                 user.getWeeklyReportsEnabled(),

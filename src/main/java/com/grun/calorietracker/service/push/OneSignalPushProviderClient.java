@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserPushTokenEntity;
 import com.grun.calorietracker.enums.PushProvider;
 import lombok.extern.slf4j.Slf4j;
+import com.grun.calorietracker.service.support.NotificationText;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -64,8 +65,8 @@ public class OneSignalPushProviderClient implements PushProviderClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("app_id", properties.getOnesignal().getAppId());
         body.put("include_player_ids", List.of(token.getTokenValue()));
-        body.put("headings", Map.of("en", notification.getTitle() == null ? "GRUN" : notification.getTitle()));
-        body.put("contents", Map.of("en", notification.getMessage()));
+        body.put("headings", Map.of("en", notification.getTitle() == null ? "GRUN" : NotificationText.sentenceStart(notification.getTitle(), notification)));
+        body.put("contents", Map.of("en", NotificationText.sentenceStart(notification.getMessage(), notification)));
         body.put("data", Map.of(
                         "notificationId", notification.getId(),
                         "type", valueOrEmpty(notification.getType()),

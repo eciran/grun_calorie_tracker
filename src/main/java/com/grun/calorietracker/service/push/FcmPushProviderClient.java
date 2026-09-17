@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserPushTokenEntity;
 import com.grun.calorietracker.enums.PushProvider;
 import lombok.extern.slf4j.Slf4j;
+import com.grun.calorietracker.service.support.NotificationText;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -76,8 +77,8 @@ public class FcmPushProviderClient implements PushProviderClient {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("token", token.getTokenValue());
         message.put("notification", Map.of(
-                                "title", resolveTitle(notification),
-                                "body", notification.getMessage()));
+                                "title", NotificationText.sentenceStart(resolveTitle(notification), notification),
+                                "body", NotificationText.sentenceStart(notification.getMessage(), notification)));
         message.put("data", Map.of(
                                 "notificationId", String.valueOf(notification.getId()),
                                 "type", valueOrEmpty(notification.getType()),

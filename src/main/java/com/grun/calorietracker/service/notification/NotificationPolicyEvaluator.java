@@ -6,13 +6,7 @@ import com.grun.calorietracker.enums.NotificationDeliveryChannel;
 import com.grun.calorietracker.enums.NotificationEventType;
 import org.springframework.stereotype.Service;
 
-import java.time.DateTimeException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -49,28 +43,8 @@ public class NotificationPolicyEvaluator {
             allowed.remove(NotificationDeliveryChannel.PUSH);
         }
 
-        Instant pushAvailableAt = now;
-        if (allowed.contains(NotificationDeliveryChannel.PUSH)
-                && (classification == NotificationClassification.BEHAVIOR_REMINDER
-                || classification == NotificationClassification.TRANSACTIONAL_ACCOUNT)) {
-            QuietHoursResult quietHours = quietHours(user, now);
-            if (quietHours.invalid()) {
-                allowed.remove(NotificationDeliveryChannel.PUSH);
-                if (classification == NotificationClassification.BEHAVIOR_REMINDER) {
-                    allowed.remove(NotificationDeliveryChannel.IN_APP);
-                }
-                return new NotificationPolicyDecision(allowed, now, "INVALID_QUIET_HOURS");
-            }
-            if (quietHours.resumeAt() != null) {
-                pushAvailableAt = quietHours.resumeAt();
-                if (classification == NotificationClassification.BEHAVIOR_REMINDER) {
-                    // Reminder inbox rows must not appear silently during quiet hours.
-                    allowed.remove(NotificationDeliveryChannel.IN_APP);
-                }
-            }
-        }
-        return new NotificationPolicyDecision(allowed, pushAvailableAt,
-                pushAvailableAt.isAfter(now) ? "QUIET_HOURS_DEFERRED" : "ELIGIBLE");
+        // Reminder schedules are enforced by their producers, not a global quiet window.
+        return new NotificationPolicyDecision(allowed, now, "ELIGIBLE");
     }
 
     private boolean behaviorPreferenceEnabled(UserEntity user, NotificationEventType eventType) {
@@ -85,36 +59,9 @@ public class NotificationPolicyEvaluator {
         };
     }
 
-    private QuietHoursResult quietHours(UserEntity user, Instant now) {
-        LocalTime start = user.getNotificationQuietHoursStart();
-        LocalTime end = user.getNotificationQuietHoursEnd();
-        if (start == null && end == null) return QuietHoursResult.clear();
-        if (start == null || end == null) return QuietHoursResult.invalidResult();
-        if (start.equals(end)) return QuietHoursResult.clear();
-        try {
-            ZoneId zone = ZoneId.of(user.getTimeZone());
-            ZonedDateTime localNow = now.atZone(zone);
-            LocalTime time = localNow.toLocalTime();
-            boolean overnight = start.isAfter(end);
-            boolean inside = overnight
-                    ? !time.isBefore(start) || time.isBefore(end)
-                    : !time.isBefore(start) && time.isBefore(end);
-            if (!inside) return QuietHoursResult.clear();
-            LocalDate resumeDate = overnight && !time.isBefore(start)
-                    ? localNow.toLocalDate().plusDays(1) : localNow.toLocalDate();
-            LocalDateTime resumeLocal = LocalDateTime.of(resumeDate, end);
-            return new QuietHoursResult(false, resumeLocal.atZone(zone).toInstant());
-        } catch (DateTimeException exception) {
-            return QuietHoursResult.invalidResult();
-        }
-    }
 
     private NotificationPolicyDecision suppressed(String reason) {
         return new NotificationPolicyDecision(Set.of(), null, reason);
     }
 
-    private record QuietHoursResult(boolean invalid, Instant resumeAt) {
-        static QuietHoursResult clear() { return new QuietHoursResult(false, null); }
-        static QuietHoursResult invalidResult() { return new QuietHoursResult(true, null); }
-    }
 }

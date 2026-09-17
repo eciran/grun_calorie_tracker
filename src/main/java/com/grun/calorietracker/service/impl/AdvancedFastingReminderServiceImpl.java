@@ -80,9 +80,6 @@ public class AdvancedFastingReminderServiceImpl implements AdvancedFastingRemind
   if(!Boolean.TRUE.equals(user.getPushNotificationsEnabled())||!Boolean.TRUE.equals(user.getFastingRemindersEnabled())||!Boolean.TRUE.equals(settings.getEnabled())){
    delivery.setStatus(FastingReminderDeliveryStatus.SUPPRESSED); delivery.setLastError("Notification preference disabled"); deliveryRepository.save(delivery); return false;
   }
-  if(inQuietHours(user,now.toLocalTime())){
-   delivery.setStatus(FastingReminderDeliveryStatus.DEFERRED); delivery.setNextAttemptAt(nextQuietEnd(user,now)); deliveryRepository.save(delivery); return false;
-  }
   try{
    NotificationEntity notification=delivery.getNotification();
    if(notification==null){ notification=notificationRepository.save(notification(occurrence,event,user,now)); delivery.setNotification(notification); }
@@ -107,8 +104,6 @@ public class AdvancedFastingReminderServiceImpl implements AdvancedFastingRemind
   case NEARING_COMPLETION->new ReminderCopy("Fasting window nearly complete","Your planned fasting window is close to completion.");
   case COMPLETION->new ReminderCopy("Plan update","Your planned fasting activity has been recorded. Review it when convenient.");
   case MISSED_PLAN->new ReminderCopy("Plan check-in","This fasting window was not started. You can leave it as missed or update your plan without penalty."); }; }
- private boolean inQuietHours(UserEntity user,LocalTime time){ LocalTime start=user.getNotificationQuietHoursStart(),end=user.getNotificationQuietHoursEnd(); if(start==null||end==null||start.equals(end))return false; return start.isBefore(end)?(!time.isBefore(start)&&time.isBefore(end)):(!time.isBefore(start)||time.isBefore(end)); }
- private LocalDateTime nextQuietEnd(UserEntity user,LocalDateTime now){ LocalTime end=user.getNotificationQuietHoursEnd(); LocalDate date=now.toLocalTime().isBefore(end)?now.toLocalDate():now.toLocalDate().plusDays(1); return date.atTime(end); }
  private AdvancedFastingOperationsConfigEntity config(){
   if(governanceService!=null)return governanceService.currentOperations();
   AdvancedFastingOperationsConfigEntity c=new AdvancedFastingOperationsConfigEntity(); c.setReminderEnabled(true); c.setPreStartMinutes(30); c.setNearingCompletionMinutes(30); c.setMissedPlanMinutes(60); c.setMaxRetryAttempts(3); return c;

@@ -5,6 +5,7 @@ import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.UserPushTokenEntity;
 import com.grun.calorietracker.enums.PushProvider;
 import lombok.extern.slf4j.Slf4j;
+import com.grun.calorietracker.service.support.NotificationText;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -62,8 +63,8 @@ public class ExpoPushProviderClient implements PushProviderClient {
         }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("to", token.getTokenValue());
-        body.put("title", resolveTitle(notification));
-        body.put("body", notification.getMessage());
+        body.put("title", NotificationText.sentenceStart(resolveTitle(notification), notification));
+        body.put("body", NotificationText.sentenceStart(notification.getMessage(), notification));
         body.put("data", Map.of(
                         "notificationId", notification.getId(),
                         "type", valueOrEmpty(notification.getType()),

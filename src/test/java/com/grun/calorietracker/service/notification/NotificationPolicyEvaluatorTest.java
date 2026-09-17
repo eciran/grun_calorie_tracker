@@ -52,7 +52,7 @@ class NotificationPolicyEvaluatorTest {
     }
 
     @Test
-    void overnightQuietHoursDefersPushAndHidesBehaviorInboxUntilDispatch() {
+    void legacyQuietHoursDoNotDelayBehaviorNotifications() {
         UserEntity user = user();
         user.setNotificationQuietHoursStart(LocalTime.of(22, 0));
         user.setNotificationQuietHoursEnd(LocalTime.of(8, 0));
@@ -60,13 +60,13 @@ class NotificationPolicyEvaluatorTest {
         NotificationPolicyDecision decision = evaluator.evaluate(user, NotificationEventType.MEAL_REMINDER_DAILY_CATCHUP,
                 Set.of(NotificationDeliveryChannel.IN_APP, NotificationDeliveryChannel.PUSH), now);
 
-        assertEquals(Set.of(NotificationDeliveryChannel.PUSH), decision.allowedChannels());
-        assertEquals(Instant.parse("2026-09-01T07:00:00Z"), decision.pushAvailableAt());
-        assertEquals("QUIET_HOURS_DEFERRED", decision.reasonCode());
+        assertEquals(Set.of(NotificationDeliveryChannel.IN_APP, NotificationDeliveryChannel.PUSH), decision.allowedChannels());
+        assertEquals(now, decision.pushAvailableAt());
+        assertEquals("ELIGIBLE", decision.reasonCode());
     }
 
     @Test
-    void transactionalInboxIsImmediateWhileQuietHoursOnlyDefersPush() {
+    void transactionalNotificationsAreImmediateAtNight() {
         UserEntity user = user();
         user.setNotificationQuietHoursStart(LocalTime.of(22, 0));
         user.setNotificationQuietHoursEnd(LocalTime.of(8, 0));
@@ -76,11 +76,11 @@ class NotificationPolicyEvaluatorTest {
 
         assertTrue(decision.allows(NotificationDeliveryChannel.IN_APP));
         assertTrue(decision.allows(NotificationDeliveryChannel.PUSH));
-        assertTrue(decision.pushAvailableAt().isAfter(now));
+        assertEquals(now, decision.pushAvailableAt());
     }
 
     @Test
-    void invalidTimezoneSuppressesBehaviorReminder() {
+    void legacyQuietHoursTimezoneDoesNotSuppressDelivery() {
         UserEntity user = user();
         user.setTimeZone("Not/A_Zone");
         user.setNotificationQuietHoursStart(LocalTime.of(22, 0));
@@ -89,8 +89,8 @@ class NotificationPolicyEvaluatorTest {
         NotificationPolicyDecision decision = evaluator.evaluate(user, NotificationEventType.STEP_REMINDER_DUE,
                 Set.of(NotificationDeliveryChannel.IN_APP, NotificationDeliveryChannel.PUSH), now);
 
-        assertTrue(decision.suppressed());
-        assertEquals("INVALID_QUIET_HOURS", decision.reasonCode());
+        assertTrue(decision.allows(NotificationDeliveryChannel.PUSH));
+        assertEquals("ELIGIBLE", decision.reasonCode());
     }
 
     private UserEntity user() {
@@ -105,5 +105,21 @@ class NotificationPolicyEvaluatorTest {
         user.setMarketingNotificationsEnabled(false);
         user.setTimeZone("Europe/Dublin");
         return user;
+    }
+
+    @Test
+    void allEventTypesRemainEligibleThroughoutTheDayWithLegacyQuietHours() {
+        UserEntity user = user();
+        user.setMarketingNotificationsEnabled(true);
+        user.setNotificationQuietHoursStart(LocalTime.of(22, 0));
+        user.setNotificationQuietHoursEnd(LocalTime.of(8, 0));
+        for (int hour = 0; hour < 24; hour++) {
+            Instant at = Instant.parse("2026-09-14T00:00:00Z").plusSeconds(hour * 3600L);
+            for (NotificationEventType event : NotificationEventType.values()) {
+                var decision = evaluator.evaluate(user, event, Set.of(NotificationDeliveryChannel.PUSH), at);
+                assertTrue(decision.allows(NotificationDeliveryChannel.PUSH), event + " at " + at);
+                assertEquals(at, decision.pushAvailableAt());
+            }
+        }
     }
 }

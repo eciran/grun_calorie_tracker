@@ -65,7 +65,7 @@ public final class MealReminderContract {
     public static final List<Reason> SUPPRESSION_PRIORITY = List.of(
             Reason.SYSTEM_DISABLED, Reason.ACCOUNT_INELIGIBLE, Reason.PREFERENCE_DISABLED,
             Reason.OUTSIDE_COHORT, Reason.NO_VALID_TOKEN, Reason.DATA_UNAVAILABLE,
-            Reason.QUIET_HOURS, Reason.FASTING_ACTIVE, Reason.NOT_DUE, Reason.STALE_SLOT,
+            Reason.FASTING_ACTIVE, Reason.NOT_DUE, Reason.STALE_SLOT,
             Reason.ALREADY_HANDLED, Reason.DAILY_LIMIT, Reason.ROLLING_LIMIT,
             Reason.COOLDOWN, Reason.ROUTINE_COOLDOWN);
 

@@ -78,13 +78,6 @@ public class MealReminderDecisionEngine {
             return suppressed(snapshot, policy, now, activeWindow, null, MealReminderContract.Reason.DATA_UNAVAILABLE);
         }
 
-        QuietHours quietHours = quietHours(snapshot, policy);
-        if (quietHours == null) {
-            return suppressed(snapshot, policy, now, activeWindow, null, MealReminderContract.Reason.DATA_UNAVAILABLE);
-        }
-        if (quietHours.contains(localTime)) {
-            return suppressed(snapshot, policy, now, activeWindow, null, MealReminderContract.Reason.QUIET_HOURS);
-        }
         if (snapshot.fastingState() == DailyMealReminderSnapshot.ActivityState.ACTIVE) {
             return suppressed(snapshot, policy, now, activeWindow, null, MealReminderContract.Reason.FASTING_ACTIVE);
         }
@@ -148,12 +141,7 @@ public class MealReminderDecisionEngine {
             MealReminderContract.Message message,
             MealReminderDecision.Candidate candidate
     ) {
-        for (MealReminderContract.Meal previous : MealReminderContract.precedingMeals(meal)) {
-            if (snapshot.mealStates().get(previous) == MealReminderContract.MealState.MISSING) {
-                return suppressed(snapshot, policy, now, window, candidate,
-                        MealReminderContract.Reason.PREVIOUS_MEAL_MISSING);
-            }
-        }
+        // Each meal is independently actionable; missing breakfast must not silence lunch.
         MealReminderContract.MealState state = snapshot.mealStates().get(meal);
         if (state == MealReminderContract.MealState.RECORDED) {
             return suppressed(snapshot, policy, now, window, candidate,
@@ -311,17 +299,6 @@ public class MealReminderDecisionEngine {
                         || snapshot.mealStates().get(meal) == MealReminderContract.MealState.UNKNOWN);
     }
 
-    private QuietHours quietHours(DailyMealReminderSnapshot snapshot, MealReminderPolicy policy) {
-        LocalTime start = snapshot.quietHoursStart();
-        LocalTime end = snapshot.quietHoursEnd();
-        if (start == null && end == null) {
-            return new QuietHours(policy.defaultQuietStart(), policy.defaultQuietEnd());
-        }
-        if (start == null || end == null) {
-            return null;
-        }
-        return new QuietHours(start, end);
-    }
 
     private Optional<SlotWindow> activeWindow(
             Instant now,
@@ -383,15 +360,4 @@ public class MealReminderDecisionEngine {
     ) {
     }
 
-    private record QuietHours(LocalTime start, LocalTime end) {
-        boolean contains(LocalTime value) {
-            if (start.equals(end)) {
-                return false;
-            }
-            if (start.isBefore(end)) {
-                return !value.isBefore(start) && value.isBefore(end);
-            }
-            return !value.isBefore(start) || value.isBefore(end);
-        }
-    }
 }
