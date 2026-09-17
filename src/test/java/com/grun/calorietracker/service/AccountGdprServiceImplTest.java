@@ -196,7 +196,7 @@ class AccountGdprServiceImplTest {
     }
 
     @Test
-    void exportMyData_returnsCountsAndSubscriptionSnapshot() {
+    void exportMyData_returnsCountsAndSubscriptionSnapshot() throws Exception {
         SubscriptionEntity subscription = new SubscriptionEntity();
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setAiMonthlyQuota(100);
@@ -226,6 +226,8 @@ class AccountGdprServiceImplTest {
         plan.setId(77L);
         plan.setUser(user);
         plan.setName("AI week");
+        plan.setSchemaVersion("internal-schema");
+        plan.setPromptVersion("internal-prompt");
         plan.setStartDate(java.time.LocalDate.of(2026, 7, 20));
         plan.setEndDate(java.time.LocalDate.of(2026, 7, 26));
         plan.setGenerationMode(com.grun.calorietracker.enums.NutritionPlanGenerationMode.GENERAL);
@@ -238,6 +240,8 @@ class AccountGdprServiceImplTest {
         planItem.setPortionSize(430.0);
         planItem.setPortionUnit(com.grun.calorietracker.enums.FoodPortionUnit.GRAM);
         planItem.setSnapshotName("Chicken Bowl");
+        planItem.setSchemaVersion("internal-item-schema");
+        planItem.setPromptVersion("internal-item-prompt");
         planItem.setSnapshotCalories(520.0);
         planItem.setSnapshotProtein(48.0);
         planItem.setSnapshotCarbs(55.0);
@@ -259,6 +263,26 @@ class AccountGdprServiceImplTest {
                 com.grun.calorietracker.enums.WeeklyWorkoutFrequency.THREE_TO_FOUR);
         fitnessPreference.setUpdatedAt(java.time.LocalDateTime.of(2026, 7, 24, 10, 0));
         when(userFitnessPreferenceRepository.findByUser(user)).thenReturn(Optional.of(fitnessPreference));
+
+        var ai = new com.grun.calorietracker.entity.AiRequestHistoryEntity();
+        ai.setId(91L);
+        ai.setModel("internal-model");
+        ai.setLatencyMs(7438L);
+        ai.setTotalTokens(2111);
+        ai.setEstimatedCost(0.012);
+        ai.setCostCurrency("USD");
+        ai.setQuotaConsumed(true);
+        ai.setQuotaRefundedAmount(2);
+        ai.setQuotaRefundReason("Internal provider failure diagnostics");
+        ai.setQuotaRefundedBy("internal-admin@example.com");
+        ai.setRejectionFeedback("The food was incorrect");
+        ai.setCorrectionSummary("{\"portionsChanged\":true,\"model\":\"internal-model\"}");
+        when(aiRequestHistoryRepository.findByUserOrderByCreatedAtDesc(user)).thenReturn(java.util.List.of(ai));
+        var analytics = new com.grun.calorietracker.entity.ProductAnalyticsEventEntity();
+        analytics.setId(92L);
+        analytics.setMetadataJson("{\"source\":\"internal-provider\"}");
+        when(productAnalyticsEventRepository.findByUserOrderByCreatedAtDesc(user))
+                .thenReturn(java.util.List.of(analytics));
         GdprDataExportDto dto = service.exportMyData("user@grun.app");
 
         assertEquals("user@grun.app", dto.getEmail());
@@ -284,6 +308,22 @@ class AccountGdprServiceImplTest {
         assertEquals("GENERAL", dto.getMealPlans().get(0).getGenerationMode());
         assertEquals("Chicken Bowl", dto.getMealPlans().get(0).getItems().get(0).getSnapshotName());
         assertEquals(520.0, dto.getMealPlans().get(0).getItems().get(0).getSnapshotNutrition().getCalories());
+        var json = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules().valueToTree(dto);
+        var exportedAi = json.path("aiRequests").get(0);
+        for (String field : java.util.List.of("model", "provider", "latencyMs", "totalTokens", "estimatedCost",
+                "costCurrency", "quotaRefundReason", "quotaRefundedBy")) {
+            org.junit.jupiter.api.Assertions.assertFalse(exportedAi.has(field), field);
+        }
+        assertEquals(true, exportedAi.path("quotaConsumed").asBoolean());
+        assertEquals(2, exportedAi.path("quotaRefundedAmount").asInt());
+        assertEquals("The food was incorrect", exportedAi.path("rejectionFeedback").asText());
+        assertEquals("{\"portionsChanged\":true}", exportedAi.path("correctionSummary").asText());
+        org.junit.jupiter.api.Assertions.assertFalse(json.toString().contains("internal-"));
+        org.junit.jupiter.api.Assertions.assertFalse(json.path("productAnalyticsEvents").get(0).has("metadataJson"));
+        assertEquals("internal-model", ai.getModel());
+        assertEquals(2111, ai.getTotalTokens());
+        assertEquals(0.012, ai.getEstimatedCost());
+        assertEquals("Internal provider failure diagnostics", ai.getQuotaRefundReason());
     }
 
     @Test

@@ -266,8 +266,6 @@ public class GdprDataExportDto {
         private String generationMode;
         private Long workoutPlanId;
         private Long sourceAiRequestId;
-        private String schemaVersion;
-        private String promptVersion;
         private Integer itemCount;
         private List<MealPlanItemExportDto> items;
         private LocalDateTime createdAt;
@@ -296,8 +294,6 @@ public class GdprDataExportDto {
         private String assumptionsPayload;
         private String workoutRelation;
         private Long sourceAiRequestId;
-        private String schemaVersion;
-        private String promptVersion;
     }
 
     @Data
@@ -375,20 +371,12 @@ public class GdprDataExportDto {
     public static class AiRequestExportDto {
         private Long id;
         private String requestType;
-        private String provider;
-        private String model;
         private String status;
         private Boolean quotaConsumed;
-        private Long latencyMs;
-        private Integer totalTokens;
-        private Double estimatedCost;
-        private String costCurrency;
         private String correctionSummary;
         private String rejectionReason;
         private String rejectionFeedback;
         private Integer quotaRefundedAmount;
-        private String quotaRefundReason;
-        private String quotaRefundedBy;
         private LocalDateTime createdAt;
         private LocalDateTime confirmedAt;
         private LocalDateTime rejectedAt;
@@ -462,7 +450,6 @@ public class GdprDataExportDto {
         private Long durationMs;
         private String targetType;
         private Long targetId;
-        private String metadataJson;
         private LocalDateTime createdAt;
     }
 
@@ -470,14 +457,11 @@ public class GdprDataExportDto {
     @AllArgsConstructor
     public static class SubscriptionEventExportDto {
         private Long id;
-        private String provider;
         private String eventType;
         private String productId;
-        private String entitlementIds;
         private String transactionId;
         private String originalTransactionId;
         private String periodType;
-        private String environment;
         private String cancelReason;
         private String expirationReason;
         private Instant providerEventAt;

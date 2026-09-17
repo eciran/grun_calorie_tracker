@@ -81,6 +81,7 @@ import com.grun.calorietracker.repository.WaterReminderSettingsRepository;
 import com.grun.calorietracker.service.AccountGdprService;
 import com.grun.calorietracker.service.AccountIdentityService;
 import com.grun.calorietracker.service.FoodProductEvidenceRetentionService;
+import com.grun.calorietracker.service.support.PersonalDataExportProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -580,8 +581,6 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 plan.getGenerationMode() == null ? null : plan.getGenerationMode().name(),
                 plan.getWorkoutPlan() == null ? null : plan.getWorkoutPlan().getId(),
                 plan.getSourceAiRequest() == null ? null : plan.getSourceAiRequest().getId(),
-                plan.getSchemaVersion(),
-                plan.getPromptVersion(),
                 items.size(),
                 items,
                 plan.getCreatedAt(),
@@ -617,9 +616,7 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 item.getWarningsPayload(),
                 item.getAssumptionsPayload(),
                 item.getWorkoutRelation() == null ? null : item.getWorkoutRelation().name(),
-                item.getSourceAiRequest() == null ? null : item.getSourceAiRequest().getId(),
-                item.getSchemaVersion(),
-                item.getPromptVersion()
+                item.getSourceAiRequest() == null ? null : item.getSourceAiRequest().getId()
         );
     }
 
@@ -672,14 +669,11 @@ public class AccountGdprServiceImpl implements AccountGdprService {
     private GdprDataExportDto.SubscriptionEventExportDto toSubscriptionEventExport(SubscriptionProviderEventEntity event) {
         return new GdprDataExportDto.SubscriptionEventExportDto(
                 event.getId(),
-                event.getProvider() == null ? null : event.getProvider().name(),
                 event.getEventType(),
                 event.getProductId(),
-                  event.getEntitlementIds(),
                   event.getTransactionId(),
                   event.getOriginalTransactionId(),
                   event.getPeriodType(),
-                  event.getEnvironment(),
                   event.getCancelReason(),
                   event.getExpirationReason(),
                   event.getProviderEventAt(),
@@ -703,20 +697,12 @@ public class AccountGdprServiceImpl implements AccountGdprService {
         return new GdprDataExportDto.AiRequestExportDto(
                 request.getId(),
                 request.getRequestType() == null ? null : request.getRequestType().name(),
-                request.getProvider() == null ? null : request.getProvider().name(),
-                request.getModel(),
                 request.getStatus() == null ? null : request.getStatus().name(),
                 request.getQuotaConsumed(),
-                request.getLatencyMs(),
-                request.getTotalTokens(),
-                request.getEstimatedCost(),
-                request.getCostCurrency(),
-                request.getCorrectionSummary(),
+                PersonalDataExportProjection.correctionSummary(request.getCorrectionSummary()),
                 request.getRejectionReason() == null ? null : request.getRejectionReason().name(),
                 request.getRejectionFeedback(),
                 request.getQuotaRefundedAmount(),
-                request.getQuotaRefundReason(),
-                request.getQuotaRefundedBy(),
                 request.getCreatedAt(),
                 request.getConfirmedAt(),
                 request.getRejectedAt(),
@@ -790,7 +776,6 @@ public class AccountGdprServiceImpl implements AccountGdprService {
                 event.getDurationMs(),
                 event.getTargetType(),
                 event.getTargetId(),
-                event.getMetadataJson(),
                 event.getCreatedAt()
         );
     }
