@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AdminAuditConstraintMigrationContractTest {
     @Test void latestConstraintMigrationContainsEveryJavaAuditEnumValue() throws Exception {
-        String resource="db/migration/V222__add_managed_notification_definitions.sql";
+        String resource="db/migration/V260__align_current_admin_audit_values.sql";
         try(var stream=getClass().getClassLoader().getResourceAsStream(resource)) {
             assertNotNull(stream, resource+" missing");
             String sql=new String(stream.readAllBytes(), StandardCharsets.UTF_8);
