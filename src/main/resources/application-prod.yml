@@ -73,6 +73,13 @@ logging:
     com.grun.calorietracker: INFO
 
 grun:
+  error-center:
+    proxy-ingest-key: ${GRUN_ERROR_CENTER_PROXY_INGEST_KEY:}
+  owner-alerts:
+    enabled: ${GRUN_OWNER_ALERTS_ENABLED:false}
+    scan-interval-ms: ${GRUN_OWNER_ALERTS_SCAN_INTERVAL_MS:60000}
+    daily-report-cron: ${GRUN_OWNER_ALERTS_DAILY_REPORT_CRON:0 55 23 * * *}
+    daily-report-zone: ${GRUN_OWNER_ALERTS_DAILY_REPORT_ZONE:Europe/Dublin}
   notifications:
     producer-migration:
       water-enabled: ${GRUN_NOTIFICATION_MIGRATE_WATER:false}

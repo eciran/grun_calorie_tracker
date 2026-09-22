@@ -17,7 +17,8 @@ public record AdminProductIntakeDetailDto(
         List<String> warnings,
         LocalDateTime evidenceExpiresAt,
         List<EvidenceDescriptor> evidence,
-        List<CorroboratingEvidence> corroboratingEvidence
+        List<CorroboratingEvidence> corroboratingEvidence,
+        List<OcrRun> ocrRuns
 ) {
     public record FieldComparison(String field, Object submittedValue, Object catalogValue, boolean equal, boolean highImpact) {}
 
@@ -42,5 +43,27 @@ public record AdminProductIntakeDetailDto(
             FoodProductAssetDeletionState deletionState,
             LocalDateTime expiresAt,
             boolean available
+    ) {}
+
+    public record OcrRun(
+            Long id,
+            String correlationId,
+            String parserVersion,
+            String model,
+            Boolean fallbackInvoked,
+            Map<String, Object> v3Fields,
+            Map<String, Object> v4Fields,
+            Map<String, Object> fallbackFields,
+            Map<String, Object> confirmedFields,
+            Double v3ExactMatchRate,
+            Double v4ExactMatchRate,
+            Double fallbackExactMatchRate,
+            Boolean v3BasisExact,
+            Boolean v4BasisExact,
+            Boolean fallbackBasisExact,
+            Long latencyMs,
+            Double estimatedCostUsd,
+            Map<String, Object> reconciliation,
+            LocalDateTime createdAt
     ) {}
 }

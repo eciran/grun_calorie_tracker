@@ -1,8 +1,9 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const view = fs.readFileSync("src/modules/FreePromotionPolicyView.tsx", "utf8");
-const app = fs.readFileSync("src/App.tsx", "utf8");
+const app = readAdminAppSource();
 
 assert.match(app, /freePromotion/);
 assert.match(app, /GROWTH_READ/);

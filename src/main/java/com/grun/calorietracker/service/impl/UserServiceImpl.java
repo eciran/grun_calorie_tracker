@@ -106,7 +106,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserProfileDto registerUser(UserEntity user) {
-        if (user.getEmail() == null || user.getEmail().isEmpty()) {
+        user.setEmail(user.getEmail());
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
             throw new IllegalArgumentException("Email is required");
         }
         if (userRepository.findByEmail(user.getEmail()).isPresent()) {
@@ -140,6 +141,10 @@ public class UserServiceImpl implements UserService {
                                                PreferredLanguage language,
                                                Boolean emailVerified,
                                                AdminUserActivityFilter activity,
+                                               Instant createdFrom,
+                                               Instant createdTo,
+                                               Instant activeFrom,
+                                               Instant activeTo,
                                                int page,
                                                int size) {
         int safePage = Math.max(page, 0);
@@ -175,6 +180,24 @@ public class UserServiceImpl implements UserService {
         }
         if (emailVerified != null) {
             specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("emailVerified"), emailVerified));
+        }
+        if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
+            throw new IllegalArgumentException("createdFrom must be before createdTo");
+        }
+        if (createdFrom != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), createdFrom));
+        }
+        if (createdTo != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.lessThan(root.get("createdAt"), createdTo));
+        }
+        if (activeFrom != null && activeTo != null && !activeFrom.isBefore(activeTo)) {
+            throw new IllegalArgumentException("activeFrom must be before activeTo");
+        }
+        if (activeFrom != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.greaterThanOrEqualTo(root.get("lastActiveAt"), activeFrom));
+        }
+        if (activeTo != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.lessThan(root.get("lastActiveAt"), activeTo));
         }
         if (activity != null) {
             Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);

@@ -72,6 +72,13 @@ openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
 
 grun:
+  error-center:
+    proxy-ingest-key: ${GRUN_ERROR_CENTER_PROXY_INGEST_KEY:}
+  owner-alerts:
+    enabled: ${GRUN_OWNER_ALERTS_ENABLED:false}
+    scan-interval-ms: ${GRUN_OWNER_ALERTS_SCAN_INTERVAL_MS:60000}
+    daily-report-cron: ${GRUN_OWNER_ALERTS_DAILY_REPORT_CRON:0 55 23 * * *}
+    daily-report-zone: ${GRUN_OWNER_ALERTS_DAILY_REPORT_ZONE:Europe/Dublin}
   product-intake:
     rollout:
       enabled: ${GRUN_PRODUCT_INTAKE_ROLLOUT_ENABLED:false}

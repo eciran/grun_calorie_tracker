@@ -17,4 +17,11 @@ class SecurityConfigCorsTest {
                 )
                 .doesNotContain("*");
     }
+
+    @Test
+    void allowsFreshMfaProofHeaderForCrossOriginAdminClients() {
+        assertThat(SecurityConfig.allowedCorsHeaders())
+                .contains("Authorization", "Content-Type", "X-Admin-Reauth-Token")
+                .doesNotContain("*");
+    }
 }

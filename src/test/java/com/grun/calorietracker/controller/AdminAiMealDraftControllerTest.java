@@ -109,6 +109,20 @@ class AdminAiMealDraftControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ"})
+    void listAllRequests_withUserId_forwardsExactUserFilter() throws Exception {
+        when(adminAiMealDraftService.listRequestsForUser(eq(42L), isNull(), eq(AiRequestStatus.REJECTED), eq(false), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/admin/ai/requests")
+                        .param("userId", "42")
+                        .param("status", "REJECTED"))
+                .andExpect(status().isOk());
+
+        verify(adminAiMealDraftService).listRequestsForUser(eq(42L), isNull(), eq(AiRequestStatus.REJECTED), eq(false), any(Pageable.class));
+    }
+
+    @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_TECHNICAL_READ", "ADMIN_PERMISSION_TECHNICAL_MANAGE", "ADMIN_PERMISSION_FINANCE_READ", "ADMIN_PERMISSION_FINANCE_MANAGE"})
     void getSummary_whenAdmin_returnsPrivacySafeMetrics() throws Exception {
         AdminAiMonitoringSummaryDto summary = new AdminAiMonitoringSummaryDto();

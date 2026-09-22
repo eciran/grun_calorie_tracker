@@ -64,6 +64,24 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
     Page<AiRequestHistoryEntity> findByRequestTypeAndStatusOrderByCreatedAtDesc(AiRequestType requestType, AiRequestStatus status, Pageable pageable);
     @Query("""
             select history from AiRequestHistoryEntity history
+            where history.user.id = :userId
+              and (:requestType is null or history.requestType = :requestType)
+              and (:status is null or history.status = :status)
+              and (:refundableOnly = false or (
+                history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED
+                and history.quotaConsumed = true
+                and coalesce(history.quotaConsumedAmount, 0) > coalesce(history.quotaRefundedAmount, 0)
+                and (history.quotaRefundDecision is null or history.quotaRefundDecision <> com.grun.calorietracker.enums.AiQuotaRefundDecision.REJECTED)))
+            order by history.createdAt desc
+            """)
+    Page<AiRequestHistoryEntity> findForAdminUser(
+            @Param("userId") Long userId,
+            @Param("requestType") AiRequestType requestType,
+            @Param("status") AiRequestStatus status,
+            @Param("refundableOnly") boolean refundableOnly,
+            Pageable pageable);
+    @Query("""
+            select history from AiRequestHistoryEntity history
             where history.status = com.grun.calorietracker.enums.AiRequestStatus.REJECTED
               and history.quotaConsumed = true
               and coalesce(history.quotaConsumedAmount, 0) > coalesce(history.quotaRefundedAmount, 0)
@@ -154,5 +172,18 @@ public interface AiRequestHistoryRepository extends JpaRepository<AiRequestHisto
             order by count(history) desc
             """)
     List<Object[]> summarizeOperationsSegmentsAfter(@Param("createdAfter") LocalDateTime createdAfter);
+    @Query("""
+            select year(history.createdAt), month(history.createdAt), day(history.createdAt),
+                   hour(history.createdAt), history.costCurrency, count(history),
+                   coalesce(sum(history.estimatedCost), 0)
+            from AiRequestHistoryEntity history
+            where history.createdAt >= :windowStart and history.createdAt <= :windowEnd
+            group by year(history.createdAt), month(history.createdAt), day(history.createdAt),
+                     hour(history.createdAt), history.costCurrency
+            order by year(history.createdAt), month(history.createdAt), day(history.createdAt), hour(history.createdAt)
+            """)
+    List<Object[]> summarizeHourly(@Param("windowStart") LocalDateTime windowStart,
+                                   @Param("windowEnd") LocalDateTime windowEnd);
+
     void deleteByUser(UserEntity user);
 }

@@ -13,6 +13,16 @@ import java.util.Optional;
 // Repository for exercise types
 @Repository
 public interface ExerciseItemRepository extends JpaRepository<ExerciseItemEntity, Long>, JpaSpecificationExecutor<ExerciseItemEntity> {
+    interface CategoryCount {
+        String getCategory();
+        long getTotal();
+    }
+
+    @org.springframework.data.jpa.repository.Query("select coalesce(trim(e.primaryMuscleGroup), '') as category, count(e) as total from ExerciseItemEntity e group by coalesce(trim(e.primaryMuscleGroup), '')")
+    java.util.List<CategoryCount> countCategories();
+
+    @org.springframework.data.jpa.repository.Query("select count(e) from ExerciseItemEntity e where e.defaultMeasurementType is null or e.allowedMeasurementTypes is null or trim(e.allowedMeasurementTypes) = ''")
+    long countMissingMeasurement();
     Optional<ExerciseItemEntity> findByMetCode(String metCode);
     Optional<ExerciseItemEntity> findFirstByNameIgnoreCase(String name);
 

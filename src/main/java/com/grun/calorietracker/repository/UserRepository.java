@@ -17,11 +17,32 @@ import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpecificationExecutor<UserEntity> {
-    Optional<UserEntity> findByEmail(String email);
+    default Optional<UserEntity> findByEmail(String email) {
+        if (email == null || email.isBlank()) return Optional.empty();
+        return singleEmailMatch(findCanonicalEmailMatches(
+                com.grun.calorietracker.entity.EmailAddress.canonical(email), org.springframework.data.domain.PageRequest.of(0, 2)));
+    }
+
+    @Query("select u from UserEntity u where lower(trim(u.email)) = :email order by u.id")
+    List<UserEntity> findCanonicalEmailMatches(@Param("email") String email, Pageable pageable);
+
+    default Optional<UserEntity> findByEmailForUpdate(String email) {
+        if (email == null || email.isBlank()) return Optional.empty();
+        return singleEmailMatch(findCanonicalEmailMatchesForUpdate(
+                com.grun.calorietracker.entity.EmailAddress.canonical(email), org.springframework.data.domain.PageRequest.of(0, 2)));
+    }
+
+    private static Optional<UserEntity> singleEmailMatch(List<UserEntity> matches) {
+        if (matches.size() > 1) {
+            throw new com.grun.calorietracker.exception.RequestConflictException(
+                    "Account email conflict. Please contact support.");
+        }
+        return matches.stream().findFirst();
+    }
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from UserEntity u where u.email = :email")
-    Optional<UserEntity> findByEmailForUpdate(@Param("email") String email);
+    @Query("select u from UserEntity u where lower(trim(u.email)) = :email order by u.id")
+    List<UserEntity> findCanonicalEmailMatchesForUpdate(@Param("email") String email, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from UserEntity u where u.id = :id")

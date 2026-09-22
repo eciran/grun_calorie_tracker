@@ -35,6 +35,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -76,11 +78,15 @@ public class AdminUserController {
             @Parameter(description = "Optional language filter.") @RequestParam(required = false) PreferredLanguage language,
             @Parameter(description = "Optional email verification filter.") @RequestParam(required = false) Boolean emailVerified,
             @Parameter(description = "Optional 30-day activity state filter.") @RequestParam(required = false) AdminUserActivityFilter activity,
+            @Parameter(description = "Optional inclusive registration start instant.") @RequestParam(required = false) Instant createdFrom,
+            @Parameter(description = "Optional exclusive registration end instant.") @RequestParam(required = false) Instant createdTo,
+            @Parameter(description = "Optional inclusive last activity start instant.") @RequestParam(required = false) Instant activeFrom,
+            @Parameter(description = "Optional exclusive last activity end instant.") @RequestParam(required = false) Instant activeTo,
             @Parameter(description = "Zero-based page number.", example = "0") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25") @RequestParam(defaultValue = "50") int size) {
         return userService.listUsersForAdmin(
                 search, role, accountEnabled, accountLocked, plan, region, language,
-                emailVerified, activity, page, size
+                emailVerified, activity, createdFrom, createdTo, activeFrom, activeTo, page, size
         );
     }
 

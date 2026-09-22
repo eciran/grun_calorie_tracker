@@ -13,6 +13,7 @@ class OwnerSensitiveActionFilterTest {
         assertEquals(AdminReauthenticationPurpose.COMPLIANCE, OwnerSensitiveActionFilter.requiredPurpose("GET","/api/v1/admin/audits/export"));
         assertEquals(AdminReauthenticationPurpose.OWNER_SECURITY, OwnerSensitiveActionFilter.requiredPurpose("DELETE","/api/v1/admin/security/sessions/abc"));
         assertEquals(AdminReauthenticationPurpose.OWNER_SECURITY, OwnerSensitiveActionFilter.requiredPurpose("DELETE","/api/v1/admin/security/owner-sessions/abc"));
+        assertEquals(AdminReauthenticationPurpose.OWNER_ERROR_ACTION, OwnerSensitiveActionFilter.requiredPurpose("POST","/api/v1/admin/errors/groups/"+"a".repeat(64)+"/state"));
     }
     @Test void readsAndNonSensitiveWritesDoNotRequireProof(){
         assertNull(OwnerSensitiveActionFilter.requiredPurpose("GET","/api/v1/admin/subscriptions"));

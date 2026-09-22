@@ -22,6 +22,15 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
     long countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus status, LocalDateTime receivedAt);
     List<SubscriptionProviderEventEntity> findByUserOrderByReceivedAtDesc(UserEntity user);
 
+    @Query("select distinct event.eventType from SubscriptionProviderEventEntity event where event.eventType is not null and event.eventType <> '' order by event.eventType")
+    List<String> findDistinctEventTypes();
+
+    @Query("select distinct event.providerEventId from SubscriptionProviderEventEntity event where event.providerEventId is not null and event.providerEventId <> '' order by event.providerEventId")
+    List<String> findDistinctProviderEventIds();
+
+    @Query("select distinct event.productId from SubscriptionProviderEventEntity event where event.productId is not null and event.productId <> '' order by event.productId")
+    List<String> findDistinctProductIds();
+
     @Query("""
             select count(event) from SubscriptionProviderEventEntity event
             where event.productId = :productId

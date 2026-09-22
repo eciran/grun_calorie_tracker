@@ -51,6 +51,9 @@ public class FoodItemMapper {
         entity.setNutritionReferenceUnit(dto.getNutritionReferenceUnit() != null
                 ? dto.getNutritionReferenceUnit()
                 : com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
+        entity.setSourceCategoryTags(dto.getSourceCategoryTags() == null
+                ? new HashSet<>()
+                : new HashSet<>(dto.getSourceCategoryTags()));
         entity.setUsageCount(dto.getUsageCount());
         entity.setQualityScore(dto.getQualityScore());
         entity.setConfidenceScore(dto.getConfidenceScore());
@@ -128,6 +131,9 @@ public class FoodItemMapper {
         dto.setNutritionReferenceUnit(entity.getNutritionReferenceUnit() != null
                 ? entity.getNutritionReferenceUnit()
                 : com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
+        dto.setSourceCategoryTags(entity.getSourceCategoryTags() == null
+                ? Set.of()
+                : new HashSet<>(entity.getSourceCategoryTags()));
         dto.setUsageCount(entity.getUsageCount());
         dto.setQualityScore(entity.getQualityScore());
         dto.setConfidenceScore(entity.getConfidenceScore());

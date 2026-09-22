@@ -61,6 +61,23 @@ public class AdminCatalogOperationsController {
         return ResponseEntity.ok(service.recentImportJobs());
     }
 
+    @GetMapping("/exercises/overview")
+    public ResponseEntity<AdminCatalogOperationsService.ExerciseOverview> exerciseOverview(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) ExerciseDifficulty difficulty,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) ExerciseTechniqueReviewStatus reviewStatus,
+            @RequestParam(required = false) String assignee,
+            @RequestParam(required = false) String category) {
+        return ResponseEntity.ok(service.exerciseOverview(q, difficulty, active, reviewStatus, assignee, category));
+    }
+
+    @GetMapping("/exercises/facets")
+    @Operation(summary = "List standardized exercise muscle and equipment values")
+    public ResponseEntity<AdminCatalogOperationsService.ExerciseFacets> exerciseFacets() {
+        return ResponseEntity.ok(service.exerciseFacets());
+    }
+
     @GetMapping("/exercises")
     @Operation(summary = "Search the complete exercise moderation catalog")
     public ResponseEntity<ExerciseItemPageDto> exercises(
@@ -69,9 +86,10 @@ public class AdminCatalogOperationsController {
             @RequestParam(required = false) Boolean active,
             @RequestParam(required = false) ExerciseTechniqueReviewStatus reviewStatus,
             @RequestParam(required = false) String assignee,
+            @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
-        return ResponseEntity.ok(service.searchExercises(q, difficulty, active, reviewStatus, assignee, page, size));
+        return ResponseEntity.ok(service.searchExercises(q, difficulty, active, reviewStatus, assignee, page, size, category));
     }
 
     @PostMapping("/exercises")

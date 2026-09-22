@@ -59,7 +59,10 @@ public record AdminCustomer360Dto(
 
     public record NotificationItem(
             Long id,
+            String title,
+            String message,
             String type,
+            String category,
             String severity,
             String source,
             boolean read,

@@ -72,11 +72,22 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<AdminAiRequestReviewDto> listRequestsForUser(Long userId, AiRequestType requestType, AiRequestStatus status, boolean refundableOnly, Pageable pageable) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("A positive user id is required.");
+        }
+        return aiRequestHistoryRepository.findForAdminUser(userId, requestType, status, refundableOnly, pageable)
+                .map(this::toReviewDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public AdminAiRequestInspectionDto inspectRequest(Long requestId) {
         AiRequestHistoryEntity entity = aiRequestHistoryRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("AI request was not found."));
         AdminAiRequestInspectionDto dto = new AdminAiRequestInspectionDto();
         dto.setRequestId(entity.getId());
+        dto.setCorrelationId(entity.getCorrelationId());
         dto.setUserId(entity.getUser() == null ? null : entity.getUser().getId());
         dto.setUserEmail(entity.getUser() == null ? null : entity.getUser().getEmail());
         dto.setRequestType(entity.getRequestType());
@@ -226,6 +237,14 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         summary.setGeneratedAt(generatedAt);
         summary.setWindowStart(windowStart);
         summary.setWindowHours(safeWindowHours);
+        List<AdminAiMonitoringSummaryDto.HourlyMetric> timeline = new ArrayList<>();
+        for (Object[] row : aiRequestHistoryRepository.summarizeHourly(windowStart, generatedAt)) {
+            timeline.add(new AdminAiMonitoringSummaryDto.HourlyMetric(
+                    LocalDateTime.of((int) longValue(row[0]), (int) longValue(row[1]),
+                            (int) longValue(row[2]), (int) longValue(row[3]), 0),
+                    stringValue(row[4], "UNSPECIFIED"), longValue(row[5]), doubleValue(row[6])));
+        }
+        summary.setTimeline(timeline);
         summary.setTotalRequests(totalRequests);
         summary.setDraftCreated(draftCreated);
         summary.setConfirmed(confirmed);
@@ -389,6 +408,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         int refunded = safeInt(entity.getQuotaRefundedAmount());
         AdminAiRequestReviewDto dto = new AdminAiRequestReviewDto();
         dto.setRequestId(entity.getId());
+        dto.setCorrelationId(entity.getCorrelationId());
         dto.setUserId(entity.getUser() == null ? null : entity.getUser().getId());
         dto.setUserEmail(entity.getUser() == null ? null : entity.getUser().getEmail());
         dto.setRequestType(entity.getRequestType());

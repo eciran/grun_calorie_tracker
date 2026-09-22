@@ -13,6 +13,19 @@ import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import java.util.List;
 
 public interface AdminCatalogOperationsService {
+    record ExerciseCategory(String category, long total) {}
+    record ExerciseOverview(java.util.List<ExerciseCategory> muscleGroups,
+                            java.util.List<ExerciseCategory> bodyScopes,
+                            long total, long pendingReview, long missingMedia,
+                            long missingMeasurement, boolean filtered) {}
+    record ExerciseFacets(java.util.List<String> primaryMuscleGroups,
+                          java.util.List<String> secondaryMuscleGroups,
+                          java.util.List<String> equipment) {}
+    ExerciseFacets exerciseFacets();
+    ExerciseOverview exerciseOverview(String query, ExerciseDifficulty difficulty, Boolean active,
+            ExerciseTechniqueReviewStatus reviewStatus, String assignee, String category);
+    ExerciseItemPageDto searchExercises(String query, ExerciseDifficulty difficulty, Boolean active,
+            ExerciseTechniqueReviewStatus reviewStatus, String assignee, int page, int size, String category);
     AdminCatalogSummaryDto summary();
 
     AdminCatalogQualityAnalyticsDto qualityAnalytics(int windowDays);

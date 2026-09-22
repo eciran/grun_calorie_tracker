@@ -1,7 +1,8 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const app = fs.readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const app = readAdminAppSource();
 const charts = fs.readFileSync(new URL("../src/CatalogQualityCharts.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const controller = fs.readFileSync(new URL("../../src/main/java/com/grun/calorietracker/controller/AdminCatalogOperationsController.java", import.meta.url), "utf8");
@@ -11,8 +12,8 @@ assert.match(controller, /@GetMapping\("\/quality-analytics"\)/, "Catalog qualit
 assert.match(controller, /@Min\(7\) @Max\(90\)/, "Catalog quality reporting windows must be bounded.");
 assert.doesNotMatch(summary, /productName|barcode|foodItemId|email/i, "Catalog quality analytics must not expose product or user identifiers.");
 assert.match(app, /catalog\/quality-analytics\?windowDays=/, "Quality UI must request the aggregate analytics endpoint.");
-assert.match(app, /<option value=\{7\}>7 days/, "Quality UI must offer controlled reporting windows.");
-assert.match(app, /lazy\(\(\) => import\("\.\/CatalogQualityCharts"\)/, "Catalog quality charts must be lazy loaded.");
+assert.match(app, /<option value=\{7\}>\{tr \? "7 gün" : "7 days"\}/, "Quality UI must offer controlled reporting windows.");
+assert.match(app, /lazy\(\(\) => import\("\.\.?\/CatalogQualityCharts"\)/, "Catalog quality charts must be lazy loaded.");
 assert.match(app, /<CatalogVerificationChart analytics=\{qualityAnalytics\}/, "Verification state must be visualized.");
 assert.match(app, /<CatalogIssueChart analytics=\{qualityAnalytics\}/, "Open issue concentration must be visualized.");
 assert.match(app, /<CatalogScanTrendChart analytics=\{qualityAnalytics\}/, "Scan productivity must be visualized.");

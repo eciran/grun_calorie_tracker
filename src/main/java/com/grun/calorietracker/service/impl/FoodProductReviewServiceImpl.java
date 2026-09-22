@@ -8,6 +8,7 @@ import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductBarcodeUpdateRequestDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
@@ -52,6 +53,7 @@ import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
+import com.grun.calorietracker.service.support.GtinValidator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -62,6 +64,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -581,6 +584,56 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 duplicateKeys.isFirst(),
                 duplicateKeys.isLast()
         );
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    public FoodProductDto updateProductBarcode(Long id, FoodProductBarcodeUpdateRequestDto request, String reviewedBy) {
+        if (request == null) {
+            throw new IllegalArgumentException("Barcode update request must not be empty.");
+        }
+        String barcode = FoodProductNormalizationRules.normalizeBarcode(request.barcode());
+        if (!GtinValidator.isValid(barcode)) {
+            throw new IllegalArgumentException("Barcode has an invalid GTIN check digit.");
+        }
+        String reason = trimToNull(request.reason());
+        if (reason == null) {
+            throw new IllegalArgumentException("Barcode change reason is required.");
+        }
+        FoodItemEntity product = foodItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
+        FoodItemEntity conflict = foodItemRepository.findByNormalizedBarcode(barcode).orElse(null);
+        if (conflict != null && !Objects.equals(conflict.getId(), id)) {
+            throw new IllegalArgumentException("Barcode is already assigned to product id " + conflict.getId() + ". Resolve the conflict explicitly; barcodes are never moved automatically.");
+        }
+        String oldBarcode = FoodProductNormalizationRules.normalizeBarcode(
+                product.getNormalizedBarcode() == null ? product.getBarcode() : product.getNormalizedBarcode()
+        );
+        if (Objects.equals(oldBarcode, barcode)) {
+            return FoodItemMapper.mapEntityToDto(product);
+        }
+        product.setBarcode(barcode);
+        product.setNormalizedBarcode(barcode);
+        product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
+        product.setLastReviewedAt(LocalDateTime.now());
+        FoodItemEntity saved;
+        try {
+            saved = foodItemRepository.saveAndFlush(product);
+        } catch (DataIntegrityViolationException conflictException) {
+            throw new IllegalArgumentException("Barcode was assigned by another operation. Reload the product and resolve the conflict explicitly.", conflictException);
+        }
+        FoodProductReviewAuditEntity audit = new FoodProductReviewAuditEntity();
+        audit.setFoodItem(saved);
+        audit.setReviewedBy(product.getReviewedBy());
+        audit.setActionType(FoodProductReviewAuditAction.BARCODE_CHANGE);
+        audit.setFieldName("barcode");
+        audit.setOldValue(oldBarcode);
+        audit.setNewValue(barcode);
+        audit.setNote(reason);
+        foodProductReviewAuditRepository.save(audit);
+        foodProductQualityIssueTracker.syncReviewIssues(saved, reviewedBy);
+        return FoodItemMapper.mapEntityToDto(saved);
     }
 
     @Override
@@ -1466,12 +1519,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductQualityIssue qualityIssue,
             String searchQuery
     ) {
-        VerificationStatus effectiveVerificationStatus = verificationStatus == null
+        String normalizedSearchQuery = trimToNull(searchQuery);
+        VerificationStatus effectiveVerificationStatus = verificationStatus == null && normalizedSearchQuery == null
                 ? VerificationStatus.RAW_IMPORTED
                 : verificationStatus;
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(criteriaBuilder.equal(root.get("verificationStatus"), effectiveVerificationStatus));
+            if (effectiveVerificationStatus != null) {
+                predicates.add(criteriaBuilder.equal(root.get("verificationStatus"), effectiveVerificationStatus));
+            }
             if (imageStatus != null) {
                 predicates.add(criteriaBuilder.equal(root.get("imageStatus"), imageStatus));
             }
@@ -1488,7 +1544,6 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             if (qualityPredicate != null) {
                 predicates.add(qualityPredicate);
             }
-            String normalizedSearchQuery = trimToNull(searchQuery);
             if (normalizedSearchQuery != null) {
                 String like = "%" + normalizedSearchQuery.toLowerCase(Locale.ROOT) + "%";
                 predicates.add(criteriaBuilder.or(

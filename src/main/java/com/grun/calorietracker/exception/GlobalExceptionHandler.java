@@ -468,6 +468,16 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ApprovalDecisionException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleApprovalDecision(ApprovalDecisionException ex, HttpServletRequest request) {
+        boolean expired = ex instanceof ApprovalDecisionException.Expired;
+        boolean turkish = "tr".equals(LocaleConfig.resolveSupportedLocale(RequestContextUtils.getLocale(request)).getLanguage());
+        String message = expired && turkish
+                ? "Talebin suresi doldu. Degisiklik hala gerekliyse yeni bir talep olusturun."
+                : ex.getMessage();
+        return buildDomainResponse(HttpStatus.CONFLICT, expired ? "APPROVAL_EXPIRED" : "APPROVAL_DECISION_FAILED", message, List.of(), request);
+    }
+
     @ExceptionHandler(RequestConflictException.class)
     public ResponseEntity<ApiErrorResponseDto> handleRequestConflictException(
             RequestConflictException ex,

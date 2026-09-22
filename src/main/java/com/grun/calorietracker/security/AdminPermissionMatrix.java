@@ -47,6 +47,7 @@ public final class AdminPermissionMatrix {
 
     public static AdminPermission requiredPermission(String method, String path) {
         boolean write = !HttpMethod.GET.matches(method) && !HttpMethod.HEAD.matches(method);
+        if (path.equals("/api/v1/admin/errors") || path.startsWith("/api/v1/admin/errors/")) return AdminPermission.TECHNICAL_READ;
         if (path.equals("/api/v1/admin/security/me")) {
             return AdminPermission.DASHBOARD_READ;
         }
@@ -68,7 +69,7 @@ public final class AdminPermissionMatrix {
         if (path.startsWith("/api/v1/admin/subscription-notifications")) {
             return write ? AdminPermission.FINANCE_MANAGE : AdminPermission.FINANCE_READ;
         }
-        if (containsAny(path, "/subscriptions", "/subscription-events", "/revenuecat", "/ai/credits", "/ai/quota")) {
+        if (containsAny(path, "/subscriptions", "/subscription-events", "/revenuecat", "/promotions", "/ai/credits", "/ai/quota")) {
             return write ? AdminPermission.FINANCE_MANAGE : AdminPermission.FINANCE_READ;
         }
         if (path.startsWith("/api/v1/admin/users")) {
@@ -77,7 +78,7 @@ public final class AdminPermissionMatrix {
         if (containsAny(path, "/catalog", "/products", "/recipes", "/food", "/achievements", "/exercises")) {
             return write ? AdminPermission.CATALOG_MANAGE : AdminPermission.CATALOG_READ;
         }
-        if (containsAny(path, "/promos", "/notification-campaigns", "/notification-definitions", "/engagement", "/tracking", "/growth", "/onboarding")) {
+        if (containsAny(path, "/notification-campaigns", "/notification-definitions", "/engagement", "/tracking", "/growth", "/onboarding")) {
             return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
         }
         if (containsAny(path, "/system", "/mail", "/brevo", "/push", "/ai/requests", "/ai/monitoring", "/ai/meal-drafts")) {

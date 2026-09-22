@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ProgressLogDto;
 import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.exception.ProgressLogNotFoundException;
+import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.mapper.ProgressLogMapper;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.service.impl.ProgressLogServiceImpl;
@@ -107,6 +108,20 @@ class ProgressLogServiceImplTest {
 
         verify(progressLogRepository).delete(entity);
         verify(bodyMeasurementService).deleteWeightFromProgress(4L, "progress@grun.app");
+    }
+
+    @Test
+    void updateAndDeleteLog_WhenEntryIsOnboardingBaseline_AreRejected() {
+        ProgressLogEntity entity = ownedEntity();
+        entity.setOnboardingBaseline(true);
+        ProgressLogDto request = new ProgressLogDto();
+        request.setWeight(79.0);
+        when(progressLogRepository.findByIdAndUser(4L, user)).thenReturn(Optional.of(entity));
+
+        assertThrows(RequestConflictException.class,
+                () -> progressLogService.updateLog(4L, request, "progress@grun.app"));
+        assertThrows(RequestConflictException.class,
+                () -> progressLogService.deleteLog(4L, "progress@grun.app"));
     }
 
     private ProgressLogEntity ownedEntity() {

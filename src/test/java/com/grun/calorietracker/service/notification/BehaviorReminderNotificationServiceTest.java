@@ -144,6 +144,48 @@ class BehaviorReminderNotificationServiceTest {
         verify(orchestrationService, never()).enqueue(org.mockito.ArgumentMatchers.any());
         assertEquals(250, notification.getValue().getActionAmountMl());
         assertEquals("water_reminder", notification.getValue().getType());
+        assertEquals(LocalDateTime.of(2026, 8, 31, 9, 10), notification.getValue().getCreatedAt());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "Europe/Dublin,2026-09-22T20:04,2026-09-22T19:04",
+        "Europe/Dublin,2026-12-22T20:04,2026-12-22T20:04",
+        "Europe/Istanbul,2026-09-22T00:04,2026-09-21T21:04",
+        "America/New_York,2026-09-22T20:04,2026-09-23T00:04"
+    })
+    void legacyStepTimestampRoundTripsToOriginalLocalTime(String zone, String local, String utc) {
+        migrationProperties.setStepEnabled(false);
+        user.setTimeZone(zone);
+        StepGoalEntity goal = new StepGoalEntity();
+        goal.setId(9L);
+        goal.setUser(user);
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(i -> i.getArgument(0));
+        service.enqueueStep(goal, LocalDateTime.parse(local), "Steps", "Short walk?");
+        var captor = ArgumentCaptor.forClass(com.grun.calorietracker.entity.NotificationEntity.class);
+        verify(notificationRepository).save(captor.capture());
+        var saved = captor.getValue();
+        assertEquals(LocalDateTime.parse(utc), saved.getCreatedAt());
+        assertEquals(LocalDateTime.parse(local), saved.getCreatedAt().toInstant(java.time.ZoneOffset.UTC)
+                .atZone(java.time.ZoneId.of(zone)).toLocalDateTime());
+        verify(pushDeliveryService).deliver(saved);
+        verify(orchestrationService, never()).enqueue(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void legacyFastingStoresUtcWithoutChangingTargetEnd() {
+        migrationProperties.setBasicFastingEnabled(false);
+        var session = new FastingSessionEntity();
+        session.setId(11L);
+        session.setUser(user);
+        var end = LocalDateTime.of(2026, 9, 22, 21, 0);
+        session.setTargetEndAt(end);
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(i -> i.getArgument(0));
+        service.enqueueFasting(session, end.minusMinutes(20), "Nearly there", "Almost done");
+        var captor = ArgumentCaptor.forClass(com.grun.calorietracker.entity.NotificationEntity.class);
+        verify(notificationRepository).save(captor.capture());
+        assertEquals(LocalDateTime.of(2026, 9, 22, 17, 40), captor.getValue().getCreatedAt());
+        assertEquals(end, session.getTargetEndAt());
     }
 
     @Test

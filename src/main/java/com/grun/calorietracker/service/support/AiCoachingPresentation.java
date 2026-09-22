@@ -71,8 +71,10 @@ public final class AiCoachingPresentation {
                 if (finding == null) continue;
                 finding.setLabel(text(finding.getLabel()));
                 finding.setMessage(text(finding.getMessage()));
-                finding.setEvidence(distinct(text(finding.getEvidence()), finding.getMessage()));
-                finding.setImpact(distinct(text(finding.getImpact()), finding.getMessage(), finding.getEvidence()));
+                finding.setEvidence(distinct(text(finding.getEvidence()), finding.getMessage(), response.getSummary()));
+                finding.setImpact(distinct(text(finding.getImpact()), finding.getMessage(), finding.getEvidence(), response.getSummary()));
+                if (distinct(finding.getMessage(), response.getSummary()).isBlank()
+                        && finding.getEvidence().isBlank() && finding.getImpact().isBlank()) continue;
                 if (!finding.getMessage().isBlank() && seen.add(key(finding.getMessage()))) findings.add(finding);
             }
         }
@@ -89,11 +91,48 @@ public final class AiCoachingPresentation {
             }
         }
         response.setPersonalizedActions(actions.stream().limit(3).toList());
+        // Keep core actions; discard repeated supporting copy across visible sections.
+        var displayed = new LinkedHashSet<String>();
+        displayed.add(key(response.getSummary()));
+        for (var finding : response.getKeyFindings()) displayed.add(key(finding.getMessage()));
+        for (var action : response.getPersonalizedActions()) displayed.add(key(action.getAction()));
+        if (response.getKeyFindings().isEmpty()) {
+            response.getHighlights().forEach(value -> displayed.add(key(value)));
+        }
+        if (response.getPersonalizedActions().isEmpty()) {
+            response.getRecommendedActions().forEach(value -> displayed.add(key(value)));
+        }
+        for (var finding : response.getKeyFindings()) {
+            finding.setEvidence(once(finding.getEvidence(), displayed));
+            finding.setImpact(once(finding.getImpact(), displayed));
+        }
+        for (var action : response.getPersonalizedActions()) {
+            action.setReason(once(action.getReason(), displayed));
+            action.setExpectedImpact(once(action.getExpectedImpact(), displayed));
+        }
+        response.setTomorrowFocus(once(response.getTomorrowFocus(), displayed));
+        response.setWatchOut(once(response.getWatchOut(), displayed));
+        response.setWarnings(response.getWarnings().stream().filter(value -> !once(value, displayed).isBlank()).toList());
+        response.setDataQualityNote(once(response.getDataQualityNote(), displayed));
+        response.setReviewReasons(response.getReviewReasons().stream().filter(value -> !once(value, displayed).isBlank()).toList());
+        // Legacy clients still need equivalents; modern clients use these only as fallbacks.
+        response.setHighlights(response.getKeyFindings().isEmpty()
+                ? response.getHighlights().stream().filter(value -> !key(value).equals(key(response.getSummary()))).toList()
+                : response.getKeyFindings().stream().map(AiInsightResponseDto.KeyFinding::getMessage).toList());
+        if (!response.getPersonalizedActions().isEmpty()) {
+            response.setRecommendedActions(response.getPersonalizedActions().stream()
+                    .map(AiInsightResponseDto.PersonalizedAction::getAction).toList());
+        }
+    }
+
+    private static String once(String value, Set<String> displayed) {
+        return value.isBlank() || !displayed.add(key(value)) ? "" : value;
     }
 
     private static List<String> strings(List<String> values) {
+        var seen = new LinkedHashSet<String>();
         return values == null ? List.of() : values.stream().map(AiCoachingPresentation::text)
-                .filter(value -> !value.isBlank()).distinct().toList();
+                .filter(value -> !value.isBlank() && seen.add(key(value))).toList();
     }
 
     private static String text(String value) {
@@ -112,6 +151,7 @@ public final class AiCoachingPresentation {
     }
 
     private static String key(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[\\p{Punct}\\s]+", "");
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ")
+                .trim().replaceAll("[.!?]+$", "");
     }
 }

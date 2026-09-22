@@ -1,6 +1,7 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import fs from "node:fs";
 
-const app = fs.readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const app = readAdminAppSource();
 const chart = fs.readFileSync(new URL("../src/RecipeOperationsCharts.tsx", import.meta.url), "utf8");
 const types = fs.readFileSync(new URL("../src/types.ts", import.meta.url), "utf8");
 

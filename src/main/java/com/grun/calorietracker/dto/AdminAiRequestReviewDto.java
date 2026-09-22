@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @Data
 public class AdminAiRequestReviewDto {
     private Long requestId;
+    private String correlationId;
     private Long userId;
     private String userEmail;
     private AiRequestType requestType;

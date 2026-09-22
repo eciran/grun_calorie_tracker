@@ -105,6 +105,9 @@ public class FoodProductDto {
     @Schema(description = "Reference quantity used by the nutrition values. This is separate from nutrition data provenance.", example = "PER_100G")
     private FoodNutritionReferenceUnit nutritionReferenceUnit;
 
+    @Schema(description = "Normalized category tags retained from the external source for deterministic catalog review.", example = "[\"en:beverages\", \"en:milk-drinks\"]")
+    private Set<String> sourceCategoryTags;
+
     @Schema(description = "How many times this product has been added to food logs.", example = "42")
     private Long usageCount;
 

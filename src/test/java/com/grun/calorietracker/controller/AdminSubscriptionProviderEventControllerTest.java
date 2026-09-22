@@ -47,7 +47,7 @@ class AdminSubscriptionProviderEventControllerTest {
         page.setContent(List.of(event));
         page.setTotalElements(1);
 
-        when(eventAdminService.getEvents(any(), any(), any(), any(), eq(0), eq(25))).thenReturn(page);
+        when(eventAdminService.getEvents(any(), any(), any(), any(), any(), eq(0), eq(25))).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/admin/subscription-events"))
                 .andExpect(status().isOk())

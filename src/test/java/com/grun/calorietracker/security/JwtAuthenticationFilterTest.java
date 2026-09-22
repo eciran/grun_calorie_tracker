@@ -19,7 +19,8 @@ class JwtAuthenticationFilterTest {
 
     private final JwtUtil jwtUtil = mock(JwtUtil.class);
     private final UserDetailsService userDetailsService = mock(UserDetailsService.class);
-    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtUtil, userDetailsService, org.mockito.Mockito.mock(com.grun.calorietracker.service.AdminSessionService.class));
+    private final com.grun.calorietracker.service.AdminSessionService adminSessions = mock(com.grun.calorietracker.service.AdminSessionService.class);
+    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtUtil, userDetailsService, adminSessions);
 
     @AfterEach
     void tearDown() {
@@ -65,6 +66,33 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void validBearerCannotBypassExpiredServerAdminSession() throws Exception {
+        checkAdminSession(false);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void validServerAdminSessionContinuesToAuthenticate() throws Exception {
+        checkAdminSession(true);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+    }
+
+    private void checkAdminSession(boolean valid) throws Exception {
+        when(jwtUtil.extractUsername("token")).thenReturn("owner@example.com");
+        when(jwtUtil.isTokenValid("token", "owner@example.com")).thenReturn(true);
+        when(jwtUtil.extractAdminSessionId("token")).thenReturn("sid");
+        when(userDetailsService.loadUserByUsername("owner@example.com"))
+                .thenReturn(User.withUsername("owner@example.com").password("encoded").roles("ADMIN", "OWNER").build());
+        when(adminSessions.validateAndTouch("sid", "owner@example.com")).thenReturn(valid);
+        var request = getWithBearerToken();
+        var response = new MockHttpServletResponse();
+        var chain = mock(FilterChain.class);
+        filter.doFilter(request, response, chain);
+        verify(adminSessions).validateAndTouch("sid", "owner@example.com");
         verify(chain).doFilter(request, response);
     }
 

@@ -213,15 +213,85 @@ public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperations
 
     @Override
     @Transactional(readOnly = true)
+    public ExerciseOverview exerciseOverview(String query, ExerciseDifficulty difficulty, Boolean active,
+            ExerciseTechniqueReviewStatus reviewStatus, String assignee, String category) {
+        List<ExerciseItemEntity> items = exerciseItemRepository.findAll(
+                exerciseSpecification(query, difficulty, active, reviewStatus, assignee));
+        Map<String, Long> muscleGroups = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        Map<String, Long> bodyScopes = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (ExerciseItemEntity item : items) {
+            String classification = item.getPrimaryMuscleGroup() == null || item.getPrimaryMuscleGroup().isBlank()
+                    ? "UNSPECIFIED" : item.getPrimaryMuscleGroup().trim();
+            Map<String, Long> target = classification.toUpperCase(Locale.ROOT).contains("BODY") ? bodyScopes : muscleGroups;
+            target.merge(classification, 1L, Long::sum);
+        }
+        List<ExerciseItemEntity> metricItems = blank(category) ? items : items.stream()
+                .filter(item -> exerciseCategory(item).equalsIgnoreCase(category.trim()))
+                .toList();
+        long pendingReview = metricItems.stream()
+                .filter(item -> item.getTechniqueReviewStatus() != ExerciseTechniqueReviewStatus.APPROVED).count();
+        long missingMedia = metricItems.stream()
+                .filter(item -> blank(item.getThumbnailUrl()) && blank(item.getVideoUrl()) && blank(item.getAnimationUrl())).count();
+        long missingMeasurement = metricItems.stream()
+                .filter(item -> item.getDefaultMeasurementType() == null || blank(item.getAllowedMeasurementTypes())).count();
+        java.util.function.Function<Map<String, Long>, List<ExerciseCategory>> categories = values -> values.entrySet().stream()
+                .map(entry -> new ExerciseCategory(entry.getKey(), entry.getValue()))
+                .sorted(java.util.Comparator.comparingLong(ExerciseCategory::total).reversed().thenComparing(ExerciseCategory::category))
+                .toList();
+        boolean filtered = query != null && !query.isBlank() || difficulty != null || active != null
+                || reviewStatus != null || assignee != null && !assignee.isBlank() || !blank(category);
+        return new ExerciseOverview(categories.apply(muscleGroups), categories.apply(bodyScopes), metricItems.size(),
+                pendingReview, missingMedia, missingMeasurement, filtered);
+    }
+
+    private boolean blank(String value) { return value == null || value.isBlank(); }
+
+    private String exerciseCategory(ExerciseItemEntity item) {
+        return item.getPrimaryMuscleGroup() == null || item.getPrimaryMuscleGroup().isBlank()
+                ? "UNSPECIFIED" : item.getPrimaryMuscleGroup().trim();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ExerciseFacets exerciseFacets() {
+        java.util.Set<String> primary = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        java.util.Set<String> secondary = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        java.util.Set<String> equipment = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (ExerciseItemEntity item : exerciseItemRepository.findAll()) {
+            if (!blank(item.getPrimaryMuscleGroup())) primary.add(item.getPrimaryMuscleGroup().trim());
+            if (!blank(item.getEquipment())) equipment.add(item.getEquipment().trim());
+            if (!blank(item.getSecondaryMuscleGroups())) {
+                for (String value : item.getSecondaryMuscleGroups().split(",")) {
+                    if (!value.isBlank()) secondary.add(value.trim());
+                }
+            }
+        }
+        return new ExerciseFacets(List.copyOf(primary), List.copyOf(secondary), List.copyOf(equipment));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ExerciseItemPageDto searchExercises(String query, ExerciseDifficulty difficulty, Boolean active,
+            ExerciseTechniqueReviewStatus reviewStatus, String assignee, int page, int size) {
+        return searchExercises(query, difficulty, active, reviewStatus, assignee, page, size, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ExerciseItemPageDto searchExercises(String query,
                                                ExerciseDifficulty difficulty,
                                                Boolean active,
                                                ExerciseTechniqueReviewStatus reviewStatus,
                                                String assignee,
                                                int page,
-                                               int size) {
+                                               int size, String category) {
+        String normalizedCategory = blank(category) ? null : category.trim();
         Page<ExerciseItemEntity> result = exerciseItemRepository.findAll(
-                exerciseSpecification(query, difficulty, active, reviewStatus, assignee),
+                exerciseSpecification(query, difficulty, active, reviewStatus, assignee)
+                        .and((root, criteria, cb) -> normalizedCategory == null ? cb.conjunction()
+                                : "UNSPECIFIED".equalsIgnoreCase(normalizedCategory)
+                                ? cb.equal(cb.coalesce(cb.trim(root.get("primaryMuscleGroup")), ""), "")
+                                : cb.equal(cb.coalesce(cb.trim(root.get("primaryMuscleGroup")), ""), normalizedCategory)),
                 PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("name").ascending())
         );
         ExerciseItemPageDto response = new ExerciseItemPageDto();

@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductBarcodeUpdateRequestDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
@@ -694,6 +695,17 @@ public class AdminFoodProductReviewController {
                 id,
                 request,
                 userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @PatchMapping("/{id}/barcode")
+    @Operation(summary = "Replace a product barcode", description = "Replaces the single current GTIN after checksum and uniqueness checks. A reason is required and the old/new values are written to product audit history. A barcode assigned to another product is never moved automatically.")
+    public ResponseEntity<FoodProductDto> updateProductBarcode(
+            @PathVariable Long id,
+            @RequestBody @Valid FoodProductBarcodeUpdateRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodProductReviewService.updateProductBarcode(
+                id, request, userDetails == null ? null : userDetails.getUsername()
         ));
     }
 

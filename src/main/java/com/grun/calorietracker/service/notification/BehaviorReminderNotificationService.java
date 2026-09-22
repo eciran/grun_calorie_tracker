@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Set;
 
@@ -185,7 +186,8 @@ public class BehaviorReminderNotificationService {
         notification.setActionAmountMl(actionAmountMl);
         notification.setVisibleInApp(true);
         notification.setIsRead(false);
-        notification.setCreatedAt(userNow);
+        // Notification API treats persisted timestamps as UTC, not user-local time.
+        notification.setCreatedAt(LocalDateTime.ofInstant(toInstant(user, userNow), ZoneOffset.UTC));
         pushDeliveryService.deliver(notificationRepository.save(notification));
     }
 

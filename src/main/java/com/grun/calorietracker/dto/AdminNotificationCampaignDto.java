@@ -13,6 +13,9 @@ public class AdminNotificationCampaignDto {
     private String message;
     private NotificationCampaignCategory category;
     private NotificationCampaignChannel channel;
+    private Long emailTemplateId;
+    private Long emailSentCount;
+    private Long emailFailedCount;
     private NotificationCampaignStatus status;
     private String targetRoute;
     private SubscriptionPlan targetPlan;

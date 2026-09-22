@@ -37,6 +37,10 @@ public interface UserService {
                                            PreferredLanguage language,
                                            Boolean emailVerified,
                                            AdminUserActivityFilter activity,
+                                           java.time.Instant createdFrom,
+                                           java.time.Instant createdTo,
+                                           java.time.Instant activeFrom,
+                                           java.time.Instant activeTo,
                                            int page,
                                            int size);
     Optional<AdminUserDto> getById(Long id);

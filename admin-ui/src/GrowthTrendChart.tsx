@@ -3,15 +3,18 @@ import type { EChartsCoreOption } from "echarts/core";
 import { AdminEChart, adminChartPalette } from "./AdminEChart";
 import type { GrowthTrendPoint } from "./types";
 
-function chartOptions(points: GrowthTrendPoint[]): EChartsCoreOption {
+function chartOptions(points: GrowthTrendPoint[], locale: "tr" | "en", metric: "both" | "registrations" | "active"): EChartsCoreOption {
   const hasZoom = points.length > 30;
   const palette = adminChartPalette();
 
   return {
     aria: {
       enabled: true,
-      description: "Daily registrations shown as bars and active users shown as a line."
+      description: locale === "tr"
+        ? "Seçilen dönemdeki günlük kayıt ve aktif kullanıcı eğilimi."
+        : "Daily registration and active user trend for the selected period."
     },
+    textStyle: { fontFamily: palette.fontFamily },
     color: [palette.primary, palette.accent],
     grid: {
       top: 42,
@@ -21,6 +24,7 @@ function chartOptions(points: GrowthTrendPoint[]): EChartsCoreOption {
       containLabel: false
     },
     legend: {
+      show: metric === "both",
       top: 0,
       right: 8,
       itemHeight: 9,
@@ -70,16 +74,18 @@ function chartOptions(points: GrowthTrendPoint[]): EChartsCoreOption {
         ]
       : [],
     series: [
+      ...(metric === "both" || metric === "registrations" ? [
       {
-        name: "Registrations",
+        name: locale === "tr" ? "Kayıtlar" : "Registrations",
         type: "bar",
         data: points.map((point) => point.registrations),
         barMaxWidth: 18,
         itemStyle: { borderRadius: [3, 3, 0, 0] },
         emphasis: { focus: "series" }
-      },
+      } as const] : []),
+      ...(metric === "both" || metric === "active" ? [
       {
-        name: "Active users",
+        name: locale === "tr" ? "Aktif kullanıcılar" : "Active users",
         type: "line",
         data: points.map((point) => point.activeUsers),
         smooth: 0.25,
@@ -88,12 +94,12 @@ function chartOptions(points: GrowthTrendPoint[]): EChartsCoreOption {
         lineStyle: { width: 2.5 },
         areaStyle: { opacity: 0.08 },
         emphasis: { focus: "series" }
-      }
+      } as const] : [])
     ]
   };
 }
 
-export function GrowthTrendChart({ points }: { points: GrowthTrendPoint[] }) {
-  const buildOption = useCallback(() => chartOptions(points), [points]);
-  return <AdminEChart ariaLabel="Daily registration and active user trend" buildOption={buildOption} className="growth-echart" />;
+export function GrowthTrendChart({ points, locale = "en", metric = "both", onPointSelect }: { points: GrowthTrendPoint[]; locale?: "tr" | "en"; metric?: "both" | "registrations" | "active"; onPointSelect?: (point: GrowthTrendPoint) => void }) {
+  const buildOption = useCallback(() => chartOptions(points, locale, metric), [points, locale, metric]);
+  return <AdminEChart ariaLabel={locale === "tr" ? "Günlük kayıt ve aktif kullanıcı eğilimi" : "Daily registration and active user trend"} buildOption={buildOption} className="growth-echart" dataPointCount={points.length} onDataPointClick={onPointSelect ? index => points[index] && onPointSelect(points[index]) : undefined} />;
 }

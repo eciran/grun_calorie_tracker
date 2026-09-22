@@ -1,13 +1,15 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import fs from "node:fs";
 import assert from "node:assert/strict";
 const api=fs.readFileSync(new URL("../src/api.ts",import.meta.url),"utf8");
-const app=fs.readFileSync(new URL("../src/App.tsx",import.meta.url),"utf8");
+const app = readAdminAppSource();
 assert.match(api,/let accessToken: string \| null = null/);
 assert.doesNotMatch(api,/localStorage|sessionStorage/);
 assert.ok(api.includes('credentials: "include"'));
 assert.ok(api.includes("BroadcastChannel"));
 assert.ok(api.includes("/api/v1/auth/admin/logout"));
-assert.ok(app.includes("Your admin session will expire in about 2 minutes"));
+assert.ok(app.includes("sessionWarningSeconds"));
+assert.ok(app.includes("getAdminSessionTiming"));
 assert.ok(app.includes("/api/v1/admin/security/sessions/others"));
 assert.ok(app.includes("/api/v1/admin/security/owner-sessions"));
 assert.ok(app.includes('accessProfile?.role === "OWNER" && <OwnerAdminSessionsPanel'));

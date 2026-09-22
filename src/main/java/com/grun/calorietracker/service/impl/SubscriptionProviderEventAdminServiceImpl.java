@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.RevenueCatWebhookResponseDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventDetailDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventPageDto;
+import com.grun.calorietracker.dto.SubscriptionProviderEventFilterOptionsDto;
 import com.grun.calorietracker.entity.SubscriptionProviderEventEntity;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
@@ -32,13 +33,13 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
 
     @Override
     @Transactional(readOnly = true)
-    public SubscriptionProviderEventPageDto getEvents(SubscriptionProviderEventStatus status, String eventType, String productId, Long userId, int page, int size) {
+    public SubscriptionProviderEventPageDto getEvents(SubscriptionProviderEventStatus status, String eventType, String eventId, String productId, Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
                 Math.max(1, Math.min(size, 100)),
                 Sort.by(Sort.Order.desc("receivedAt"), Sort.Order.desc("id"))
         );
-        Page<SubscriptionProviderEventEntity> events = eventRepository.findAll(buildSpecification(status, eventType, productId, userId), pageable);
+        Page<SubscriptionProviderEventEntity> events = eventRepository.findAll(buildSpecification(status, eventType, eventId, productId, userId), pageable);
 
         SubscriptionProviderEventPageDto dto = new SubscriptionProviderEventPageDto();
         dto.setContent(events.getContent().stream().map(this::toDto).toList());
@@ -53,8 +54,18 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
 
     @Override
     @Transactional(readOnly = true)
+    public SubscriptionProviderEventFilterOptionsDto getFilterOptions() {
+        return new SubscriptionProviderEventFilterOptionsDto(
+                eventRepository.findDistinctEventTypes(),
+                eventRepository.findDistinctProviderEventIds(),
+                eventRepository.findDistinctProductIds()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public SubscriptionProviderEventPageDto getUserHistory(Long userId, int page, int size) {
-        return getEvents(null, null, null, userId, page, size);
+        return getEvents(null, null, null, null, userId, page, size);
     }
 
     @Override
@@ -69,7 +80,7 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
         return revenueCatWebhookService.retryStoredEvent(id);
     }
 
-    private Specification<SubscriptionProviderEventEntity> buildSpecification(SubscriptionProviderEventStatus status, String eventType, String productId, Long userId) {
+    private Specification<SubscriptionProviderEventEntity> buildSpecification(SubscriptionProviderEventStatus status, String eventType, String eventId, String productId, Long userId) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (status != null) {
@@ -77,6 +88,9 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
             }
             if (eventType != null && !eventType.isBlank()) {
                 predicates.add(criteriaBuilder.equal(criteriaBuilder.upper(root.get("eventType")), eventType.trim().toUpperCase()));
+            }
+            if (eventId != null && !eventId.isBlank()) {
+                predicates.add(criteriaBuilder.equal(root.get("providerEventId"), eventId.trim()));
             }
             if (productId != null && !productId.isBlank()) {
                 predicates.add(criteriaBuilder.equal(root.get("productId"), productId.trim()));

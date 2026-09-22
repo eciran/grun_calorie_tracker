@@ -56,6 +56,17 @@ class AdminPermissionMatrixTest {
     }
 
     @Test
+    void promotionsAreFinanceScopedForReadsAndWrites() throws Exception {
+        authenticate(UserRole.ADMIN_GROWTH);
+        assertEquals(403, execute("GET", "/api/v1/admin/promotions").getStatus());
+        assertEquals(403, execute("POST", "/api/v1/admin/promotions/9/activate").getStatus());
+
+        authenticate(UserRole.ADMIN_FINANCE);
+        assertEquals(200, execute("GET", "/api/v1/admin/promotions").getStatus());
+        assertEquals(200, execute("POST", "/api/v1/admin/promotions/9/activate").getStatus());
+    }
+
+    @Test
     void readOnlyRoleCannotMutateCatalog() throws Exception {
         authenticate(UserRole.ADMIN_READ_ONLY);
         MockHttpServletResponse response = execute("POST", "/api/v1/admin/products/quality-scan");

@@ -52,6 +52,9 @@ logs/
 .deploy-snapshot-*/
 .mvn-home/
 hs_err_pid*.log
+admin-ui-dev-*.log
+admin-users-*.log
+admin-ui/admin-ui-local*.log
 
 ### AWS local/deployment notes ###
 docs/*AWS*.md

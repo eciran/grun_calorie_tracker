@@ -40,6 +40,15 @@ public class NotificationCampaignEntity {
     @Column(nullable = false, length = 32)
     private NotificationCampaignChannel channel;
 
+    @Column(name = "email_template_id")
+    private Long emailTemplateId;
+
+    @Column(nullable = false)
+    private Long emailSentCount = 0L;
+
+    @Column(nullable = false)
+    private Long emailFailedCount = 0L;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private NotificationCampaignStatus status;

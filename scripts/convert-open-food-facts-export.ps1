@@ -206,6 +206,16 @@ function Get-ServingUnit {
     return "GRAM"
 }
 
+function Get-NutritionReferenceUnit {
+    param([pscustomobject] $Row)
+
+    $basis = Get-TextValue -Row $Row -Names @("nutrition_data_per", "nutrition_data_prepared_per")
+    if ($basis -and $basis.Trim().ToLowerInvariant() -eq "100ml") {
+        return "PER_100ML"
+    }
+    return "PER_100G"
+}
+
 $resolvedInput = Resolve-RequiredFile -Path $InputPath
 $resolvedOutput = Resolve-OutputFile -Path $OutputPath
 $rowsRead = 0
@@ -290,6 +300,8 @@ foreach ($row in (Import-Csv -LiteralPath $resolvedInput -Delimiter $Delimiter -
             catalog_type = "BRANDED_PRODUCT"
             data_source = "OPEN_FOOD_FACTS"
             nutrition_basis = "SOURCE_REPORTED"
+            nutrition_reference_unit = Get-NutritionReferenceUnit -Row $row
+            source_categories = Get-TextValue -Row $row -Names @("categories_tags")
             barcode = $barcode
             source_key = "barcode:$barcode"
             name = $name

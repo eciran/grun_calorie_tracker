@@ -197,6 +197,7 @@ public class NotificationServiceImpl implements NotificationService {
         dto.setPrimaryAction(entity.getPrimaryAction());
         dto.setActionAmountMl(entity.getActionAmountMl());
         dto.setType(entity.getType());
+        dto.setCategory(notificationCategory(entity.getType()));
         dto.setSeverity(presentation.severity());
         dto.setSource(entity.getSource());
         dto.setTargetType(entity.getTargetType());
@@ -212,6 +213,20 @@ public class NotificationServiceImpl implements NotificationService {
             return Map.of();
         }
         return definitionPolicy.findAll(List.of(notification.getType()));
+    }
+
+    private String notificationCategory(String type) {
+        if (type == null) return "REMINDER";
+        return switch (type) {
+            case "admin_announcement", "system_announcement" -> "ANNOUNCEMENT";
+            case "admin_account_update", "subscription", "subscription_started", "subscription_renewed",
+                 "subscription_cancelled", "subscription_expired", "subscription_paused", "subscription_resumed",
+                 "subscription_refunded", "subscription_plan_changed", "subscription_billing_issue" -> "ACCOUNT";
+            case "admin_support_message" -> "SUPPORT";
+            case "ai_request_ready", "ai_request_failed", "ai_rejection_alert", "ai_quota_refund_approved",
+                 "ai_quota_refund_rejected" -> "AI";
+            default -> "REMINDER";
+        };
     }
 
     private Specification<NotificationEntity> notificationSpecification(UserEntity user, boolean unreadOnly, String type, String severity, List<String> hiddenTypes) {

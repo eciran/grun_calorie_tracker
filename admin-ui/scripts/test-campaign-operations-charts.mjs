@@ -1,7 +1,8 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const app = fs.readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const app = readAdminAppSource();
 const charts = fs.readFileSync(new URL("../src/CampaignOperationsCharts.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const controller = fs.readFileSync(new URL("../../src/main/java/com/grun/calorietracker/controller/AdminNotificationCampaignController.java", import.meta.url), "utf8");
@@ -12,7 +13,7 @@ assert.match(controller, /@Max\(90\)/, "Campaign analytics windows must be bound
 assert.doesNotMatch(summary, /userReference|email|title|message/i, "Campaign summary must not expose recipient identity or message payloads.");
 assert.match(app, /notification-campaigns\/summary\?windowDays=/, "Campaign UI must request the privacy-safe summary.");
 assert.match(app, /\[7, 31, 90\]/, "Campaign UI must provide controlled reporting windows.");
-assert.match(app, /lazy\(\(\) => import\("\.\/CampaignOperationsCharts"\)/, "Campaign charts must be lazy loaded.");
+assert.match(app, /lazy\(\(\) => import\("\.\.?\/CampaignOperationsCharts"\)/, "Campaign charts must be lazy loaded.");
 assert.match(app, /<CampaignDeliveryChart summary=\{campaignSummary\}/, "Delivery health must be visualized.");
 assert.match(app, /<CampaignEngagementFunnel summary=\{campaignSummary\}/, "Engagement funnel must be visualized.");
 assert.match(app, /<CampaignStatusChart summary=\{campaignSummary\}/, "Campaign lifecycle must be visualized.");
@@ -22,5 +23,7 @@ assert.match(charts, /aria: \{ enabled: true/, "Campaign charts must expose acce
 assert.match(styles, /\.campaign-analytics-chart-grid[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/, "Campaign charts must use a stable desktop grid.");
 assert.match(styles, /@media \(max-width: 980px\)[\s\S]*\.campaign-analytics-chart-grid[\s\S]*grid-template-columns: 1fr/, "Campaign charts must collapse on narrow screens.");
 assert.match(app, /Campaign history[\s\S]*CampaignRecipientLedger/, "Exact campaign history and recipient diagnostics must remain available.");
+assert.match(app, /const approval = await submitAdminApproval\([\s\S]*NOTIFICATION_CAMPAIGN_SCHEDULE/, "Campaign scheduling must retain the created approval record.");
+assert.match(app, /ApprovalSubmissionNotice[\s\S]*approvalNotice/, "Campaign scheduling must expose the traceable owner approval notice.");
 
 console.log("Campaign operations chart checks passed.");

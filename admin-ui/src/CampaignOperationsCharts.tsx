@@ -24,7 +24,7 @@ export function CampaignDeliveryChart({ summary }: { summary: NotificationCampai
       { name: "Failed", value: Number(summary.failedRecipientCount ?? 0), color: palette.danger }
     ];
     return {
-      aria: { enabled: true, description: "Notification recipient delivery outcomes" },
+      aria: { enabled: true, description: "Campaign recipient delivery outcomes: delivered, suppressed and failed recipients." },
       grid: { top: 12, right: 62, bottom: 26, left: 94 },
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       xAxis: {
@@ -63,7 +63,7 @@ export function CampaignEngagementFunnel({ summary }: { summary: NotificationCam
       { name: "Converted", value: Number(summary.convertedCount ?? 0) }
     ];
     return {
-      aria: { enabled: true, description: "Campaign engagement from delivery to conversion" },
+      aria: { enabled: true, description: "Campaign engagement funnel from delivered notifications through opens, clicks and conversions." },
       color: [palette.primary, "#8065a0", palette.accent, "#2f8f68"],
       tooltip: { trigger: "item", formatter: "{b}: {c}" },
       series: [{
@@ -95,7 +95,7 @@ export function CampaignStatusChart({ summary }: { summary: NotificationCampaign
   const buildOption = useCallback((): EChartsCoreOption => {
     const palette = adminChartPalette();
     return {
-      aria: { enabled: true, description: "Campaign count grouped by lifecycle status" },
+      aria: { enabled: true, description: "Campaign lifecycle status distribution." },
       grid: { top: 12, right: 56, bottom: 26, left: 104 },
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       xAxis: {

@@ -70,10 +70,13 @@ public class SecurityConfig {
                     auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/webhooks/revenuecat").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/error-telemetry/proxy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/email-assets/grun-logo.png").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                        .requestMatchers("/admin-ui/**").permitAll();
+                        .requestMatchers("/admin-ui/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/admin", "/admin/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/admin", "/admin/**").permitAll();
                     if (swaggerPublic) {
                         auth.requestMatchers(
                                 "/v3/api-docs/**",
@@ -156,7 +159,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(allowedCorsOriginPatterns());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        configuration.setAllowedHeaders(allowedCorsHeaders());
         configuration.setExposedHeaders(List.of("Authorization", "X-Correlation-Id"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -178,6 +181,11 @@ public class SecurityConfig {
                 "https://api.gruncalorietracker.com",
                 "https://api-staging.gruncalorietracker.com"
         );
+    }
+
+    static List<String> allowedCorsHeaders() {
+        return List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With",
+                "X-Admin-Reauth-Token");
     }
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {

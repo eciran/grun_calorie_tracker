@@ -74,6 +74,29 @@ class AdminCustomer360ControllerTest {
 
     @Test
     @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
+    void sendNotification_targetsOneUserAndAuditsDelivery() throws Exception {
+        AdminCustomer360Dto.NotificationItem notification = new AdminCustomer360Dto.NotificationItem(
+                12L, "Plan update", "Your plan has been updated.", "admin_account_update", "ACCOUNT",
+                "INFO", "CUSTOMER_360_ADMIN", false, LocalDateTime.now()
+        );
+        when(customer360Service.sendNotification(eq(7L), any())).thenReturn(notification);
+
+        mockMvc.perform(post("/api/v1/admin/users/7/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Plan update","message":"Your plan has been updated.","category":"ACCOUNT","severity":"INFO","delivery":"IN_APP","targetRoute":"subscription","primaryAction":"OPEN_TARGET"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(12))
+                .andExpect(jsonPath("$.category").value("ACCOUNT"))
+                .andExpect(jsonPath("$.source").value("CUSTOMER_360_ADMIN"));
+
+        verify(customer360Service).sendNotification(eq(7L), any());
+        verify(adminAuditService).record(eq("admin@example.com"), any(), any(), eq("7"), eq(null), any(), any());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_USERS_READ", "ADMIN_PERMISSION_USERS_MANAGE"})
     void revokeSessions_requiresConfirmedReasonAndAuditsResult() throws Exception {
         when(customer360Service.getCustomer(7L)).thenReturn(customer("user@example.com"));
         when(customer360Service.revokeActiveSessions(7L)).thenReturn(2);

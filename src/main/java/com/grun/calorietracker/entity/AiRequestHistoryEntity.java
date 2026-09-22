@@ -9,6 +9,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.slf4j.MDC;
 
 import java.time.LocalDateTime;
 
@@ -47,6 +48,9 @@ public class AiRequestHistoryEntity {
 
     @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;
+
+    @Column(name = "correlation_id", length = 128)
+    private String correlationId;
 
     @Column(columnDefinition = "TEXT")
     private String inputPayload;
@@ -118,4 +122,11 @@ public class AiRequestHistoryEntity {
     private String rejectionFeedback;
 
     private LocalDateTime rejectedAt;
+
+    @PrePersist
+    void captureCorrelationId() {
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = MDC.get("correlationId");
+        }
+    }
 }

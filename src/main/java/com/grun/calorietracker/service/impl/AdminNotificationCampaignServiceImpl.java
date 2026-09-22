@@ -260,6 +260,13 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
         entity.setMessage(request.getMessage().trim());
         entity.setCategory(request.getCategory());
         entity.setChannel(request.getChannel());
+        if (request.getChannel().includesEmail() && (request.getEmailTemplateId() == null || request.getEmailTemplateId() <= 0)) {
+            throw new IllegalArgumentException("An active Brevo template is required for email campaigns.");
+        }
+        if (request.getChannel().includesEmail() && request.getCategory() != NotificationCampaignCategory.MARKETING) {
+            throw new IllegalArgumentException("Bulk email delivery is limited to consent-controlled marketing campaigns.");
+        }
+        entity.setEmailTemplateId(request.getChannel().includesEmail() ? request.getEmailTemplateId() : null);
         entity.setTargetRoute(trimToNull(request.getTargetRoute()));
         entity.setTargetPlan(request.getTargetPlan());
         entity.setTargetRegion(request.getTargetRegion());
@@ -325,6 +332,9 @@ public class AdminNotificationCampaignServiceImpl implements AdminNotificationCa
         dto.setMessage(entity.getMessage());
         dto.setCategory(entity.getCategory());
         dto.setChannel(entity.getChannel());
+        dto.setEmailTemplateId(entity.getEmailTemplateId());
+        dto.setEmailSentCount(entity.getEmailSentCount());
+        dto.setEmailFailedCount(entity.getEmailFailedCount());
         dto.setStatus(entity.getStatus());
         dto.setTargetRoute(entity.getTargetRoute());
         dto.setTargetPlan(entity.getTargetPlan());

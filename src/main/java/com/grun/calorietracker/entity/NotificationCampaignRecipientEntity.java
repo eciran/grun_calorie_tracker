@@ -43,6 +43,11 @@ public class NotificationCampaignRecipientEntity {
     @Column(nullable = false)
     private Integer pushFailed = 0;
 
+    @Column(nullable = false) private Integer emailAttempted = 0;
+    @Column(nullable = false) private Integer emailSent = 0;
+    @Column(nullable = false) private Integer emailFailed = 0;
+    @Column(length = 255) private String emailMessageId;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 

@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -25,7 +26,7 @@ class AdminPromoControllerTest {
     @MockBean AdminPromoService promoService;
 
     @Test
-    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_DASHBOARD_READ"})
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ"})
     void list_forwardsServerSideFiltersAndPagination() throws Exception {
         when(promoService.list("welcome", PromoStatus.ACTIVE, PromoType.INTRO_OFFER,
                 PromoStore.REVENUECAT, 2, 20)).thenReturn(new AdminPromoPageDto(List.of(), 2, 20, 45, 3, false, true));
@@ -48,7 +49,7 @@ class AdminPromoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_DASHBOARD_READ"})
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ"})
     void analytics_forwardsValidatedWindow() throws Exception {
         when(promoService.analytics(30)).thenReturn(new AdminPromotionOperationsAnalyticsDto(
                 30, List.of(), List.of(), List.of(), List.of(), List.of()
@@ -59,4 +60,13 @@ class AdminPromoControllerTest {
                 .andExpect(jsonPath("$.windowDays").value(30));
 
         verify(promoService).analytics(30);
-    }}
+    }
+
+    @Test
+    @WithMockUser(username = "finance@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_MANAGE"})
+    void directPromotionActivationEndpointIsNotExposed() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/promotions/13/activate"))
+                .andExpect(status().isNotFound());
+        verify(promoService, never()).activate(anyLong(), anyString(), any());
+    }
+}

@@ -70,14 +70,17 @@ public class AdminAiRequestController {
             @RequestParam(required = false) AiRequestStatus status,
             @Parameter(description = "When true, returns only rejected requests with remaining refundable quota.", example = "true")
             @RequestParam(defaultValue = "false") boolean refundableOnly,
+            @Parameter(description = "Optional exact user id filter.", example = "42")
+            @RequestParam(required = false) Long userId,
             @Parameter(description = "Page number.", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size.", example = "25")
             @RequestParam(defaultValue = "25") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        return ResponseEntity.ok(AdminAiRequestPageDto.from(
-                adminAiMealDraftService.listRequests(
-                        requestType, status, refundableOnly, PageRequest.of(safePage, safeSize))));
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize);
+        return ResponseEntity.ok(AdminAiRequestPageDto.from(userId == null
+                ? adminAiMealDraftService.listRequests(requestType, status, refundableOnly, pageRequest)
+                : adminAiMealDraftService.listRequestsForUser(userId, requestType, status, refundableOnly, pageRequest)));
     }
 }

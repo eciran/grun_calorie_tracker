@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:v2-navigation": "node scripts/test-v2-navigation.mjs",
+    "test:v2-browser": "node scripts/test-v2-browser.mjs",
+    "test:page-serving": "node scripts/test-page-serving.mjs",
     "test:quality-workbench": "node scripts/test-quality-workbench.mjs",
-    "dev": "vite --host 127.0.0.1 --port 5174",
+    "dev": "vite --port 5174",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4174",
-    "test:foundation": "node scripts/test-admin-foundation.mjs",
+    "test:foundation": "node scripts/test-admin-foundation.mjs && node scripts/test-v2-navigation.mjs && node scripts/test-barcode-scanner.mjs",
     "test:growth-dashboard": "node scripts/test-growth-dashboard.mjs",
     "test:customer-360": "node scripts/test-customer-360.mjs",
     "test:production": "npm run test:foundation && npm run test:growth-dashboard && npm run test:engagement-charts && npm run test:commercial-charts && npm run test:ai-operations-charts && npm run test:campaign-operations-charts && npm run test:meal-reminder-automation && npm run test:catalog-quality-charts && npm run test:recipe-operations-charts && npm run test:recipe-product-mapping && npm run test:promotion-operations-charts && npm run test:system-reliability-charts && npm run test:customer-360 && npm run test:quality-workbench && node scripts/test-production-readiness.mjs && npm run test:admin-security-session",
@@ -23,9 +26,10 @@
     "test:recipe-product-mapping": "node scripts/test-recipe-product-mapping.mjs",
     "test:promotion-operations-charts": "node scripts/test-promotion-operations-charts.mjs",
     "test:system-reliability-charts": "node scripts/test-system-reliability-charts.mjs",
-    "test:admin-security-session": "node scripts/test-admin-security-session.mjs"
+    "test:admin-security-session": "node scripts/test-admin-security-session.mjs && node scripts/test-session-activity.mjs"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.1",
     "echarts": "^6.1.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

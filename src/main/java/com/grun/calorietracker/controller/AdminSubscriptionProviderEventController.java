@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.RevenueCatWebhookResponseDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventDetailDto;
 import com.grun.calorietracker.dto.SubscriptionProviderEventPageDto;
+import com.grun.calorietracker.dto.SubscriptionProviderEventFilterOptionsDto;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.service.SubscriptionProviderEventAdminService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,11 +52,18 @@ public class AdminSubscriptionProviderEventController {
     public ResponseEntity<SubscriptionProviderEventPageDto> getEvents(
             @RequestParam(required = false) SubscriptionProviderEventStatus status,
             @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String eventId,
             @RequestParam(required = false) String productId,
             @RequestParam(required = false) Long userId,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
-        return ResponseEntity.ok(eventAdminService.getEvents(status, eventType, productId, userId, page, size));
+        return ResponseEntity.ok(eventAdminService.getEvents(status, eventType, eventId, productId, userId, page, size));
+    }
+
+    @GetMapping("/filter-options")
+    @Operation(summary = "List subscription provider event filter options", description = "Returns distinct event types, provider event ids, and product ids stored by the system.")
+    public ResponseEntity<SubscriptionProviderEventFilterOptionsDto> getFilterOptions() {
+        return ResponseEntity.ok(eventAdminService.getFilterOptions());
     }
 
     @GetMapping("/{id}")

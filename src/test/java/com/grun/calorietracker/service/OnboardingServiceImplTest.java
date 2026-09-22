@@ -24,6 +24,7 @@ import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.WeeklyWorkoutFrequency;
 import com.grun.calorietracker.enums.UnitPreference;
 import com.grun.calorietracker.repository.OnboardingDraftRepository;
+import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.UserFitnessPreferenceRepository;
 import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -56,6 +57,8 @@ class OnboardingServiceImplTest {
     @Mock private OnboardingDraftRepository onboardingDraftRepository;
     @Mock private UserNutritionPreferenceRepository userNutritionPreferenceRepository;
     @Mock private UserFitnessPreferenceRepository userFitnessPreferenceRepository;
+    @Mock private ProgressLogRepository progressLogRepository;
+    @Mock private BodyMeasurementService bodyMeasurementService;
 
     private OnboardingServiceImpl onboardingService;
     private UserEntity user;
@@ -70,11 +73,19 @@ class OnboardingServiceImplTest {
                 userNutritionPreferenceRepository,
                 userFitnessPreferenceRepository,
                 new com.grun.calorietracker.service.support.UserTimeZoneSupport(),
-                new com.grun.calorietracker.service.support.UserAgeSupport()
+                new com.grun.calorietracker.service.support.UserAgeSupport(),
+                progressLogRepository,
+                bodyMeasurementService
         );
         user = user();
         org.mockito.Mockito.lenient().when(onboardingDraftRepository.save(any(OnboardingDraftEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.lenient().when(progressLogRepository.save(any(com.grun.calorietracker.entity.ProgressLogEntity.class)))
+                .thenAnswer(invocation -> {
+                    com.grun.calorietracker.entity.ProgressLogEntity entry = invocation.getArgument(0);
+                    entry.setId(41L);
+                    return entry;
+                });
     }
 
     @Test
@@ -235,6 +246,13 @@ class OnboardingServiceImplTest {
         verify(userFitnessPreferenceRepository, times(1)).save(fitnessCaptor.capture());
         assertEquals(WeeklyWorkoutFrequency.THREE_TO_FOUR,
                 fitnessCaptor.getValue().getWeeklyWorkoutFrequency());
+        org.mockito.ArgumentCaptor<com.grun.calorietracker.entity.ProgressLogEntity> baselineCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.grun.calorietracker.entity.ProgressLogEntity.class);
+        verify(progressLogRepository, times(1)).save(baselineCaptor.capture());
+        assertTrue(baselineCaptor.getValue().isOnboardingBaseline());
+        assertEquals(draft.getWeight(), baselineCaptor.getValue().getWeight());
+        verify(bodyMeasurementService, times(1)).syncWeightFromProgress(
+                eq(41L), eq(draft.getWeight()), eq(draft.getCompletedAt()), eq("user@example.com"));
     }
 
     @Test

@@ -32,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -59,10 +61,43 @@ class AdminAiMealDraftServiceImplTest {
         assertEquals(10L, result.getContent().get(0).getRequestId());
         assertEquals("user@example.com", result.getContent().get(0).getUserEmail());
         assertEquals(2, result.getContent().get(0).getRefundableAmount());
+        assertEquals("fixture-correlation", result.getContent().get(0).getCorrelationId());
+    }
+
+    @Test
+    void inspectRequest_exposesPersistedCorrelationId() {
+        AiRequestHistoryEntity history = history(1, 0, AiRequestStatus.FAILED);
+        when(historyRepository.findById(10L)).thenReturn(Optional.of(history));
+
+        var result = service.inspectRequest(10L);
+
+        assertEquals("fixture-correlation", result.getCorrelationId());
+    }
+
+    @Test
+    void listRequestsForUser_keepsExactUserFilterWithOtherFilters() {
+        AiRequestHistoryEntity history = history(3, 1, AiRequestStatus.REJECTED);
+        when(historyRepository.findForAdminUser(eq(42L), isNull(), eq(AiRequestStatus.REJECTED), eq(true), any()))
+                .thenReturn(new PageImpl<>(List.of(history)));
+
+        var result = service.listRequestsForUser(42L, null, AiRequestStatus.REJECTED, true, PageRequest.of(0, 25));
+
+        assertEquals(1, result.getTotalElements());
+        verify(historyRepository).findForAdminUser(eq(42L), isNull(), eq(AiRequestStatus.REJECTED), eq(true), any());
+    }
+
+    @Test
+    void listRequestsForUser_rejectsNonPositiveIdentity() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.listRequestsForUser(0L, null, null, false, PageRequest.of(0, 25)));
     }
 
     @Test
     void getMonitoringSummary_aggregatesProviderCostStatusAndQuotaWithoutUserData() {
+        when(historyRepository.summarizeHourly(any(), any())).thenReturn(List.<Object[]>of(
+                new Object[]{2026, 9, 20, 13, "USD", 3L, 0.012d},
+                new Object[]{2026, 9, 20, 13, "EUR", 2L, 0.02d}
+        ));
         when(historyRepository.summarizeByProviderModelAfter(any())).thenReturn(List.<Object[]>of(
                 new Object[]{AiProvider.OPENAI, "gpt-test", "ai-prompt-v2", "USD", 10L, 1000L, 500L, 1500L, 0.12d, 10L, 2L}
         ));
@@ -73,6 +108,14 @@ class AdminAiMealDraftServiceImplTest {
         ));
 
         AdminAiMonitoringSummaryDto result = service.getMonitoringSummary(24);
+
+        assertEquals(2, result.getTimeline().size());
+        assertEquals(LocalDateTime.of(2026, 9, 20, 13, 0), result.getTimeline().get(0).getBucketStart());
+        assertEquals("USD", result.getTimeline().get(0).getCostCurrency());
+        assertEquals(3L, result.getTimeline().get(0).getRequestCount());
+        assertEquals(0.012d, result.getTimeline().get(0).getEstimatedCost());
+        assertEquals("EUR", result.getTimeline().get(1).getCostCurrency());
+        verify(historyRepository).summarizeHourly(result.getWindowStart(), result.getGeneratedAt());
 
         assertEquals(10, result.getTotalRequests());
         assertEquals(5, result.getDraftCreated());
@@ -207,6 +250,7 @@ class AdminAiMealDraftServiceImplTest {
         history.setProvider(AiProvider.LOG);
         history.setModel("log-draft-v1");
         history.setStatus(status);
+        history.setCorrelationId("fixture-correlation");
         history.setQuotaConsumed(consumedAmount > 0);
         history.setQuotaConsumedAmount(consumedAmount);
         history.setQuotaRefundedAmount(refundedAmount);

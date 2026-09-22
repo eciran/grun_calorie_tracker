@@ -39,11 +39,21 @@ public class AdminSessionAuthController {
         adminMfaService.verifyLogin(user,request.getAdminMfaCode());
         AdminSessionService.AdminSessionLogin login=adminSessions.create(user, requestHeader(httpRequest, "User-Agent"), httpRequest.getRemoteAddr());
         response.addHeader(HttpHeaders.SET_COOKIE,cookie(login.rawSessionToken(),false).toString());
-        return ResponseEntity.ok(login.response());
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(login.response());
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(HttpServletRequest request) { return ResponseEntity.ok(adminSessions.refresh(requiredCookie(request))); }
+    public ResponseEntity<AuthResponse> refresh(HttpServletRequest request) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(adminSessions.refresh(requiredCookie(request)));
+    }
+
+    /** Reissues the access token without extending inactivity or absolute deadlines. */
+    @GetMapping("/session")
+    public ResponseEntity<AuthResponse> session(HttpServletRequest request) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(adminSessions.restore(requiredCookie(request)));
+    }
 
     @PostMapping("/logout")
     public ResponseEntity<LogoutResponseDto> logout(HttpServletRequest request,HttpServletResponse response) {

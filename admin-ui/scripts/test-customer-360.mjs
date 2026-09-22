@@ -1,7 +1,8 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const app = readFileSync(resolve("src/App.tsx"), "utf8");
+const app = readAdminAppSource();
 const types = readFileSync(resolve("src/types.ts"), "utf8");
 
 const required = [
@@ -11,9 +12,18 @@ const required = [
   "customer-360",
   "support-notes",
   "sessions/revoke",
+  "/notifications",
+  "IN_APP_AND_PUSH",
+  "ANNOUNCEMENT",
+  "customer-notification-history",
   "confirmed: true",
   "Customer 360",
   "Support notes"
+  ,"userId: profile.id"
+  ,"readUserRouteContext"
+  ,'onNavigate("aiRequests", { userId: profile.id, userEmail: profile.email })'
+  ,"readUsersRouteState"
+  ,"usersRouteSearch"
 ];
 
 for (const marker of required) {

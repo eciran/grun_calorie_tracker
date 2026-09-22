@@ -10,7 +10,8 @@ const checks = [
   [chart.includes("ApiReliabilityChart") && chart.includes("InfrastructureReliabilityChart"), "API or infrastructure chart is missing."],
   [chart.includes("ProviderReliabilityChart") && chart.includes("OperationReliabilityChart"), "Provider or operation chart is missing."],
   [chart.includes("No API traffic has been recorded") && !chart.includes("rawPayload"), "Safe API empty state or payload minimization is missing."],
-  [types.includes("export type SystemReliabilityAnalytics"), "Reliability response type is missing."]
+  [types.includes("export type SystemReliabilityAnalytics"), "Reliability response type is missing."],
+  [view.includes('submitAdminApproval("RUNTIME_POLICY_UPDATE"') && view.includes("ApprovalSubmissionNotice"), "Runtime policy requests must expose their traceable owner approval record."]
 ];
 
 const failed = checks.filter(([ok]) => !ok);

@@ -31,4 +31,7 @@ public class ProgressLogEntity {
     private Double carbIntake;
 
     private String note;
+
+    @Column(name = "onboarding_baseline", nullable = false)
+    private boolean onboardingBaseline;
 }

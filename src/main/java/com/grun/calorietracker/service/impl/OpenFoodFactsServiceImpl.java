@@ -7,9 +7,11 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.OpenFoodFactsService;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
+import com.grun.calorietracker.service.support.FoodLiquidUnitClassifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -19,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Service
 public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
@@ -144,9 +148,19 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
         dto.setIngredientsText(firstText(productNode, null, "ingredients_text", "ingredients_text_en"));
         dto.setAllergens(firstText(productNode, null, "allergens_from_ingredients", "allergens"));
         dto.setNutriScore(normalizeLower(firstText(productNode, null, "nutriscore_grade", "nutri_score")));
+        Set<String> sourceCategoryTags = stringSet(productNode.path("categories_tags"));
+        dto.setSourceCategoryTags(sourceCategoryTags);
+        FoodNutritionReferenceUnit referenceUnit = "100ml".equals(normalizeLower(text(productNode, "nutrition_data_per")))
+                ? FoodNutritionReferenceUnit.PER_100ML
+                : FoodNutritionReferenceUnit.PER_100G;
+        dto.setNutritionReferenceUnit(referenceUnit);
         dto.setServingSize(NutritionValueNormalizer.servingSize(number(productNode, "serving_quantity")));
         if (dto.getServingSize() != null) {
-            dto.setServingUnit("g");
+            String sourceServingUnit = normalizeLower(text(productNode, "serving_quantity_unit"));
+            dto.setServingUnit("ml".equals(sourceServingUnit) ? "MILLILITER" : "GRAM");
+        } else if (FoodLiquidUnitClassifier.classify(sourceCategoryTags, referenceUnit)
+                == FoodLiquidUnitClassifier.Decision.ML_SOURCE_SUPPORTED) {
+            dto.setServingUnit("MILLILITER");
         }
 
         JsonNode nutriments = productNode.path("nutriments");
@@ -253,6 +267,20 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
             }
         }
         return null;
+    }
+
+    private Set<String> stringSet(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return Set.of();
+        }
+        Set<String> values = new LinkedHashSet<>();
+        for (JsonNode value : node) {
+            String normalized = normalizeLower(value.asText(null));
+            if (normalized != null) {
+                values.add(normalized);
+            }
+        }
+        return values;
     }
 
     private boolean containsIgnoreCase(String value, String normalizedExpected) {

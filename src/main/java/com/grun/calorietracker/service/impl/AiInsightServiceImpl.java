@@ -26,6 +26,9 @@ import com.grun.calorietracker.service.AiProviderConfigurationValidator;
 import com.grun.calorietracker.service.DashboardService;
 import com.grun.calorietracker.service.ProgressAnalyticsService;
 import com.grun.calorietracker.service.SubscriptionService;
+import com.grun.calorietracker.service.WaterTrackingService;
+import com.grun.calorietracker.service.SleepTrackingService;
+import com.grun.calorietracker.service.support.AiCoachingContext;
 import com.grun.calorietracker.service.support.AiSafeResponseBuilder;
 import com.grun.calorietracker.service.support.AiIdempotencySupport;
 import com.grun.calorietracker.service.support.AiUxContractFactory;
@@ -57,6 +60,8 @@ public class AiInsightServiceImpl implements AiInsightService {
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
     private final AiProviderConfigurationValidator providerConfigurationValidator;
+    private final WaterTrackingService waterTrackingService;
+    private final SleepTrackingService sleepTrackingService;
 
     @Override
     public AiInsightResponseDto createDailyInsight(
@@ -64,7 +69,8 @@ public class AiInsightServiceImpl implements AiInsightService {
         AiInsightRequestDto safeRequest = request == null ? new AiInsightRequestDto() : request;
         LocalDate date = safeRequest.getDate() == null ? LocalDate.now() : safeRequest.getDate();
         safeRequest.setDate(date);
-        safeRequest.setContext(toDailyContext(dashboardService.getDailySummary(email, date)));
+        Map<String, Object> context = dailyContext(email, date);
+        safeRequest.setContext(context);
         return createInsight(email, idempotencyKey, AiRequestType.AI_DAILY_INSIGHT, safeRequest);
     }
 
@@ -271,12 +277,8 @@ public class AiInsightServiceImpl implements AiInsightService {
             response.setDataCoverage(new AiInsightResponseDto.DataCoverage());
         }
         AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
-        if (coverage.getSignalsUsed() == null) {
-            coverage.setSignalsUsed(new java.util.ArrayList<>());
-        }
-        if (coverage.getMissingSignals() == null) {
-            coverage.setMissingSignals(new java.util.ArrayList<>());
-        }
+        coverage.setSignalsUsed(new java.util.ArrayList<>());
+        coverage.setMissingSignals(new java.util.ArrayList<>());
         if (response.getKeyFindings() == null) {
             response.setKeyFindings(new java.util.ArrayList<>());
         }
@@ -306,22 +308,28 @@ public class AiInsightServiceImpl implements AiInsightService {
     }
     private void enrichDailyInsight(AiInsightResponseDto response, Map<String, Object> context, AiInsightFocus focus) {
         AiInsightResponseDto.DataCoverage coverage = response.getDataCoverage();
-        coverage.setDaysAnalyzed(defaultInt(coverage.getDaysAnalyzed(), 1));
-        coverage.setExerciseLogged(defaultBoolean(coverage.getExerciseLogged(), bool(context.get("hasExerciseLogs"))));
-        coverage.setExerciseMinutes(defaultInt(coverage.getExerciseMinutes(), intValue(context.get("totalExerciseMinutes"))));
-        coverage.setMealsLogged(defaultInt(coverage.getMealsLogged(), Boolean.TRUE.equals(bool(context.get("hasFoodLogs"))) ? 1 : 0));
-        coverage.setDiaryDays(defaultInt(coverage.getDiaryDays(), Boolean.TRUE.equals(bool(context.get("hasFoodLogs"))) ? 1 : 0));
-        addSignal(coverage, "calories");
-        addSignal(coverage, "protein");
+        coverage.setDaysAnalyzed(1);
+        coverage.setExerciseLogged(bool(context.get("hasExerciseLogs")));
+        coverage.setExerciseMinutes(intValue(context.get("totalExerciseMinutes")));
+        coverage.setMealsLogged(intValue(context.get("mealCount")));
+        coverage.setDiaryDays(hasAnyCoachingRecord(context) ? 1 : 0);
+        coverage.getSignalsUsed().clear();
+        coverage.getMissingSignals().clear();
+        if (Boolean.TRUE.equals(bool(context.get("hasFoodLogs")))) {
+            addSignal(coverage, "calories");
+            addSignal(coverage, "protein");
+            addSignal(coverage, "carbs and fat");
+        } else {
+            addMissingSignal(coverage, "food logs");
+        }
         if (Boolean.TRUE.equals(coverage.getExerciseLogged())) {
             addSignal(coverage, "exercise");
         } else {
             addMissingSignal(coverage, "exercise");
         }
-        addMissingSignal(coverage, "water");
-        addMissingSignal(coverage, "sleep");
+        appendTrackingCoverage(coverage, context);
 
-        if (focus != null && focus != AiInsightFocus.GENERAL) {
+        if ((focus != null && focus != AiInsightFocus.GENERAL) || !Boolean.TRUE.equals(bool(context.get("hasFoodLogs")))) {
             return;
         }
 
@@ -360,11 +368,20 @@ public class AiInsightServiceImpl implements AiInsightService {
         Integer days = intValue(context.get("days"));
         Integer diaryDays = intValue(context.get("diaryDays"));
         Double exerciseMinutes = doubleValue(context.get("totalExerciseMinutes"));
-        coverage.setDaysAnalyzed(defaultInt(coverage.getDaysAnalyzed(), days == null ? 7 : days));
-        coverage.setDiaryDays(defaultInt(coverage.getDiaryDays(), diaryDays));
-        coverage.setExerciseLogged(defaultBoolean(coverage.getExerciseLogged(), exerciseMinutes != null && exerciseMinutes > 0));
-        coverage.setExerciseMinutes(defaultInt(coverage.getExerciseMinutes(), exerciseMinutes == null ? null : exerciseMinutes.intValue()));
-        addSignal(coverage, "calorie trend");
+        coverage.setDaysAnalyzed(days);
+        coverage.setDiaryDays(intValue(context.get("coachingRecordedDays")));
+        coverage.setMealsLogged(intValue(context.get("mealCount")));
+        coverage.setExerciseLogged(bool(context.get("hasExerciseLogs")));
+        coverage.setExerciseMinutes(exerciseMinutes == null ? null : exerciseMinutes.intValue());
+        coverage.getSignalsUsed().clear();
+        coverage.getMissingSignals().clear();
+        if (intValue(context.get("foodLoggedDays")) != null && intValue(context.get("foodLoggedDays")) > 0) {
+            addSignal(coverage, "calorie trend");
+            addSignal(coverage, "protein");
+            addSignal(coverage, "carbs and fat");
+        } else {
+            addMissingSignal(coverage, "food logs");
+        }
         addSignal(coverage, "logging consistency");
         if (Boolean.TRUE.equals(bool(context.get("progressTrendSufficient")))) {
             addSignal(coverage, "weight and goal trend");
@@ -376,8 +393,7 @@ public class AiInsightServiceImpl implements AiInsightService {
         } else {
             addMissingSignal(coverage, "exercise trend");
         }
-        addMissingSignal(coverage, "sleep");
-        addMissingSignal(coverage, "water");
+        appendTrackingCoverage(coverage, context);
 
         if (focus != null && focus != AiInsightFocus.GENERAL) {
             return;
@@ -527,6 +543,27 @@ public class AiInsightServiceImpl implements AiInsightService {
     private String formatDouble(Double value) {
         return value == null ? "unknown" : String.valueOf(round(value));
     }
+    private void appendTrackingCoverage(AiInsightResponseDto.DataCoverage coverage, Map<String, Object> context) {
+        for (var entry : Map.of("water", "hasWaterLogs", "sleep", "hasSleepLogs", "step count", "hasStepData").entrySet()) {
+            if (Boolean.TRUE.equals(bool(context.get(entry.getValue())))) addSignal(coverage, entry.getKey());
+            else addMissingSignal(coverage, entry.getKey());
+        }
+        if (context.get("currentWeightKg") != null) addSignal(coverage, "weight and goal");
+    }
+
+    private boolean hasAnyCoachingRecord(Map<String, Object> context) {
+        return List.of("hasFoodLogs", "hasExerciseLogs", "hasWaterLogs", "hasSleepLogs", "hasStepData")
+                .stream().anyMatch(key -> Boolean.TRUE.equals(context.get(key)));
+    }
+
+    private Map<String, Object> dailyContext(String email, LocalDate date) {
+        DailySummaryDto summary = dashboardService.getDailySummary(email, date);
+        Map<String, Object> context = toDailyContext(summary);
+        AiCoachingContext.append(context, summary, waterTrackingService.getDailySummary(email, date),
+                sleepTrackingService.dailySummary(email, date));
+        return context;
+    }
+
     private Map<String, Object> toDailyContext(DailySummaryDto summary) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("date", summary.getSummaryDate());
@@ -553,10 +590,15 @@ public class AiInsightServiceImpl implements AiInsightService {
         double exerciseMinutes = 0;
         int diaryDays = 0;
         int foodLoggedDays = 0;
+        List<Map<String, Object>> dailyData = new java.util.ArrayList<>();
         for (LocalDate cursor = start; !cursor.isAfter(end); cursor = cursor.plusDays(1)) {
             DailySummaryDto summary = dashboardService.getDailySummary(email, cursor);
+            Map<String, Object> daily = toDailyContext(summary);
+            AiCoachingContext.append(daily, summary, waterTrackingService.getDailySummary(email, cursor),
+                    sleepTrackingService.dailySummary(email, cursor));
+            dailyData.add(daily);
             days++;
-            consumedCalories += value(summary.getConsumedCalories());
+            if (Boolean.TRUE.equals(summary.getHasFoodLogs())) consumedCalories += value(summary.getConsumedCalories());
             burnedCalories += value(summary.getBurnedCalories());
             exerciseMinutes += summary.getTotalExerciseMinutes() == null ? 0 : summary.getTotalExerciseMinutes();
             if (Boolean.TRUE.equals(summary.getHasAnyDiaryEntry())) {
@@ -567,11 +609,27 @@ public class AiInsightServiceImpl implements AiInsightService {
             }
         }
         context.put("days", days);
-        context.put("averageConsumedCalories", round(consumedCalories / Math.max(days, 1)));
+        context.put("averageConsumedCalories", foodLoggedDays == 0 ? null : round(consumedCalories / foodLoggedDays));
+        context.put("calorieAverageBasis", "FOOD_LOGGED_DAYS_ONLY; logged intake is not proof of complete intake");
         context.put("averageBurnedCalories", round(burnedCalories / Math.max(days, 1)));
         context.put("totalExerciseMinutes", round(exerciseMinutes));
         context.put("diaryDays", diaryDays);
         context.put("foodLoggedDays", foodLoggedDays);
+        context.put("dailyData", dailyData);
+        context.put("coachingRecordedDays", dailyData.stream().filter(this::hasAnyCoachingRecord).count());
+        context.put("mealCount", dailyData.stream().allMatch(day -> day.get("mealCount") != null)
+                ? dailyData.stream().mapToInt(day -> ((Number) day.get("mealCount")).intValue()).sum() : null);
+        for (String flag : List.of("hasWaterLogs", "hasSleepLogs", "hasStepData", "hasExerciseLogs")) {
+            boolean hasRecords = dailyData.stream().anyMatch(day -> Boolean.TRUE.equals(day.get(flag)));
+            context.put(flag, hasRecords ? Boolean.TRUE
+                    : dailyData.stream().allMatch(day -> Boolean.FALSE.equals(day.get(flag))) ? Boolean.FALSE : null);
+            context.put(flag + "Days", dailyData.stream().filter(day -> Boolean.TRUE.equals(day.get(flag))).count());
+        }
+        if (!dailyData.isEmpty()) {
+            for (String field : List.of("currentWeightKg", "targetWeightKg", "goalType")) {
+                context.put(field, dailyData.get(dailyData.size() - 1).get(field));
+            }
+        }
         return context;
     }
 

@@ -1,13 +1,64 @@
-import { Key, KeyboardEvent, ReactNode } from "react";
+import { Key, KeyboardEvent, ReactNode, useEffect, useRef } from "react";
+import { useAdminLocale } from "./admin/locale";
+import { commonMessages, formatAdminNumber } from "./admin/commonMessages";
 
 export type LoadState = "idle" | "loading" | "ready" | "error";
 
-const STATE_LABELS: Record<LoadState, string> = {
-  idle: "Not loaded",
-  loading: "Loading",
-  ready: "Up to date",
-  error: "Needs attention"
-};
+const DIALOG_FOCUSABLE = [
+  "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
+  "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])"
+].join(",");
+
+export function useDialogAccessibility<T extends HTMLElement = HTMLElement>(onClose: () => void, active = true) {
+  const dialogRef = useRef<T>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!active) return;
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const initial = dialog?.querySelector<HTMLElement>("[autofocus]")
+      ?? dialog?.querySelector<HTMLElement>(DIALOG_FOCUSABLE)
+      ?? dialog;
+    window.requestAnimationFrame(() => initial?.focus());
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE))
+        .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      const opener = openerRef.current;
+      window.requestAnimationFrame(() => opener?.isConnected && opener.focus());
+    };
+  }, [active]);
+
+  return dialogRef;
+}
 
 export function SectionToolbar({
   title,
@@ -22,25 +73,27 @@ export function SectionToolbar({
   onReload: () => void;
   children?: ReactNode;
 }) {
+  const { locale } = useAdminLocale();
+  const text = commonMessages[locale];
   return (
     <header className="section-toolbar">
       <div className="section-toolbar-copy">
         <div className="section-toolbar-title">
           <h2>{title}</h2>
-          <span className={`load-state ${state}`} aria-live="polite">{STATE_LABELS[state]}</span>
+          <span className={`load-state ${state}`} aria-live="polite">{text[state]}</span>
         </div>
         {description && <p>{description}</p>}
       </div>
       <div className="toolbar-actions">
         {children}
         <button
-          aria-label={`Refresh ${title}`}
+          aria-label={text.refreshLabel(title)}
           className="ghost-button"
           disabled={state === "loading"}
           onClick={onReload}
           type="button"
         >
-          {state === "loading" ? "Refreshing..." : "Refresh"}
+          {state === "loading" ? text.refreshing : text.refresh}
         </button>
       </div>
     </header>
@@ -91,22 +144,26 @@ export function Panel({
 
 export function CollapsiblePanel({
   title,
+  description,
   open,
   onToggle,
-  children
+  children,
+  className
 }: {
   title: string;
+  description?: string;
   open: boolean;
   onToggle: () => void;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <article className="panel collapsible-panel">
-      <button className="collapsible-panel-header" type="button" onClick={onToggle} aria-expanded={open}>
-        <h3>{title}</h3>
-        <span>{open ? "Hide" : "Show"}</span>
+    <article className={`user-filter-panel collapsible-panel ${className ?? ""}`}>
+      <button className="user-filter-toggle collapsible-panel-header" type="button" onClick={onToggle} aria-expanded={open}>
+        <span><strong>{title}</strong>{description && <small>{description}</small>}</span>
+        <b aria-hidden="true">{open ? "−" : "+"}</b>
       </button>
-      {open && <div className="collapsible-panel-body">{children}</div>}
+      {open && <div className="user-filter-content collapsible-panel-body">{children}</div>}
     </article>
   );
 }
@@ -128,8 +185,10 @@ export function DataTable<T = unknown>({
   rowKeys?: Key[];
   onRowClick?: (row: T) => void;
 }) {
+  const { locale } = useAdminLocale();
+  const text = commonMessages[locale];
   if (!rows.length) {
-    return <EmptyState title="No results" message={empty} />;
+    return <EmptyState title={text.noResults} message={empty} />;
   }
 
   function activateRow(index: number) {
@@ -147,7 +206,7 @@ export function DataTable<T = unknown>({
   return (
     <div className="table-wrap responsive-data-table">
       <table>
-        {caption && <caption className="sr-only">{caption}</caption>}
+        <caption className="sr-only">{caption ?? columns.join(", ")}</caption>
         <thead>
           <tr>
             {columns.map((column) => <th key={column} scope="col">{column}</th>)}
@@ -162,7 +221,7 @@ export function DataTable<T = unknown>({
               onKeyDown={(event) => handleRowKeyDown(event, index)}
               tabIndex={onRowClick ? 0 : undefined}
             >
-              {row.map((cell, cellIndex) => <td data-label={columns[cellIndex] ?? "Value"} key={cellIndex}>{cell}</td>)}
+              {row.map((cell, cellIndex) => <td data-label={columns[cellIndex] ?? text.value} key={cellIndex}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
@@ -190,18 +249,21 @@ export function PaginationControls({
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
+  const { locale } = useAdminLocale();
+  const text = commonMessages[locale];
+  const formatNumber = (value: number) => formatAdminNumber(value, locale);
   const safeTotalPages = Math.max(totalPages || 1, 1);
   const from = totalElements === 0 ? 0 : page * pageSize + 1;
   const to = Math.min((page + 1) * pageSize, totalElements);
   return (
-    <nav className="pagination-bar" aria-label="Table pagination">
+    <nav className="pagination-bar" aria-label={text.pagination}>
       <div aria-live="polite">
         <strong>{formatNumber(from)}-{formatNumber(to)}</strong>
-        <span>of {formatNumber(totalElements)} items</span>
+        <span>{text.items(totalElements, formatNumber(totalElements))}</span>
       </div>
       <div className="pagination-actions">
         <label>
-          Page size
+          {text.pageSize}
           <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
             <option value={10}>10</option>
             <option value={20}>20</option>
@@ -210,11 +272,11 @@ export function PaginationControls({
             <option value={100}>100</option>
           </select>
         </label>
-        <button aria-label="First page" className="ghost-button pagination-edge" disabled={first || page <= 0} onClick={() => onPageChange(0)} type="button">First</button>
-        <button aria-label="Previous page" className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(Math.max(0, page - 1))} type="button">Previous</button>
-        <span className="page-indicator" aria-current="page">Page {formatNumber(page + 1)} / {formatNumber(safeTotalPages)}</span>
-        <button aria-label="Next page" className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(Math.min(safeTotalPages - 1, page + 1))} type="button">Next</button>
-        <button aria-label="Last page" className="ghost-button pagination-edge" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(safeTotalPages - 1)} type="button">Last</button>
+        <button aria-label={text.firstPage} className="ghost-button pagination-edge" disabled={first || page <= 0} onClick={() => onPageChange(0)} type="button">{text.first}</button>
+        <button aria-label={text.previousPage} className="ghost-button" disabled={first || page <= 0} onClick={() => onPageChange(Math.max(0, page - 1))} type="button">{text.previous}</button>
+        <span className="page-indicator" aria-current="page">{text.page(formatNumber(page + 1), formatNumber(safeTotalPages))}</span>
+        <button aria-label={text.nextPage} className="ghost-button" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(Math.min(safeTotalPages - 1, page + 1))} type="button">{text.next}</button>
+        <button aria-label={text.lastPage} className="ghost-button pagination-edge" disabled={last || page >= safeTotalPages - 1} onClick={() => onPageChange(safeTotalPages - 1)} type="button">{text.last}</button>
       </div>
     </nav>
   );
@@ -228,30 +290,30 @@ export function AsyncState({
 }: {
   state: LoadState;
   hasData: boolean;
-  loadingMessage: string;
-  emptyMessage: string;
+  loadingMessage?: string;
+  emptyMessage?: string;
 }) {
+  const { locale } = useAdminLocale();
+  const text = commonMessages[locale];
   if (state === "loading" && !hasData) {
-    return <div className="async-state loading-state" role="status">{loadingMessage}</div>;
+    return <div className="async-state loading-state" role="status">{loadingMessage ?? text.loading}</div>;
   }
   if (state === "error" && !hasData) {
-    return <div className="async-state error-state" role="alert">This data could not be loaded. Review the error above and retry.</div>;
+    return <div className="async-state error-state" role="alert">{text.loadFailed}</div>;
   }
   if (state === "ready" && !hasData) {
-    return <EmptyState title="No results" message={emptyMessage} />;
+    return <EmptyState title={text.noResults} message={emptyMessage ?? text.empty} />;
   }
   return null;
 }
 
-export function EmptyState({ message, title = "Nothing here yet" }: { message: string; title?: string }) {
+export function EmptyState({ message, title }: { message?: string; title?: string }) {
+  const { locale } = useAdminLocale();
+  const text = commonMessages[locale];
   return (
     <div className="empty-state">
-      <strong>{title}</strong>
-      <span>{message}</span>
+      <strong>{title ?? text.nothingHere}</strong>
+      <span>{message ?? text.empty}</span>
     </div>
   );
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-GB").format(value);
 }

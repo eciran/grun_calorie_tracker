@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductBarcodeUpdateRequestDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
@@ -317,6 +318,58 @@ class FoodProductReviewServiceImplTest {
 
         verify(foodProductReviewAuditRepository, never()).saveAll(any());
         verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
+    }
+
+    @Test
+    void updateProductBarcode_replacesSingleBarcodeAndWritesReasonedAudit() {
+        FoodItemEntity product = reviewProduct();
+        product.setBarcode("96385074");
+        product.setNormalizedBarcode("96385074");
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
+        when(foodItemRepository.saveAndFlush(product)).thenReturn(product);
+
+        FoodProductDto result = foodProductReviewService.updateProductBarcode(
+                1L,
+                new FoodProductBarcodeUpdateRequestDto("3017620422003", "Verified against package label."),
+                "catalog@grun.app"
+        );
+
+        assertEquals("3017620422003", result.getBarcode());
+        assertEquals("3017620422003", product.getNormalizedBarcode());
+        ArgumentCaptor<FoodProductReviewAuditEntity> audit = ArgumentCaptor.forClass(FoodProductReviewAuditEntity.class);
+        verify(foodProductReviewAuditRepository).save(audit.capture());
+        assertEquals(FoodProductReviewAuditAction.BARCODE_CHANGE, audit.getValue().getActionType());
+        assertEquals("96385074", audit.getValue().getOldValue());
+        assertEquals("3017620422003", audit.getValue().getNewValue());
+        assertEquals("Verified against package label.", audit.getValue().getNote());
+    }
+
+    @Test
+    void updateProductBarcode_whenAssignedElsewhere_rejectsWithoutMovingBarcode() {
+        FoodItemEntity product = reviewProduct();
+        product.setBarcode("96385074");
+        product.setNormalizedBarcode("96385074");
+        FoodItemEntity conflict = new FoodItemEntity();
+        conflict.setId(2L);
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.of(conflict));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+                foodProductReviewService.updateProductBarcode(1L,
+                        new FoodProductBarcodeUpdateRequestDto("3017620422003", "Correction"), "catalog@grun.app"));
+
+        assertTrue(error.getMessage().contains("product id 2"));
+        assertEquals("96385074", product.getBarcode());
+        verify(foodItemRepository, never()).saveAndFlush(any());
+        verify(foodProductReviewAuditRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProductBarcode_whenCheckDigitInvalid_rejectsBeforeLookup() {
+        assertThrows(IllegalArgumentException.class, () -> foodProductReviewService.updateProductBarcode(
+                1L, new FoodProductBarcodeUpdateRequestDto("3017620422004", "Correction"), "catalog@grun.app"));
+        verify(foodItemRepository, never()).findById(any());
     }
 
     @Test
@@ -1000,6 +1053,15 @@ class FoodProductReviewServiceImplTest {
         product.setProtein(1.1);
         product.setFat(0.3);
         product.setCarbs(22.8);
+        return product;
+    }
+
+    private FoodItemEntity reviewProduct() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Review product");
+        product.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
         return product;
     }
 

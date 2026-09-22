@@ -13,10 +13,11 @@ export function ManualProductIntakeForm({
   onCreated: () => Promise<void>;
   onError: (message: string | null) => void;
 }) {
+  const initialBarcode = new URLSearchParams(window.location.search).get("barcode")?.replace(/[^0-9]/g, "") ?? "";
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
-    barcode: "",
+    barcode: initialBarcode,
     marketRegion: "",
     productName: "",
     brand: "",

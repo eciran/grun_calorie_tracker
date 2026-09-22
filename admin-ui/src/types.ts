@@ -125,7 +125,7 @@ export type AdminCustomer360 = {
   };
   notifications: {
     total?: number; unread?: number;
-    recent?: Array<{ id?: number; type?: string; severity?: string; source?: string; read?: boolean; createdAt?: string }>;
+    recent?: Array<{ id?: number; title?: string; message?: string; type?: string; category?: string; severity?: string; source?: string; read?: boolean; createdAt?: string }>;
   };
   security: {
     activeSessions?: number;
@@ -711,6 +711,23 @@ export type AuditEntry = {
   createdAt?: string;
 };
 
+export type AdminUserAnalytics = {
+  from: string;
+  to: string;
+  timeZone: string;
+  granularity: string;
+  generatedAt: string;
+  totalUsers: number;
+  legacyUsersWithoutRegistrationDate: number;
+  registrationsInRange: number;
+  activeUsersInRange: number;
+  dailyActiveUsers: number;
+  weeklyActiveUsers: number;
+  monthlyActiveUsers: number;
+  planDistribution: Record<string, number>;
+  daily: GrowthTrendPoint[];
+};
+
 export type NotificationDefinition = {
   id?: number;
   version?: number;
@@ -736,7 +753,10 @@ export type NotificationCampaign = {
   title?: string;
   message?: string;
   category?: "SYSTEM" | "MARKETING";
-  channel?: "IN_APP" | "PUSH" | "IN_APP_AND_PUSH";
+  channel?: "IN_APP" | "PUSH" | "IN_APP_AND_PUSH" | "EMAIL" | "EMAIL_AND_IN_APP" | "EMAIL_PUSH_IN_APP";
+  emailTemplateId?: number;
+  emailSentCount?: number;
+  emailFailedCount?: number;
   status?: "DRAFT" | "SCHEDULED" | "PROCESSING" | "COMPLETED" | "CANCELLED" | "FAILED";
   targetRoute?: string;
   targetPlan?: string;
@@ -822,6 +842,7 @@ export type Notification = {
 export type AiMealDraft = {
   id?: number;
   requestId?: number;
+  correlationId?: string;
   userId?: number;
   userEmail?: string;
   requestType?: string;
@@ -853,6 +874,7 @@ export type AiMealDraft = {
 
 export type AiRequestInspection = {
   requestId?: number;
+  correlationId?: string;
   userId?: number;
   userEmail?: string;
   requestType?: string;
@@ -883,6 +905,7 @@ export type AiRequestInspection = {
   failureSummary?: string;
 };
 export type AiMonitoringSummary = {
+  timeline?: { bucketStart: string; costCurrency: string; requestCount: number; estimatedCost: number }[];
   generatedAt?: string;
   windowStart?: string;
   windowHours?: number;
@@ -1322,6 +1345,29 @@ export type AdminApprovalRequest = {
 export type AdminApprovalPage = {
   content?: AdminApprovalRequest[]; page?: number; size?: number; totalElements?: number;
   totalPages?: number; first?: boolean; last?: boolean;
+};
+export type AdminBrevoTemplate = { id: number; name: string; subject?: string; active: boolean; senderEmail?: string; senderName?: string };
+
+export type AdminMailboxAccount = {
+  id: number; emailAddress: string; displayName?: string; username: string;
+  imapHost: string; imapPort: number; imapSsl: boolean;
+  smtpHost: string; smtpPort: number; smtpSsl: boolean;
+  enabled: boolean; passwordConfigured: boolean; connectionStatus: string;
+  connectionError?: string; lastTestedAt?: string; createdAt?: string; updatedAt?: string;
+};
+export type AdminMailboxMessage = {
+  uid: number; mailboxId: number; mailboxAddress: string; folder: string;
+  subject: string; sender: string; receivedAt?: string; seen: boolean;
+  hasAttachments: boolean; preview: string;
+};
+export type AdminMailboxMessageDetail = AdminMailboxMessage & {
+  recipients: string[]; attachments: string[]; bodyText: string;
+};
+
+export type SubscriptionProviderEventFilterOptions = {
+  eventTypes?: string[];
+  eventIds?: string[];
+  productIds?: string[];
 };
 export type MealReminderMode = "OFF" | "DRY_RUN" | "PILOT" | "LIVE";
 export type MealReminderPolicy = {

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @EnabledIfEnvironmentVariable(named = "GRUN_DEPLOY_VALIDATION_JDBC_URL", matches = "jdbc:postgresql://127\\.0\\.0\\.1:55439/grun_deploy_validation")
@@ -19,7 +20,50 @@ class DeploymentPostgresMigrationTest {
                 .load();
         flyway.migrate();
         assertTrue(flyway.validateWithResult().validationSuccessful);
-        assertEquals("264", flyway.info().current().getVersion().getVersion());
+        assertEquals("280", flyway.info().current().getVersion().getVersion());
+    }
+
+    @Test
+    void ownerOperationsSchemaIsCompleteThroughV273() {
+        var dataSource = new org.springframework.jdbc.datasource.DriverManagerDataSource(
+                System.getenv("GRUN_DEPLOY_VALIDATION_JDBC_URL"), "postgres",
+                System.getenv("GRUN_DEPLOY_VALIDATION_DB_PASSWORD"));
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration")
+                .cleanDisabled(true).load().migrate();
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+
+        for (String table : java.util.List.of(
+                "owner_error_events", "owner_operational_alerts",
+                "owner_error_group_states", "owner_error_group_state_history")) {
+            assertEquals(1, jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = ?
+                    """, Integer.class, table), table + " must exist");
+        }
+        for (String column : java.util.List.of("source", "client_platform", "app_version")) {
+            assertEquals(1, jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'owner_error_events' AND column_name = ?
+                    """, Integer.class, column), "owner_error_events." + column + " must exist");
+        }
+
+        String actionConstraint = jdbc.queryForObject("""
+                SELECT pg_get_constraintdef(oid) FROM pg_constraint
+                WHERE conname = 'chk_admin_action_audits_action_type'
+                  AND conrelid = 'admin_action_audits'::regclass
+                """, String.class);
+        String targetConstraint = jdbc.queryForObject("""
+                SELECT pg_get_constraintdef(oid) FROM pg_constraint
+                WHERE conname = 'chk_admin_action_audits_target_type'
+                  AND conrelid = 'admin_action_audits'::regclass
+                """, String.class);
+        assertNotNull(actionConstraint);
+        assertNotNull(targetConstraint);
+        assertTrue(actionConstraint.contains("OWNER_ALERT_RETRY"));
+        assertTrue(actionConstraint.contains("OWNER_ALERT_ACKNOWLEDGE"));
+        assertTrue(actionConstraint.contains("OWNER_ERROR_GROUP_STATUS_UPDATE"));
+        assertTrue(targetConstraint.contains("OWNER_OPERATIONAL_ALERT"));
+        assertTrue(targetConstraint.contains("OWNER_ERROR_GROUP"));
     }
 
     @Test

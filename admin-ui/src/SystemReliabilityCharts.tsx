@@ -16,7 +16,6 @@ export function ApiReliabilityChart({ analytics }: { analytics: SystemReliabilit
     const palette = adminChartPalette();
     const points = analytics.apiTrend ?? [];
     return {
-      aria: { enabled: true, description: "Hourly API request, error, and p95 latency trend" },
       color: [palette.accent, palette.danger, palette.primary],
       graphic: points.length ? undefined : emptyGraphic("No API traffic has been recorded in this process window."),
       grid: { top: 46, right: 66, bottom: 54, left: 54 },
@@ -42,7 +41,6 @@ export function InfrastructureReliabilityChart({ analytics }: { analytics: Syste
     const palette = adminChartPalette();
     const rows = analytics.infrastructure ?? [];
     return {
-      aria: { enabled: true, description: "Database, Redis, JVM, and analytics cache reliability" },
       color: [palette.primary, palette.accent],
       grid: { top: 46, right: 62, bottom: 44, left: 62 },
       legend: { top: 4, textStyle: { color: palette.muted }, itemWidth: 12, itemHeight: 8 },
@@ -66,7 +64,6 @@ export function ProviderReliabilityChart({ analytics }: { analytics: SystemRelia
     const palette = adminChartPalette();
     const rows = analytics.providers ?? [];
     return {
-      aria: { enabled: true, description: "Aggregate provider success and failure outcomes" },
       color: [palette.accent, palette.danger],
       grid: { top: 46, right: 22, bottom: 42, left: 54 },
       legend: { top: 4, textStyle: { color: palette.muted }, itemWidth: 12, itemHeight: 8 },
@@ -87,7 +84,6 @@ export function OperationReliabilityChart({ analytics }: { analytics: SystemReli
     const palette = adminChartPalette();
     const rows = analytics.operations ?? [];
     return {
-      aria: { enabled: true, description: "Scheduled job, incident, backup, and restore operation outcomes" },
       color: [palette.accent, palette.danger, "#a66a16", palette.primary],
       grid: { top: 46, right: 22, bottom: 58, left: 54 },
       legend: { top: 4, textStyle: { color: palette.muted }, itemWidth: 12, itemHeight: 8 },

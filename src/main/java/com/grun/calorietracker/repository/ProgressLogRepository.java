@@ -13,6 +13,8 @@ import java.util.Optional;
 public interface ProgressLogRepository extends JpaRepository<ProgressLogEntity, Long> {
     long countByUser(UserEntity user);
 
+    boolean existsByUserAndOnboardingBaselineTrue(UserEntity user);
+
     List<ProgressLogEntity> findByUserOrderByLogDateAsc(UserEntity user);
 
     List<ProgressLogEntity> findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(

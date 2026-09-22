@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.FoodCanonicalDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionDto;
 import com.grun.calorietracker.dto.FoodCanonicalResolutionRequestDto;
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductBarcodeUpdateRequestDto;
 import com.grun.calorietracker.dto.FoodProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
@@ -41,6 +42,7 @@ public interface FoodProductReviewService {
         return updateProductReview(id, request, null);
     }
     FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy);
+    FoodProductDto updateProductBarcode(Long id, FoodProductBarcodeUpdateRequestDto request, String reviewedBy);
     FoodProductReviewAuditPageDto getProductReviewAudits(Long productId, int page, int size);
     List<FoodProductQualityIssueDto> getProductQualityIssues(Long productId, boolean activeOnly);
     FoodProductDuplicateGroupPageDto getDuplicateProductGroups(int page, int size);

@@ -62,7 +62,7 @@ class AdminUserControllerTest {
         when(userService.listUsersForAdmin(
                 "test", UserRole.STANDARD, true, false,
                 com.grun.calorietracker.enums.SubscriptionPlan.PRO,
-                null, null, true, null, 0, 25
+                null, null, true, null, null, null, null, null, 0, 25
         )).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/admin/users")

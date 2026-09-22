@@ -9,6 +9,8 @@ public interface AdminSessionService {
     AdminSessionLogin create(UserEntity user);
     AdminSessionLogin create(UserEntity user, String userAgent, String remoteAddress);
     AuthResponse refresh(String rawSessionToken);
+    AuthResponse restore(String rawSessionToken);
+    /** Legacy method name: validates only; background traffic is not human activity. */
     boolean validateAndTouch(String sessionId, String email);
     AdminSessionPageDto list(String email, String currentSessionId, int page, int size);
     OwnerAdminSessionPageDto listAllForOwner(String actorEmail, String currentSessionId, int page, int size);

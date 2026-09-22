@@ -1,8 +1,10 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-const app = fs.readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const app = readAdminAppSource();
 const view = fs.readFileSync(new URL("../src/modules/notifications/MealReminderAutomationView.tsx", import.meta.url), "utf8");
 const definitions = fs.readFileSync(new URL("../src/modules/notifications/NotificationDefinitionsView.tsx", import.meta.url), "utf8");
+const subscriptionNotifications = fs.readFileSync(new URL("../src/modules/notifications/SubscriptionNotificationOperationsView.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const controller = fs.readFileSync(new URL("../../src/main/java/com/grun/calorietracker/controller/AdminMealReminderAutomationController.java", import.meta.url), "utf8");
 assert.match(app, /mealReminderAutomation/, "Meal reminder automation must be deep-linkable and navigable.");
@@ -24,11 +26,15 @@ assert.match(view, /Breakfast time \(user local\)[\s\S]*Lunch time \(user local\
 assert.match(view, /saved IANA timezone[\s\S]*Europe\/Dublin daylight-saving[\s\S]*Europe\/Istanbul remains UTC\+3/, "Timezone and daylight-saving behavior must be explicit.");
 assert.match(view, /An earlier meal is missing,[\s\S]*meal-specific evening reminder is skipped/, "Previous-meal suppression needs friendly copy.");
 assert.match(view, /does not replay expired slots/, "Reopen must explain no-backfill behavior.");
-assert.match(view, /DataTable caption="Meal reminder decision records"/, "Decision records need accessible output.");
+assert.match(view, /DataTable caption=\{tx\("Meal reminder decision records"/, "Decision records need accessible localized output.");
 assert.match(view, /No diary values, health details, emails, or device tokens/, "Redacted data boundary must be visible.");
 assert.match(styles, /@media \(max-width: 680px\)[\s\S]*meal-reminder/, "Meal reminder controls must have a mobile layout.");
 assert.match(definitions, /meal-reminder-automation\/definitions\/\$\{selectedId\}\/publish-request/, "Protected copy must use approval endpoint.");
 assert.match(definitions, /Request copy publication/, "Protected copy CTA must not imply immediate save.");
+assert.match(definitions, /request<AdminApprovalRequest>[\s\S]*ApprovalSubmissionNotice/, "Protected notification copy must retain and expose its approval record.");
+assert.match(subscriptionNotifications, /policy\/publish-request[\s\S]*ApprovalSubmissionNotice/, "Subscription notification policy publication must expose its approval record.");
+assert.match(view, /request<AdminApprovalRequest>[\s\S]*ApprovalSubmissionNotice/, "Meal reminder approval actions must expose their approval record.");
+assert.match(view, /emergency-stop`[\s\S]*false\)/, "Emergency stop must remain immediate and must not be presented as an approval request.");
 assert.doesNotMatch(view, /window\.(alert|confirm|prompt)\(/, "Native dialogs are not allowed.");
 assert.doesNotMatch(view, /dangerouslySetInnerHTML/, "Preview copy must remain escaped by React.");
 assert.match(controller, /ADMIN_PERMISSION_GROWTH_READ/, "Read endpoints must be explicitly secured.");

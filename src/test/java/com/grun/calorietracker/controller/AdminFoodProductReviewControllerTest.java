@@ -63,6 +63,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -794,6 +795,34 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.imageStatus").value("APPROVED"));
 
         verify(foodProductReviewService).updateProductReview(eq(1L), any(FoodProductReviewRequestDto.class), eq("admin@test.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "catalog@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void updateProductBarcode_whenCatalogManager_returnsUpdatedProduct() throws Exception {
+        FoodProductDto response = new FoodProductDto();
+        response.setId(1L);
+        response.setBarcode("3017620422003");
+        when(foodProductReviewService.updateProductBarcode(eq(1L), any(), eq("catalog@test.com"))).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/admin/products/1/barcode")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"barcode\":\"3017620422003\",\"reason\":\"Verified package label\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.barcode").value("3017620422003"));
+
+        verify(foodProductReviewService).updateProductBarcode(eq(1L), any(), eq("catalog@test.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "catalog@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void updateProductBarcode_whenPayloadInvalid_returnsBadRequest() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/products/1/barcode")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"barcode\":\"123\",\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest());
+
+        verify(foodProductReviewService, never()).updateProductBarcode(any(), any(), any());
     }
 
     @Test

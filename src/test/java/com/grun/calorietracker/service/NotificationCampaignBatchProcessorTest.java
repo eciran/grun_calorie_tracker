@@ -29,6 +29,7 @@ class NotificationCampaignBatchProcessorTest {
     @Mock NotificationRepository notificationRepository;
     @Mock UserRepository userRepository;
     @Mock PushDeliveryService pushDeliveryService;
+    @Mock BrevoCampaignEmailService campaignEmailService;
     @Mock AdminNotificationCampaignServiceImpl campaignService;
     @InjectMocks NotificationCampaignBatchProcessor processor;
 
@@ -147,5 +148,48 @@ class NotificationCampaignBatchProcessorTest {
         assertEquals(1L, campaign.getProcessedCount());
         verify(notificationRepository, never()).save(any());
         verify(pushDeliveryService, never()).deliver(any());
+    }
+
+    @Test
+    void dispatchBatch_sendsBrevoTemplateForEmailCampaign() {
+        NotificationCampaignEntity campaign = new NotificationCampaignEntity();
+        campaign.setId(9L);
+        campaign.setTitle("Weekly progress");
+        campaign.setMessage("Your weekly summary is ready.");
+        campaign.setCategory(NotificationCampaignCategory.MARKETING);
+        campaign.setChannel(NotificationCampaignChannel.EMAIL);
+        campaign.setEmailTemplateId(42L);
+        campaign.setStatus(NotificationCampaignStatus.SCHEDULED);
+        campaign.setLastProcessedUserId(0L);
+        campaign.setScheduledAt(LocalDateTime.now());
+
+        UserEntity user = new UserEntity();
+        user.setId(18L);
+        user.setName("Ada");
+        user.setEmail("ada@example.com");
+
+        Specification<UserEntity> specification = (root, query, cb) -> cb.conjunction();
+        when(campaignRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(campaign));
+        when(campaignService.audienceSpecification(campaign, 0L)).thenReturn(specification);
+        when(userRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(user)));
+        when(recipientRepository.existsByCampaignIdAndUserId(9L, 18L)).thenReturn(false);
+        when(notificationRepository.save(any(NotificationEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(campaignEmailService.send(campaign, user)).thenReturn("<brevo-message-id>");
+
+        processor.dispatchBatch(9L);
+
+        assertEquals(NotificationCampaignStatus.COMPLETED, campaign.getStatus());
+        assertEquals(1L, campaign.getProcessedCount());
+        assertEquals(1L, campaign.getEmailSentCount());
+        assertEquals(0L, campaign.getEmailFailedCount());
+        verify(campaignEmailService).send(campaign, user);
+        verify(pushDeliveryService, never()).deliver(any());
+        verify(recipientRepository).save(argThat(recipient ->
+                recipient.getStatus() == NotificationCampaignRecipientStatus.DELIVERED
+                        && recipient.getEmailAttempted() == 1
+                        && recipient.getEmailSent() == 1
+                        && recipient.getEmailFailed() == 0
+                        && "<brevo-message-id>".equals(recipient.getEmailMessageId())));
     }
 }

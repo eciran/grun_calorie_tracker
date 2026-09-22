@@ -15,6 +15,7 @@ public class NotificationDto {
     private String primaryAction;
     private Integer actionAmountMl;
     private String type;
+    private String category;
     private String severity;
     private String source;
     private String targetType;

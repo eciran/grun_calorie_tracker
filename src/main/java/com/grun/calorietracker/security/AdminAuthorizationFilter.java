@@ -47,6 +47,8 @@ public class AdminAuthorizationFilter extends OncePerRequestFilter {
         );
         boolean allowed = authentication.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals(AdminPermissionMatrix.authority(required)));
+        boolean ownerOnly = request.getRequestURI().equals("/api/v1/admin/errors") || request.getRequestURI().startsWith("/api/v1/admin/errors/");
+        if (ownerOnly) allowed = allowed && authentication.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_OWNER"));
         if (allowed) {
             filterChain.doFilter(request, response);
             return;
@@ -58,7 +60,7 @@ public class AdminAuthorizationFilter extends OncePerRequestFilter {
                 LocalDateTime.now(),
                 HttpServletResponse.SC_FORBIDDEN,
                 "Forbidden",
-                "Admin permission required: " + required.name(),
+                ownerOnly ? "Owner access required" : "Admin permission required: " + required.name(),
                 request.getRequestURI()
         ));
     }

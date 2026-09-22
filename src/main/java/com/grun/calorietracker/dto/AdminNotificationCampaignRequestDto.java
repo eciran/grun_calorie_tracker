@@ -28,6 +28,8 @@ public class AdminNotificationCampaignRequestDto {
     @NotNull
     private NotificationCampaignChannel channel;
 
+    private Long emailTemplateId;
+
     @Size(max = 255)
     private String targetRoute;
 

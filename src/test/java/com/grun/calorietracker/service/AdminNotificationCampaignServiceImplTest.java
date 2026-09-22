@@ -84,6 +84,23 @@ class AdminNotificationCampaignServiceImplTest {
         verify(campaignRepository, never()).save(any());
     }
 
+    @Test
+    void create_emailCampaignRequiresBrevoTemplate() {
+        AdminNotificationCampaignRequestDto request=request();
+        request.setChannel(NotificationCampaignChannel.EMAIL);
+        assertThrows(IllegalArgumentException.class,()->service.create(request,"admin@grun.local","cid-email"));
+        verify(campaignRepository,never()).save(any());
+    }
+
+    @Test
+    void create_emailCampaignStoresTemplate() {
+        AdminNotificationCampaignRequestDto request=request();request.setChannel(NotificationCampaignChannel.EMAIL_AND_IN_APP);request.setEmailTemplateId(42L);
+        when(campaignRepository.save(any(NotificationCampaignEntity.class))).thenAnswer(invocation->{NotificationCampaignEntity entity=invocation.getArgument(0);entity.setId(12L);return entity;});
+        var result=service.create(request,"admin@grun.local","cid-email");
+        assertEquals(42L,result.getEmailTemplateId());
+        assertEquals(NotificationCampaignChannel.EMAIL_AND_IN_APP,result.getChannel());
+    }
+
 
     @Test
     void summary_returnsPrivacySafeAggregateMetrics() {

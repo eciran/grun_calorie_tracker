@@ -28,7 +28,6 @@ function horizontalBarOption(
   const palette = adminChartPalette();
   const visible = metrics.filter((item) => Number(item.count ?? 0) > 0);
   return {
-    aria: { enabled: true, description },
     grid: { top: 10, right: 54, bottom: 24, left: 112 },
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
     xAxis: {
@@ -92,7 +91,6 @@ export function RecipeSubmissionTrendChart({ analytics }: { analytics: AdminReci
   const buildOption = useCallback((): EChartsCoreOption => {
     const palette = adminChartPalette();
     return {
-      aria: { enabled: true, description: `Recipe submissions over ${analytics.windowDays ?? 30} days` },
       grid: { top: 20, right: 24, bottom: 42, left: 52 },
       tooltip: { trigger: "axis" },
       xAxis: {

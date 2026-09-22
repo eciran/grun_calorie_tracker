@@ -30,7 +30,7 @@ export function CatalogVerificationChart({ analytics }: { analytics: AdminCatalo
   const buildOption = useCallback((): EChartsCoreOption => {
     const palette = adminChartPalette();
     return {
-      aria: { enabled: true, description: "Food catalog verification status distribution" },
+      aria: { enabled: true },
       grid: { top: 12, right: 58, bottom: 26, left: 108 },
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       xAxis: {
@@ -70,7 +70,7 @@ export function CatalogIssueChart({ analytics }: { analytics: AdminCatalogQualit
   const buildOption = useCallback((): EChartsCoreOption => {
     const palette = adminChartPalette();
     return {
-      aria: { enabled: true, description: "Most frequent open catalog quality issue types" },
+      aria: { enabled: true },
       grid: { top: 12, right: 58, bottom: 26, left: 154 },
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       xAxis: {
@@ -106,7 +106,7 @@ export function CatalogScanTrendChart({ analytics }: { analytics: AdminCatalogQu
   const buildOption = useCallback((): EChartsCoreOption => {
     const palette = adminChartPalette();
     return {
-      aria: { enabled: true, description: `Catalog quality scan outcomes over ${analytics.windowDays ?? 30} days` },
+      aria: { enabled: true },
       color: [palette.primary, "#2f8f68", palette.accent, palette.danger],
       grid: { top: 42, right: 28, bottom: 42, left: 52 },
       legend: { top: 4, textStyle: { color: palette.muted } },

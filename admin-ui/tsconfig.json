@@ -13,6 +13,7 @@
     "moduleResolution": "Node",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "tsBuildInfoFile": "./node_modules/.cache/grun-admin.tsbuildinfo",
     "noEmit": true,
     "jsx": "react-jsx"
   },

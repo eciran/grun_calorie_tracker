@@ -308,7 +308,7 @@ class UserServiceImplTest {
                 });
 
         var result = userService.listUsersForAdmin(
-                null, UserRole.STANDARD, true, false, null, null, null, null, null, -1, 500
+                null, UserRole.STANDARD, true, false, null, null, null, null, null, null, null, null, null, -1, 500
         );
 
         assertEquals(1, result.getTotalElements());

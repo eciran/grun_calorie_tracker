@@ -38,6 +38,7 @@ public class ProgressLogMapper {
         dto.setFatIntake(entity.getFatIntake());
         dto.setCarbIntake(entity.getCarbIntake());
         dto.setNote(entity.getNote());
+        dto.setOnboardingBaseline(entity.isOnboardingBaseline());
         return dto;
     }
 }

@@ -1,7 +1,8 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const app = readAdminAppSource();
 const types = readFileSync(new URL("../src/types.ts", import.meta.url), "utf8");
 
 for (const status of ["VERIFIED", "NEEDS_REVIEW", "RAW_IMPORTED"]) {

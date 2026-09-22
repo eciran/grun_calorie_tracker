@@ -99,6 +99,11 @@ public class FoodItemEntity {
     @Enumerated(EnumType.STRING)
     private FoodNutritionReferenceUnit nutritionReferenceUnit;
 
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "food_item_source_categories", joinColumns = @JoinColumn(name = "food_item_id"))
+    @Column(name = "category_tag", nullable = false, length = 180)
+    private Set<String> sourceCategoryTags = new HashSet<>();
+
     private Long usageCount;
     private Long searchSelectionCount = 0L;
     private Integer qualityScore;

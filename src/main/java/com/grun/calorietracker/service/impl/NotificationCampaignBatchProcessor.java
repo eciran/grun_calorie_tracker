@@ -23,6 +23,7 @@ public class NotificationCampaignBatchProcessor {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final PushDeliveryService pushDeliveryService;
+    private final com.grun.calorietracker.service.BrevoCampaignEmailService campaignEmailService;
     private final AdminNotificationCampaignServiceImpl campaignService;
 
     @Transactional
@@ -110,13 +111,13 @@ public class NotificationCampaignBatchProcessor {
             notification.setPrimaryAction("VIEW_DETAILS");
         }
         notification.setCampaign(campaign);
-        notification.setVisibleInApp(campaign.getChannel() != NotificationCampaignChannel.PUSH);
+        notification.setVisibleInApp(campaign.getChannel().includesInApp());
         notification.setIsRead(false);
         notification.setCreatedAt(now);
         notification = notificationRepository.save(notification);
 
         PushDeliveryResultDto push = new PushDeliveryResultDto(0, 0, 0, 0);
-        if (campaign.getChannel() != NotificationCampaignChannel.IN_APP) {
+        if (campaign.getChannel().includesPush()) {
             push = pushDeliveryService.deliver(notification);
             if (push.getAttempted() == 0 && push.getSent() == 0 && push.getFailed() == 0) {
                 push.setSkipped(1);
@@ -133,10 +134,15 @@ public class NotificationCampaignBatchProcessor {
         recipient.setPushSent(push.getSent());
         recipient.setPushSkipped(push.getSkipped());
         recipient.setPushFailed(push.getFailed());
-        recipient.setStatus(campaign.getChannel() == NotificationCampaignChannel.PUSH
-                        && push.getSent() == 0 && push.getFailed() > 0
-                ? NotificationCampaignRecipientStatus.FAILED
-                : NotificationCampaignRecipientStatus.DELIVERED);
+        boolean emailFailed=false;
+        if(campaign.getChannel().includesEmail()){
+            recipient.setEmailAttempted(1);
+            try{recipient.setEmailMessageId(campaignEmailService.send(campaign,user));recipient.setEmailSent(1);campaign.setEmailSentCount(campaign.getEmailSentCount()+1);}
+            catch(RuntimeException exception){recipient.setEmailFailed(1);emailFailed=true;campaign.setEmailFailedCount(campaign.getEmailFailedCount()+1);}
+        }
+        boolean pushOnlyFailed=campaign.getChannel().includesPush()&&!campaign.getChannel().includesInApp()&&!campaign.getChannel().includesEmail()&&push.getSent()==0&&push.getFailed()>0;
+        boolean emailOnlyFailed=campaign.getChannel()==NotificationCampaignChannel.EMAIL&&emailFailed;
+        recipient.setStatus(pushOnlyFailed||emailOnlyFailed?NotificationCampaignRecipientStatus.FAILED:NotificationCampaignRecipientStatus.DELIVERED);
         recipientRepository.save(recipient);
 
         campaign.setProcessedCount(campaign.getProcessedCount() + 1);

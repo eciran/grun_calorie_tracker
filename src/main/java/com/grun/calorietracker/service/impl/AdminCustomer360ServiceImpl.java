@@ -4,7 +4,9 @@ import com.grun.calorietracker.dto.AdminCustomer360Dto;
 import com.grun.calorietracker.dto.AdminUserDto;
 import com.grun.calorietracker.dto.AdminUserSupportNoteDto;
 import com.grun.calorietracker.dto.AdminUserSupportNoteRequestDto;
+import com.grun.calorietracker.dto.AdminUserNotificationRequestDto;
 import com.grun.calorietracker.entity.AdminUserSupportNoteEntity;
+import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.AiRequestHistoryEntity;
 import com.grun.calorietracker.entity.SubscriptionEntity;
 import com.grun.calorietracker.entity.UserEntity;
@@ -23,6 +25,7 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.AdminCustomer360Service;
 import com.grun.calorietracker.service.RefreshTokenService;
+import com.grun.calorietracker.service.PushDeliveryService;
 import com.grun.calorietracker.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -61,6 +64,7 @@ public class AdminCustomer360ServiceImpl implements AdminCustomer360Service {
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;
     private final AdminUserSupportNoteRepository supportNoteRepository;
     private final RefreshTokenService refreshTokenService;
+    private final PushDeliveryService pushDeliveryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -124,6 +128,57 @@ public class AdminCustomer360ServiceImpl implements AdminCustomer360Service {
         return activeBefore;
     }
 
+    @Override
+    @Transactional
+    public AdminCustomer360Dto.NotificationItem sendNotification(Long userId,
+                                                                  AdminUserNotificationRequestDto request) {
+        UserEntity user = requireUser(userId);
+        String severity = request.severity().trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("INFO", "WARNING", "CRITICAL").contains(severity)) {
+            throw new IllegalArgumentException("Notification severity must be INFO, WARNING or CRITICAL.");
+        }
+        String delivery = request.delivery().trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("IN_APP", "IN_APP_AND_PUSH").contains(delivery)) {
+            throw new IllegalArgumentException("Notification delivery must be IN_APP or IN_APP_AND_PUSH.");
+        }
+        String targetRoute = trimToNull(request.targetRoute());
+        if (targetRoute != null && !Set.of("dashboard", "diary", "recipes", "subscription", "profile").contains(targetRoute)) {
+            throw new IllegalArgumentException("Unsupported notification target route.");
+        }
+
+        String category = request.category().trim().toUpperCase(Locale.ROOT);
+        Map<String, String> categoryTypes = Map.of(
+                "ANNOUNCEMENT", "admin_announcement",
+                "ACCOUNT", "admin_account_update",
+                "SUPPORT", "admin_support_message",
+                "REMINDER", "admin_reminder"
+        );
+        String notificationType = categoryTypes.get(category);
+        if (notificationType == null) {
+            throw new IllegalArgumentException("Notification category must be ANNOUNCEMENT, ACCOUNT, SUPPORT or REMINDER.");
+        }
+
+        NotificationEntity notification = new NotificationEntity();
+        notification.setUser(user);
+        notification.setTitle(request.title().trim());
+        notification.setMessage(request.message().trim());
+        notification.setType(notificationType);
+        notification.setSeverity(severity);
+        notification.setSource("CUSTOMER_360_ADMIN");
+        notification.setTargetType(targetRoute == null ? "USER_NOTIFICATION" : targetRoute.toUpperCase(Locale.ROOT));
+        notification.setTargetId(user.getId().toString());
+        notification.setTargetRoute(targetRoute);
+        notification.setPrimaryAction(trimToNull(request.primaryAction()));
+        notification.setVisibleInApp(true);
+        notification.setIsRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        NotificationEntity saved = notificationRepository.save(notification);
+        if ("IN_APP_AND_PUSH".equals(delivery)) {
+            pushDeliveryService.deliver(saved);
+        }
+        return notificationItem(saved);
+    }
+
     private AdminCustomer360Dto.SubscriptionSummary subscriptionSummary(UserEntity user) {
         SubscriptionEntity subscription = subscriptionRepository.findByUser(user).orElse(null);
         if (subscription == null) {
@@ -184,7 +239,7 @@ public class AdminCustomer360ServiceImpl implements AdminCustomer360Service {
         ).getContent().stream()
                 .map(item -> new AdminCustomer360Dto.NotificationItem(
                         item.getId(),
-                        item.getType(),
+                        item.getTitle(), item.getMessage(), item.getType(), notificationCategory(item.getType()),
                         item.getSeverity(),
                         item.getSource(),
                         Boolean.TRUE.equals(item.getIsRead()),
@@ -196,6 +251,27 @@ public class AdminCustomer360ServiceImpl implements AdminCustomer360Service {
                 notificationRepository.countByUserAndIsRead(user, false),
                 recent
         );
+    }
+
+    private AdminCustomer360Dto.NotificationItem notificationItem(NotificationEntity item) {
+        return new AdminCustomer360Dto.NotificationItem(
+                item.getId(), item.getTitle(), item.getMessage(), item.getType(), notificationCategory(item.getType()), item.getSeverity(),
+                item.getSource(), Boolean.TRUE.equals(item.getIsRead()), item.getCreatedAt()
+        );
+    }
+
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String notificationCategory(String type) {
+        if (type == null) return "REMINDER";
+        return switch (type) {
+            case "admin_announcement", "system_announcement" -> "ANNOUNCEMENT";
+            case "admin_account_update", "subscription" -> "ACCOUNT";
+            case "admin_support_message" -> "SUPPORT";
+            default -> "REMINDER";
+        };
     }
 
     private AdminCustomer360Dto.SecuritySummary securitySummary(UserEntity user) {

@@ -38,7 +38,7 @@ export function RevenueCatEChart({ chart }: { chart: RevenueCatChart }) {
 
     if (!timeAxis) {
       return {
-        aria: { enabled: true, description: `${chart.label ?? chart.chartName ?? "RevenueCat"} category comparison` },
+        aria: { enabled: true, description: `${chart.label ?? chart.chartName ?? "RevenueCat"} analytics chart.` },
         animationDuration: 420,
         grid: { top: 8, right: 54, bottom: 30, left: 132 },
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter },
@@ -67,7 +67,7 @@ export function RevenueCatEChart({ chart }: { chart: RevenueCatChart }) {
     }
 
     return {
-      aria: { enabled: true, description: `${chart.label ?? chart.chartName ?? "RevenueCat"} time series` },
+      aria: { enabled: true, description: `${chart.label ?? chart.chartName ?? "RevenueCat"} analytics chart.` },
       animationDuration: 420,
       dataZoom: points.length > 30 ? [{ type: "inside", start: 0, end: 100 }, { type: "slider", height: 18, bottom: 2 }] : [],
       grid: { top: 20, right: 22, bottom: points.length > 30 ? 58 : 34, left: 72 },

@@ -45,41 +45,9 @@ public class AdminPromoController {
         return ResponseEntity.ok(promoService.get(id));
     }
 
-    @PostMapping
-    public ResponseEntity<AdminPromoDto> create(@RequestBody @Valid AdminPromoRequestDto request,
-            @AuthenticationPrincipal UserDetails admin, HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(promoService.create(request, admin.getUsername(), correlationId(servletRequest)));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<AdminPromoDto> update(@PathVariable @Positive Long id,
-            @RequestBody @Valid AdminPromoRequestDto request,
-            @AuthenticationPrincipal UserDetails admin, HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(promoService.update(id, request, admin.getUsername(), correlationId(servletRequest)));
-    }
-
     @PostMapping("/{id}/preview")
     public ResponseEntity<AdminPromoPreviewDto> preview(@PathVariable @Positive Long id) {
         return ResponseEntity.ok(promoService.preview(id));
-    }
-
-    @PostMapping("/{id}/activate")
-    public ResponseEntity<AdminPromoDto> activate(@PathVariable @Positive Long id,
-            @AuthenticationPrincipal UserDetails admin, HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(promoService.activate(id, admin.getUsername(), correlationId(servletRequest)));
-    }
-
-    @PostMapping("/{id}/deactivate")
-    public ResponseEntity<AdminPromoDto> deactivate(@PathVariable @Positive Long id,
-            @RequestBody @Valid AdminPromoDeactivateRequestDto request,
-            @AuthenticationPrincipal UserDetails admin, HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(promoService.deactivate(id, request.getReason(), admin.getUsername(), correlationId(servletRequest)));
-    }
-
-    @PostMapping("/{id}/reconcile")
-    public ResponseEntity<AdminPromoReconciliationDto> reconcile(@PathVariable @Positive Long id,
-            @AuthenticationPrincipal UserDetails admin, HttpServletRequest servletRequest) {
-        return ResponseEntity.ok(promoService.reconcile(id, admin.getUsername(), correlationId(servletRequest)));
     }
 
     @PostMapping("/{id}/redemptions")

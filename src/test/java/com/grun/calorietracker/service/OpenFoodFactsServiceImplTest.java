@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.service.impl.OpenFoodFactsServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -146,6 +147,31 @@ class OpenFoodFactsServiceImplTest {
 
         assertNull(product.getCalories());
         assertNull(product.getProtein());
+        server.verify();
+    }
+
+    @Test
+    void getProductByBarcode_preservesCategoriesAndExplicitVolumeBasis() {
+        String response = """
+                {
+                  "status": 1,
+                  "product": {
+                    "code": "445",
+                    "product_name": "Milk Drink",
+                    "nutrition_data_per": "100ml",
+                    "categories_tags": ["en:beverages", "en:milk-drinks"],
+                    "nutriments": {"energy-kcal_100g": 50}
+                  }
+                }
+                """;
+        server.expect(requestTo("https://world.openfoodfacts.org/api/v2/product/445.json"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+
+        FoodProductDto product = service.getProductByBarcode("445").orElseThrow();
+
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, product.getNutritionReferenceUnit());
+        assertEquals(java.util.Set.of("en:beverages", "en:milk-drinks"), product.getSourceCategoryTags());
+        assertEquals("MILLILITER", product.getServingUnit());
         server.verify();
     }
 

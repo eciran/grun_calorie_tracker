@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,8 +44,95 @@ class AiInsightProgressContextTest {
     @Mock private ProgressAnalyticsService progressAnalyticsService;
     @Mock private SubscriptionService subscriptionService;
     @Mock private AiProviderConfigurationValidator configurationValidator;
+    @Mock private WaterTrackingService waterTrackingService;
+    @Mock private SleepTrackingService sleepTrackingService;
 
     private AiInsightServiceImpl service;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(AiInsightFocus.class)
+    void allDailyFocusesReceiveRecordedSignals(AiInsightFocus focus) {
+        stubProvider(false);
+        LocalDate date = LocalDate.of(2026, 9, 17);
+        DailySummaryDto day = dailySummary();
+        day.setSummaryDate(date);
+        day.setConsumedProtein(90.0);
+        day.setTargetProtein(120.0);
+        day.setConsumedCarbs(160.0);
+        day.setConsumedFat(55.0);
+        day.setCurrentWeight(80.0);
+        day.setTargetWeight(75.0);
+        var steps = new com.grun.calorietracker.dto.StepDailySummaryDto();
+        steps.setHasStepData(true); steps.setTotalSteps(8500); steps.setTargetSteps(10000);
+        day.setStepSummary(steps);
+        when(dashboardService.getDailySummary("user@grun.app", date)).thenReturn(day);
+        var water = new com.grun.calorietracker.dto.WaterDailySummaryDto();
+        water.setTotalMl(3750); water.setTargetMl(2500);
+        when(waterTrackingService.getDailySummary("user@grun.app", date)).thenReturn(water);
+        when(sleepTrackingService.dailySummary("user@grun.app", date)).thenReturn(
+                com.grun.calorietracker.dto.SleepDailySummaryDto.builder()
+                        .sessionCount(1).totalSleepMinutes(450).targetMinutes(480).build());
+        var request = new AiInsightRequestDto(); request.setDate(date); request.setFocus(focus);
+        var result = service.createDailyInsight("user@grun.app", request);
+        var captor = ArgumentCaptor.forClass(AiInsightRequestDto.class);
+        verify(providerClient).createDailyInsight(captor.capture());
+        Map<?, ?> context = (Map<?, ?>) captor.getValue().getContext();
+        assertEquals(3750, context.get("waterMl"));
+        assertEquals(2500, context.get("waterTargetMl"));
+        assertEquals(450, context.get("sleepMinutes"));
+        assertEquals(8500, context.get("steps"));
+        assertEquals(90.0, context.get("consumedProteinGrams"));
+        assertEquals(160.0, context.get("consumedCarbsGrams"));
+        assertEquals(55.0, context.get("consumedFatGrams"));
+        assertEquals(80.0, context.get("currentWeightKg"));
+        assertTrue(result.getDataCoverage().getSignalsUsed().containsAll(List.of("water", "sleep", "step count")));
+        assertFalse(result.getDataCoverage().getMissingSignals().contains("water"));
+        assertEquals(1, result.getDataCoverage().getDaysAnalyzed());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(AiInsightFocus.class)
+    void weeklyContextPreservesDailyRecordsAndDoesNotAverageUnloggedDaysAsZero(AiInsightFocus focus) {
+        stubProvider(true);
+        LocalDate start = LocalDate.of(2026, 9, 16), end = start.plusDays(1);
+        DailySummaryDto logged = dailySummary(); logged.setSummaryDate(start);
+        DailySummaryDto empty = new DailySummaryDto(); empty.setSummaryDate(end);
+        empty.setHasFoodLogs(false); empty.setConsumedCalories(0.0);
+        when(dashboardService.getDailySummary("user@grun.app", start)).thenReturn(logged);
+        when(dashboardService.getDailySummary("user@grun.app", end)).thenReturn(empty);
+        var water = new com.grun.calorietracker.dto.WaterDailySummaryDto(); water.setTotalMl(3750); water.setTargetMl(2500);
+        when(waterTrackingService.getDailySummary("user@grun.app", start)).thenReturn(water);
+        var request = new AiInsightRequestDto(); request.setStartDate(start); request.setEndDate(end); request.setFocus(focus);
+        var result = service.createWeeklyInsight("user@grun.app", request);
+        var captor = ArgumentCaptor.forClass(AiInsightRequestDto.class);
+        verify(providerClient).createWeeklyInsight(captor.capture());
+        Map<?, ?> context = (Map<?, ?>) captor.getValue().getContext();
+        assertEquals(1900.0, context.get("averageConsumedCalories"));
+        assertEquals(1, context.get("foodLoggedDays"));
+        List<?> days = (List<?>) context.get("dailyData");
+        assertEquals(2, days.size());
+        assertEquals(start, ((Map<?, ?>) days.get(0)).get("date"));
+        assertEquals(3750, ((Map<?, ?>) days.get(0)).get("waterMl"));
+        assertEquals(false, ((Map<?, ?>) days.get(1)).get("waterDataAvailable"));
+        assertTrue(result.getDataCoverage().getSignalsUsed().contains("water"));
+        assertFalse(result.getDataCoverage().getMissingSignals().contains("water"));
+    }
+
+    private void stubProvider(boolean weekly) {
+        when(providerClient.provider()).thenReturn(AiProvider.LOG);
+        var response = providerResponse();
+        var coverage = new AiInsightResponseDto.DataCoverage();
+        coverage.setDaysAnalyzed(999);
+        coverage.setMissingSignals(List.of("water", "hydration logs"));
+        response.setDataCoverage(coverage);
+        if (weekly) when(providerClient.createWeeklyInsight(any())).thenReturn(response);
+        else when(providerClient.createDailyInsight(any())).thenReturn(response);
+        when(userRepository.findByEmail("user@grun.app")).thenReturn(Optional.of(new UserEntity()));
+        when(subscriptionService.resolveAiCreditCost("user@grun.app", SubscriptionFeature.AI_INSIGHTS)).thenReturn(1);
+        SubscriptionDto quota = new SubscriptionDto(); quota.setAiRemainingThisPeriod(8);
+        when(subscriptionService.consumeAiRequestQuota(org.mockito.ArgumentMatchers.eq("user@grun.app"), org.mockito.ArgumentMatchers.eq(1), any())).thenReturn(quota);
+        when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     @BeforeEach
     void setUp() {
@@ -60,7 +148,7 @@ class AiInsightProgressContextTest {
                 progressAnalyticsService,
                 subscriptionService,
                 new ObjectMapper().findAndRegisterModules(),
-                configurationValidator);
+                configurationValidator, waterTrackingService, sleepTrackingService);
     }
 
     @Test

@@ -16,6 +16,7 @@ import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodEvidenceBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -1006,7 +1007,9 @@ public class FoodItemServiceImpl implements FoodItemService {
     private void recordOpenFoodFactsEvidence(FoodItemEntity product) {
         foodProductEvidenceService.recordImportEvidence(
                 List.of(product),
-                FoodEvidenceBasis.PER_100_G,
+                product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML
+                        ? FoodEvidenceBasis.PER_100_ML
+                        : FoodEvidenceBasis.PER_100_G,
                 LocalDateTime.now(),
                 "OPEN_FOOD_FACTS_API",
                 "system:open-food-facts"

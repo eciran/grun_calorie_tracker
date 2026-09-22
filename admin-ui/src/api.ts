@@ -4,6 +4,22 @@ export type LoginResponse = {
   tokenType?: string;
   expiresIn?: number;
   message?: string;
+  adminSession?: {
+    sessionId: string;
+    serverTime: string;
+    idleExpiresAt: string;
+    absoluteExpiresAt: string;
+    idleTimeoutMs: number;
+    tokenExpiresAt: string;
+  };
+};
+
+export type AdminSessionTiming = {
+  sessionId: string;
+  idleExpiresAt: number;
+  absoluteExpiresAt: number;
+  idleTimeoutMs: number;
+  tokenExpiresAt: number;
 };
 
 export type PageResponse<T> = {
@@ -31,20 +47,71 @@ export class ApiRequestError extends Error {
 }
 
 let accessToken: string | null = null;
+let tokenGeneration = 0;
+let sessionTiming: AdminSessionTiming | null = null;
+let sessionRequest: Promise<boolean> | null = null;
 const AUTH_CHANNEL = "grun-admin-auth";
 const UNAUTHORIZED_EVENT = "grun-admin-unauthorized";
-const ACTIVITY_EVENT = "grun-admin-activity";
 const REAUTH_EVENT = "grun-admin-reauth-required";
 const REAUTH_RESULT_EVENT = "grun-admin-reauth-result";
 let reauthCodeResolver: ((code: string | null) => void) | null = null;
 const DEFAULT_TIMEOUT_MS = 20000;
+let telemetryFlushInFlight = false;
+
+type ClientFailure = { source: "ADMIN_WEB"; failureKind: "NETWORK" | "TIMEOUT"; method: string; route: string; occurredAt: string; durationMs: number; clientPlatform: "BROWSER"; appVersion: "admin-ui-v2" };
+const clientFailureQueue: ClientFailure[] = [];
+function safeTelemetryRoute(path: string): string {
+  try {
+    const pathname = new URL(path, window.location.origin).pathname;
+    if (!pathname.startsWith("/api/") || pathname.startsWith("/api/v1/error-telemetry/")) return "/api/[client-unmapped]";
+    return pathname.split("/").map(segment => /^(\d+|[0-9a-f]{8}-[0-9a-f-]{27,})$/i.test(segment) || segment.length > 48 || /%40|@/i.test(segment) ? "{id}" : segment.replace(/[^A-Za-z0-9_.{}\-\[\]]/g,"_")).join("/").slice(0,300);
+  } catch { return "/api/[client-unmapped]"; }
+}
+function queueClientFailure(kind: "NETWORK"|"TIMEOUT", path: string, method: string, durationMs: number) {
+  if (path.startsWith("/api/v1/error-telemetry/")) return;
+  try {
+    clientFailureQueue.push({ source:"ADMIN_WEB",failureKind:kind,method,route:safeTelemetryRoute(path),occurredAt:new Date().toISOString(),durationMs:Math.min(300000,Math.max(0,durationMs)),clientPlatform:"BROWSER",appVersion:"admin-ui-v2" });
+    if(clientFailureQueue.length>20)clientFailureQueue.splice(0,clientFailureQueue.length-20);
+  } catch { /* Telemetry must never break the admin request. */ }
+}
+async function flushClientFailures() {
+  if (telemetryFlushInFlight || !accessToken) return; telemetryFlushInFlight=true;
+  try {
+    const item=clientFailureQueue[0]; if(!item)return;
+    const response=await fetch("/api/v1/error-telemetry/client",{method:"POST",headers:{Accept:"application/json","Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},body:JSON.stringify(item)});
+    if(response.ok)clientFailureQueue.shift();
+  } catch { /* Keep the bounded item for the next successful request. */ } finally { telemetryFlushInFlight=false; }
+}
 
 export function getToken(): string | null { return accessToken; }
 
-export function saveTokens(response: LoginResponse) { accessToken = response.token; }
+export function saveTokens(response: LoginResponse) {
+  accessToken = response.token;
+  const state = response.adminSession;
+  sessionTiming = null;
+  if (state) {
+    const offset = Date.now() - Date.parse(state.serverTime);
+    const timing = {
+      sessionId: state.sessionId,
+      idleExpiresAt: Date.parse(state.idleExpiresAt) + offset,
+      absoluteExpiresAt: Date.parse(state.absoluteExpiresAt) + offset,
+      tokenExpiresAt: Date.parse(state.tokenExpiresAt) + offset,
+      idleTimeoutMs: state.idleTimeoutMs,
+    };
+    if (timing.sessionId && timing.idleTimeoutMs > 0 &&
+      [timing.idleExpiresAt, timing.absoluteExpiresAt, timing.tokenExpiresAt, timing.idleTimeoutMs].every(Number.isFinite)) {
+      sessionTiming = timing;
+    }
+  }
+}
+
+export function getAdminSessionTiming(): AdminSessionTiming | null { return sessionTiming; }
 
 export function clearTokens(broadcast = true) {
+  tokenGeneration += 1;
   accessToken = null;
+  sessionTiming = null;
+  sessionRequest = null;
   if (broadcast && "BroadcastChannel" in window) {
     const channel = new BroadcastChannel(AUTH_CHANNEL);
     channel.postMessage({ type: "logout" });
@@ -53,12 +120,57 @@ export function clearTokens(broadcast = true) {
 }
 
 export async function restoreAdminSession(): Promise<boolean> {
-  try { saveTokens(await request<LoginResponse>("/api/v1/auth/admin/refresh", { method: "POST", auth: false })); return true; }
-  catch { clearTokens(false); return false; }
+  return updateAdminSession(false);
+}
+
+export async function renewAdminSession(): Promise<boolean> {
+  // Wait for a read-only restore, then explicitly acknowledge human activity.
+  if (sessionRequest && !await sessionRequest) return false;
+  return updateAdminSession(true);
+}
+
+function updateAdminSession(humanActivity: boolean): Promise<boolean> {
+  if (sessionRequest) return sessionRequest;
+  const pending = performSessionUpdate(humanActivity);
+  sessionRequest = pending;
+  void pending.finally(() => { if (sessionRequest === pending) sessionRequest = null; }).catch(() => undefined);
+  return pending;
+}
+
+async function performSessionUpdate(humanActivity: boolean): Promise<boolean> {
+  const generation = tokenGeneration;
+  try {
+    const result = await request<LoginResponse>(humanActivity ? "/api/v1/auth/admin/refresh" : "/api/v1/auth/admin/session", {
+      method: humanActivity ? "POST" : "GET", auth: false
+    });
+    if (generation !== tokenGeneration) return false;
+    saveTokens(result);
+    return true;
+  } catch (error) {
+    if (generation !== tokenGeneration) return false;
+    if (error instanceof ApiRequestError && [400, 401, 403].includes(error.status)) {
+      clearTokens(false);
+      return false;
+    }
+    throw error;
+  }
 }
 
 export async function logoutAdmin(): Promise<void> {
-  try { await request("/api/v1/auth/admin/logout", { method: "POST", auth: false }); } finally { clearTokens(); }
+  clearTokens();
+  await request("/api/v1/auth/admin/logout", { method: "POST", auth: false });
+}
+
+/** Used only to scope cross-tab messages, never to authorize an operation. */
+export function adminSessionId(): string | null {
+  if (sessionTiming) return sessionTiming.sessionId;
+  try {
+    const payload = accessToken?.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const value = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="))).adminSessionId;
+    return typeof value === "string" ? value : null;
+  } catch { return null; }
 }
 
 function requestReauthCode(purpose: string): Promise<string | null> {
@@ -103,6 +215,7 @@ export async function request<T>(
     reauthRetry?: boolean;
   } = {}
 ): Promise<T> {
+  if (options.auth !== false) await ensureAdminAccess();
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...options.headers
@@ -119,6 +232,7 @@ export async function request<T>(
 
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const startedAt = Date.now(); const requestMethod = options.method ?? "GET";
   let response: Response;
   try {
     response = await fetch(path, {
@@ -130,14 +244,17 @@ export async function request<T>(
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
+      if(options.auth!==false)queueClientFailure("TIMEOUT",path,requestMethod,Date.now()-startedAt);
       throw new ApiRequestError("Request timed out. Check whether the backend is running.", 0, path);
     }
+    if(options.auth!==false)queueClientFailure("NETWORK",path,requestMethod,Date.now()-startedAt);
     throw new ApiRequestError(error instanceof Error ? error.message : "Network request failed", 0, path);
   } finally {
     window.clearTimeout(timeoutId);
   }
 
   const text = await response.text();
+  if(options.auth!==false)void flushClientFailures();
   const data = text ? safeJson(text) : null;
   if (!response.ok) {
     if (response.status === 428 && options.reauthRetry !== false && data && typeof data === "object") {
@@ -175,6 +292,7 @@ export async function requestFormData<T>(
   formData: FormData,
   options: { method?: string; timeoutMs?: number } = {}
 ): Promise<T> {
+  await ensureAdminAccess();
   const headers: Record<string, string> = { Accept: "application/json" };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -205,7 +323,6 @@ export async function requestFormData<T>(
     const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
     throw new ApiRequestError(message, response.status, path, correlationId);
   }
-  window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT));
   return data as T;
 }
 
@@ -213,6 +330,7 @@ export async function requestBlob(
   path: string,
   options: { timeoutMs?: number; headers?: Record<string, string>; reauthRetry?: boolean } = {},
 ): Promise<Blob> {
+  await ensureAdminAccess();
   const headers: Record<string, string> = { Accept: "text/csv", ...options.headers };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -257,12 +375,16 @@ export async function requestBlob(
     const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
     throw new ApiRequestError(message, response.status, path, correlationId);
   }
-  window.dispatchEvent(new CustomEvent(ACTIVITY_EVENT));
   return response.blob();
 }
-export function subscribeAdminActivity(handler: () => void): () => void {
-  window.addEventListener(ACTIVITY_EVENT, handler);
-  return () => window.removeEventListener(ACTIVITY_EVENT, handler);
+
+async function ensureAdminAccess(): Promise<void> {
+  if (!accessToken || !sessionTiming || sessionTiming.tokenExpiresAt - Date.now() > 5000) return;
+  // Refresh the bearer before a resumed tab sends its first request; do not retry a mutation.
+  if (!await restoreAdminSession()) {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    throw new ApiRequestError("Session expired. Please sign in again.", 401, "/api/v1/auth/admin/session");
+  }
 }
 
 export function subscribeUnauthorized(handler: () => void): () => void {

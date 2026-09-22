@@ -218,6 +218,30 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_preservesSourceCategoriesAndSelectsMlOnlyFromExplicitVolumeBasis() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = csv("""
+                barcode,name,calories,market_region,data_source,nutrition_reference_unit,source_categories
+                1111111111111,Milk Drink,50,UK_IE,OPEN_FOOD_FACTS,PER_100ML,"en:beverages,en:milk-drinks"
+                2222222222222,Rice Cooked With Water,130,UK_IE,OPEN_FOOD_FACTS,PER_100ML,en:rice-dishes
+                3333333333333,Drink Powder,300,UK_IE,OPEN_FOOD_FACTS,PER_100ML,"en:beverages,en:drink-powders"
+                """);
+
+        foodProductImportService.importCsv(file, "admin@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.GRUN_STANDARD);
+
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        List<FoodItemEntity> products = captor.getValue();
+        assertEquals(Set.of("en:beverages", "en:milk-drinks"), products.get(0).getSourceCategoryTags());
+        assertEquals("MILLILITER", products.get(0).getServingUnit());
+        assertEquals(null, products.get(1).getServingUnit());
+        assertEquals(null, products.get(2).getServingUnit());
+    }
+
+    @Test
     void importCsv_missingBasisPreservesExistingMilliliterReference() {
         FoodItemEntity existing = new FoodItemEntity();
         existing.setId(1L);

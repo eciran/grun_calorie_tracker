@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ProgressLogNotFoundException;
+import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.mapper.ProgressLogMapper;
 import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.service.ProgressLogService;
@@ -45,6 +46,7 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     public ProgressLogDto updateLog(Long id, ProgressLogDto log, String email) {
         UserEntity user = getUserByEmail(email);
         ProgressLogEntity entity = getOwnedLog(id, user);
+        rejectOnboardingBaselineMutation(entity);
         entity.setWeight(log.getWeight());
         entity.setCalorieIntake(log.getCalorieIntake());
         entity.setProteinIntake(log.getProteinIntake());
@@ -68,7 +70,9 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     @Transactional
     public void deleteLog(Long id, String email) {
         UserEntity user = getUserByEmail(email);
-        progressLogRepository.delete(getOwnedLog(id, user));
+        ProgressLogEntity entity = getOwnedLog(id, user);
+        rejectOnboardingBaselineMutation(entity);
+        progressLogRepository.delete(entity);
         bodyMeasurementService.deleteWeightFromProgress(id, email);
         analyticsCacheRevisionService.bump(user.getId(), AnalyticsMutationSource.PROGRESS);
     }
@@ -97,6 +101,12 @@ public class ProgressLogServiceImpl implements ProgressLogService {
     private ProgressLogEntity getOwnedLog(Long id, UserEntity user) {
         return progressLogRepository.findByIdAndUser(id, user)
                 .orElseThrow(() -> new ProgressLogNotFoundException("Progress log not found"));
+    }
+
+    private void rejectOnboardingBaselineMutation(ProgressLogEntity entity) {
+        if (entity.isOnboardingBaseline()) {
+            throw new RequestConflictException("Onboarding starting weight cannot be edited or deleted");
+        }
     }
 
     private UserEntity getUserByEmail(String email) {

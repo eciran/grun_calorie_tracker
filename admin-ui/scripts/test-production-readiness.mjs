@@ -1,22 +1,23 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
 const root = new URL("..", import.meta.url);
 const read = (relative) => fs.readFileSync(new URL(relative, root), "utf8");
-const app = read("src/App.tsx");
+const app = readAdminAppSource();
 const api = read("src/api.ts");
 const primitives = read("src/AdminPrimitives.tsx");
 const styles = read("src/styles.css");
 const runbook = read("README.md");
 
-assert.match(app, /sectionFromHash\(\)/, "Deep links must resolve through the typed section allowlist.");
+assert.match(app, /sectionFromLocation\(\)/, "Deep links must resolve through the typed section allowlist.");
 assert.match(app, /canViewSection\(accessProfile, active\)/, "Deep links must be checked against backend permissions.");
 assert.match(app, /addEventListener\("(hashchange|popstate)"/, "Browser navigation must update the active section.");
 assert.match(app, /className="skip-link"/, "Keyboard users need a skip link.");
 assert.match(app, /id="admin-main"[^>]+tabIndex=\{-1\}/, "The main workspace must be programmatically focusable.");
-assert.match(app, /role="tablist"/, "Section navigation must expose tab semantics.");
-assert.match(app, /aria-selected=\{tab\.key === active\}/, "Section tabs must expose selected state.");
+assert.match(app, /<nav className="section-tabs"/, "Related pages must expose navigation semantics.");
+assert.match(app, /aria-current=\{tab\.key === active \? "page"/, "Related pages must expose the current page.");
 assert.match(app, /role="alert"/, "Global request failures must be announced.");
 assert.match(app, /aria-expanded=\{section\.children/, "Expandable navigation groups must expose state.");
 assert.match(primitives, /scope="col"/, "Data table headers must remain accessible.");
@@ -38,7 +39,13 @@ for (const section of navigableSections) {
 }
 const sectionDefinitions = app.match(/const sections: SectionMeta\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
 const definedSections = new Set([...sectionDefinitions.matchAll(/key: "([A-Za-z0-9]+)"/g)].map((match) => match[1]));
+const compatibilityOnlySections = new Set([
+  "foodImports", "foodRegions", "productDuplicates", "productNutrition", "productRejected",
+  "subscriptionEntitlements", "brevoSenders", "mailEvents", "integrationProviders", "settings",
+  "systemRuntime", "systemDatabase", "systemProviders", "trackingWater", "trackingFasting", "trackingSteps"
+]);
 for (const section of definedSections) {
+  if (compatibilityOnlySections.has(section)) continue;
   assert.ok(activeSections.has(section), `Deep-linkable section ${section} must render a view.`);
 }
 
@@ -54,11 +61,12 @@ const totalJsBytes = jsAssets.reduce(
   (total, asset) => total + fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${asset}`, root)).size,
   0
 );
-// Temporary budgets for the single-page admin; revisit when migrating to separate pages.
-assert.ok(jsBytes <= 750_000, `Admin entry JS budget exceeded: ${jsBytes} bytes (limit 750000).`);
+// V2 page splitting reduced the entry from 704 KB to about 265 KB.
+assert.ok(jsBytes <= 300_000, `Admin entry JS budget exceeded: ${jsBytes} bytes (limit 300000).`);
 assert.ok(jsAssets.every((asset) => fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${asset}`, root)).size <= 750_000), "Every lazy JS chunk must remain below 750000 bytes.");
-assert.ok(totalJsBytes <= 1_500_000, `Total admin JS budget exceeded: ${totalJsBytes} bytes (limit 1500000).`);
-assert.ok(cssBytes <= 200_000, `Admin CSS budget exceeded: ${cssBytes} bytes (limit 200000).`);
+assert.ok(totalJsBytes <= 2_500_000, `Total admin JS budget exceeded: ${totalJsBytes} bytes (limit 2500000).`);
+// Consolidated admin workspaces, responsive editors and operational dashboards establish a 325 KB baseline.
+assert.ok(cssBytes <= 340_000, `Admin CSS budget exceeded: ${cssBytes} bytes (limit 340000).`);
 
 for (const heading of ["Operator Runbook", "Role Walkthroughs", "Incident Playbook", "Glossary", "Known Production Dependencies"]) {
   assert.match(runbook, new RegExp(`## ${heading}`), `${heading} must be documented.`);

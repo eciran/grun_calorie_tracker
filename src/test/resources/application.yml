@@ -32,6 +32,8 @@ openfoodfacts:
   base-url: https://world.openfoodfacts.org
 
 grun:
+  scheduling:
+    enabled: false
   ai:
     completion-notifications:
       enabled: false

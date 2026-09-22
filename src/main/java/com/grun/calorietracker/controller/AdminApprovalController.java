@@ -58,7 +58,9 @@ public class AdminApprovalController {
     private void requireMakerPermission(AdminApprovalActionType actionType, UserDetails user) {
         String requiredAuthority = switch (actionType) {
             case SUBSCRIPTION_UPDATE, AI_QUOTA_RESET, AI_ADDON_QUOTA_GRANT,
-                    ENTITLEMENT_MATRIX_APPLY, PLAN_FEATURE_UPDATE, AI_QUOTA_REFUND ->
+                    ENTITLEMENT_MATRIX_APPLY, PLAN_FEATURE_UPDATE, AI_QUOTA_REFUND,
+                    PROMOTION_CREATE, PROMOTION_UPDATE, PROMOTION_ACTIVATE,
+                    PROMOTION_DEACTIVATE, PROMOTION_RECONCILE ->
                     "ADMIN_PERMISSION_FINANCE_MANAGE";
             case NOTIFICATION_CAMPAIGN_SCHEDULE -> "ADMIN_PERMISSION_GROWTH_MANAGE";
             case SUBSCRIPTION_NOTIFICATION_POLICY_PUBLISH, SUBSCRIPTION_NOTIFICATION_DEFINITION_PUBLISH ->

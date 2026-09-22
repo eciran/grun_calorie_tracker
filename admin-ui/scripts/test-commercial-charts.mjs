@@ -1,11 +1,12 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const app = fs.readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const app = readAdminAppSource();
 const chart = fs.readFileSync(new URL("../src/RevenueCatEChart.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 
-assert.match(app, /lazy\(\(\) => import\("\.\/RevenueCatEChart"\)/, "Commercial charts must be loaded outside the admin shell bundle.");
+assert.match(app, /lazy\(\(\) => import\("\.\.?\/RevenueCatEChart"\)/, "Commercial charts must be loaded outside the admin shell bundle.");
 assert.match(app, /<RevenueCatEChart chart=\{\{ \.\.\.chart, points \}\}/, "RevenueCat monitoring must render the shared ECharts view.");
 assert.doesNotMatch(app, /function RevenueCatAnalyticsChart[\s\S]*?<svg/, "RevenueCat analytics must not return to hand-built SVG charting.");
 assert.match(chart, /AdminEChart/, "Commercial charts must use the shared chart engine.");

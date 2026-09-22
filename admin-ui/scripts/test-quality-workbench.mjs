@@ -1,10 +1,12 @@
+import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const app = readFileSync(resolve(root, "src/App.tsx"), "utf8");
+const app = readAdminAppSource();
+const productIntake = readFileSync(resolve(root, "src/ProductIntakeView.tsx"), "utf8");
 
 const requiredWorkbenchTabs = ["overview", "nutrition", "names", "aliases", "serving", "evidence", "ai", "audit"];
 for (const tab of requiredWorkbenchTabs) {
@@ -27,5 +29,12 @@ for (const unsafeField of ["verificationStatus", "marketRegion", "imageUrl", "al
 assert.match(app, /ai-validate-selected/, "Bulk AI validation endpoint is not wired.");
 assert.match(app, /selectedOpenSuggestionIds/, "Bulk AI validation must use explicit admin selection.");
 assert.match(app, /Math\.min\(selectedOpenSuggestionIds\.length, 25\)/, "Bulk AI selection must remain capped at 25.");
+assert.match(app, /readProductReviewRouteState/, "Product review filters must be restorable from the page URL.");
+assert.match(app, /productReviewRouteSearch/, "Product review state must be serialized into the page URL.");
+assert.match(app, /params\.set\("productId", String\(state\.selectedProductId\)\)/, "Selected product identity must be persisted for reload/back navigation.");
+assert.match(productIntake, /OCR processing history/, "Product intake must expose persisted OCR processing history.");
+assert.match(productIntake, /v3Fields[\s\S]*v4Fields[\s\S]*fallbackFields[\s\S]*confirmedFields/, "OCR review must compare parser, fallback, and user-confirmed fields.");
+assert.match(productIntake, /run\.fallbackInvoked[\s\S]*run\.latencyMs[\s\S]*run\.estimatedCostUsd/, "OCR review must distinguish fallback execution, latency, and measured cost.");
+assert.match(productIntake, /isOwner && run\.correlationId[\s\S]*sectionPaths\.errors/, "OCR Error Center drill-down must be owner-only and correlation-based.");
 
 console.log("Product quality workbench UI contract passed.");

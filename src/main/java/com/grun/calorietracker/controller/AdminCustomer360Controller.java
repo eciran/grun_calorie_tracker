@@ -4,6 +4,7 @@ import com.grun.calorietracker.dto.AdminCustomer360Dto;
 import com.grun.calorietracker.dto.AdminUserRiskActionRequestDto;
 import com.grun.calorietracker.dto.AdminUserSupportNoteDto;
 import com.grun.calorietracker.dto.AdminUserSupportNoteRequestDto;
+import com.grun.calorietracker.dto.AdminUserNotificationRequestDto;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.security.CorrelationIdFilter;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
@@ -56,6 +58,27 @@ public class AdminCustomer360Controller {
                 correlationId(httpRequest)
         );
         return note;
+    }
+
+    @PostMapping("/{userId}/notifications")
+    @Transactional
+    public AdminCustomer360Dto.NotificationItem sendNotification(
+            @PathVariable Long userId,
+            @RequestBody @Valid AdminUserNotificationRequestDto request,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+        String adminEmail = adminEmail(userDetails);
+        AdminCustomer360Dto.NotificationItem notification = customer360Service.sendNotification(userId, request);
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.USER_NOTIFICATION_SEND,
+                AdminAuditTargetType.USER_ACCOUNT,
+                userId.toString(),
+                null,
+                Map.of("notificationId", notification.id(), "category", notification.category(), "severity", notification.severity(), "delivery", request.delivery()),
+                correlationId(httpRequest)
+        );
+        return notification;
     }
 
     @PostMapping("/{userId}/sessions/revoke")

@@ -41,6 +41,17 @@ public class AdminAiMonitoringSummaryDto {
     private List<ProviderModelMetric> providerModels;
     private List<RequestStatusMetric> requestStatuses;
     private List<OperationsSegmentMetric> segments;
+    private List<HourlyMetric> timeline;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class HourlyMetric {
+        private LocalDateTime bucketStart;
+        private String costCurrency;
+        private long requestCount;
+        private double estimatedCost;
+    }
     private boolean attentionRequired;
     private List<OperationalAlert> alerts;
     @Data

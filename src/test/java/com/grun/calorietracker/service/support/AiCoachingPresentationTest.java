@@ -11,6 +11,59 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AiCoachingPresentationTest {
     @Test
+    void removesCrossSectionRepetitionAndKeepsUsefulActions() {
+        var response = new AiInsightResponseDto();
+        response.setSummary("Your recorded water target is met.");
+        var finding = new AiInsightResponseDto.KeyFinding();
+        finding.setMessage("Water was recorded on five of seven days.");
+        finding.setEvidence("Your recorded water target is met.");
+        var action = new AiInsightResponseDto.PersonalizedAction();
+        action.setAction("Record water after lunch tomorrow.");
+        action.setReason("Water was recorded on five of seven days.");
+        action.setExpectedImpact("This makes tomorrow's record easier to review.");
+        response.setKeyFindings(List.of(finding));
+        response.setPersonalizedActions(List.of(action));
+        response.setTomorrowFocus("Record water after lunch tomorrow!");
+        response.setWatchOut("Some days have incomplete records.");
+        response.setWarnings(List.of("Some days have incomplete records."));
+        response.setDataQualityNote("Some days have incomplete records.");
+        response.setReviewReasons(List.of("Some days have incomplete records."));
+        AiCoachingPresentation.clean(response);
+        assertEquals("", response.getTomorrowFocus());
+        assertEquals("", finding.getEvidence());
+        assertEquals("", action.getReason());
+        assertFalse(action.getExpectedImpact().isBlank());
+        assertTrue(response.getWarnings().isEmpty());
+        assertTrue(response.getReviewReasons().isEmpty());
+        assertEquals("", response.getDataQualityNote());
+        assertEquals(List.of(action.getAction()), response.getRecommendedActions());
+        AiCoachingPresentation.clean(response);
+        assertEquals(1, response.getKeyFindings().size());
+        assertEquals(1, response.getPersonalizedActions().size());
+        assertFalse(action.getExpectedImpact().isBlank());
+    }
+
+    @Test
+    void doesNotMergeDifferentQuantitiesOrNegatedAdvice() {
+        var response = new AiInsightResponseDto();
+        response.setWarnings(List.of("Recorded 1.5 L.", "Recorded 15 L.", "Increase activity.", "Do not increase activity."));
+        AiCoachingPresentation.clean(response);
+        assertEquals(4, response.getWarnings().size());
+    }
+
+    @Test
+    void removesSummaryDuplicateFromLegacyFallbackToo() {
+        var response = new AiInsightResponseDto();
+        response.setSummary("Water target met.");
+        response.setHighlights(List.of("Water target met!"));
+        response.setRecommendedActions(List.of("Record water after lunch."));
+        response.setTomorrowFocus("Record water after lunch.");
+        AiCoachingPresentation.clean(response);
+        assertTrue(response.getHighlights().isEmpty());
+        assertEquals("", response.getTomorrowFocus());
+        assertEquals(1, response.getRecommendedActions().size());
+    }
+    @Test
     void cleansHistoricalTextWithoutMutatingStoredPayloadOrMachineFields() throws Exception {
         var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         var original = mapper.readTree("{\"summary\":\"Rest today.\",\"keyFindings\":[{\"evidence\":\"totalExerciseMinutes=30\"}],"
@@ -36,7 +89,7 @@ class AiCoachingPresentationTest {
         action.setLinkedMetric("totalExerciseMinutes");
         response.setPersonalizedActions(List.of(action, action));
         AiCoachingPresentation.clean(response);
-        assertEquals(1, response.getKeyFindings().size());
+        assertEquals(0, response.getKeyFindings().size());
         assertEquals("", finding.getEvidence());
         assertEquals("", finding.getImpact());
         assertEquals("Recorded exercise was 30 minutes.", response.getSummary());
@@ -64,6 +117,9 @@ class AiCoachingPresentationTest {
             assertTrue(prompt.contains("Missing records are unknown"));
             assertTrue(prompt.contains("at most 3 distinct"));
             assertTrue(prompt.contains("request.language"));
+            assertTrue(prompt.contains("semantic repetition"));
+            assertTrue(prompt.contains("how to check completion"));
+            assertTrue(prompt.contains("target is already met"));
         }
         assertFalse(AiPromptTemplates.request(AiRequestType.AI_RECIPE_GENERATION, "{}")
                 .contains("Produce concise coaching"));

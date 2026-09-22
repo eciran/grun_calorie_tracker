@@ -39,6 +39,7 @@ import com.grun.calorietracker.service.FoodProductEvidenceService;
 import com.grun.calorietracker.service.support.BatchQuerySupport;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
+import com.grun.calorietracker.service.support.FoodLiquidUnitClassifier;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import lombok.RequiredArgsConstructor;
@@ -356,6 +357,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setPreparationState(preparationState);
         product.setNutritionBasis(resolveNutritionBasis(row, catalogType));
         product.setNutritionReferenceUnit(referenceUnit);
+        Set<String> sourceCategoryTags = resolveSourceCategoryTags(row);
+        if (!sourceCategoryTags.isEmpty()) {
+            product.setSourceCategoryTags(sourceCategoryTags);
+        }
         mergeMarketAvailability(product, row, regionResolution.region());
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
 
@@ -394,6 +399,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         String servingUnit = resolveServingUnit(row);
         if (servingUnit != null) {
             product.setServingUnit(servingUnit);
+        } else if (FoodLiquidUnitClassifier.classify(product.getSourceCategoryTags(), referenceUnit)
+                == FoodLiquidUnitClassifier.Decision.ML_SOURCE_SUPPORTED) {
+            product.setServingUnit("MILLILITER");
         }
 
         updateQualityMetadata(product, importMode);
@@ -1684,6 +1692,18 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return "g";
         }
         return null;
+    }
+
+    private Set<String> resolveSourceCategoryTags(CsvRow row) {
+        String raw = firstText(row, "source_categories", "source_category_tags", "categories_tags");
+        if (raw == null) {
+            return Set.of();
+        }
+        return java.util.Arrays.stream(raw.split("[,;]"))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
     private Map<String, Integer> indexHeaders(List<String> headers) {

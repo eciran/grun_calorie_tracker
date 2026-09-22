@@ -5,6 +5,7 @@ import com.grun.calorietracker.enums.NotificationCampaignRecipientStatus;
 import com.grun.calorietracker.enums.NotificationCampaignStatus;
 import com.grun.calorietracker.security.CorrelationIdFilter;
 import com.grun.calorietracker.service.AdminNotificationCampaignService;
+import com.grun.calorietracker.service.BrevoCampaignEmailService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -30,6 +31,11 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Admin Notification Campaigns", description = "Admin-only audience targeting and controlled notification campaign operations.")
 public class AdminNotificationCampaignController {
     private final AdminNotificationCampaignService campaignService;
+    private final BrevoCampaignEmailService campaignEmailService;
+
+    @GetMapping("/email-templates")
+    @Operation(summary = "List active Brevo templates available to marketing campaigns")
+    public ResponseEntity<java.util.List<AdminBrevoTemplateDto>> emailTemplates(){return ResponseEntity.ok(campaignEmailService.templates());}
 
     @GetMapping
     @Operation(summary = "List notification campaigns")

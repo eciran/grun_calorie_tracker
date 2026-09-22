@@ -25,6 +25,7 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.repository.FoodProductSourceEvidenceRepository;
+import com.grun.calorietracker.repository.ProductNutritionOcrShadowRunRepository;
 import com.grun.calorietracker.service.AdminProductIntakeService;
 import com.grun.calorietracker.service.FoodProductReviewCaseService;
 import com.grun.calorietracker.service.FoodProductReviewCaseEvidenceService;
@@ -81,6 +82,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private CatalogMediaService catalogMediaService;
     private ProductIntakeApplyGate applyGate;
     private FoodProductIntakeMetrics intakeMetrics;
+    private ProductNutritionOcrShadowRunRepository ocrShadowRunRepository;
     @Autowired(required = false)
     private PushDeliveryService pushDeliveryService;
 
@@ -136,6 +138,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Autowired
     public void setIntakeMetrics(FoodProductIntakeMetrics intakeMetrics) {
         this.intakeMetrics = intakeMetrics;
+    }
+    @Autowired
+    public void setOcrShadowRunRepository(ProductNutritionOcrShadowRunRepository ocrShadowRunRepository) {
+        this.ocrShadowRunRepository = ocrShadowRunRepository;
     }
 
     @Override
@@ -458,7 +464,35 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getId(),
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getPublicationStatus(),
                 submitted, catalog, comparisons(submitted, catalog), List.copyOf(warnings), expiry, evidence,
-                corroboratingEvidence(reviewCase));
+                corroboratingEvidence(reviewCase), ocrRuns(caseId, warnings));
+    }
+
+    private List<AdminProductIntakeDetailDto.OcrRun> ocrRuns(Long caseId, List<String> warnings) {
+        if (ocrShadowRunRepository == null) return List.of();
+        return ocrShadowRunRepository.findByReviewCaseIdOrderByCreatedAtDescIdDesc(caseId).stream()
+                .map(run -> new AdminProductIntakeDetailDto.OcrRun(
+                        run.getId(), run.getCorrelationId(), run.getParserVersion(), run.getModel(), run.getFallbackInvoked(),
+                        jsonMap(run.getV3FieldsJson(), warnings, "OCR_V3_FIELDS_INVALID:" + run.getId()),
+                        jsonMap(run.getV4FieldsJson(), warnings, "OCR_V4_FIELDS_INVALID:" + run.getId()),
+                        jsonMap(run.getGeminiFieldsJson(), warnings, "OCR_FALLBACK_FIELDS_INVALID:" + run.getId()),
+                        jsonMap(run.getUserFieldsJson(), warnings, "OCR_CONFIRMED_FIELDS_INVALID:" + run.getId()),
+                        run.getV3ExactMatchRate(), run.getV4ExactMatchRate(), run.getGeminiExactMatchRate(),
+                        run.getV3BasisExact(), run.getV4BasisExact(), run.getGeminiBasisExact(),
+                        run.getLatencyMs(), run.getEstimatedCostUsd(),
+                        jsonMap(run.getReconciliationJson(), warnings, "OCR_RECONCILIATION_INVALID:" + run.getId()),
+                        run.getCreatedAt()))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> jsonMap(String json, List<String> warnings, String warning) {
+        try {
+            if (json == null || json.isBlank()) return Map.of();
+            return objectMapper.readValue(json, LinkedHashMap.class);
+        } catch (JsonProcessingException failure) {
+            warnings.add(warning);
+            return Map.of();
+        }
     }
 
     @SuppressWarnings("unchecked")

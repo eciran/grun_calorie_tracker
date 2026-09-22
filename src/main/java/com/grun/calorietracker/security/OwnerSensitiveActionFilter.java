@@ -54,6 +54,7 @@ public class OwnerSensitiveActionFilter extends OncePerRequestFilter {
         if("GET".equals(method)||"HEAD".equals(method))return null;
         if(path.startsWith("/api/v1/admin/security/team"))return AdminReauthenticationPurpose.ADMIN_TEAM;
         if(path.startsWith("/api/v1/admin/security/mfa/disable")||path.startsWith("/api/v1/admin/security/sessions")||path.startsWith("/api/v1/admin/security/owner-sessions"))return AdminReauthenticationPurpose.OWNER_SECURITY;
+        if(path.startsWith("/api/v1/admin/errors/groups/"))return AdminReauthenticationPurpose.OWNER_ERROR_ACTION;
         if(path.contains("feature")||path.contains("entitlement"))return AdminReauthenticationPurpose.FEATURE_ENTITLEMENT;
         if(path.contains("ai-credit-pricing")||path.contains("/ai/monitoring/policy")||path.contains("/ai/quota")||path.contains("/ai/credits"))return AdminReauthenticationPurpose.AI_POLICY;
         if(path.contains("subscription")||path.contains("revenuecat"))return AdminReauthenticationPurpose.SUBSCRIPTION_POLICY;

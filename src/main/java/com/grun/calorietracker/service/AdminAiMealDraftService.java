@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface AdminAiMealDraftService {
     Page<AdminAiRequestReviewDto> listRequests(AiRequestType requestType, AiRequestStatus status, boolean refundableOnly, Pageable pageable);
+    Page<AdminAiRequestReviewDto> listRequestsForUser(Long userId, AiRequestType requestType, AiRequestStatus status, boolean refundableOnly, Pageable pageable);
     AdminAiRequestInspectionDto inspectRequest(Long requestId);
     AdminAiMonitoringSummaryDto getMonitoringSummary(int windowHours);
     AdminAiQuotaRefundResponseDto refundQuota(String adminEmail, Long requestId, AdminAiQuotaRefundRequestDto request);

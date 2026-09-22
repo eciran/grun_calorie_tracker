@@ -32,6 +32,22 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class FederatedAuthServiceImplTest {
 
+    @Test
+    void googleLoginLinksHistoricalMixedCaseUserWithoutCreatingAnotherAccount() {
+        UserEntity existing = new UserEntity(); existing.setId(77L);
+        org.springframework.test.util.ReflectionTestUtils.setField(existing, "email", "Same@example.com");
+        existing.setEmailVerified(true);
+        when(googleIdTokenVerifierService.verify("case-token"))
+                .thenReturn(new VerifiedGoogleIdentityDto("case-sub", "same@example.com", "Name", true));
+        when(userRepository.findByEmail("same@example.com")).thenReturn(Optional.of(existing));
+        federatedAuthService.loginWithGoogle("case-token");
+        var captor = ArgumentCaptor.forClass(FederatedIdentityEntity.class);
+        verify(federatedIdentityRepository).save(captor.capture());
+        assertSame(existing, captor.getValue().getUser());
+        assertEquals(77L, captor.getValue().getUser().getId());
+        verify(userRepository, never()).save(any());
+    }
+
     @Mock
     private GoogleIdTokenVerifierService googleIdTokenVerifierService;
 

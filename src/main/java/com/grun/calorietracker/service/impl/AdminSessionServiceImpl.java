@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.AdminSessionDto;
 import com.grun.calorietracker.dto.AdminSessionPageDto;
 import com.grun.calorietracker.dto.AuthResponse;
+import com.grun.calorietracker.dto.AdminSessionAuthResponse;
 import com.grun.calorietracker.dto.OwnerAdminSessionDto;
 import com.grun.calorietracker.dto.OwnerAdminSessionPageDto;
 import com.grun.calorietracker.entity.AdminSessionEntity;
@@ -52,17 +53,21 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     @Override @Transactional
     public AdminSessionLogin create(UserEntity user,String userAgent,String remoteAddress) {
         if (user.getRole() == null || !user.getRole().isAdminRole()) throw new IllegalArgumentException("Admin account required.");
+        UserEntity sessionUser=user;
+        if(users!=null&&user.getId()!=null)sessionUser=users.findByIdForUpdate(user.getId()).orElse(user);
         Instant now=Instant.now(); String raw=randomToken();
         AdminSessionEntity session=new AdminSessionEntity();
-        session.setId(UUID.randomUUID().toString()); session.setUser(user); session.setSessionTokenHash(hash(raw));
+        session.setId(UUID.randomUUID().toString()); session.setUser(sessionUser); session.setSessionTokenHash(hash(raw));
         session.setCreatedAt(now); session.setLastActivityAt(now); session.setAbsoluteExpiresAt(now.plus(absoluteTimeout));
         session.setDeviceLabel(deviceLabel(userAgent)); session.setMaskedIp(maskIp(remoteAddress));
-        var existingSessions=sessions.findByUserAndRevokedAtIsNull(user);
+        var existingSessions=sessions.findByUserAndRevokedAtIsNull(sessionUser);
         boolean unfamiliar=existingSessions==null || existingSessions.stream().noneMatch(existing->safe(existing.getDeviceLabel(),"").equals(session.getDeviceLabel())&&safe(existing.getMaskedIp(),"").equals(session.getMaskedIp()));
+        int revoked=0;
+        if(existingSessions!=null)for(AdminSessionEntity existing:existingSessions){existing.setRevokedAt(now);revoked++;}
         sessions.save(session);
-        if(auditService!=null)auditService.record(user.getEmail(),AdminAuditActionType.ADMIN_SESSION_CREATE,AdminAuditTargetType.ADMIN_SESSION,session.getId(),null,Map.of("device",session.getDeviceLabel(),"maskedIp",session.getMaskedIp()),null);
-        boolean recovery="root-owner@gruncalorietracker.com".equalsIgnoreCase(user.getEmail());
-        if(recovery&&auditService!=null)auditService.record(user.getEmail(),AdminAuditActionType.RECOVERY_OWNER_LOGIN,AdminAuditTargetType.ADMIN_ACCOUNT,user.getEmail(),null,Map.of("device",session.getDeviceLabel(),"maskedIp",session.getMaskedIp()),null);
+        if(auditService!=null)auditService.record(sessionUser.getEmail(),AdminAuditActionType.ADMIN_SESSION_CREATE,AdminAuditTargetType.ADMIN_SESSION,session.getId(),null,Map.of("device",session.getDeviceLabel(),"maskedIp",session.getMaskedIp(),"replacedSessions",revoked),null);
+        boolean recovery="root-owner@gruncalorietracker.com".equalsIgnoreCase(sessionUser.getEmail());
+        if(recovery&&auditService!=null)auditService.record(sessionUser.getEmail(),AdminAuditActionType.RECOVERY_OWNER_LOGIN,AdminAuditTargetType.ADMIN_ACCOUNT,sessionUser.getEmail(),null,Map.of("device",session.getDeviceLabel(),"maskedIp",session.getMaskedIp()),null);
         if(recovery||unfamiliar)notifyPrimaryOwner(recovery?"Recovery owner account used":"Unfamiliar owner sign-in",recovery?"The break-glass recovery owner created a new admin session.":"A new device or masked network was observed for an admin session.",session);
         return new AdminSessionLogin(response(session,"Admin login successful"),raw);
     }
@@ -76,9 +81,17 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     }
 
     @Override @Transactional
+    public AuthResponse restore(String raw) {
+        AdminSessionEntity session=sessions.findBySessionTokenHashAndRevokedAtIsNull(hash(raw))
+                .orElseThrow(() -> new IllegalArgumentException("Admin session is invalid or expired."));
+        requireUsable(session, Instant.now());
+        return response(session, "Admin session restored");
+    }
+
+    @Override @Transactional
     public boolean validateAndTouch(String id,String email) {
         return sessions.findById(id).filter(s -> s.getUser().getEmail().equalsIgnoreCase(email)).map(s -> {
-            try { requireUsable(s,Instant.now()); s.setLastActivityAt(Instant.now()); return true; }
+            try { requireUsable(s,Instant.now()); return true; }
             catch (IllegalArgumentException ex) { return false; }
         }).orElse(false);
     }
@@ -137,7 +150,14 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     private void notifyPrimaryOwner(String title,String message,AdminSessionEntity session){if(notifications==null||users==null||primaryOwnerEmail==null||primaryOwnerEmail.isBlank())return;users.findByEmail(primaryOwnerEmail).ifPresent(primary->{NotificationEntity n=new NotificationEntity();n.setUser(primary);n.setTitle(title);n.setMessage(message);n.setNote("Device: "+session.getDeviceLabel()+" | Network: "+session.getMaskedIp());n.setType("admin_security_alert");n.setSeverity("CRITICAL");n.setSource("ADMIN_SECURITY");n.setTargetType("ADMIN_SESSION");n.setTargetId(session.getId());n.setTargetRoute("admins");n.setVisibleInApp(true);n.setIsRead(false);n.setCreatedAt(LocalDateTime.now());NotificationEntity saved=notifications.save(n);if(pushDeliveryService!=null)pushDeliveryService.deliver(saved);});}
     private void audit(String email,AdminAuditActionType action,String id,String reason,String correlationId){if(auditService!=null)auditService.record(email,action,AdminAuditTargetType.ADMIN_SESSION,id,null,Map.of("reason",reason),correlationId);}
     private void requireUsable(AdminSessionEntity s,Instant now) { UserEntity u=s.getUser(); if(s.getRevokedAt()!=null || !s.getAbsoluteExpiresAt().isAfter(now) || !s.getLastActivityAt().plus(idleTimeout).isAfter(now) || !Boolean.TRUE.equals(u.getAccountEnabled()) || Boolean.TRUE.equals(u.getAccountLocked()) || u.getRole()==null || !u.getRole().isAdminRole()) { if(s.getRevokedAt()==null) s.setRevokedAt(now); throw new IllegalArgumentException("Admin session is invalid or expired."); } }
-    private AuthResponse response(AdminSessionEntity s,String message) { String jwt=jwtUtil.generateAdminSessionToken(s.getUser().getEmail(),s.getId(),s.getAbsoluteExpiresAt()); return new AuthResponse(jwt,null,"Bearer",jwtUtil.getExpirationSeconds(),message); }
+    private AuthResponse response(AdminSessionEntity s,String message) {
+        Instant now = Instant.now();
+        long seconds = Math.max(0, Math.min(jwtUtil.getExpirationSeconds(), Duration.between(now, s.getAbsoluteExpiresAt()).getSeconds()));
+        String jwt=jwtUtil.generateAdminSessionToken(s.getUser().getEmail(),s.getId(),s.getAbsoluteExpiresAt());
+        return new AdminSessionAuthResponse(jwt, seconds, message,
+                new AdminSessionAuthResponse.SessionState(s.getId(), now, s.getLastActivityAt().plus(idleTimeout),
+                        s.getAbsoluteExpiresAt(), idleTimeout.toMillis(), now.plusSeconds(seconds)));
+    }
     private String deviceLabel(String ua){if(ua==null||ua.isBlank())return "Unknown browser";String browser=ua.contains("Edg/")?"Edge":ua.contains("Chrome/")?"Chrome":ua.contains("Firefox/")?"Firefox":ua.contains("Safari/")?"Safari":"Other browser";String os=ua.contains("Windows")?"Windows":ua.contains("Mac OS")?"macOS":ua.contains("Android")?"Android":ua.contains("iPhone")||ua.contains("iPad")?"iOS":ua.contains("Linux")?"Linux":"Unknown OS";return browser+" on "+os;}
     static String maskIp(String ip){if(ip==null||ip.isBlank())return "Unknown";String value=ip.split(",")[0].trim();if(value.contains(".")){String[] p=value.split("\\.");return p.length==4?p[0]+"."+p[1]+"."+p[2]+".x":"Masked";}if(value.contains(":")){String[] p=value.split(":");return (p.length>1?p[0]+":"+p[1]:p[0])+":…";}return "Masked";}
     private String safe(String value,String fallback){return value==null||value.isBlank()?fallback:value;}

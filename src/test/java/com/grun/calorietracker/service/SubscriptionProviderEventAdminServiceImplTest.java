@@ -46,7 +46,7 @@ class SubscriptionProviderEventAdminServiceImplTest {
         when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(event)));
 
-        var result = service.getEvents(SubscriptionProviderEventStatus.FAILED, "RENEWAL", "grun_pro_monthly", 1L, 0, 25);
+        var result = service.getEvents(SubscriptionProviderEventStatus.FAILED, "RENEWAL", null, "grun_pro_monthly", 1L, 0, 25);
 
         assertEquals(1, result.getContent().size());
         assertEquals("evt_1", result.getContent().get(0).getProviderEventId());

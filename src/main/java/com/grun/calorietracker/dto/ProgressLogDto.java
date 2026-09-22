@@ -40,4 +40,7 @@ public class ProgressLogDto {
 
     @Schema(description = "Optional user note.", example = "Felt strong during today's workout.")
     private String note;
+
+    @Schema(description = "True when this immutable entry is the starting weight captured during onboarding.", accessMode = Schema.AccessMode.READ_ONLY)
+    private boolean onboardingBaseline;
 }

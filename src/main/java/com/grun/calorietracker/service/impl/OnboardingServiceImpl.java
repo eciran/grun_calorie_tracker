@@ -15,6 +15,7 @@ import com.grun.calorietracker.dto.OnboardingStepUpdateRequestDto;
 import com.grun.calorietracker.dto.UserGoalDto;
 import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.OnboardingDraftEntity;
+import com.grun.calorietracker.entity.ProgressLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFitnessPreferenceEntity;
 import com.grun.calorietracker.entity.UserNutritionPreferenceEntity;
@@ -26,10 +27,12 @@ import com.grun.calorietracker.enums.OnboardingStep;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.repository.OnboardingDraftRepository;
+import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.UserFitnessPreferenceRepository;
 import com.grun.calorietracker.repository.UserNutritionPreferenceRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.OnboardingService;
+import com.grun.calorietracker.service.BodyMeasurementService;
 import com.grun.calorietracker.service.UserGoalService;
 import com.grun.calorietracker.service.UserService;
 import com.grun.calorietracker.service.support.UserAgeSupport;
@@ -57,6 +60,8 @@ public class OnboardingServiceImpl implements OnboardingService {
     private final UserFitnessPreferenceRepository userFitnessPreferenceRepository;
     private final UserTimeZoneSupport userTimeZoneSupport;
     private final UserAgeSupport userAgeSupport;
+    private final ProgressLogRepository progressLogRepository;
+    private final BodyMeasurementService bodyMeasurementService;
 
     @Override
     @Transactional(readOnly = true)
@@ -168,10 +173,31 @@ public class OnboardingServiceImpl implements OnboardingService {
                 email
         );
 
+        LocalDateTime completedAt = LocalDateTime.now();
+        persistStartingWeight(draft, draft.getUser(), completedAt, email);
         draft.setStatus(OnboardingStatus.COMPLETED);
-        draft.setCompletedAt(LocalDateTime.now());
+        draft.setCompletedAt(completedAt);
         onboardingDraftRepository.save(draft);
         return completedResponse(userService.getMyProfile(email), goal, calculation);
+    }
+
+    private void persistStartingWeight(
+            OnboardingDraftEntity draft,
+            UserEntity user,
+            LocalDateTime completedAt,
+            String email
+    ) {
+        if (draft.getWeight() == null || progressLogRepository.existsByUserAndOnboardingBaselineTrue(user)) {
+            return;
+        }
+        ProgressLogEntity baseline = new ProgressLogEntity();
+        baseline.setUser(user);
+        baseline.setLogDate(completedAt);
+        baseline.setWeight(draft.getWeight());
+        baseline.setOnboardingBaseline(true);
+        ProgressLogEntity saved = progressLogRepository.save(baseline);
+        bodyMeasurementService.syncWeightFromProgress(
+                saved.getId(), saved.getWeight(), saved.getLogDate(), email);
     }
 
     private OnboardingCompleteResponseDto currentCompletedResponse(

@@ -1,13 +1,17 @@
 import { FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { formatRequestError, PageResponse, request } from "./api";
-import { DataTable, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
+import { CollapsiblePanel, DataTable, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
 import {
+  AdminAccessProfile,
+  AdminApprovalRequest,
   RuntimeApiMetrics,
   RuntimeOperationRecord,
   RuntimeOperationsPolicy,
   SystemReliabilityAnalytics,
   ProductionVerificationRun
 } from "./types";
+import { ApprovalSubmissionNotice, submitAdminApproval } from "./admin/shared";
+import { useAdminLocale } from "./admin/locale";
 
 const ApiReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.ApiReliabilityChart })));
 const InfrastructureReliabilityChart = lazy(() => import("./SystemReliabilityCharts").then((module) => ({ default: module.InfrastructureReliabilityChart })));
@@ -33,7 +37,10 @@ const EMPTY_RECORD = {
   retryable: false
 };
 
-export function RuntimeOperationsView({ onError }: { onError: (message: string | null) => void }) {
+export function RuntimeOperationsView({ onError, accessProfile }: { onError: (message: string | null) => void; accessProfile: AdminAccessProfile | null }) {
+  const { locale } = useAdminLocale();
+  const tr = locale === "tr";
+  const tx = (en: string, trText: string) => tr ? trText : en;
   const [policy, setPolicy] = useState<RuntimeOperationsPolicy | null>(null);
   const [draft, setDraft] = useState<RuntimeOperationsPolicy | null>(null);
   const [metrics, setMetrics] = useState<RuntimeApiMetrics | null>(null);
@@ -51,6 +58,11 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [actionState, setActionState] = useState<"idle" | "loading">("idle");
   const [confirmAction, setConfirmAction] = useState<"save" | "rollback" | null>(null);
+  const [approvalNotice, setApprovalNotice] = useState<{ request: AdminApprovalRequest; message: string } | null>(null);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
 
   const changedFields = useMemo(() => {
     if (!policy || !draft) return [];
@@ -105,10 +117,8 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
     if (!draft) return;
     setActionState("loading");
     try {
-      await request("/api/v1/admin/approvals", {
-        method: "POST",
-        body: { actionType: "RUNTIME_POLICY_UPDATE", targetKey: "1", payload: { ...draft, reason }, reason }
-      });
+      const approval = await submitAdminApproval("RUNTIME_POLICY_UPDATE", "1", { ...draft, reason }, reason);
+      setApprovalNotice({ request: approval, message: "Runtime policy change is pending owner approval. The active policy has not changed." });
       setReason("");
       setConfirmAction(null);
       onError(null);
@@ -180,23 +190,24 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
   return (
     <div className="stack runtime-operations-view">
       <SectionToolbar
-        title="Production control center"
-        description="Backend-owned runtime policy, operational signals, incidents, backups, and scheduled job visibility."
+        title={tx("Production control center", "Canlı ortam kontrol merkezi")}
+        description={tx("Backend-owned runtime policy, operational signals, incidents, backups, and scheduled job visibility.", "Backend çalışma politikası, operasyon sinyalleri, olaylar, yedekler ve zamanlanmış işler.")}
         state={state}
         onReload={() => void load()}
       />
+      {approvalNotice && <ApprovalSubmissionNotice {...approvalNotice} isOwner={accessProfile?.role === "OWNER"} />}
 
       {metrics && (
         <div className="runtime-metric-grid">
-          <MetricCard label="API requests" value={String(metrics.requests)} hint={`Window since ${formatDate(metrics.windowStartedAt)}`} />
+          <MetricCard label={tx("API requests", "API istekleri")} value={String(metrics.requests)} hint={`${tx("Window since", "Pencere başlangıcı")} ${formatDate(metrics.windowStartedAt, locale)}`} />
           <MetricCard label="p95 latency" value={`${metrics.latencyP95Ms} ms`} hint={`p50 ${metrics.latencyP50Ms} / p99 ${metrics.latencyP99Ms}`} />
-          <MetricCard label="Error rate" value={`${(metrics.errorRate * 100).toFixed(2)}%`} hint={`${metrics.errors} server errors`} />
-          <MetricCard label="Security signals" value={String(metrics.authenticationFailures + metrics.authorizationFailures)} hint={`${metrics.rateLimited} rate limited`} />
+          <MetricCard label={tx("Error rate", "Hata oranı")} value={`${(metrics.errorRate * 100).toFixed(2)}%`} hint={`${metrics.errors} ${tx("server errors", "sunucu hatası")}`} />
+          <MetricCard label={tx("Security signals", "Güvenlik sinyalleri")} value={String(metrics.authenticationFailures + metrics.authorizationFailures)} hint={`${metrics.rateLimited} ${tx("rate limited", "hız sınırına takıldı")}`} />
         </div>
       )}
 
       {reliability && (
-        <Panel title="System and provider reliability" description="Privacy-safe operational aggregates. API history covers the current process lifetime; provider and operation windows use persisted records.">
+        <Panel title={tx("System and provider reliability", "Sistem ve sağlayıcı güvenilirliği")} description={tx("Privacy-safe operational aggregates. API history covers the current process lifetime; provider and operation windows use persisted records.", "Gizliliği koruyan operasyon özetleri. API geçmişi mevcut işlem ömrünü, sağlayıcı ve operasyon pencereleri kalıcı kayıtları kapsar.")}>
           <div className="reliability-toolbar" role="group" aria-label="Reliability time window">
             {[1, 24, 72, 168].map((hours) => (
               <button className={reliabilityWindowHours === hours ? "active" : ""} key={hours} onClick={() => setReliabilityWindowHours(hours)} type="button">
@@ -219,13 +230,13 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
         </Panel>
       )}
       {draft && (
-        <Panel title="Runtime policy" description="No provider secret or credential is stored in this policy. Every change is versioned and audited.">
+        <CollapsiblePanel className="runtime-collapsible runtime-policy-panel" title={tx("Runtime policy", "Çalışma zamanı politikası")} description={`${draft.maintenanceEnabled ? tx("Maintenance enabled", "Bakım modu etkin") : tx("Normal traffic", "Normal trafik")} · ${changedFields.length} ${tx("pending change(s)", "bekleyen değişiklik")} · ${tx("Version", "Sürüm")} ${draft.version ?? "-"}`} open={policyOpen} onToggle={() => setPolicyOpen(value => !value)}>
           <div className={`runtime-maintenance-banner ${draft.maintenanceEnabled ? "active" : ""}`}>
             <label className="toggle-field">
               <input type="checkbox" checked={draft.maintenanceEnabled} onChange={(event) => updateDraft("maintenanceEnabled", event.target.checked)} />
-              <span>Maintenance mode</span>
+              <span>{tx("Maintenance mode", "Bakım modu")}</span>
             </label>
-            <span>{draft.maintenanceEnabled ? "User API traffic will return 503; admin, auth, and webhook routes stay available." : "Normal user traffic is enabled."}</span>
+            <span>{draft.maintenanceEnabled ? tx("User API traffic will return 503; admin, auth, and webhook routes stay available.", "Kullanıcı API trafiği 503 döndürür; yönetici, kimlik doğrulama ve webhook yolları açık kalır.") : tx("Normal user traffic is enabled.", "Normal kullanıcı trafiği etkin.")}</span>
           </div>
           <div className="runtime-policy-grid">
             <label className="wide-field">Maintenance message<input maxLength={240} value={draft.maintenanceMessage} onChange={(event) => updateDraft("maintenanceMessage", event.target.value)} /></label>
@@ -253,11 +264,10 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
             <button className="ghost-button" disabled={!policy?.rollbackAvailable || reason.trim().length < 8 || actionState === "loading"} onClick={() => setConfirmAction("rollback")} type="button">Rollback previous</button>
             <span>Updated {formatDate(policy?.updatedAt)} by {policy?.updatedBy ?? "-"}</span>
           </div>
-        </Panel>
+        </CollapsiblePanel>
       )}
 
-      <div className="runtime-operations-split">
-        <Panel title="Record an operation" description="Create an incident, backup, or restore-drill record. Scheduled jobs remain backend-owned.">
+      <CollapsiblePanel className="runtime-collapsible runtime-record-panel" title={tx("Record an operation", "Operasyon kaydı oluştur")} description={tx("Create an incident, backup, or restore-drill evidence record.", "Olay, yedekleme veya geri yükleme tatbikatı kanıtı oluşturun.")} open={recordOpen} onToggle={() => setRecordOpen(value => !value)}>
           <form className="runtime-record-form" onSubmit={createRecord}>
             <label>Type<select value={recordDraft.recordType} onChange={(event) => setRecordDraft({ ...recordDraft, recordType: event.target.value, status: event.target.value === "INCIDENT" ? "OPEN" : "RUNNING" })}><option>INCIDENT</option><option>BACKUP</option><option>RESTORE_DRILL</option></select></label>
             <label>Status<select value={recordDraft.status} onChange={(event) => setRecordDraft({ ...recordDraft, status: event.target.value })}>{allowedStatuses.map((status) => <option key={status}>{status}</option>)}</select></label>
@@ -266,18 +276,13 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
             <label className="wide-field">Safe summary<textarea required maxLength={1000} value={recordDraft.summary} onChange={(event) => setRecordDraft({ ...recordDraft, summary: event.target.value })} placeholder="Do not include credentials, tokens, or customer payloads." /></label>
             <button className="primary-button" disabled={actionState === "loading"} type="submit">Save operation record</button>
           </form>
-        </Panel>
-        <Panel title="Operational guardrails">
-          <div className="runtime-guardrail-list">
-            <span>Secrets and raw provider payloads are excluded.</span>
-            <span>Maintenance leaves admin recovery, login, and webhooks available.</span>
-            <span>Feature rollout is an exposure control; backend entitlement checks remain authoritative.</span>
-            <span>Backup and restore rows are evidence records, not database control buttons.</span>
-          </div>
-        </Panel>
+      </CollapsiblePanel>
+      <div className="runtime-guardrail-strip" aria-label={tx("Operational guardrails", "Operasyon güvenlik sınırları")}>
+        <strong>{tx("Operational guardrails", "Operasyon güvenlik sınırları")}</strong>
+        <span>{tx("Secrets and raw payloads excluded", "Gizli değerler ve ham içerikler hariç")}</span><span>{tx("Admin recovery remains available", "Yönetici kurtarma erişimi korunur")}</span><span>{tx("Entitlements stay authoritative", "Haklar ana kaynak olarak kalır")}</span><span>{tx("Evidence records do not control databases", "Kanıt kayıtları veritabanlarını yönetmez")}</span>
       </div>
 
-      <Panel title="Production verification evidence" description="Record real sandbox, device, provider, backup, restore, and outage evidence. Never paste credentials or raw provider payloads.">
+      <CollapsiblePanel className="runtime-collapsible runtime-verification-panel" title={tx("Production verification evidence", "Canlı ortam doğrulama kanıtları")} description={`${verifications?.totalElements ?? 0} ${tx("evidence record(s) · sandbox, device, provider and recovery checks", "kanıt kaydı · sandbox, cihaz, sağlayıcı ve kurtarma kontrolleri")}`} open={verificationOpen} onToggle={() => setVerificationOpen(value => !value)}>
         <form className="runtime-record-form" onSubmit={recordVerification}>
           <label>Provider<select value={verificationDraft.provider} onChange={(event) => setVerificationDraft({ ...verificationDraft, provider: event.target.value })}>{["REVENUECAT", "BREVO", "PUSH", "DATABASE", "CLOUD"].map((value) => <option key={value}>{value}</option>)}</select></label>
           <label>Environment<select value={verificationDraft.environment} onChange={(event) => setVerificationDraft({ ...verificationDraft, environment: event.target.value })}>{["SANDBOX", "STAGING", "PRODUCTION"].map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -288,8 +293,8 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
           <button className="primary-button" disabled={actionState === "loading"} type="submit">Record verification</button>
         </form>
         <DataTable columns={["Provider", "Scenario", "Environment", "Status", "Evidence", "Executed"]} rows={(verifications?.content ?? []).map((item) => [item.provider, item.scenario, item.environment, item.expired ? "EXPIRED" : item.status, item.evidenceReference, formatDate(item.executedAt)])} empty="No production verification evidence recorded." />
-      </Panel>
-      <Panel title="Operations ledger" description="Paginated history for scheduled jobs, incidents, backups, restore drills, retries, and dead letters.">
+      </CollapsiblePanel>
+      <CollapsiblePanel className="runtime-collapsible runtime-ledger-panel" title={tx("Operations ledger", "Operasyon kayıtları")} description={`${records?.totalElements ?? 0} ${tx("operation record(s) · incidents, jobs, backups, retries and dead letters", "operasyon kaydı · olaylar, işler, yedekler, yeniden denemeler ve dead letter kayıtları")}`} open={ledgerOpen} onToggle={() => setLedgerOpen(value => !value)}>
         <div className="runtime-filter-row">
           <label>Type<select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }}><option value="">All types</option><option>INCIDENT</option><option>BACKUP</option><option>RESTORE_DRILL</option><option>SCHEDULED_JOB</option></select></label>
           <label>Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }}><option value="">All statuses</option>{["SCHEDULED", "RUNNING", "SUCCEEDED", "FAILED", "DEAD_LETTER", "OPEN", "MONITORING", "RESOLVED"].map((status) => <option key={status}>{status}</option>)}</select></label>
@@ -313,7 +318,7 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
           onPageChange={setPage}
           onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
         />
-      </Panel>
+      </CollapsiblePanel>
 
       {confirmAction && (
         <div className="modal-backdrop confirm-backdrop" role="presentation" onClick={() => setConfirmAction(null)}>
@@ -337,7 +342,7 @@ export function RuntimeOperationsView({ onError }: { onError: (message: string |
   );
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null, locale: "tr" | "en" = "en") {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }

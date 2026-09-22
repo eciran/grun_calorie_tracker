@@ -158,6 +158,7 @@ public class UserEntity {
 
     @PrePersist
     protected void onCreate() {
+        email = EmailAddress.canonical(email);
         Instant now = Instant.now();
         if (createdAt == null) {
             createdAt = now;
@@ -173,6 +174,10 @@ public class UserEntity {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();
+    }
+
+    public void setEmail(String email) {
+        this.email = EmailAddress.canonical(email);
     }
 
 }
