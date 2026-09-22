@@ -39,6 +39,7 @@ const USER_VERIFICATION = new Set(["", "true", "false"]);
 const USER_ACTIVITY = new Set(["", "ACTIVE_30_DAYS", "INACTIVE_30_DAYS", "NEVER_ACTIVE"]);
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 const daysAgo = (days: number) => { const date = new Date(); date.setDate(date.getDate() - days); return isoDay(date); };
+const daysBefore = (value: string, days: number) => { const date = new Date(`${value}T12:00:00`); date.setDate(date.getDate() - days); return isoDay(date); };
 
 export function readUsersRouteState(search = window.location.search): UsersRouteState {
   const params = new URLSearchParams(search);
@@ -106,8 +107,8 @@ export function UsersView({
   const [language, setLanguage] = useState(initialRouteState.language);
   const [verification, setVerification] = useState(initialRouteState.verification);
   const [activity, setActivity] = useState(initialRouteState.activity);
-  const [from, setFrom] = useState(initialRouteState.from || daysAgo(29));
-  const [to, setTo] = useState(initialRouteState.to || isoDay(new Date()));
+  const [from, setFrom] = useState(initialRouteState.from);
+  const [to, setTo] = useState(initialRouteState.to);
   const [trendMetric, setTrendMetric] = useState<"active" | "registrations">("active");
   const [selectedActivityDay, setSelectedActivityDay] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -138,10 +139,15 @@ export function UsersView({
     }
     return `/api/v1/admin/users?${params.toString()}`;
   }, [mode, userPage, userPageSize, appliedSearch, accountState, plan, region, language, verification, activity, from, to, selectedActivityDay]);
-  const analyticsPath = `/api/v1/admin/users/analytics?from=${from}&to=${to}&timeZone=Europe%2FDublin`;
+  const analyticsTo = to || isoDay(new Date());
+  const earliestAnalyticsDate = daysBefore(analyticsTo, 365);
+  const requestedAnalyticsFrom = from || daysBefore(analyticsTo, 89);
+  const analyticsFrom = requestedAnalyticsFrom < earliestAnalyticsDate ? earliestAnalyticsDate : requestedAnalyticsFrom;
+  const analyticsPath = `/api/v1/admin/users/analytics?from=${analyticsFrom}&to=${analyticsTo}&timeZone=Europe%2FDublin`;
   const { data: analytics } = useEndpoint<AdminUserAnalytics>(analyticsPath, onError);
   const { data, state, reload } = useEndpoint<PageResponse<UserProfile>>(path, onError);
   const baseStatsPath = "/api/v1/admin/users?role=STANDARD&page=0&size=1";
+  const { data: standardUsers } = useEndpoint<PageResponse<UserProfile>>(baseStatsPath, onError);
   const { data: verifiedUsers } = useEndpoint<PageResponse<UserProfile>>(`${baseStatsPath}&emailVerified=true`, onError);
   const { data: unverifiedUsers } = useEndpoint<PageResponse<UserProfile>>(`${baseStatsPath}&emailVerified=false`, onError);
   const { data: activeUsers } = useEndpoint<PageResponse<UserProfile>>(`${baseStatsPath}&activity=ACTIVE_30_DAYS`, onError);
@@ -212,7 +218,7 @@ export function UsersView({
       <div className="user-filter-panel">
         <button className="user-filter-toggle" type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(value => !value)}><span><strong>{locale === "tr" ? "Kullanıcı filtreleri" : "User filters"}</strong><small>{locale === "tr" ? "Tarih, hesap ve kullanıcı özelliklerine göre listeyi daraltın." : "Narrow the directory by date, account and user attributes."}</small></span><b aria-hidden="true">{filtersOpen ? "−" : "+"}</b></button>
         {filtersOpen && <div className="user-filter-content">
-        <section className="user-date-filter"><div><strong>{locale === "tr" ? "Kayıt tarihi" : "Registration date"}</strong><small>{locale === "tr" ? "Listeyi ve analitik görünümü aynı tarih aralığında inceleyin." : "Review the directory and analytics in the same date range."}</small></div><div className="user-range-presets">{([7,30,90] as const).map(days => <button key={days} type="button" onClick={() => { setFrom(daysAgo(days - 1)); setTo(isoDay(new Date())); }}>{days} {locale === "tr" ? "gün" : "days"}</button>)}</div><div className="user-date-controls"><DatePickerButton label={locale === "tr" ? "Başlangıç" : "From"} value={from} max={to} onChange={setFrom}/><span>→</span><DatePickerButton label={locale === "tr" ? "Bitiş" : "To"} value={to} min={from} onChange={setTo}/></div></section>
+        <section className="user-date-filter"><div><strong>{locale === "tr" ? "Kayıt tarihi" : "Registration date"}</strong><small>{locale === "tr" ? "Varsayılan görünüm tüm kayıtları listeler. Tarih seçerseniz yalnızca o dönemde kaydolan kullanıcılar gösterilir." : "The default view lists every account. Choose dates only to limit users by registration period."}</small></div><div className="user-range-presets"><button className={!from && !to ? "active" : ""} type="button" onClick={() => { setFrom(""); setTo(""); }}>{locale === "tr" ? "Tüm zamanlar" : "All time"}</button>{([7,30,90] as const).map(days => <button className={from === daysAgo(days - 1) && to === isoDay(new Date()) ? "active" : ""} key={days} type="button" onClick={() => { setFrom(daysAgo(days - 1)); setTo(isoDay(new Date())); }}>{days} {locale === "tr" ? "gün" : "days"}</button>)}</div><div className="user-date-controls"><DatePickerButton label={locale === "tr" ? "Başlangıç" : "From"} value={from} max={to || undefined} onChange={setFrom}/><span>→</span><DatePickerButton label={locale === "tr" ? "Bitiş" : "To"} value={to} min={from || undefined} onChange={setTo}/></div></section>
         <section className="user-filter-main">
           <label className="user-filter-search">{copy.search}<span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.placeholder} />{search && <button type="button" onClick={() => setSearch("")} aria-label={copy.clear}>×</button>}</span></label>
           <label>{copy.account}<select value={accountState} onChange={(event) => setAccountState(event.target.value)}><option value="ANY">{copy.anyState}</option><option value="ENABLED">{copy.enabled}</option><option value="DISABLED">{copy.disabled}</option><option value="LOCKED">{copy.locked}</option></select></label>
@@ -227,7 +233,7 @@ export function UsersView({
         <div className="user-filter-actions">
           <button className="ghost-button" type="button" onClick={() => {
             setSearch(""); setAppliedSearch(""); setAccountState("ANY"); setPlan("");
-            setRegion(""); setLanguage(""); setVerification(""); setActivity(""); setFrom(daysAgo(29)); setTo(isoDay(new Date())); setUserPage(0);
+            setRegion(""); setLanguage(""); setVerification(""); setActivity(""); setFrom(""); setTo(""); setSelectedActivityDay(""); setUserPage(0);
           }}>{copy.clear}</button>
         </div>
         </div>}
@@ -238,7 +244,7 @@ export function UsersView({
           <Panel title={copy.verificationChart} description={copy.verificationHelp}><UserVerificationChart verified={verifiedUsers?.totalElements ?? 0} unverified={unverifiedUsers?.totalElements ?? 0} locale={locale}/></Panel>
           <Panel title={copy.activityChart} description={copy.activityHelp}><UserActivityChart active={activeUsers?.totalElements ?? 0} inactive={inactiveUsers?.totalElements ?? 0} never={neverActiveUsers?.totalElements ?? 0} locale={locale}/></Panel>
           <Panel title={locale === "tr" ? "Plan dağılımı" : "Plan distribution"} description={locale === "tr" ? "Mevcut kullanıcı tabanının plan karışımı." : "Current plan mix across the user base."}><div className="users-plan-mix">{["FREE", "PLUS", "PRO"].map((name) => { const value = analytics?.planDistribution?.[name] ?? 0; return <div key={name}><span>{name}</span><i><b style={{width:`${analytics?.totalUsers ? value/analytics.totalUsers*100 : 0}%`}}/></i><strong>{value}</strong></div>; })}</div></Panel>
-          <Panel className="users-summary-panel" title={locale === "tr" ? "Hesap özeti" : "Account summary"} description={locale === "tr" ? "Temel hesap göstergeleri ve mevcut liste sonucu." : "Essential account indicators and the current directory result."}><div className="users-summary-card"><div><span>{copy.total}</span><strong>{formatValue(analytics?.totalUsers ?? 0)}</strong><small>{copy.totalHint}</small></div><div><span>{copy.pending}</span><strong>{formatValue(unverifiedUsers?.totalElements ?? 0)}</strong><small>{copy.pendingHint}</small></div><div><span>{copy.results}</span><strong>{formatValue(data?.totalElements ?? 0)}</strong><small>{copy.resultsHint}</small></div></div></Panel>
+          <Panel className="users-summary-panel" title={locale === "tr" ? "Hesap özeti" : "Account summary"} description={locale === "tr" ? "Temel hesap göstergeleri ve mevcut liste sonucu." : "Essential account indicators and the current directory result."}><div className="users-summary-card"><div><span>{copy.total}</span><strong>{formatValue(standardUsers?.totalElements ?? 0)}</strong><small>{copy.totalHint}</small></div><div><span>{copy.pending}</span><strong>{formatValue(unverifiedUsers?.totalElements ?? 0)}</strong><small>{copy.pendingHint}</small></div><div><span>{copy.results}</span><strong>{formatValue(data?.totalElements ?? 0)}</strong><small>{copy.resultsHint}</small></div></div></Panel>
         </div>
       </>}
       <Panel className="users-directory-panel" title={copy.list} description={copy.listHelp}>

@@ -22,7 +22,7 @@ public final class ManualContributionNutrition {
   public static Double nutrient(Map<String,Object> fields, String key) {
     Object raw = fields.get(key);
     if (raw == null) return null;
-    double max = key.equals("saturatedFat") || key.equals("transFat") ? (reference(fields) == FoodNutritionReferenceUnit.PER_100ML ? 1000 : 100) : key.equals("vitaminA") || key.equals("vitaminD") || key.equals("vitaminB12") ? 100000000 : 100000;
+    double max = key.equals("saturatedFat") || key.equals("transFat") || key.equals("sugarAlcohol") ? (reference(fields) == FoodNutritionReferenceUnit.PER_100ML ? 1000 : 100) : key.equals("vitaminA") || key.equals("vitaminD") || key.equals("vitaminB12") ? 100000000 : 100000;
     if (!(raw instanceof Number n) || !Double.isFinite(n.doubleValue()) || n.doubleValue() < 0 || n.doubleValue() > max)
       throw new IllegalArgumentException("Invalid nutrient: " + key);
     return ((Number)raw).doubleValue();
@@ -39,6 +39,7 @@ public final class ManualContributionNutrition {
     if (label != null && (!(label instanceof String s) || s.length() > 100)) throw new IllegalArgumentException("Invalid serving label");
     nutrient(fields, "saturatedFat");
     nutrient(fields, "transFat");
+    nutrient(fields, "sugarAlcohol");
     nutrient(fields, "cholesterol");
     nutrient(fields, "potassium");
     nutrient(fields, "calcium");
@@ -56,6 +57,7 @@ public final class ManualContributionNutrition {
     food.setNutritionReferenceUnit(reference(fields));
     food.setSaturatedFat(nutrient(fields, "saturatedFat"));
     food.setTransFat(nutrient(fields, "transFat"));
+    food.setSugarAlcohol(nutrient(fields, "sugarAlcohol"));
     food.setCholesterol(nutrient(fields, "cholesterol"));
     food.setPotassium(nutrient(fields, "potassium"));
     food.setCalcium(nutrient(fields, "calcium"));
@@ -67,6 +69,9 @@ public final class ManualContributionNutrition {
     food.setVitaminD(nutrient(fields, "vitaminD"));
     food.setVitaminE(nutrient(fields, "vitaminE"));
     food.setVitaminB12(nutrient(fields, "vitaminB12"));
+    food.setServingSizeGrams(serving(fields));
+    Object servingUnit = fields.get("servingUnit");
+    food.setServingUnit(servingUnit instanceof String value && !value.isBlank() ? value.trim() : null);
   }
   public static void apply(CustomFoodRequestDto food, Map<String,Object> fields) {
     validate(fields);

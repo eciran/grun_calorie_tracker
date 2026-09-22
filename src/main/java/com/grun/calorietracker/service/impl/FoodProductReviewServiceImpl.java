@@ -84,6 +84,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -348,6 +349,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     reviewNote
             );
             product.setPreparationState(request.getPreparationState());
+        }
+
+        applyTextChange(audits, product, reviewedBy, "brand", product.getBrand(), request.getBrand(), product::setBrand, reviewNote);
+        applyTextChange(audits, product, reviewedBy, "ingredientsText", product.getIngredientsText(), request.getIngredientsText(), product::setIngredientsText, reviewNote);
+        applyTextChange(audits, product, reviewedBy, "allergens", product.getAllergens(), request.getAllergens(), product::setAllergens, reviewNote);
+        applyTextChange(audits, product, reviewedBy, "adminSourceName", product.getAdminSourceName(), request.getAdminSourceName(), product::setAdminSourceName, reviewNote);
+        applyTextChange(audits, product, reviewedBy, "adminSourceUrl", product.getAdminSourceUrl(), request.getAdminSourceUrl(), product::setAdminSourceUrl, reviewNote);
+        applyTextChange(audits, product, reviewedBy, "adminCreationNote", product.getAdminCreationNote(), request.getAdminCreationNote(), product::setAdminCreationNote, reviewNote);
+
+        if (request.getNutritionBasis() != null) {
+            addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE, "nutritionBasis", product.getNutritionBasis(), request.getNutritionBasis(), reviewNote);
+            product.setNutritionBasis(request.getNutritionBasis());
+        }
+        if (request.getNutritionReferenceUnit() != null) {
+            addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE, "nutritionReferenceUnit", product.getNutritionReferenceUnit(), request.getNutritionReferenceUnit(), reviewNote);
+            product.setNutritionReferenceUnit(request.getNutritionReferenceUnit());
+        }
+        if (request.getSourceCategoryTags() != null) {
+            Set<String> normalizedTags = request.getSourceCategoryTags().stream().map(this::trimToNull).filter(Objects::nonNull).collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+            addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE, "sourceCategoryTags", product.getSourceCategoryTags(), normalizedTags, reviewNote);
+            product.setSourceCategoryTags(normalizedTags);
         }
 
         applyDoubleChange(audits, product, reviewedBy, "calories", product.getCalories(), NutritionValueNormalizer.calories(request.getCalories()), product::setCalories, reviewNote);
@@ -1175,6 +1197,24 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 newValue,
                 note
         );
+        setter.accept(newValue);
+    }
+
+    private void applyTextChange(
+            List<FoodProductReviewAuditEntity> audits,
+            FoodItemEntity product,
+            String reviewedBy,
+            String fieldName,
+            String oldValue,
+            String requestedValue,
+            java.util.function.Consumer<String> setter,
+            String note
+    ) {
+        if (requestedValue == null) {
+            return;
+        }
+        String newValue = trimToNull(requestedValue);
+        addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE, fieldName, oldValue, newValue, note);
         setter.accept(newValue);
     }
 

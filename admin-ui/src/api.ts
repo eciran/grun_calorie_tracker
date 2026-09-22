@@ -58,6 +58,29 @@ let reauthCodeResolver: ((code: string | null) => void) | null = null;
 const DEFAULT_TIMEOUT_MS = 20000;
 let telemetryFlushInFlight = false;
 
+type CachedAdminResponse = { expiresAt: number; value: unknown };
+const adminResponseCache = new Map<string, CachedAdminResponse>();
+const adminRequestsInFlight = new Map<string, Promise<unknown>>();
+const SHORT_CACHE_TTL_MS = 15_000;
+const REPORT_CACHE_TTL_MS = 30_000;
+const REFERENCE_CACHE_TTL_MS = 5 * 60_000;
+
+function adminCacheTtl(path: string): number {
+  const pathname = path.split("?", 1)[0];
+  if (!pathname.startsWith("/api/v1/admin/")) return 0;
+  if (/\/(security|mail)(\/|$)/.test(pathname) || /evidence-url$/.test(pathname)) return 0;
+  if (/\/(catalog|notification-definitions|subscriptions\/plans)(\/|$)/.test(pathname)) return REFERENCE_CACHE_TTL_MS;
+  if (/\/(reports|analytics|metrics|summary)(\/|$|-)/.test(pathname)) return REPORT_CACHE_TTL_MS;
+  return SHORT_CACHE_TTL_MS;
+}
+
+export function clearAdminRequestCache(pathPrefix?: string) {
+  for (const key of adminResponseCache.keys()) {
+    const path = key.slice(key.indexOf(":") + 1);
+    if (!pathPrefix || path.startsWith(pathPrefix)) adminResponseCache.delete(key);
+  }
+}
+
 type ClientFailure = { source: "ADMIN_WEB"; failureKind: "NETWORK" | "TIMEOUT"; method: string; route: string; occurredAt: string; durationMs: number; clientPlatform: "BROWSER"; appVersion: "admin-ui-v2" };
 const clientFailureQueue: ClientFailure[] = [];
 function safeTelemetryRoute(path: string): string {
@@ -112,6 +135,7 @@ export function clearTokens(broadcast = true) {
   accessToken = null;
   sessionTiming = null;
   sessionRequest = null;
+  clearAdminRequestCache();
   if (broadcast && "BroadcastChannel" in window) {
     const channel = new BroadcastChannel(AUTH_CHANNEL);
     channel.postMessage({ type: "logout" });
@@ -213,9 +237,42 @@ export async function request<T>(
     headers?: Record<string, string>;
     timeoutMs?: number;
     reauthRetry?: boolean;
+    cacheTtlMs?: number;
+    bypassCache?: boolean;
   } = {}
 ): Promise<T> {
   if (options.auth !== false) await ensureAdminAccess();
+  const method = options.method ?? "GET";
+  const ttl = options.bypassCache ? 0 : (options.cacheTtlMs ?? (method === "GET" && options.auth !== false ? adminCacheTtl(path) : 0));
+  const cacheKey = `${tokenGeneration}:${path}`;
+  if (ttl > 0) {
+    const cached = adminResponseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value as T);
+    if (cached) adminResponseCache.delete(cacheKey);
+    const pending = adminRequestsInFlight.get(cacheKey);
+    if (pending) return pending as Promise<T>;
+  }
+  const pending = executeRequest<T>(path, options).then((value) => {
+    if (ttl > 0) adminResponseCache.set(cacheKey, { expiresAt: Date.now() + ttl, value });
+    return value;
+  }).finally(() => adminRequestsInFlight.delete(cacheKey));
+  if (ttl > 0) adminRequestsInFlight.set(cacheKey, pending);
+  return pending;
+}
+
+async function executeRequest<T>(
+  path: string,
+  options: {
+    method?: string;
+    auth?: boolean;
+    body?: unknown;
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+    reauthRetry?: boolean;
+    cacheTtlMs?: number;
+    bypassCache?: boolean;
+  }
+): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...options.headers
@@ -283,6 +340,7 @@ export async function request<T>(
     const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
     throw new ApiRequestError(message, response.status, path, correlationId);
   }
+  if ((options.method ?? "GET") !== "GET") clearAdminRequestCache();
   return data as T;
 }
 

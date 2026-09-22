@@ -63,6 +63,10 @@ public class FoodProductDto {
     @Schema(description = "Product brand.", example = "Ferrero")
     private String brand;
 
+    private String adminSourceName;
+    private String adminSourceUrl;
+    private String adminCreationNote;
+
     @Schema(description = "Product image URL selected for display.", example = "https://example.com/product.jpg")
     private String imageUrl;
 

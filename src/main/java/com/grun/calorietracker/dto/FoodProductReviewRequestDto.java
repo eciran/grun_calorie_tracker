@@ -2,11 +2,15 @@ package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPreparationState;
+import com.grun.calorietracker.enums.FoodNutritionBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
+
+import java.util.Set;
 
 @Schema(description = "Admin request payload for reviewing imported food product data and display image quality.")
 public class FoodProductReviewRequestDto {
@@ -34,6 +38,16 @@ public class FoodProductReviewRequestDto {
 
     @Schema(description = "Preparation/cooking state for raw, cooked, grilled, fried, baked, or prepared foods.", example = "COOKED")
     private FoodPreparationState preparationState;
+
+    private String brand;
+    private FoodNutritionBasis nutritionBasis;
+    private FoodNutritionReferenceUnit nutritionReferenceUnit;
+    private String ingredientsText;
+    private String allergens;
+    private Set<String> sourceCategoryTags;
+    private String adminSourceName;
+    private String adminSourceUrl;
+    private String adminCreationNote;
 
     @Schema(description = "Calories per 100g/ml or configured product base.", example = "539.0")
     private Double calories;
@@ -170,6 +184,25 @@ public class FoodProductReviewRequestDto {
     public void setPreparationState(FoodPreparationState preparationState) {
         this.preparationState = preparationState;
     }
+
+    public String getBrand() { return brand; }
+    public void setBrand(String brand) { this.brand = brand; }
+    public FoodNutritionBasis getNutritionBasis() { return nutritionBasis; }
+    public void setNutritionBasis(FoodNutritionBasis nutritionBasis) { this.nutritionBasis = nutritionBasis; }
+    public FoodNutritionReferenceUnit getNutritionReferenceUnit() { return nutritionReferenceUnit; }
+    public void setNutritionReferenceUnit(FoodNutritionReferenceUnit nutritionReferenceUnit) { this.nutritionReferenceUnit = nutritionReferenceUnit; }
+    public String getIngredientsText() { return ingredientsText; }
+    public void setIngredientsText(String ingredientsText) { this.ingredientsText = ingredientsText; }
+    public String getAllergens() { return allergens; }
+    public void setAllergens(String allergens) { this.allergens = allergens; }
+    public Set<String> getSourceCategoryTags() { return sourceCategoryTags; }
+    public void setSourceCategoryTags(Set<String> sourceCategoryTags) { this.sourceCategoryTags = sourceCategoryTags; }
+    public String getAdminSourceName() { return adminSourceName; }
+    public void setAdminSourceName(String adminSourceName) { this.adminSourceName = adminSourceName; }
+    public String getAdminSourceUrl() { return adminSourceUrl; }
+    public void setAdminSourceUrl(String adminSourceUrl) { this.adminSourceUrl = adminSourceUrl; }
+    public String getAdminCreationNote() { return adminCreationNote; }
+    public void setAdminCreationNote(String adminCreationNote) { this.adminCreationNote = adminCreationNote; }
 
     public Double getCalories() {
         return calories;

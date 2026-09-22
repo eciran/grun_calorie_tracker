@@ -426,6 +426,17 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
                 != com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW) {
             throw new IllegalStateException("Admin manual intake must remain an internal-review candidate.");
         }
+        var candidate = reviewCase.getFoodItem();
+        candidate.setCatalogType(request.catalogType());
+        candidate.setPreparationState(request.preparationState());
+        candidate.setIngredientsText(nullableText(request.ingredientsText()));
+        candidate.setAllergens(nullableText(request.allergens()));
+        candidate.setSourceCategoryTags(request.sourceCategoryTags() == null
+                ? new java.util.HashSet<>() : new java.util.HashSet<>(request.sourceCategoryTags()));
+        candidate.setAdminSourceName(nullableText(request.adminSourceName()));
+        candidate.setAdminSourceUrl(nullableText(request.adminSourceUrl()));
+        candidate.setAdminCreationNote(nullableText(request.adminCreationNote()));
+        foodItemRepository.save(candidate);
         return action(reviewCase);
     }
 
@@ -519,7 +530,32 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         values.put("fiber", food.getFiber());
         values.put("sugar", food.getSugar());
         values.put("sodium", food.getSodium());
+        values.put("saturatedFat", food.getSaturatedFat());
+        values.put("transFat", food.getTransFat());
+        values.put("sugarAlcohol", food.getSugarAlcohol());
+        values.put("potassium", food.getPotassium());
+        values.put("cholesterol", food.getCholesterol());
+        values.put("calcium", food.getCalcium());
+        values.put("iron", food.getIron());
+        values.put("magnesium", food.getMagnesium());
+        values.put("zinc", food.getZinc());
+        values.put("vitaminA", food.getVitaminA());
+        values.put("vitaminC", food.getVitaminC());
+        values.put("vitaminD", food.getVitaminD());
+        values.put("vitaminE", food.getVitaminE());
+        values.put("vitaminB12", food.getVitaminB12());
         values.put("nutritionBasis", food.getNutritionBasis());
+        values.put("nutritionReferenceUnit", food.getNutritionReferenceUnit());
+        values.put("servingSizeGrams", food.getServingSizeGrams());
+        values.put("servingUnit", food.getServingUnit());
+        values.put("catalogType", food.getCatalogType());
+        values.put("preparationState", food.getPreparationState());
+        values.put("ingredientsText", food.getIngredientsText());
+        values.put("allergens", food.getAllergens());
+        values.put("sourceCategoryTags", food.getSourceCategoryTags());
+        values.put("adminSourceName", food.getAdminSourceName());
+        values.put("adminSourceUrl", food.getAdminSourceUrl());
+        values.put("adminCreationNote", food.getAdminCreationNote());
         return values;
     }
 
@@ -645,6 +681,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         return new AdminProductIntakeActionDto(reviewCase.getId(), reviewCase.getStatus(),
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getId(),
                 reviewCase.getAssignedAdminEmail());
+    }
+    private String nullableText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
     private FoodProductReviewCaseEntity lockedCase(Long caseId) {
         return repository.findByIdForAssignment(caseId)

@@ -88,8 +88,7 @@ public class FoodItemMapper {
         entity.setAllergens(dto.getAllergens());
         entity.setNutriScore(dto.getNutriScore());
         entity.setIsCustom(dto.getCustom());
-        // FoodItemEntity does not currently store ingredientsText.
-        // entity.setIngredientsText(dto.getIngredientsText());
+        entity.setIngredientsText(dto.getIngredientsText());
         return entity;
     }
 
@@ -109,6 +108,9 @@ public class FoodItemMapper {
         dto.setShortDisplayName(resolveShortDisplayName(entity));
         dto.setProductName(dto.getShortDisplayName() != null ? dto.getShortDisplayName() : dto.getDisplayName());
         dto.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(entity.getBrand()));
+        dto.setAdminSourceName(entity.getAdminSourceName());
+        dto.setAdminSourceUrl(entity.getAdminSourceUrl());
+        dto.setAdminCreationNote(entity.getAdminCreationNote());
         dto.setImageUrl(entity.getImageUrl());
         dto.setExternalImageUrl(entity.getExternalImageUrl());
         dto.setDisplayImageUrl(entity.getDisplayImageUrl());
@@ -165,8 +167,7 @@ public class FoodItemMapper {
         dto.setSugarAlcohol(NutritionValueNormalizer.macro(entity.getSugarAlcohol()));
         dto.setServingSize(NutritionValueNormalizer.servingSize(entity.getServingSizeGrams()));
         dto.setServingUnit(entity.getServingUnit());
-        // FoodItemEntity does not currently store ingredientsText.
-        // dto.setIngredientsText(entity.getIngredientsText());
+        dto.setIngredientsText(entity.getIngredientsText());
         dto.setAllergens(entity.getAllergens());
         dto.setNutriScore(entity.getNutriScore());
         dto.setCustom(entity.getIsCustom());

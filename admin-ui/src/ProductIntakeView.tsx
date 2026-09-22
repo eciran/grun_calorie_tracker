@@ -171,10 +171,16 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
     {selected && <div className="modal-backdrop" role="presentation" onClick={() => { setSelected(null); onClearTarget?.(); }}>
       <section className="modal-card contribution-review-modal" role="dialog" aria-modal="true" aria-label={locale === "tr" ? "Ürün kabul incelemesi" : "Product intake review"} onClick={(event) => event.stopPropagation()}>
         <header className="modal-header"><div><span>{locale === "tr" ? "ÜRÜN KABUL" : "PRODUCT INTAKE"} #{selected.summary.id}</span><h2>{selected.summary.barcode ?? (locale === "tr" ? "Aday" : "Candidate")}</h2><p>{selected.summary.source} · {selected.summary.marketRegion ?? (locale === "tr" ? "Pazar belirtilmedi" : "Unspecified market")}</p></div><button className="modal-icon-close" type="button" onClick={() => { setSelected(null); onClearTarget?.(); }} aria-label={locale === "tr" ? "Ürün kabul incelemesini kapat" : "Close product intake review"}>×</button></header>
+        <div className="intake-review-summary" aria-label={locale === "tr" ? "İnceleme özeti" : "Review summary"}>
+          <SummaryItem label={locale === "tr" ? "Durum" : "Status"} value={selected.summary.status} tone={selected.summary.status === "APPROVED" ? "success" : "accent"} />
+          <SummaryItem label={locale === "tr" ? "Çözüm" : "Resolution"} value={selected.summary.resolutionMode} />
+          <SummaryItem label={locale === "tr" ? "Risk" : "Risk"} value={selected.summary.riskLevel} tone={selected.summary.riskLevel === "HIGH" ? "danger" : undefined} />
+          <SummaryItem label={locale === "tr" ? "Sorumlu" : "Assignee"} value={selected.summary.assignedAdminEmail ?? (locale === "tr" ? "Atanmamış" : "Unassigned")} />
+          <SummaryItem label={locale === "tr" ? "Katalog kaydı" : "Catalog record"} value={selected.linkedFoodItemId ? `#${selected.linkedFoodItemId}` : (locale === "tr" ? "Bağlı değil" : "Not linked")} />
+        </div>
         <div className="contribution-review-body">
           <div className="contribution-review-details">
-            <h3>{locale === "tr" ? "Gönderilen veri ve katalog" : "Submitted vs catalog"}</h3>
-            <DataTable columns={locale === "tr" ? ["Uygula", "Alan", "Gönderilen", "Katalog", "Karşılaştırma"] : ["Apply", "Field", "Submitted", "Catalog", "Match"]} rows={(selected.fieldComparisons ?? []).map((item) => { const applyField = toApplyField(item.field); const selectable = canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && Boolean(applyField); return [selectable ? <input type="checkbox" aria-label={`${locale === "tr" ? "Uygula" : "Apply"} ${item.field}`} checked={applyFields.includes(applyField!)} onChange={(event) => setApplyFields((current) => event.target.checked ? [...current, applyField!] : current.filter((value) => value !== applyField))} /> : "-", item.field, formatField(item.submittedValue), formatField(item.catalogValue), item.equal ? (locale === "tr" ? "Eşleşiyor" : "Match") : item.highImpact ? (locale === "tr" ? "Yüksek etki" : "High impact") : (locale === "tr" ? "İncele" : "Review")]; })} empty={locale === "tr" ? "Karşılaştırılabilir alan bulunmuyor." : "No field comparison is available."} />
+            <FieldComparisonReview comparisons={selected.fieldComparisons ?? []} locale={locale} canSelect={canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING"} selectedFields={applyFields} onSelectionChange={setApplyFields} />
             {selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && canWrite && <div className="review-apply-panel"><strong>Apply selected fields to the published product</strong><p>Only checked fields will change. Barcode, market and publication state are never edited here.</p><button className="primary-button" type="button" disabled={busy || applyFields.length === 0} onClick={applySelectedFields}>Apply {applyFields.length} selected field{applyFields.length === 1 ? "" : "s"}</button></div>}
             {(selected.warnings ?? []).map((warning) => <div className="warning-banner" key={warning}>{warning}</div>)}
             <h3>{locale === "tr" ? "OCR işlem geçmişi" : "OCR processing history"}</h3>
@@ -191,11 +197,8 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
             {canWrite && !evidencePreview && Boolean(selected.evidence?.length) && <div className="evidence-placeholder"><strong>Select an image</strong><span>Open the package or nutrition label without leaving this review.</span></div>}
             {!selected.evidence?.length && <span>{locale === "tr" ? "Kanıt eklenmemiş." : "No evidence attached."}</span>}
             <small>{canWrite ? "Images use short-lived private links and are loaded only when selected." : "Private evidence requires owner or catalog-admin access."}</small>
-            {canWrite && <div className="inline-actions"><button className="ghost-button" disabled={busy} type="button" onClick={() => void mutate("claim", undefined, "Case claimed.")}>Claim</button><button className="ghost-button" disabled={busy} type="button" onClick={() => void mutate("release", undefined, "Case released.")}>Release</button></div>}
-            {isOwner && <label>Reassign to<input type="email" value={reassignEmail} onChange={(event) => setReassignEmail(event.target.value)} /></label>}
-            {isOwner && <button className="ghost-button" disabled={busy || !reassignEmail.trim()} type="button" onClick={() => void mutate("reassign", { adminEmail: reassignEmail.trim() }, "Case reassigned.")}>Reassign</button>}
-            {canWrite && <label>Existing food item ID<input inputMode="numeric" value={foodItemId} onChange={(event) => setFoodItemId(event.target.value.replace(/\D/g, ""))} /></label>}
-            {canWrite && <button className="ghost-button" disabled={busy || !foodItemId} type="button" onClick={() => void mutate("attach-existing-product", { foodItemId: Number(foodItemId) }, "Existing product attached.")}>Attach existing product</button>}
+            {canWrite && <section className="intake-side-action"><div><span>{locale === "tr" ? "SORUMLULUK" : "OWNERSHIP"}</span><strong>{locale === "tr" ? "İncelemeyi yönet" : "Manage review"}</strong></div><div className="inline-actions"><button className="ghost-button" disabled={busy} type="button" onClick={() => void mutate("claim", undefined, "Case claimed.")}>{locale === "tr" ? "Üzerime al" : "Claim"}</button><button className="ghost-button" disabled={busy} type="button" onClick={() => void mutate("release", undefined, "Case released.")}>{locale === "tr" ? "Serbest bırak" : "Release"}</button></div>{isOwner && <div className="compact-action-form"><label>{locale === "tr" ? "Başka yöneticiye ata" : "Reassign to"}<input type="email" value={reassignEmail} onChange={(event) => setReassignEmail(event.target.value)} placeholder="admin@example.com" /></label><button className="ghost-button" disabled={busy || !reassignEmail.trim()} type="button" onClick={() => void mutate("reassign", { adminEmail: reassignEmail.trim() }, "Case reassigned.")}>{locale === "tr" ? "Ata" : "Reassign"}</button></div>}</section>}
+            {canWrite && <section className="intake-side-action"><div><span>{locale === "tr" ? "KATALOG BAĞLANTISI" : "CATALOG LINK"}</span><strong>{locale === "tr" ? "Mevcut ürüne bağla" : "Attach existing product"}</strong><small>{locale === "tr" ? "Adayı katalogdaki mevcut ürün kimliğiyle ilişkilendirir." : "Connect this candidate to an existing catalog record."}</small></div><div className="compact-action-form"><label>{locale === "tr" ? "Ürün kimliği" : "Food item ID"}<input inputMode="numeric" value={foodItemId} onChange={(event) => setFoodItemId(event.target.value.replace(/\D/g, ""))} placeholder="12345" /></label><button className="ghost-button" disabled={busy || !foodItemId} type="button" onClick={() => void mutate("attach-existing-product", { foodItemId: Number(foodItemId) }, "Existing product attached.")}>{locale === "tr" ? "Ürüne bağla" : "Attach"}</button></div></section>}
           </div>
         </div>
         <footer className="modal-actions padded-actions">
@@ -227,6 +230,73 @@ function OcrRunPanel({ run, locale, isOwner }: { run: OcrRun; locale: "tr" | "en
     <DataTable columns={[locale === "tr" ? "Alan" : "Field", "v3", "v4", locale === "tr" ? "Alternatif" : "Fallback", locale === "tr" ? "Kullanıcı onayı" : "Confirmed"]} rows={fields.map((field) => [field, formatField(run.v3Fields?.[field]), formatField(run.v4Fields?.[field]), formatField(run.fallbackFields?.[field]), formatField(run.confirmedFields?.[field])])} empty={locale === "tr" ? "Karşılaştırılabilir OCR alanı yok." : "No comparable OCR fields."} />
     {run.correlationId && <small>Correlation ID: {run.correlationId}</small>}
   </section>;
+}
+
+type FieldComparison = NonNullable<IntakeDetail["fieldComparisons"]>[number];
+
+function SummaryItem({ label, value, tone }: { label: string; value?: string; tone?: "accent" | "success" | "danger" }) {
+  return <div className={`intake-summary-item${tone ? ` ${tone}` : ""}`}><span>{label}</span><strong>{value?.replaceAll("_", " ") || "-"}</strong></div>;
+}
+
+function FieldComparisonReview({ comparisons, locale, canSelect, selectedFields, onSelectionChange }: { comparisons: FieldComparison[]; locale: "tr" | "en"; canSelect: boolean; selectedFields: string[]; onSelectionChange: (fields: string[]) => void }) {
+  const groups = ["identity", "nutrition", "serving", "metadata"] as const;
+  const visible = comparisons.filter((item) => item.field !== "originalInput");
+  const raw = comparisons.find((item) => item.field === "originalInput");
+  const differenceCount = visible.filter((item) => !item.equal).length;
+  const highImpactCount = visible.filter((item) => !item.equal && item.highImpact).length;
+  return <section className="field-comparison-workspace">
+    <div className="comparison-heading">
+      <div><span>{locale === "tr" ? "ALAN KARŞILAŞTIRMASI" : "FIELD COMPARISON"}</span><h3>{locale === "tr" ? "Gönderilen değerler ve katalog kaydı" : "Submitted values and catalog record"}</h3><p>{locale === "tr" ? "Her alanı aynı satırda karşılaştırın. Farklı alanlar renk ve durum etiketiyle belirtilir." : "Compare both sources on one row. Differences are marked with a status and color."}</p></div>
+      <div className="comparison-counts"><span>{differenceCount} {locale === "tr" ? "fark" : "differences"}</span>{highImpactCount > 0 && <span className="danger">{highImpactCount} {locale === "tr" ? "yüksek etki" : "high impact"}</span>}</div>
+    </div>
+    <div className="comparison-column-guide" aria-hidden="true"><span>{locale === "tr" ? "Alan" : "Field"}</span><span>{locale === "tr" ? "Gönderilen" : "Submitted"}</span><span>{locale === "tr" ? "Katalog" : "Catalog"}</span><span>{locale === "tr" ? "Sonuç" : "Result"}</span></div>
+    {groups.map((group) => {
+      const items = visible.filter((item) => comparisonGroup(item.field) === group);
+      if (!items.length) return null;
+      return <section className="comparison-group" key={group}><h4>{comparisonGroupLabel(group, locale)}</h4><div>{items.map((item) => {
+        const applyField = toApplyField(item.field);
+        const selectable = canSelect && Boolean(applyField);
+        const checked = Boolean(applyField && selectedFields.includes(applyField));
+        return <div className={`comparison-row${item.equal ? " equal" : item.highImpact ? " high-impact" : " different"}`} key={item.field}>
+          <div className="comparison-field">{selectable && <input type="checkbox" aria-label={`${locale === "tr" ? "Uygula" : "Apply"} ${fieldLabel(item.field, locale)}`} checked={checked} onChange={(event) => onSelectionChange(event.target.checked ? [...selectedFields, applyField!] : selectedFields.filter((value) => value !== applyField))} />}<strong>{fieldLabel(item.field, locale)}</strong><small>{item.field}</small></div>
+          <ComparisonValue value={item.submittedValue} emptyLabel={locale === "tr" ? "Gönderilmedi" : "Not submitted"} />
+          <ComparisonValue value={item.catalogValue} emptyLabel={locale === "tr" ? "Katalogda yok" : "Not in catalog"} />
+          <span className="comparison-status">{item.equal ? (locale === "tr" ? "Eşleşiyor" : "Match") : item.highImpact ? (locale === "tr" ? "Yüksek etki" : "High impact") : (locale === "tr" ? "Farklı" : "Different")}</span>
+        </div>;
+      })}</div></section>;
+    })}
+    {!visible.length && <p className="muted-text">{locale === "tr" ? "Karşılaştırılabilir alan bulunmuyor." : "No field comparison is available."}</p>}
+    {raw && <details className="raw-submission"><summary>{locale === "tr" ? "Ham OCR girdisini görüntüle" : "View raw OCR input"}</summary><pre>{prettyField(raw.submittedValue)}</pre></details>}
+  </section>;
+}
+
+function ComparisonValue({ value, emptyLabel }: { value: unknown; emptyLabel: string }) {
+  const empty = value === null || value === undefined || value === "";
+  return <div className={`comparison-value${empty ? " empty" : ""}`}>{empty ? emptyLabel : formatField(value)}</div>;
+}
+
+function comparisonGroup(field: string): "identity" | "nutrition" | "serving" | "metadata" {
+  const normalized = field.toLowerCase();
+  if (["productname", "brand", "barcode"].includes(normalized)) return "identity";
+  if (["calories", "protein", "fat", "carbs", "fiber", "sugar", "sodium", "saturatedfat", "transfat", "sugaralcohol", "potassium", "cholesterol", "calcium", "iron", "magnesium", "zinc", "vitamina", "vitaminc", "vitamind", "vitamine", "vitaminb12"].includes(normalized)) return "nutrition";
+  if (normalized.includes("serving") || normalized.includes("basis")) return "serving";
+  return "metadata";
+}
+
+function comparisonGroupLabel(group: "identity" | "nutrition" | "serving" | "metadata", locale: "tr" | "en") {
+  const labels = locale === "tr" ? { identity: "Ürün kimliği", nutrition: "Besin değerleri", serving: "Porsiyon ve ölçüm", metadata: "Kayıt bilgileri" } : { identity: "Product identity", nutrition: "Nutrition", serving: "Serving and measurement", metadata: "Record details" };
+  return labels[group];
+}
+
+function fieldLabel(field: string, locale: "tr" | "en") {
+  const tr: Record<string, string> = { productName: "Ürün adı", brand: "Marka", barcode: "Barkod", calories: "Kalori", protein: "Protein", fat: "Yağ", carbs: "Karbonhidrat", fiber: "Lif", sugar: "Şeker", sodium: "Sodyum", saturatedFat: "Doymuş yağ", transFat: "Trans yağ", sugarAlcohol: "Şeker alkolü", potassium: "Potasyum", cholesterol: "Kolesterol", calcium: "Kalsiyum", iron: "Demir", magnesium: "Magnezyum", zinc: "Çinko", vitaminA: "A vitamini", vitaminC: "C vitamini", vitaminD: "D vitamini", vitaminE: "E vitamini", vitaminB12: "B12 vitamini", servingSizeGrams: "Porsiyon gramı", servingUnit: "Porsiyon birimi", basis: "Besin değeri temeli", nutritionBasis: "Besin değeri kaynağı", nutritionReferenceUnit: "Referans ölçü", catalogType: "Katalog tipi", preparationState: "Hazırlama durumu", ingredientsText: "İçindekiler", allergens: "Alerjenler", sourceCategoryTags: "Kaynak kategori etiketleri", adminSourceName: "Kaynak adı", adminSourceUrl: "Kaynak bağlantısı", adminCreationNote: "Oluşturma notu", entryMethod: "Giriş yöntemi" };
+  if (locale === "tr" && tr[field]) return tr[field];
+  return field.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/^./, (value) => value.toUpperCase());
+}
+
+function prettyField(value: unknown) {
+  if (typeof value !== "string") return JSON.stringify(value, null, 2);
+  try { return JSON.stringify(JSON.parse(value), null, 2); } catch { return value; }
 }
 
 function toApplyField(field: string) {

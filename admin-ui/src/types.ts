@@ -172,12 +172,18 @@ export type FoodProduct = {
   displayName?: string;
   shortDisplayName?: string;
   brand?: string;
+  adminSourceName?: string;
+  adminSourceUrl?: string;
+  adminCreationNote?: string;
   imageUrl?: string;
   externalImageUrl?: string;
   displayImageUrl?: string;
   dataSource?: string;
   marketRegion?: string;
   preparationState?: string;
+  nutritionBasis?: string;
+  nutritionReferenceUnit?: string;
+  sourceCategoryTags?: string[];
   verificationStatus?: string;
   publicationStatus?: string;
   imageSource?: string;

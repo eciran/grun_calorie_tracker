@@ -60,6 +60,8 @@ public class FoodItemEntity {
     private String externalImageUrl;
     private String displayImageUrl;
     private String allergens;
+    @Column(name = "ingredients_text", columnDefinition = "TEXT")
+    private String ingredientsText;
     private String nutriScore;
 
     @Enumerated(EnumType.STRING)

@@ -78,38 +78,51 @@ export function BarcodeScanner({ onLookup }: { onLookup: (barcode: string) => Pr
       return;
     }
     setError(null);
+    setNotFound(null);
+    scanningRef.current = true;
+    setCameraOpen(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+      const video = await waitForVideoElement(videoRef);
+      if (!video || !scanningRef.current) throw new Error("Scanner preview was not mounted.");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      if (!scanningRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
       streamRef.current = stream;
-      setCameraOpen(true);
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
-      const video = videoRef.current;
-      if (!video) { stopCamera(); return; }
       video.srcObject = stream;
+      await waitForVideoMetadata(video);
       await video.play();
-      scanningRef.current = true;
       if (DetectorClass) {
-        const detector = new DetectorClass({ formats: ["ean_8", "ean_13", "upc_a", "itf"] });
-        while (scanningRef.current) {
-          const results = await detector.detect(video);
-          const detected = normalizeBarcode(results[0]?.rawValue ?? "");
-          if (detected) { stopCamera(); await lookup(detected); return; }
-          await new Promise<void>(resolve => window.setTimeout(resolve, 300));
+        try {
+          const detector = new DetectorClass({ formats: ["ean_8", "ean_13", "upc_a", "itf"] });
+          while (scanningRef.current) {
+            const results = await detector.detect(video);
+            const detected = normalizeBarcode(results[0]?.rawValue ?? "");
+            if (detected) { stopCamera(); await lookup(detected); return; }
+            await new Promise<void>(resolve => window.setTimeout(resolve, 220));
+          }
+          return;
+        } catch {
+          // Some Safari versions expose BarcodeDetector but fail for live video. Keep the stream and use ZXing.
         }
-      } else {
-        const { BrowserMultiFormatReader } = await import("@zxing/browser");
-        const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 250, delayBetweenScanSuccess: 500 });
-        scannerControlsRef.current = await reader.decodeFromVideoElement(video, (result) => {
-          const detected = normalizeBarcode(result?.getText() ?? "");
-          if (!detected || !scanningRef.current) return;
-          stopCamera();
-          void lookup(detected);
-        });
       }
+      if (scanningRef.current) await startZxingScanner(video);
     } catch {
       stopCamera();
       setError(text.denied);
     }
+  }
+
+  async function startZxingScanner(video: HTMLVideoElement) {
+    const { BrowserMultiFormatReader } = await import("@zxing/browser");
+    const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 180, delayBetweenScanSuccess: 400 });
+    scannerControlsRef.current = await reader.decodeFromVideoElement(video, (result) => {
+      const detected = normalizeBarcode(result?.getText() ?? "");
+      if (!detected || !scanningRef.current) return;
+      stopCamera();
+      void lookup(detected);
+    });
   }
 
   function submit(event: FormEvent) {
@@ -129,4 +142,24 @@ export function BarcodeScanner({ onLookup }: { onLookup: (barcode: string) => Pr
     {error && <div className="inline-error" role="alert">{error}</div>}
     {notFound && <div className="barcode-not-found" role="status"><span>{text.notFound}</span><a className="ghost-button" href={`/admin/products/contributions?barcode=${encodeURIComponent(notFound)}`}>{text.draft}</a></div>}
   </section>;
+}
+
+async function waitForVideoElement(ref: { current: HTMLVideoElement | null }): Promise<HTMLVideoElement | null> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (ref.current) return ref.current;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+  return null;
+}
+
+function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => { cleanup(); reject(new Error("Camera metadata timed out.")); }, 5000);
+    const loaded = () => { cleanup(); resolve(); };
+    const failed = () => { cleanup(); reject(new Error("Camera preview failed.")); };
+    const cleanup = () => { window.clearTimeout(timeout); video.removeEventListener("loadedmetadata", loaded); video.removeEventListener("error", failed); };
+    video.addEventListener("loadedmetadata", loaded, { once: true });
+    video.addEventListener("error", failed, { once: true });
+  });
 }

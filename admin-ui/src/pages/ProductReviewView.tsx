@@ -13,6 +13,7 @@ import { useAdminLocale } from "../admin/locale";
 import { ProductQualityWorkloadChart, ProductReviewHealthChart } from "../CatalogWorkspaceCharts";
 
 export const CATALOG_TYPES = ["BRANDED_PRODUCT", "GENERIC_INGREDIENT", "LOCAL_DISH", "USER_CUSTOM"];
+export const PREPARATION_STATES = ["UNSPECIFIED", "RAW", "COOKED", "BOILED", "GRILLED", "FRIED", "BAKED", "ROASTED", "STEAMED", "PREPARED"];
 
 export const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA", "USER_CUSTOM"];
 
@@ -37,12 +38,22 @@ export const QUALITY_ISSUES = [
 
 export type ProductReviewDraft = {
   productName: string;
+  brand: string;
   displayImageUrl: string;
   marketRegion: string;
   verificationStatus: string;
   imageStatus: string;
   imageSource: string;
   catalogType: string;
+  preparationState: string;
+  nutritionBasis: string;
+  nutritionReferenceUnit: string;
+  ingredientsText: string;
+  allergens: string;
+  sourceCategoryTags: string;
+  adminSourceName: string;
+  adminSourceUrl: string;
+  adminCreationNote: string;
   calories: string;
   protein: string;
   carbs: string;
@@ -396,12 +407,22 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
         method: "PATCH",
         body: {
           productName: draft.productName || productName(item),
+          brand: draft.brand,
           displayImageUrl: draft.displayImageUrl || null,
           marketRegion: draft.marketRegion || null,
           verificationStatus: draft.verificationStatus || null,
           imageStatus: draft.imageStatus || null,
           imageSource: draft.imageSource || null,
           catalogType: draft.catalogType || null,
+          preparationState: draft.preparationState || null,
+          nutritionBasis: draft.nutritionBasis || null,
+          nutritionReferenceUnit: draft.nutritionReferenceUnit || null,
+          ingredientsText: draft.ingredientsText,
+          allergens: draft.allergens,
+          sourceCategoryTags: draft.sourceCategoryTags.split(",").map((value) => value.trim()).filter(Boolean),
+          adminSourceName: draft.adminSourceName,
+          adminSourceUrl: draft.adminSourceUrl,
+          adminCreationNote: draft.adminCreationNote,
           ...productReviewNutritionPayload(draft),
           reviewNote: reviewNote || "Updated from admin panel."
         }
@@ -431,10 +452,20 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
         method: "PATCH",
         body: {
           productName: draft.productName || productName(item),
+          brand: draft.brand,
           displayImageUrl: draft.displayImageUrl || item.displayImageUrl || item.imageUrl || item.externalImageUrl,
           marketRegion: draft.marketRegion || item.marketRegion,
           imageSource: draft.imageSource || item.imageSource,
           catalogType: draft.catalogType || item.catalogType,
+          preparationState: draft.preparationState || item.preparationState,
+          nutritionBasis: draft.nutritionBasis || item.nutritionBasis,
+          nutritionReferenceUnit: draft.nutritionReferenceUnit || item.nutritionReferenceUnit,
+          ingredientsText: draft.ingredientsText,
+          allergens: draft.allergens,
+          sourceCategoryTags: draft.sourceCategoryTags.split(",").map((value) => value.trim()).filter(Boolean),
+          adminSourceName: draft.adminSourceName,
+          adminSourceUrl: draft.adminSourceUrl,
+          adminCreationNote: draft.adminCreationNote,
           ...productReviewNutritionPayload(draft),
           verificationStatus: status,
           imageStatus: status === "VERIFIED" ? "APPROVED" : "REJECTED",
@@ -821,6 +852,9 @@ export function ProductReviewModal({
               <EditableDetail label="Product name">
                 <input value={draft.productName} onChange={(event) => updateDraft("productName", event.target.value)} />
               </EditableDetail>
+              <EditableDetail label={locale === "tr" ? "Marka" : "Brand"}>
+                <input value={draft.brand} onChange={(event) => updateDraft("brand", event.target.value)} />
+              </EditableDetail>
               <EditableDetail label="Display image URL">
                 <input value={draft.displayImageUrl} onChange={(event) => updateDraft("displayImageUrl", event.target.value)} placeholder="https://..." />
               </EditableDetail>
@@ -834,6 +868,11 @@ export function ProductReviewModal({
                 <select value={draft.catalogType} onChange={(event) => updateDraft("catalogType", event.target.value)}>
                   <option value="">{locale === "tr" ? "Mevcut değeri koru" : "Keep current"}</option>
                   {CATALOG_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </EditableDetail>
+              <EditableDetail label={locale === "tr" ? "Hazırlama durumu" : "Preparation state"}>
+                <select value={draft.preparationState} onChange={(event) => updateDraft("preparationState", event.target.value)}>
+                  {PREPARATION_STATES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
                 </select>
               </EditableDetail>
               <DetailItem label="Data source" value={item.dataSource} />
@@ -859,6 +898,24 @@ export function ProductReviewModal({
               <DetailItem label="Review priority" value={formatValue(item.reviewPriority)} />
               <DetailItem label="Usage count" value={formatValue(item.usageCount)} />
             </div>
+            <section className="product-review-editor-section">
+              <header><div><span>{locale === "tr" ? "Ölçüm ve kaynak" : "Measurement & source"}</span><strong>{locale === "tr" ? "Besin referansı ve katalog kaynağı" : "Nutrition reference and catalog provenance"}</strong></div><small>{locale === "tr" ? "Mobil uygulama bu ölçüye göre doğru porsiyon seçeneklerini gösterir." : "The mobile app uses this basis to present the correct portion options."}</small></header>
+              <div className="product-review-editor-grid">
+                <label><span>{locale === "tr" ? "Besin verisinin türü" : "Nutrition provenance"}</span><select value={draft.nutritionBasis} onChange={(event) => updateDraft("nutritionBasis", event.target.value)}><option value="SOURCE_REPORTED">{locale === "tr" ? "Kaynakta bildirilen" : "Source reported"}</option><option value="CALCULATED">{locale === "tr" ? "Hesaplanan" : "Calculated"}</option><option value="ESTIMATED">{locale === "tr" ? "Tahmini" : "Estimated"}</option></select></label>
+                <label><span>{locale === "tr" ? "Referans ölçü" : "Reference unit"}</span><select value={draft.nutritionReferenceUnit} onChange={(event) => updateDraft("nutritionReferenceUnit", event.target.value)}><option value="PER_100G">100 g</option><option value="PER_100ML">100 ml</option></select></label>
+                <label className="wide"><span>{locale === "tr" ? "Kaynak kategori etiketleri" : "Source category tags"}</span><input value={draft.sourceCategoryTags} onChange={(event) => updateDraft("sourceCategoryTags", event.target.value)} placeholder={locale === "tr" ? "Virgülle ayırın" : "Comma separated"} /></label>
+                <label><span>{locale === "tr" ? "Kaynak adı" : "Source name"}</span><input maxLength={160} value={draft.adminSourceName} onChange={(event) => updateDraft("adminSourceName", event.target.value)} /></label>
+                <label><span>{locale === "tr" ? "Kaynak bağlantısı" : "Source URL"}</span><input type="url" maxLength={1000} value={draft.adminSourceUrl} onChange={(event) => updateDraft("adminSourceUrl", event.target.value)} placeholder="https://..." /></label>
+              </div>
+            </section>
+            <section className="product-review-editor-section">
+              <header><div><span>{locale === "tr" ? "İçerik ve güvenlik" : "Content & safety"}</span><strong>{locale === "tr" ? "Etiket üzerinde bildirilen bilgiler" : "Label-declared product information"}</strong></div></header>
+              <div className="product-review-editor-grid">
+                <label className="wide"><span>{locale === "tr" ? "İçindekiler" : "Ingredients"}</span><textarea maxLength={5000} value={draft.ingredientsText} onChange={(event) => updateDraft("ingredientsText", event.target.value)} /></label>
+                <label className="wide"><span>{locale === "tr" ? "Alerjenler" : "Allergens"}</span><textarea maxLength={1000} value={draft.allergens} onChange={(event) => updateDraft("allergens", event.target.value)} /></label>
+                <label className="wide"><span>{locale === "tr" ? "Yönetici kaynak notu" : "Admin source note"}</span><textarea maxLength={500} value={draft.adminCreationNote} onChange={(event) => updateDraft("adminCreationNote", event.target.value)} /></label>
+              </div>
+            </section>
             <div className="nutrition-editor">
               <div className="nutrition-editor-heading">
                 <div>
@@ -1314,12 +1371,22 @@ export function buildProductReviewExportPath(filters: {
 export function toProductReviewDraft(item: FoodProduct): ProductReviewDraft {
   return {
     productName: productName(item),
+    brand: item.brand ?? "",
     displayImageUrl: item.displayImageUrl ?? item.imageUrl ?? item.externalImageUrl ?? "",
     marketRegion: item.marketRegion ?? "",
     verificationStatus: item.verificationStatus ?? "",
     imageStatus: item.imageStatus ?? "",
     imageSource: item.imageSource ?? "",
     catalogType: item.catalogType ?? "",
+    preparationState: item.preparationState ?? "UNSPECIFIED",
+    nutritionBasis: item.nutritionBasis ?? "SOURCE_REPORTED",
+    nutritionReferenceUnit: item.nutritionReferenceUnit ?? "PER_100G",
+    ingredientsText: item.ingredientsText ?? "",
+    allergens: item.allergens ?? "",
+    sourceCategoryTags: item.sourceCategoryTags?.join(", ") ?? "",
+    adminSourceName: item.adminSourceName ?? "",
+    adminSourceUrl: item.adminSourceUrl ?? "",
+    adminCreationNote: item.adminCreationNote ?? "",
     calories: numberInputValue(item.calories),
     protein: numberInputValue(item.protein),
     carbs: numberInputValue(item.carbs),

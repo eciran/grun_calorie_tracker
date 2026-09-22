@@ -41,6 +41,12 @@ class AdminProductIntakeManualServiceTest {
         var result = service.createManual("catalog@grun.app", request());
 
         assertEquals(301L, result.foodItemId());
+        assertEquals(FoodCatalogType.BRANDED_PRODUCT, candidate.getCatalogType());
+        assertEquals(FoodPreparationState.UNSPECIFIED, candidate.getPreparationState());
+        assertEquals("milk, nuts", candidate.getAllergens());
+        assertEquals("Sugar, hazelnuts, cocoa", candidate.getIngredientsText());
+        assertEquals(java.util.Set.of("spreads", "hazelnut"), candidate.getSourceCategoryTags());
+        verify(foods).save(candidate);
         verify(reviewCases).finalizeCase(argThat(command -> command.source() == FoodProductReviewCaseSource.ADMIN_MANUAL
                 && command.marketRegion() == MarketRegion.EU
                 && command.submittedBy() == null
@@ -70,7 +76,12 @@ class AdminProductIntakeManualServiceTest {
     private AdminProductIntakeManualRequestDto request() {
         return new AdminProductIntakeManualRequestDto("admin-manual-1", "3017620422003", MarketRegion.EU,
                 "Hazelnut spread", "Example", 539.0, 6.3, 30.9, 57.5, 3.4, 56.3, 0.1,
-                FoodNutritionBasis.SOURCE_REPORTED);
+                10.6, 0.0, 0.0, 120.0, 0.0, 43.0, 1.2, 22.0, 0.6,
+                0.0, 0.0, 0.0, 0.0, 0.0,
+                FoodNutritionBasis.SOURCE_REPORTED, FoodNutritionReferenceUnit.PER_100G,
+                30.0, "g", FoodCatalogType.BRANDED_PRODUCT, FoodPreparationState.UNSPECIFIED,
+                "Sugar, hazelnuts, cocoa", "milk, nuts", java.util.Set.of("spreads", "hazelnut"),
+                "Manufacturer label", "https://example.com/source", "Created from package label");
     }
 
     private UserEntity admin(UserRole role) {
