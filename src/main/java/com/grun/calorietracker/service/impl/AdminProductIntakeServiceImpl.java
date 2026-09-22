@@ -552,7 +552,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         values.put("preparationState", food.getPreparationState());
         values.put("ingredientsText", food.getIngredientsText());
         values.put("allergens", food.getAllergens());
-        values.put("sourceCategoryTags", food.getSourceCategoryTags());
+        values.put("sourceCategoryTags", food.getSourceCategoryTags() == null
+                ? Set.of()
+                : new TreeSet<>(food.getSourceCategoryTags()));
         values.put("adminSourceName", food.getAdminSourceName());
         values.put("adminSourceUrl", food.getAdminSourceUrl());
         values.put("adminCreationNote", food.getAdminCreationNote());

@@ -9,8 +9,10 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -28,6 +30,7 @@ class AdminProductIntakeDetailServiceTest {
         food.setId(5L);
         food.setName("Catalog name");
         food.setBrand("Same brand");
+        food.setSourceCategoryTags(new LinkedHashSet<>(List.of("en:sodas", "en:beverages")));
         food.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
         FoodProductReviewCaseEntity reviewCase = baseCase(food);
         reviewCase.setSubmittedValuesJson("{\"productName\":\"User name\",\"brand\":\"Same brand\"}");
@@ -40,6 +43,8 @@ class AdminProductIntakeDetailServiceTest {
         assertEquals(5L, detail.linkedFoodItemId());
         assertTrue(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("productName") && !value.equal()));
         assertTrue(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("brand") && value.equal()));
+        assertEquals(Set.of("en:beverages", "en:sodas"), detail.catalogFields().get("sourceCategoryTags"));
+        assertNotSame(food.getSourceCategoryTags(), detail.catalogFields().get("sourceCategoryTags"));
         assertTrue(detail.evidence().get(0).available());
         assertFalse(Arrays.stream(detail.evidence().get(0).getClass().getRecordComponents())
                 .anyMatch(component -> component.getName().toLowerCase().contains("url")
