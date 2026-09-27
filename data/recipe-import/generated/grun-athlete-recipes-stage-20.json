@@ -1,0 +1,2669 @@
+{
+  "batchId": "grun-athlete-recipes-stage-20-20260925",
+  "createdAt": "2026-09-25",
+  "purpose": "Curated athlete recipe candidates for GRun. Covers post-training recovery, high-fuel meals, portable snacks, meal prep, and plant-based options. Every candidate requires admin food-item mapping, nutrition verification, allergen review, and image curation before publication.",
+  "sourcePolicy": {
+    "sourceName": "GRun athlete recipe editorial curation",
+    "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+    "selectionBasis": "Selected using athlete-specific guidance from the Australian Institute of Sport and strong community popularity/rating signals from Good Food. Recipes are original GRun formulations, not copied source text.",
+    "license": "GRun original editorial content; source links retained as selection evidence",
+    "licenseUrl": null,
+    "attributionRequired": false,
+    "shareAlikeRequired": false,
+    "notes": "No third-party images are imported. Ratings are research snapshots and must not be presented as GRun user ratings. This is not individualized medical or sports-dietitian advice."
+  },
+  "recipes": [
+    {
+      "sourceKey": "grun-athlete-curation-01",
+      "sourceTitle": "Easy protein pancakes - 4.2/5 from 87 ratings at research time",
+      "sourceUrl": "https://www.bbcgoodfood.com/recipes/easy-protein-pancakes",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/easy-protein-pancakes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Banana Oat Protein Pancakes",
+        "description": "Post-training breakfast with protein, carbohydrate and fruit. Original GRun formulation inspired by a highly rated protein pancake format.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 500,
+        "defaultServingGrams": 250,
+        "servingCount": 2,
+        "categories": [
+          "BREAKFAST",
+          "HIGH_PROTEIN",
+          "QUICK_MEAL",
+          "VEGETARIAN"
+        ],
+        "allergens": [
+          "MILK",
+          "EGGS",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Rolled oats",
+            "portionSize": 80,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 80
+          },
+          {
+            "ingredientName": "Banana",
+            "portionSize": 1,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Eggs",
+            "portionSize": 3,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 150
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Semi-skimmed milk",
+            "portionSize": 60,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 60
+          },
+          {
+            "ingredientName": "Whey protein powder",
+            "portionSize": 30,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Baking powder",
+            "portionSize": 5,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 5
+          },
+          {
+            "ingredientName": "Ground cinnamon",
+            "portionSize": 2,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 2
+          },
+          {
+            "ingredientName": "Blueberries",
+            "portionSize": 80,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 80
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Blend the oats into a coarse flour."
+          },
+          {
+            "instruction": "Blend in banana, eggs, yogurt, milk, protein powder, baking powder and cinnamon."
+          },
+          {
+            "instruction": "Cook small pancakes in a non-stick pan over medium heat for 1-2 minutes per side."
+          },
+          {
+            "instruction": "Serve with blueberries."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Banana Oat Protein Pancakes",
+            "description": "Post-training breakfast with protein, carbohydrate and fruit. Original GRun formulation inspired by a highly rated protein pancake format.",
+            "cookingSteps": [
+              {
+                "instruction": "Blend the oats into a coarse flour."
+              },
+              {
+                "instruction": "Blend in banana, eggs, yogurt, milk, protein powder, baking powder and cinnamon."
+              },
+              {
+                "instruction": "Cook small pancakes in a non-stick pan over medium heat for 1-2 minutes per side."
+              },
+              {
+                "instruction": "Serve with blueberries."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Muzlu Yulaflı Protein Pankeki",
+            "description": "Protein, karbonhidrat ve meyve içeren antrenman sonrası kahvaltısı.",
+            "cookingSteps": [
+              {
+                "instruction": "Yulafı iri un kıvamına gelene kadar çekin."
+              },
+              {
+                "instruction": "Muz, yumurta, yoğurt, süt, protein tozu, kabartma tozu ve tarçını ekleyip karıştırın."
+              },
+              {
+                "instruction": "Küçük pankekleri yapışmaz tavada orta ateşte her yüzünü 1-2 dakika pişirin."
+              },
+              {
+                "instruction": "Yaban mersiniyle servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-02",
+      "sourceTitle": "Tuna, avocado and quinoa salad - 4.7/5 from 48 ratings at research time",
+      "sourceUrl": "https://www.bbcgoodfood.com/recipes/tuna-avocado-quinoa-salad",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/tuna-avocado-quinoa-salad",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Tuna Quinoa Recovery Bowl",
+        "description": "Balanced recovery lunch with complete protein, carbohydrate, vegetables and unsaturated fat.",
+        "mealType": "LUNCH",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 760,
+        "defaultServingGrams": 380,
+        "servingCount": 2,
+        "categories": [
+          "LUNCH",
+          "HIGH_PROTEIN",
+          "FISH",
+          "SALAD",
+          "MEAL_PREP",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [
+          "FISH",
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Dry quinoa",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Tuna in spring water, drained",
+            "portionSize": 240,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 240
+          },
+          {
+            "ingredientName": "Avocado",
+            "portionSize": 140,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 140
+          },
+          {
+            "ingredientName": "Cherry tomatoes",
+            "portionSize": 180,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 180
+          },
+          {
+            "ingredientName": "Baby spinach",
+            "portionSize": 80,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 80
+          },
+          {
+            "ingredientName": "Feta cheese",
+            "portionSize": 60,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 60
+          },
+          {
+            "ingredientName": "Mixed seeds",
+            "portionSize": 20,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Extra virgin olive oil",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Lemon juice",
+            "portionSize": 30,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 30
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Rinse and cook quinoa until tender, then cool slightly."
+          },
+          {
+            "instruction": "Whisk olive oil and lemon juice."
+          },
+          {
+            "instruction": "Fold quinoa with tuna, tomatoes, spinach, avocado and feta."
+          },
+          {
+            "instruction": "Finish with mixed seeds and dressing."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Tuna Quinoa Recovery Bowl",
+            "description": "Balanced recovery lunch with complete protein, carbohydrate, vegetables and unsaturated fat.",
+            "cookingSteps": [
+              {
+                "instruction": "Rinse and cook quinoa until tender, then cool slightly."
+              },
+              {
+                "instruction": "Whisk olive oil and lemon juice."
+              },
+              {
+                "instruction": "Fold quinoa with tuna, tomatoes, spinach, avocado and feta."
+              },
+              {
+                "instruction": "Finish with mixed seeds and dressing."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Ton Balıklı Kinoa Toparlanma Kasesi",
+            "description": "Kaliteli protein, karbonhidrat, sebze ve doymamış yağ içeren dengeli toparlanma öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "Kinoayı yıkayıp yumuşayana kadar pişirin ve biraz soğutun."
+              },
+              {
+                "instruction": "Zeytinyağı ile limon suyunu çırpın."
+              },
+              {
+                "instruction": "Kinoa, ton balığı, domates, ıspanak, avokado ve beyaz peyniri karıştırın."
+              },
+              {
+                "instruction": "Tohumları ve sosu ekleyerek servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-03",
+      "sourceTitle": "Chicken and chorizo jambalaya - top popular chicken recipe with 2,664 ratings at research time",
+      "sourceUrl": "https://www.bbcgoodfood.com/howto/guide/most-popular-chicken-recipes",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/howto/guide/most-popular-chicken-recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Lean Chicken Jambalaya",
+        "description": "A lighter high-protein rice meal designed for refuelling after demanding training.",
+        "mealType": "DINNER",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1600,
+        "defaultServingGrams": 400,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "CHICKEN",
+          "MEAL_PREP"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken breast",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Long-grain rice",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Red bell pepper",
+            "portionSize": 200,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Onion",
+            "portionSize": 150,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 150
+          },
+          {
+            "ingredientName": "Chopped tomatoes",
+            "portionSize": 400,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 400
+          },
+          {
+            "ingredientName": "Low-salt chicken stock",
+            "portionSize": 500,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 500
+          },
+          {
+            "ingredientName": "Smoked paprika",
+            "portionSize": 8,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 8
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 15,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 15
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Brown diced chicken in olive oil."
+          },
+          {
+            "instruction": "Soften onion, pepper and garlic, then add paprika."
+          },
+          {
+            "instruction": "Stir in rice, tomatoes and stock."
+          },
+          {
+            "instruction": "Cover and simmer until the rice is tender and chicken is cooked through."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Lean Chicken Jambalaya",
+            "description": "A lighter high-protein rice meal designed for refuelling after demanding training.",
+            "cookingSteps": [
+              {
+                "instruction": "Brown diced chicken in olive oil."
+              },
+              {
+                "instruction": "Soften onion, pepper and garlic, then add paprika."
+              },
+              {
+                "instruction": "Stir in rice, tomatoes and stock."
+              },
+              {
+                "instruction": "Cover and simmer until the rice is tender and chicken is cooked through."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Yağsız Tavuklu Jambalaya",
+            "description": "Yoğun antrenman sonrası enerji yenilemeye uygun, daha hafif ve yüksek proteinli pirinç yemeği.",
+            "cookingSteps": [
+              {
+                "instruction": "Küp doğranmış tavuğu zeytinyağında renk alana kadar pişirin."
+              },
+              {
+                "instruction": "Soğan, biber ve sarımsağı yumuşatıp kırmızı toz biberi ekleyin."
+              },
+              {
+                "instruction": "Pirinç, domates ve tavuk suyunu karıştırın."
+              },
+              {
+                "instruction": "Kapağı kapalı şekilde pirinç yumuşayana ve tavuk tamamen pişene kadar kısık ateşte pişirin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-04",
+      "sourceTitle": "Healthy BBQ chicken - high-protein and low-calorie community recipe",
+      "sourceUrl": "https://www.bbcgoodfood.com/recipes/healthy-bbq-chicken",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/healthy-bbq-chicken",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Smoky BBQ Chicken and Sweet Potato",
+        "description": "Lean protein with slow-release carbohydrate for a practical training-day dinner.",
+        "mealType": "DINNER",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1600,
+        "defaultServingGrams": 400,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "CHICKEN",
+          "LOW_FAT",
+          "MEAL_PREP",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [
+          "MUSTARD"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken breast",
+            "portionSize": 720,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 720
+          },
+          {
+            "ingredientName": "Sweet potato",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Passata",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Red onion",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Smoked paprika",
+            "portionSize": 8,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 8
+          },
+          {
+            "ingredientName": "Mustard powder",
+            "portionSize": 4,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 4
+          },
+          {
+            "ingredientName": "Balsamic vinegar",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cut sweet potato into wedges and roast with half the oil."
+          },
+          {
+            "instruction": "Mix passata, paprika, mustard and vinegar into a glaze."
+          },
+          {
+            "instruction": "Coat chicken with glaze and bake or grill until fully cooked."
+          },
+          {
+            "instruction": "Serve sliced chicken with the roasted sweet potato."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Smoky BBQ Chicken and Sweet Potato",
+            "description": "Lean protein with slow-release carbohydrate for a practical training-day dinner.",
+            "cookingSteps": [
+              {
+                "instruction": "Cut sweet potato into wedges and roast with half the oil."
+              },
+              {
+                "instruction": "Mix passata, paprika, mustard and vinegar into a glaze."
+              },
+              {
+                "instruction": "Coat chicken with glaze and bake or grill until fully cooked."
+              },
+              {
+                "instruction": "Serve sliced chicken with the roasted sweet potato."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "İsli Barbekü Tavuk ve Tatlı Patates",
+            "description": "Antrenman günü için yağsız protein ve uzun süreli enerji sağlayan karbonhidrat öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "Tatlı patatesi dilimleyip yağın yarısıyla fırınlayın."
+              },
+              {
+                "instruction": "Domates püresi, kırmızı toz biber, hardal ve sirkeyi sos haline getirin."
+              },
+              {
+                "instruction": "Tavuğu soslayıp tamamen pişene kadar fırınlayın veya ızgara yapın."
+              },
+              {
+                "instruction": "Dilimlenmiş tavuğu tatlı patatesle servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-05",
+      "sourceTitle": "Easy coronation chicken - 4.8/5 from 189 ratings at research time",
+      "sourceUrl": "https://www.bbcgoodfood.com/recipes/easy-coronation-chicken",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/easy-coronation-chicken",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Curried Yogurt Chicken Wrap Filling",
+        "description": "High-protein meal-prep filling with a lighter yogurt dressing.",
+        "mealType": "LUNCH",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 880,
+        "defaultServingGrams": 220,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "HIGH_PROTEIN",
+          "CHICKEN",
+          "QUICK_MEAL",
+          "MEAL_PREP"
+        ],
+        "allergens": [
+          "MILK",
+          "MUSTARD"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Cooked chicken breast, shredded",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 180,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 180
+          },
+          {
+            "ingredientName": "Mango chutney",
+            "portionSize": 40,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 40
+          },
+          {
+            "ingredientName": "Mild curry powder",
+            "portionSize": 8,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 8
+          },
+          {
+            "ingredientName": "Dijon mustard",
+            "portionSize": 8,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 8
+          },
+          {
+            "ingredientName": "Sultanas",
+            "portionSize": 30,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Lemon juice",
+            "portionSize": 14,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 14
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Mix yogurt, chutney, curry powder, mustard and lemon juice."
+          },
+          {
+            "instruction": "Fold in shredded chicken and sultanas."
+          },
+          {
+            "instruction": "Chill before serving in a wholegrain wrap, potato or salad."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Curried Yogurt Chicken Wrap Filling",
+            "description": "High-protein meal-prep filling with a lighter yogurt dressing.",
+            "cookingSteps": [
+              {
+                "instruction": "Mix yogurt, chutney, curry powder, mustard and lemon juice."
+              },
+              {
+                "instruction": "Fold in shredded chicken and sultanas."
+              },
+              {
+                "instruction": "Chill before serving in a wholegrain wrap, potato or salad."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Körili Yoğurtlu Tavuk Dürüm Harcı",
+            "description": "Daha hafif yoğurt sosuyla hazırlanan yüksek proteinli öğün hazırlık harcı.",
+            "cookingSteps": [
+              {
+                "instruction": "Yoğurt, mango chutney, köri, hardal ve limon suyunu karıştırın."
+              },
+              {
+                "instruction": "Didiklenmiş tavuk ve kuru üzümü ekleyin."
+              },
+              {
+                "instruction": "Tam tahıllı dürüm, fırın patates veya salatayla servis etmeden önce soğutun."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-06",
+      "sourceTitle": "Australian Institute of Sport athlete recipe collection - Mexican rice pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes/mexican_rice",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes/mexican_rice",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "High-Fuel Bean and Mexican Rice",
+        "description": "Carbohydrate-forward meal for endurance or high-volume training days, with beans for added protein and fibre.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1800,
+        "defaultServingGrams": 450,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "HIGH_FIBER",
+          "VEGETARIAN",
+          "MEAL_PREP",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Long-grain rice",
+            "portionSize": 360,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 360
+          },
+          {
+            "ingredientName": "Mixed beans, drained",
+            "portionSize": 480,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 480
+          },
+          {
+            "ingredientName": "Carrots",
+            "portionSize": 200,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Green peas",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Onion",
+            "portionSize": 140,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 140
+          },
+          {
+            "ingredientName": "Tomato puree",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Low-salt vegetable stock",
+            "portionSize": 720,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 720
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 10,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 10
+          },
+          {
+            "ingredientName": "Ground cumin",
+            "portionSize": 6,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 6
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Soften onion and garlic in olive oil."
+          },
+          {
+            "instruction": "Stir in rice, cumin and tomato puree."
+          },
+          {
+            "instruction": "Add stock, carrots, peas and beans."
+          },
+          {
+            "instruction": "Cover and simmer until rice is tender, adding water if needed."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "High-Fuel Bean and Mexican Rice",
+            "description": "Carbohydrate-forward meal for endurance or high-volume training days, with beans for added protein and fibre.",
+            "cookingSteps": [
+              {
+                "instruction": "Soften onion and garlic in olive oil."
+              },
+              {
+                "instruction": "Stir in rice, cumin and tomato puree."
+              },
+              {
+                "instruction": "Add stock, carrots, peas and beans."
+              },
+              {
+                "instruction": "Cover and simmer until rice is tender, adding water if needed."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Yüksek Enerjili Fasulyeli Meksika Pilavı",
+            "description": "Dayanıklılık ve yüksek hacimli antrenman günleri için karbonhidrat ağırlıklı, lifli bir öğün.",
+            "cookingSteps": [
+              {
+                "instruction": "Soğan ve sarımsağı zeytinyağında yumuşatın."
+              },
+              {
+                "instruction": "Pirinç, kimyon ve domates püresini ekleyip karıştırın."
+              },
+              {
+                "instruction": "Sebze suyu, havuç, bezelye ve fasulyeyi ekleyin."
+              },
+              {
+                "instruction": "Kapağı kapalı olarak pirinç yumuşayana kadar pişirin; gerekirse su ekleyin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-07",
+      "sourceTitle": "Australian Institute of Sport athlete recipe collection - smoothie guidance",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes/mango_smoothie",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes/mango_smoothie",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Mango Yogurt Recovery Smoothie",
+        "description": "Fast post-training snack with fruit carbohydrate and dairy protein; adjust milk fat to energy needs.",
+        "mealType": "SNACK",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 760,
+        "defaultServingGrams": 380,
+        "servingCount": 2,
+        "categories": [
+          "SNACK",
+          "HIGH_PROTEIN",
+          "QUICK_MEAL",
+          "VEGETARIAN",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [
+          "MILK"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Mango flesh",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Semi-skimmed milk",
+            "portionSize": 300,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 150,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 150
+          },
+          {
+            "ingredientName": "Honey",
+            "portionSize": 15,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 15
+          },
+          {
+            "ingredientName": "Ground cinnamon",
+            "portionSize": 2,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 2
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Add all ingredients to a blender."
+          },
+          {
+            "instruction": "Blend until smooth."
+          },
+          {
+            "instruction": "Serve immediately or keep chilled for the same day."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Mango Yogurt Recovery Smoothie",
+            "description": "Fast post-training snack with fruit carbohydrate and dairy protein; adjust milk fat to energy needs.",
+            "cookingSteps": [
+              {
+                "instruction": "Add all ingredients to a blender."
+              },
+              {
+                "instruction": "Blend until smooth."
+              },
+              {
+                "instruction": "Serve immediately or keep chilled for the same day."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Mangolu Yoğurtlu Toparlanma Smoothie’si",
+            "description": "Meyve karbonhidratı ve süt proteini içeren hızlı antrenman sonrası ara öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "Tüm malzemeleri blendera alın."
+              },
+              {
+                "instruction": "Pürüzsüz kıvama gelene kadar karıştırın."
+              },
+              {
+                "instruction": "Hemen servis edin veya aynı gün tüketmek üzere soğukta saklayın."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-08",
+      "sourceTitle": "Healthy banana pancakes - 4.6/5 from 169 ratings at research time",
+      "sourceUrl": "https://www.bbcgoodfood.com/recipes/collection/breakfast-pancake-recipes",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/collection/breakfast-pancake-recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Wholegrain Banana Training Pancakes",
+        "description": "Whole-food breakfast for moderate training days, with oats, eggs and fruit.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 480,
+        "defaultServingGrams": 240,
+        "servingCount": 2,
+        "categories": [
+          "BREAKFAST",
+          "VEGETARIAN",
+          "HIGH_FIBER",
+          "QUICK_MEAL"
+        ],
+        "allergens": [
+          "EGGS",
+          "MILK",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Bananas",
+            "portionSize": 2,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 240
+          },
+          {
+            "ingredientName": "Eggs",
+            "portionSize": 2,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Rolled oats",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Milk",
+            "portionSize": 60,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 60
+          },
+          {
+            "ingredientName": "Baking powder",
+            "portionSize": 5,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 5
+          },
+          {
+            "ingredientName": "Ground cinnamon",
+            "portionSize": 2,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 2
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 80,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 80
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Blend banana, eggs, oats, milk, baking powder and cinnamon."
+          },
+          {
+            "instruction": "Rest the batter for five minutes."
+          },
+          {
+            "instruction": "Cook small pancakes in a non-stick pan until golden on both sides."
+          },
+          {
+            "instruction": "Serve with Greek yogurt."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Wholegrain Banana Training Pancakes",
+            "description": "Whole-food breakfast for moderate training days, with oats, eggs and fruit.",
+            "cookingSteps": [
+              {
+                "instruction": "Blend banana, eggs, oats, milk, baking powder and cinnamon."
+              },
+              {
+                "instruction": "Rest the batter for five minutes."
+              },
+              {
+                "instruction": "Cook small pancakes in a non-stick pan until golden on both sides."
+              },
+              {
+                "instruction": "Serve with Greek yogurt."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Tam Tahıllı Muzlu Antrenman Pankeki",
+            "description": "Orta yoğunluktaki antrenman günleri için yulaf, yumurta ve meyveli kahvaltı.",
+            "cookingSteps": [
+              {
+                "instruction": "Muz, yumurta, yulaf, süt, kabartma tozu ve tarçını blenderdan geçirin."
+              },
+              {
+                "instruction": "Karışımı beş dakika dinlendirin."
+              },
+              {
+                "instruction": "Küçük pankekleri yapışmaz tavada iki yüzü kızarana kadar pişirin."
+              },
+              {
+                "instruction": "Süzme yoğurtla servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-09",
+      "sourceTitle": "Post-workout meal guidance by performance nutritionist James Collins",
+      "sourceUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Cajun Chicken Quinoa Bowl",
+        "description": "Protein and carbohydrate recovery bowl with colourful vegetables.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "CHICKEN",
+          "MEAL_PREP",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Chicken breast",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Dry quinoa",
+            "portionSize": 280,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 280
+          },
+          {
+            "ingredientName": "Red bell pepper",
+            "portionSize": 200,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Courgette",
+            "portionSize": 200,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Sweetcorn",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Cajun seasoning",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Lime juice",
+            "portionSize": 30,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 30
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cook quinoa and drain well."
+          },
+          {
+            "instruction": "Season chicken with Cajun spice and cook until done."
+          },
+          {
+            "instruction": "Saute pepper, courgette and sweetcorn."
+          },
+          {
+            "instruction": "Divide quinoa, vegetables and sliced chicken into bowls; finish with lime."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Cajun Chicken Quinoa Bowl",
+            "description": "Protein and carbohydrate recovery bowl with colourful vegetables.",
+            "cookingSteps": [
+              {
+                "instruction": "Cook quinoa and drain well."
+              },
+              {
+                "instruction": "Season chicken with Cajun spice and cook until done."
+              },
+              {
+                "instruction": "Saute pepper, courgette and sweetcorn."
+              },
+              {
+                "instruction": "Divide quinoa, vegetables and sliced chicken into bowls; finish with lime."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Kajun Tavuklu Kinoa Kasesi",
+            "description": "Renkli sebzeler, protein ve karbonhidrat içeren toparlanma kasesi.",
+            "cookingSteps": [
+              {
+                "instruction": "Kinoayı pişirip iyice süzün."
+              },
+              {
+                "instruction": "Tavuğu Kajun baharatıyla çeşnilendirip tamamen pişirin."
+              },
+              {
+                "instruction": "Biber, kabak ve mısırı soteleyin."
+              },
+              {
+                "instruction": "Kinoa, sebze ve dilimlenmiş tavuğu kaselere paylaştırıp misket limonuyla tamamlayın."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-10",
+      "sourceTitle": "Post-workout meal guidance by performance nutritionist James Collins",
+      "sourceUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Salmon Potato Recovery Tray",
+        "description": "Omega-3-rich fish with potatoes and greens for a complete recovery meal.",
+        "mealType": "DINNER",
+        "marketRegion": "EU",
+        "marketRegions": [
+          "EU"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "FISH",
+          "MEAL_PREP",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [
+          "FISH",
+          "MUSTARD"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Salmon fillets",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Baby potatoes",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Broccoli",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Dijon mustard",
+            "portionSize": 20,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Lemon juice",
+            "portionSize": 30,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 30
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Fresh dill",
+            "portionSize": 8,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 8
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Roast halved potatoes with olive oil until nearly tender."
+          },
+          {
+            "instruction": "Add salmon brushed with mustard and lemon."
+          },
+          {
+            "instruction": "Add broccoli and roast until salmon is cooked and vegetables are tender."
+          },
+          {
+            "instruction": "Finish with dill."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Salmon Potato Recovery Tray",
+            "description": "Omega-3-rich fish with potatoes and greens for a complete recovery meal.",
+            "cookingSteps": [
+              {
+                "instruction": "Roast halved potatoes with olive oil until nearly tender."
+              },
+              {
+                "instruction": "Add salmon brushed with mustard and lemon."
+              },
+              {
+                "instruction": "Add broccoli and roast until salmon is cooked and vegetables are tender."
+              },
+              {
+                "instruction": "Finish with dill."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Somonlu Patates Toparlanma Tepsisi",
+            "description": "Omega-3 içeren balık, patates ve yeşil sebzelerden oluşan tam toparlanma öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "İkiye bölünmüş patatesleri zeytinyağıyla neredeyse yumuşayana kadar fırınlayın."
+              },
+              {
+                "instruction": "Hardal ve limon sürülmüş somonu tepsiye ekleyin."
+              },
+              {
+                "instruction": "Brokoliyi ekleyip somon ve sebzeler pişene kadar fırınlayın."
+              },
+              {
+                "instruction": "Dereotuyla tamamlayın."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-11",
+      "sourceTitle": "Australian Institute of Sport food-first athlete meal pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Turkey Meatballs with Tomato Pasta",
+        "description": "Meal-prep friendly protein and carbohydrate meal for team-sport or strength-training days.",
+        "mealType": "DINNER",
+        "marketRegion": "EU",
+        "marketRegions": [
+          "EU"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1600,
+        "defaultServingGrams": 400,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "MEAT",
+          "MEAL_PREP"
+        ],
+        "allergens": [
+          "WHEAT",
+          "GLUTEN",
+          "EGGS"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Lean turkey mince",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Wholewheat pasta",
+            "portionSize": 320,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 320
+          },
+          {
+            "ingredientName": "Passata",
+            "portionSize": 500,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 500
+          },
+          {
+            "ingredientName": "Egg",
+            "portionSize": 1,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 50
+          },
+          {
+            "ingredientName": "Wholemeal breadcrumbs",
+            "portionSize": 40,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 40
+          },
+          {
+            "ingredientName": "Onion",
+            "portionSize": 140,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 140
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 15,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 15
+          },
+          {
+            "ingredientName": "Dried oregano",
+            "portionSize": 5,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 5
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Combine turkey, egg, breadcrumbs and oregano; shape into meatballs."
+          },
+          {
+            "instruction": "Brown meatballs, then set aside."
+          },
+          {
+            "instruction": "Soften onion and garlic, add passata and return meatballs to simmer."
+          },
+          {
+            "instruction": "Cook pasta and serve with the meatball sauce."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Turkey Meatballs with Tomato Pasta",
+            "description": "Meal-prep friendly protein and carbohydrate meal for team-sport or strength-training days.",
+            "cookingSteps": [
+              {
+                "instruction": "Combine turkey, egg, breadcrumbs and oregano; shape into meatballs."
+              },
+              {
+                "instruction": "Brown meatballs, then set aside."
+              },
+              {
+                "instruction": "Soften onion and garlic, add passata and return meatballs to simmer."
+              },
+              {
+                "instruction": "Cook pasta and serve with the meatball sauce."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Domates Soslu Hindi Köfte ve Makarna",
+            "description": "Takım sporu veya kuvvet antrenmanı günleri için hazırlaması kolay protein ve karbonhidrat öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "Hindi, yumurta, galeta unu ve kekiği karıştırıp köfteler hazırlayın."
+              },
+              {
+                "instruction": "Köfteleri tavada renk aldırıp kenara alın."
+              },
+              {
+                "instruction": "Soğan ve sarımsağı yumuşatın, domates püresiyle köfteleri ekleyip pişirin."
+              },
+              {
+                "instruction": "Makarnayı haşlayıp köfte sosuyla servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-12",
+      "sourceTitle": "Australian Institute of Sport food-first athlete meal pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Beef Broccoli Rice Bowl",
+        "description": "Iron-rich lean beef, rice and vegetables for high-output training days.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1500,
+        "defaultServingGrams": 375,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "MEAT",
+          "MEAL_PREP"
+        ],
+        "allergens": [
+          "SOYBEANS",
+          "SESAME"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Lean beef strips",
+            "portionSize": 600,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 600
+          },
+          {
+            "ingredientName": "Dry jasmine rice",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Broccoli",
+            "portionSize": 400,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 400
+          },
+          {
+            "ingredientName": "Carrots",
+            "portionSize": 180,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 180
+          },
+          {
+            "ingredientName": "Reduced-salt soy sauce",
+            "portionSize": 45,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 45
+          },
+          {
+            "ingredientName": "Sesame oil",
+            "portionSize": 10,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 10
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Fresh ginger",
+            "portionSize": 15,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 15
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cook rice according to packet instructions."
+          },
+          {
+            "instruction": "Stir-fry beef in batches over high heat."
+          },
+          {
+            "instruction": "Cook broccoli and carrots with garlic and ginger."
+          },
+          {
+            "instruction": "Return beef, add soy sauce and sesame oil, then serve over rice."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Beef Broccoli Rice Bowl",
+            "description": "Iron-rich lean beef, rice and vegetables for high-output training days.",
+            "cookingSteps": [
+              {
+                "instruction": "Cook rice according to packet instructions."
+              },
+              {
+                "instruction": "Stir-fry beef in batches over high heat."
+              },
+              {
+                "instruction": "Cook broccoli and carrots with garlic and ginger."
+              },
+              {
+                "instruction": "Return beef, add soy sauce and sesame oil, then serve over rice."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Etli Brokoli ve Pirinç Kasesi",
+            "description": "Yüksek eforlu antrenman günleri için demirden zengin yağsız et, pirinç ve sebze öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "Pirinci paket talimatına göre pişirin."
+              },
+              {
+                "instruction": "Et şeritlerini yüksek ateşte partiler halinde soteleyin."
+              },
+              {
+                "instruction": "Brokoli ve havucu sarımsak ve zencefille pişirin."
+              },
+              {
+                "instruction": "Eti geri ekleyip soya sosu ve susam yağıyla karıştırın; pirinç üzerinde servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-13",
+      "sourceTitle": "Australian Institute of Sport food-first athlete meal pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Egg and Spinach Breakfast Wrap",
+        "description": "Portable breakfast with protein, carbohydrate and vegetables for busy training mornings.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "UK_IE",
+        "marketRegions": [
+          "UK_IE"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 700,
+        "defaultServingGrams": 350,
+        "servingCount": 2,
+        "categories": [
+          "BREAKFAST",
+          "HIGH_PROTEIN",
+          "QUICK_MEAL",
+          "VEGETARIAN"
+        ],
+        "allergens": [
+          "EGGS",
+          "MILK",
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Eggs",
+            "portionSize": 4,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Wholegrain wraps",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Baby spinach",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Cottage cheese",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Tomatoes",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 10,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 10
+          },
+          {
+            "ingredientName": "Black pepper",
+            "portionSize": 2,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 2
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Wilt spinach and tomatoes in a pan."
+          },
+          {
+            "instruction": "Add beaten eggs and scramble gently."
+          },
+          {
+            "instruction": "Warm wraps and spread with cottage cheese."
+          },
+          {
+            "instruction": "Add egg mixture, roll tightly and serve."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Egg and Spinach Breakfast Wrap",
+            "description": "Portable breakfast with protein, carbohydrate and vegetables for busy training mornings.",
+            "cookingSteps": [
+              {
+                "instruction": "Wilt spinach and tomatoes in a pan."
+              },
+              {
+                "instruction": "Add beaten eggs and scramble gently."
+              },
+              {
+                "instruction": "Warm wraps and spread with cottage cheese."
+              },
+              {
+                "instruction": "Add egg mixture, roll tightly and serve."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Yumurtalı Ispanaklı Kahvaltı Dürümü",
+            "description": "Yoğun antrenman sabahları için taşınabilir protein, karbonhidrat ve sebze kahvaltısı.",
+            "cookingSteps": [
+              {
+                "instruction": "Ispanak ve domatesi tavada yumuşatın."
+              },
+              {
+                "instruction": "Çırpılmış yumurtayı ekleyip nazikçe pişirin."
+              },
+              {
+                "instruction": "Dürümleri ısıtıp lor peyniri sürün."
+              },
+              {
+                "instruction": "Yumurtalı karışımı ekleyip sıkıca sarın."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-14",
+      "sourceTitle": "Australian Institute of Sport food-first athlete snack pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Greek Yogurt Berry Overnight Oats",
+        "description": "Prepare-ahead breakfast or recovery snack with protein, carbohydrate and berries.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "EU",
+        "marketRegions": [
+          "EU"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 760,
+        "defaultServingGrams": 380,
+        "servingCount": 2,
+        "categories": [
+          "BREAKFAST",
+          "HIGH_PROTEIN",
+          "MEAL_PREP",
+          "VEGETARIAN",
+          "HIGH_FIBER"
+        ],
+        "allergens": [
+          "MILK",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Rolled oats",
+            "portionSize": 140,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 140
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 240,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 240
+          },
+          {
+            "ingredientName": "Milk",
+            "portionSize": 180,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 180
+          },
+          {
+            "ingredientName": "Mixed berries",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Chia seeds",
+            "portionSize": 20,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Honey",
+            "portionSize": 20,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 20
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Mix oats, yogurt, milk, chia seeds and honey."
+          },
+          {
+            "instruction": "Divide into containers and refrigerate overnight."
+          },
+          {
+            "instruction": "Top with berries before serving."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Greek Yogurt Berry Overnight Oats",
+            "description": "Prepare-ahead breakfast or recovery snack with protein, carbohydrate and berries.",
+            "cookingSteps": [
+              {
+                "instruction": "Mix oats, yogurt, milk, chia seeds and honey."
+              },
+              {
+                "instruction": "Divide into containers and refrigerate overnight."
+              },
+              {
+                "instruction": "Top with berries before serving."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Süzme Yoğurtlu ve Meyveli Gecelik Yulaf",
+            "description": "Önceden hazırlanabilen proteinli kahvaltı veya toparlanma ara öğünü.",
+            "cookingSteps": [
+              {
+                "instruction": "Yulaf, yoğurt, süt, chia tohumu ve balı karıştırın."
+              },
+              {
+                "instruction": "Kaplara bölüp gece boyunca buzdolabında bekletin."
+              },
+              {
+                "instruction": "Servisten önce orman meyvelerini ekleyin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-15",
+      "sourceTitle": "Australian Institute of Sport plant-based athlete meal pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Tofu Edamame Noodle Bowl",
+        "description": "Plant-based protein and carbohydrate bowl suitable for post-training meal prep.",
+        "mealType": "LUNCH",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1400,
+        "defaultServingGrams": 350,
+        "servingCount": 4,
+        "categories": [
+          "LUNCH",
+          "VEGAN",
+          "VEGETARIAN",
+          "HIGH_PROTEIN",
+          "MEAL_PREP"
+        ],
+        "allergens": [
+          "SOYBEANS",
+          "WHEAT",
+          "GLUTEN",
+          "SESAME"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Firm tofu",
+            "portionSize": 500,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 500
+          },
+          {
+            "ingredientName": "Wholewheat noodles",
+            "portionSize": 280,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 280
+          },
+          {
+            "ingredientName": "Shelled edamame",
+            "portionSize": 240,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 240
+          },
+          {
+            "ingredientName": "Pak choi",
+            "portionSize": 250,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 250
+          },
+          {
+            "ingredientName": "Carrots",
+            "portionSize": 180,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 180
+          },
+          {
+            "ingredientName": "Reduced-salt soy sauce",
+            "portionSize": 40,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 40
+          },
+          {
+            "ingredientName": "Sesame oil",
+            "portionSize": 10,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 10
+          },
+          {
+            "ingredientName": "Fresh ginger",
+            "portionSize": 15,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 15
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Press and cube tofu, then brown in a non-stick pan."
+          },
+          {
+            "instruction": "Cook noodles and drain."
+          },
+          {
+            "instruction": "Stir-fry vegetables and edamame with ginger."
+          },
+          {
+            "instruction": "Add noodles, tofu, soy sauce and sesame oil; toss well."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Tofu Edamame Noodle Bowl",
+            "description": "Plant-based protein and carbohydrate bowl suitable for post-training meal prep.",
+            "cookingSteps": [
+              {
+                "instruction": "Press and cube tofu, then brown in a non-stick pan."
+              },
+              {
+                "instruction": "Cook noodles and drain."
+              },
+              {
+                "instruction": "Stir-fry vegetables and edamame with ginger."
+              },
+              {
+                "instruction": "Add noodles, tofu, soy sauce and sesame oil; toss well."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Tofu ve Edamame Noodle Kasesi",
+            "description": "Antrenman sonrası öğün hazırlığına uygun bitkisel protein ve karbonhidrat kasesi.",
+            "cookingSteps": [
+              {
+                "instruction": "Tofunun suyunu alıp küp doğrayın ve tavada kızartın."
+              },
+              {
+                "instruction": "Noodle’ı pişirip süzün."
+              },
+              {
+                "instruction": "Sebzeleri, edamame ve zencefille soteleyin."
+              },
+              {
+                "instruction": "Noodle, tofu, soya sosu ve susam yağını ekleyip karıştırın."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-16",
+      "sourceTitle": "Australian Institute of Sport plant-based athlete meal pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Red Lentil Sweet Potato Curry",
+        "description": "High-fibre vegan meal with legumes and carbohydrate for training-day fuel.",
+        "mealType": "DINNER",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1800,
+        "defaultServingGrams": 450,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "VEGAN",
+          "VEGETARIAN",
+          "HIGH_FIBER",
+          "MEAL_PREP",
+          "GLUTEN_FREE"
+        ],
+        "allergens": [],
+        "ingredients": [
+          {
+            "ingredientName": "Dry red lentils",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Sweet potato",
+            "portionSize": 500,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 500
+          },
+          {
+            "ingredientName": "Chopped tomatoes",
+            "portionSize": 400,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 400
+          },
+          {
+            "ingredientName": "Light coconut milk",
+            "portionSize": 300,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Baby spinach",
+            "portionSize": 180,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 180
+          },
+          {
+            "ingredientName": "Onion",
+            "portionSize": 150,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 150
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Curry powder",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 15,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 15
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Soften onion and garlic in oil."
+          },
+          {
+            "instruction": "Add curry powder, lentils, sweet potato, tomatoes and coconut milk."
+          },
+          {
+            "instruction": "Add water as needed and simmer until lentils and potato are tender."
+          },
+          {
+            "instruction": "Fold in spinach just before serving."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Red Lentil Sweet Potato Curry",
+            "description": "High-fibre vegan meal with legumes and carbohydrate for training-day fuel.",
+            "cookingSteps": [
+              {
+                "instruction": "Soften onion and garlic in oil."
+              },
+              {
+                "instruction": "Add curry powder, lentils, sweet potato, tomatoes and coconut milk."
+              },
+              {
+                "instruction": "Add water as needed and simmer until lentils and potato are tender."
+              },
+              {
+                "instruction": "Fold in spinach just before serving."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Kırmızı Mercimekli Tatlı Patates Körisi",
+            "description": "Antrenman günü enerjisi için bakliyat ve karbonhidrat içeren yüksek lifli vegan öğün.",
+            "cookingSteps": [
+              {
+                "instruction": "Soğan ve sarımsağı yağda yumuşatın."
+              },
+              {
+                "instruction": "Köri, mercimek, tatlı patates, domates ve Hindistan cevizi sütünü ekleyin."
+              },
+              {
+                "instruction": "Gerektikçe su ekleyerek mercimek ve patates yumuşayana kadar pişirin."
+              },
+              {
+                "instruction": "Servisten hemen önce ıspanağı ekleyin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-17",
+      "sourceTitle": "Australian Institute of Sport convenient athlete snack pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "No-Bake Oat Date Energy Bites",
+        "description": "Portable carbohydrate-rich snack for long sessions; portion according to training load.",
+        "mealType": "SNACK",
+        "marketRegion": "GLOBAL",
+        "marketRegions": [
+          "GLOBAL"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 600,
+        "defaultServingGrams": 60,
+        "servingCount": 10,
+        "categories": [
+          "SNACK",
+          "VEGAN",
+          "VEGETARIAN",
+          "MEAL_PREP",
+          "QUICK_MEAL"
+        ],
+        "allergens": [
+          "PEANUTS",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Pitted dates",
+            "portionSize": 240,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 240
+          },
+          {
+            "ingredientName": "Rolled oats",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Peanut butter",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Cocoa powder",
+            "portionSize": 20,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Chia seeds",
+            "portionSize": 20,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Water",
+            "portionSize": 40,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 40
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Blend dates into a paste."
+          },
+          {
+            "instruction": "Pulse in oats, peanut butter, cocoa and chia seeds."
+          },
+          {
+            "instruction": "Add water gradually until the mixture holds together."
+          },
+          {
+            "instruction": "Roll into ten equal bites and chill."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "No-Bake Oat Date Energy Bites",
+            "description": "Portable carbohydrate-rich snack for long sessions; portion according to training load.",
+            "cookingSteps": [
+              {
+                "instruction": "Blend dates into a paste."
+              },
+              {
+                "instruction": "Pulse in oats, peanut butter, cocoa and chia seeds."
+              },
+              {
+                "instruction": "Add water gradually until the mixture holds together."
+              },
+              {
+                "instruction": "Roll into ten equal bites and chill."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Pişmeyen Yulaflı Hurma Enerji Topları",
+            "description": "Uzun antrenmanlar için taşınabilir karbonhidrat ağırlıklı ara öğün; porsiyonu antrenman yüküne göre ayarlayın.",
+            "cookingSteps": [
+              {
+                "instruction": "Hurmaları macun kıvamına gelene kadar çekin."
+              },
+              {
+                "instruction": "Yulaf, fıstık ezmesi, kakao ve chia tohumunu ekleyip karıştırın."
+              },
+              {
+                "instruction": "Karışım toparlanana kadar azar azar su ekleyin."
+              },
+              {
+                "instruction": "On eşit top yapıp buzdolabında dinlendirin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-18",
+      "sourceTitle": "Australian Institute of Sport food-first recovery pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Cottage Cheese Berry Recovery Cup",
+        "description": "No-cook high-protein snack with fruit and cereal carbohydrate.",
+        "mealType": "SNACK",
+        "marketRegion": "EU",
+        "marketRegions": [
+          "EU"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 600,
+        "defaultServingGrams": 300,
+        "servingCount": 2,
+        "categories": [
+          "SNACK",
+          "HIGH_PROTEIN",
+          "QUICK_MEAL",
+          "VEGETARIAN"
+        ],
+        "allergens": [
+          "MILK",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Cottage cheese",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Mixed berries",
+            "portionSize": 160,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 160
+          },
+          {
+            "ingredientName": "Low-sugar granola",
+            "portionSize": 80,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 80
+          },
+          {
+            "ingredientName": "Honey",
+            "portionSize": 15,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 15
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Mix cottage cheese and yogurt."
+          },
+          {
+            "instruction": "Layer with berries and granola."
+          },
+          {
+            "instruction": "Drizzle with honey immediately before serving."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Cottage Cheese Berry Recovery Cup",
+            "description": "No-cook high-protein snack with fruit and cereal carbohydrate.",
+            "cookingSteps": [
+              {
+                "instruction": "Mix cottage cheese and yogurt."
+              },
+              {
+                "instruction": "Layer with berries and granola."
+              },
+              {
+                "instruction": "Drizzle with honey immediately before serving."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Lor Peynirli Meyveli Toparlanma Kasesi",
+            "description": "Meyve ve tahıl karbonhidratı içeren, pişirme gerektirmeyen yüksek proteinli ara öğün.",
+            "cookingSteps": [
+              {
+                "instruction": "Lor peyniriyle yoğurdu karıştırın."
+              },
+              {
+                "instruction": "Meyveler ve granolayla katmanlar oluşturun."
+              },
+              {
+                "instruction": "Servisten hemen önce bal gezdirin."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-19",
+      "sourceTitle": "Post-workout meal guidance by performance nutritionist James Collins",
+      "sourceUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
+      "sourceRevisionUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Prawn Tomato Wholewheat Pasta",
+        "description": "High-protein seafood pasta supplying carbohydrate for glycogen replacement.",
+        "mealType": "DINNER",
+        "marketRegion": "EU",
+        "marketRegions": [
+          "EU"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 1300,
+        "defaultServingGrams": 325,
+        "servingCount": 4,
+        "categories": [
+          "DINNER",
+          "HIGH_PROTEIN",
+          "FISH",
+          "MEAL_PREP"
+        ],
+        "allergens": [
+          "CRUSTACEAN_SHELLFISH",
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Raw king prawns",
+            "portionSize": 500,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 500
+          },
+          {
+            "ingredientName": "Wholewheat pasta",
+            "portionSize": 320,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 320
+          },
+          {
+            "ingredientName": "Cherry tomatoes",
+            "portionSize": 300,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 300
+          },
+          {
+            "ingredientName": "Courgette",
+            "portionSize": 200,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 12,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 12
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 20,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 20
+          },
+          {
+            "ingredientName": "Lemon juice",
+            "portionSize": 25,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 25
+          },
+          {
+            "ingredientName": "Fresh parsley",
+            "portionSize": 15,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 15
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Cook pasta until al dente and reserve a little cooking water."
+          },
+          {
+            "instruction": "Saute courgette, tomatoes and garlic."
+          },
+          {
+            "instruction": "Add prawns and cook until opaque."
+          },
+          {
+            "instruction": "Toss with pasta, lemon, parsley and enough pasta water to coat."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Prawn Tomato Wholewheat Pasta",
+            "description": "High-protein seafood pasta supplying carbohydrate for glycogen replacement.",
+            "cookingSteps": [
+              {
+                "instruction": "Cook pasta until al dente and reserve a little cooking water."
+              },
+              {
+                "instruction": "Saute courgette, tomatoes and garlic."
+              },
+              {
+                "instruction": "Add prawns and cook until opaque."
+              },
+              {
+                "instruction": "Toss with pasta, lemon, parsley and enough pasta water to coat."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Karidesli Domatesli Tam Buğday Makarna",
+            "description": "Glikojen yenilenmesine yardımcı karbonhidrat içeren yüksek proteinli deniz ürünlü makarna.",
+            "cookingSteps": [
+              {
+                "instruction": "Makarnayı diri kalacak şekilde haşlayın ve biraz haşlama suyu ayırın."
+              },
+              {
+                "instruction": "Kabak, domates ve sarımsağı soteleyin."
+              },
+              {
+                "instruction": "Karidesleri ekleyip rengi dönene kadar pişirin."
+              },
+              {
+                "instruction": "Makarna, limon, maydanoz ve yeterli haşlama suyuyla karıştırın."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "grun-athlete-curation-20",
+      "sourceTitle": "Australian Institute of Sport balanced athlete breakfast pattern",
+      "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
+      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
+      "recipe": {
+        "name": "Turkish Eggs and Yogurt Bowl",
+        "description": "Protein-rich savoury breakfast with eggs, yogurt and wholegrain toast.",
+        "mealType": "BREAKFAST",
+        "marketRegion": "TR",
+        "marketRegions": [
+          "TR"
+        ],
+        "language": "en",
+        "imageUrl": null,
+        "totalYieldGrams": 720,
+        "defaultServingGrams": 360,
+        "servingCount": 2,
+        "categories": [
+          "BREAKFAST",
+          "HIGH_PROTEIN",
+          "VEGETARIAN",
+          "TURKISH"
+        ],
+        "allergens": [
+          "EGGS",
+          "MILK",
+          "WHEAT",
+          "GLUTEN"
+        ],
+        "ingredients": [
+          {
+            "ingredientName": "Eggs",
+            "portionSize": 4,
+            "portionUnit": "PIECE",
+            "estimatedGrams": 200
+          },
+          {
+            "ingredientName": "Greek yogurt",
+            "portionSize": 240,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 240
+          },
+          {
+            "ingredientName": "Wholegrain bread",
+            "portionSize": 120,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 120
+          },
+          {
+            "ingredientName": "Cucumber",
+            "portionSize": 100,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 100
+          },
+          {
+            "ingredientName": "Garlic",
+            "portionSize": 4,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 4
+          },
+          {
+            "ingredientName": "Olive oil",
+            "portionSize": 15,
+            "portionUnit": "MILLILITER",
+            "estimatedGrams": 15
+          },
+          {
+            "ingredientName": "Aleppo pepper",
+            "portionSize": 3,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 3
+          },
+          {
+            "ingredientName": "Fresh dill",
+            "portionSize": 10,
+            "portionUnit": "GRAM",
+            "estimatedGrams": 10
+          }
+        ],
+        "cookingSteps": [
+          {
+            "instruction": "Mix yogurt with grated garlic and spread between bowls."
+          },
+          {
+            "instruction": "Poach eggs until whites are set and yolks remain soft."
+          },
+          {
+            "instruction": "Place eggs over yogurt and finish with olive oil, pepper and dill."
+          },
+          {
+            "instruction": "Serve with cucumber and wholegrain toast."
+          }
+        ],
+        "translations": [
+          {
+            "language": "EN",
+            "name": "Turkish Eggs and Yogurt Bowl",
+            "description": "Protein-rich savoury breakfast with eggs, yogurt and wholegrain toast.",
+            "cookingSteps": [
+              {
+                "instruction": "Mix yogurt with grated garlic and spread between bowls."
+              },
+              {
+                "instruction": "Poach eggs until whites are set and yolks remain soft."
+              },
+              {
+                "instruction": "Place eggs over yogurt and finish with olive oil, pepper and dill."
+              },
+              {
+                "instruction": "Serve with cucumber and wholegrain toast."
+              }
+            ]
+          },
+          {
+            "language": "TR",
+            "name": "Yoğurtlu Türk Yumurtası Kasesi",
+            "description": "Yumurta, yoğurt ve tam tahıllı ekmek içeren proteinli tuzlu kahvaltı.",
+            "cookingSteps": [
+              {
+                "instruction": "Yoğurdu rendelenmiş sarımsakla karıştırıp kaselere yayın."
+              },
+              {
+                "instruction": "Yumurtaları beyazı pişip sarısı yumuşak kalacak şekilde poşe edin."
+              },
+              {
+                "instruction": "Yumurtaları yoğurdun üzerine alıp zeytinyağı, biber ve dereotuyla tamamlayın."
+              },
+              {
+                "instruction": "Salatalık ve tam tahıllı ekmekle servis edin."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

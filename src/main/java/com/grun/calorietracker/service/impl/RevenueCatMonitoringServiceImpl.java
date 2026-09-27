@@ -7,9 +7,15 @@ import com.grun.calorietracker.dto.RevenueCatChartPointDto;
 import com.grun.calorietracker.dto.RevenueCatMetricCardDto;
 import com.grun.calorietracker.dto.RevenueCatMonitoringChartsDto;
 import com.grun.calorietracker.dto.RevenueCatMonitoringOverviewDto;
+import com.grun.calorietracker.dto.RevenueCatCustomerEvidenceDto;
+import com.grun.calorietracker.dto.RevenueCatPurchaseEvidenceDto;
+import com.grun.calorietracker.dto.RevenueCatVerificationStateDto;
 import com.grun.calorietracker.enums.SubscriptionProviderEventStatus;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
+import com.grun.calorietracker.repository.SubscriptionVerificationRepository;
+import com.grun.calorietracker.service.RevenueCatPurchaseEvidenceClient;
 import com.grun.calorietracker.service.RevenueCatMonitoringService;
+import com.grun.calorietracker.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -51,6 +57,9 @@ public class RevenueCatMonitoringServiceImpl implements RevenueCatMonitoringServ
     private final RevenueCatProperties properties;
     private final RestClient.Builder restClientBuilder;
     private final SubscriptionProviderEventRepository eventRepository;
+    private final SubscriptionVerificationRepository verificationRepository;
+    private final RevenueCatPurchaseEvidenceClient purchaseEvidenceClient;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public RevenueCatMonitoringOverviewDto getOverview(String environment) {
@@ -73,7 +82,7 @@ public class RevenueCatMonitoringServiceImpl implements RevenueCatMonitoringServ
                     .header("accept", "application/json")
                     .retrieve()
                     .body(JsonNode.class);
-            dto.setMetrics(readOverviewMetrics(response));
+            dto.setMetrics(withVerificationMetrics(readOverviewMetrics(response)));
             dto.setProviderReachable(true);
             dto.setStatusMessage("RevenueCat overview metrics fetched.");
         } catch (RestClientException ex) {
@@ -81,6 +90,30 @@ public class RevenueCatMonitoringServiceImpl implements RevenueCatMonitoringServ
             dto.setStatusMessage("RevenueCat overview request failed: " + monitoringErrorMessage(ex));
         }
         return dto;
+    }
+
+    @Override
+    public RevenueCatCustomerEvidenceDto getCustomerEvidence(Long userId) {
+        if (userId == null || userId <= 0) throw new IllegalArgumentException("A valid user id is required");
+        var backend = subscriptionService.getUserSubscriptionForAdmin(userId);
+        var state = verificationRepository.findById(userId).orElse(null);
+        RevenueCatVerificationStateDto verification = state == null ? null : new RevenueCatVerificationStateDto(
+                state.getStatus(), state.getProductId(), state.getAttempts(), state.getNextAttemptAt(),
+                state.getLeaseUntil(), state.getUpdatedAt(), hasText(state.getAllocationReference()));
+        try {
+            var purchases = purchaseEvidenceClient.activePurchases(userId).stream()
+                    .map(item -> new RevenueCatPurchaseEvidenceDto(item.transactionId(), item.productId(),
+                            item.environment(), item.store(), item.purchasedAt(), item.expiresAt(),
+                            item.ownershipConflict()))
+                    .toList();
+            return new RevenueCatCustomerEvidenceDto(userId, properties.getApi().getVerificationEnvironment(), true,
+                    purchases.isEmpty() ? "No active RevenueCat purchase evidence was found for this customer." : "Active RevenueCat purchase evidence fetched.",
+                    LocalDateTime.now(), backend, verification, purchases);
+        } catch (RestClientException | IllegalStateException ex) {
+            return new RevenueCatCustomerEvidenceDto(userId, properties.getApi().getVerificationEnvironment(), false,
+                    "RevenueCat customer evidence request failed: " + monitoringErrorMessage(ex),
+                    LocalDateTime.now(), backend, verification, List.of());
+        }
     }
 
     @Override
@@ -300,16 +333,30 @@ public class RevenueCatMonitoringServiceImpl implements RevenueCatMonitoringServ
 
     private void applySandboxOverview(RevenueCatMonitoringOverviewDto dto) {
         long processed = eventRepository.countByStatus(SubscriptionProviderEventStatus.PROCESSED);
-        long failed = eventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED);
+        long failed = eventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)
+                + eventRepository.countByStatus(SubscriptionProviderEventStatus.REQUIRES_REVIEW);
         long ignored = eventRepository.countByStatus(SubscriptionProviderEventStatus.IGNORED);
         dto.setProviderReachable(true);
         dto.setStatusMessage("Sandbox overview is based on stored RevenueCat webhook events.");
-        dto.setMetrics(List.of(
+        dto.setMetrics(withVerificationMetrics(List.of(
                 new RevenueCatMetricCardDto("sandbox_processed_events", "Processed Events", String.valueOf(processed), null, "Stored sandbox/test webhook events processed by backend."),
                 new RevenueCatMetricCardDto("sandbox_failed_events", "Failed Events", String.valueOf(failed), null, "Stored provider events requiring retry or review."),
                 new RevenueCatMetricCardDto("sandbox_ignored_events", "Ignored Events", String.valueOf(ignored), null, "Duplicate or non-entitlement events ignored by backend."),
                 new RevenueCatMetricCardDto("sandbox_total_events", "Total Events", String.valueOf(processed + failed + ignored), null, "All stored provider events.")
-        ));
+        )));
+    }
+
+    private List<RevenueCatMetricCardDto> withVerificationMetrics(List<RevenueCatMetricCardDto> metrics) {
+        var result = new ArrayList<>(metrics);
+        result.add(new RevenueCatMetricCardDto("verification_pending", "Verification Pending",
+                String.valueOf(verificationRepository.countByStatus("PENDING")), null, "Purchases waiting for provider evidence."));
+        result.add(new RevenueCatMetricCardDto("verification_unavailable", "Provider Unavailable",
+                String.valueOf(verificationRepository.countByStatus("PROVIDER_UNAVAILABLE")), null, "Verification attempts waiting after a provider/API failure."));
+        result.add(new RevenueCatMetricCardDto("verification_review", "Requires Review",
+                String.valueOf(verificationRepository.countByStatus("REQUIRES_REVIEW")), null, "Purchases stopped for manual operational review."));
+        result.add(new RevenueCatMetricCardDto("verification_verified", "Verified Purchases",
+                String.valueOf(verificationRepository.countByStatus("VERIFIED")), null, "Purchases matched to provider evidence and backend allocation."));
+        return result;
     }
 
     private List<RevenueCatChartDto> sandboxCharts() {
@@ -328,7 +375,8 @@ public class RevenueCatMonitoringServiceImpl implements RevenueCatMonitoringServ
         chart.setStatusMessage("Sandbox chart generated from stored webhook status counters.");
         chart.setPoints(List.of(
                 new RevenueCatChartPointDto("processed", (double) eventRepository.countByStatus(SubscriptionProviderEventStatus.PROCESSED)),
-                new RevenueCatChartPointDto("failed", (double) eventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)),
+                new RevenueCatChartPointDto("failed", (double) (eventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)
+                        + eventRepository.countByStatus(SubscriptionProviderEventStatus.REQUIRES_REVIEW))),
                 new RevenueCatChartPointDto("ignored", (double) eventRepository.countByStatus(SubscriptionProviderEventStatus.IGNORED))
         ));
         return chart;

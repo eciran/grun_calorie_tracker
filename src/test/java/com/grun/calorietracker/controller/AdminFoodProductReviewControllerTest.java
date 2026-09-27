@@ -214,6 +214,42 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ"})
+    void searchCatalog_whenAdmin_returnsFullDatabaseMatches() throws Exception {
+        FoodProductDto product = new FoodProductDto();
+        product.setId(181541L);
+        product.setProductName("Falafel and Piri Piri Humus Wrap");
+        product.setVerificationStatus(VerificationStatus.VERIFIED);
+
+        FoodProductReviewPageDto page = new FoodProductReviewPageDto();
+        page.setContent(List.of(product));
+        page.setPage(0);
+        page.setSize(20);
+        page.setTotalElements(1L);
+        page.setTotalPages(1);
+        page.setFirst(true);
+        page.setLast(true);
+
+        when(foodProductReviewService.searchCatalog("181541", VerificationStatus.VERIFIED, null,
+                MarketRegion.UK_IE, FoodCatalogType.BRANDED_PRODUCT, FoodDataSource.USER_SUBMITTED_LABEL, 0, 20)).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/admin/products/catalog-search")
+                        .param("query", "181541")
+                        .param("verificationStatus", "VERIFIED")
+                        .param("region", "UK_IE")
+                        .param("catalogType", "BRANDED_PRODUCT")
+                        .param("dataSource", "USER_SUBMITTED_LABEL")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(181541L))
+                .andExpect(jsonPath("$.content[0].productName").value("Falafel and Piri Piri Humus Wrap"));
+
+        verify(foodProductReviewService).searchCatalog("181541", VerificationStatus.VERIFIED, null,
+                MarketRegion.UK_IE, FoodCatalogType.BRANDED_PRODUCT, FoodDataSource.USER_SUBMITTED_LABEL, 0, 20);
+    }
+
+    @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenRegionProvided_passesRegionFilter() throws Exception {
         FoodProductReviewPageDto page = new FoodProductReviewPageDto();

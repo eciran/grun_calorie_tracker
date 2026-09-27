@@ -44,6 +44,23 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void nutritionValidation_returnsLocalizedSafeMessage() {
+        var handler = new GlobalExceptionHandler(messageSource(), false);
+        for (String language : java.util.List.of("en", "tr")) {
+            var request = request();
+            request.addPreferredLocale(Locale.forLanguageTag(language));
+            var response = handler.handleAiNutritionPlanValidation(
+                    new AiNutritionPlanValidationException("internal expected=7 actual=2"), request);
+            assertEquals(502, response.getStatusCode().value());
+            assertEquals("AI_NUTRITION_PLAN_INCOMPLETE", response.getBody().getCode());
+            assertEquals("request-1", response.getBody().getCorrelationId());
+            org.junit.jupiter.api.Assertions.assertTrue(response.getBody().getMessage().startsWith(
+                    language.equals("tr") ? "Beslenme planı" : "The nutrition plan"));
+            org.junit.jupiter.api.Assertions.assertFalse(response.getBody().getMessage().contains("actual="));
+        }
+    }
+
+    @Test
     void handleAdminMfaLoginException_returnsStableChallengeCode() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
         MockHttpServletRequest request = request();
@@ -134,6 +151,36 @@ class GlobalExceptionHandlerTest {
         assertEquals("Bad Request", response.getBody().getError());
         assertEquals("DATA_INTEGRITY_VIOLATION", response.getBody().getCode());
         assertEquals("Invalid request", response.getBody().getMessage());
+    }
+
+    @Test
+    void adminIllegalArgument_returnsActionableSafeMessage() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
+        MockHttpServletRequest request = request();
+        request.setRequestURI("/api/v1/admin/recipes/42/review");
+
+        var response = handler.handleIllegalArgumentException(
+                new IllegalArgumentException("Public recipes require an approved image."), request);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertEquals("INVALID_REQUEST", response.getBody().getCode());
+        assertEquals("Public recipes require an approved image.", response.getBody().getMessage());
+        assertEquals("request-1", response.getBody().getCorrelationId());
+    }
+
+    @Test
+    void adminDataIntegrityViolation_returnsConflictWithoutDatabaseDetail() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messageSource(), false);
+        MockHttpServletRequest request = request();
+        request.setRequestURI("/api/v1/admin/recipes/42/review");
+
+        var response = handler.handleDataIntegrityViolationException(
+                new DataIntegrityViolationException("duplicate key value violates uk_private_name"), request);
+
+        assertEquals(409, response.getStatusCode().value());
+        assertEquals("DATA_INTEGRITY_VIOLATION", response.getBody().getCode());
+        org.junit.jupiter.api.Assertions.assertTrue(response.getBody().getMessage().contains("existing record"));
+        org.junit.jupiter.api.Assertions.assertFalse(response.getBody().getMessage().contains("uk_private_name"));
     }
 
     @Test

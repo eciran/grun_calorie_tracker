@@ -15,6 +15,17 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SubscriptionProviderEventRepository extends JpaRepository<SubscriptionProviderEventEntity, Long>, JpaSpecificationExecutor<SubscriptionProviderEventEntity> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select event from SubscriptionProviderEventEntity event where event.id = :id")
+    Optional<SubscriptionProviderEventEntity> findLockedById(@Param("id") Long id);
+
+    @Query("""
+            select event.id from SubscriptionProviderEventEntity event
+            where event.status = com.grun.calorietracker.enums.SubscriptionProviderEventStatus.FAILED
+              and event.nextAttemptAt <= :now and event.processingAttempts < 8
+            order by event.nextAttemptAt
+            """)
+    List<Long> findDueRetries(@Param("now") LocalDateTime now, org.springframework.data.domain.Pageable page);
     Optional<SubscriptionProviderEventEntity> findByProviderAndProviderEventId(PaymentProvider provider, String providerEventId);
     boolean existsByProviderAndProviderEventId(PaymentProvider provider, String providerEventId);
     long countByStatus(SubscriptionProviderEventStatus status);

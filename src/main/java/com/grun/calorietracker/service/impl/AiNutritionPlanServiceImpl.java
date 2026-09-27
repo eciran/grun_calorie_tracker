@@ -157,6 +157,9 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
             if (ex instanceof AiProviderException) {
                 throw ex;
             }
+            if (ex instanceof IllegalArgumentException) {
+                throw new com.grun.calorietracker.exception.AiNutritionPlanValidationException(ex.getMessage());
+            }
             throw new AiProviderException("AI nutrition plan could not produce a usable result.");
         }
     }
@@ -302,7 +305,8 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         validateQuality(response);
 
         if (response.getDays() == null || response.getDays().size() != request.getDayCount()) {
-            throw new IllegalArgumentException("AI nutrition provider returned an invalid number of days.");
+            throw new IllegalArgumentException("AI nutrition provider returned an invalid number of days: expected="
+                    + request.getDayCount() + ", actual=" + (response.getDays() == null ? "null" : response.getDays().size()));
         }
         for (int index = 0; index < response.getDays().size(); index++) {
             validateDay(response.getDays().get(index), request.getStartDate().plusDays(index),
@@ -319,7 +323,9 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         }
         day.setDayType(nutritionDayType(date, request));
         if (day.getMeals() == null || day.getMeals().size() != request.getMealsPerDay()) {
-            throw new IllegalArgumentException("AI nutrition provider returned an invalid meal count.");
+            throw new IllegalArgumentException("AI nutrition provider returned an invalid meal count: date=" + date
+                    + ", expected=" + request.getMealsPerDay()
+                    + ", actual=" + (day.getMeals() == null ? "null" : day.getMeals().size()));
         }
         MealPlanNutritionSnapshotDto sum = emptyNutrition();
         for (AiNutritionPlanMealDto meal : day.getMeals()) {

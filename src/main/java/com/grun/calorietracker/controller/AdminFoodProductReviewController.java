@@ -459,6 +459,21 @@ public class AdminFoodProductReviewController {
         ));
     }
 
+    @GetMapping("/catalog-search")
+    @Operation(summary = "Search the complete product catalog", description = "Searches every local catalog status by product name, brand, barcode, source key, or exact numeric product id.")
+    public ResponseEntity<FoodProductReviewPageDto> searchCatalog(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) VerificationStatus verificationStatus,
+            @RequestParam(required = false) ImageStatus imageStatus,
+            @RequestParam(required = false) MarketRegion region,
+            @RequestParam(required = false) FoodCatalogType catalogType,
+            @RequestParam(required = false) FoodDataSource dataSource,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(foodProductReviewService.searchCatalog(query, verificationStatus, imageStatus,
+                region, catalogType, dataSource, page, size));
+    }
+
 
     @GetMapping("/{id}/search-aliases")
     @Operation(

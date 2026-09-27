@@ -222,6 +222,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public FoodProductReviewPageDto searchCatalog(String searchQuery, VerificationStatus verificationStatus,
+                                                  ImageStatus imageStatus, MarketRegion marketRegion,
+                                                  FoodCatalogType catalogType, FoodDataSource dataSource,
+                                                  int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
+        Page<FoodItemEntity> products = foodItemRepository.findAll(
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, searchQuery, true),
+                pageable
+        );
+        return toPageDto(products);
+    }
+
+    @Override
     @Transactional
     @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
     public FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy) {
@@ -1559,8 +1573,21 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductQualityIssue qualityIssue,
             String searchQuery
     ) {
+        return buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery, false);
+    }
+
+    private Specification<FoodItemEntity> buildReviewSpecification(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery,
+            boolean includeAllStatuses
+    ) {
         String normalizedSearchQuery = trimToNull(searchQuery);
-        VerificationStatus effectiveVerificationStatus = verificationStatus == null && normalizedSearchQuery == null
+        VerificationStatus effectiveVerificationStatus = !includeAllStatuses && verificationStatus == null && normalizedSearchQuery == null
                 ? VerificationStatus.RAW_IMPORTED
                 : verificationStatus;
         return (root, query, criteriaBuilder) -> {
@@ -1586,13 +1613,19 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             }
             if (normalizedSearchQuery != null) {
                 String like = "%" + normalizedSearchQuery.toLowerCase(Locale.ROOT) + "%";
-                predicates.add(criteriaBuilder.or(
+                List<Predicate> searchPredicates = new ArrayList<>(List.of(
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), like),
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("brand")), like),
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("barcode")), like),
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("normalizedBarcode")), like),
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("sourceKey")), like)
                 ));
+                try {
+                    searchPredicates.add(criteriaBuilder.equal(root.get("id"), Long.valueOf(normalizedSearchQuery)));
+                } catch (NumberFormatException ignored) {
+                    // Text searches intentionally skip the numeric id predicate.
+                }
+                predicates.add(criteriaBuilder.or(searchPredicates.toArray(new Predicate[0])));
             }
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };

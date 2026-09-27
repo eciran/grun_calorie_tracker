@@ -39,7 +39,7 @@ public interface RecipeService {
                                    int page,
                                    int size);
 
-    RecipeDto getPublicRecipe(String email, Long recipeId);
+    RecipeDto getPublicRecipe(String email, Long recipeId, String language);
 
     RecipeDto copyPublicRecipe(String email, Long recipeId);
 

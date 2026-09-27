@@ -76,7 +76,8 @@ public class AdminSystemReliabilityAnalyticsServiceImpl implements AdminSystemRe
         List<AdminSystemReliabilityAnalyticsDto.ProviderMetric> result = new ArrayList<>();
 
         long revenueSuccess = providerEventRepository.countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus.PROCESSED, since);
-        long revenueFailure = providerEventRepository.countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus.FAILED, since);
+        long revenueFailure = providerEventRepository.countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus.FAILED, since)
+                + providerEventRepository.countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus.REQUIRES_REVIEW, since);
         long revenueIgnored = providerEventRepository.countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus.IGNORED, since);
         result.add(provider("RevenueCat", "CONFIGURED", revenueSuccess + revenueFailure + revenueIgnored, revenueSuccess, revenueFailure));
 

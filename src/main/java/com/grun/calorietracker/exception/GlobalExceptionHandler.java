@@ -67,6 +67,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    private boolean isAdminApiRequest(HttpServletRequest request) {
+        String path = request == null ? null : request.getRequestURI();
+        return path != null && path.startsWith("/api/v1/admin/");
+    }
+
+    private ResponseEntity<ApiErrorResponseDto> buildAdminActionResponse(HttpStatus status,
+                                                                          String errorCode,
+                                                                          String fallbackError,
+                                                                          String safeMessage,
+                                                                          HttpServletRequest request) {
+        ResponseEntity<ApiErrorResponseDto> response = buildResponse(status, errorCode, fallbackError, null, request);
+        if (response.getBody() != null && safeMessage != null && !safeMessage.isBlank()) {
+            String normalized = safeMessage.replaceAll("[\\r\\n\\t]+", " ").trim();
+            response.getBody().setMessage(normalized.length() > 500 ? normalized.substring(0, 500) : normalized);
+        }
+        return response;
+    }
+
     @ExceptionHandler(AiPhotoInputException.class)
     public ResponseEntity<ApiErrorResponseDto> handleAiPhotoInput(AiPhotoInputException ex, HttpServletRequest request) {
         boolean turkish = "tr".equals(LocaleConfig.resolveSupportedLocale(RequestContextUtils.getLocale(request)).getLanguage());
@@ -367,6 +385,19 @@ public class GlobalExceptionHandler {
                 request
         );
     }
+    @ExceptionHandler(AiNutritionPlanValidationException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAiNutritionPlanValidation(
+            AiNutritionPlanValidationException ex, HttpServletRequest request) {
+        log.warn("AI nutrition validation failed correlationId={} path={} reason={}",
+                correlationId(request), request.getRequestURI(), ex.getMessage());
+        boolean turkish = "tr".equals(LocaleConfig.resolveSupportedLocale(RequestContextUtils.getLocale(request)).getLanguage());
+        return buildDomainResponse(HttpStatus.BAD_GATEWAY, "AI_NUTRITION_PLAN_INCOMPLETE",
+                turkish
+                        ? "Beslenme planı istenen gün ve öğün düzenine uygun veya yeterli kalitede oluşturulamadı. Lütfen tekrar deneyin; sorun sürerse daha kısa bir plan seçin."
+                        : "The nutrition plan did not meet the requested schedule or quality checks. Please try again; if this continues, choose a shorter plan.",
+                List.of(), request);
+    }
+
     @ExceptionHandler(AiProviderException.class)
     public ResponseEntity<ApiErrorResponseDto> handleAiProviderException(AiProviderException ex, HttpServletRequest request) {
         log.warn(
@@ -405,6 +436,15 @@ public class GlobalExceptionHandler {
         if (isAiRecipeDraftConfirmRequest(request)) {
             String code = aiRecipeConfirmErrorCode(ex.getMessage());
             return buildDomainResponse(HttpStatus.BAD_REQUEST, code, aiRecipeConfirmMessage(code, request), List.of(), request);
+        }
+        if (isAdminApiRequest(request)) {
+            return buildAdminActionResponse(
+                    HttpStatus.BAD_REQUEST,
+                    "error.invalid.request",
+                    "Invalid request",
+                    ex.getMessage(),
+                    request
+            );
         }
         return buildResponse(HttpStatus.BAD_REQUEST, "error.invalid.request", "Invalid request", ex.getMessage(), request);
     }
@@ -499,13 +539,17 @@ public class GlobalExceptionHandler {
                 correlationId(request),
                 request.getRequestURI()
         );
-        return buildResponse(
-                HttpStatus.BAD_REQUEST,
-                "error.data-integrity",
-                "Invalid request",
-                "Request conflicts with existing data.",
-                request
-        );
+        if (isAdminApiRequest(request)) {
+            return buildAdminActionResponse(
+                    HttpStatus.CONFLICT,
+                    "error.data-integrity",
+                    "Data conflict",
+                    "This change conflicts with an existing record. Check for duplicate values, refresh the record, and try again.",
+                    request
+            );
+        }
+        return buildResponse(HttpStatus.BAD_REQUEST, "error.data-integrity", "Invalid request",
+                "Request conflicts with existing data.", request);
     }
 
     @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})

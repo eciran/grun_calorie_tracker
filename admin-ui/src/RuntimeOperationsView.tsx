@@ -209,12 +209,14 @@ export function RuntimeOperationsView({ onError, accessProfile }: { onError: (me
       {reliability && (
         <Panel title={tx("System and provider reliability", "Sistem ve sağlayıcı güvenilirliği")} description={tx("Privacy-safe operational aggregates. API history covers the current process lifetime; provider and operation windows use persisted records.", "Gizliliği koruyan operasyon özetleri. API geçmişi mevcut işlem ömrünü, sağlayıcı ve operasyon pencereleri kalıcı kayıtları kapsar.")}>
           <div className="reliability-toolbar" role="group" aria-label="Reliability time window">
-            {[1, 24, 72, 168].map((hours) => (
-              <button className={reliabilityWindowHours === hours ? "active" : ""} key={hours} onClick={() => setReliabilityWindowHours(hours)} type="button">
-                {hours === 1 ? "1 hour" : hours === 24 ? "24 hours" : `${hours / 24} days`}
-              </button>
-            ))}
-            <span>Generated {formatDate(reliability.generatedAt)}</span>
+            <div className="reliability-range-control">
+              {[1, 24, 72, 168].map((hours) => (
+                <button aria-pressed={reliabilityWindowHours === hours} className={reliabilityWindowHours === hours ? "active" : ""} key={hours} onClick={() => setReliabilityWindowHours(hours)} type="button">
+                  {hours === 1 ? tx("1 hour", "1 saat") : hours === 24 ? tx("24 hours", "24 saat") : tx(`${hours / 24} days`, `${hours / 24} gün`)}
+                </button>
+              ))}
+            </div>
+            <span>{tx("Generated", "Oluşturuldu")} {formatDate(reliability.generatedAt)}</span>
           </div>
           <Suspense fallback={<div className="reliability-chart-loading">Loading reliability charts...</div>}>
           <div className="reliability-chart-grid">

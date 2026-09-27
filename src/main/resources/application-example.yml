@@ -208,6 +208,7 @@ grun:
       base-url: ${GRUN_REVENUECAT_API_BASE_URL:https://api.revenuecat.com/v2}
       secret-key: ${GRUN_REVENUECAT_API_SECRET_KEY:}
       project-id: ${GRUN_REVENUECAT_PROJECT_ID:}
+      verification-environment: ${GRUN_REVENUECAT_VERIFICATION_ENVIRONMENT:production}
       currency: ${GRUN_REVENUECAT_CURRENCY:EUR}
     entitlements:
       plus: ${GRUN_REVENUECAT_PLUS_ENTITLEMENTS:plus,plus_access}

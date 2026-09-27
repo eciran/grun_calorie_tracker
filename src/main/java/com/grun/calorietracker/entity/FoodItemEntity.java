@@ -15,6 +15,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -56,6 +58,12 @@ public class FoodItemEntity {
     private String dishVariantKey;
 
     private String brand;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private FoodBrandEntity canonicalBrand;
     private String imageUrl;
     private String externalImageUrl;
     private String displayImageUrl;

@@ -3,6 +3,7 @@ package com.grun.calorietracker.controller;
 import com.grun.calorietracker.dto.ApiErrorResponseDto;
 import com.grun.calorietracker.dto.RevenueCatMonitoringChartsDto;
 import com.grun.calorietracker.dto.RevenueCatMonitoringOverviewDto;
+import com.grun.calorietracker.dto.RevenueCatCustomerEvidenceDto;
 import com.grun.calorietracker.service.RevenueCatMonitoringService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -60,5 +61,11 @@ public class AdminRevenueCatMonitoringController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
         return ResponseEntity.ok(monitoringService.getCharts(environment, range, startDate, endDate));
+    }
+
+    @GetMapping("/customer-evidence")
+    @Operation(summary = "Inspect RevenueCat customer evidence", description = "Returns a redacted, read-only comparison of backend subscription state, purchase verification state, and active RevenueCat V2 evidence for one internal user id.")
+    public ResponseEntity<RevenueCatCustomerEvidenceDto> getCustomerEvidence(@RequestParam Long userId) {
+        return ResponseEntity.ok(monitoringService.getCustomerEvidence(userId));
     }
 }

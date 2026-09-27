@@ -9,6 +9,7 @@ import { DataTable, EmptyState, LoadState, MetricCard, PaginationControls, Panel
 import { SectionKey } from "./navigation";
 import { useAdminLocale } from "./locale";
 import { commonMessages } from "./commonMessages";
+import { browserImageObjectUrl } from "./imagePreview";
 
 export type AdminTargetContext = {
   section: SectionKey;
@@ -25,6 +26,17 @@ export type AdminTargetContext = {
 export const PLAN_ORDER = ["FREE", "PLUS", "PRO"];
 
 export const MARKET_REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
+
+export function marketRegionLabel(value: string | undefined, locale: "tr" | "en" = "en") {
+  if (!value) return "-";
+  const labels: Record<string, [string, string]> = {
+    GLOBAL: ["Global (GLOBAL)", "Küresel (GLOBAL)"],
+    TR: ["Turkey (TR)", "Türkiye (TR)"],
+    UK_IE: ["United Kingdom & Ireland (UK_IE)", "Birleşik Krallık ve İrlanda (UK_IE)"],
+    EU: ["European Union (EU)", "Avrupa Birliği (EU)"]
+  };
+  return labels[value]?.[locale === "tr" ? 1 : 0] ?? value;
+}
 
 export const VERIFICATION_STATUSES = ["RAW_IMPORTED", "NEEDS_REVIEW", "VERIFIED", "REJECTED"];
 
@@ -85,7 +97,7 @@ export function FoodContributionReviewView({ onError }: { onError: (message: str
     onError(null);
     try {
       const blob = await requestBlob(`/api/v1/admin/products/contributions/${item.id}/evidence`);
-      setEvidenceObjectUrl(URL.createObjectURL(blob));
+      setEvidenceObjectUrl(await browserImageObjectUrl(blob, item.evidenceContentType));
       setEvidenceState("ready");
     } catch (error) {
       setEvidenceState("error");

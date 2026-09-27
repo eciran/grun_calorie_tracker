@@ -63,6 +63,7 @@ const ApprovalQueueView = lazy(() => import("./pages/ApprovalQueueView").then(mo
 const SubscriptionsView = lazy(() => import("./pages/SubscriptionsView").then(module => ({ default: module.SubscriptionsView })));
 
 const SubscriptionEventsView = lazy(() => import("./pages/SubscriptionEventsView").then(module => ({ default: module.SubscriptionEventsView })));
+const CatalogSearchView = lazy(() => import("./pages/CatalogSearchView").then(module => ({ default: module.CatalogSearchView })));
 
 const PromotionsView = lazy(() => import("./pages/PromotionsView").then(module => ({ default: module.PromotionsView })));
 
@@ -470,7 +471,7 @@ export default function App() {
           </div>
         </header>
 
-        {error && <div className="error-banner" role="alert">{error}</div>}
+        {error && <div className="error-banner admin-global-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label={t("close")}>×</button></div>}
         <SectionTabs active={active} onSelect={navigateToSection} accessProfile={accessProfile} />
         <section className="content-surface">
           {!accessProfile ? <div className="async-state" role="status">{error ? <button className="ghost-button" type="button" onClick={() => setAccessRetry(value => value + 1)}>{t("retry")}</button> : t("access")}</div> : !canViewSection(accessProfile, active) ? <p role="status">{t("unavailable")}</p> : <>
@@ -487,6 +488,7 @@ export default function App() {
           {active === "foodRegions" && <FoodOpsView mode="overview" onError={setError} />}
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
           {active === "catalogExercises" && <CatalogOperationsView mode="exercises" onError={setError} />}
+          {active === "catalogSearch" && <CatalogSearchView onError={setError} canManage={Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"))} />}
           {active === "products" && <ProductReviewView mode="queue" canManage={Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"))} onError={setError} />}
           {active === "productContributions" && <CatalogEvidenceWorkspace accessProfile={accessProfile} onError={setError} targetContext={targetContext?.section === "productContributions" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "productDuplicates" && <CatalogEvidenceWorkspace initialTab="duplicates" accessProfile={accessProfile} onError={setError} />}

@@ -68,7 +68,10 @@ public class AdminMailboxAccountServiceImpl implements AdminMailboxAccountServic
         AdminMailboxAccountEntity account=mailboxReady(id);String folderName=safeFolder(requestedFolder);
         try(Store store=openStore(account);Folder folder=store.getFolder(folderName)){
             folder.open(Folder.READ_ONLY);int total=folder.getMessageCount();if(total==0)return List.of();
-            Message[] values=folder.getMessages(Math.max(1,total-limit+1),total);List<AdminMailboxMessageDto> result=new ArrayList<>();
+            Message[] values=folder.getMessages(Math.max(1,total-limit+1),total);
+            FetchProfile profile=new FetchProfile();profile.add(FetchProfile.Item.ENVELOPE);profile.add(FetchProfile.Item.FLAGS);
+            if(folder instanceof UIDFolder)profile.add(UIDFolder.FetchProfileItem.UID);folder.fetch(values,profile);
+            List<AdminMailboxMessageDto> result=new ArrayList<>();
             for(int index=values.length-1;index>=0;index--){Message value=values[index];result.add(summary(account,folderName,folder,value));}
             return result;
         }catch(Exception exception){throw new IllegalArgumentException("Mailbox messages could not be loaded: "+safeError(exception));}
@@ -86,9 +89,8 @@ public class AdminMailboxAccountServiceImpl implements AdminMailboxAccountServic
     }
 
     private AdminMailboxMessageDto summary(AdminMailboxAccountEntity account,String folderName,Folder folder,Message value)throws Exception{
-        long uid=folder instanceof UIDFolder uidFolder?uidFolder.getUID(value):value.getMessageNumber();String text=plainText(value).replaceAll("\\s+"," ").trim();
-        List<String> files=new ArrayList<>();collectAttachmentNames(value,files);
-        return new AdminMailboxMessageDto(uid,account.getId(),account.getEmailAddress(),folderName,subject(value),addresses(value.getFrom()),instant(value),value.isSet(Flags.Flag.SEEN),!files.isEmpty(),limit(text,220));
+        long uid=folder instanceof UIDFolder uidFolder?uidFolder.getUID(value):value.getMessageNumber();
+        return new AdminMailboxMessageDto(uid,account.getId(),account.getEmailAddress(),folderName,subject(value),addresses(value.getFrom()),instant(value),value.isSet(Flags.Flag.SEEN),false,"");
     }
 
     private Store openStore(AdminMailboxAccountEntity account)throws Exception{String protocol=account.isImapSsl()?"imaps":"imap";Properties props=mailProperties(protocol,account.isImapSsl());Store store=Session.getInstance(props).getStore(protocol);store.connect(account.getImapHost(),account.getImapPort(),account.getUsername(),cipher.decrypt(account.getPasswordEncrypted()));return store;}

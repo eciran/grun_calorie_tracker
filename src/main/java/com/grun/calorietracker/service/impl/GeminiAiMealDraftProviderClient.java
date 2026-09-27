@@ -125,7 +125,7 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
     public AiNutritionPlanDraftResponseDto createNutritionPlanDraft(AiNutritionPlanDraftRequestDto request) {
         String prompt = AiPromptTemplates.nutrition(contract.nutritionPlanTargetGuardrails(request),
                 contract.writeJson(request));
-        return callGemini(AiRequestType.AI_NUTRITION_PLAN, contract.nutritionPlanSchema(), promptParts(prompt),
+        return callGemini(AiRequestType.AI_NUTRITION_PLAN, contract.nutritionPlanSchema(request), promptParts(prompt),
                 AiNutritionPlanDraftResponseDto.class,
                 geminiNutritionPlanOutputTokenBudget());
     }

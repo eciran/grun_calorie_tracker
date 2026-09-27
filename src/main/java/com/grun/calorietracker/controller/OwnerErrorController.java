@@ -30,7 +30,8 @@ public class OwnerErrorController {
             @RequestParam(required=false) String method, @RequestParam(required=false) String route,
             @RequestParam(required=false) String correlationId, @RequestParam(required=false) String errorCode,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="25") int size) {
-        Instant end = to == null ? Instant.now() : to;
+        Instant now = Instant.now();
+        Instant end = to == null || to.isAfter(now) ? now : to;
         Instant start = from == null ? end.minus(7, ChronoUnit.DAYS) : from;
         if (start.isAfter(end) || ChronoUnit.DAYS.between(start,end)>366 || page<0 || page>10000 || size<1 || size>100
                 || status != null && (status<400 || status>599) || statusClass != null && statusClass!=4 && statusClass!=5
@@ -44,7 +45,7 @@ public class OwnerErrorController {
     @GetMapping("/groups") public ResponseEntity<?> groups(@RequestParam(required=false) Instant from,
             @RequestParam(required=false) Instant to, @RequestParam(required=false) String source,
             @RequestParam(defaultValue="10") int limit) {
-        Instant end=to==null?Instant.now():to; Instant start=from==null?end.minus(7,ChronoUnit.DAYS):from;
+        Instant now=Instant.now(); Instant end=to==null||to.isAfter(now)?now:to; Instant start=from==null?end.minus(7,ChronoUnit.DAYS):from;
         if(start.isAfter(end)||ChronoUnit.DAYS.between(start,end)>366||limit<1||limit>50
                 || source!=null&&!java.util.Set.of("BACKEND","PROXY","ADMIN_WEB","MOBILE").contains(source))
             return ResponseEntity.badRequest().build();

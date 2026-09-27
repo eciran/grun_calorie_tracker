@@ -181,6 +181,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   const [draftCookingSteps, setDraftCookingSteps] = useState<string[]>([]);
   const [reviewNote, setReviewNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [recipeActionError, setRecipeActionError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [showCreateRecipe, setShowCreateRecipe] = useState(false);
   const [creatingRecipe, setCreatingRecipe] = useState(false);
@@ -661,14 +662,16 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setDraftCategories([]);
     setDraftCookingSteps([]);
     setReviewNote("");
+    setRecipeActionError(null);
   }
 
   async function saveRecipeReview() {
     if (!selectedRecipe?.id) {
-      onError("Recipe id is missing.");
+      setRecipeActionError(tr ? "Tarif kimliği bulunamadı." : "Recipe id is missing.");
       return;
     }
     setSaving(true);
+    setRecipeActionError(null);
     onError(null);
     try {
       const updated = await request<AdminRecipe>(`/api/v1/admin/recipes/${selectedRecipe.id}/review`, {
@@ -699,7 +702,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       setSavedNotice("Saved");
       window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
-      onError(formatRequestError(err));
+      setRecipeActionError(formatRequestError(err));
     } finally {
       setSaving(false);
     }
@@ -708,6 +711,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   async function removeRecipeFromDiscover() {
     if (!selectedRecipe?.id || saving) return;
     setSaving(true);
+    setRecipeActionError(null);
     onError(null);
     try {
       await request<AdminRecipe>(`/api/v1/admin/recipes/${selectedRecipe.id}/review`, {
@@ -724,7 +728,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       setSavedNotice("Removed from Discover");
       window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
-      onError(formatRequestError(err));
+      setRecipeActionError(formatRequestError(err));
     } finally {
       setSaving(false);
     }
@@ -734,6 +738,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     if (!selectedRecipe?.id || saving) return;
     const restoring = Boolean(selectedRecipe.archived);
     setSaving(true);
+    setRecipeActionError(null);
     onError(null);
     try {
       if (restoring) {
@@ -749,7 +754,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       setSavedNotice(restoring ? "Recipe restored as private" : "Recipe archived");
       window.setTimeout(() => setSavedNotice(null), 2200);
     } catch (err) {
-      onError(formatRequestError(err));
+      setRecipeActionError(formatRequestError(err));
     } finally {
       setSaving(false);
     }
@@ -1434,6 +1439,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
               </div>
               <button className="icon-button" onClick={closeRecipe} type="button" aria-label={tr ? "Kapat" : "Close"}>×</button>
             </header>
+            {recipeActionError && <div className="modal-error recipe-modal-error" role="alert"><div><strong>{tr ? "İşlem tamamlanamadı" : "Action could not be completed"}</strong><span>{recipeActionError}</span></div><button type="button" onClick={() => setRecipeActionError(null)} aria-label={tr ? "Hatayı kapat" : "Dismiss error"}>×</button></div>}
             <div className="modal-body">
               <div className="product-image-frame">
                 {draftImageUrl ? <img alt={selectedRecipe.name ?? "Recipe"} src={draftImageUrl} /> : <span>No image</span>}

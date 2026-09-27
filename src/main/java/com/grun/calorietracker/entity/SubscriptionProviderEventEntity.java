@@ -130,4 +130,9 @@ public class SubscriptionProviderEventEntity {
     private LocalDateTime receivedAt;
 
     private LocalDateTime processedAt;
+
+    @Column(nullable = false)
+    private int processingAttempts;
+
+    private LocalDateTime nextAttemptAt;
 }

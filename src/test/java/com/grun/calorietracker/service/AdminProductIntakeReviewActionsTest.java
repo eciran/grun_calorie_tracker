@@ -72,12 +72,38 @@ class AdminProductIntakeReviewActionsTest {
     }
 
     @Test
+    void evidenceApprovalClaimsAnUnassignedCaseAndRetryIsIdempotent() {
+        reviewCase.setAssignedAdminEmail(null);
+
+        var first = service.decideEvidence(72L, "catalog@grun.app", true, "Evidence verified.");
+        var retry = service.decideEvidence(72L, "catalog@grun.app", true, "Evidence verified.");
+
+        assertEquals(FoodProductReviewCaseStatus.APPROVED, first.status());
+        assertEquals(FoodProductReviewCaseStatus.APPROVED, retry.status());
+        assertEquals("catalog@grun.app", reviewCase.getAssignedAdminEmail());
+        verify(evidenceService, times(1)).recordAcceptedEvidence(reviewCase);
+    }
+
+    @Test
     void rejectEvidenceRecordsFinalReviewerWithoutPublishing() {
         var result = service.decideEvidence(72L, "catalog@grun.app", false, "Barcode is unreadable.");
         assertEquals(FoodProductReviewCaseStatus.REJECTED, result.status());
         assertEquals("catalog@grun.app", reviewCase.getReviewedBy());
         assertNotNull(reviewCase.getReviewedAt());
-        verify(notifications).save(argThat(value -> "VIEW_PRODUCT_CONTRIBUTION".equals(value.getPrimaryAction())));
+        verify(notifications).save(argThat(value -> "VIEW_PRODUCT_CONTRIBUTION".equals(value.getPrimaryAction())
+                && "CRITICAL".equals(value.getSeverity())
+                && "Barcode is unreadable.".equals(value.getNote())));
+    }
+
+    @Test
+    void rejectionNotificationUsesSubmitterApplicationLanguage() {
+        reviewCase.getSubmittedBy().setPreferredLanguage(PreferredLanguage.TR);
+
+        service.decideEvidence(72L, "catalog@grun.app", false, "Kanıt doğrulanamadı.");
+
+        verify(notifications).save(argThat(value -> "Ürün katkınız incelendi".equals(value.getTitle())
+                && "Ürün katkınız kataloğa uygulanmadı.".equals(value.getMessage())
+                && "CRITICAL".equals(value.getSeverity())));
     }
 
     @Test
@@ -90,6 +116,21 @@ class AdminProductIntakeReviewActionsTest {
         assertEquals(99L, result.foodItemId());
         assertEquals(FoodProductResolutionMode.UPDATE_EXISTING, reviewCase.getResolutionMode());
         assertEquals(FoodProductReviewCaseStatus.SUBMITTED, reviewCase.getStatus());
+    }
+
+    @Test
+    void attachExistingProductClaimsAnUnassignedCaseForCatalogAdmin() {
+        reviewCase.setAssignedAdminEmail(null);
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(99L);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        when(foods.findById(99L)).thenReturn(Optional.of(food));
+
+        var result = service.attachExistingProduct(72L, "catalog@grun.app", 99L);
+
+        assertEquals("catalog@grun.app", result.assignedAdminEmail());
+        assertEquals(FoodProductReviewCaseStatus.IN_REVIEW, result.status());
+        assertEquals(FoodProductResolutionMode.UPDATE_EXISTING, reviewCase.getResolutionMode());
     }
 
     @Test
@@ -172,6 +213,24 @@ class AdminProductIntakeReviewActionsTest {
         verify(intakeMetrics).record("publish", "success");
         verify(mutationOrchestrator).reconcileAndAudit(eq(food), isNull(), eq("catalog@grun.app"), eq(72L), anyMap(), anyMap());
         verify(foods, never()).save(food);
+    }
+
+    @Test
+    void publicationNotificationUsesSubmitterApplicationLanguageAndSuccessTone() {
+        FoodItemEntity food = new FoodItemEntity(); food.setId(209L); food.setName("Aday"); food.setCalories(120.0);
+        food.setVerificationStatus(VerificationStatus.NEEDS_REVIEW); food.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        reviewCase.setFoodItem(food); reviewCase.setResolutionMode(FoodProductResolutionMode.NEW_CANDIDATE);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPROVED);
+        reviewCase.setReviewNote("Thank you for your contribution. The product information and evidence you submitted were reviewed, and your contribution was approved.");
+        reviewCase.getSubmittedBy().setPreferredLanguage(PreferredLanguage.TR);
+        when(publicationService.publish(209L, "catalog@grun.app", "Doğrulandı", "cid-209")).thenAnswer(invocation -> { food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED); return food; });
+
+        service.publishCandidate(72L, "catalog@grun.app", "Doğrulandı", "cid-209", true);
+
+        verify(notifications).save(argThat(value -> "Ürün katkınız yayınlandı".equals(value.getTitle())
+                && "Katkınız artık ürün kataloğunda kullanılabilir.".equals(value.getMessage())
+                && "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri ve kanıtlar incelendi; katkınız onaylandı.".equals(value.getNote())
+                && "SUCCESS".equals(value.getSeverity())));
     }
 
     @Test

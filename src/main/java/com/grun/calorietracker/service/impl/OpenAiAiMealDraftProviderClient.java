@@ -123,7 +123,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return callOpenAi(
                 AiRequestType.AI_NUTRITION_PLAN,
                 "grun_nutrition_plan_v2",
-                nutritionPlanSchema(),
+                nutritionPlanSchema(request),
                 List.of(textContent(AiPromptTemplates.nutrition(targetGuardrails, writeJson(request)))),
                 AiNutritionPlanDraftResponseDto.class,
                 nutritionPlanOutputTokenBudget(request)
@@ -833,7 +833,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH")
         ));
     }
-    Map<String, Object> nutritionPlanSchema() {
+    Map<String, Object> nutritionPlanSchema(AiNutritionPlanDraftRequestDto request) {
         Map<String, Object> item = strictObjectSchema(props(
                 "displayName", stringSchema(),
                 "groceryName", stringSchema(),
@@ -853,14 +853,14 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
         ));
         Map<String, Object> day = strictObjectSchema(props(
                 "date", stringSchema(),
-                "meals", arraySchema(meal),
+                "meals", nutritionPlanArray(meal, request.getMealsPerDay()),
                 "dailyMicronutrients", dailyMicronutritionSchema()
         ));
         return strictObjectSchema(props(
                 "name", stringSchema(),
                 "summary", stringSchema(),
                 "professionalSummary", stringSchema(),
-                "days", arraySchema(day),
+                "days", nutritionPlanArray(day, request.getDayCount()),
                 "assumptions", arraySchema(stringSchema()),
                 "warnings", arraySchema(stringSchema()),
                 "nextBestActions", arraySchema(stringSchema()),
@@ -868,6 +868,10 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "qualityScore", integerSchema(),
                 "estimatedUncertainty", enumSchema("LOW", "MEDIUM", "HIGH")
         ));
+    }
+
+    private Map<String, Object> nutritionPlanArray(Map<String, Object> item, int count) {
+        return Map.of("type", "array", "items", item, "minItems", count, "maxItems", count);
     }
 
     private Map<String, Object> dailyMicronutritionSchema() {
@@ -906,7 +910,7 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 ? 1 : Math.max(1, request.getDayCount());
         int meals = request == null || request.getMealsPerDay() == null
                 ? 4 : Math.max(1, request.getMealsPerDay());
-        int estimatedBudget = 1_800 + (days * meals * 160);
+        int estimatedBudget = 1_800 + (days * meals * 450);
         return Math.min(configuredLimit, Math.max(3_000, estimatedBudget));
     }
     Map<String, Object> workoutPlanSchema() {

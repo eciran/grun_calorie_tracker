@@ -13,6 +13,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import com.grun.calorietracker.enums.PreferredLanguage;
 
 @Data
 @Schema(description = "Recipe owned by a user or prepared for the future public recipe catalog.")
@@ -24,7 +25,10 @@ public class RecipeDto {
     private RecipeVisibility visibility;
     private VerificationStatus verificationStatus;
     private MarketRegion marketRegion;
+    private Set<MarketRegion> marketRegions;
     private String language;
+    private PreferredLanguage resolvedLanguage;
+    private Set<PreferredLanguage> availableLanguages;
     private String imageUrl;
     private ImageSource imageSource;
     private ImageStatus imageStatus;

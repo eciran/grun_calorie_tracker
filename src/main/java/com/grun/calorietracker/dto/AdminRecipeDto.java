@@ -7,6 +7,7 @@ import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -26,7 +27,10 @@ public class AdminRecipeDto {
     private RecipeVisibility visibility;
     private VerificationStatus verificationStatus;
     private MarketRegion marketRegion;
+    private Set<MarketRegion> marketRegions;
     private String language;
+    private Set<PreferredLanguage> availableLanguages;
+    private List<RecipeTranslationRequestDto> translations;
     private String imageUrl;
     private ImageSource imageSource;
     private ImageStatus imageStatus;

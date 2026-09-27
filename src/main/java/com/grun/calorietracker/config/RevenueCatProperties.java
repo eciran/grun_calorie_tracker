@@ -26,6 +26,7 @@ public class RevenueCatProperties {
         private String secretKey;
         private String projectId;
         private String currency = "EUR";
+        private String verificationEnvironment = "production";
     }
 
     @Data

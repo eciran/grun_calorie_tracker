@@ -33,6 +33,26 @@ public class AdminFoodProductEvidenceServiceImpl implements AdminFoodProductEvid
     @Override
     @Transactional(readOnly = true)
     public AdminFoodProductEvidenceReadDto authorizeRead(String adminEmail, Long assetId) {
+        FoodProductReviewCaseAssetEntity asset = availableAsset(adminEmail, assetId);
+        var authorization = directStorage.authorizeRead(asset.getStorageKey(), properties.getAdminReadUrlTtl());
+        return new AdminFoodProductEvidenceReadDto(
+                asset.getId(),
+                asset.getAssetType(),
+                asset.getContentType(),
+                authorization.url().toString(),
+                authorization.expiresAt()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EvidenceContent loadEvidence(String adminEmail, Long assetId) {
+        FoodProductReviewCaseAssetEntity asset = availableAsset(adminEmail, assetId);
+        byte[] bytes = directStorage.readBounded(asset.getStorageKey(), properties.getMaxUploadBytes());
+        return new EvidenceContent(bytes, asset.getContentType());
+    }
+
+    private FoodProductReviewCaseAssetEntity availableAsset(String adminEmail, Long assetId) {
         UserEntity admin = userRepository.findByEmail(adminEmail)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid credential"));
         if (admin.getRole() != UserRole.OWNER && admin.getRole() != UserRole.ADMIN_CATALOG) {
@@ -45,13 +65,6 @@ public class AdminFoodProductEvidenceServiceImpl implements AdminFoodProductEvid
                 || asset.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new ResourceNotFoundException("Product evidence is not available for review.");
         }
-        var authorization = directStorage.authorizeRead(asset.getStorageKey(), properties.getAdminReadUrlTtl());
-        return new AdminFoodProductEvidenceReadDto(
-                asset.getId(),
-                asset.getAssetType(),
-                asset.getContentType(),
-                authorization.url().toString(),
-                authorization.expiresAt()
-        );
+        return asset;
     }
 }

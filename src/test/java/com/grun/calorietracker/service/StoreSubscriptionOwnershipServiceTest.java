@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import java.util.List;
 
 class StoreSubscriptionOwnershipServiceTest {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
@@ -37,6 +38,17 @@ class StoreSubscriptionOwnershipServiceTest {
                 .thenReturn(true);
         service.assertOwner(1L, event);
         verify(jdbc).update(anyString(), eq("APP_STORE"), eq("PRODUCTION"), eq("chain"), eq(1L), eq("evt"));
+    }
+
+    @Test void ownershipEvidenceExposesRecordedOwnerAndReviewFlag() {
+        when(jdbc.query(anyString(), any(org.springframework.jdbc.core.RowMapper.class),
+                eq("APP_STORE"), eq("SANDBOX"), eq("chain")))
+                .thenReturn(List.of(new StoreSubscriptionOwnershipService.OwnershipEvidence(7L, true)));
+
+        var evidence = service.findOwnership("app_store", "sandbox", "chain").orElseThrow();
+
+        assertEquals(7L, evidence.ownerUserId());
+        assertTrue(evidence.requiresReview());
     }
 
     private RevenueCatWebhookEventDto.Event event() {

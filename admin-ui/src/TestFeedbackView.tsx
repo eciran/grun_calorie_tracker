@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { formatRequestError, request, requestBlob } from "./api";
-import { CollapsiblePanel, DataTable, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
+import { CollapsiblePanel, DataTable, MetricCard, PaginationControls, Panel, SectionToolbar, useDialogAccessibility } from "./AdminPrimitives";
 import type { AdminTestFeedback, AdminTestFeedbackAnalytics, AdminTestFeedbackPage, TestFeedbackStatus } from "./types";
 import "./test-feedback.css";
 import { useAdminLocale } from "./admin/locale";
@@ -27,6 +27,7 @@ export function TestFeedbackView({ onError }: { onError: (message: string | null
   const [screenshotState, setScreenshotState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [reviewStatus, setReviewStatus] = useState<TestFeedbackStatus>("NEW"); const [note, setNote] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle"); const [saving, setSaving] = useState(false);
+  const detailDialogRef = useDialogAccessibility<HTMLFormElement>(() => setSelected(null), Boolean(selected));
 
   const load = useCallback(async () => {
     setState("loading"); onError(null);
@@ -130,30 +131,30 @@ export function TestFeedbackView({ onError }: { onError: (message: string | null
       <PaginationControls page={data.page ?? page} pageSize={data.size ?? size} totalElements={data.totalElements ?? 0} totalPages={data.totalPages ?? 0} first={data.first ?? page === 0} last={data.last ?? true} onPageChange={setPage} onPageSizeChange={(value) => { setPage(0); setSize(value); }} />
     </Panel>
     {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
-      <form className="modal-card test-feedback-modal" role="dialog" aria-modal="true" aria-label="Test feedback detail" onSubmit={save} onClick={(event) => event.stopPropagation()}>
+      <form ref={detailDialogRef} tabIndex={-1} className="modal-card test-feedback-modal" role="dialog" aria-modal="true" aria-label={tx("Test feedback detail", "Test geri bildirimi detayı")} onSubmit={save} onClick={(event) => event.stopPropagation()}>
         <header className="modal-header test-feedback-modal-header"><div><span>{tx("TEST FEEDBACK", "TEST GERİ BİLDİRİMİ")} #{selected.id}</span><div className="test-feedback-modal-title"><h2>{selected.route || tx("Unknown route", "Bilinmeyen yol")}</h2><span className={`status-pill feedback-${selected.feedbackType.toLowerCase()}`}>{selected.feedbackType.replaceAll("_", " ")}</span></div><p>{selected.platform} · {tx("Submitted", "Gönderim")} {localDate(selected.createdAt)}</p></div><button className="modal-icon-close" type="button" aria-label={tx("Close feedback detail", "Geri bildirim detayını kapat")} onClick={() => setSelected(null)}>x</button></header>
         <div className="modal-body test-feedback-detail-grid">
           <section className="test-feedback-report"><div className="test-feedback-section-heading"><span>{tx("TESTER INPUT", "TEST KULLANICISI GİRDİSİ")}</span><h3>{tx("Report details", "Rapor detayları")}</h3></div><p className="feedback-description">{selected.description || tx("No written explanation was provided.", "Yazılı açıklama girilmedi.")}</p></section>
-          <section className="test-feedback-submission"><div className="test-feedback-section-heading"><span>SUBMISSION</span><h3>Who, where and when</h3></div><div className="test-feedback-meta-grid">
-            <div><span>Sender</span><strong>{selected.userEmail || "Unknown tester"}</strong></div>
-            <div><span>Route</span><strong>{selected.route || "-"}</strong></div>
-            <div><span>Previous route</span><strong>{selected.previousRoute || "-"}</strong></div>
-            <div><span>Created</span><strong>{new Date(selected.createdAt).toLocaleString()}</strong></div>
+          <section className="test-feedback-submission"><div className="test-feedback-section-heading"><span>{tx("SUBMISSION", "GÖNDERİM")}</span><h3>{tx("Who, where and when", "Kim, nerede ve ne zaman")}</h3></div><div className="test-feedback-meta-grid">
+            <div><span>{tx("Sender", "Gönderen")}</span><strong>{selected.userEmail || tx("Unknown tester", "Bilinmeyen test kullanıcısı")}</strong></div>
+            <div><span>{tx("Route", "Sayfa yolu")}</span><strong>{selected.route || "-"}</strong></div>
+            <div><span>{tx("Previous route", "Önceki sayfa yolu")}</span><strong>{selected.previousRoute || "-"}</strong></div>
+            <div><span>{tx("Created", "Oluşturuldu")}</span><strong>{localDate(selected.createdAt)}</strong></div>
           </div></section>
-          <section className="test-feedback-technical"><div className="test-feedback-section-heading"><span>ENVIRONMENT</span><h3>Technical context</h3></div><dl><dt>Build</dt><dd>{selected.appVersion || "-"} ({selected.buildNumber || "-"})</dd><dt>Device</dt><dd>{selected.deviceModel || "-"} · {selected.osVersion || "-"}</dd><dt>Locale</dt><dd>{selected.languageTag || "-"} · {selected.marketRegion || "-"}</dd><dt>Network</dt><dd>{selected.networkState || "-"}</dd><dt>Last HTTP</dt><dd>{selected.lastHttpStatus || "-"} · {selected.lastHttpDurationMs ?? "-"} ms</dd><dt>Correlation ID</dt><dd>{selected.lastCorrelationId || "-"}</dd></dl></section>
-          <section className="test-feedback-evidence"><div className="test-feedback-section-heading"><span>EVIDENCE</span><h3>Screenshot</h3></div>
-            <div className="screenshot-state-row"><span>Screenshot</span><strong className={`screenshot-state screenshot-state-${(selected.screenshotState ?? "NOT_PROVIDED").toLowerCase()}`}>{(selected.screenshotState ?? "NOT_PROVIDED").replaceAll("_", " ")}</strong></div>
+          <section className="test-feedback-technical"><div className="test-feedback-section-heading"><span>{tx("ENVIRONMENT", "ORTAM")}</span><h3>{tx("Technical context", "Teknik bağlam")}</h3></div><dl><dt>{tx("Build", "Sürüm")}</dt><dd>{selected.appVersion || "-"} ({selected.buildNumber || "-"})</dd><dt>{tx("Device", "Cihaz")}</dt><dd>{selected.deviceModel || "-"} · {selected.osVersion || "-"}</dd><dt>{tx("Locale", "Yerel ayar")}</dt><dd>{selected.languageTag || "-"} · {selected.marketRegion || "-"}</dd><dt>{tx("Network", "Ağ")}</dt><dd>{selected.networkState || "-"}</dd><dt>{tx("Last HTTP", "Son HTTP")}</dt><dd>{selected.lastHttpStatus || "-"} · {selected.lastHttpDurationMs ?? "-"} ms</dd><dt>{tx("Correlation ID", "Korelasyon kimliği")}</dt><dd>{selected.lastCorrelationId || "-"}</dd></dl></section>
+          <section className="test-feedback-evidence"><div className="test-feedback-section-heading"><span>{tx("EVIDENCE", "KANIT")}</span><h3>{tx("Screenshot", "Ekran görüntüsü")}</h3></div>
+            <div className="screenshot-state-row"><span>{tx("Screenshot", "Ekran görüntüsü")}</span><strong className={`screenshot-state screenshot-state-${(selected.screenshotState ?? "NOT_PROVIDED").toLowerCase()}`}>{(selected.screenshotState ?? "NOT_PROVIDED").replaceAll("_", " ")}</strong></div>
             {selected.screenshotAvailable && <div className="test-feedback-screenshot-panel">
-              {screenshotState === "loading" && <p className="test-feedback-screenshot-status">Loading screenshot...</p>}
-              {screenshotUrl && <a href={screenshotUrl} target="_blank" rel="noreferrer" title="Open screenshot in a new tab"><img className="test-feedback-screenshot" src={screenshotUrl} alt="Tester supplied screenshot" onError={() => setScreenshotState("error")} /></a>}
-              {screenshotState === "error" && <div className="test-feedback-screenshot-status"><span>The screenshot could not be displayed.</span><button className="ghost-button" type="button" onClick={() => void loadScreenshot(selected.id)}>Try again</button></div>}
-              {screenshotState === "ready" && screenshotUrl && <a className="test-feedback-screenshot-open" href={screenshotUrl} target="_blank" rel="noreferrer">Open full size</a>}
+              {screenshotState === "loading" && <p className="test-feedback-screenshot-status">{tx("Loading screenshot...", "Ekran görüntüsü yükleniyor...")}</p>}
+              {screenshotUrl && <a href={screenshotUrl} target="_blank" rel="noreferrer" title={tx("Open screenshot in a new tab", "Ekran görüntüsünü yeni sekmede aç")}><img className="test-feedback-screenshot" src={screenshotUrl} alt={tx("Tester supplied screenshot", "Test kullanıcısının ekran görüntüsü")} onError={() => setScreenshotState("error")} /></a>}
+              {screenshotState === "error" && <div className="test-feedback-screenshot-status"><span>{tx("The screenshot could not be displayed.", "Ekran görüntüsü gösterilemedi.")}</span><button className="ghost-button" type="button" onClick={() => void loadScreenshot(selected.id)}>{tx("Try again", "Tekrar dene")}</button></div>}
+              {screenshotState === "ready" && screenshotUrl && <a className="test-feedback-screenshot-open" href={screenshotUrl} target="_blank" rel="noreferrer">{tx("Open full size", "Tam boyutta aç")}</a>}
             </div>}
-            {!selected.screenshotAvailable && <p className="test-feedback-screenshot-status">No screenshot was attached to this report.</p>}
+            {!selected.screenshotAvailable && <p className="test-feedback-screenshot-status">{tx("No screenshot was attached to this report.", "Bu rapora ekran görüntüsü eklenmedi.")}</p>}
           </section>
-          <section className="test-feedback-upload-events"><h3>Screenshot processing</h3>
-            {(selected.screenshotEvents ?? []).length ? <ol>{selected.screenshotEvents!.map((event, index) => <li key={`${event.createdAt}-${index}`} className={`upload-event upload-event-${event.outcome.toLowerCase()}`}><div><strong>{event.eventType.replaceAll("_", " ")}</strong><time>{new Date(event.createdAt).toLocaleString()}</time></div><p>{event.errorCode || event.detail || event.outcome}</p><small>Reported: {formatBytes(event.reportedSizeBytes)} · S3 actual: {formatBytes(event.actualSizeBytes)} · {event.contentType || "unknown type"}</small></li>)}</ol>
-              : <p className="test-feedback-empty-events">No screenshot upload was started for this feedback.</p>}
+          <section className="test-feedback-upload-events"><h3>{tx("Screenshot processing", "Ekran görüntüsü işleme süreci")}</h3>
+            {(selected.screenshotEvents ?? []).length ? <ol>{selected.screenshotEvents!.map((event, index) => <li key={`${event.createdAt}-${index}`} className={`upload-event upload-event-${event.outcome.toLowerCase()}`}><div><strong>{event.eventType.replaceAll("_", " ")}</strong><time>{localDate(event.createdAt)}</time></div><p>{event.errorCode || event.detail || event.outcome}</p><small>{tx("Reported", "Bildirilen")}: {formatBytes(event.reportedSizeBytes)} · {tx("S3 actual", "S3 gerçek")}: {formatBytes(event.actualSizeBytes)} · {event.contentType || tx("unknown type", "bilinmeyen tür")}</small></li>)}</ol>
+              : <p className="test-feedback-empty-events">{tx("No screenshot upload was started for this feedback.", "Bu geri bildirim için ekran görüntüsü yüklemesi başlatılmadı.")}</p>}
           </section>
           <section className="test-feedback-review"><h3>{tx("Admin review", "Yönetici incelemesi")}</h3><label>{tx("Status", "Durum")}<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as TestFeedbackStatus)}>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></label><label>{tx("Internal note", "Dahili not")}<textarea rows={5} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} /></label>{selected.reviewedByEmail && <small>{tx("Last reviewed by", "Son inceleyen")} {selected.reviewedByEmail}</small>}</section>
         </div>

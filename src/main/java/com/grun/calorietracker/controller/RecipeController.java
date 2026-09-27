@@ -133,8 +133,9 @@ public class RecipeController {
     })
     public ResponseEntity<RecipeDto> getPublicRecipe(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
-            @Parameter(description = "Public recipe id.", example = "1") @PathVariable Long id) {
-        return ResponseEntity.ok(recipeService.getPublicRecipe(userDetails.getUsername(), id));
+            @Parameter(description = "Public recipe id.", example = "1") @PathVariable Long id,
+            @Parameter(description = "Optional response language override.", example = "tr") @RequestParam(required = false) String language) {
+        return ResponseEntity.ok(recipeService.getPublicRecipe(userDetails.getUsername(), id, language));
     }
 
     @PostMapping("/public/{id}/copy")

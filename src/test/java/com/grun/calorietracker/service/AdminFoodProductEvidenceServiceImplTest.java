@@ -56,6 +56,31 @@ class AdminFoodProductEvidenceServiceImplTest {
     }
 
     @Test
+    void catalogAdminCanStreamPrivateEvidenceForBrowserConversion() {
+        UserEntity admin = admin(UserRole.ADMIN_CATALOG);
+        FoodProductReviewCaseAssetEntity asset = asset();
+        asset.setContentType("image/heic");
+        byte[] bytes = {0, 0, 0, 1};
+        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(assetRepository.findById(10L)).thenReturn(Optional.of(asset));
+        when(directStorage.readBounded(asset.getStorageKey(), properties.getMaxUploadBytes())).thenReturn(bytes);
+
+        var result = service.loadEvidence(admin.getEmail(), 10L);
+
+        assertEquals("image/heic", result.contentType());
+        assertEquals(bytes, result.bytes());
+    }
+
+    @Test
+    void readOnlyAdminCannotStreamPrivateEvidence() {
+        UserEntity admin = admin(UserRole.ADMIN_READ_ONLY);
+        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+
+        assertThrows(AccessDeniedException.class, () -> service.loadEvidence(admin.getEmail(), 10L));
+        verify(directStorage, never()).readBounded(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
     void readOnlyAdminCannotReceivePrivateEvidenceUrl() {
         UserEntity admin = admin(UserRole.ADMIN_READ_ONLY);
         when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));

@@ -32,6 +32,9 @@ public class RecipeRequestDto {
     @Schema(description = "Market/region hint for future public recipe library filtering.", example = "TR")
     private MarketRegion marketRegion;
 
+    @Schema(description = "Markets where this recipe is discoverable. GLOBAL is visible in every market.", example = "[\"TR\", \"EU\"]")
+    private Set<MarketRegion> marketRegions;
+
     @Size(max = 12)
     @Schema(description = "Recipe language code.", example = "tr")
     private String language;
@@ -70,4 +73,9 @@ public class RecipeRequestDto {
     @Size(max = 30)
     @Schema(description = "Ordered cooking/preparation steps displayed by the mobile recipe detail screen.")
     private List<RecipeStepRequestDto> cookingSteps;
+
+    @Valid
+    @Size(max = 2)
+    @Schema(description = "Optional English and Turkish localized public copy. User-private recipes may omit this field.")
+    private List<RecipeTranslationRequestDto> translations;
 }

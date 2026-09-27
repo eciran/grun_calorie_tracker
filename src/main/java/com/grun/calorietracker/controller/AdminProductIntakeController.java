@@ -55,7 +55,7 @@ public class AdminProductIntakeController {
     }
 
     @PatchMapping("/{caseId}/claim")
-    @PreAuthorize("hasRole('ADMIN_CATALOG')")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")
     public ResponseEntity<AdminProductIntakeAssignmentDto> claim(
             @PathVariable Long caseId,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails

@@ -371,6 +371,35 @@ class AiNutritionPlanServiceImplTest {
         assertFalse(captor.getAllValues().get(1).getQuotaConsumed());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void createDraft_whenScheduleInvalid_retriesOnceAndRecordsCountsWithoutCharging(boolean missingDays) {
+        prepareUserAndGoal();
+        when(provider.provider()).thenReturn(AiProvider.LOG);
+        var invalid = validResponse();
+        if (missingDays) {
+            invalid.setDays(List.of());
+        } else {
+            invalid.getDays().get(0).setMeals(List.of());
+        }
+        when(provider.createNutritionPlanDraft(any())).thenReturn(invalid);
+        when(historyRepository.findByUserAndRequestTypeAndIdempotencyKey(any(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(historyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var error = assertThrows(com.grun.calorietracker.exception.AiNutritionPlanValidationException.class,
+                () -> service.createDraft("user@example.com", "invalid-schedule", request()));
+        assertTrue(error.getMessage().contains("expected="));
+        assertTrue(error.getMessage().contains("actual=0"));
+        verify(provider, times(2)).createNutritionPlanDraft(any());
+        verify(subscriptionService, never()).consumeAiRequestQuota(anyString(), anyInt(), org.mockito.ArgumentMatchers.any());
+        var captor = ArgumentCaptor.forClass(AiRequestHistoryEntity.class);
+        verify(historyRepository, times(2)).save(captor.capture());
+        var failed = captor.getAllValues().get(1);
+        assertEquals(AiRequestStatus.FAILED, failed.getStatus());
+        assertEquals(error.getMessage(), failed.getErrorMessage());
+        assertFalse(failed.getQuotaConsumed());
+    }
+
     @Test
     void createDraft_whenMacrosMissTrustedTargets_returnsDraftWithReviewWarning() {
         prepareUserAndGoal();

@@ -6,6 +6,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,5 +28,17 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
             UserEntity user, List<String> sources);
     long countByTypeAndCreatedAtAfter(String type, LocalDateTime createdAt);
     long countByUserAndSourceAndCreatedAtAfter(UserEntity user, String source, LocalDateTime createdAt);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationEntity notification
+            set notification.isRead = true
+            where notification.type = 'subscription_provider_alert'
+              and notification.targetType = 'SUBSCRIPTION_PROVIDER_EVENT'
+              and notification.targetId = :eventId
+              and notification.isRead = false
+            """)
+    int resolveSubscriptionProviderAlerts(@Param("eventId") String eventId);
+
     long deleteByUser(UserEntity user);
 }

@@ -9,6 +9,7 @@
   "foodQuality": "/admin/catalog/quality",
   "catalogExercises": "/admin/catalog/exercises",
   "products": "/admin/products",
+  "catalogSearch": "/admin/catalog/search",
   "productContributions": "/admin/products/contributions",
   "productDuplicates": "/admin/products/duplicates",
   "productImages": "/admin/products/images",

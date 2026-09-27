@@ -183,6 +183,7 @@ public class AdminSystemHealthServiceImpl implements AdminSystemHealthService {
         return new RevenueCatSnapshot(
                 subscriptionProviderEventRepository.countByReceivedAtAfter(LocalDateTime.now().minus(Duration.ofHours(24))),
                 subscriptionProviderEventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)
+                        + subscriptionProviderEventRepository.countByStatus(SubscriptionProviderEventStatus.REQUIRES_REVIEW)
         );
     }
 

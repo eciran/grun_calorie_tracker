@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { formatRequestError, request } from "./api";
+import { formatRequestError, request, requestBlob } from "./api";
 import { CollapsiblePanel, DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
 import type { AdminAccessProfile } from "./types";
 import { ManualProductIntakeForm } from "./ManualProductIntakeForm";
 import { useAdminLocale } from "./admin/locale";
 import { sectionPaths } from "./admin/navigation";
-import type { AdminTargetContext } from "./admin/shared";
+import { Badge, ConfirmDialog, type AdminTargetContext } from "./admin/shared";
 import { ContributionQueueChart } from "./CatalogWorkspaceCharts";
+import { CatalogProductFinder } from "./CatalogProductFinder";
+import { browserImageObjectUrl } from "./admin/imagePreview";
 
 type IntakeSummary = { id: number; source?: string; status?: string; marketRegion?: string; barcode?: string; resolutionMode?: string; riskLevel?: string; assignedAdminEmail?: string; createdAt?: string; updatedAt?: string };
 type IntakePage = { content: IntakeSummary[]; page: number; size: number; totalElements: number; totalPages: number; first: boolean; last: boolean };
@@ -23,14 +25,24 @@ type IntakeDetail = {
   ocrRuns?: OcrRun[];
 };
 type OcrRun = { id: number; correlationId?: string; parserVersion?: string; model?: string; fallbackInvoked?: boolean; v3Fields?: Record<string, unknown>; v4Fields?: Record<string, unknown>; fallbackFields?: Record<string, unknown>; confirmedFields?: Record<string, unknown>; v3ExactMatchRate?: number; v4ExactMatchRate?: number; fallbackExactMatchRate?: number; v3BasisExact?: boolean; v4BasisExact?: boolean; fallbackBasisExact?: boolean; latencyMs?: number; estimatedCostUsd?: number; reconciliation?: Record<string, unknown>; createdAt?: string };
-type QueueMode = "ALL" | "MY_QUEUE" | "UNASSIGNED" | "NEEDS_ACTION" | "HIGH_RISK" | "OVERDUE";
+type QueueMode = "ALL" | "ACTIVE" | "COMPLETED" | "APPROVED" | "MY_QUEUE" | "UNASSIGNED" | "NEEDS_ACTION" | "HIGH_RISK" | "OVERDUE";
+type IntakeConfirmation = { type: "publish" } | { type: "apply"; fields: string[]; highImpactLabels: string[] };
 
-const QUEUES: QueueMode[] = ["ALL", "MY_QUEUE", "UNASSIGNED", "NEEDS_ACTION", "HIGH_RISK", "OVERDUE"];
+const REVIEW_NOTE_TEMPLATES = [
+  { key: "thanks-tr", label: "Teşekkür · TR", tone: "positive", text: "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri ve kanıtlar incelendi; katkınız onaylandı." },
+  { key: "thanks-en", label: "Thank you · EN", tone: "positive", text: "Thank you for your contribution. The product information and evidence you submitted were reviewed, and your contribution was approved." },
+  { key: "reject-tr", label: "Ret · TR", tone: "negative", text: "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri mevcut kanıtlarla doğrulanamadığı için katkınız bu aşamada onaylanamadı." },
+  { key: "reject-en", label: "Rejection · EN", tone: "negative", text: "Thank you for your contribution. We could not verify the submitted product information against the available evidence, so the contribution could not be approved at this time." }
+] as const;
+
+const QUEUES: QueueMode[] = ["ACTIVE", "APPROVED", "COMPLETED", "MY_QUEUE", "UNASSIGNED", "NEEDS_ACTION", "HIGH_RISK", "OVERDUE", "ALL"];
+const STATUSES = ["SUBMITTED", "IN_REVIEW", "NEEDS_SUBMITTER_ACTION", "APPROVED", "APPLIED", "REJECTED", "WITHDRAWN", "EXPIRED"];
+const TERMINAL_STATUSES = new Set(["APPLIED", "REJECTED", "WITHDRAWN", "EXPIRED"]);
 const REGIONS = ["GLOBAL", "TR", "UK_IE", "EU"];
 
 export function ProductIntakeView({ accessProfile, onError, targetContext, onClearTarget }: { accessProfile: AdminAccessProfile | null; onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const { locale } = useAdminLocale();
-  const [queue, setQueue] = useState<QueueMode>("NEEDS_ACTION");
+  const [queue, setQueue] = useState<QueueMode>("ACTIVE");
   const [status, setStatus] = useState("");
   const [marketRegion, setMarketRegion] = useState("");
   const [page, setPage] = useState(0);
@@ -47,7 +59,9 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
   const [notice, setNotice] = useState<string | null>(null);
   const [applyFields, setApplyFields] = useState<string[]>([]);
   const [evidencePreview, setEvidencePreview] = useState<EvidenceRead | null>(null);
+  const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string | null>(null);
   const [evidenceLoadingId, setEvidenceLoadingId] = useState<number | null>(null);
+  const [confirmation, setConfirmation] = useState<IntakeConfirmation | null>(null);
   const canWrite = Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"));
   const isOwner = accessProfile?.role === "OWNER";
 
@@ -68,6 +82,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
 
   useEffect(() => { void reload(); }, [queue, status, marketRegion, page, size]);
   useEffect(() => { setPage(0); }, [queue, status, marketRegion, size]);
+  useEffect(() => () => { if (evidencePreviewUrl) URL.revokeObjectURL(evidencePreviewUrl); }, [evidencePreviewUrl]);
   useEffect(() => {
     if (targetContext?.targetType !== "PRODUCT_INTAKE" || !targetContext.targetId) return;
     const id = Number(targetContext.targetId);
@@ -83,6 +98,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
       setFoodItemId(detail.linkedFoodItemId ? String(detail.linkedFoodItemId) : "");
       setApplyFields([]);
       setEvidencePreview(null);
+      setEvidencePreviewUrl(null);
     } catch (error) {
       onError(formatRequestError(error));
     }
@@ -107,21 +123,35 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
   function applySelectedFields() {
     if (!selected || applyFields.length === 0) return;
     const highImpact = (selected.fieldComparisons ?? []).filter((item) => item.highImpact && applyFields.includes(toApplyField(item.field) ?? ""));
-    const confirmed = highImpact.length === 0 || window.confirm(`This materially changes ${highImpact.map((item) => item.field).join(", ")}. Apply only after checking all evidence. Continue?`);
-    if (!confirmed) return;
-    void mutate("apply-existing", { fields: applyFields, confirmed: true }, "Selected fields applied to the existing product.");
+    if (highImpact.length > 0) {
+      setConfirmation({ type: "apply", fields: [...applyFields], highImpactLabels: highImpact.map((item) => item.field) });
+      return;
+    }
+    void applyConfirmedFields(applyFields);
   }
 
   function publishSelectedCandidate() {
     if (!note.trim()) return;
-    const confirmed = window.confirm("Publish this verified candidate to the public catalog? This action will notify the contributor.");
-    if (confirmed) void mutate("publish-candidate", { note: note.trim(), confirmed: true }, "Candidate verified and published through the central publication service.");
+    setConfirmation({ type: "publish" });
+  }
+
+  async function applyConfirmedFields(fields: string[]) {
+    setConfirmation(null);
+    await mutate("apply-existing", { fields, confirmed: true }, locale === "tr" ? "Seçilen alanlar mevcut ürüne uygulandı." : "Selected fields applied to the existing product.");
+  }
+
+  async function publishConfirmedCandidate() {
+    setConfirmation(null);
+    await mutate("publish-candidate", { note: note.trim(), confirmed: true }, locale === "tr" ? "Aday doğrulandı ve yayınlandı." : "Candidate verified and published.");
   }
   async function viewEvidence(asset: Evidence) {
     setEvidenceLoadingId(asset.assetId);
     try {
       const read = await request<EvidenceRead>("/api/v1/admin/products/review-cases/assets/" + asset.assetId + "/evidence-url");
+      const blob = await requestBlob("/api/v1/admin/products/review-cases/assets/" + asset.assetId + "/evidence");
+      const previewUrl = await browserImageObjectUrl(blob, read.contentType);
       setEvidencePreview(read);
+      setEvidencePreviewUrl(previewUrl);
     } catch (error) {
       onError(formatRequestError(error));
     } finally {
@@ -130,10 +160,13 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
   }
 
   const rows = data?.content ?? [];
-  const needsActionCount = rows.filter((item) => item.status === "NEEDS_ACTION").length;
+  const needsActionCount = rows.filter((item) => ["SUBMITTED", "IN_REVIEW", "APPROVED"].includes(item.status ?? "")).length;
   const highRiskCount = rows.filter((item) => item.riskLevel === "HIGH").length;
-  const unassignedCount = rows.filter((item) => !item.assignedAdminEmail).length;
+  const unassignedCount = rows.filter((item) => !TERMINAL_STATUSES.has(item.status ?? "") && !item.assignedAdminEmail).length;
   const activeFilters = [queue !== "ALL" ? queue : "", status, marketRegion].filter(Boolean);
+  const selectedTerminal = TERMINAL_STATUSES.has(selected?.summary.status ?? "");
+  const selectedEvidenceReviewable = ["SUBMITTED", "IN_REVIEW"].includes(selected?.summary.status ?? "");
+  const selectedAssignedToMe = Boolean(selected?.summary.assignedAdminEmail && selected.summary.assignedAdminEmail.toLowerCase() === accessProfile?.email?.toLowerCase());
   return <div className="stack contribution-review-workspace">
     <SectionToolbar title={locale === "tr" ? "Etiket katkıları" : "Label contributions"} description={locale === "tr" ? "Kullanıcı ve yönetici ürün adaylarını, OCR kanıtlarını ve yayın kararlarını tek kuyrukta yönetin." : "Manage user and admin product candidates, OCR evidence, and publication decisions in one queue."} state={state} onReload={reload} />
     {notice && <div className="success-banner compact-success">{notice}</div>}
@@ -150,8 +183,8 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
       </CollapsiblePanel>}
       <CollapsiblePanel title={locale === "tr" ? "Kuyruğu filtrele" : "Refine queue"} description={locale === "tr" ? "Durum, sorumluluk ve pazar bölgesine göre kayıtları daraltın." : "Narrow records by status, ownership, and market region."} open={filtersOpen} onToggle={() => setFiltersOpen((current) => !current)}>
         <div className="review-filter-grid contribution-filter-grid">
-          <label>{locale === "tr" ? "Kuyruk" : "Queue"}<select value={queue} onChange={(event) => setQueue(event.target.value as QueueMode)}>{QUEUES.map((value) => <option key={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
-          <label className="user-filter-search">{locale === "tr" ? "Durum" : "Status"}<span><input value={status} onChange={(event) => setStatus(event.target.value.toUpperCase())} placeholder={locale === "tr" ? "Tüm durumlar" : "All statuses"} />{status && <button type="button" aria-label={locale === "tr" ? "Durumu temizle" : "Clear status"} onClick={() => setStatus("")}>×</button>}</span></label>
+          <label>{locale === "tr" ? "Kuyruk" : "Queue"}<select value={queue} onChange={(event) => { setQueue(event.target.value as QueueMode); setStatus(""); }}>{QUEUES.map((value) => <option key={value} value={value}>{queueLabel(value, locale)}</option>)}</select></label>
+          <label>{locale === "tr" ? "Durum" : "Status"}<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">{locale === "tr" ? "Tüm durumlar" : "All statuses"}</option>{STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value, locale)}</option>)}</select></label>
           <label>{locale === "tr" ? "Pazar bölgesi" : "Market region"}<select value={marketRegion} onChange={(event) => setMarketRegion(event.target.value)}><option value="">{locale === "tr" ? "Tüm pazarlar" : "All markets"}</option>{REGIONS.map((value) => <option key={value}>{value}</option>)}</select></label>
         </div>
       </CollapsiblePanel>
@@ -160,7 +193,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
     <DataTable
       columns={locale === "tr" ? ["Kayıt", "Kaynak", "Pazar", "Risk", "Atama", "Güncellendi"] : ["Case", "Source", "Market", "Risk", "Assignment", "Updated"]}
       rows={rows.map((item) => [
-        <div className="table-stack"><strong>#{item.id}</strong><span>{item.barcode ?? (locale === "tr" ? "Barkod yok" : "No barcode")}</span><small>{item.status ?? "-"}</small></div>,
+        <div className="table-stack"><strong>#{item.id}</strong><span>{item.barcode ?? (locale === "tr" ? "Barkod yok" : "No barcode")}</span><Badge value={statusLabel(item.status ?? "", locale)} tone={statusTone(item.status)} /></div>,
         item.source ?? "-", item.marketRegion ?? (locale === "tr" ? "Belirtilmedi" : "Unspecified"), item.riskLevel ?? "-", item.assignedAdminEmail ?? (locale === "tr" ? "Atanmamış" : "Unassigned"), formatDate(item.updatedAt ?? item.createdAt)
       ])}
       rowData={rows}
@@ -188,28 +221,52 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
             {!selected.ocrRuns?.length && <p className="muted-text">{locale === "tr" ? "Bu kayıt için kalıcı OCR karşılaştırma çalışması bulunmuyor." : "No persisted OCR comparison run is available for this case."}</p>}
             <h3>{locale === "tr" ? "Doğrulayıcı kaynak kanıtı" : "Corroborating source evidence"}</h3>
             <DataTable columns={locale === "tr" ? ["Alan", "Sağlayıcı", "Değer", "Temel", "Güven", "Gözlem"] : ["Field", "Provider", "Value", "Basis", "Confidence", "Observed"]} rows={(selected.corroboratingEvidence ?? []).map((item) => [item.field, item.provider, item.numericValue, item.basis, `${item.confidenceScore}%`, formatDate(item.observedAt)])} empty={locale === "tr" ? "Ek kaynak kanıtı bulunmuyor." : "No additional source evidence is available."} />
-            <label>{locale === "tr" ? "İnceleme notu" : "Review note"}<textarea maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+            {selectedTerminal && <div className="success-banner compact-success">{locale === "tr" ? "Bu inceleme tamamlandı. Kayıt geçmiş amacıyla salt okunur gösteriliyor." : "This review is complete. The record is shown read-only for history."}</div>}
+            <div className="intake-review-note-editor">
+              <div className="intake-review-note-heading"><div><span>{locale === "tr" ? "HAZIR YANITLAR" : "QUICK REPLIES"}</span><strong>{locale === "tr" ? "Kullanıcıya gönderilecek mesaj" : "Message shown to the contributor"}</strong></div><small>{locale === "tr" ? "Bir şablon seçin, ardından gerekirse metni düzenleyin." : "Choose a template, then edit it if needed."}</small></div>
+              <div className="intake-review-note-templates" aria-label={locale === "tr" ? "Hazır inceleme notları" : "Review note templates"}>
+                {REVIEW_NOTE_TEMPLATES.map((template) => <button className={`ghost-button ${template.tone}`} disabled={selectedTerminal} key={template.key} type="button" onClick={() => setNote(template.text)}>{template.label}</button>)}
+              </div>
+              <label>{locale === "tr" ? "İnceleme notu" : "Review note"}<textarea disabled={selectedTerminal} maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={locale === "tr" ? "Kullanıcıya gösterilecek yanıtı yazın veya yukarıdan hazır metin seçin." : "Write the response shown to the contributor or select a template above."} /></label>
+              <div className="intake-review-note-meta"><span>{note.length}/1000</span><small>{locale === "tr" ? "Bu metin kullanıcıya mesaj olarak gösterilir." : "This text is shown to the contributor as a message."}</small></div>
+            </div>
           </div>
           <div className="contribution-evidence-panel">
             <div className="evidence-panel-heading"><div><span>{locale === "tr" ? "ÖZEL KANIT" : "PRIVATE EVIDENCE"}</span><h3>{locale === "tr" ? "Gönderilen görseller" : "Submitted images"}</h3></div><small>{selected.evidence?.length ?? 0} {locale === "tr" ? "dosya" : "files"}</small></div>
             {canWrite && <div className="evidence-selector" role="tablist" aria-label="Submitted product images">{(selected.evidence ?? []).map((asset) => <button className={evidencePreview?.assetId === asset.assetId ? "evidence-tab active" : "evidence-tab"} type="button" role="tab" key={asset.assetId} disabled={!asset.available || evidenceLoadingId !== null} onClick={() => void viewEvidence(asset)}><strong>{formatEvidenceType(asset.assetType)}</strong><span>{evidenceLoadingId === asset.assetId ? "Loading..." : formatBytes(asset.sizeBytes)}</span></button>)}</div>}
-            {canWrite && evidencePreview && <div className="evidence-image-frame"><img src={evidencePreview.signedUrl} alt={formatEvidenceType(evidencePreview.assetType) + " submitted for review"} /><span>{formatEvidenceType(evidencePreview.assetType)}</span></div>}
+            {canWrite && evidencePreview && evidencePreviewUrl && <div className="evidence-image-frame"><img src={evidencePreviewUrl} alt={formatEvidenceType(evidencePreview.assetType) + " submitted for review"} /><span>{formatEvidenceType(evidencePreview.assetType)}</span></div>}
             {canWrite && !evidencePreview && Boolean(selected.evidence?.length) && <div className="evidence-placeholder"><strong>Select an image</strong><span>Open the package or nutrition label without leaving this review.</span></div>}
             {!selected.evidence?.length && <span>{locale === "tr" ? "Kanıt eklenmemiş." : "No evidence attached."}</span>}
             <small>{canWrite ? "Images use short-lived private links and are loaded only when selected." : "Private evidence requires owner or catalog-admin access."}</small>
-            {canWrite && <section className="intake-side-action"><div><span>{locale === "tr" ? "SORUMLULUK" : "OWNERSHIP"}</span><strong>{locale === "tr" ? "İncelemeyi yönet" : "Manage review"}</strong></div><div className="inline-actions"><button className="ghost-button" disabled={busy} type="button" onClick={() => void mutate("claim", undefined, "Case claimed.")}>{locale === "tr" ? "Üzerime al" : "Claim"}</button><button className="ghost-button" disabled={busy} type="button" onClick={() => void mutate("release", undefined, "Case released.")}>{locale === "tr" ? "Serbest bırak" : "Release"}</button></div>{isOwner && <div className="compact-action-form"><label>{locale === "tr" ? "Başka yöneticiye ata" : "Reassign to"}<input type="email" value={reassignEmail} onChange={(event) => setReassignEmail(event.target.value)} placeholder="admin@example.com" /></label><button className="ghost-button" disabled={busy || !reassignEmail.trim()} type="button" onClick={() => void mutate("reassign", { adminEmail: reassignEmail.trim() }, "Case reassigned.")}>{locale === "tr" ? "Ata" : "Reassign"}</button></div>}</section>}
-            {canWrite && <section className="intake-side-action"><div><span>{locale === "tr" ? "KATALOG BAĞLANTISI" : "CATALOG LINK"}</span><strong>{locale === "tr" ? "Mevcut ürüne bağla" : "Attach existing product"}</strong><small>{locale === "tr" ? "Adayı katalogdaki mevcut ürün kimliğiyle ilişkilendirir." : "Connect this candidate to an existing catalog record."}</small></div><div className="compact-action-form"><label>{locale === "tr" ? "Ürün kimliği" : "Food item ID"}<input inputMode="numeric" value={foodItemId} onChange={(event) => setFoodItemId(event.target.value.replace(/\D/g, ""))} placeholder="12345" /></label><button className="ghost-button" disabled={busy || !foodItemId} type="button" onClick={() => void mutate("attach-existing-product", { foodItemId: Number(foodItemId) }, "Existing product attached.")}>{locale === "tr" ? "Ürüne bağla" : "Attach"}</button></div></section>}
+            {canWrite && !selectedTerminal && <section className="intake-side-action"><div><span>{locale === "tr" ? "SORUMLULUK" : "OWNERSHIP"}</span><strong>{locale === "tr" ? "İncelemeyi yönet" : "Manage review"}</strong></div><div className="inline-actions"><button className="ghost-button" disabled={busy || Boolean(selected.summary.assignedAdminEmail && !selectedAssignedToMe)} type="button" onClick={() => void mutate("claim", undefined, locale === "tr" ? "İnceleme üzerinize alındı." : "Case claimed.")}>{selectedAssignedToMe ? (locale === "tr" ? "Üzerinizde" : "Assigned to you") : (locale === "tr" ? "Üzerime al" : "Claim")}</button><button className="ghost-button" disabled={busy || !selected.summary.assignedAdminEmail || (!isOwner && !selectedAssignedToMe)} type="button" onClick={() => void mutate("release", undefined, locale === "tr" ? "Atama kaldırıldı." : "Case released.")}>{locale === "tr" ? "Serbest bırak" : "Release"}</button></div>{isOwner && <div className="compact-action-form"><label>{locale === "tr" ? "Başka katalog yöneticisine ata" : "Reassign to catalog admin"}<input type="email" value={reassignEmail} onChange={(event) => setReassignEmail(event.target.value)} placeholder="admin@example.com" /></label><button className="ghost-button" disabled={busy || !reassignEmail.trim()} type="button" onClick={() => void mutate("reassign", { adminEmail: reassignEmail.trim() }, locale === "tr" ? "İnceleme yeniden atandı." : "Case reassigned.")}>{locale === "tr" ? "Ata" : "Reassign"}</button></div>}</section>}
+            {canWrite && !selectedTerminal && <section className="intake-side-action intake-catalog-linker"><div><span>{locale === "tr" ? "KATALOG BAĞLANTISI" : "CATALOG LINK"}</span><strong>{locale === "tr" ? "Mevcut ürünü ara ve doğrula" : "Search and verify the existing product"}</strong><small>{locale === "tr" ? "Tüm veritabanında ad, marka, barkod veya ürün kimliğiyle arayın; doğru ürünü seçmeden bağlantı kurulmaz." : "Search the full database by name, brand, barcode or product ID. A link is created only after selecting a result."}</small></div><CatalogProductFinder compact initialProductId={selected.linkedFoodItemId} onError={onError} onSelect={(product) => setFoodItemId(product.id ? String(product.id) : "")} onSelectionClear={() => setFoodItemId("")} />{foodItemId && <div className="catalog-link-confirm"><span>{locale === "tr" ? "Seçilen katalog kaydı" : "Selected catalog record"}</span><strong>#{foodItemId}</strong><button className="primary-button" disabled={busy} type="button" onClick={() => void mutate("attach-existing-product", { foodItemId: Number(foodItemId) }, locale === "tr" ? "Mevcut ürün bağlandı." : "Existing product attached.")}>{locale === "tr" ? "Seçilen ürüne bağla" : "Attach selected product"}</button></div>}</section>}
           </div>
         </div>
         <footer className="modal-actions padded-actions">
           <button className="ghost-button" type="button" onClick={() => setSelected(null)}>{locale === "tr" ? "Kapat" : "Close"}</button>
-          {canWrite && <button className="ghost-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("request-better-evidence", { note: note.trim() }, locale === "tr" ? "Daha iyi kanıt istendi." : "Better evidence requested.")}>{locale === "tr" ? "Daha iyi kanıt iste" : "Request better evidence"}</button>}
-          {canWrite && <button className="ghost-button danger-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/reject", { note: note.trim() }, locale === "tr" ? "Kanıt reddedildi." : "Evidence rejected.")}>{locale === "tr" ? "Kanıtı reddet" : "Reject evidence"}</button>}
+          {canWrite && selectedEvidenceReviewable && <button className="ghost-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("request-better-evidence", { note: note.trim() }, locale === "tr" ? "Daha iyi kanıt istendi." : "Better evidence requested.")}>{locale === "tr" ? "Daha iyi kanıt iste" : "Request better evidence"}</button>}
+          {canWrite && selectedEvidenceReviewable && <button className="ghost-button danger-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/reject", { note: note.trim() }, locale === "tr" ? "Kanıt reddedildi." : "Evidence rejected.")}>{locale === "tr" ? "Kanıtı reddet" : "Reject evidence"}</button>}
           {canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "NEW_CANDIDATE" && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={publishSelectedCandidate}>{locale === "tr" ? "Adayı doğrula ve yayınla" : "Verify and publish candidate"}</button>}
-          {canWrite && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/approve", { note: note.trim() }, locale === "tr" ? "Kanıt onaylandı; yayınlama ayrı bir işlemdir." : "Evidence approved; publication remains separate.")}>{locale === "tr" ? "Kanıtı onayla" : "Approve evidence"}</button>}
+          {canWrite && selectedEvidenceReviewable && <button className="primary-button" disabled={busy || !note.trim()} type="button" onClick={() => void mutate("evidence/approve", { note: note.trim() }, locale === "tr" ? "Kanıt onaylandı; yayınlama ayrı bir işlemdir." : "Evidence approved; publication remains separate.")}>{locale === "tr" ? "Kanıtı onayla" : "Approve evidence"}</button>}
         </footer>
       </section>
     </div>}
+    {selected && confirmation?.type === "publish" && <ConfirmDialog
+      title={locale === "tr" ? "Aday yayınlansın mı?" : "Publish this candidate?"}
+      message={locale === "tr" ? "Doğrulanmış aday herkese açık kataloğa yayınlanacak ve inceleme notunuz kullanıcının bildiriminde gösterilecek." : "The verified candidate will be published to the public catalog and your review note will be shown in the contributor's notification."}
+      confirmLabel={locale === "tr" ? "Doğrula ve yayınla" : "Verify and publish"}
+      busy={busy}
+      onCancel={() => setConfirmation(null)}
+      onConfirm={() => void publishConfirmedCandidate()}
+    />}
+    {selected && confirmation?.type === "apply" && <ConfirmDialog
+      title={locale === "tr" ? "Yüksek etkili alanlar uygulansın mı?" : "Apply high-impact fields?"}
+      message={locale === "tr" ? `${confirmation.highImpactLabels.join(", ")} alanları katalog ürününü önemli ölçüde değiştirecek. Tüm kanıtları kontrol ettiğinizden emin olun.` : `${confirmation.highImpactLabels.join(", ")} will materially change the catalog product. Confirm that all evidence has been checked.`}
+      confirmLabel={locale === "tr" ? "Alanları uygula" : "Apply fields"}
+      busy={busy}
+      onCancel={() => setConfirmation(null)}
+      onConfirm={() => void applyConfirmedFields(confirmation.fields)}
+    />}
   </div>;
 }
 
@@ -303,7 +360,28 @@ function toApplyField(field: string) {
   const normalized = field.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
   const supported = new Set(["PRODUCT_NAME", "BRAND", "CALORIES", "PROTEIN", "FAT", "CARBS", "FIBER", "SUGAR", "SODIUM"]);
   return supported.has(normalized) ? normalized : null;
-}function formatDate(value?: string) {
+}
+function queueLabel(value: QueueMode, locale: "tr" | "en") {
+  const labels: Record<QueueMode, [string, string]> = {
+    ACTIVE: ["Aktif incelemeler", "Active reviews"], APPROVED: ["Onaylandı, uygulama bekliyor", "Approved, awaiting application"],
+    COMPLETED: ["Tamamlananlar", "Completed"], MY_QUEUE: ["Benim kuyruğum", "My queue"],
+    UNASSIGNED: ["Atanmamış", "Unassigned"], NEEDS_ACTION: ["Kullanıcıdan işlem bekliyor", "Awaiting contributor"],
+    HIGH_RISK: ["Yüksek risk", "High risk"], OVERDUE: ["Süresi geçen", "Overdue"], ALL: ["Tüm kayıtlar", "All records"]
+  };
+  return labels[value][locale === "tr" ? 0 : 1];
+}
+function statusLabel(value: string, locale: "tr" | "en") {
+  const tr: Record<string, string> = { SUBMITTED: "Gönderildi", IN_REVIEW: "İnceleniyor", NEEDS_SUBMITTER_ACTION: "Kullanıcıdan işlem bekliyor", APPROVED: "Onaylandı · uygulama bekliyor", APPLIED: "Tamamlandı · uygulandı", REJECTED: "Tamamlandı · reddedildi", WITHDRAWN: "Geri çekildi", EXPIRED: "Süresi doldu" };
+  return locale === "tr" ? (tr[value] ?? value.replaceAll("_", " ")) : value.replaceAll("_", " ");
+}
+function statusTone(value?: string): "good" | "warn" | "danger" | "neutral" {
+  if (value === "APPLIED") return "good";
+  if (["REJECTED", "EXPIRED", "WITHDRAWN"].includes(value ?? "")) return "danger";
+  if (value === "APPROVED") return "good";
+  if (["SUBMITTED", "IN_REVIEW", "NEEDS_SUBMITTER_ACTION"].includes(value ?? "")) return "warn";
+  return "neutral";
+}
+function formatDate(value?: string) {
   return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "-";
 }
 function formatField(value: unknown) {

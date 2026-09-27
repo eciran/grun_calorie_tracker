@@ -38,6 +38,9 @@ public interface FoodProductReviewService {
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, int page, int size);
+    FoodProductReviewPageDto searchCatalog(String query, VerificationStatus verificationStatus, ImageStatus imageStatus,
+                                           MarketRegion marketRegion, FoodCatalogType catalogType,
+                                           FoodDataSource dataSource, int page, int size);
     default FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request) {
         return updateProductReview(id, request, null);
     }

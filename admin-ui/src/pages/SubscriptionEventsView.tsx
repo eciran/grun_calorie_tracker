@@ -6,10 +6,10 @@ import { SubscriptionProviderEvent, SubscriptionProviderEventFilterOptions, Subs
 
 import { CollapsiblePanel, DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar } from "../AdminPrimitives";
 
-import { AdminTargetContext, Badge, DetailItem, TargetAwareValue, TargetContextBanner, combineStates, formatDate, formatValue, isTargetMatch, shortFeature, useEndpoint } from "./../admin/shared";
+import { AdminTargetContext, Badge, TargetAwareValue, TargetContextBanner, combineStates, formatDate, formatValue, isTargetMatch, shortFeature, useEndpoint } from "./../admin/shared";
 import { useAdminLocale } from "../admin/locale";
 
-export const SUBSCRIPTION_EVENT_STATUSES = ["RECEIVED", "PROCESSED", "FAILED", "IGNORED"];
+export const SUBSCRIPTION_EVENT_STATUSES = ["RECEIVED", "PROCESSED", "REQUIRES_REVIEW", "FAILED", "IGNORED"];
 
 export function SubscriptionEventsView({ onError, targetContext, onClearTarget }: { onError: (message: string | null) => void; targetContext?: AdminTargetContext | null; onClearTarget?: () => void }) {
   const { locale } = useAdminLocale();
@@ -88,7 +88,7 @@ export function SubscriptionEventsView({ onError, targetContext, onClearTarget }
       <div className="subscription-event-summary">
         <MetricCard label={tx("Matching events", "Eşleşen olaylar")} value={formatValue(data?.totalElements ?? 0)} hint={tx("Current filter result", "Geçerli filtre sonucu")} />
         <MetricCard label={tx("Processed on page", "Sayfadaki işlenen")} value={String(rows.filter(item => item.status === "PROCESSED").length)} hint={tx("Successfully completed", "Başarıyla tamamlandı")} />
-        <MetricCard label={tx("Requires review", "İnceleme gerekli")} value={String(rows.filter(item => item.status === "FAILED" || item.status === "RECEIVED").length)} hint={tx("Failed or waiting on this page", "Bu sayfadaki başarısız veya bekleyen")} />
+        <MetricCard label={tx("Requires review", "İnceleme gerekli")} value={String(rows.filter(item => item.status === "REQUIRES_REVIEW").length)} hint={tx("Ownership or policy review on this page", "Bu sayfadaki sahiplik veya politika incelemeleri")} />
       </div>
       <CollapsiblePanel className="subscription-event-filters" title={tx("Event filters", "Olay filtreleri")} description={activeFilterSummary({ status, eventType, eventId, productId, userId }, tx)} open={filtersOpen} onToggle={() => setFiltersOpen(value => !value)}>
         <div className="subscription-event-filter-grid">
@@ -173,47 +173,70 @@ export function SubscriptionEventModal({
   const { locale } = useAdminLocale();
   const tx = (english: string, turkish: string) => locale === "tr" ? turkish : english;
   const canRetry = event.status === "FAILED";
+  const eventTitle = event.eventType ? shortFeature(event.eventType) : tx("Provider event", "Sağlayıcı olayı");
+  const userValue = event.userEmail ?? event.userId ?? event.providerAppUserId;
   return (
-    <div className="modal-backdrop">
-      <section className="audit-modal" role="dialog" aria-modal="true" aria-label={tx("Subscription provider event detail", "Abonelik sağlayıcı olayı detayı")} onClick={(event) => event.stopPropagation()}>
-        <header>
+    <div className="modal-backdrop subscription-event-modal-backdrop" onClick={onClose}>
+      <section className="modal-card subscription-event-modal" role="dialog" aria-modal="true" aria-label={tx("Subscription provider event detail", "Abonelik sağlayıcı olayı detayı")} onClick={(clickEvent) => clickEvent.stopPropagation()}>
+        <header className="modal-header subscription-event-modal-header">
           <div>
             <p className="eyebrow">{tx("Provider event", "Sağlayıcı olayı")}</p>
-            <h2>{event.providerEventId ?? `Event #${formatValue(event.id)}`}</h2>
+            <div className="subscription-event-title-line"><h2>{eventTitle}</h2><Badge value={event.status} tone={subscriptionEventTone(event.status)} /></div>
+            <p className="subscription-event-id" title={event.providerEventId}>{event.providerEventId ?? `Event #${formatValue(event.id)}`}</p>
           </div>
-          <button className="icon-button" onClick={onClose} type="button" aria-label={tx("Close", "Kapat")}>x</button>
+          <button className="modal-icon-close" onClick={onClose} type="button" aria-label={tx("Close", "Kapat")}>×</button>
         </header>
-        <div className="modal-grid">
-          <DetailItem label={tx("Provider", "Sağlayıcı")} value={event.provider} />
-          <DetailItem label={tx("Event type", "Olay türü")} value={event.eventType} />
-          <DetailItem label={tx("Product", "Ürün")} value={event.productId} />
-          <DetailItem label={tx("Entitlements", "Haklar")} value={event.entitlementIds} />
-          <DetailItem label={tx("User", "Kullanıcı")} value={event.userEmail ?? event.userId ?? event.providerAppUserId} />
-          <DetailItem label={tx("Transaction", "İşlem")} value={event.transactionId} />
-          <DetailItem label={tx("Original transaction", "Orijinal işlem")} value={event.originalTransactionId} />
-          <DetailItem label={tx("Period type", "Dönem türü")} value={event.periodType} />
-          <DetailItem label={tx("Environment", "Ortam")} value={event.environment} />
-          <DetailItem label={tx("Cancellation reason", "İptal nedeni")} value={event.cancelReason} />
-          <DetailItem label={tx("Expiration reason", "Sona erme nedeni")} value={event.expirationReason} />
-          <DetailItem label={tx("Status", "Durum")} value={event.status} />
-          <DetailItem label={tx("Provider event time", "Sağlayıcı olay zamanı")} value={formatDate(event.providerEventAt)} />
-          <DetailItem label={tx("Purchased", "Satın alındı")} value={formatDate(event.purchasedAt)} />
-          <DetailItem label={tx("Expires", "Sona erer")} value={formatDate(event.expirationAt)} />
-          <DetailItem label="Apple refund consent" value={event.appleRefundConsentStatus} />
-          <DetailItem label="Consent version" value={event.appleRefundConsentVersion} />
-          <DetailItem label="Entitlement delivered" value={formatValue(event.entitlementDeliveredSnapshot)} />
-          <DetailItem label="Entitlement active before event" value={formatValue(event.entitlementActiveSnapshot)} />
-          <DetailItem label="Plan AI usage snapshot" value={`${formatValue(event.planUsedSnapshot)} / ${formatValue(event.planQuotaSnapshot)}`} />
-          <DetailItem label="Add-on AI usage snapshot" value={`${formatValue(event.addonUsedSnapshot)} / ${formatValue(event.addonQuotaSnapshot)}`} />
-          <DetailItem label="Received" value={formatDate(event.receivedAt)} />
-          <DetailItem label="Processed" value={formatDate(event.processedAt)} />
+        <div className="subscription-event-modal-body">
+          <section className="subscription-event-hero-grid" aria-label={tx("Event summary", "Olay özeti")}>
+            <EventFact label={tx("Provider", "Sağlayıcı")} value={event.provider} emphasis />
+            <EventFact label={tx("Product", "Ürün")} value={event.productId} emphasis />
+            <EventFact label={tx("Environment", "Ortam")} value={event.environment} />
+            <EventFact label={tx("Period", "Dönem")} value={event.periodType} />
+          </section>
+          <div className="subscription-event-section-grid">
+            <section className="subscription-event-section">
+              <header><span>{tx("ACCOUNT & ACCESS", "HESAP VE ERİŞİM")}</span><h3>{tx("Customer entitlement", "Kullanıcı hakkı")}</h3></header>
+              <div className="subscription-event-fact-list">
+                <EventFact label={tx("User", "Kullanıcı")} value={userValue} wide />
+                <EventFact label={tx("Entitlements", "Haklar")} value={event.entitlementIds} />
+                <EventFact label={tx("Delivered", "Teslim edildi")} value={formatValue(event.entitlementDeliveredSnapshot)} />
+                <EventFact label={tx("Active before event", "Olay öncesinde aktif")} value={formatValue(event.entitlementActiveSnapshot)} />
+              </div>
+            </section>
+            <section className="subscription-event-section">
+              <header><span>{tx("TRANSACTION", "İŞLEM")}</span><h3>{tx("Provider references", "Sağlayıcı referansları")}</h3></header>
+              <div className="subscription-event-fact-list">
+                <EventFact label={tx("Transaction", "İşlem")} value={event.transactionId} wide />
+                <EventFact label={tx("Original transaction", "Orijinal işlem")} value={event.originalTransactionId} wide />
+                <EventFact label={tx("Recorded owner", "Kayıtlı sahip")} value={event.ownershipOwnerUserId == null ? undefined : `User #${event.ownershipOwnerUserId}`} />
+                <EventFact label={tx("Historical review", "Geçmiş incelemesi")} value={event.ownershipRequiresReview == null ? undefined : event.ownershipRequiresReview ? tx("Required", "Gerekli") : tx("Clear", "Temiz")} />
+                <EventFact label={tx("Cancellation reason", "İptal nedeni")} value={event.cancelReason} />
+                <EventFact label={tx("Expiration reason", "Sona erme nedeni")} value={event.expirationReason} />
+              </div>
+            </section>
+          </div>
+          <section className="subscription-event-section">
+            <header><span>{tx("LIFECYCLE", "YAŞAM DÖNGÜSÜ")}</span><h3>{tx("Event timeline", "Olay zaman çizelgesi")}</h3></header>
+            <div className="subscription-event-timeline">
+              <EventFact label={tx("Purchased", "Satın alındı")} value={formatDate(event.purchasedAt)} />
+              <EventFact label={tx("Provider event", "Sağlayıcı olayı")} value={formatDate(event.providerEventAt)} />
+              <EventFact label={tx("Received", "Alındı")} value={formatDate(event.receivedAt)} />
+              <EventFact label={tx("Processed", "İşlendi")} value={formatDate(event.processedAt)} />
+              <EventFact label={tx("Expires", "Sona erer")} value={formatDate(event.expirationAt)} />
+            </div>
+          </section>
+          <section className="subscription-event-section">
+            <header><span>{tx("USAGE SNAPSHOT", "KULLANIM ANLIK GÖRÜNTÜSÜ")}</span><h3>{tx("AI quota at event time", "Olay anındaki AI kotası")}</h3></header>
+            <div className="subscription-event-usage-grid">
+              <EventFact label={tx("Plan usage", "Plan kullanımı")} value={`${formatValue(event.planUsedSnapshot)} / ${formatValue(event.planQuotaSnapshot)}`} emphasis />
+              <EventFact label={tx("Add-on usage", "Ek paket kullanımı")} value={`${formatValue(event.addonUsedSnapshot)} / ${formatValue(event.addonQuotaSnapshot)}`} emphasis />
+              <EventFact label={tx("Apple refund consent", "Apple iade izni")} value={event.appleRefundConsentStatus} />
+              <EventFact label={tx("Consent version", "İzin sürümü")} value={event.appleRefundConsentVersion} />
+            </div>
+          </section>
+          {event.processingError && <section className="subscription-event-section danger"><header><span>{tx("PROCESSING", "İŞLEME")}</span><h3>{tx("Processing error", "İşleme hatası")}</h3></header><pre className="audit-value-block">{event.processingError}</pre></section>}
+          {event.rawPayload && <details className="subscription-event-payload"><summary>{tx("View raw provider payload", "Ham sağlayıcı verisini görüntüle")}</summary><pre className="audit-value-block">{event.rawPayload}</pre></details>}
         </div>
-        {event.processingError && <Panel title={tx("Processing error", "İşleme hatası")}>
-          <pre className="audit-value-block">{event.processingError}</pre>
-        </Panel>}
-        {event.rawPayload && <Panel title={tx("Raw payload", "Ham veri")}>
-          <pre className="audit-value-block">{event.rawPayload}</pre>
-        </Panel>}
         <footer className="modal-actions">
           <button className="ghost-button" onClick={onClose} type="button">{tx("Close", "Kapat")}</button>
           {canRetry && <button className="primary-button" disabled={retryState === "loading"} onClick={onRetry} type="button">{tx("Retry event", "Olayı yeniden dene")}</button>}
@@ -221,6 +244,10 @@ export function SubscriptionEventModal({
       </section>
     </div>
   );
+}
+
+function EventFact({ label, value, emphasis = false, wide = false }: { label: string; value: unknown; emphasis?: boolean; wide?: boolean }) {
+  return <article className={`subscription-event-fact${emphasis ? " emphasis" : ""}${wide ? " wide" : ""}`}><span>{label}</span><strong title={value == null ? undefined : String(value)}>{value == null || value === "" ? "-" : String(value)}</strong></article>;
 }
 
 export function buildSubscriptionEventsPath(filters: {
@@ -254,6 +281,8 @@ export function subscriptionEventTone(value?: string): "default" | "good" | "war
       return "good";
     case "FAILED":
       return "danger";
+    case "REQUIRES_REVIEW":
+      return "warn";
     case "IGNORED":
       return "neutral";
     case "RECEIVED":

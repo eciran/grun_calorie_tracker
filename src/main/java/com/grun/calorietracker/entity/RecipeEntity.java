@@ -118,6 +118,15 @@ public class RecipeEntity {
     @OrderBy("stepOrder ASC, id ASC")
     private List<RecipeCookingStepEntity> cookingSteps = new ArrayList<>();
 
+    @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RecipeTranslationEntity> translations = new ArrayList<>();
+
+    @ElementCollection(targetClass = MarketRegion.class)
+    @CollectionTable(name = "recipe_market_regions", joinColumns = @JoinColumn(name = "recipe_id"))
+    @Column(name = "market_region", nullable = false, length = 24)
+    @Enumerated(EnumType.STRING)
+    private Set<MarketRegion> marketRegions = new LinkedHashSet<>();
+
     @ElementCollection(targetClass = RecipeCategory.class)
     @CollectionTable(name = "recipe_categories", joinColumns = @JoinColumn(name = "recipe_id"))
     @Column(name = "category", nullable = false, length = 60)

@@ -19,6 +19,7 @@ import com.grun.calorietracker.enums.FoodProductReviewRiskLevel;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.enums.ProductIntakeApplyField;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -60,10 +61,21 @@ import java.util.EnumMap;
 
 @Service
 public class AdminProductIntakeServiceImpl implements AdminProductIntakeService {
+    private static final String THANK_YOU_NOTE_TR = "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri ve kanıtlar incelendi; katkınız onaylandı.";
+    private static final String THANK_YOU_NOTE_EN = "Thank you for your contribution. The product information and evidence you submitted were reviewed, and your contribution was approved.";
+    private static final String REJECTION_NOTE_TR = "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri mevcut kanıtlarla doğrulanamadığı için katkınız bu aşamada onaylanamadı.";
+    private static final String REJECTION_NOTE_EN = "Thank you for your contribution. We could not verify the submitted product information against the available evidence, so the contribution could not be approved at this time.";
     private static final List<FoodProductReviewCaseStatus> OPEN_STATUSES = List.of(
             FoodProductReviewCaseStatus.SUBMITTED,
             FoodProductReviewCaseStatus.IN_REVIEW,
-            FoodProductReviewCaseStatus.NEEDS_SUBMITTER_ACTION
+            FoodProductReviewCaseStatus.NEEDS_SUBMITTER_ACTION,
+            FoodProductReviewCaseStatus.APPROVED
+    );
+    private static final List<FoodProductReviewCaseStatus> COMPLETED_STATUSES = List.of(
+            FoodProductReviewCaseStatus.APPLIED,
+            FoodProductReviewCaseStatus.REJECTED,
+            FoodProductReviewCaseStatus.WITHDRAWN,
+            FoodProductReviewCaseStatus.EXPIRED
     );
 
     private final FoodProductReviewCaseRepository repository;
@@ -167,8 +179,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Override
     @Transactional
     public AdminProductIntakeAssignmentDto claim(Long caseId, String actorEmail) {
-        UserEntity actor = requireActiveCatalogAdmin(actorEmail);
+        UserEntity actor = requireActiveCatalogReviewer(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireMutableReview(reviewCase);
         if (reviewCase.getAssignedAdminEmail() != null
                 && !reviewCase.getAssignedAdminEmail().equalsIgnoreCase(actor.getEmail())) {
             throw new IllegalStateException("Product intake is already assigned.");
@@ -176,6 +189,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         if (reviewCase.getAssignedAdminEmail() == null) {
             reviewCase.setAssignedAdminEmail(actor.getEmail());
             reviewCase.setReviewClaimedAt(LocalDateTime.now());
+            if (reviewCase.getStatus() == FoodProductReviewCaseStatus.SUBMITTED) {
+                reviewCase.setStatus(FoodProductReviewCaseStatus.IN_REVIEW);
+            }
         }
         return assignment(repository.save(reviewCase));
     }
@@ -185,6 +201,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     public AdminProductIntakeAssignmentDto release(Long caseId, String actorEmail) {
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireMutableReview(reviewCase);
         boolean owner = actor.getRole() == UserRole.OWNER;
         if (!owner && (reviewCase.getAssignedAdminEmail() == null
                 || !reviewCase.getAssignedAdminEmail().equalsIgnoreCase(actor.getEmail()))) {
@@ -202,8 +219,12 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         if (actor.getRole() != UserRole.OWNER) throw new AccessDeniedException("Owner account required.");
         UserEntity target = requireActiveCatalogAdmin(targetAdminEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireMutableReview(reviewCase);
         reviewCase.setAssignedAdminEmail(target.getEmail());
         reviewCase.setReviewClaimedAt(LocalDateTime.now());
+        if (reviewCase.getStatus() == FoodProductReviewCaseStatus.SUBMITTED) {
+            reviewCase.setStatus(FoodProductReviewCaseStatus.IN_REVIEW);
+        }
         return assignment(repository.save(reviewCase));
     }
 
@@ -212,6 +233,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     public AdminProductIntakeActionDto requestBetterEvidence(Long caseId, String actorEmail, String note) {
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireMutableReview(reviewCase);
+        claimForMutationWhenUnassigned(reviewCase, actor);
         requireAssignedOrOwner(reviewCase, actor);
         if (reviewCase.getStatus() != FoodProductReviewCaseStatus.SUBMITTED
                 && reviewCase.getStatus() != FoodProductReviewCaseStatus.IN_REVIEW) {
@@ -229,6 +252,10 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     public AdminProductIntakeActionDto decideEvidence(Long caseId, String actorEmail, boolean approved, String note) {
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        if (approved && reviewCase.getStatus() == FoodProductReviewCaseStatus.APPROVED) return action(reviewCase);
+        if (!approved && reviewCase.getStatus() == FoodProductReviewCaseStatus.REJECTED) return action(reviewCase);
+        requireMutableReview(reviewCase);
+        claimForMutationWhenUnassigned(reviewCase, actor);
         requireAssignedOrOwner(reviewCase, actor);
         if (reviewCase.getStatus() != FoodProductReviewCaseStatus.SUBMITTED
                 && reviewCase.getStatus() != FoodProductReviewCaseStatus.IN_REVIEW) {
@@ -258,12 +285,26 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     public AdminProductIntakeActionDto attachExistingProduct(Long caseId, String actorEmail, Long foodItemId) {
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireMutableReview(reviewCase);
+        claimForMutationWhenUnassigned(reviewCase, actor);
         requireAssignedOrOwner(reviewCase, actor);
         var foodItem = foodItemRepository.findById(foodItemId)
                 .orElseThrow(() -> new IllegalArgumentException("Food item was not found."));
         reviewCase.setFoodItem(foodItem);
         reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
         return action(repository.save(reviewCase));
+    }
+
+    private void claimForMutationWhenUnassigned(FoodProductReviewCaseEntity reviewCase, UserEntity actor) {
+        if (reviewCase.getAssignedAdminEmail() != null || actor.getRole() == UserRole.OWNER) return;
+        if (actor.getRole() != UserRole.ADMIN_CATALOG) {
+            throw new AccessDeniedException("Product intake action requires a catalog admin or owner.");
+        }
+        reviewCase.setAssignedAdminEmail(actor.getEmail());
+        reviewCase.setReviewClaimedAt(LocalDateTime.now());
+        if (reviewCase.getStatus() == FoodProductReviewCaseStatus.SUBMITTED) {
+            reviewCase.setStatus(FoodProductReviewCaseStatus.IN_REVIEW);
+        }
     }
 
     @Override
@@ -615,16 +656,22 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
 
     private void notifySuccessfulDecision(FoodProductReviewCaseEntity reviewCase, boolean publication) {
         if (reviewCase.getSubmittedBy() == null || reviewCase.getStatus() != FoodProductReviewCaseStatus.APPLIED) return;
+        boolean turkish = prefersTurkish(reviewCase.getSubmittedBy());
         saveAndPush(decisionNotification(reviewCase,
-                publication ? "Product contribution published" : "Product contribution applied",
-                publication ? "Your contribution is now available in the product catalog." : "Your verified contribution improved an existing catalog product.",
+                turkish ? (publication ? "Ürün katkınız yayınlandı" : "Ürün katkınız uygulandı")
+                        : (publication ? "Product contribution published" : "Product contribution applied"),
+                turkish ? (publication ? "Katkınız artık ürün kataloğunda kullanılabilir." : "Doğrulanmış katkınız mevcut bir katalog ürününü geliştirdi.")
+                        : (publication ? "Your contribution is now available in the product catalog." : "Your verified contribution improved an existing catalog product."),
                 "VIEW_APPLIED_PRODUCT", "SUCCESS"));
     }
 
     private void notifyRejectedDecision(FoodProductReviewCaseEntity reviewCase) {
         if (reviewCase.getSubmittedBy() == null || reviewCase.getStatus() != FoodProductReviewCaseStatus.REJECTED) return;
-        saveAndPush(decisionNotification(reviewCase, "Product contribution reviewed",
-                "Your product contribution was not applied to the catalog.", "VIEW_PRODUCT_CONTRIBUTION", "INFO"));
+        boolean turkish = prefersTurkish(reviewCase.getSubmittedBy());
+        saveAndPush(decisionNotification(reviewCase,
+                turkish ? "Ürün katkınız incelendi" : "Product contribution reviewed",
+                turkish ? "Ürün katkınız kataloğa uygulanmadı." : "Your product contribution was not applied to the catalog.",
+                "VIEW_PRODUCT_CONTRIBUTION", "CRITICAL"));
     }
 
     private void saveAndPush(NotificationEntity notification) {
@@ -638,7 +685,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         notification.setUser(reviewCase.getSubmittedBy());
         notification.setTitle(title);
         notification.setMessage(message);
-        notification.setNote(reviewCase.getReviewNote());
+        notification.setNote(localizedReviewNote(reviewCase));
         notification.setType("PRODUCT_INTAKE");
         notification.setSeverity(severity);
         notification.setSource("PRODUCT_INTAKE");
@@ -661,10 +708,11 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     }
 
     private NotificationEntity evidenceNotification(FoodProductReviewCaseEntity reviewCase, String note) {
+        boolean turkish = prefersTurkish(reviewCase.getSubmittedBy());
         NotificationEntity notification = new NotificationEntity();
         notification.setUser(reviewCase.getSubmittedBy());
-        notification.setTitle("More product evidence needed");
-        notification.setMessage("Please update the requested product evidence.");
+        notification.setTitle(turkish ? "Ek ürün kanıtı gerekli" : "More product evidence needed");
+        notification.setMessage(turkish ? "Lütfen istenen ürün kanıtını güncelleyin." : "Please update the requested product evidence.");
         notification.setNote(note.trim());
         notification.setType("PRODUCT_INTAKE");
         notification.setSeverity("INFO");
@@ -677,6 +725,23 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         notification.setIsRead(false);
         notification.setCreatedAt(LocalDateTime.now());
         return notification;
+    }
+
+    private boolean prefersTurkish(UserEntity user) {
+        return user != null && user.getPreferredLanguage() == PreferredLanguage.TR;
+    }
+
+    private String localizedReviewNote(FoodProductReviewCaseEntity reviewCase) {
+        String note = reviewCase.getReviewNote();
+        if (note == null) return null;
+        boolean turkish = prefersTurkish(reviewCase.getSubmittedBy());
+        if (THANK_YOU_NOTE_TR.equals(note) || THANK_YOU_NOTE_EN.equals(note)) {
+            return turkish ? THANK_YOU_NOTE_TR : THANK_YOU_NOTE_EN;
+        }
+        if (REJECTION_NOTE_TR.equals(note) || REJECTION_NOTE_EN.equals(note)) {
+            return turkish ? REJECTION_NOTE_TR : REJECTION_NOTE_EN;
+        }
+        return note;
     }
 
     private AdminProductIntakeActionDto action(FoodProductReviewCaseEntity reviewCase) {
@@ -700,6 +765,20 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         return user;
     }
 
+    private UserEntity requireActiveCatalogReviewer(String email) {
+        UserEntity user = requireActiveAdmin(email);
+        if (user.getRole() != UserRole.OWNER && user.getRole() != UserRole.ADMIN_CATALOG) {
+            throw new AccessDeniedException("Owner or active catalog-admin account required.");
+        }
+        return user;
+    }
+
+    private void requireMutableReview(FoodProductReviewCaseEntity reviewCase) {
+        if (!OPEN_STATUSES.contains(reviewCase.getStatus())) {
+            throw new IllegalStateException("Completed product intake records cannot be changed.");
+        }
+    }
+
     private UserEntity requireActiveAdmin(String email) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AccessDeniedException("Active admin account required."));
@@ -719,6 +798,9 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     ) {
         return switch (queue) {
             case ALL -> (root, query, cb) -> cb.conjunction();
+            case ACTIVE -> (root, query, cb) -> root.get("status").in(OPEN_STATUSES);
+            case COMPLETED -> (root, query, cb) -> root.get("status").in(COMPLETED_STATUSES);
+            case APPROVED -> (root, query, cb) -> cb.equal(root.get("status"), FoodProductReviewCaseStatus.APPROVED);
             case MY_QUEUE -> (root, query, cb) -> cb.equal(root.get("assignedAdminEmail"), adminEmail);
             case UNASSIGNED -> (root, query, cb) -> cb.isNull(root.get("assignedAdminEmail"));
             case NEEDS_ACTION -> (root, query, cb) -> cb.equal(root.get("status"),

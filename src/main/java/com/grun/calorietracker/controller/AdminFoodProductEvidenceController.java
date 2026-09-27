@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -43,5 +45,25 @@ public class AdminFoodProductEvidenceController {
             metrics.record("evidence_authorize", "failure");
             throw failure;
         }
+    }
+
+    @GetMapping("/{assetId}/evidence")
+    @PreAuthorize("hasRole('OWNER') or hasRole('ADMIN_CATALOG')")
+    @Operation(summary = "Stream private evidence for an authenticated admin preview")
+    public ResponseEntity<byte[]> evidence(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long assetId
+    ) {
+        var evidence = service.loadEvidence(userDetails.getUsername(), assetId);
+        MediaType contentType;
+        try {
+            contentType = MediaType.parseMediaType(evidence.contentType());
+        } catch (RuntimeException ignored) {
+            contentType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(contentType)
+                .body(evidence.bytes());
     }
 }

@@ -36,13 +36,17 @@ export class ApiRequestError extends Error {
   readonly status: number;
   readonly path: string;
   readonly correlationId?: string;
+  readonly code?: string;
+  readonly fieldErrors: Array<{ field?: string; code?: string }>;
 
-  constructor(message: string, status: number, path: string, correlationId?: string) {
+  constructor(message: string, status: number, path: string, correlationId?: string, code?: string, fieldErrors: Array<{ field?: string; code?: string }> = []) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.path = path;
     this.correlationId = correlationId;
+    this.code = code;
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -64,10 +68,14 @@ const adminRequestsInFlight = new Map<string, Promise<unknown>>();
 const SHORT_CACHE_TTL_MS = 15_000;
 const REPORT_CACHE_TTL_MS = 30_000;
 const REFERENCE_CACHE_TTL_MS = 5 * 60_000;
+const MAIL_LIST_CACHE_TTL_MS = 60_000;
+const MAIL_DETAIL_CACHE_TTL_MS = 5 * 60_000;
 
 function adminCacheTtl(path: string): number {
   const pathname = path.split("?", 1)[0];
   if (!pathname.startsWith("/api/v1/admin/")) return 0;
+  if (/^\/api\/v1\/admin\/mail\/mailboxes\/\d+\/messages\/\d+$/.test(pathname)) return MAIL_DETAIL_CACHE_TTL_MS;
+  if (/^\/api\/v1\/admin\/mail\/mailboxes\/\d+\/messages$/.test(pathname)) return MAIL_LIST_CACHE_TTL_MS;
   if (/\/(security|mail)(\/|$)/.test(pathname) || /evidence-url$/.test(pathname)) return 0;
   if (/\/(catalog|notification-definitions|subscriptions\/plans)(\/|$)/.test(pathname)) return REFERENCE_CACHE_TTL_MS;
   if (/\/(reports|analytics|metrics|summary)(\/|$|-)/.test(pathname)) return REPORT_CACHE_TTL_MS;
@@ -337,8 +345,13 @@ async function executeRequest<T>(
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     }
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
-    const correlationId = data && typeof data === "object" ? String((data as Record<string, unknown>).correlationId ?? "") || undefined : undefined;
-    throw new ApiRequestError(message, response.status, path, correlationId);
+    const payload = data && typeof data === "object" ? data as Record<string, unknown> : null;
+    const correlationId = payload ? String(payload.correlationId ?? "") || undefined : undefined;
+    const code = payload ? String(payload.code ?? "") || undefined : undefined;
+    const fieldErrors = payload && Array.isArray(payload.fieldErrors)
+      ? payload.fieldErrors.filter((item): item is { field?: string; code?: string } => Boolean(item) && typeof item === "object")
+      : [];
+    throw new ApiRequestError(message, response.status, path, correlationId, code, fieldErrors);
   }
   if ((options.method ?? "GET") !== "GET") clearAdminRequestCache();
   return data as T;

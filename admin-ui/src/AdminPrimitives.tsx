@@ -9,6 +9,26 @@ const DIALOG_FOCUSABLE = [
   "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])"
 ].join(",");
 
+let openDialogCount = 0;
+let previousBodyOverflow = "";
+let previousBodyPaddingRight = "";
+
+function lockDocumentScroll() {
+  if (openDialogCount++ > 0) return;
+  previousBodyOverflow = document.body.style.overflow;
+  previousBodyPaddingRight = document.body.style.paddingRight;
+  const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+  document.body.style.overflow = "hidden";
+  if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+}
+
+function unlockDocumentScroll() {
+  openDialogCount = Math.max(0, openDialogCount - 1);
+  if (openDialogCount > 0) return;
+  document.body.style.overflow = previousBodyOverflow;
+  document.body.style.paddingRight = previousBodyPaddingRight;
+}
+
 export function useDialogAccessibility<T extends HTMLElement = HTMLElement>(onClose: () => void, active = true) {
   const dialogRef = useRef<T>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -17,6 +37,7 @@ export function useDialogAccessibility<T extends HTMLElement = HTMLElement>(onCl
 
   useEffect(() => {
     if (!active) return;
+    lockDocumentScroll();
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
     const initial = dialog?.querySelector<HTMLElement>("[autofocus]")
@@ -52,6 +73,7 @@ export function useDialogAccessibility<T extends HTMLElement = HTMLElement>(onCl
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      unlockDocumentScroll();
       const opener = openerRef.current;
       window.requestAnimationFrame(() => opener?.isConnected && opener.focus());
     };

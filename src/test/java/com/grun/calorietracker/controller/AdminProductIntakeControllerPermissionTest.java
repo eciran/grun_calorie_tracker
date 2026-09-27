@@ -18,7 +18,7 @@ class AdminProductIntakeControllerPermissionTest {
 
     @Test
     void assignmentOperationsKeepOwnerAndCatalogBoundaries() throws Exception {
-        assertRoles("claim", Set.of("ADMIN_CATALOG"));
+        assertRoles("claim", Set.of("OWNER", "ADMIN_CATALOG"));
         assertRoles("release", Set.of("OWNER", "ADMIN_CATALOG"));
         assertRoles("reassign", Set.of("OWNER"));
     }
@@ -35,6 +35,8 @@ class AdminProductIntakeControllerPermissionTest {
     @Test
     void privateEvidenceReadExcludesReadOnlyAdmins() throws Exception {
         assertRoles(AdminFoodProductEvidenceController.class, "authorizeRead",
+                Set.of("OWNER", "ADMIN_CATALOG"));
+        assertRoles(AdminFoodProductEvidenceController.class, "evidence",
                 Set.of("OWNER", "ADMIN_CATALOG"));
     }
 

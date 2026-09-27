@@ -51,6 +51,7 @@ public class AdminRecipeImportCandidateRequestDto {
         private String mealType;
 
         private MarketRegion marketRegion;
+        private Set<MarketRegion> marketRegions;
 
         @Size(max = 12)
         private String language;
@@ -70,6 +71,10 @@ public class AdminRecipeImportCandidateRequestDto {
         @Valid
         @Size(max = 30)
         private List<CookingStepPayload> cookingSteps;
+
+        @Valid
+        @Size(max = 2)
+        private List<RecipeTranslationRequestDto> translations;
     }
 
     @Data

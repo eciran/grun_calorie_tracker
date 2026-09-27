@@ -23,6 +23,9 @@ public class FoodSearchCriteriaDto {
     @Schema(description = "Optional category filter.", example = "dairy")
     private String category;
 
+    @Schema(description = "Optional canonical GRUN category id.", example = "12")
+    private Long categoryId;
+
     @Schema(description = "Minimum calories filter.", example = "50.0")
     private Double minCalories;
 

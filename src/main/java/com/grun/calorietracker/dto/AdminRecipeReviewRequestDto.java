@@ -28,6 +28,7 @@ public class AdminRecipeReviewRequestDto {
     private String mealType;
 
     private com.grun.calorietracker.enums.MarketRegion marketRegion;
+    private Set<com.grun.calorietracker.enums.MarketRegion> marketRegions;
 
     @Size(max = 12)
     private String language;
@@ -70,6 +71,10 @@ public class AdminRecipeReviewRequestDto {
     @Size(max = 30)
     @Schema(description = "Ordered cooking/preparation steps displayed on recipe detail.")
     private List<RecipeStepRequestDto> cookingSteps;
+
+    @Valid
+    @Size(max = 2)
+    private List<RecipeTranslationRequestDto> translations;
 
     @Size(max = 1000)
     @Schema(description = "Internal admin note explaining the decision.", example = "Recipe looks valid and nutrition calculation is plausible.")

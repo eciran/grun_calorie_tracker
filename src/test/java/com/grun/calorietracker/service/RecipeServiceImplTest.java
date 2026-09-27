@@ -17,6 +17,8 @@ import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.RecipeReportEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
+import com.grun.calorietracker.entity.RecipeTranslationEntity;
+import com.grun.calorietracker.entity.RecipeTranslationStepEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
@@ -552,6 +554,58 @@ class RecipeServiceImplTest {
     void recipeIngredientName_fallsBackToEnglishThenCatalogDisplayName() {
         assertIngredientName(PreferredLanguage.TR, null, null, "Grape Tomatoes", "Grape Tomatoes");
         assertIngredientName(PreferredLanguage.TR, null, null, null, "Catalog Tomato");
+    }
+
+    @Test
+    void getPublicRecipe_returnsRequestedTurkishTranslationAndSharedRecipeIdentity() {
+        UserEntity viewer = user();
+        viewer.setPreferredLanguage(PreferredLanguage.EN);
+        RecipeEntity recipe = publicRecipeEntity();
+        RecipeTranslationEntity english = translation(recipe, PreferredLanguage.EN, "Protein Bowl", "Recovery meal", "Mix and serve.");
+        RecipeTranslationEntity turkish = translation(recipe, PreferredLanguage.TR, "Protein Kasesi", "Toparlanma öğünü", "Karıştırıp servis edin.");
+        recipe.setTranslations(new ArrayList<>(List.of(english, turkish)));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(viewer));
+        when(recipeRepository.findById(10L)).thenReturn(Optional.of(recipe));
+
+        RecipeDto result = service.getPublicRecipe("user@test.com", 10L, "tr-TR");
+
+        assertEquals(10L, result.getId());
+        assertEquals("Protein Kasesi", result.getName());
+        assertEquals("Toparlanma öğünü", result.getDescription());
+        assertEquals("Karıştırıp servis edin.", result.getCookingSteps().get(0).getInstruction());
+        assertEquals(PreferredLanguage.TR, result.getResolvedLanguage());
+        assertEquals(Set.of(PreferredLanguage.EN, PreferredLanguage.TR), result.getAvailableLanguages());
+    }
+
+    @Test
+    void getPublicRecipe_fallsBackToEnglishWhenRequestedTranslationIsMissing() {
+        UserEntity viewer = user();
+        RecipeEntity recipe = publicRecipeEntity();
+        recipe.setTranslations(new ArrayList<>(List.of(
+                translation(recipe, PreferredLanguage.EN, "Protein Bowl", "Recovery meal", "Mix and serve.")
+        )));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(viewer));
+        when(recipeRepository.findById(10L)).thenReturn(Optional.of(recipe));
+
+        RecipeDto result = service.getPublicRecipe("user@test.com", 10L, "tr");
+
+        assertEquals("Protein Bowl", result.getName());
+        assertEquals(PreferredLanguage.EN, result.getResolvedLanguage());
+    }
+
+    private RecipeTranslationEntity translation(RecipeEntity recipe, PreferredLanguage language,
+                                                String name, String description, String instruction) {
+        RecipeTranslationEntity translation = new RecipeTranslationEntity();
+        translation.setRecipe(recipe);
+        translation.setLanguage(language);
+        translation.setName(name);
+        translation.setDescription(description);
+        RecipeTranslationStepEntity step = new RecipeTranslationStepEntity();
+        step.setTranslation(translation);
+        step.setStepOrder(0);
+        step.setInstruction(instruction);
+        translation.getCookingSteps().add(step);
+        return translation;
     }
 
     private void assertIngredientName(PreferredLanguage language, String shortTr, String displayTr,

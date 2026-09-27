@@ -82,6 +82,22 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         return processPayload(payload);
     }
 
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public Long captureWebhook(String authorizationHeader, JsonNode payload) {
+        validateAuthorization(authorizationHeader);
+        var event = requireEvent(toWebhook(payload));
+        String eventId = resolveProviderEventId(event);
+        return eventRepository.findByProviderAndProviderEventId(PaymentProvider.REVENUECAT, eventId)
+                .map(SubscriptionProviderEventEntity::getId)
+                .orElseGet(() -> {
+                    var audit = buildAuditEvent(event, eventId, payload);
+                    resolveUser(event).ifPresent(audit::setUser);
+                    audit.setProcessingError("Awaiting processing.");
+                    audit.setNextAttemptAt(LocalDateTime.now(ZoneOffset.UTC));
+                    return eventRepository.saveAndFlush(audit).getId();
+                });
+    }
+
     @Override
     @Transactional
     public RevenueCatWebhookResponseDto retryStoredEvent(Long eventId) {
@@ -136,7 +152,6 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
                 audit.setProcessingError("RevenueCat app_user_id does not match a known user.");
                 audit.setProcessedAt(LocalDateTime.now());
                 SubscriptionProviderEventEntity savedAudit = eventRepository.save(audit);
-                notifyAdminsAboutFailedProviderEvent(savedAudit);
                 return new RevenueCatWebhookResponseDto(true, false, providerEventId, "FAILED", audit.getProcessingError());
             }
             audit.setUser(user.get());
@@ -187,13 +202,18 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             eventRepository.save(audit);
             return new RevenueCatWebhookResponseDto(true, false, providerEventId, "PROCESSED", "RevenueCat event processed.");
         } catch (RuntimeException ex) {
-            audit.setStatus(SubscriptionProviderEventStatus.FAILED);
+            audit.setStatus(requiresOwnershipReview(ex)
+                    ? SubscriptionProviderEventStatus.REQUIRES_REVIEW
+                    : SubscriptionProviderEventStatus.FAILED);
             audit.setProcessingError(limit(ex.getMessage()));
             audit.setProcessedAt(LocalDateTime.now());
             SubscriptionProviderEventEntity savedAudit = eventRepository.save(audit);
-            notifyAdminsAboutFailedProviderEvent(savedAudit);
-            return new RevenueCatWebhookResponseDto(true, false, providerEventId, "FAILED", audit.getProcessingError());
+            return new RevenueCatWebhookResponseDto(true, false, providerEventId, audit.getStatus().name(), audit.getProcessingError());
         }
+    }
+
+    private boolean requiresOwnershipReview(RuntimeException exception) {
+        return exception.getMessage() != null && exception.getMessage().contains("SUBSCRIPTION_OWNERSHIP_CONFLICT");
     }
 
     private boolean isPromoAttributionEvent(RevenueCatWebhookEventDto.Event event) {
@@ -206,7 +226,8 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         return event.getPriceInPurchasedCurrency().movePointRight(2)
                 .setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
-    private void notifyAdminsAboutFailedProviderEvent(SubscriptionProviderEventEntity event) {
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void notifyAdminsAboutFailedProviderEvent(SubscriptionProviderEventEntity event) {
         List<UserEntity> admins = userRepository.findByRoleIn(List.of(UserRole.OWNER, UserRole.ADMIN_FINANCE));
         if (admins == null || admins.isEmpty()) {
             return;
@@ -214,8 +235,9 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         String eventId = event.getId() == null ? event.getProviderEventId() : String.valueOf(event.getId());
         String message = "RevenueCat provider event failed. eventId=" + eventId
                 + ", providerEventId=" + event.getProviderEventId()
-                + ", type=" + event.getEventType()
-                + ", reason=" + event.getProcessingError();
+                + ". Open provider events for the failure details.";
+        message = message.substring(0, Math.min(255, message.length()));
+        final String notificationMessage = message;
         LocalDateTime now = LocalDateTime.now();
         List<NotificationEntity> notifications = admins.stream().map(admin -> {
             NotificationEntity notification = new NotificationEntity();
@@ -226,13 +248,20 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
             notification.setTargetType("SUBSCRIPTION_PROVIDER_EVENT");
             notification.setTargetId(eventId);
             notification.setTargetRoute("subscriptionEvents");
-            notification.setMessage(message);
+            notification.setMessage(notificationMessage);
             notification.setIsRead(false);
             notification.setCreatedAt(now);
             return notification;
         }).toList();
         List<NotificationEntity> saved = notificationRepository.saveAll(notifications);
         if (pushDeliveryService != null) saved.forEach(pushDeliveryService::deliver);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void resolveAdminAlertsForProviderEvent(Long eventId) {
+        if (eventId != null) {
+            notificationRepository.resolveSubscriptionProviderAlerts(String.valueOf(eventId));
+        }
     }
     private void validateAuthorization(String authorizationHeader) {
         String expected = properties.getWebhookAuthorization();
@@ -519,15 +548,8 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         if (transaction == null) {
             throw new IllegalArgumentException("RevenueCat plan credit allocation requires a transaction id.");
         }
-        String canonical = String.join("|",
-                normalize(event.getEnvironment()), normalize(event.getStore()), plan.name(),
-                normalize(event.getProductId()), normalize(transaction), String.valueOf(event.getPurchasedAtMs()));
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 is unavailable.", impossible);
-        }
+        return com.grun.calorietracker.service.SubscriptionAllocationIdentity.of(
+                event.getEnvironment(), event.getStore(), plan, event.getProductId(), transaction, event.getPurchasedAtMs());
     }
 
     private String normalize(String value) {

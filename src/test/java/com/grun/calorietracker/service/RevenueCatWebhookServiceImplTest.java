@@ -88,6 +88,24 @@ class RevenueCatWebhookServiceImplTest {
     }
 
     @Test
+    void failureAlertFitsNotificationColumnAndDoesNotExposeFullError() {
+        var event = new SubscriptionProviderEventEntity();
+        event.setId(44L);
+        event.setProviderEventId("x".repeat(255));
+        event.setProcessingError("sensitive internal diagnostic ".repeat(30));
+        when(userRepository.findByRoleIn(any())).thenReturn(List.of(user));
+        when(notificationRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<com.grun.calorietracker.entity.NotificationEntity> notifications = invocation.getArgument(0);
+            org.assertj.core.api.Assertions.assertThat(notifications).hasSize(1);
+            org.assertj.core.api.Assertions.assertThat(notifications.get(0).getMessage())
+                    .hasSizeLessThanOrEqualTo(255).doesNotContain("sensitive internal diagnostic");
+            return notifications;
+        });
+        service.notifyAdminsAboutFailedProviderEvent(event);
+        verify(notificationRepository).saveAll(any());
+    }
+
+    @Test
     void processWebhook_whenInitialPurchase_appliesProSubscription() throws Exception {
         String payload = """
                 {
@@ -459,7 +477,7 @@ class RevenueCatWebhookServiceImplTest {
 
         var result = service.processWebhook("Bearer rc-secret", objectMapper.readTree(payload));
 
-        assertEquals("FAILED", result.getStatus());
+        assertEquals("REQUIRES_REVIEW", result.getStatus());
         verify(subscriptionService, never()).applyProviderEvent(any(), any());
         verify(lifecycleNotificationService, never()).enqueue(any(), any(), any(), any(), any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean());
@@ -467,7 +485,7 @@ class RevenueCatWebhookServiceImplTest {
         verify(eventRepository).save(audit.capture());
         assertEquals(user, audit.getValue().getUser());
         assertEquals("user:1", audit.getValue().getProviderAppUserId());
-        assertEquals(SubscriptionProviderEventStatus.FAILED, audit.getValue().getStatus());
+        assertEquals(SubscriptionProviderEventStatus.REQUIRES_REVIEW, audit.getValue().getStatus());
         org.junit.jupiter.api.Assertions.assertTrue(audit.getValue().getProcessingError().startsWith("SUBSCRIPTION_OWNERSHIP_CONFLICT"));
     }
 

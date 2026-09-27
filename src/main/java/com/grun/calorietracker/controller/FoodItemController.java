@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
+import com.grun.calorietracker.dto.FoodCategoryTreeDto;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodServingOptionDto;
@@ -12,6 +13,7 @@ import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.ProductNotFoundException;
+import com.grun.calorietracker.service.CatalogClassificationService;
 import com.grun.calorietracker.service.FailedBarcodeScanService;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.FoodServingOptionService;
@@ -35,6 +37,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
@@ -44,6 +48,7 @@ import org.springframework.web.bind.annotation.*;
 public class FoodItemController {
 
     private final FoodItemService foodItemService;
+    private final CatalogClassificationService catalogClassificationService;
     private final FoodServingOptionService foodServingOptionService;
     private final FailedBarcodeScanService failedBarcodeScanService;
     private final ProductCorrectionSuggestionService productCorrectionSuggestionService;
@@ -51,6 +56,12 @@ public class FoodItemController {
     private final UserService userService;
     private final FoodSearchTelemetryService foodSearchTelemetryService;
 
+
+    @GetMapping("/categories/tree")
+    @Operation(summary = "List product categories", description = "Returns the active bilingual GRUN category tree for product discovery filters.")
+    public ResponseEntity<List<FoodCategoryTreeDto>> categoryTree() {
+        return ResponseEntity.ok(catalogClassificationService.activeCategoryTree());
+    }
 
     @GetMapping("/search")
     @Operation(
@@ -76,6 +87,8 @@ public class FoodItemController {
             @RequestParam(required = false) FoodCatalogType catalogType,
             @Parameter(description = "Optional brand filter.", example = "Tesco")
             @RequestParam(required = false) String brand,
+            @Parameter(description = "Optional canonical GRUN category id. Direct child categories are included.", example = "12")
+            @RequestParam(required = false) Long categoryId,
             @Parameter(description = "Optional preparation/cooking state filter.", example = "COOKED")
             @RequestParam(required = false) FoodPreparationState preparationState,
             @Parameter(description = "Preferred response language. Defaults to user profile language, then Accept-Language, then EN.", example = "TR")
@@ -83,14 +96,15 @@ public class FoodItemController {
             @RequestHeader(name = "Accept-Language", required = false) String acceptLanguage,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         String searchText = q != null ? q : query;
-        if (searchText == null || searchText.isBlank()) {
-            throw new IllegalArgumentException("Search query is required. Use q or query.");
+        if ((searchText == null || searchText.isBlank()) && categoryId == null) {
+            throw new IllegalArgumentException("Search query or categoryId is required.");
         }
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setQuery(searchText);
         criteria.setMarketRegion(resolveSearchRegion(region, userDetails));
         criteria.setCatalogType(catalogType);
         criteria.setBrand(brand);
+        criteria.setCategoryId(categoryId);
         criteria.setPreparationState(preparationState);
         criteria.setPreferredLanguage(resolveSearchLanguage(language, acceptLanguage, userDetails));
 

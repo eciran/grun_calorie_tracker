@@ -20,11 +20,14 @@ import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
 import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeIngredientDto;
+import com.grun.calorietracker.dto.RecipeTranslationRequestDto;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.RecipeImportCandidateEntity;
 import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
+import com.grun.calorietracker.entity.RecipeTranslationEntity;
+import com.grun.calorietracker.entity.RecipeTranslationStepEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.ImageSource;
@@ -323,6 +326,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             recipe.setMarketRegion(request.getMarketRegion());
             changed = true;
         }
+        if (request.getMarketRegions() != null && !Objects.equals(recipe.getMarketRegions(), request.getMarketRegions())) {
+            recipe.setMarketRegions(new LinkedHashSet<>(request.getMarketRegions()));
+            changed = true;
+        }
         if (request.getLanguage() != null) {
             String language = trimToNull(request.getLanguage());
             if (!Objects.equals(recipe.getLanguage(), language)) {
@@ -390,6 +397,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         }
         if (request.getCookingSteps() != null) {
             replaceCookingSteps(recipe, request.getCookingSteps());
+            changed = true;
+        }
+        if (request.getTranslations() != null) {
+            replaceTranslations(recipe, request.getTranslations());
             changed = true;
         }
         if (recipe.getVerificationStatus() == VerificationStatus.REJECTED
@@ -788,6 +799,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         recipe.setDescription(sourceRecipe.getDescription());
         recipe.setMealType(normalizeMealType(sourceRecipe.getMealType()));
         recipe.setMarketRegion(sourceRecipe.getMarketRegion());
+        recipe.setMarketRegions(sourceRecipe.getMarketRegions());
         recipe.setLanguage(sourceRecipe.getLanguage());
         recipe.setImageUrl(sourceRecipe.getImageUrl());
         recipe.setTotalYieldGrams(sourceRecipe.getTotalYieldGrams());
@@ -797,6 +809,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         recipe.setAllergens(sourceRecipe.getAllergens() == null ? Collections.emptySet() : sourceRecipe.getAllergens());
         recipe.setIngredients(toRecipeIngredients(sourceRecipe.getIngredients()));
         recipe.setCookingSteps(toRecipeSteps(sourceRecipe.getCookingSteps()));
+        recipe.setTranslations(sourceRecipe.getTranslations());
 
         AdminRecipeCreateRequestDto request = new AdminRecipeCreateRequestDto();
         request.setRecipe(recipe);
@@ -868,6 +881,18 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         if (candidate.getRecipe().getCategories() == null || candidate.getRecipe().getCategories().isEmpty()) {
             issues.add("categories missing");
         }
+        if (candidate.getRecipe().getTranslations() == null || candidate.getRecipe().getTranslations().isEmpty()) {
+            issues.add("localized recipe copy missing");
+        } else {
+            Set<PreferredLanguage> languages = candidate.getRecipe().getTranslations().stream()
+                    .filter(Objects::nonNull)
+                    .map(RecipeTranslationRequestDto::getLanguage)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!languages.containsAll(Set.of(PreferredLanguage.EN, PreferredLanguage.TR))) {
+                issues.add("EN and TR translations required for admin catalog publication");
+            }
+        }
         if (candidate.getRecipe().getTotalYieldGrams() == null || candidate.getRecipe().getTotalYieldGrams() <= 0) {
             issues.add("totalYieldGrams missing or invalid");
         }
@@ -898,6 +923,38 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             entity.setStepOrder(order++);
             entity.setInstruction(step.getInstruction().trim());
             recipe.getCookingSteps().add(entity);
+        }
+    }
+
+    private void replaceTranslations(RecipeEntity recipe, List<RecipeTranslationRequestDto> translations) {
+        recipe.getTranslations().clear();
+        Set<PreferredLanguage> languages = new LinkedHashSet<>();
+        for (RecipeTranslationRequestDto request : translations) {
+            if (request == null || request.getLanguage() == null || request.getName() == null || request.getName().isBlank()) {
+                throw new IllegalArgumentException("Recipe translation language and name are required.");
+            }
+            if (!languages.add(request.getLanguage())) {
+                throw new IllegalArgumentException("Recipe translation languages must be unique.");
+            }
+            RecipeTranslationEntity translation = new RecipeTranslationEntity();
+            translation.setRecipe(recipe);
+            translation.setLanguage(request.getLanguage());
+            translation.setName(request.getName().trim());
+            translation.setDescription(trimToNull(request.getDescription()));
+            if (request.getCookingSteps() != null) {
+                for (int index = 0; index < request.getCookingSteps().size(); index++) {
+                    RecipeStepRequestDto source = request.getCookingSteps().get(index);
+                    if (source == null || source.getInstruction() == null || source.getInstruction().isBlank()) {
+                        throw new IllegalArgumentException("Translated cooking steps must not be blank.");
+                    }
+                    RecipeTranslationStepEntity step = new RecipeTranslationStepEntity();
+                    step.setTranslation(translation);
+                    step.setStepOrder(index);
+                    step.setInstruction(source.getInstruction().trim());
+                    translation.getCookingSteps().add(step);
+                }
+            }
+            recipe.getTranslations().add(translation);
         }
     }
     private List<AdminRecipeOperationsAnalyticsDto.CountMetric> toCountMetrics(List<Object[]> rows) {
@@ -1000,7 +1057,13 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setVisibility(recipe.getVisibility());
         dto.setVerificationStatus(recipe.getVerificationStatus());
         dto.setMarketRegion(recipe.getMarketRegion());
+        dto.setMarketRegions(recipe.getMarketRegions() == null ? Set.of() : new LinkedHashSet<>(recipe.getMarketRegions()));
         dto.setLanguage(recipe.getLanguage());
+        dto.setAvailableLanguages(recipe.getTranslations() == null ? Set.of() : recipe.getTranslations().stream()
+                .map(RecipeTranslationEntity::getLanguage)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+        dto.setTranslations(recipe.getTranslations() == null ? List.of() : recipe.getTranslations().stream()
+                .map(this::toTranslationDto).toList());
         dto.setImageUrl(recipe.getImageUrl());
         dto.setImageSource(recipe.getImageSource());
         dto.setImageStatus(recipe.getImageStatus());
@@ -1048,6 +1111,19 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         RecipeStepDto dto = new RecipeStepDto();
         dto.setStepNumber(step.getStepOrder() == null ? null : step.getStepOrder() + 1);
         dto.setInstruction(step.getInstruction());
+        return dto;
+    }
+
+    private RecipeTranslationRequestDto toTranslationDto(RecipeTranslationEntity translation) {
+        RecipeTranslationRequestDto dto = new RecipeTranslationRequestDto();
+        dto.setLanguage(translation.getLanguage());
+        dto.setName(translation.getName());
+        dto.setDescription(translation.getDescription());
+        dto.setCookingSteps(translation.getCookingSteps() == null ? List.of() : translation.getCookingSteps().stream().map(step -> {
+            RecipeStepRequestDto item = new RecipeStepRequestDto();
+            item.setInstruction(step.getInstruction());
+            return item;
+        }).toList());
         return dto;
     }
     private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
@@ -1120,6 +1196,19 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         if (recipe.getImageUrl() == null || recipe.getImageUrl().isBlank()
                 || recipe.getImageStatus() != ImageStatus.APPROVED) {
             throw new IllegalArgumentException("Public recipes require an approved image.");
+        }
+        if (recipe.getOwnerUser() != null && recipe.getOwnerUser().getRole() != null
+                && recipe.getOwnerUser().getRole().isAdminRole()) {
+            Set<com.grun.calorietracker.enums.PreferredLanguage> languages = recipe.getTranslations() == null
+                    ? Set.of()
+                    : recipe.getTranslations().stream()
+                    .map(com.grun.calorietracker.entity.RecipeTranslationEntity::getLanguage)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!languages.containsAll(Set.of(
+                    com.grun.calorietracker.enums.PreferredLanguage.EN,
+                    com.grun.calorietracker.enums.PreferredLanguage.TR))) {
+                throw new IllegalArgumentException("Admin catalog recipes require complete EN and TR translations before public approval.");
+            }
         }
     }
 

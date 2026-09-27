@@ -39,6 +39,8 @@ public class SubscriptionProviderEventDto {
     private String userEmail;
     private SubscriptionProviderEventStatus status;
     private String processingError;
+    private Long ownershipOwnerUserId;
+    private Boolean ownershipRequiresReview;
     private LocalDateTime receivedAt;
     private LocalDateTime processedAt;
 }

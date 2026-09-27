@@ -5,6 +5,7 @@ import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemCategoryEntity;
 import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
@@ -178,6 +179,11 @@ public class FoodItemServiceImpl implements FoodItemService {
             return toSearchPageDto(localProducts, safeCriteria.getPreferredLanguage());
         }
 
+        // Canonical category filters are local catalog constraints; external providers do not know GRUN category ids.
+        if (safeCriteria.getCategoryId() != null) {
+            return toSearchPageDto(localProducts, safeCriteria.getPreferredLanguage());
+        }
+
         return searchAndCacheExternalProducts(safeCriteria, pageable);
     }
 
@@ -346,6 +352,20 @@ public class FoodItemServiceImpl implements FoodItemService {
 
             if (criteria.getCatalogType() != null) {
                 predicates.add(criteriaBuilder.equal(root.get("catalogType"), criteria.getCatalogType()));
+            }
+
+            if (criteria.getCategoryId() != null) {
+                var categorySubquery = query.subquery(Long.class);
+                var assignment = categorySubquery.from(FoodItemCategoryEntity.class);
+                categorySubquery.select(assignment.get("foodItem").get("id"));
+                categorySubquery.where(
+                        criteriaBuilder.equal(assignment.get("foodItem").get("id"), root.get("id")),
+                        criteriaBuilder.or(
+                                criteriaBuilder.equal(assignment.get("category").get("id"), criteria.getCategoryId()),
+                                criteriaBuilder.equal(assignment.get("category").get("parent").get("id"), criteria.getCategoryId())
+                        )
+                );
+                predicates.add(criteriaBuilder.exists(categorySubquery));
             }
 
             if (criteria.getPreparationState() != null) {

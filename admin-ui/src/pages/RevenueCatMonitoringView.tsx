@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 
-import { RevenueCatChart, RevenueCatMonitoringCharts, RevenueCatMonitoringOverview } from "../types";
+import { RevenueCatChart, RevenueCatCustomerEvidence, RevenueCatMonitoringCharts, RevenueCatMonitoringOverview } from "../types";
+import { request } from "../api";
 
 import { EmptyState, SectionToolbar } from "../AdminPrimitives";
 
@@ -57,8 +58,71 @@ export function RevenueCatMonitoringView({ environment, onError }: { environment
         </div>
       </SectionToolbar>
       <RevenueCatMonitoringPanel charts={charts} environment={environment} overview={overview} range={range} />
+      <RevenueCatCustomerEvidencePanel onError={onError} />
     </div>
   );
+}
+
+function RevenueCatCustomerEvidencePanel({ onError }: { onError: (message: string | null) => void }) {
+  const { locale } = useAdminLocale();
+  const tx = (english: string, turkish: string) => locale === "tr" ? turkish : english;
+  const [userId, setUserId] = useState("");
+  const [evidence, setEvidence] = useState<RevenueCatCustomerEvidence | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function inspect() {
+    const parsed = Number(userId);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      onError(tx("Enter a valid internal user ID.", "Geçerli bir dahili kullanıcı ID'si girin."));
+      return;
+    }
+    setLoading(true);
+    onError(null);
+    try {
+      setEvidence(await request<RevenueCatCustomerEvidence>(`/api/v1/admin/revenuecat/monitoring/customer-evidence?userId=${parsed}`, { bypassCache: true }));
+    } catch (error) {
+      setEvidence(null);
+      onError(error instanceof Error ? error.message : tx("Customer evidence could not be loaded.", "Müşteri kanıtı yüklenemedi."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const subscription = evidence?.backendSubscription;
+  const verification = evidence?.verification;
+  return (
+    <section className="revenuecat-evidence-panel">
+      <div className="revenuecat-evidence-heading">
+        <div><p className="eyebrow">{tx("Purchase evidence", "Satın alma kanıtı")}</p><h3>{tx("Compare RevenueCat V2 with backend state", "RevenueCat V2 ile backend durumunu karşılaştır")}</h3><p>{tx("Read-only inspection; it does not restore, retry, or change a subscription.", "Salt okunur incelemedir; geri yükleme, yeniden deneme veya abonelik değişikliği yapmaz.")}</p></div>
+        <div className="revenuecat-evidence-search">
+          <label>{tx("Internal user ID", "Dahili kullanıcı ID'si")}<input inputMode="numeric" min="1" onChange={(event) => setUserId(event.target.value.replace(/\D/g, ""))} value={userId} /></label>
+          <button className="primary-action" disabled={loading} onClick={() => void inspect()} type="button">{loading ? tx("Checking...", "Kontrol ediliyor...") : tx("Inspect", "İncele")}</button>
+        </div>
+      </div>
+      {evidence && <>
+        <div className="revenuecat-evidence-summary">
+          <div><span>{tx("Provider", "Sağlayıcı")}</span><strong>{evidence.providerReachable ? tx("Reachable", "Erişilebilir") : tx("Unavailable", "Erişilemiyor")}</strong></div>
+          <div><span>{tx("Backend plan", "Backend planı")}</span><strong>{subscription?.planType ?? subscription?.plan ?? "-"}</strong></div>
+          <div><span>{tx("Verification", "Doğrulama")}</span><strong>{verification?.status ?? tx("No attempt", "Deneme yok")}</strong></div>
+          <div><span>{tx("Active evidence", "Aktif kanıt")}</span><strong>{evidence.purchases?.length ?? 0}</strong></div>
+        </div>
+        <p className={evidence.providerReachable ? "evidence-status good" : "evidence-status warning"}>{evidence.statusMessage}</p>
+        {verification && <div className="evidence-detail-line"><span>{verification.productId ?? "-"}</span><span>{tx("Attempts", "Deneme")}: {verification.attempts ?? 0}</span><span>{tx("Allocation", "Tahsis")}: {verification.allocationReferencePresent ? tx("Present", "Mevcut") : tx("Missing", "Eksik")}</span><span>{tx("Updated", "Güncellendi")}: {formatEvidenceDate(verification.updatedAt, locale)}</span></div>}
+        {!!evidence.purchases?.length && <div className="table-wrap"><table><thead><tr><th>{tx("Product", "Ürün")}</th><th>{tx("Store", "Mağaza")}</th><th>{tx("Transaction", "İşlem")}</th><th>{tx("Purchased", "Satın alındı")}</th><th>{tx("Expires", "Bitiş")}</th><th>{tx("Ownership", "Sahiplik")}</th></tr></thead><tbody>{evidence.purchases.map((purchase) => <tr key={`${purchase.transactionId}-${purchase.productId}`}><td>{purchase.productId}</td><td>{purchase.store}</td><td>{maskTransaction(purchase.transactionId)}</td><td>{formatEvidenceDate(purchase.purchasedAt, locale)}</td><td>{formatEvidenceDate(purchase.expiresAt, locale)}</td><td><Badge value={purchase.ownershipConflict ? tx("Conflict", "Çakışma") : tx("Matched", "Eşleşti")} tone={purchase.ownershipConflict ? "danger" : "good"} /></td></tr>)}</tbody></table></div>}
+      </>}
+    </section>
+  );
+}
+
+function formatEvidenceDate(value: string | undefined, locale: "en" | "tr"): string {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleString(locale === "tr" ? "tr-TR" : "en-IE");
+}
+
+function maskTransaction(value?: string): string {
+  if (!value) return "-";
+  return value.length <= 10 ? value : `${value.slice(0, 5)}...${value.slice(-5)}`;
 }
 
 export function RevenueCatMonitoringPanel({

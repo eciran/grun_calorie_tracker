@@ -7,7 +7,7 @@ const js = ts.transpileModule(source.replace('import routePaths from "../../publ
 const nav = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
 const { sections, navigation, canViewSection, permissionForSection, filterNavigationByAccess, isSectionKey, sectionFromLocation, sectionHref, readUserRouteContext } = nav;
 const routes = sections.map(item => item.key);
-assert.equal(routes.length, 59);
+assert.equal(routes.length, 60);
 assert.equal(new Set(routes).size, routes.length);
 assert.deepEqual(Object.keys(paths).sort(), [...routes].sort());
 assert.equal(new Set(Object.values(paths)).size, routes.length);

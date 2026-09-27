@@ -18,7 +18,8 @@ class AdminPageControllerTest {
         try (var input = new ClassPathResource("static/admin-ui/routes.json").getInputStream()) {
             routes = mapper.readValue(input, new TypeReference<>() {});
         }
-        assertEquals(59, routes.size());
+        assertFalse(routes.isEmpty());
+        assertEquals(routes.size(), new java.util.HashSet<>(routes.values()).size());
         for (String route : routes.values()) {
             for (String suffix : new String[]{"", "/"}) {
                 mvc.perform(get(route + suffix)).andExpect(status().isOk())

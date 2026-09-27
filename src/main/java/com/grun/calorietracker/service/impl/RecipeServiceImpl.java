@@ -12,6 +12,7 @@ import com.grun.calorietracker.dto.RecipeReportRequestDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeStepRequestDto;
+import com.grun.calorietracker.dto.RecipeTranslationRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -24,6 +25,8 @@ import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.RecipeReportEntity;
 import com.grun.calorietracker.entity.RecipeUserInteractionEntity;
+import com.grun.calorietracker.entity.RecipeTranslationEntity;
+import com.grun.calorietracker.entity.RecipeTranslationStepEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
@@ -197,16 +200,19 @@ public class RecipeServiceImpl implements RecipeService {
                                           int page,
                                           int size) {
         UserEntity viewer = email == null ? null : getUser(email);
+        MarketRegion resolvedMarket = marketRegion != null ? marketRegion
+                : viewer != null && viewer.getMarketRegion() != null ? viewer.getMarketRegion() : MarketRegion.GLOBAL;
+        PreferredLanguage resolvedLanguage = resolveLanguage(language, viewer);
         RecipePublicSort resolvedSort = sort == null ? RecipePublicSort.NEWEST : sort;
         if (resolvedSort != RecipePublicSort.NEWEST) {
-            return getSortedPublicRecipes(viewer, query, mealType, marketRegion, language, categories, excludeAllergens, resolvedSort, page, size);
+            return getSortedPublicRecipes(viewer, query, mealType, resolvedMarket, resolvedLanguage.name(), categories, excludeAllergens, resolvedSort, page, size);
         }
         Page<RecipeEntity> recipes = recipeRepository.findAll(
-                publicRecipeSpecification(query, mealType, marketRegion, language, categories, excludeAllergens),
+                publicRecipeSpecification(query, mealType, resolvedMarket, resolvedLanguage.name(), categories, excludeAllergens),
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50), Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
         RecipePageDto dto = new RecipePageDto();
-        dto.setContent(recipes.getContent().stream().map(recipe -> toDto(recipe, viewer)).toList());
+        dto.setContent(recipes.getContent().stream().map(recipe -> toDto(recipe, viewer, resolvedLanguage)).toList());
         dto.setPage(recipes.getNumber());
         dto.setSize(recipes.getSize());
         dto.setTotalElements(recipes.getTotalElements());
@@ -218,12 +224,12 @@ public class RecipeServiceImpl implements RecipeService {
 
     @Override
     @Transactional(readOnly = true)
-    public RecipeDto getPublicRecipe(String email, Long recipeId) {
+    public RecipeDto getPublicRecipe(String email, Long recipeId, String language) {
         UserEntity viewer = email == null ? null : getUser(email);
         RecipeEntity recipe = recipeRepository.findById(recipeId)
                 .filter(this::isPublicVerifiedRecipe)
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
-        return toDto(recipe, viewer);
+        return toDto(recipe, viewer, resolveLanguage(language, viewer));
     }
 
     @Override
@@ -233,15 +239,18 @@ public class RecipeServiceImpl implements RecipeService {
         RecipeEntity source = recipeRepository.findById(recipeId)
                 .filter(this::isPublicVerifiedRecipe)
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
+        PreferredLanguage copyLanguage = resolveLanguage(null, user);
+        RecipeTranslationEntity sourceTranslation = resolveTranslation(source, copyLanguage);
         RecipeEntity copy = new RecipeEntity();
         copy.setOwnerUser(user);
-        copy.setName(source.getName());
-        copy.setDescription(source.getDescription());
+        copy.setName(sourceTranslation == null ? source.getName() : sourceTranslation.getName());
+        copy.setDescription(sourceTranslation == null ? source.getDescription() : sourceTranslation.getDescription());
         copy.setMealType(source.getMealType());
         copy.setVisibility(RecipeVisibility.PRIVATE);
         copy.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         copy.setMarketRegion(source.getMarketRegion());
-        copy.setLanguage(source.getLanguage());
+        copy.setMarketRegions(source.getMarketRegions() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(source.getMarketRegions()));
+        copy.setLanguage(copyLanguage.name().toLowerCase(Locale.ROOT));
         copy.setImageUrl(source.getImageUrl());
         copy.setImageSource(source.getImageSource());
         copy.setImageStatus(source.getImageStatus());
@@ -269,14 +278,30 @@ public class RecipeServiceImpl implements RecipeService {
         copy.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
         copy.setCategories(new LinkedHashSet<>(source.getCategories()));
         copy.setAllergens(source.getAllergens() == null ? new LinkedHashSet<>() : new LinkedHashSet<>(source.getAllergens()));
-        for (int index = 0; index < source.getCookingSteps().size(); index++) {
-            RecipeCookingStepEntity sourceStep = source.getCookingSteps().get(index);
+        List<String> copiedSteps = sourceTranslation != null && sourceTranslation.getCookingSteps() != null
+                && !sourceTranslation.getCookingSteps().isEmpty()
+                ? sourceTranslation.getCookingSteps().stream().map(RecipeTranslationStepEntity::getInstruction).toList()
+                : source.getCookingSteps().stream().map(RecipeCookingStepEntity::getInstruction).toList();
+        for (int index = 0; index < copiedSteps.size(); index++) {
             RecipeCookingStepEntity step = new RecipeCookingStepEntity();
             step.setRecipe(copy);
-            step.setInstruction(sourceStep.getInstruction());
+            step.setInstruction(copiedSteps.get(index));
             step.setStepOrder(index);
             copy.getCookingSteps().add(step);
         }
+        RecipeTranslationEntity copiedTranslation = new RecipeTranslationEntity();
+        copiedTranslation.setRecipe(copy);
+        copiedTranslation.setLanguage(copyLanguage);
+        copiedTranslation.setName(copy.getName());
+        copiedTranslation.setDescription(copy.getDescription());
+        for (int index = 0; index < copiedSteps.size(); index++) {
+            RecipeTranslationStepEntity translatedStep = new RecipeTranslationStepEntity();
+            translatedStep.setTranslation(copiedTranslation);
+            translatedStep.setStepOrder(index);
+            translatedStep.setInstruction(copiedSteps.get(index));
+            copiedTranslation.getCookingSteps().add(translatedStep);
+        }
+        copy.getTranslations().add(copiedTranslation);
         for (int index = 0; index < source.getIngredients().size(); index++) {
             RecipeIngredientEntity sourceIngredient = source.getIngredients().get(index);
             RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
@@ -380,6 +405,7 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setDescription(trimToNull(request.getDescription()));
         recipe.setMealType(normalizeMealType(request.getMealType()));
         recipe.setMarketRegion(request.getMarketRegion());
+        applyMarketRegions(recipe, request, user);
         recipe.setLanguage(trimToNull(request.getLanguage()));
         if (request.getImageUrl() != null) {
             applyImageUrl(recipe, trimToNull(request.getImageUrl()));
@@ -392,6 +418,7 @@ public class RecipeServiceImpl implements RecipeService {
             recipe.getIngredients().add(toIngredient(recipe, request.getIngredients().get(index), user, index, hasRecipeNutritionSnapshot));
         }
         applyCookingSteps(recipe, request.getCookingSteps());
+        applyTranslations(recipe, request);
         applyAllergens(recipe, request.getAllergens());
         recalculateNutrition(recipe, request);
     }
@@ -413,6 +440,7 @@ public class RecipeServiceImpl implements RecipeService {
             throw new IllegalArgumentException("Recipe can contain at most " + MAX_CATEGORIES + " categories.");
         }
         validateCookingSteps(request.getCookingSteps());
+        validateTranslations(request.getTranslations());
         validateRecipeNutritionSnapshot(request.getSnapshotNutritionTotal());
         String mealType = normalizeMealType(request.getMealType());
         if (mealType != null && !ALLOWED_MEAL_TYPES.contains(mealType)) {
@@ -735,15 +763,25 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     private RecipeDto toDto(RecipeEntity recipe, UserEntity viewer) {
+        return toDto(recipe, viewer, resolveLanguage(null, viewer));
+    }
+
+    private RecipeDto toDto(RecipeEntity recipe, UserEntity viewer, PreferredLanguage requestedLanguage) {
+        RecipeTranslationEntity translation = resolveTranslation(recipe, requestedLanguage);
         RecipeDto dto = new RecipeDto();
         dto.setId(recipe.getId());
-        dto.setName(recipe.getName());
-        dto.setDescription(recipe.getDescription());
+        dto.setName(translation == null ? recipe.getName() : translation.getName());
+        dto.setDescription(translation == null ? recipe.getDescription() : translation.getDescription());
         dto.setMealType(recipe.getMealType());
         dto.setVisibility(recipe.getVisibility());
         dto.setVerificationStatus(recipe.getVerificationStatus());
         dto.setMarketRegion(recipe.getMarketRegion());
-        dto.setLanguage(recipe.getLanguage());
+        dto.setMarketRegions(recipe.getMarketRegions() == null ? Set.of() : new LinkedHashSet<>(recipe.getMarketRegions()));
+        PreferredLanguage resolvedLanguage = translation == null ? languageOf(recipe.getLanguage()) : translation.getLanguage();
+        dto.setLanguage(resolvedLanguage.name().toLowerCase(Locale.ROOT));
+        dto.setResolvedLanguage(resolvedLanguage);
+        dto.setAvailableLanguages(recipe.getTranslations() == null ? Set.of() : recipe.getTranslations().stream()
+                .map(RecipeTranslationEntity::getLanguage).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
         dto.setImageUrl(recipe.getImageUrl());
         dto.setImageSource(recipe.getImageSource());
         dto.setImageStatus(recipe.getImageStatus());
@@ -796,10 +834,12 @@ public class RecipeServiceImpl implements RecipeService {
         applyInteractionSummary(dto, recipe, viewer);
         dto.setCreatedAt(recipe.getCreatedAt());
         dto.setUpdatedAt(recipe.getUpdatedAt());
-        Map<Long, String> ingredientNames = ingredientDisplayNames(recipe, viewer);
+        Map<Long, String> ingredientNames = ingredientDisplayNames(recipe, requestedLanguage);
         dto.setIngredients(recipe.getIngredients().stream()
                 .map(ingredient -> toIngredientDto(ingredient, ingredientNames)).toList());
-        dto.setCookingSteps(recipe.getCookingSteps().stream().map(this::toStepDto).toList());
+        dto.setCookingSteps(translation != null && translation.getCookingSteps() != null && !translation.getCookingSteps().isEmpty()
+                ? translation.getCookingSteps().stream().map(this::toStepDto).toList()
+                : recipe.getCookingSteps().stream().map(this::toStepDto).toList());
         dto.setAllergens(recipe.getAllergens() == null ? Set.of() : new LinkedHashSet<>(recipe.getAllergens()));
         return dto;
     }
@@ -890,6 +930,113 @@ public class RecipeServiceImpl implements RecipeService {
         dto.setInstruction(step.getInstruction());
         return dto;
     }
+
+    private RecipeStepDto toStepDto(RecipeTranslationStepEntity step) {
+        RecipeStepDto dto = new RecipeStepDto();
+        dto.setStepNumber(step.getStepOrder() == null ? null : step.getStepOrder() + 1);
+        dto.setInstruction(step.getInstruction());
+        return dto;
+    }
+
+    private void applyMarketRegions(RecipeEntity recipe, RecipeRequestDto request, UserEntity user) {
+        LinkedHashSet<MarketRegion> regions = request.getMarketRegions() == null
+                ? new LinkedHashSet<>() : new LinkedHashSet<>(request.getMarketRegions());
+        if (regions.isEmpty() && request.getMarketRegion() != null) {
+            regions.add(request.getMarketRegion());
+        }
+        if (regions.isEmpty() && user != null && user.getMarketRegion() != null) {
+            regions.add(user.getMarketRegion());
+        }
+        if (regions.isEmpty()) {
+            regions.add(MarketRegion.GLOBAL);
+        }
+        recipe.setMarketRegions(regions);
+        if (recipe.getMarketRegion() == null) {
+            recipe.setMarketRegion(regions.iterator().next());
+        }
+    }
+
+    private void applyTranslations(RecipeEntity recipe, RecipeRequestDto request) {
+        List<RecipeTranslationRequestDto> requested = request.getTranslations();
+        if (requested != null) {
+            recipe.getTranslations().clear();
+            requested.forEach(item -> recipe.getTranslations().add(toTranslation(recipe, item)));
+            return;
+        }
+        PreferredLanguage sourceLanguage = languageOf(request.getLanguage());
+        RecipeTranslationEntity translation = recipe.getTranslations().stream()
+                .filter(item -> item.getLanguage() == sourceLanguage)
+                .findFirst()
+                .orElseGet(() -> {
+                    RecipeTranslationEntity item = new RecipeTranslationEntity();
+                    item.setRecipe(recipe);
+                    item.setLanguage(sourceLanguage);
+                    recipe.getTranslations().add(item);
+                    return item;
+                });
+        translation.setName(request.getName().trim());
+        translation.setDescription(trimToNull(request.getDescription()));
+        translation.getCookingSteps().clear();
+        if (request.getCookingSteps() != null) {
+            for (int index = 0; index < request.getCookingSteps().size(); index++) {
+                RecipeTranslationStepEntity step = new RecipeTranslationStepEntity();
+                step.setTranslation(translation);
+                step.setStepOrder(index);
+                step.setInstruction(request.getCookingSteps().get(index).getInstruction().trim());
+                translation.getCookingSteps().add(step);
+            }
+        }
+    }
+
+    private RecipeTranslationEntity toTranslation(RecipeEntity recipe, RecipeTranslationRequestDto request) {
+        RecipeTranslationEntity translation = new RecipeTranslationEntity();
+        translation.setRecipe(recipe);
+        translation.setLanguage(request.getLanguage());
+        translation.setName(request.getName().trim());
+        translation.setDescription(trimToNull(request.getDescription()));
+        if (request.getCookingSteps() != null) {
+            for (int index = 0; index < request.getCookingSteps().size(); index++) {
+                RecipeTranslationStepEntity step = new RecipeTranslationStepEntity();
+                step.setTranslation(translation);
+                step.setStepOrder(index);
+                step.setInstruction(request.getCookingSteps().get(index).getInstruction().trim());
+                translation.getCookingSteps().add(step);
+            }
+        }
+        return translation;
+    }
+
+    private void validateTranslations(List<RecipeTranslationRequestDto> translations) {
+        if (translations == null) return;
+        Set<PreferredLanguage> languages = new LinkedHashSet<>();
+        for (RecipeTranslationRequestDto translation : translations) {
+            if (translation == null || translation.getLanguage() == null || translation.getName() == null || translation.getName().isBlank()) {
+                throw new IllegalArgumentException("Recipe translation language and name are required.");
+            }
+            if (!languages.add(translation.getLanguage())) {
+                throw new IllegalArgumentException("Recipe translation languages must be unique.");
+            }
+            validateCookingSteps(translation.getCookingSteps());
+        }
+    }
+
+    private RecipeTranslationEntity resolveTranslation(RecipeEntity recipe, PreferredLanguage requested) {
+        if (recipe.getTranslations() == null || recipe.getTranslations().isEmpty()) return null;
+        PreferredLanguage preferred = requested == null ? PreferredLanguage.EN : requested;
+        return recipe.getTranslations().stream().filter(item -> item.getLanguage() == preferred).findFirst()
+                .or(() -> recipe.getTranslations().stream().filter(item -> item.getLanguage() == PreferredLanguage.EN).findFirst())
+                .orElse(recipe.getTranslations().get(0));
+    }
+
+    private PreferredLanguage resolveLanguage(String requested, UserEntity viewer) {
+        String normalized = trimToNull(requested);
+        if (normalized != null) return languageOf(normalized);
+        return viewer != null && viewer.getPreferredLanguage() != null ? viewer.getPreferredLanguage() : PreferredLanguage.EN;
+    }
+
+    private PreferredLanguage languageOf(String value) {
+        return value != null && value.toLowerCase(Locale.ROOT).startsWith("tr") ? PreferredLanguage.TR : PreferredLanguage.EN;
+    }
     private void copyIngredientSnapshotFields(RecipeIngredientEntity source, RecipeIngredientEntity target) {
         target.setSnapshotFoodName(source.getSnapshotFoodName());
         target.setSnapshotCalories(source.getSnapshotCalories());
@@ -913,9 +1060,7 @@ public class RecipeServiceImpl implements RecipeService {
         target.setSnapshotVitaminB12(source.getSnapshotVitaminB12());
     }
 
-    private Map<Long, String> ingredientDisplayNames(RecipeEntity recipe, UserEntity viewer) {
-        PreferredLanguage language = viewer != null && viewer.getPreferredLanguage() != null
-                ? viewer.getPreferredLanguage() : PreferredLanguage.EN;
+    private Map<Long, String> ingredientDisplayNames(RecipeEntity recipe, PreferredLanguage language) {
         List<Long> ids = recipe.getIngredients().stream().map(RecipeIngredientEntity::getFoodItem)
                 .filter(Objects::nonNull).map(FoodItemEntity::getId).filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) return Map.of();
@@ -1135,7 +1280,8 @@ public class RecipeServiceImpl implements RecipeService {
         int from = Math.min(resolvedPage * resolvedSize, recipes.size());
         int to = Math.min(from + resolvedSize, recipes.size());
         RecipePageDto dto = new RecipePageDto();
-        dto.setContent(recipes.subList(from, to).stream().map(recipe -> toDto(recipe, viewer)).toList());
+        PreferredLanguage resolvedLanguage = languageOf(language);
+        dto.setContent(recipes.subList(from, to).stream().map(recipe -> toDto(recipe, viewer, resolvedLanguage)).toList());
         dto.setPage(resolvedPage);
         dto.setSize(resolvedSize);
         dto.setTotalElements(recipes.size());
@@ -1163,9 +1309,18 @@ public class RecipeServiceImpl implements RecipeService {
             String normalizedQuery = trimToNull(query);
             if (normalizedQuery != null) {
                 String like = "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
+                Join<RecipeEntity, RecipeTranslationEntity> translationJoin = root.joinList("translations", JoinType.LEFT);
+                PreferredLanguage queryLanguage = languageOf(language);
                 predicates.add(criteriaBuilder.or(
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), like),
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), like)
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), like),
+                        criteriaBuilder.and(
+                                criteriaBuilder.equal(translationJoin.get("language"), queryLanguage),
+                                criteriaBuilder.or(
+                                        criteriaBuilder.like(criteriaBuilder.lower(translationJoin.get("name")), like),
+                                        criteriaBuilder.like(criteriaBuilder.lower(translationJoin.get("description")), like)
+                                )
+                        )
                 ));
             }
             String normalizedMealType = normalizeMealType(mealType);
@@ -1173,11 +1328,11 @@ public class RecipeServiceImpl implements RecipeService {
                 predicates.add(criteriaBuilder.equal(root.get("mealType"), normalizedMealType));
             }
             if (marketRegion != null) {
-                predicates.add(criteriaBuilder.equal(root.get("marketRegion"), marketRegion));
-            }
-            String normalizedLanguage = trimToNull(language);
-            if (normalizedLanguage != null) {
-                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(root.get("language")), normalizedLanguage.toLowerCase(Locale.ROOT)));
+                Join<RecipeEntity, MarketRegion> marketJoin = root.joinSet("marketRegions", JoinType.LEFT);
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.equal(marketJoin, marketRegion),
+                        criteriaBuilder.equal(marketJoin, MarketRegion.GLOBAL)
+                ));
             }
             for (RecipeCategory category : normalizedCategories) {
                 Join<RecipeEntity, RecipeCategory> categoryJoin = root.joinSet("categories", JoinType.INNER);

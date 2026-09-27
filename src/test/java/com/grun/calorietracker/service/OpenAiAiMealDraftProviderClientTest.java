@@ -96,7 +96,11 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.store").value(false))
                 .andExpect(jsonPath("$.text.format.name").value("grun_nutrition_plan_v2"))
                 .andExpect(jsonPath("$.text.format.strict").value(true))
-                .andExpect(jsonPath("$.max_output_tokens").value(3000))
+                .andExpect(jsonPath("$.max_output_tokens").value(3600))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.minItems").value(1))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.maxItems").value(1))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.minItems").value(4))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.maxItems").value(4))
                 .andExpect(jsonPath("$.text.format.schema.properties.dailyTarget").doesNotExist())
                 .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.totalNutrition").doesNotExist())
                 .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.dailyMicronutrients.properties.sodium").exists())
@@ -124,6 +128,26 @@ class OpenAiAiMealDraftProviderClientTest {
 
         assertEquals(AiProvider.OPENAI, client.provider());
         assertTrue(response.getDays() == null || response.getDays().isEmpty());
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"1,2,3000", "1,6,4500", "7,4,12000", "7,6,12000"})
+    void nutritionPlan_enforcesRequestedCountsAndCapsBudget(int days, int meals, int budget) {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        var client = new OpenAiAiMealDraftProviderClient(properties(), restTemplate, new ObjectMapper());
+        var request = new AiNutritionPlanDraftRequestDto();
+        request.setDayCount(days);
+        request.setMealsPerDay(meals);
+        server.expect(requestTo("https://api.openai.test/v1/responses"))
+                .andExpect(jsonPath("$.max_output_tokens").value(budget))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.minItems").value(days))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.maxItems").value(days))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.minItems").value(meals))
+                .andExpect(jsonPath("$.text.format.schema.properties.days.items.properties.meals.maxItems").value(meals))
+                .andRespond(withSuccess(outputTextResponse("{}"), MediaType.APPLICATION_JSON));
+        client.createNutritionPlanDraft(request);
         server.verify();
     }
 

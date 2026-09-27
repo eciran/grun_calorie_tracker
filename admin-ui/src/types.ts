@@ -694,6 +694,23 @@ export type RevenueCatMonitoringOverview = {
   metrics?: RevenueCatMetricCard[];
 };
 
+export type RevenueCatCustomerEvidence = {
+  userId: number;
+  environment?: string;
+  providerReachable: boolean;
+  statusMessage?: string;
+  checkedAt?: string;
+  backendSubscription?: SubscriptionDto;
+  verification?: {
+    status?: string; productId?: string; attempts?: number; nextAttemptAt?: string;
+    leaseUntil?: string; updatedAt?: string; allocationReferencePresent?: boolean;
+  } | null;
+  purchases?: Array<{
+    transactionId?: string; productId?: string; environment?: string; store?: string;
+    purchasedAt?: string; expiresAt?: string; ownershipConflict?: boolean;
+  }>;
+};
+
 export type RevenueCatMonitoringCharts = {
   environment?: string;
   currency?: string;
@@ -1052,6 +1069,8 @@ export type SubscriptionProviderEvent = {
   userEmail?: string;
   status?: string;
   processingError?: string;
+  ownershipOwnerUserId?: number;
+  ownershipRequiresReview?: boolean;
   receivedAt?: string;
   processedAt?: string;
   rawPayload?: string;

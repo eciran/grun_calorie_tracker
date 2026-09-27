@@ -7,7 +7,6 @@ import { AdminProductQualityWorkbench, AdminProductQualityAiValidationResult, Fo
 import { CollapsiblePanel, DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar, useDialogAccessibility } from "../AdminPrimitives";
 
 import { Badge, ConfirmDialog, DetailItem, EditableDetail, IMAGE_SOURCES, IMAGE_STATUSES, MARKET_REGIONS, PREFERRED_LANGUAGES, VERIFICATION_STATUSES, downloadBlob, formatDate, formatValue, humanizeFeature, productName, useEndpoint } from "./../admin/shared";
-import { BarcodeScanner } from "../admin/BarcodeScanner";
 import { normalizeBarcode, validateGtin } from "../admin/barcode";
 import { useAdminLocale } from "../admin/locale";
 import { ProductQualityWorkloadChart, ProductReviewHealthChart } from "../CatalogWorkspaceCharts";
@@ -362,31 +361,6 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     setRejectConfirmationOpen(false);
   }
 
-  async function lookupBarcode(barcode: string) {
-    onError(null);
-    try {
-      const result = await request<PageResponse<FoodProduct>>(buildProductReviewPath({
-        query: barcode, verificationStatus: "", imageStatus: "", region: "", catalogType: "", dataSource: "", qualityIssue: "", page: 0, size: 10
-      }));
-      const exact = (result.content ?? []).find(item => normalizeBarcode(item.normalizedBarcode ?? item.barcode ?? "") === barcode);
-      if (exact) {
-        setQuery(barcode);
-        setVerificationStatus("");
-        setImageStatus("");
-        setRegion("");
-        setCatalogType("");
-        setDataSource("");
-        setQualityIssue("");
-        setPage(0);
-        openProduct(exact);
-      }
-      return Boolean(exact);
-    } catch (error) {
-      onError(formatRequestError(error));
-      throw error;
-    }
-  }
-
   async function barcodeSaved(updated: FoodProduct) {
     setSelectedProduct(updated);
     setReviewDraft(toProductReviewDraft(updated));
@@ -550,8 +524,6 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
           <article className="danger"><span>{text.missingImages}</span><strong>{formatValue(missingImageCount)}</strong><small>{text.missingImagesHint}</small></article>
         </div>
       </section>}
-      {viewMode === "queue" && <BarcodeScanner onLookup={lookupBarcode} />}
-
       {qualityWorkspace && <div className="product-quality-overview">
         <Panel title={locale === "tr" ? "İnceleme iş yükü" : "Review workload"} description={locale === "tr" ? "Üç kalite kuyruğunun güncel dağılımı." : "Current distribution across the three quality queues."}><ProductQualityWorkloadChart images={imageWorkload?.totalElements ?? 0} nutrition={nutritionWorkload?.totalElements ?? 0} rejected={rejectedWorkload?.totalElements ?? 0} locale={locale} /></Panel>
         <div className="product-quality-lanes" role="tablist" aria-label={locale === "tr" ? "Kalite kuyruğu" : "Quality queue"}>

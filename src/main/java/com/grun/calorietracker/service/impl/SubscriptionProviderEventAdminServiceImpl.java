@@ -11,6 +11,7 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.service.RevenueCatWebhookService;
 import com.grun.calorietracker.service.SubscriptionProviderEventAdminService;
+import com.grun.calorietracker.service.StoreSubscriptionOwnershipService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,6 +31,7 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
 
     private final SubscriptionProviderEventRepository eventRepository;
     private final RevenueCatWebhookService revenueCatWebhookService;
+    private final StoreSubscriptionOwnershipService ownershipService;
 
     @Override
     @Transactional(readOnly = true)
@@ -134,6 +136,11 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
         }
         dto.setStatus(event.getStatus());
         dto.setProcessingError(event.getProcessingError());
+        ownershipService.findOwnership(event.getStore(), event.getEnvironment(), event.getOriginalTransactionId())
+                .ifPresent(ownership -> {
+                    dto.setOwnershipOwnerUserId(ownership.ownerUserId());
+                    dto.setOwnershipRequiresReview(ownership.requiresReview());
+                });
         dto.setReceivedAt(event.getReceivedAt());
         dto.setProcessedAt(event.getProcessedAt());
         return dto;
@@ -170,6 +177,8 @@ public class SubscriptionProviderEventAdminServiceImpl implements SubscriptionPr
         dto.setUserEmail(base.getUserEmail());
         dto.setStatus(base.getStatus());
         dto.setProcessingError(base.getProcessingError());
+        dto.setOwnershipOwnerUserId(base.getOwnershipOwnerUserId());
+        dto.setOwnershipRequiresReview(base.getOwnershipRequiresReview());
         dto.setReceivedAt(base.getReceivedAt());
         dto.setProcessedAt(base.getProcessedAt());
         dto.setRawPayload(event.getRawPayload());

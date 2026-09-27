@@ -100,7 +100,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         summary.setCanceledSubscriptions(subscriptionRepository.countByStatus(SubscriptionStatus.CANCELED));
         summary.setRefundedSubscriptions(subscriptionRepository.countByStatus(SubscriptionStatus.REFUNDED));
         summary.setAiQuotaExhaustedSubscriptions(subscriptionRepository.countActiveSubscriptionsWithExhaustedAiQuota());
-        summary.setFailedSubscriptionProviderEvents(subscriptionProviderEventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED));
+        summary.setFailedSubscriptionProviderEvents(
+                subscriptionProviderEventRepository.countByStatus(SubscriptionProviderEventStatus.FAILED)
+                        + subscriptionProviderEventRepository.countByStatus(SubscriptionProviderEventStatus.REQUIRES_REVIEW));
         summary.setSubscriptionProviderEventsLast24Hours(subscriptionProviderEventRepository.countByReceivedAtAfter(LocalDateTime.now().minusHours(24)));
         summary.setAiRequestsLast7Days(aiRequestHistoryRepository.countByCreatedAtAfter(aiWindowStart));
         summary.setAiConfirmedLast7Days(aiRequestHistoryRepository.countByStatusAndCreatedAtAfter(AiRequestStatus.CONFIRMED, aiWindowStart));

@@ -32,12 +32,16 @@ class SubscriptionProviderEventAdminServiceImplTest {
     @Mock
     private RevenueCatWebhookService revenueCatWebhookService;
 
+    @Mock
+    private StoreSubscriptionOwnershipService ownershipService;
+
     private SubscriptionProviderEventAdminServiceImpl service;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        service = new SubscriptionProviderEventAdminServiceImpl(eventRepository, revenueCatWebhookService);
+        service = new SubscriptionProviderEventAdminServiceImpl(eventRepository, revenueCatWebhookService, ownershipService);
+        when(ownershipService.findOwnership(any(), any(), any())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -56,11 +60,15 @@ class SubscriptionProviderEventAdminServiceImplTest {
     @Test
     void getEvent_returnsRawPayloadDetail() {
         when(eventRepository.findById(1L)).thenReturn(Optional.of(event()));
+        when(ownershipService.findOwnership(any(), any(), any()))
+                .thenReturn(Optional.of(new StoreSubscriptionOwnershipService.OwnershipEvidence(9L, true)));
 
         var result = service.getEvent(1L);
 
         assertEquals("evt_1", result.getProviderEventId());
         assertEquals("{\"event\":{}}", result.getRawPayload());
+        assertEquals(9L, result.getOwnershipOwnerUserId());
+        assertEquals(true, result.getOwnershipRequiresReview());
     }
 
     @Test
@@ -100,6 +108,8 @@ class SubscriptionProviderEventAdminServiceImplTest {
         event.setEntitlementIds("pro");
         event.setTransactionId("tx_1");
         event.setOriginalTransactionId("otx_1");
+        event.setStore("APP_STORE");
+        event.setEnvironment("SANDBOX");
         event.setUser(user);
         event.setStatus(SubscriptionProviderEventStatus.FAILED);
         event.setRawPayload("{\"event\":{}}");

@@ -3,6 +3,7 @@ package com.grun.calorietracker.service;
 import com.grun.calorietracker.entity.FoodProductReviewCaseEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
 import com.grun.calorietracker.repository.FoodProductReviewCaseRepository;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.repository.UserRepository;
@@ -33,6 +34,7 @@ class AdminProductIntakeAssignmentServiceTest {
     void setup() {
         reviewCase = new FoodProductReviewCaseEntity();
         reviewCase.setId(44L);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.SUBMITTED);
         when(repository.findByIdForAssignment(44L)).thenReturn(Optional.of(reviewCase));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -43,6 +45,28 @@ class AdminProductIntakeAssignmentServiceTest {
         var result = service.claim(44L, "catalog@grun.app");
         assertEquals("catalog@grun.app", result.assignedAdminEmail());
         assertNotNull(result.reviewClaimedAt());
+        assertEquals(FoodProductReviewCaseStatus.IN_REVIEW, reviewCase.getStatus());
+    }
+
+    @Test
+    void ownerCanClaimAnOpenReview() {
+        when(users.findByEmail("owner@grun.app")).thenReturn(Optional.of(admin("owner@grun.app", UserRole.OWNER, true)));
+        var result = service.claim(44L, "owner@grun.app");
+        assertEquals("owner@grun.app", result.assignedAdminEmail());
+    }
+
+    @Test
+    void completedReviewCannotBeClaimedReleasedOrReassigned() {
+        reviewCase.setStatus(FoodProductReviewCaseStatus.APPLIED);
+        reviewCase.setAssignedAdminEmail("catalog@grun.app");
+        when(users.findByEmail("catalog@grun.app")).thenReturn(Optional.of(admin("catalog@grun.app", UserRole.ADMIN_CATALOG, true)));
+        when(users.findByEmail("owner@grun.app")).thenReturn(Optional.of(admin("owner@grun.app", UserRole.OWNER, true)));
+        when(users.findByEmail("target@grun.app")).thenReturn(Optional.of(admin("target@grun.app", UserRole.ADMIN_CATALOG, true)));
+
+        assertThrows(IllegalStateException.class, () -> service.claim(44L, "catalog@grun.app"));
+        assertThrows(IllegalStateException.class, () -> service.release(44L, "catalog@grun.app"));
+        assertThrows(IllegalStateException.class, () -> service.reassign(44L, "owner@grun.app", "target@grun.app"));
+        verify(repository, never()).save(any());
     }
 
     @Test
