@@ -1179,6 +1179,7 @@ public class FoodItemServiceImpl implements FoodItemService {
         copy.setNutriScore(criteria.getNutriScore());
         copy.setMarketRegion(region);
         copy.setCatalogType(criteria.getCatalogType());
+        copy.setCategoryId(criteria.getCategoryId());
         copy.setPreparationState(criteria.getPreparationState());
         copy.setPreferredLanguage(criteria.getPreferredLanguage());
         return copy;

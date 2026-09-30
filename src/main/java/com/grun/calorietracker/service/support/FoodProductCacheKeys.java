@@ -4,6 +4,8 @@ import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 
 public final class FoodProductCacheKeys {
 
+    private static final String SEARCH_KEY_VERSION = "v2";
+
     private FoodProductCacheKeys() {
     }
 
@@ -15,6 +17,7 @@ public final class FoodProductCacheKeys {
     public static String search(FoodSearchCriteriaDto criteria, int page, int size) {
         FoodSearchCriteriaDto safeCriteria = criteria == null ? new FoodSearchCriteriaDto() : criteria;
         return String.join(":",
+                SEARCH_KEY_VERSION,
                 String.valueOf(Math.max(page, 0)),
                 String.valueOf(Math.max(size, 1)),
                 part(FoodProductNormalizationRules.normalizeText(safeCriteria.getQuery())),

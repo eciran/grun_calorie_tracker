@@ -1481,6 +1481,10 @@ FoodSearchCriteriaDto bananaEnglish = new FoodSearchCriteriaDto();
         FoodItemEntity parentProduct = product("Mixed Drink", "9940000000001", VerificationStatus.VERIFIED);
         FoodItemEntity childProduct = product("Whole Milk", "9940000000002", VerificationStatus.VERIFIED);
         FoodItemEntity unrelatedProduct = product("Fresh Apple", "9940000000003", VerificationStatus.VERIFIED);
+        parentProduct.setMarketRegion(MarketRegion.TR);
+        childProduct.setMarketRegion(MarketRegion.TR);
+        unrelatedProduct.setMarketRegion(MarketRegion.TR);
+        unrelatedProduct.setCatalogType(FoodCatalogType.LOCAL_DISH);
         foodItemRepository.saveAllAndFlush(List.of(parentProduct, childProduct, unrelatedProduct));
         foodItemCategoryRepository.saveAllAndFlush(List.of(
                 categoryAssignment(parentProduct, parent, true),
@@ -1490,6 +1494,7 @@ FoodSearchCriteriaDto bananaEnglish = new FoodSearchCriteriaDto();
 
         FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
         criteria.setCategoryId(parent.getId());
+        criteria.setMarketRegion(MarketRegion.TR);
         FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 20);
 
         assertEquals(2, result.getTotalElements());
