@@ -21,6 +21,8 @@ import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeIngredientSuggestionDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewRequestDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDayDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
@@ -90,6 +92,19 @@ public class LogAiMealDraftProviderClient implements AiMealDraftProviderClient {
         response.setEstimatedNutritionPerServing(sampleNutritionPerServing());
         response.setNutritionEstimateNote("Estimated preview nutrition generated from typical ingredient values. Confirmed recipe nutrition is recalculated from matched ingredients.");
         response.setWarnings(List.of("Ingredients must be reviewed before confirmation. They may remain snapshot ingredients when no reliable catalog match exists."));
+        return response;
+    }
+
+    @Override
+    public AiRecipeQualityReviewResponseDto reviewRecipeQuality(AiRecipeQualityReviewRequestDto request) {
+        AiRecipeQualityReviewResponseDto response = new AiRecipeQualityReviewResponseDto();
+        response.setSchemaVersion("recipe_quality_review_v1");
+        response.setSummary("Synthetic LOG-provider review. Configure a real AI provider for semantic recipe review.");
+        response.setQualityScore(request.getDeterministicIssues() == null || request.getDeterministicIssues().isEmpty() ? 85 : 65);
+        response.setConfidence(0.50);
+        response.setReviewRequired(true);
+        response.setPublicationRecommendation("MANUAL_REVIEW");
+        response.setIssues(new ArrayList<>());
         return response;
     }
 

@@ -17,6 +17,8 @@ import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewRequestDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewResponseDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
@@ -106,6 +108,17 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
     @Override
     public AiRecipeDraftResponseDto createRecipeDraft(AiRecipeDraftRequestDto request) {
         return callOpenAi(AiRequestType.AI_RECIPE_GENERATION, "grun_recipe_draft", recipeDraftSchema(), List.of(textContent(AiPromptTemplates.request(AiRequestType.AI_RECIPE_GENERATION, writeJson(request)))), AiRecipeDraftResponseDto.class);
+    }
+
+    @Override
+    public AiRecipeQualityReviewResponseDto reviewRecipeQuality(AiRecipeQualityReviewRequestDto request) {
+        return callOpenAi(
+                AiRequestType.AI_RECIPE_QUALITY_REVIEW,
+                "grun_recipe_quality_review_v1",
+                recipeQualityReviewSchema(),
+                List.of(textContent(AiPromptTemplates.recipeQuality(writeJson(request)))),
+                AiRecipeQualityReviewResponseDto.class
+        );
     }
 
     @Override
@@ -771,6 +784,24 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "cookingTips", arraySchema(stringSchema()),
                 "substitutions", arraySchema(stringSchema()),
                 "warnings", arraySchema(stringSchema())
+        ));
+    }
+
+    Map<String, Object> recipeQualityReviewSchema() {
+        return strictObjectSchema(props(
+                "schemaVersion", enumSchema("recipe_quality_review_v1"),
+                "summary", stringSchema(),
+                "qualityScore", integerSchema(),
+                "confidence", numberSchema(),
+                "reviewRequired", booleanSchema(),
+                "publicationRecommendation", enumSchema("APPROVE_CANDIDATE", "MANUAL_REVIEW", "BLOCK"),
+                "issues", arraySchema(strictObjectSchema(props(
+                        "type", enumSchema("INGREDIENT_STEP_MISMATCH", "YIELD_MISMATCH", "PORTION_MISMATCH", "ALLERGEN_REVIEW", "NUTRITION_PLAUSIBILITY", "INSTRUCTION_SAFETY", "MISSING_INFORMATION"),
+                        "severity", enumSchema("LOW", "MEDIUM", "HIGH", "CRITICAL"),
+                        "foodItemId", integerSchema(),
+                        "message", stringSchema(),
+                        "suggestedAction", stringSchema()
+                )))
         ));
     }
 

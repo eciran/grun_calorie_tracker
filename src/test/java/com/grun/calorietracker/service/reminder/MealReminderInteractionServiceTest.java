@@ -3,7 +3,9 @@ package com.grun.calorietracker.service.reminder;
 import com.grun.calorietracker.dto.MealReminderInteractionRequestDto;
 import com.grun.calorietracker.entity.*;
 import com.grun.calorietracker.enums.MealReminderInteractionType;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.*;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,7 @@ class MealReminderInteractionServiceTest {
     private final MealReminderInteractionRepository interactions = mock(MealReminderInteractionRepository.class);
     private final FoodLogsRepository foodLogs = mock(FoodLogsRepository.class);
     private final RecipeLogRepository recipeLogs = mock(RecipeLogRepository.class);
+    private final SubscriptionService subscriptions = mock(SubscriptionService.class);
     private final Instant now = Instant.parse("2026-08-29T12:00:00Z");
     private MealReminderInteractionService service;
     private UserEntity user;
@@ -29,12 +32,14 @@ class MealReminderInteractionServiceTest {
     @BeforeEach
     void setUp() {
         service = new MealReminderInteractionService(users, occurrences, interactions, foodLogs, recipeLogs,
-                new UserTimeZoneSupport(), Clock.fixed(now, ZoneOffset.UTC));
+                new UserTimeZoneSupport(), Clock.fixed(now, ZoneOffset.UTC), subscriptions);
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("member@example.com");
         user.setTimeZone("UTC");
         when(users.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(subscriptions.hasFeatureAccess(user.getEmail(), SubscriptionFeature.NEXT_MEAL_SUGGESTIONS))
+                .thenReturn(true);
     }
 
     @Test
@@ -46,11 +51,29 @@ class MealReminderInteractionServiceTest {
         var result = service.resolveAndRecordOpen(user.getEmail(), 81L,
                 new MealReminderInteractionRequestDto("tap-1", "BACKGROUND"));
 
-        assertEquals("MEAL_ADD", result.destination());
+        assertEquals("NEXT_MEAL", result.destination());
         assertEquals("LUNCH", result.mealType());
+        assertEquals("meal-coach/next", result.fallbackRoute());
+        assertEquals(2, result.contextVersion());
         assertFalse(result.staleFallback());
         verify(interactions).insertIdempotent(eq(7L), eq(31L), eq(81L), eq("OPEN"), eq("OPEN:81"),
                 eq("tap-1"), eq("BACKGROUND"), eq(LocalDate.of(2026, 8, 29)), eq(now));
+    }
+
+    @Test
+    void currentMealFallsBackToMealAddWithoutNextMealEntitlement() {
+        when(subscriptions.hasFeatureAccess(user.getEmail(), SubscriptionFeature.NEXT_MEAL_SUGGESTIONS))
+                .thenReturn(false);
+        MealReminderOccurrenceEntity occurrence = occurrence(33L, 83L, LocalDate.of(2026, 8, 29),
+                MealReminderDecision.Candidate.LUNCH);
+        when(occurrences.findByNotificationIdAndUserId(83L, 7L)).thenReturn(Optional.of(occurrence));
+
+        var result = service.resolveAndRecordOpen(user.getEmail(), 83L,
+                new MealReminderInteractionRequestDto("tap-4", "FOREGROUND"));
+
+        assertEquals("MEAL_ADD", result.destination());
+        assertEquals("diary", result.fallbackRoute());
+        assertEquals("LUNCH", result.mealType());
     }
 
     @Test

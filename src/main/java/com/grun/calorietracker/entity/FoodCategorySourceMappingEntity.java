@@ -30,6 +30,8 @@ public class FoodCategorySourceMappingEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private FoodCategoryMappingStatus status = FoodCategoryMappingStatus.REVIEW_REQUIRED;
+    @Column(nullable = false)
+    private Integer primaryPriority = 1000;
     private Integer confidenceScore;
     @Column(nullable = false)
     private LocalDateTime createdAt;

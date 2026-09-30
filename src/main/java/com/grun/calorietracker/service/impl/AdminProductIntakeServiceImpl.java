@@ -351,11 +351,14 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         var food = reviewCase.getFoodItem();
         if (food == null || food.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) throw new IllegalStateException("Existing-product apply requires a published target.");
         if (catalogMutationOrchestrator == null) throw new IllegalStateException("Catalog mutation orchestrator is unavailable.");
-        applyGate.requireAcceptedEvidence(reviewCase);
+        applyGate.requireAcceptedEvidence(reviewCase, fields);
         Map<String, Object> submitted = submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>());
-        var submittedReference = com.grun.calorietracker.service.support.ManualContributionNutrition.reference(submitted);
-        var targetReference = food.getNutritionReferenceUnit() == null ? com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G : food.getNutritionReferenceUnit();
-        if (submittedReference != targetReference) throw new IllegalArgumentException("Nutrition reference units differ; reconcile grams and milliliters before applying this review.");
+        boolean appliesNutrition = fields.stream().anyMatch(this::isNutritionField);
+        if (appliesNutrition) {
+            var submittedReference = com.grun.calorietracker.service.support.ManualContributionNutrition.reference(submitted);
+            var targetReference = food.getNutritionReferenceUnit() == null ? com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G : food.getNutritionReferenceUnit();
+            if (submittedReference != targetReference) throw new IllegalArgumentException("Nutrition reference units differ; reconcile grams and milliliters before applying this review.");
+        }
         EnumMap<ProductIntakeApplyField, Object> values = new EnumMap<>(ProductIntakeApplyField.class);
         for (ProductIntakeApplyField field : fields) values.put(field, validatedApplyValue(field, submitted));
         boolean highImpact = values.entrySet().stream().anyMatch(entry -> isHighImpact(entry.getKey(), currentValue(food, entry.getKey()), entry.getValue()));
@@ -394,6 +397,61 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         catch (RuntimeException failure) { throw new IllegalArgumentException("Selected nutrition field is not numeric: " + field, failure); }
         if (value < 0 || value.isNaN() || value.isInfinite()) throw new IllegalArgumentException("Selected nutrition field is invalid: " + field);
         return value;
+    }
+
+    private boolean isNutritionField(ProductIntakeApplyField field) {
+        return field != ProductIntakeApplyField.PRODUCT_NAME && field != ProductIntakeApplyField.BRAND;
+    }
+
+    @Override
+    @Transactional
+    public AdminProductIntakeDetailDto updateSubmittedFields(Long caseId, String actorEmail, Map<String, Object> fields) {
+        UserEntity actor = requireActiveAdmin(actorEmail);
+        FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
+        requireMutableReview(reviewCase);
+        claimForMutationWhenUnassigned(reviewCase, actor);
+        requireAssignedOrOwner(reviewCase, actor);
+        if (reviewCase.getStatus() != FoodProductReviewCaseStatus.SUBMITTED
+                && reviewCase.getStatus() != FoodProductReviewCaseStatus.IN_REVIEW) {
+            throw new IllegalStateException("Submitted values can only be edited during an active review.");
+        }
+        if (fields == null || fields.isEmpty()) {
+            throw new IllegalArgumentException("At least one submitted field is required.");
+        }
+
+        Map<String, Object> submitted = new LinkedHashMap<>(submittedFields(reviewCase.getSubmittedValuesJson(), new ArrayList<>()));
+        fields.forEach((fieldName, rawValue) -> {
+            ProductIntakeApplyField field = parseEditableField(fieldName);
+            submitted.put(submittedFieldName(field), validatedApplyValue(
+                    field,
+                    java.util.Collections.singletonMap(submittedFieldName(field), rawValue)
+            ));
+        });
+        try {
+            reviewCase.setSubmittedValuesJson(objectMapper.writeValueAsString(submitted));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw new IllegalArgumentException("Edited submitted values could not be serialized.", exception);
+        }
+        repository.save(reviewCase);
+        return detail(caseId);
+    }
+
+    private ProductIntakeApplyField parseEditableField(String fieldName) {
+        if (fieldName == null || fieldName.isBlank()) {
+            throw new IllegalArgumentException("Submitted field name is required.");
+        }
+        String normalized = fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase(java.util.Locale.ROOT);
+        try {
+            return ProductIntakeApplyField.valueOf(normalized);
+        } catch (IllegalArgumentException unsupported) {
+            throw new IllegalArgumentException("Submitted field cannot be edited from this review: " + fieldName);
+        }
+    }
+
+    private String submittedFieldName(ProductIntakeApplyField field) {
+        return field == ProductIntakeApplyField.PRODUCT_NAME
+                ? "productName"
+                : field.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     private void applyValue(com.grun.calorietracker.entity.FoodItemEntity food, ProductIntakeApplyField field, Object value) {
@@ -605,13 +663,29 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     private List<AdminProductIntakeDetailDto.FieldComparison> comparisons(
             Map<String, Object> submitted, Map<String, Object> catalog
     ) {
-        TreeSet<String> fields = new TreeSet<>();
-        fields.addAll(submitted.keySet());
-        fields.addAll(catalog.keySet());
-        return fields.stream().map(field -> new AdminProductIntakeDetailDto.FieldComparison(field,
-                submitted.get(field), catalog.get(field), Objects.equals(submitted.get(field), catalog.get(field)),
+        return new TreeSet<>(submitted.keySet()).stream()
+                .filter(field -> !comparisonValuesEqual(submitted.get(field), catalog.get(field)))
+                .map(field -> new AdminProductIntakeDetailDto.FieldComparison(field,
+                submitted.get(field), catalog.get(field), false,
                 isHighImpactField(field, catalog.get(field), submitted.get(field))))
                 .toList();
+    }
+
+    private boolean comparisonValuesEqual(Object submitted, Object catalog) {
+        if (Objects.equals(submitted, catalog)) return true;
+        if (submitted == null || catalog == null) return false;
+        Double submittedNumber = numberValue(submitted);
+        Double catalogNumber = numberValue(catalog);
+        if (submittedNumber != null && catalogNumber != null) {
+            return Double.compare(submittedNumber, catalogNumber) == 0;
+        }
+        if (submitted instanceof java.util.Collection<?> submittedValues
+                && catalog instanceof java.util.Collection<?> catalogValues) {
+            return new java.util.HashSet<>(submittedValues).equals(new java.util.HashSet<>(catalogValues));
+        }
+        if (submitted instanceof Enum<?> submittedEnum) submitted = submittedEnum.name();
+        if (catalog instanceof Enum<?> catalogEnum) catalog = catalogEnum.name();
+        return Objects.equals(String.valueOf(submitted), String.valueOf(catalog));
     }
     private boolean isHighImpact(ProductIntakeApplyField field, Object oldValue, Object newValue) {
         return switch (field) {

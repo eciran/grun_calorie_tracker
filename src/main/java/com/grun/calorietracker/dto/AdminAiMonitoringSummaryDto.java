@@ -42,6 +42,19 @@ public class AdminAiMonitoringSummaryDto {
     private List<RequestStatusMetric> requestStatuses;
     private List<OperationsSegmentMetric> segments;
     private List<HourlyMetric> timeline;
+    private RecipeReviewUsageMetric recipeReviewUsage;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecipeReviewUsageMetric {
+        private long requestCount;
+        private long completedCount;
+        private long failedCount;
+        private long processingCount;
+        private long totalTokens;
+        private Map<String, Double> estimatedCostByCurrency;
+    }
 
     @Data
     @NoArgsConstructor

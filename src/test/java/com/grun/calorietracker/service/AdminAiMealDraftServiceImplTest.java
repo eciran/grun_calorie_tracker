@@ -15,8 +15,10 @@ import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.RecipeReviewAnalysisStatus;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.RecipeReviewAnalysisRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.service.impl.AdminAiMealDraftServiceImpl;
 import com.grun.calorietracker.service.impl.AdminAiRequestPayloadSanitizer;
@@ -45,10 +47,11 @@ class AdminAiMealDraftServiceImplTest {
     private final SubscriptionService subscriptionService = mock(SubscriptionService.class);
     private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
     private final SubscriptionProviderEventRepository providerEventRepository = mock(SubscriptionProviderEventRepository.class);
+    private final RecipeReviewAnalysisRepository recipeReviewAnalysisRepository = mock(RecipeReviewAnalysisRepository.class);
     private final PushDeliveryService pushDeliveryService = mock(PushDeliveryService.class);
     private final AiProperties aiProperties = new AiProperties();
     private final AdminAiRequestPayloadSanitizer payloadSanitizer = new AdminAiRequestPayloadSanitizer(new ObjectMapper());
-    private final AdminAiMealDraftServiceImpl service = new AdminAiMealDraftServiceImpl(historyRepository, subscriptionService, notificationRepository, providerEventRepository, pushDeliveryService, aiProperties, payloadSanitizer);
+    private final AdminAiMealDraftServiceImpl service = new AdminAiMealDraftServiceImpl(historyRepository, subscriptionService, notificationRepository, providerEventRepository, recipeReviewAnalysisRepository, pushDeliveryService, aiProperties, payloadSanitizer);
 
     @Test
     void listRequests_whenRefundableOnly_returnsReviewMetadata() {
@@ -144,6 +147,27 @@ class AdminAiMealDraftServiceImplTest {
         assertFalse(json.contains("confirmationPayload"));
         assertFalse(json.contains("userEmail"));
         assertFalse(json.contains("rejectionFeedback"));
+    }
+
+    @Test
+    void getMonitoringSummary_reportsRecipeReviewUsageWithoutAddingUserQuota() {
+        when(historyRepository.summarizeByProviderModelAfter(any())).thenReturn(List.of());
+        when(historyRepository.summarizeByRequestTypeStatusAfter(any())).thenReturn(List.of());
+        when(recipeReviewAnalysisRepository.summarizeUsageAfter(any())).thenReturn(List.<Object[]>of(
+                new Object[]{RecipeReviewAnalysisStatus.COMPLETED, "USD", 4L, 1200L, 0.08d},
+                new Object[]{RecipeReviewAnalysisStatus.FAILED, null, 1L, 0L, 0d}
+        ));
+
+        AdminAiMonitoringSummaryDto result = service.getMonitoringSummary(24);
+
+        assertEquals(5L, result.getRecipeReviewUsage().getRequestCount());
+        assertEquals(4L, result.getRecipeReviewUsage().getCompletedCount());
+        assertEquals(1L, result.getRecipeReviewUsage().getFailedCount());
+        assertEquals(1200L, result.getRecipeReviewUsage().getTotalTokens());
+        assertEquals(0.08d, result.getRecipeReviewUsage().getEstimatedCostByCurrency().get("USD"), 0.00001d);
+        assertEquals(0L, result.getQuotaConsumedAmount());
+        assertEquals(0.08d, result.getEstimatedCostByCurrency().get("USD"), 0.00001d);
+        assertFalse(result.getEstimatedCostByCurrency().containsKey("UNSPECIFIED"));
     }
 
     @Test

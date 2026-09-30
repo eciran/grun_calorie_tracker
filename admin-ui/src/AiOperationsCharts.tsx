@@ -131,9 +131,17 @@ export function AiLatencyChart({ summary }: { summary: AiMonitoringSummary }) {
 export function AiEconomicsChart({ summary }: { summary: AiMonitoringSummary }) {
   const buildOption = useCallback((): EChartsCoreOption => {
     const palette = adminChartPalette();
-    const cost = summary.estimatedCostByCurrency ?? {};
-    const revenue = summary.subscriptionRevenueByCurrency ?? {};
-    const currencies = [...new Set([...Object.keys(cost), ...Object.keys(revenue)])].sort();
+    const normalizeCurrencyTotals = (values: Record<string, number> = {}) => Object.entries(values).reduce<Record<string, number>>((totals, [currency, amount]) => {
+      const code = currency.trim().toUpperCase();
+      if (code) totals[code] = (totals[code] ?? 0) + Number(amount ?? 0);
+      return totals;
+    }, {});
+    const cost = normalizeCurrencyTotals(summary.estimatedCostByCurrency);
+    const revenue = normalizeCurrencyTotals(summary.subscriptionRevenueByCurrency);
+    const observedCurrencies = [...new Set([...Object.keys(cost), ...Object.keys(revenue)])]
+      .filter((currency) => currency !== "EUR" && currency !== "TRY")
+      .sort();
+    const currencies = ["EUR", "TRY", ...observedCurrencies];
     return {
       animationDuration: 420,
       color: [palette.danger, palette.accent],

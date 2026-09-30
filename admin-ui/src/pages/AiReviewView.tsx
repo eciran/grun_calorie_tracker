@@ -322,6 +322,16 @@ export function AiReviewView({ mode, onError, targetContext, onClearTarget, acce
 
       {summary && <Suspense fallback={<div className="admin-chart-loading">{locale === "tr" ? "Maliyet analizi yükleniyor…" : "Loading cost analysis…"}</div>}><AiCostWorkbench summary={summary} policy={policy ?? null} /></Suspense>}
 
+      <AiOverviewPanel title={locale === "tr" ? "Tarif inceleme AI kullanımı" : "Recipe review AI usage"} description={locale === "tr" ? "Kullanıcı tariflerinin yönetici incelemesi için yapılan AI analizleri. Kullanıcı AI kotasına dahil edilmez." : "AI analyses used for admin review of user recipes. These calls do not consume user AI quota."}>
+        <div className="metric-grid compact-grid">
+          <MetricCard label={locale === "tr" ? "İnceleme çağrısı" : "Review calls"} value={formatValue(summary?.recipeReviewUsage?.requestCount)} hint={`${formatValue(summary?.recipeReviewUsage?.processingCount)} ${locale === "tr" ? "işleniyor" : "processing"}`} />
+          <MetricCard label={locale === "tr" ? "Tamamlanan / hatalı" : "Completed / failed"} value={`${formatValue(summary?.recipeReviewUsage?.completedCount)} / ${formatValue(summary?.recipeReviewUsage?.failedCount)}`} hint={locale === "tr" ? "Seçili izleme aralığı" : "Selected monitoring window"} />
+          <MetricCard label={locale === "tr" ? "Token kullanımı" : "Token usage"} value={formatValue(summary?.recipeReviewUsage?.totalTokens)} hint={locale === "tr" ? "Yalnızca tarif kalite analizleri" : "Recipe quality analyses only"} />
+          <MetricCard label={locale === "tr" ? "Tahmini maliyet" : "Estimated cost"} value={formatCurrencyBreakdown(summary?.recipeReviewUsage?.estimatedCostByCurrency)} hint={locale === "tr" ? "Genel AI maliyet bütçesine dahildir" : "Included in the overall AI cost budget"} />
+        </div>
+        <a className="ghost-button" href={sectionPaths.recipes}>{locale === "tr" ? "Tarif incelemelerini aç" : "Open recipe reviews"} →</a>
+      </AiOverviewPanel>
+
       <AiOverviewPanel title={locale === "tr" ? "Fotoğraf analizi" : "Photo analysis economics"} description={locale === "tr" ? "Fotoğraftan öğün analizinin sonuçları, token kullanımı ve etkin model fiyatları." : "Photo meal analysis outcomes, token usage and active model pricing."} className="ai-photo-panel">
         <div className="ai-photo-layout">
           <div className="ai-photo-visual">{summary && photoRequestCount > 0 ? <Suspense fallback={<div className="admin-chart-loading">Loading...</div>}><AiPhotoOutcomeChart summary={summary} /></Suspense> : <EmptyState title={locale === "tr" ? "Henüz fotoğraf isteği yok" : "No photo requests yet"} message={locale === "tr" ? "Seçili dönemde sonuç kaydedilmedi." : "No outcomes recorded in this window."} />}</div>

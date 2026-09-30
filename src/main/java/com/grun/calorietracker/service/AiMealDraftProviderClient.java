@@ -12,6 +12,8 @@ import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewRequestDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewResponseDto;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftResponseDto;
@@ -28,5 +30,8 @@ public interface AiMealDraftProviderClient {
     AiInsightResponseDto createDailyInsight(AiInsightRequestDto request);
     AiInsightResponseDto createWeeklyInsight(AiInsightRequestDto request);
     AiProductQualityValidationResponseDto validateProductQuality(AiProductQualityValidationRequestDto request);
+    default AiRecipeQualityReviewResponseDto reviewRecipeQuality(AiRecipeQualityReviewRequestDto request) {
+        throw new UnsupportedOperationException("Recipe quality review is not supported by this provider.");
+    }
 }
 

@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.FoodEvidenceField;
 import com.grun.calorietracker.enums.FoodProductAssetDeletionState;
 import com.grun.calorietracker.enums.FoodProductAssetUploadState;
 import com.grun.calorietracker.enums.FoodProductReviewCaseSource;
+import com.grun.calorietracker.enums.ProductIntakeApplyField;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.repository.FoodProductSourceEvidenceRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -60,6 +62,43 @@ public class ProductIntakeApplyGate {
             metrics.record("apply_gate", "nutrition_evidence_missing");
             throw new IllegalStateException("Accepted calorie and macro source evidence are required.");
         }
+    }
+
+    public void requireAcceptedEvidence(FoodProductReviewCaseEntity reviewCase,
+                                        Set<ProductIntakeApplyField> selectedFields) {
+        if (reviewCase.getFoodItem() == null || reviewCase.getFoodItem().getId() == null) {
+            metrics.record("apply_gate", "product_missing");
+            throw new IllegalStateException("Product intake must be linked to a persisted product.");
+        }
+        Set<FoodEvidenceField> requiredNutritionEvidence = selectedFields.stream()
+                .map(this::evidenceField)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(() -> EnumSet.noneOf(FoodEvidenceField.class)));
+        if (requiredNutritionEvidence.isEmpty()) return;
+
+        String externalId = "REVIEW_CASE:" + reviewCase.getId();
+        Set<FoodEvidenceField> availableEvidence = sourceEvidenceRepository
+                .findByFoodItemIdOrderByObservedAtDescIdDesc(reviewCase.getFoodItem().getId()).stream()
+                .filter(value -> externalId.equals(value.getExternalId()))
+                .map(value -> value.getFieldName())
+                .collect(java.util.stream.Collectors.toSet());
+        if (!availableEvidence.containsAll(requiredNutritionEvidence)) {
+            metrics.record("apply_gate", "selected_nutrition_evidence_missing");
+            throw new IllegalStateException("Accepted source evidence is required for every selected nutrition field.");
+        }
+    }
+
+    private FoodEvidenceField evidenceField(ProductIntakeApplyField field) {
+        return switch (field) {
+            case CALORIES -> FoodEvidenceField.CALORIES;
+            case PROTEIN -> FoodEvidenceField.PROTEIN;
+            case FAT -> FoodEvidenceField.FAT;
+            case CARBS -> FoodEvidenceField.CARBS;
+            case FIBER -> FoodEvidenceField.FIBER;
+            case SUGAR -> FoodEvidenceField.SUGAR;
+            case SODIUM -> FoodEvidenceField.SODIUM;
+            case PRODUCT_NAME, BRAND -> null;
+        };
     }
 
     public void requireProductQuality(FoodItemEntity product) {

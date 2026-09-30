@@ -9,12 +9,14 @@ import com.grun.calorietracker.enums.FoodProductAssetDeletionState;
 import com.grun.calorietracker.enums.FoodProductAssetUploadState;
 import com.grun.calorietracker.enums.FoodProductReviewAssetType;
 import com.grun.calorietracker.enums.FoodProductReviewCaseSource;
+import com.grun.calorietracker.enums.ProductIntakeApplyField;
 import com.grun.calorietracker.repository.FoodProductReviewCaseAssetRepository;
 import com.grun.calorietracker.repository.FoodProductSourceEvidenceRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,6 +62,29 @@ class ProductIntakeApplyGateTest {
 
         assertThrows(IllegalStateException.class,
                 () -> gate.requirePublishable(reviewCase, reviewCase.getFoodItem()));
+    }
+
+    @Test
+    void textOnlyExistingProductCorrectionDoesNotRequireNutritionEvidence() {
+        FoodProductReviewCaseEntity reviewCase = reviewCase();
+
+        assertDoesNotThrow(() -> gate.requireAcceptedEvidence(
+                reviewCase,
+                Set.of(ProductIntakeApplyField.PRODUCT_NAME, ProductIntakeApplyField.BRAND)
+        ));
+    }
+
+    @Test
+    void selectedNutritionCorrectionRequiresEvidenceForThatField() {
+        FoodProductReviewCaseEntity reviewCase = reviewCase();
+        when(evidence.findByFoodItemIdOrderByObservedAtDescIdDesc(9L)).thenReturn(List.of(
+                evidence(reviewCase, FoodEvidenceField.CALORIES)
+        ));
+
+        assertThrows(IllegalStateException.class, () -> gate.requireAcceptedEvidence(
+                reviewCase,
+                Set.of(ProductIntakeApplyField.CALORIES, ProductIntakeApplyField.PROTEIN)
+        ));
     }
 
     private FoodProductReviewCaseEntity reviewCase() {

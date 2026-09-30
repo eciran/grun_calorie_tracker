@@ -4,8 +4,9 @@ import type { AdminAccessProfile } from "../types";
 import type { AdminTargetContext } from "../admin/shared";
 import { useAdminLocale } from "../admin/locale";
 import { CanonicalDuplicateWorkspace } from "./CanonicalDuplicateWorkspace";
+import { BrandedDuplicateWorkspace } from "./BrandedDuplicateWorkspace";
 
-type WorkspaceTab = "contributions" | "duplicates";
+type WorkspaceTab = "contributions" | "duplicates" | "brandedDuplicates";
 
 export function CatalogEvidenceWorkspace({
   initialTab = "contributions",
@@ -33,9 +34,13 @@ export function CatalogEvidenceWorkspace({
         <span>{locale === "tr" ? "Tekrarlanan ürünler" : "Duplicate products"}</span>
         <small>{locale === "tr" ? "Ana ürün ve kimlik kararları" : "Primary product and identity decisions"}</small>
       </button>
+      <button type="button" role="tab" aria-selected={tab === "brandedDuplicates"} className={tab === "brandedDuplicates" ? "active" : ""} onClick={() => setTab("brandedDuplicates")}>
+        <span>{locale === "tr" ? "Markalı eşleşmeler" : "Branded matches"}</span>
+        <small>{locale === "tr" ? "GTIN, varyant ve survivor kararları" : "GTIN, variant and survivor decisions"}</small>
+      </button>
     </div>
-    {tab === "contributions"
-      ? <ProductIntakeView accessProfile={accessProfile} onError={onError} targetContext={targetContext} onClearTarget={onClearTarget} />
-      : <CanonicalDuplicateWorkspace onError={onError} />}
+    {tab === "contributions" && <ProductIntakeView accessProfile={accessProfile} onError={onError} targetContext={targetContext} onClearTarget={onClearTarget} />}
+    {tab === "duplicates" && <CanonicalDuplicateWorkspace onError={onError} />}
+    {tab === "brandedDuplicates" && <BrandedDuplicateWorkspace onError={onError} canManage={Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"))} />}
   </div>;
 }

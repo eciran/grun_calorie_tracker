@@ -25,7 +25,8 @@ public class ProductAnalyticsServiceImpl implements ProductAnalyticsService {
 
     private static final int MAX_METADATA_JSON_LENGTH = 4000;
     private static final Set<String> ALLOWED_METADATA_KEYS = Set.of(
-            "resultCount", "source", "outcome", "variant", "reasonCode");
+            "resultCount", "source", "outcome", "variant", "reasonCode",
+            "mealType", "strategy", "matchScore");
 
     private final UserRepository userRepository;
     private final ProductAnalyticsEventRepository productAnalyticsEventRepository;

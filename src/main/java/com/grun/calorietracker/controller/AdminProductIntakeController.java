@@ -10,6 +10,7 @@ import com.grun.calorietracker.dto.AdminProductIntakeApplyRequestDto;
 import com.grun.calorietracker.dto.AdminProductIntakePublishRequestDto;
 import com.grun.calorietracker.dto.AdminProductIntakePageDto;
 import com.grun.calorietracker.dto.AdminProductIntakeReassignRequestDto;
+import com.grun.calorietracker.dto.AdminProductIntakeSubmittedFieldsUpdateRequestDto;
 import com.grun.calorietracker.enums.AdminProductIntakeQueue;
 import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -141,6 +142,15 @@ public class AdminProductIntakeController {
             @RequestBody @Valid AdminProductIntakeApplyRequestDto request
     ) {
         return ResponseEntity.ok(service.applyExistingProduct(caseId, userDetails.getUsername(), request.fields(), request.confirmed()));
+    }
+    @PatchMapping("/{caseId}/submitted-fields")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")
+    public ResponseEntity<AdminProductIntakeDetailDto> updateSubmittedFields(
+            @PathVariable Long caseId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid AdminProductIntakeSubmittedFieldsUpdateRequestDto request
+    ) {
+        return ResponseEntity.ok(service.updateSubmittedFields(caseId, userDetails.getUsername(), request.fields()));
     }
     @PostMapping("/manual")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN_CATALOG')")

@@ -4,10 +4,12 @@ import com.grun.calorietracker.dto.MealReminderInteractionRequestDto;
 import com.grun.calorietracker.dto.MealReminderNotificationContextDto;
 import com.grun.calorietracker.entity.*;
 import com.grun.calorietracker.enums.MealReminderInteractionType;
+import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.event.FoodDiaryChangedEvent;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.*;
+import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.support.UserTimeZoneSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class MealReminderInteractionService {
     private final RecipeLogRepository recipeLogs;
     private final UserTimeZoneSupport timeZones;
     private final Clock analyticsClock;
+    private final SubscriptionService subscriptionService;
 
     @Transactional
     public MealReminderNotificationContextDto resolveAndRecordOpen(
@@ -50,8 +53,11 @@ public class MealReminderInteractionService {
         }
         boolean stale = !occurrence.getLocalDate().equals(now.atZone(timeZones.zoneId(user)).toLocalDate());
         String mealType = stale ? null : targetedMeal(occurrence.getCandidate());
+        boolean nextMealAllowed = mealType != null && subscriptionService.hasFeatureAccess(
+                email, SubscriptionFeature.NEXT_MEAL_SUGGESTIONS);
         return new MealReminderNotificationContextDto(notificationId, occurrence.getId(), occurrence.getLocalDate(),
-                mealType == null ? "DAILY_DIARY" : "MEAL_ADD", mealType, "diary", stale, 1);
+                mealType == null ? "DAILY_DIARY" : nextMealAllowed ? "NEXT_MEAL" : "MEAL_ADD",
+                mealType, nextMealAllowed ? "meal-coach/next" : "diary", stale, 2);
     }
 
     @Transactional

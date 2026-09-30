@@ -66,7 +66,7 @@ public class FoodProductReviewCaseEvidenceServiceImpl implements FoodProductRevi
             evidence.setFingerprint(fingerprint(provider, externalId, field.getValue(), value, sourceVersion));
             candidates.add(evidence);
         }
-        if (candidates.isEmpty()) throw new IllegalArgumentException("Accepted review case has no numeric nutrition evidence.");
+        if (candidates.isEmpty()) return 0;
         Set<String> existing = new HashSet<>(repository.findExistingFingerprints(candidates.stream().map(FoodProductSourceEvidenceEntity::getFingerprint).toList()));
         List<FoodProductSourceEvidenceEntity> additions = candidates.stream().filter(value -> !existing.contains(value.getFingerprint())).toList();
         repository.saveAll(additions);

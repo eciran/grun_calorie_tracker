@@ -19,6 +19,7 @@ export const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA",
 export const FOOD_SEARCH_ALIAS_TYPES = ["ADMIN_MANUAL", "TRANSLATION", "SYNONYM", "ASCII_NORMALIZED", "COMMON_NAME"];
 
 export const QUALITY_ISSUES = [
+  "MISSING_CANONICAL_CATEGORY",
   "LOW_QUALITY",
   "MISSING_IMAGE",
   "MISSING_CALORIES",
@@ -34,6 +35,14 @@ export const QUALITY_ISSUES = [
   "INVALID_BARCODE_FORMAT",
   "UNSUPPORTED_REGION"
 ];
+
+const QUALITY_ISSUE_GROUPS = [
+  { key: "category", tr: "Kategori ve sınıflandırma", en: "Category and classification", values: ["MISSING_CANONICAL_CATEGORY"] },
+  { key: "identity", tr: "Kimlik ve katalog", en: "Identity and catalog", values: ["LOW_QUALITY", "MISSING_BARCODE", "INVALID_BARCODE_FORMAT"] },
+  { key: "nutrition", tr: "Besin değerleri ve porsiyon", en: "Nutrition and serving", values: ["MISSING_CALORIES", "SUSPICIOUS_CALORIES", "MISSING_MACROS", "SUSPICIOUS_MACROS", "MISSING_MICRONUTRIENTS", "MISSING_NUTRIENT_QUALITY_FIELDS", "SUSPICIOUS_NUTRIENT_QUALITY", "MISSING_SERVING_SIZE"] },
+  { key: "media", tr: "Görsel", en: "Media", values: ["MISSING_IMAGE"] },
+  { key: "market", tr: "Pazar ve bölge", en: "Market and region", values: ["MISSING_REGION", "UNSUPPORTED_REGION"] }
+] as const;
 
 export type ProductReviewDraft = {
   productName: string;
@@ -220,6 +229,7 @@ const productReviewMessages = {
     modeDescription: { queue: "Öncelikli ürünleri bulun, kanıtları kontrol edin ve katalog kararını tamamlayın.", images: "Eksik veya inceleme bekleyen ürün görsellerini doğrulayın.", nutrition: "Şüpheli besin değerlerini kaynak kanıtlarıyla karşılaştırın.", rejected: "Reddedilen ürünleri ve karar gerekçelerini yeniden değerlendirin." },
     resetFilters: "Filtreleri sıfırla", returnedProducts: "Eşleşen ürün", returnedProductsHint: "Geçerli filtre sonucundaki toplam", highPriority: "Yüksek öncelik", highPriorityHint: "Öncelik puanı 100 ve üzeri", missingImages: "Görseli eksik", missingImagesHint: "Kullanılabilir görseli olmayan satırlar", activeFilters: "Etkin filtre", activeFiltersHint: "Kuyruğa uygulanan ölçütler",
     filtersTitle: "Kuyruğu daralt", filtersDescription: "İncelenecek ürünleri görev, kaynak ve kalite sorununa göre odaklayın.", productSearch: "Ürün ara", productSearchPlaceholder: "Ad, marka veya barkod", verification: "Doğrulama", imageStatus: "Görsel durumu", region: "Bölge", catalog: "Katalog", dataSource: "Veri kaynağı", qualityIssue: "Kalite sorunu", all: "Tümü", anyIssue: "Tüm sorunlar",
+    categoryQueue: "Kategori kararları", categoryQueueHint: "Birincil kategorisi bulunmayan ürünler", openQueue: "Kuyruğu aç",
     bulkTools: "Toplu düzeltme araçları", bulkWorkflow: "Toplu düzeltme akışı", bulkDescription: "Mevcut filtreyi dışa aktarın, değerleri dosyada düzeltin, önce prova çalıştırın ve sonuç temizse uygulayın.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Aktarılan satırları doğrulandı olarak işaretle", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula",
     queueEyebrow: "ÇALIŞMA KUYRUĞU", queueTitle: "İncelenecek ürünler", queueDescription: "Bir satır seçerek kanıt, kalite önerileri ve düzenleme alanlarını açın.", product: "Ürün", source: "Kaynak", review: "İnceleme", quality: "Kalite", nutrition: "Besin değerleri", empty: "Bu filtre için incelenecek ürün bulunamadı.", rejectTitle: "Ürün reddedilsin mi?", rejectMessage: "Ürün ve görsel reddedildi olarak işaretlenecek; karar denetim geçmişine kaydedilecek.", rejectAction: "Ürünü reddet"
   },
@@ -228,6 +238,7 @@ const productReviewMessages = {
     modeDescription: { queue: "Find priority products, verify evidence, and complete the catalog decision.", images: "Validate missing product images and images waiting for review.", nutrition: "Compare suspicious nutrition values against source evidence.", rejected: "Reassess rejected products and their decision history." },
     resetFilters: "Reset filters", returnedProducts: "Matching products", returnedProductsHint: "Total in the current filter", highPriority: "High priority", highPriorityHint: "Priority score 100 or above", missingImages: "Missing images", missingImagesHint: "Rows without a usable image", activeFilters: "Active filters", activeFiltersHint: "Criteria applied to the queue",
     filtersTitle: "Refine the queue", filtersDescription: "Focus the workload by task, source, and quality issue.", productSearch: "Product search", productSearchPlaceholder: "Name, brand, or barcode", verification: "Verification", imageStatus: "Image status", region: "Region", catalog: "Catalog", dataSource: "Data source", qualityIssue: "Quality issue", all: "All", anyIssue: "Any issue",
+    categoryQueue: "Category decisions", categoryQueueHint: "Products without a primary category", openQueue: "Open queue",
     bulkTools: "Bulk correction tools", bulkWorkflow: "Bulk correction workflow", bulkDescription: "Export the current filter, correct values in the file, run a dry run, and apply only after the result is clean.", exportFilter: "Export current filter", correctionFile: "Correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Mark imported rows verified", dryRun: "Run dry run", applyImport: "Apply import",
     queueEyebrow: "WORK QUEUE", queueTitle: "Products to review", queueDescription: "Select a row to open evidence, quality recommendations, and editing fields.", product: "Product", source: "Source", review: "Review", quality: "Quality", nutrition: "Nutrition", empty: "No products need review for this filter.", rejectTitle: "Reject product?", rejectMessage: "The product and its image will be marked rejected and the decision will be recorded in audit history.", rejectAction: "Reject product"
   }
@@ -275,6 +286,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const { data, state, reload } = useEndpoint<PageResponse<FoodProduct>>(path, onError);
   const { data: imageWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?imageStatus=NEEDS_REVIEW&qualityIssue=MISSING_IMAGE&page=0&size=1", onError);
   const { data: nutritionWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?qualityIssue=SUSPICIOUS_MACROS&page=0&size=1", onError);
+  const { data: categoryWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?qualityIssue=MISSING_CANONICAL_CATEGORY&page=0&size=1", onError);
   const { data: rejectedWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?verificationStatus=REJECTED&page=0&size=1", onError);
   const rows = data?.content ?? [];
   const totalElements = data?.totalElements ?? rows.length;
@@ -343,6 +355,20 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   function selectQualityLane(nextMode: "images" | "nutrition" | "rejected") {
     setActiveMode(nextMode);
     applyModeDefaults(nextMode);
+  }
+
+  function openCategoryQueue() {
+    setActiveMode("queue");
+    setQuery("");
+    setVerificationStatus("");
+    setImageStatus("");
+    setRegion("");
+    setCatalogType("");
+    setDataSource("");
+    setQualityIssue("MISSING_CANONICAL_CATEGORY");
+    setPage(0);
+    setSelectedProductId(undefined);
+    closeProductModal();
   }
 
   function openProduct(item: FoodProduct) {
@@ -519,13 +545,14 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
           <ProductReviewHealthChart products={rows} locale={locale} />
         </div>
         <div className="modern-hero-signals">
+          <article className="category"><span>{text.categoryQueue}</span><strong>{formatValue(categoryWorkload?.totalElements ?? 0)}</strong><small>{text.categoryQueueHint}</small><button className="text-action" type="button" onClick={openCategoryQueue}>{text.openQueue}</button></article>
           <article className="accent"><span>{locale === "tr" ? "Ortalama kalite" : "Average quality"}</span><strong>{averageQuality}</strong><small>/ 100</small></article>
           <article className="warning"><span>{text.highPriority}</span><strong>{formatValue(highPriorityCount)}</strong><small>{text.highPriorityHint}</small></article>
           <article className="danger"><span>{text.missingImages}</span><strong>{formatValue(missingImageCount)}</strong><small>{text.missingImagesHint}</small></article>
         </div>
       </section>}
       {qualityWorkspace && <div className="product-quality-overview">
-        <Panel title={locale === "tr" ? "İnceleme iş yükü" : "Review workload"} description={locale === "tr" ? "Üç kalite kuyruğunun güncel dağılımı." : "Current distribution across the three quality queues."}><ProductQualityWorkloadChart images={imageWorkload?.totalElements ?? 0} nutrition={nutritionWorkload?.totalElements ?? 0} rejected={rejectedWorkload?.totalElements ?? 0} locale={locale} /></Panel>
+        <Panel title={locale === "tr" ? "İnceleme iş yükü" : "Review workload"} description={locale === "tr" ? "Dört ürün karar kuyruğunun güncel dağılımı." : "Current distribution across the four product decision queues."}><ProductQualityWorkloadChart categories={categoryWorkload?.totalElements ?? 0} images={imageWorkload?.totalElements ?? 0} nutrition={nutritionWorkload?.totalElements ?? 0} rejected={rejectedWorkload?.totalElements ?? 0} locale={locale} /></Panel>
         <div className="product-quality-lanes" role="tablist" aria-label={locale === "tr" ? "Kalite kuyruğu" : "Quality queue"}>
           {(["images", "nutrition", "rejected"] as const).map((lane) => <button key={lane} type="button" role="tab" aria-selected={viewMode === lane} className={viewMode === lane ? "active" : ""} onClick={() => selectQualityLane(lane)}><span>{text.modeTitle[lane]}</span><strong>{formatValue(lane === "images" ? imageWorkload?.totalElements : lane === "nutrition" ? nutritionWorkload?.totalElements : rejectedWorkload?.totalElements)}</strong><small>{text.modeDescription[lane]}</small></button>)}
         </div>
@@ -595,7 +622,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
             {text.qualityIssue}
             <select value={qualityIssue} onChange={(event) => setQualityIssue(event.target.value)}>
               <option value="">{text.anyIssue}</option>
-              {QUALITY_ISSUES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+              {QUALITY_ISSUE_GROUPS.map((group) => <optgroup key={group.key} label={locale === "tr" ? group.tr : group.en}>{group.values.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}</optgroup>)}
             </select>
           </label>
         </div>

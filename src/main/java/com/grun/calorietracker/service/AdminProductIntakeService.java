@@ -10,6 +10,7 @@ import com.grun.calorietracker.enums.FoodProductReviewCaseStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ProductIntakeApplyField;
 import java.util.Set;
+import java.util.Map;
 
 public interface AdminProductIntakeService {
     AdminProductIntakePageDto list(String adminEmail, AdminProductIntakeQueue queue,
@@ -24,5 +25,6 @@ public interface AdminProductIntakeService {
     AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields, boolean confirmed);
     AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId, boolean confirmed);
     AdminProductIntakeActionDto createManual(String actorEmail, AdminProductIntakeManualRequestDto request);
+    AdminProductIntakeDetailDto updateSubmittedFields(Long caseId, String actorEmail, Map<String, Object> fields);
     AdminProductIntakeDetailDto detail(Long caseId);
 }

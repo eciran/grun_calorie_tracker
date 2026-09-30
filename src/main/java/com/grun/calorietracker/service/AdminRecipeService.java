@@ -11,9 +11,11 @@ import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
+import com.grun.calorietracker.dto.AdminFoodItemLocalizationUpsertRequestDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
@@ -32,6 +34,7 @@ public interface AdminRecipeService {
                                    ImageStatus imageStatus,
                                    ImageSource imageSource,
                                    RecipeAllergen allergen,
+                                   PreferredLanguage missingIngredientLanguage,
                                    int page,
                                    int size);
 
@@ -40,6 +43,12 @@ public interface AdminRecipeService {
     AdminRecipeDto createRecipe(AdminRecipeCreateRequestDto request, String adminEmail);
 
     AdminRecipeDto updateRecipeReview(Long id, AdminRecipeReviewRequestDto request, String adminEmail);
+
+    AdminRecipeDto upsertIngredientLocalization(Long recipeId,
+                                                Long foodItemId,
+                                                PreferredLanguage language,
+                                                AdminFoodItemLocalizationUpsertRequestDto request,
+                                                String adminEmail);
 
     void archiveRecipe(Long id, String adminEmail);
 

@@ -7,6 +7,8 @@ import { dirname, resolve } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const app = readAdminAppSource();
 const productIntake = readFileSync(resolve(root, "src/ProductIntakeView.tsx"), "utf8");
+const productReview = readFileSync(resolve(root, "src/pages/ProductReviewView.tsx"), "utf8");
+const catalogCharts = readFileSync(resolve(root, "src/CatalogWorkspaceCharts.tsx"), "utf8");
 
 const requiredWorkbenchTabs = ["overview", "nutrition", "names", "aliases", "serving", "evidence", "ai", "audit"];
 for (const tab of requiredWorkbenchTabs) {
@@ -32,6 +34,12 @@ assert.match(app, /Math\.min\(selectedOpenSuggestionIds\.length, 25\)/, "Bulk AI
 assert.match(app, /readProductReviewRouteState/, "Product review filters must be restorable from the page URL.");
 assert.match(app, /productReviewRouteSearch/, "Product review state must be serialized into the page URL.");
 assert.match(app, /params\.set\("productId", String\(state\.selectedProductId\)\)/, "Selected product identity must be persisted for reload/back navigation.");
+assert.match(productReview, /"MISSING_CANONICAL_CATEGORY"/, "Canonical category review issue must be available in the product queue.");
+assert.match(productReview, /qualityIssue=MISSING_CANONICAL_CATEGORY&page=0&size=1/, "Canonical category workload counter is not wired.");
+assert.match(productReview, /function openCategoryQueue\(\)/, "Canonical category queue shortcut is missing.");
+assert.match(productReview, /setVerificationStatus\(""\)[\s\S]*setQualityIssue\("MISSING_CANONICAL_CATEGORY"\)/, "Category shortcut must not retain the raw-import status filter.");
+assert.match(productReview, /QUALITY_ISSUE_GROUPS\.map/, "Product quality issues must be grouped by operational category.");
+assert.match(catalogCharts, /categories \+ images \+ nutrition \+ rejected/, "Category workload must be included in the product quality chart total.");
 assert.match(productIntake, /OCR processing history/, "Product intake must expose persisted OCR processing history.");
 assert.match(productIntake, /v3Fields[\s\S]*v4Fields[\s\S]*fallbackFields[\s\S]*confirmedFields/, "OCR review must compare parser, fallback, and user-confirmed fields.");
 assert.match(productIntake, /run\.fallbackInvoked[\s\S]*run\.latencyMs[\s\S]*run\.estimatedCostUsd/, "OCR review must distinguish fallback execution, latency, and measured cost.");

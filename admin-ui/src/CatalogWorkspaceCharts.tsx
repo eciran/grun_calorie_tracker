@@ -50,14 +50,15 @@ export function CatalogImportJobsChart({ jobs }: { jobs: AdminCatalogImportJob[]
   return <AdminEChart ariaLabel="Catalog import job status" buildOption={buildOption} className="catalog-workspace-chart" />;
 }
 
-export function ProductQualityWorkloadChart({ images, nutrition, rejected, locale = "en" }: { images: number; nutrition: number; rejected: number; locale?: "tr" | "en" }) {
+export function ProductQualityWorkloadChart({ categories, images, nutrition, rejected, locale = "en" }: { categories: number; images: number; nutrition: number; rejected: number; locale?: "tr" | "en" }) {
   const buildOption = useCallback(() => {
     const palette = adminChartPalette();
-    const total = images + nutrition + rejected;
+    const total = categories + images + nutrition + rejected;
     return ({
     tooltip: { trigger: "item" }, legend: { bottom: 0, show: total > 0, textStyle: { color: palette.muted } },
     series: [{ type: "pie", radius: ["48%", "73%"], center: ["50%", "43%"], padAngle: 3, itemStyle: { borderRadius: 5, borderWidth: 2, borderColor: palette.surface }, label: { show: false }, data: [
       ...(total === 0 ? [{ name: "No workload", value: 1, itemStyle: { color: palette.line } }] : [
+        { name: locale === "tr" ? "Kategori kararı" : "Category decision", value: categories, itemStyle: { color: "#397ea8" } },
         { name: locale === "tr" ? "Görsel inceleme" : "Image review", value: images, itemStyle: { color: "#8065a0" } },
         { name: locale === "tr" ? "Besin inceleme" : "Nutrition review", value: nutrition, itemStyle: { color: "#2f8f68" } },
         { name: locale === "tr" ? "Reddedildi" : "Rejected", value: rejected, itemStyle: { color: "#b63c4b" } }
@@ -65,7 +66,7 @@ export function ProductQualityWorkloadChart({ images, nutrition, rejected, local
     ] }],
     graphic: { type: "text", left: "center", top: "38%", style: { text: compact(total), fill: palette.text, fontFamily: palette.fontFamily, fontSize: 20, fontWeight: 700 } }
     });
-  }, [images, locale, nutrition, rejected]);
+  }, [categories, images, locale, nutrition, rejected]);
   return <AdminEChart ariaLabel="Product quality workload" buildOption={buildOption} className="product-quality-workload-chart" />;
 }
 

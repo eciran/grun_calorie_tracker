@@ -8,6 +8,9 @@ import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.RecipeSourceType;
+import com.grun.calorietracker.enums.RecipeReviewAnalysisStatus;
+import com.grun.calorietracker.enums.RecipeReviewRiskLevel;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -29,6 +32,13 @@ public class AdminRecipeDto {
     private MarketRegion marketRegion;
     private Set<MarketRegion> marketRegions;
     private String language;
+    private RecipeSourceType sourceType;
+    private Long sourceAiRequestId;
+    private Long sourceImportCandidateId;
+    private RecipeReviewAnalysisStatus analysisStatus;
+    private RecipeReviewRiskLevel analysisRiskLevel;
+    private Integer analysisQualityScore;
+    private LocalDateTime analysisUpdatedAt;
     private Set<PreferredLanguage> availableLanguages;
     private List<RecipeTranslationRequestDto> translations;
     private String imageUrl;
@@ -55,6 +65,9 @@ public class AdminRecipeDto {
     private Set<RecipeAllergen> allergens;
     private Boolean archived;
     private Integer ingredientCount;
+    private Integer missingTurkishIngredientTranslationCount;
+    private Integer missingEnglishIngredientTranslationCount;
+    private Integer missingRequestedIngredientTranslationCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<RecipeIngredientDto> ingredients;

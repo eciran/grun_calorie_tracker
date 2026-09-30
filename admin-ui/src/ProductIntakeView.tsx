@@ -58,6 +58,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [applyFields, setApplyFields] = useState<string[]>([]);
+  const [submittedEdits, setSubmittedEdits] = useState<Record<string, string>>({});
   const [evidencePreview, setEvidencePreview] = useState<EvidenceRead | null>(null);
   const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string | null>(null);
   const [evidenceLoadingId, setEvidenceLoadingId] = useState<number | null>(null);
@@ -97,6 +98,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
       setNote(detail.reviewNote ?? "");
       setFoodItemId(detail.linkedFoodItemId ? String(detail.linkedFoodItemId) : "");
       setApplyFields([]);
+      setSubmittedEdits(comparisonEditValues(detail.fieldComparisons ?? []));
       setEvidencePreview(null);
       setEvidencePreviewUrl(null);
     } catch (error) {
@@ -138,6 +140,33 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
   async function applyConfirmedFields(fields: string[]) {
     setConfirmation(null);
     await mutate("apply-existing", { fields, confirmed: true }, locale === "tr" ? "Seçilen alanlar mevcut ürüne uygulandı." : "Selected fields applied to the existing product.");
+  }
+
+  async function saveSubmittedEdits() {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const fields: Record<string, unknown> = {};
+      for (const comparison of selected.fieldComparisons ?? []) {
+        if (!toApplyField(comparison.field) || !(comparison.field in submittedEdits)) continue;
+        fields[comparison.field] = editableSubmittedValue(comparison.field, submittedEdits[comparison.field]);
+      }
+      if (!Object.keys(fields).length) return;
+      const updated = await request<IntakeDetail>(`/api/v1/admin/product-intakes/${selected.summary.id}/submitted-fields`, {
+        method: "PATCH",
+        body: { fields }
+      });
+      setSelected(updated);
+      setSubmittedEdits(comparisonEditValues(updated.fieldComparisons ?? []));
+      setApplyFields([]);
+      setNotice(locale === "tr" ? "Gönderilen değerler güncellendi." : "Submitted values updated.");
+      window.setTimeout(() => setNotice(null), 2500);
+      await reload();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function publishConfirmedCandidate() {
@@ -213,7 +242,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
         </div>
         <div className="contribution-review-body">
           <div className="contribution-review-details">
-            <FieldComparisonReview comparisons={selected.fieldComparisons ?? []} locale={locale} canSelect={canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING"} selectedFields={applyFields} onSelectionChange={setApplyFields} />
+            <FieldComparisonReview comparisons={selected.fieldComparisons ?? []} locale={locale} canEdit={canWrite && selectedEvidenceReviewable} editValues={submittedEdits} onEdit={(field, value) => setSubmittedEdits((current) => ({ ...current, [field]: value }))} onSave={() => void saveSubmittedEdits()} editBusy={busy} canSelect={canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING"} selectedFields={applyFields} onSelectionChange={setApplyFields} />
             {selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING" && canWrite && <div className="review-apply-panel"><strong>Apply selected fields to the published product</strong><p>Only checked fields will change. Barcode, market and publication state are never edited here.</p><button className="primary-button" type="button" disabled={busy || applyFields.length === 0} onClick={applySelectedFields}>Apply {applyFields.length} selected field{applyFields.length === 1 ? "" : "s"}</button></div>}
             {(selected.warnings ?? []).map((warning) => <div className="warning-banner" key={warning}>{warning}</div>)}
             <h3>{locale === "tr" ? "OCR işlem geçmişi" : "OCR processing history"}</h3>
@@ -295,15 +324,15 @@ function SummaryItem({ label, value, tone }: { label: string; value?: string; to
   return <div className={`intake-summary-item${tone ? ` ${tone}` : ""}`}><span>{label}</span><strong>{value?.replaceAll("_", " ") || "-"}</strong></div>;
 }
 
-function FieldComparisonReview({ comparisons, locale, canSelect, selectedFields, onSelectionChange }: { comparisons: FieldComparison[]; locale: "tr" | "en"; canSelect: boolean; selectedFields: string[]; onSelectionChange: (fields: string[]) => void }) {
+function FieldComparisonReview({ comparisons, locale, canEdit, editValues, onEdit, onSave, editBusy, canSelect, selectedFields, onSelectionChange }: { comparisons: FieldComparison[]; locale: "tr" | "en"; canEdit: boolean; editValues: Record<string, string>; onEdit: (field: string, value: string) => void; onSave: () => void; editBusy: boolean; canSelect: boolean; selectedFields: string[]; onSelectionChange: (fields: string[]) => void }) {
   const groups = ["identity", "nutrition", "serving", "metadata"] as const;
-  const visible = comparisons.filter((item) => item.field !== "originalInput");
+  const visible = comparisons.filter((item) => item.field !== "originalInput" && !item.equal);
   const raw = comparisons.find((item) => item.field === "originalInput");
   const differenceCount = visible.filter((item) => !item.equal).length;
   const highImpactCount = visible.filter((item) => !item.equal && item.highImpact).length;
   return <section className="field-comparison-workspace">
     <div className="comparison-heading">
-      <div><span>{locale === "tr" ? "ALAN KARŞILAŞTIRMASI" : "FIELD COMPARISON"}</span><h3>{locale === "tr" ? "Gönderilen değerler ve katalog kaydı" : "Submitted values and catalog record"}</h3><p>{locale === "tr" ? "Her alanı aynı satırda karşılaştırın. Farklı alanlar renk ve durum etiketiyle belirtilir." : "Compare both sources on one row. Differences are marked with a status and color."}</p></div>
+      <div><span>{locale === "tr" ? "ALAN KARŞILAŞTIRMASI" : "FIELD COMPARISON"}</span><h3>{locale === "tr" ? "Katalogdan farklı gönderilen değerler" : "Submitted values that differ from the catalog"}</h3><p>{locale === "tr" ? "Yalnızca kullanıcının farklı gönderdiği alanlar gösterilir. Desteklenen değerleri onaydan önce düzenleyebilirsiniz." : "Only submitted fields that differ from the catalog are shown. Supported values can be edited before approval."}</p></div>
       <div className="comparison-counts"><span>{differenceCount} {locale === "tr" ? "fark" : "differences"}</span>{highImpactCount > 0 && <span className="danger">{highImpactCount} {locale === "tr" ? "yüksek etki" : "high impact"}</span>}</div>
     </div>
     <div className="comparison-column-guide" aria-hidden="true"><span>{locale === "tr" ? "Alan" : "Field"}</span><span>{locale === "tr" ? "Gönderilen" : "Submitted"}</span><span>{locale === "tr" ? "Katalog" : "Catalog"}</span><span>{locale === "tr" ? "Sonuç" : "Result"}</span></div>
@@ -313,15 +342,17 @@ function FieldComparisonReview({ comparisons, locale, canSelect, selectedFields,
       return <section className="comparison-group" key={group}><h4>{comparisonGroupLabel(group, locale)}</h4><div>{items.map((item) => {
         const applyField = toApplyField(item.field);
         const selectable = canSelect && Boolean(applyField);
+        const editable = canEdit && Boolean(applyField);
         const checked = Boolean(applyField && selectedFields.includes(applyField));
         return <div className={`comparison-row${item.equal ? " equal" : item.highImpact ? " high-impact" : " different"}`} key={item.field}>
           <div className="comparison-field">{selectable && <input type="checkbox" aria-label={`${locale === "tr" ? "Uygula" : "Apply"} ${fieldLabel(item.field, locale)}`} checked={checked} onChange={(event) => onSelectionChange(event.target.checked ? [...selectedFields, applyField!] : selectedFields.filter((value) => value !== applyField))} />}<strong>{fieldLabel(item.field, locale)}</strong><small>{item.field}</small></div>
-          <ComparisonValue value={item.submittedValue} emptyLabel={locale === "tr" ? "Gönderilmedi" : "Not submitted"} />
+          {editable ? <label className="comparison-value comparison-edit-value"><span className="sr-only">{fieldLabel(item.field, locale)}</span><input type={isNumericApplyField(applyField!) ? "number" : "text"} min={isNumericApplyField(applyField!) ? 0 : undefined} step={isNumericApplyField(applyField!) ? "any" : undefined} value={editValues[item.field] ?? ""} onChange={(event) => onEdit(item.field, event.target.value)} /></label> : <ComparisonValue value={item.submittedValue} emptyLabel={locale === "tr" ? "Gönderilmedi" : "Not submitted"} />}
           <ComparisonValue value={item.catalogValue} emptyLabel={locale === "tr" ? "Katalogda yok" : "Not in catalog"} />
           <span className="comparison-status">{item.equal ? (locale === "tr" ? "Eşleşiyor" : "Match") : item.highImpact ? (locale === "tr" ? "Yüksek etki" : "High impact") : (locale === "tr" ? "Farklı" : "Different")}</span>
         </div>;
       })}</div></section>;
     })}
+    {canEdit && visible.some((item) => Boolean(toApplyField(item.field))) && <div className="comparison-edit-actions"><button className="ghost-button" type="button" disabled={editBusy} onClick={onSave}>{editBusy ? (locale === "tr" ? "Kaydediliyor…" : "Saving…") : (locale === "tr" ? "Düzenlenen değerleri kaydet" : "Save edited values")}</button></div>}
     {!visible.length && <p className="muted-text">{locale === "tr" ? "Karşılaştırılabilir alan bulunmuyor." : "No field comparison is available."}</p>}
     {raw && <details className="raw-submission"><summary>{locale === "tr" ? "Ham OCR girdisini görüntüle" : "View raw OCR input"}</summary><pre>{prettyField(raw.submittedValue)}</pre></details>}
   </section>;
@@ -360,6 +391,19 @@ function toApplyField(field: string) {
   const normalized = field.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
   const supported = new Set(["PRODUCT_NAME", "BRAND", "CALORIES", "PROTEIN", "FAT", "CARBS", "FIBER", "SUGAR", "SODIUM"]);
   return supported.has(normalized) ? normalized : null;
+}
+function isNumericApplyField(field: string) {
+  return !["PRODUCT_NAME", "BRAND"].includes(field);
+}
+function comparisonEditValues(comparisons: FieldComparison[]) {
+  return Object.fromEntries(comparisons.filter((item) => Boolean(toApplyField(item.field))).map((item) => [item.field, item.submittedValue == null ? "" : String(item.submittedValue)]));
+}
+function editableSubmittedValue(field: string, value: string) {
+  const applyField = toApplyField(field);
+  if (!applyField || !isNumericApplyField(applyField)) return value;
+  const parsed = Number(value.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${field} must be a valid non-negative number.`);
+  return parsed;
 }
 function queueLabel(value: QueueMode, locale: "tr" | "en") {
   const labels: Record<QueueMode, [string, string]> = {

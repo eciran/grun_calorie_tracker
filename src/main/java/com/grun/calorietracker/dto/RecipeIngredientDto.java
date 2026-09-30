@@ -11,6 +11,13 @@ public class RecipeIngredientDto {
     private Long servingOptionId;
     private String servingOptionLabel;
     private String foodName;
+    private String displayNameTr;
+    private String shortDisplayNameTr;
+    private String displayNameEn;
+    private String shortDisplayNameEn;
+    private String resolvedDisplayName;
+    private String resolvedDisplayLanguage;
+    private Boolean requestedLanguageMissing;
     private Boolean snapshotIngredient;
     private Double portionSize;
     private FoodPortionUnit portionUnit;

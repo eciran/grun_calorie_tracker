@@ -43,6 +43,80 @@ public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>,
     Optional<FoodItemEntity> findByBarcode(String barcode);
     Optional<FoodItemEntity> findByNormalizedBarcode(String normalizedBarcode);
     Optional<FoodItemEntity> findBySourceKey(String sourceKey);
+
+    @Query(value = """
+            SELECT item.id
+            FROM food_items item
+            WHERE item.id > :afterId
+              AND COALESCE(item.is_custom, false) = false
+              AND EXISTS (
+                  SELECT 1
+                  FROM food_item_source_categories source
+                  JOIN food_category_source_mappings mapping
+                    ON mapping.data_source = item.data_source
+                   AND mapping.normalized_source_tag = lower(trim(source.category_tag))
+                   AND (mapping.market_region IS NULL OR mapping.market_region = item.market_region)
+                   AND mapping.status IN ('ACTIVE', 'REVIEW_REQUIRED')
+                  WHERE source.food_item_id = item.id
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM food_item_categories assignment
+                  WHERE assignment.food_item_id = item.id
+                    AND assignment.primary_category = true
+              )
+            ORDER BY item.id
+            """, nativeQuery = true)
+    List<Long> findCategoryResolutionBackfillIds(
+            @Param("afterId") Long afterId,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM food_items item
+            WHERE COALESCE(item.is_custom, false) = false
+              AND EXISTS (
+                  SELECT 1
+                  FROM food_item_source_categories source
+                  JOIN food_category_source_mappings mapping
+                    ON mapping.data_source = item.data_source
+                   AND mapping.normalized_source_tag = lower(trim(source.category_tag))
+                   AND (mapping.market_region IS NULL OR mapping.market_region = item.market_region)
+                   AND mapping.status IN ('ACTIVE', 'REVIEW_REQUIRED')
+                  WHERE source.food_item_id = item.id
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM food_item_categories assignment
+                  WHERE assignment.food_item_id = item.id
+                    AND assignment.primary_category = true
+              )
+            """, nativeQuery = true)
+    long countCategoryResolutionBackfillCandidates();
+
+    @Query(value = """
+            SELECT MAX(item.id)
+            FROM food_items item
+            WHERE COALESCE(item.is_custom, false) = false
+              AND EXISTS (
+                  SELECT 1
+                  FROM food_item_source_categories source
+                  JOIN food_category_source_mappings mapping
+                    ON mapping.data_source = item.data_source
+                   AND mapping.normalized_source_tag = lower(trim(source.category_tag))
+                   AND (mapping.market_region IS NULL OR mapping.market_region = item.market_region)
+                   AND mapping.status IN ('ACTIVE', 'REVIEW_REQUIRED')
+                  WHERE source.food_item_id = item.id
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM food_item_categories assignment
+                  WHERE assignment.food_item_id = item.id
+                    AND assignment.primary_category = true
+              )
+            """, nativeQuery = true)
+    Long findLastCategoryResolutionBackfillCandidateId();
+
+    @EntityGraph(attributePaths = {"sourceCategoryTags"})
+    List<FoodItemEntity> findByIdIn(Collection<Long> ids, Sort sort);
     @Query("""
             SELECT DISTINCT f
             FROM FoodItemEntity f

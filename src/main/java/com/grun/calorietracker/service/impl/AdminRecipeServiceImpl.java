@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodItemLocalizationUpsertRequestDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AdminRecipeDto;
@@ -22,11 +23,14 @@ import com.grun.calorietracker.dto.RecipeStepDto;
 import com.grun.calorietracker.dto.RecipeIngredientDto;
 import com.grun.calorietracker.dto.RecipeTranslationRequestDto;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.NotificationEntity;
 import com.grun.calorietracker.entity.RecipeImportCandidateEntity;
 import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.RecipeTranslationEntity;
+import com.grun.calorietracker.entity.RecipeReviewAnalysisEntity;
 import com.grun.calorietracker.entity.RecipeTranslationStepEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
@@ -37,11 +41,14 @@ import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
+import com.grun.calorietracker.enums.RecipeSourceType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
+import com.grun.calorietracker.repository.RecipeReviewAnalysisRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.AdminAuditService;
@@ -80,9 +87,11 @@ import java.util.Set;
 public class AdminRecipeServiceImpl implements AdminRecipeService {
 
     private final RecipeRepository recipeRepository;
+    private final RecipeReviewAnalysisRepository recipeReviewAnalysisRepository;
     private final RecipeImportCandidateRepository recipeImportCandidateRepository;
     private final RecipeUserInteractionRepository recipeUserInteractionRepository;
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final RecipeService recipeService;
     private final RecipeMediaCacheService recipeMediaCacheService;
     private final AdminAuditService adminAuditService;
@@ -192,10 +201,11 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                                           ImageStatus imageStatus,
                                           ImageSource imageSource,
                                           RecipeAllergen allergen,
+                                          PreferredLanguage missingIngredientLanguage,
                                           int page,
                                           int size) {
         Page<RecipeEntity> recipes = recipeRepository.findAll(
-                buildSpecification(query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, allergen),
+                buildSpecification(query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, allergen, missingIngredientLanguage),
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
         AdminRecipePageDto dto = new AdminRecipePageDto();
@@ -207,6 +217,47 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setFirst(recipes.isFirst());
         dto.setLast(recipes.isLast());
         return dto;
+    }
+
+    @Override
+    @Transactional
+    public AdminRecipeDto upsertIngredientLocalization(Long recipeId,
+                                                       Long foodItemId,
+                                                       PreferredLanguage language,
+                                                       AdminFoodItemLocalizationUpsertRequestDto request,
+                                                       String adminEmail) {
+        RecipeEntity recipe = findRecipe(recipeId);
+        FoodItemEntity foodItem = recipe.getIngredients().stream()
+                .map(RecipeIngredientEntity::getFoodItem)
+                .filter(Objects::nonNull)
+                .filter(item -> Objects.equals(item.getId(), foodItemId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Food item is not an ingredient of this recipe."));
+        FoodItemLocalizationEntity localization = foodItemLocalizationRepository
+                .findByFoodItemIdAndLanguage(foodItemId, language)
+                .orElseGet(FoodItemLocalizationEntity::new);
+        Map<String, Object> oldValue = localization.getId() == null ? null : localizationAuditValue(localization);
+        localization.setFoodItem(foodItem);
+        localization.setLanguage(language);
+        localization.setDisplayName(normalizeRequiredDisplayName(request.displayName()));
+        localization.setShortDisplayName(trimToNull(request.shortDisplayName()));
+        localization.setSource("ADMIN_RECIPE_REVIEW");
+        localization.setActive(request.active() == null || request.active());
+        if (localization.getCreatedAt() == null) {
+            localization.setCreatedAt(LocalDateTime.now());
+        }
+        localization.setUpdatedAt(LocalDateTime.now());
+        foodItemLocalizationRepository.save(localization);
+        adminAuditService.record(
+                adminEmail,
+                AdminAuditActionType.RECIPE_REVIEW_UPDATE,
+                AdminAuditTargetType.CATALOG_REVIEW_ITEM,
+                foodItemId + ":localization:" + language,
+                oldValue,
+                localizationAuditValue(localization),
+                null
+        );
+        return toDto(recipe);
     }
 
     @Override
@@ -231,6 +282,10 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         }
 
         RecipeDto created = recipeService.createRecipe(ownerEmail, request.getRecipe());
+        recipeRepository.findById(created.getId()).ifPresent(recipe -> {
+            recipe.setSourceType(RecipeSourceType.ADMIN_CREATED);
+            recipeRepository.save(recipe);
+        });
         RecipeEntity recipe = findRecipe(created.getId());
         adminAuditService.record(
                 adminEmail,
@@ -322,13 +377,31 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 changed = true;
             }
         }
-        if (request.getMarketRegion() != null && !Objects.equals(recipe.getMarketRegion(), request.getMarketRegion())) {
-            recipe.setMarketRegion(request.getMarketRegion());
-            changed = true;
-        }
-        if (request.getMarketRegions() != null && !Objects.equals(recipe.getMarketRegions(), request.getMarketRegions())) {
-            recipe.setMarketRegions(new LinkedHashSet<>(request.getMarketRegions()));
-            changed = true;
+        if (request.getMarketRegions() != null) {
+            LinkedHashSet<MarketRegion> regions = new LinkedHashSet<>(request.getMarketRegions());
+            if (!Objects.equals(recipe.getMarketRegions(), regions)) {
+                recipe.setMarketRegions(regions);
+                changed = true;
+            }
+            MarketRegion primaryRegion = request.getMarketRegion() != null
+                    ? request.getMarketRegion()
+                    : regions.stream().findFirst().orElse(MarketRegion.GLOBAL);
+            if (!Objects.equals(recipe.getMarketRegion(), primaryRegion)) {
+                recipe.setMarketRegion(primaryRegion);
+                changed = true;
+            }
+        } else if (request.getMarketRegion() != null) {
+            MarketRegion region = request.getMarketRegion();
+            if (!Objects.equals(recipe.getMarketRegion(), region)) {
+                recipe.setMarketRegion(region);
+                changed = true;
+            }
+            LinkedHashSet<MarketRegion> regions = new LinkedHashSet<>();
+            regions.add(region);
+            if (!Objects.equals(recipe.getMarketRegions(), regions)) {
+                recipe.setMarketRegions(regions);
+                changed = true;
+            }
         }
         if (request.getLanguage() != null) {
             String language = trimToNull(request.getLanguage());
@@ -448,6 +521,8 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             batchId = "recipe-import-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         }
         List<AdminRecipeImportCandidateDto> candidates = new ArrayList<>();
+        int created = 0;
+        int updated = 0;
         int skipped = 0;
         int failed = 0;
         for (AdminRecipeImportCandidateRequestDto item : request.getRecipes()) {
@@ -456,29 +531,27 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                     failed++;
                     continue;
                 }
-                if (recipeImportCandidateRepository.existsByBatchIdAndSourceKey(batchId, item.getSourceKey().trim())) {
+                String sourceKey = item.getSourceKey().trim();
+                RecipeImportCandidateEntity candidate = recipeImportCandidateRepository
+                        .findByBatchIdAndSourceKey(batchId, sourceKey)
+                        .orElse(null);
+                if (candidate != null && candidate.getStatus() == RecipeImportCandidateStatus.APPROVED) {
                     skipped++;
                     continue;
                 }
-                RecipeImportCandidateEntity candidate = new RecipeImportCandidateEntity();
-                candidate.setBatchId(batchId);
-                candidate.setSourceKey(item.getSourceKey().trim());
-                candidate.setSourceTitle(trimToNull(item.getSourceTitle()));
-                candidate.setSourceUrl(trimToNull(item.getSourceUrl()));
-                candidate.setSourceRevisionUrl(trimToNull(item.getSourceRevisionUrl()));
-                candidate.setLicense(trimToNull(item.getLicense() == null && request.getSourcePolicy() != null ? request.getSourcePolicy().getLicense() : item.getLicense()));
-                candidate.setRecommendedImportStatus(trimToNull(item.getRecommendedImportStatus()));
-                candidate.setStatus(RecipeImportCandidateStatus.PENDING);
-                candidate.setRecipeName(item.getRecipe().getName().trim());
-                candidate.setMealType(normalizeMealType(item.getRecipe().getMealType()));
-                candidate.setMarketRegion(item.getRecipe().getMarketRegion());
-                candidate.setLanguage(trimToNull(item.getRecipe().getLanguage()));
-                List<AdminRecipeImportCandidateRequestDto.IngredientPayload> ingredients = item.getRecipe().getIngredients() == null ? List.of() : item.getRecipe().getIngredients();
-                candidate.setIngredientCount(ingredients.size());
-                candidate.setUnresolvedIngredientCount((int) ingredients.stream().filter(ingredient -> ingredient.getFoodItemId() == null).count());
-                candidate.setValidationIssues(buildImportValidationIssues(item));
-                candidate.setRawPayload(writeRawPayload(item));
+                boolean existing = candidate != null;
+                if (!existing) {
+                    candidate = new RecipeImportCandidateEntity();
+                    candidate.setBatchId(batchId);
+                    candidate.setSourceKey(sourceKey);
+                }
+                applyImportCandidatePayload(candidate, item, request);
                 candidates.add(toImportDto(recipeImportCandidateRepository.save(candidate)));
+                if (existing) {
+                    updated++;
+                } else {
+                    created++;
+                }
             } catch (RuntimeException ex) {
                 failed++;
             }
@@ -486,7 +559,8 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         AdminRecipeImportResultDto dto = new AdminRecipeImportResultDto();
         dto.setBatchId(batchId);
         dto.setTotalCandidates(request.getRecipes().size());
-        dto.setCreatedCandidates(candidates.size());
+        dto.setCreatedCandidates(created);
+        dto.setUpdatedCandidates(updated);
         dto.setSkippedDuplicates(skipped);
         dto.setFailedCandidates(failed);
         dto.setCandidates(candidates);
@@ -496,10 +570,40 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 AdminAuditTargetType.RECIPE,
                 "import-batch:" + batchId,
                 null,
-                Map.of("createdCandidates", candidates.size(), "skippedDuplicates", skipped, "failedCandidates", failed),
-                "Recipe JSON import candidates created. Candidates are not public until admin review."
+                Map.of("createdCandidates", created, "updatedCandidates", updated, "skippedDuplicates", skipped, "failedCandidates", failed),
+                "Recipe JSON import candidates created or updated. Candidates are not public until admin review."
         );
         return dto;
+    }
+
+    private void applyImportCandidatePayload(RecipeImportCandidateEntity candidate,
+                                             AdminRecipeImportCandidateRequestDto item,
+                                             AdminRecipeImportBatchRequestDto request) {
+        candidate.setSourceTitle(trimToNull(item.getSourceTitle()));
+        candidate.setSourceUrl(trimToNull(item.getSourceUrl()));
+        candidate.setSourceRevisionUrl(trimToNull(item.getSourceRevisionUrl()));
+        candidate.setLicense(trimToNull(item.getLicense() == null && request.getSourcePolicy() != null
+                ? request.getSourcePolicy().getLicense()
+                : item.getLicense()));
+        candidate.setRecommendedImportStatus(trimToNull(item.getRecommendedImportStatus()));
+        candidate.setStatus(RecipeImportCandidateStatus.PENDING);
+        candidate.setRecipeName(item.getRecipe().getName().trim());
+        candidate.setMealType(normalizeMealType(item.getRecipe().getMealType()));
+        candidate.setMarketRegion(item.getRecipe().getMarketRegion());
+        candidate.setLanguage(trimToNull(item.getRecipe().getLanguage()));
+        List<AdminRecipeImportCandidateRequestDto.IngredientPayload> ingredients = item.getRecipe().getIngredients() == null
+                ? List.of()
+                : item.getRecipe().getIngredients();
+        candidate.setIngredientCount(ingredients.size());
+        candidate.setUnresolvedIngredientCount((int) ingredients.stream()
+                .filter(ingredient -> ingredient.getFoodItemId() == null)
+                .count());
+        candidate.setValidationIssues(buildImportValidationIssues(item));
+        candidate.setRawPayload(writeRawPayload(item));
+        candidate.setCreatedRecipeId(null);
+        candidate.setReviewedBy(null);
+        candidate.setReviewedAt(null);
+        candidate.setReviewNote(null);
     }
 
     @Override
@@ -541,6 +645,11 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         AdminRecipeImportCandidateRequestDto source = readRawPayload(candidate.getRawPayload());
         AdminRecipeCreateRequestDto createRequest = toCreateRequest(source, request);
         AdminRecipeDto created = createRecipe(createRequest, adminEmail);
+        recipeRepository.findById(created.getId()).ifPresent(recipe -> {
+            recipe.setSourceType(RecipeSourceType.CATALOG_IMPORTED);
+            recipe.setSourceImportCandidateId(candidate.getId());
+            recipeRepository.save(recipe);
+        });
         candidate.setStatus(RecipeImportCandidateStatus.APPROVED);
         candidate.setCreatedRecipeId(created.getId());
         candidate.setReviewedBy(adminEmail);
@@ -556,7 +665,7 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 Map.of("createdRecipeId", created.getId(), "status", candidate.getStatus()),
                 candidate.getReviewNote()
         );
-        return created;
+        return toDto(findRecipe(created.getId()));
     }
 
     @Override
@@ -993,7 +1102,8 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                                                            MarketRegion marketRegion,
                                                            ImageStatus imageStatus,
                                                            ImageSource imageSource,
-                                                           RecipeAllergen allergen) {
+                                                           RecipeAllergen allergen,
+                                                           PreferredLanguage missingIngredientLanguage) {
         return (root, criteriaQuery, criteriaBuilder) -> {
             if (criteriaQuery != null && RecipeEntity.class.equals(criteriaQuery.getResultType())) {
                 root.fetch("ownerUser", JoinType.LEFT);
@@ -1035,6 +1145,20 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
                 Join<RecipeEntity, RecipeAllergen> allergenJoin = root.joinSet("allergens", JoinType.INNER);
                 predicates.add(criteriaBuilder.equal(allergenJoin, allergen));
             }
+            if (missingIngredientLanguage != null && criteriaQuery != null) {
+                Join<RecipeEntity, RecipeIngredientEntity> ingredientJoin = root.join("ingredients", JoinType.INNER);
+                Join<RecipeIngredientEntity, FoodItemEntity> foodItemJoin = ingredientJoin.join("foodItem", JoinType.INNER);
+                var localizationExists = criteriaQuery.subquery(Long.class);
+                var localizationRoot = localizationExists.from(FoodItemLocalizationEntity.class);
+                localizationExists.select(criteriaBuilder.literal(1L));
+                localizationExists.where(
+                        criteriaBuilder.equal(localizationRoot.get("foodItem"), foodItemJoin),
+                        criteriaBuilder.equal(localizationRoot.get("language"), missingIngredientLanguage),
+                        criteriaBuilder.isTrue(localizationRoot.get("active"))
+                );
+                predicates.add(criteriaBuilder.not(criteriaBuilder.exists(localizationExists)));
+                criteriaQuery.distinct(true);
+            }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
     }
@@ -1059,6 +1183,11 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setMarketRegion(recipe.getMarketRegion());
         dto.setMarketRegions(recipe.getMarketRegions() == null ? Set.of() : new LinkedHashSet<>(recipe.getMarketRegions()));
         dto.setLanguage(recipe.getLanguage());
+        dto.setSourceType(recipe.getSourceType());
+        dto.setSourceAiRequestId(recipe.getSourceAiRequestId());
+        dto.setSourceImportCandidateId(recipe.getSourceImportCandidateId());
+        recipeReviewAnalysisRepository.findFirstByRecipeIdOrderByCreatedAtDesc(recipe.getId())
+                .ifPresent(analysis -> applyAnalysisSummary(dto, analysis));
         dto.setAvailableLanguages(recipe.getTranslations() == null ? Set.of() : recipe.getTranslations().stream()
                 .map(RecipeTranslationEntity::getLanguage)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
@@ -1090,13 +1219,31 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setIngredientCount(recipe.getIngredients() == null ? 0 : recipe.getIngredients().size());
         dto.setCreatedAt(recipe.getCreatedAt());
         dto.setUpdatedAt(recipe.getUpdatedAt());
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> ingredientLocalizations =
+                loadIngredientLocalizations(recipe);
+        PreferredLanguage requestedLanguage = recipeLanguage(recipe);
         dto.setIngredients(recipe.getIngredients() == null
                 ? List.of()
-                : recipe.getIngredients().stream().map(this::toIngredientDto).toList());
+                : recipe.getIngredients().stream()
+                        .map(ingredient -> toIngredientDto(ingredient, ingredientLocalizations, requestedLanguage))
+                        .toList());
+        dto.setMissingTurkishIngredientTranslationCount(countMissingIngredientTranslations(
+                recipe, ingredientLocalizations, PreferredLanguage.TR));
+        dto.setMissingEnglishIngredientTranslationCount(countMissingIngredientTranslations(
+                recipe, ingredientLocalizations, PreferredLanguage.EN));
+        dto.setMissingRequestedIngredientTranslationCount(countMissingIngredientTranslations(
+                recipe, ingredientLocalizations, requestedLanguage));
         dto.setCookingSteps(recipe.getCookingSteps() == null
                 ? List.of()
                 : recipe.getCookingSteps().stream().map(this::toStepDto).toList());
         return dto;
+    }
+
+    private void applyAnalysisSummary(AdminRecipeDto dto, RecipeReviewAnalysisEntity analysis) {
+        dto.setAnalysisStatus(analysis.getStatus());
+        dto.setAnalysisRiskLevel(analysis.getRiskLevel());
+        dto.setAnalysisQualityScore(analysis.getQualityScore());
+        dto.setAnalysisUpdatedAt(analysis.getCompletedAt() == null ? analysis.getCreatedAt() : analysis.getCompletedAt());
     }
 
     private LinkedHashSet<com.grun.calorietracker.enums.RecipeCategory> copyCategories(RecipeEntity recipe) {
@@ -1126,14 +1273,44 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         }).toList());
         return dto;
     }
-    private RecipeIngredientDto toIngredientDto(RecipeIngredientEntity ingredient) {
+    private RecipeIngredientDto toIngredientDto(
+            RecipeIngredientEntity ingredient,
+            Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations,
+            PreferredLanguage requestedLanguage
+    ) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
         if (ingredient.getFoodItem() != null) {
-            dto.setFoodItemId(ingredient.getFoodItem().getId());
-            dto.setFoodName(ingredient.getFoodItem().getName());
+            FoodItemEntity foodItem = ingredient.getFoodItem();
+            dto.setFoodItemId(foodItem.getId());
+            dto.setFoodName(foodItem.getName());
+            Map<PreferredLanguage, FoodItemLocalizationEntity> byLanguage =
+                    localizations.getOrDefault(foodItem.getId(), Map.of());
+            FoodItemLocalizationEntity tr = byLanguage.get(PreferredLanguage.TR);
+            FoodItemLocalizationEntity en = byLanguage.get(PreferredLanguage.EN);
+            dto.setDisplayNameTr(displayName(tr));
+            dto.setShortDisplayNameTr(shortDisplayName(tr));
+            dto.setDisplayNameEn(displayName(en));
+            dto.setShortDisplayNameEn(shortDisplayName(en));
+            FoodItemLocalizationEntity requested = byLanguage.get(requestedLanguage);
+            if (hasDisplayName(requested)) {
+                dto.setResolvedDisplayName(preferredLocalizationName(requested));
+                dto.setResolvedDisplayLanguage(requestedLanguage.name());
+                dto.setRequestedLanguageMissing(false);
+            } else if (requestedLanguage != PreferredLanguage.EN && hasDisplayName(en)) {
+                dto.setResolvedDisplayName(preferredLocalizationName(en));
+                dto.setResolvedDisplayLanguage("EN_FALLBACK");
+                dto.setRequestedLanguageMissing(true);
+            } else {
+                dto.setResolvedDisplayName(firstNonBlank(foodItem.getShortDisplayName(), foodItem.getDisplayName(), foodItem.getName()));
+                dto.setResolvedDisplayLanguage("CANONICAL_FALLBACK");
+                dto.setRequestedLanguageMissing(true);
+            }
             dto.setSnapshotIngredient(false);
         } else {
             dto.setFoodName(ingredient.getSnapshotFoodName());
+            dto.setResolvedDisplayName(ingredient.getSnapshotFoodName());
+            dto.setResolvedDisplayLanguage("SNAPSHOT");
+            dto.setRequestedLanguageMissing(false);
             dto.setSnapshotIngredient(true);
         }
         dto.setPortionSize(ingredient.getPortionSize());
@@ -1159,6 +1336,98 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
         dto.setSnapshotVitaminE(ingredient.getSnapshotVitaminE());
         dto.setSnapshotVitaminB12(ingredient.getSnapshotVitaminB12());
         return dto;
+    }
+
+    private Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> loadIngredientLocalizations(RecipeEntity recipe) {
+        if (recipe.getIngredients() == null) {
+            return Map.of();
+        }
+        List<Long> foodItemIds = recipe.getIngredients().stream()
+                .map(RecipeIngredientEntity::getFoodItem)
+                .filter(Objects::nonNull)
+                .map(FoodItemEntity::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (foodItemIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> result = new LinkedHashMap<>();
+        foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(
+                foodItemIds, Set.of(PreferredLanguage.TR, PreferredLanguage.EN)
+        ).forEach(localization -> result
+                .computeIfAbsent(localization.getFoodItem().getId(), ignored -> new LinkedHashMap<>())
+                .put(localization.getLanguage(), localization));
+        return result;
+    }
+
+    private int countMissingIngredientTranslations(
+            RecipeEntity recipe,
+            Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations,
+            PreferredLanguage language
+    ) {
+        if (recipe.getIngredients() == null) {
+            return 0;
+        }
+        return (int) recipe.getIngredients().stream()
+                .map(RecipeIngredientEntity::getFoodItem)
+                .filter(Objects::nonNull)
+                .map(FoodItemEntity::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(id -> !hasDisplayName(localizations.getOrDefault(id, Map.of()).get(language)))
+                .count();
+    }
+
+    private PreferredLanguage recipeLanguage(RecipeEntity recipe) {
+        String language = trimToNull(recipe.getLanguage());
+        return language != null && language.toUpperCase(Locale.ROOT).startsWith("TR")
+                ? PreferredLanguage.TR
+                : PreferredLanguage.EN;
+    }
+
+    private boolean hasDisplayName(FoodItemLocalizationEntity localization) {
+        return localization != null && trimToNull(localization.getDisplayName()) != null;
+    }
+
+    private String displayName(FoodItemLocalizationEntity localization) {
+        return localization == null ? null : trimToNull(localization.getDisplayName());
+    }
+
+    private String shortDisplayName(FoodItemLocalizationEntity localization) {
+        return localization == null ? null : trimToNull(localization.getShortDisplayName());
+    }
+
+    private String preferredLocalizationName(FoodItemLocalizationEntity localization) {
+        return firstNonBlank(localization.getShortDisplayName(), localization.getDisplayName());
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeRequiredDisplayName(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException("Localized display name is required.");
+        }
+        return normalized;
+    }
+
+    private Map<String, Object> localizationAuditValue(FoodItemLocalizationEntity localization) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("language", localization.getLanguage());
+        value.put("displayName", localization.getDisplayName());
+        value.put("shortDisplayName", localization.getShortDisplayName());
+        value.put("active", localization.getActive());
+        value.put("source", localization.getSource());
+        return value;
     }
 
     private Map<String, Object> auditState(RecipeEntity recipe) {

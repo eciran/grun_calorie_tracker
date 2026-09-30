@@ -1,12 +1,19 @@
 package com.grun.calorietracker.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.AdminRecipeDto;
+import com.grun.calorietracker.dto.AdminFoodItemLocalizationUpsertRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportBatchRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeImportCandidateRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeImportResultDto;
 import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
 import com.grun.calorietracker.dto.RecipeIngredientRequestDto;
 import com.grun.calorietracker.entity.NotificationEntity;
+import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
+import com.grun.calorietracker.entity.RecipeImportCandidateEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
@@ -16,17 +23,21 @@ import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeCategory;
+import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.RecipeImportCandidateRepository;
 import com.grun.calorietracker.repository.RecipeRepository;
+import com.grun.calorietracker.repository.RecipeReviewAnalysisRepository;
 import com.grun.calorietracker.repository.RecipeUserInteractionRepository;
 import com.grun.calorietracker.service.impl.AdminRecipeServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -51,6 +62,8 @@ class AdminRecipeServiceImplTest {
     @Mock
     private RecipeRepository recipeRepository;
     @Mock
+    private RecipeReviewAnalysisRepository recipeReviewAnalysisRepository;
+    @Mock
     private RecipeUserInteractionRepository recipeUserInteractionRepository;
     @Mock
     private RecipeImportCandidateRepository recipeImportCandidateRepository;
@@ -59,11 +72,61 @@ class AdminRecipeServiceImplTest {
     @Mock
     private NotificationRepository notificationRepository;
     @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
+    @Mock
     private PushDeliveryService pushDeliveryService;
     @Mock
     private RecipeMediaCacheService recipeMediaCacheService;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     @InjectMocks
     private AdminRecipeServiceImpl service;
+
+    @Test
+    void importRecipeCandidates_whenPendingSourceAlreadyExists_updatesCandidateInPlace() {
+        AdminRecipeImportCandidateRequestDto.RecipePayload recipe = new AdminRecipeImportCandidateRequestDto.RecipePayload();
+        recipe.setName("Updated lentil soup");
+        recipe.setMealType("lunch");
+        recipe.setLanguage("en");
+        recipe.setIngredients(List.of());
+
+        AdminRecipeImportCandidateRequestDto item = new AdminRecipeImportCandidateRequestDto();
+        item.setSourceKey("lentil-soup-1");
+        item.setSourceTitle("Updated source title");
+        item.setRecipe(recipe);
+
+        AdminRecipeImportBatchRequestDto batch = new AdminRecipeImportBatchRequestDto();
+        batch.setBatchId("batch-2026-09");
+        batch.setRecipes(List.of(item));
+
+        RecipeImportCandidateEntity existing = new RecipeImportCandidateEntity();
+        existing.setId(41L);
+        existing.setBatchId("batch-2026-09");
+        existing.setSourceKey("lentil-soup-1");
+        existing.setStatus(RecipeImportCandidateStatus.REJECTED);
+        existing.setRecipeName("Old lentil soup");
+        existing.setRawPayload("{}");
+        existing.setReviewedBy("admin@grun.local");
+        existing.setReviewedAt(LocalDateTime.now().minusDays(1));
+        existing.setReviewNote("Old rejection");
+
+        when(recipeImportCandidateRepository.findByBatchIdAndSourceKey("batch-2026-09", "lentil-soup-1"))
+                .thenReturn(Optional.of(existing));
+        when(recipeImportCandidateRepository.save(any(RecipeImportCandidateEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminRecipeImportResultDto result = service.importRecipeCandidates(batch, "admin@grun.local");
+
+        assertEquals(0, result.getCreatedCandidates());
+        assertEquals(1, result.getUpdatedCandidates());
+        assertEquals(0, result.getSkippedDuplicates());
+        assertEquals("Updated lentil soup", existing.getRecipeName());
+        assertEquals("LUNCH", existing.getMealType());
+        assertEquals(RecipeImportCandidateStatus.PENDING, existing.getStatus());
+        assertNull(existing.getReviewedBy());
+        assertNull(existing.getReviewedAt());
+        assertNull(existing.getReviewNote());
+    }
 
     @Test
     void importedIngredients_useReviewedGramEstimateForCatalogMappings() {
@@ -340,6 +403,89 @@ class AdminRecipeServiceImplTest {
         assertEquals(true, result.getIngredients().get(0).getSnapshotIngredient());
         assertEquals(190.0, result.getIngredients().get(0).getSnapshotCalories());
         assertEquals(26.0, result.getIngredients().get(0).getSnapshotProtein());
+    }
+
+    @Test
+    void getRecipe_whenTurkishLocalizationIsMissing_exposesEnglishFallbackAndCoverageCounts() {
+        RecipeEntity recipe = new RecipeEntity();
+        recipe.setId(22L);
+        recipe.setName("Turkish recipe");
+        recipe.setLanguage("tr");
+        recipe.setArchived(false);
+        FoodItemEntity foodItem = new FoodItemEntity();
+        foodItem.setId(81L);
+        foodItem.setName("Chicken breast");
+        RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
+        ingredient.setRecipe(recipe);
+        ingredient.setFoodItem(foodItem);
+        recipe.setIngredients(List.of(ingredient));
+        FoodItemLocalizationEntity english = new FoodItemLocalizationEntity();
+        english.setFoodItem(foodItem);
+        english.setLanguage(PreferredLanguage.EN);
+        english.setDisplayName("Chicken breast");
+        english.setActive(true);
+        when(recipeRepository.findById(22L)).thenReturn(Optional.of(recipe));
+        when(foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(any(), any()))
+                .thenReturn(List.of(english));
+
+        AdminRecipeDto result = service.getRecipe(22L);
+
+        assertEquals(1, result.getMissingTurkishIngredientTranslationCount());
+        assertEquals(0, result.getMissingEnglishIngredientTranslationCount());
+        assertEquals(1, result.getMissingRequestedIngredientTranslationCount());
+        assertEquals("Chicken breast", result.getIngredients().get(0).getResolvedDisplayName());
+        assertEquals("EN_FALLBACK", result.getIngredients().get(0).getResolvedDisplayLanguage());
+        assertEquals(true, result.getIngredients().get(0).getRequestedLanguageMissing());
+    }
+
+    @Test
+    void upsertIngredientLocalization_whenIngredientBelongsToRecipe_savesAndAuditsLocalization() {
+        RecipeEntity recipe = new RecipeEntity();
+        recipe.setId(23L);
+        recipe.setName("Localized recipe");
+        recipe.setLanguage("tr");
+        FoodItemEntity foodItem = new FoodItemEntity();
+        foodItem.setId(82L);
+        foodItem.setName("Yogurt");
+        RecipeIngredientEntity ingredient = new RecipeIngredientEntity();
+        ingredient.setRecipe(recipe);
+        ingredient.setFoodItem(foodItem);
+        recipe.setIngredients(List.of(ingredient));
+        when(recipeRepository.findById(23L)).thenReturn(Optional.of(recipe));
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguage(82L, PreferredLanguage.TR))
+                .thenReturn(Optional.empty());
+        when(foodItemLocalizationRepository.findByFoodItemIdInAndLanguageInAndActiveTrue(any(), any()))
+                .thenAnswer(invocation -> {
+                    FoodItemLocalizationEntity saved = new FoodItemLocalizationEntity();
+                    saved.setFoodItem(foodItem);
+                    saved.setLanguage(PreferredLanguage.TR);
+                    saved.setDisplayName("Yoğurt");
+                    saved.setActive(true);
+                    return List.of(saved);
+                });
+
+        AdminRecipeDto result = service.upsertIngredientLocalization(
+                23L,
+                82L,
+                PreferredLanguage.TR,
+                new AdminFoodItemLocalizationUpsertRequestDto("Yoğurt", "Yoğurt", true),
+                "admin@grun.app"
+        );
+
+        var localizationCaptor = forClass(FoodItemLocalizationEntity.class);
+        verify(foodItemLocalizationRepository).save(localizationCaptor.capture());
+        assertEquals("Yoğurt", localizationCaptor.getValue().getDisplayName());
+        assertEquals("ADMIN_RECIPE_REVIEW", localizationCaptor.getValue().getSource());
+        assertEquals(0, result.getMissingRequestedIngredientTranslationCount());
+        verify(adminAuditService).record(
+                eq("admin@grun.app"),
+                eq(AdminAuditActionType.RECIPE_REVIEW_UPDATE),
+                eq(AdminAuditTargetType.CATALOG_REVIEW_ITEM),
+                eq("82:localization:TR"),
+                eq(null),
+                any(),
+                eq(null)
+        );
     }
 
     private UserEntity owner() {

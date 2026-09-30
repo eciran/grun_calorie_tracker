@@ -15,8 +15,10 @@ import com.grun.calorietracker.enums.AiQuotaRefundDecision;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.PreferredLanguage;
+import com.grun.calorietracker.enums.RecipeReviewAnalysisStatus;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
+import com.grun.calorietracker.repository.RecipeReviewAnalysisRepository;
 import com.grun.calorietracker.repository.SubscriptionProviderEventRepository;
 import com.grun.calorietracker.service.AdminAiMealDraftService;
 import com.grun.calorietracker.service.PushDeliveryService;
@@ -48,6 +50,7 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
     private final SubscriptionService subscriptionService;
     private final NotificationRepository notificationRepository;
     private final SubscriptionProviderEventRepository subscriptionProviderEventRepository;
+    private final RecipeReviewAnalysisRepository recipeReviewAnalysisRepository;
     private final PushDeliveryService pushDeliveryService;
     private final AiProperties aiProperties;
     private final AdminAiRequestPayloadSanitizer payloadSanitizer;
@@ -170,6 +173,31 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
             costByCurrency.merge(currency, estimatedCost, Double::sum);
         }
 
+        long recipeReviewRequests = 0;
+        long recipeReviewCompleted = 0;
+        long recipeReviewFailed = 0;
+        long recipeReviewProcessing = 0;
+        long recipeReviewTokens = 0;
+        Map<String, Double> recipeReviewCostByCurrency = new LinkedHashMap<>();
+        List<Object[]> recipeReviewRows = recipeReviewAnalysisRepository.summarizeUsageAfter(windowStart);
+        if (recipeReviewRows == null) recipeReviewRows = List.of();
+        for (Object[] row : recipeReviewRows) {
+            if (row == null || row.length < 5) continue;
+            RecipeReviewAnalysisStatus status = row[0] instanceof RecipeReviewAnalysisStatus value ? value : null;
+            String currency = stringValue(row[1], "UNSPECIFIED");
+            long requestCount = longValue(row[2]);
+            double estimatedCost = doubleValue(row[4]);
+            recipeReviewRequests += requestCount;
+            recipeReviewTokens += longValue(row[3]);
+            if (status == RecipeReviewAnalysisStatus.COMPLETED) recipeReviewCompleted += requestCount;
+            else if (status == RecipeReviewAnalysisStatus.FAILED) recipeReviewFailed += requestCount;
+            else if (status == RecipeReviewAnalysisStatus.PROCESSING) recipeReviewProcessing += requestCount;
+            if (estimatedCost > 0) {
+                recipeReviewCostByCurrency.merge(currency, estimatedCost, Double::sum);
+                costByCurrency.merge(currency, estimatedCost, Double::sum);
+            }
+        }
+
         List<AdminAiMonitoringSummaryDto.RequestStatusMetric> requestMetrics = new ArrayList<>();
         long totalRequests = 0;
         long draftCreated = 0;
@@ -268,6 +296,9 @@ public class AdminAiMealDraftServiceImpl implements AdminAiMealDraftService {
         summary.setProviderModels(providerMetrics);
         summary.setRequestStatuses(requestMetrics);
         summary.setSegments(segments);
+        summary.setRecipeReviewUsage(new AdminAiMonitoringSummaryDto.RecipeReviewUsageMetric(
+                recipeReviewRequests, recipeReviewCompleted, recipeReviewFailed, recipeReviewProcessing,
+                recipeReviewTokens, recipeReviewCostByCurrency));
         List<AdminAiMonitoringSummaryDto.OperationalAlert> alerts = operationalAlerts(
                 totalRequests, failed, rejected, totalTokens, costByCurrency, requestMetrics);
         summary.setAttentionRequired(!alerts.isEmpty());

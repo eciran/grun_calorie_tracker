@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeVisibility;
+import com.grun.calorietracker.enums.RecipeSourceType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -54,6 +55,13 @@ public class RecipeEntity {
 
     @Column(length = 12)
     private String language;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private RecipeSourceType sourceType = RecipeSourceType.LEGACY_UNKNOWN;
+
+    private Long sourceAiRequestId;
+    private Long sourceImportCandidateId;
 
     private String imageUrl;
 
@@ -149,6 +157,9 @@ public class RecipeEntity {
         }
         if (this.archived == null) {
             this.archived = false;
+        }
+        if (this.sourceType == null) {
+            this.sourceType = RecipeSourceType.LEGACY_UNKNOWN;
         }
     }
 

@@ -16,6 +16,8 @@ import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductNutritionCorrectionImportResultDto;
 import com.grun.calorietracker.dto.FoodProductQualityIssueBackfillResultDto;
+import com.grun.calorietracker.dto.FoodCategoryBackfillResultDto;
+import com.grun.calorietracker.dto.FoodCategoryBackfillPreviewDto;
 import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
@@ -40,6 +42,7 @@ import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
+import com.grun.calorietracker.service.FoodCategoryBackfillService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -87,6 +90,7 @@ import java.util.List;
 public class AdminFoodProductReviewController {
 
     private final FoodProductReviewService foodProductReviewService;
+    private final FoodCategoryBackfillService foodCategoryBackfillService;
     private final FoodProductImportService foodProductImportService;
     private final ProductQualitySuggestionService productQualitySuggestionService;
 
@@ -343,6 +347,46 @@ public class AdminFoodProductReviewController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductReviewService.backfillQualityIssues(
                 pageSize,
+                userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @GetMapping("/categories/backfill/preview")
+    @Operation(
+            summary = "Preview historical category-resolution candidates",
+            description = "Returns the exact mapped-source cohort without changing products, category assignments, or review issues."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Read-only category cohort preview returned."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodCategoryBackfillPreviewDto> previewCanonicalCategoryBackfill() {
+        return ResponseEntity.ok(foodCategoryBackfillService.preview());
+    }
+
+    @PostMapping("/categories/backfill")
+    @Operation(
+            summary = "Resolve categories for historical products",
+            description = "Processes historical products that have source-category evidence but no primary canonical category. Safe matches are assigned; unresolved products are routed to MISSING_CANONICAL_CATEGORY review. The operation is bounded and can be resumed with afterId."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Bounded category backfill completed."),
+            @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid."),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not an admin.")
+    })
+    public ResponseEntity<FoodCategoryBackfillResultDto> backfillCanonicalCategories(
+            @Parameter(description = "Products per independently committed batch. Maximum 1000.", example = "500")
+            @RequestParam(defaultValue = "500") @Min(1) @Max(1000) int batchSize,
+            @Parameter(description = "Maximum batches for this request. Maximum 1000.", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(1000) int maxBatches,
+            @Parameter(description = "Resume after this product id.", example = "0")
+            @RequestParam(defaultValue = "0") @Min(0) long afterId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(foodCategoryBackfillService.backfill(
+                batchSize,
+                maxBatches,
+                afterId,
                 userDetails == null ? null : userDetails.getUsername()
         ));
     }

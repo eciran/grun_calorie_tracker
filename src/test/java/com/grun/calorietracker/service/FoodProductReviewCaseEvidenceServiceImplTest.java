@@ -62,6 +62,18 @@ class FoodProductReviewCaseEvidenceServiceImplTest {
         verifyNoInteractions(repository);
     }
 
+    @Test
+    void acceptedTextOnlyCorrectionDoesNotRequireNumericNutritionEvidence() {
+        FoodProductReviewCaseEntity reviewCase = approvedCase(product(47L));
+        reviewCase.setSource(FoodProductReviewCaseSource.USER_CORRECTION);
+        reviewCase.setSubmittedValuesJson("{\"productName\":\"Corrected name\",\"brand\":\"Corrected brand\"}");
+
+        int inserted = service.recordAcceptedEvidence(reviewCase);
+
+        assertEquals(0, inserted);
+        verifyNoInteractions(repository);
+    }
+
     private FoodProductReviewCaseEntity approvedCase(FoodItemEntity product) {
         FoodProductReviewCaseEntity value = new FoodProductReviewCaseEntity();
         value.setId(91L);

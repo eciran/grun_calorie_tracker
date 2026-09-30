@@ -256,6 +256,8 @@ class FoodProductReviewServiceImplTest {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);
         product.setName("Raw Name");
+        product.setDisplayName("Imported Display Name");
+        product.setShortDisplayName("Imported Short Name");
         product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
 
@@ -273,6 +275,11 @@ class FoodProductReviewServiceImplTest {
         FoodProductDto result = foodProductReviewService.updateProductReview(1L, request, "admin@grun.app");
 
         assertEquals("Verified Product", result.getProductName());
+        assertEquals("Verified Product", result.getDisplayName());
+        assertEquals("Verified Product", result.getShortDisplayName());
+        assertEquals("Verified Product", product.getName());
+        assertEquals("Verified Product", product.getDisplayName());
+        assertEquals("Verified Product", product.getShortDisplayName());
         assertEquals("https://cdn.grun.app/products/1.jpg", result.getDisplayImageUrl());
         assertEquals(VerificationStatus.VERIFIED, result.getVerificationStatus());
         assertEquals(ImageSource.ADMIN_UPLOAD, result.getImageSource());
@@ -289,7 +296,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals(5, auditCaptor.getValue().size());
         assertEquals("admin@grun.app", auditCaptor.getValue().get(0).getReviewedBy());
         assertEquals("productName", auditCaptor.getValue().get(0).getFieldName());
-        assertEquals("Raw Name", auditCaptor.getValue().get(0).getOldValue());
+        assertEquals("Imported Short Name", auditCaptor.getValue().get(0).getOldValue());
         assertEquals("Verified Product", auditCaptor.getValue().get(0).getNewValue());
         assertEquals("Verified from product label.", auditCaptor.getValue().get(0).getNote());
     }

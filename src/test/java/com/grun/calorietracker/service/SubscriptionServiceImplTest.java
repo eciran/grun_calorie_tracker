@@ -746,6 +746,8 @@ class SubscriptionServiceImplTest {
         entity.setAiPlanUsedThisPeriod(18);
         stubProviderApply(entity, 0);
         var command = planCommand(SubscriptionPlan.PRO, null, Instant.parse("2026-09-02T10:00:00Z"));
+        command.setStartDate(java.time.LocalDate.now().minusDays(1));
+        command.setEndDate(java.time.LocalDate.now().plusDays(29));
         command.setProviderEventId("evt-refund-reversed");
         command.setEventType(RevenueCatEventType.REFUND_REVERSED);
 

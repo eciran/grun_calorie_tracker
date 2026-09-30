@@ -39,6 +39,7 @@ import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipePublicSort;
 import com.grun.calorietracker.enums.RecipeReportStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
+import com.grun.calorietracker.enums.RecipeSourceType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.exception.DuplicateRecipePublicationRequestException;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
@@ -102,6 +103,7 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setOwnerUser(user);
         recipe.setVisibility(RecipeVisibility.PRIVATE);
         recipe.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        recipe.setSourceType(RecipeSourceType.USER_MANUAL);
         applyRequest(recipe, request, user);
         return toDto(recipeRepository.save(recipe), user);
     }
@@ -1331,7 +1333,9 @@ public class RecipeServiceImpl implements RecipeService {
                 Join<RecipeEntity, MarketRegion> marketJoin = root.joinSet("marketRegions", JoinType.LEFT);
                 predicates.add(criteriaBuilder.or(
                         criteriaBuilder.equal(marketJoin, marketRegion),
-                        criteriaBuilder.equal(marketJoin, MarketRegion.GLOBAL)
+                        criteriaBuilder.equal(marketJoin, MarketRegion.GLOBAL),
+                        criteriaBuilder.equal(root.get("marketRegion"), marketRegion),
+                        criteriaBuilder.equal(root.get("marketRegion"), MarketRegion.GLOBAL)
                 ));
             }
             for (RecipeCategory category : normalizedCategories) {

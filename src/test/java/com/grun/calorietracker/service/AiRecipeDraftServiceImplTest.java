@@ -23,6 +23,7 @@ import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AiProviderConfigurationValidatorImpl;
 import com.grun.calorietracker.service.impl.AiRecipeDraftServiceImpl;
@@ -49,6 +50,7 @@ class AiRecipeDraftServiceImplTest {
     private AiProperties properties;
     private AiMealDraftProviderClient providerClient;
     private AiRequestHistoryRepository historyRepository;
+    private RecipeRepository recipeRepository;
     private UserRepository userRepository;
     private SubscriptionService subscriptionService;
     private RecipeService recipeService;
@@ -64,6 +66,7 @@ class AiRecipeDraftServiceImplTest {
         properties.setModel("log-draft-v1");
         providerClient = mock(AiMealDraftProviderClient.class);
         historyRepository = mock(AiRequestHistoryRepository.class);
+        recipeRepository = mock(RecipeRepository.class);
         userRepository = mock(UserRepository.class);
         subscriptionService = mock(SubscriptionService.class);
         when(subscriptionService.resolveAiCreditCost(any(), any())).thenReturn(1);
@@ -73,6 +76,7 @@ class AiRecipeDraftServiceImplTest {
                 properties,
                 List.of(providerClient),
                 historyRepository,
+                recipeRepository,
                 userRepository,
                 subscriptionService,
                 recipeService,

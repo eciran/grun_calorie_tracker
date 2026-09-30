@@ -17,6 +17,8 @@ import com.grun.calorietracker.dto.AiProductQualityValidationRequestDto;
 import com.grun.calorietracker.dto.AiProductQualityValidationResponseDto;
 import com.grun.calorietracker.dto.AiRecipeDraftRequestDto;
 import com.grun.calorietracker.dto.AiRecipeDraftResponseDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewRequestDto;
+import com.grun.calorietracker.dto.AiRecipeQualityReviewResponseDto;
 import com.grun.calorietracker.dto.AiUsageMetadataCarrier;
 import com.grun.calorietracker.dto.AiVoiceFoodDraftRequestDto;
 import com.grun.calorietracker.dto.AiWorkoutPlanDraftRequestDto;
@@ -112,6 +114,13 @@ public class GeminiAiMealDraftProviderClient implements AiMealDraftProviderClien
         return callGemini(AiRequestType.AI_RECIPE_GENERATION, contract.recipeDraftSchema(),
                 promptParts(AiPromptTemplates.request(AiRequestType.AI_RECIPE_GENERATION, contract.writeJson(request))),
                 AiRecipeDraftResponseDto.class, maxOutputTokens());
+    }
+
+    @Override
+    public AiRecipeQualityReviewResponseDto reviewRecipeQuality(AiRecipeQualityReviewRequestDto request) {
+        return callGemini(AiRequestType.AI_RECIPE_QUALITY_REVIEW, contract.recipeQualityReviewSchema(),
+                promptParts(AiPromptTemplates.recipeQuality(contract.writeJson(request))),
+                AiRecipeQualityReviewResponseDto.class, maxOutputTokens());
     }
 
     @Override

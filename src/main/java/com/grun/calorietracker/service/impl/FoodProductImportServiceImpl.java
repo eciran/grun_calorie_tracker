@@ -40,10 +40,12 @@ import com.grun.calorietracker.service.support.BatchQuerySupport;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.FoodLiquidUnitClassifier;
+import com.grun.calorietracker.service.support.FoodCategoryImportResolutionService;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,6 +83,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
     private final FoodProductEvidenceService foodProductEvidenceService;
     private final ObjectMapper objectMapper;
+    private FoodCategoryImportResolutionService foodCategoryImportResolutionService;
+
+    @Autowired
+    void setFoodCategoryImportResolutionService(
+            FoodCategoryImportResolutionService foodCategoryImportResolutionService) {
+        this.foodCategoryImportResolutionService = foodCategoryImportResolutionService;
+    }
 
     @Override
     public FoodProductImportResultDto importCsv(MultipartFile file, String importedBy) {
@@ -191,6 +200,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         syncSearchAliases(savedProducts, productImportContexts);
         syncLocalizations(savedProducts, productImportContexts);
         syncServingOptions(savedProducts, productImportContexts, normalizeImportMode(importMode));
+        if (foodCategoryImportResolutionService != null) {
+            foodCategoryImportResolutionService.resolveAfterImport(savedProducts, importedBy);
+        }
         int skippedRows = parsedCsv.rows().size() - productsToSave.size();
         int reviewRequiredRows = (int) productsToSave.stream()
                 .filter(this::requiresReview)

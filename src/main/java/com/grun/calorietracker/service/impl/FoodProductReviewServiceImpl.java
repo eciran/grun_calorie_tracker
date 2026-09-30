@@ -252,17 +252,24 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
         String productName = trimToNull(request.getProductName());
         if (productName != null) {
+            String currentProductName = firstNonBlank(
+                    product.getShortDisplayName(),
+                    product.getDisplayName(),
+                    product.getName()
+            );
             addAuditIfChanged(
                     audits,
                     product,
                     reviewedBy,
                     FoodProductReviewAuditAction.REVIEW_UPDATE,
                     "productName",
-                    product.getName(),
+                    currentProductName,
                     productName,
                     reviewNote
             );
             product.setName(productName);
+            product.setDisplayName(productName);
+            product.setShortDisplayName(productName);
         }
 
         String displayImageUrl = trimToNull(request.getDisplayImageUrl());
@@ -1158,6 +1165,16 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         return value.trim();
     }
 
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
     private void validateReviewState(FoodItemEntity product) {
         if (product.getVerificationStatus() == VerificationStatus.VERIFIED && trimToNull(product.getName()) == null) {
             throw new IllegalArgumentException("Verified product must have a product name.");
@@ -1649,6 +1666,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             );
             case MISSING_IMAGE -> null;
             case STALE_SOURCE -> null;
+            case MISSING_CANONICAL_CATEGORY -> null;
             case MISSING_CALORIES -> criteriaBuilder.isNull(root.get("calories"));
             case MISSING_MACROS -> criteriaBuilder.and(
                     criteriaBuilder.isNull(root.get("protein")),

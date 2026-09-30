@@ -42,7 +42,8 @@ class AdminProductIntakeDetailServiceTest {
 
         assertEquals(5L, detail.linkedFoodItemId());
         assertTrue(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("productName") && !value.equal()));
-        assertTrue(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("brand") && value.equal()));
+        assertFalse(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("brand")));
+        assertTrue(detail.fieldComparisons().stream().allMatch(value -> !value.equal()));
         assertEquals(Set.of("en:beverages", "en:sodas"), detail.catalogFields().get("sourceCategoryTags"));
         assertNotSame(food.getSourceCategoryTags(), detail.catalogFields().get("sourceCategoryTags"));
         assertTrue(detail.evidence().get(0).available());

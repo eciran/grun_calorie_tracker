@@ -21,12 +21,14 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestStatus;
 import com.grun.calorietracker.enums.AiRequestType;
+import com.grun.calorietracker.enums.RecipeSourceType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.RecipeCategory;
 import com.grun.calorietracker.enums.SubscriptionFeature;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.exception.RequestConflictException;
 import com.grun.calorietracker.repository.AiRequestHistoryRepository;
+import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
 import com.grun.calorietracker.service.AiProviderConfigurationValidator;
@@ -63,6 +65,7 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
     private final AiProperties properties;
     private final List<AiMealDraftProviderClient> providerClients;
     private final AiRequestHistoryRepository aiRequestHistoryRepository;
+    private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
     private final RecipeService recipeService;
@@ -168,6 +171,11 @@ public class AiRecipeDraftServiceImpl implements AiRecipeDraftService {
             throw new IllegalArgumentException("AI recipe draft is not open for confirmation.");
         }
         RecipeDto recipe = recipeService.createRecipe(email, request.getRecipe());
+        recipeRepository.findById(recipe.getId()).ifPresent(savedRecipe -> {
+            savedRecipe.setSourceType(RecipeSourceType.AI_GENERATED);
+            savedRecipe.setSourceAiRequestId(history.getId());
+            recipeRepository.save(savedRecipe);
+        });
         history.setStatus(AiRequestStatus.CONFIRMED);
         history.setConfirmationPayload(writeJson(Map.of("recipeId", recipe.getId())));
         history.setConfirmedAt(LocalDateTime.now());

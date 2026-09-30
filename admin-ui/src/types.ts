@@ -255,6 +255,83 @@ export type FoodCanonicalDuplicateGroupPage = {
   first?: boolean;
   last?: boolean;
 };
+
+export type BrandedDuplicateDecision = "KEEP_SEPARATE" | "BLOCKED" | "SURVIVOR_SELECTED";
+
+export type BrandedProductDuplicateCandidate = {
+  productId?: number;
+  productName?: string;
+  barcode?: string;
+  sourceKey?: string;
+  marketRegion?: string;
+  preparationState?: string;
+  servingSize?: number;
+  servingUnit?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  qualityScore?: number;
+  verificationStatus?: string;
+  dataSource?: string;
+};
+
+export type BrandedProductDuplicateDecision = {
+  id?: number;
+  brandKey?: string;
+  nameKey?: string;
+  decision?: BrandedDuplicateDecision;
+  survivorProductId?: number;
+  candidateFingerprint?: string;
+  reason?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  version?: number;
+};
+
+export type BrandedDuplicateSearchCollapseSummary = {
+  id?: number;
+  survivorProductId?: number;
+  active?: boolean;
+  candidateFingerprint?: string;
+  appliedBy?: string;
+  appliedAt?: string;
+  revertedBy?: string;
+  revertedAt?: string;
+};
+
+export type BrandedProductDuplicateGroup = {
+  brandKey?: string;
+  nameKey?: string;
+  brandName?: string;
+  representativeName?: string;
+  productCount?: number;
+  barcodeCount?: number;
+  missingBarcodeCount?: number;
+  marketCount?: number;
+  preparationCount?: number;
+  servingCount?: number;
+  missingServingCount?: number;
+  nutritionCount?: number;
+  missingNutritionCount?: number;
+  decision?: string;
+  variantSignal?: boolean;
+  candidateFingerprint?: string;
+  storedDecision?: BrandedProductDuplicateDecision;
+  decisionStale?: boolean;
+  searchCollapse?: BrandedDuplicateSearchCollapseSummary;
+  candidates?: BrandedProductDuplicateCandidate[];
+};
+
+export type BrandedProductDuplicateGroupPage = {
+  content?: BrandedProductDuplicateGroup[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  first?: boolean;
+  last?: boolean;
+};
 export type ProductQualitySuggestion = {
   id?: number;
   foodItemId?: number;
@@ -437,6 +514,14 @@ export type RecipeStep = {
 export type RecipeIngredient = {
   foodItemId?: number;
   foodName?: string;
+  displayNameTr?: string;
+  shortDisplayNameTr?: string;
+  displayNameEn?: string;
+  shortDisplayNameEn?: string;
+  resolvedDisplayName?: string;
+  resolvedDisplayLanguage?: string;
+  requestedLanguageMissing?: boolean;
+  snapshotIngredient?: boolean;
   portionSize?: number;
   portionUnit?: string;
   normalizedPortionGrams?: number;
@@ -471,6 +556,13 @@ export type AdminRecipe = {
   verificationStatus?: string;
   marketRegion?: string;
   language?: string;
+  sourceType?: string;
+  sourceAiRequestId?: number;
+  sourceImportCandidateId?: number;
+  analysisStatus?: string;
+  analysisRiskLevel?: string;
+  analysisQualityScore?: number;
+  analysisUpdatedAt?: string;
   imageUrl?: string;
   imageSource?: string;
   imageStatus?: string;
@@ -494,10 +586,42 @@ export type AdminRecipe = {
   categories?: string[];
   archived?: boolean;
   ingredientCount?: number;
+  missingTurkishIngredientTranslationCount?: number;
+  missingEnglishIngredientTranslationCount?: number;
+  missingRequestedIngredientTranslationCount?: number;
   createdAt?: string;
   updatedAt?: string;
   ingredients?: RecipeIngredient[];
   cookingSteps?: RecipeStep[];
+};
+
+export type AdminRecipeReviewIssue = {
+  type?: string;
+  severity?: string;
+  foodItemId?: number;
+  message?: string;
+  suggestedAction?: string;
+};
+
+export type AdminRecipeReviewAnalysis = {
+  id?: number;
+  recipeId?: number;
+  status?: string;
+  riskLevel?: string;
+  qualityScore?: number;
+  deterministicScore?: number;
+  aiScore?: number;
+  confidence?: number;
+  reviewRequired?: boolean;
+  criticalIssue?: boolean;
+  summary?: string;
+  deterministicResult?: { issues?: AdminRecipeReviewIssue[]; storedNutrition?: Record<string, number>; recalculatedNutrition?: Record<string, number> };
+  aiResult?: { issues?: AdminRecipeReviewIssue[]; publicationRecommendation?: string };
+  errorMessage?: string;
+  provider?: string;
+  requestedBy?: string;
+  createdAt?: string;
+  completedAt?: string;
 };
 
 
@@ -547,6 +671,7 @@ export type AdminRecipeImportResult = {
   batchId?: string;
   totalCandidates?: number;
   createdCandidates?: number;
+  updatedCandidates?: number;
   skippedDuplicates?: number;
   failedCandidates?: number;
   candidates?: AdminRecipeImportCandidate[];
@@ -955,6 +1080,14 @@ export type AiMonitoringSummary = {
   providerModels?: AiProviderModelMetric[];
   requestStatuses?: AiRequestStatusMetric[];
   segments?: AiOperationsSegmentMetric[];
+  recipeReviewUsage?: {
+    requestCount?: number;
+    completedCount?: number;
+    failedCount?: number;
+    processingCount?: number;
+    totalTokens?: number;
+    estimatedCostByCurrency?: Record<string, number>;
+  };
   attentionRequired?: boolean;
   alerts?: { code?: string; severity?: string; message?: string; requestType?: string; currency?: string }[];
 };

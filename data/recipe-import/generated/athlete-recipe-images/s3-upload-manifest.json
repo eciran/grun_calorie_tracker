@@ -1,0 +1,132 @@
+{
+  "bucket": "grun-private-media-911291530432-eu-west-1",
+  "region": "eu-west-1",
+  "prefix": "grun/public/recipes/athlete-stage-20/",
+  "uploadedAt": "2026-09-27",
+  "deliveryStatus": "CLOUDFRONT_ACTIVE",
+  "recipes": [
+    {
+      "sourceKey": "grun-athlete-curation-01",
+      "name": "Banana Oat Protein Pancakes",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/01-banana-oat-protein-pancakes.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/01-banana-oat-protein-pancakes.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-02",
+      "name": "Tuna Quinoa Recovery Bowl",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/02-tuna-quinoa-recovery-bowl.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/02-tuna-quinoa-recovery-bowl.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-03",
+      "name": "Lean Chicken Jambalaya",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/03-lean-chicken-jambalaya.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/03-lean-chicken-jambalaya.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-04",
+      "name": "Smoky BBQ Chicken and Sweet Potato",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/04-smoky-bbq-chicken-sweet-potato.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/04-smoky-bbq-chicken-sweet-potato.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-05",
+      "name": "Curried Yogurt Chicken Wrap Filling",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/05-curried-yogurt-chicken-wrap-filling.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/05-curried-yogurt-chicken-wrap-filling.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-06",
+      "name": "High-Fuel Bean and Mexican Rice",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/06-high-fuel-bean-mexican-rice.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/06-high-fuel-bean-mexican-rice.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-07",
+      "name": "Mango Yogurt Recovery Smoothie",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/07-mango-yogurt-recovery-smoothie.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/07-mango-yogurt-recovery-smoothie.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-08",
+      "name": "Wholegrain Banana Training Pancakes",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/08-wholegrain-banana-training-pancakes.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/08-wholegrain-banana-training-pancakes.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-09",
+      "name": "Cajun Chicken Quinoa Bowl",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/09-cajun-chicken-quinoa-bowl.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/09-cajun-chicken-quinoa-bowl.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-10",
+      "name": "Salmon Potato Recovery Tray",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/10-salmon-potato-recovery-tray.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/10-salmon-potato-recovery-tray.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-11",
+      "name": "Turkey Meatballs with Tomato Pasta",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/11-turkey-meatballs-tomato-pasta.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/11-turkey-meatballs-tomato-pasta.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-12",
+      "name": "Beef Broccoli Rice Bowl",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/12-beef-broccoli-rice-bowl.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/12-beef-broccoli-rice-bowl.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-13",
+      "name": "Egg and Spinach Breakfast Wrap",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/13-egg-spinach-breakfast-wrap.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/13-egg-spinach-breakfast-wrap.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-14",
+      "name": "Greek Yogurt Berry Overnight Oats",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/14-greek-yogurt-berry-overnight-oats.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/14-greek-yogurt-berry-overnight-oats.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-15",
+      "name": "Tofu Edamame Noodle Bowl",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/15-tofu-edamame-noodle-bowl.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/15-tofu-edamame-noodle-bowl.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-16",
+      "name": "Red Lentil Sweet Potato Curry",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/16-red-lentil-sweet-potato-curry.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/16-red-lentil-sweet-potato-curry.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-17",
+      "name": "No-Bake Oat Date Energy Bites",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/17-no-bake-oat-date-energy-bites.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/17-no-bake-oat-date-energy-bites.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-18",
+      "name": "Cottage Cheese Berry Recovery Cup",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/18-cottage-cheese-berry-recovery-cup.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/18-cottage-cheese-berry-recovery-cup.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-19",
+      "name": "Prawn Tomato Wholewheat Pasta",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/19-prawn-tomato-wholewheat-pasta.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/19-prawn-tomato-wholewheat-pasta.png"
+    },
+    {
+      "sourceKey": "grun-athlete-curation-20",
+      "name": "Turkish Eggs and Yogurt Bowl",
+      "s3Uri": "s3://grun-private-media-911291530432-eu-west-1/grun/public/recipes/athlete-stage-20/20-turkish-eggs-yogurt-bowl.png",
+      "publicUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20/20-turkish-eggs-yogurt-bowl.png"
+    }
+  ],
+  "distributionId": "E1BJYHACTSIIY4",
+  "distributionDomainName": "d1c6wirwy0l2f9.cloudfront.net",
+  "publicBaseUrl": "https://d1c6wirwy0l2f9.cloudfront.net/grun/public/recipes/athlete-stage-20"
+}

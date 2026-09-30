@@ -134,6 +134,30 @@ class AdminProductIntakeReviewActionsTest {
     }
 
     @Test
+    void activeReviewerCanCorrectSubmittedValuesBeforeApproval() {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(99L);
+        food.setName("Catalog name");
+        food.setCalories(100.0);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        reviewCase.setFoodItem(food);
+        reviewCase.setResolutionMode(FoodProductResolutionMode.UPDATE_EXISTING);
+        reviewCase.setStatus(FoodProductReviewCaseStatus.IN_REVIEW);
+        reviewCase.setSubmittedValuesJson("{\"productName\":\"Wrong name\",\"calories\":220}");
+        when(cases.findById(72L)).thenReturn(Optional.of(reviewCase));
+
+        var detail = service.updateSubmittedFields(72L, "catalog@grun.app", java.util.Map.of(
+                "productName", "Corrected name",
+                "calories", "180.5"
+        ));
+
+        assertTrue(reviewCase.getSubmittedValuesJson().contains("Corrected name"));
+        assertTrue(reviewCase.getSubmittedValuesJson().contains("180.5"));
+        assertTrue(detail.fieldComparisons().stream().allMatch(value -> !value.equal()));
+        verify(cases).save(reviewCase);
+    }
+
+    @Test
     void applyExistingChangesOnlyExplicitlySelectedFields() {
         FoodItemEntity food = new FoodItemEntity();
         food.setId(99L); food.setName("Original"); food.setCalories(100.0); food.setProtein(4.0);
@@ -146,7 +170,7 @@ class AdminProductIntakeReviewActionsTest {
         assertEquals(220.0, food.getCalories()); assertEquals(4.0, food.getProtein()); assertEquals("Original", food.getName());
         assertNotNull(reviewCase.getAppliedAt()); verify(foods).save(food);
         verify(notifications).save(argThat(value -> "VIEW_APPLIED_PRODUCT".equals(value.getPrimaryAction())));
-        verify(applyGate).requireAcceptedEvidence(reviewCase);
+        verify(applyGate).requireAcceptedEvidence(reviewCase, java.util.Set.of(ProductIntakeApplyField.CALORIES));
         verify(applyGate).requireProductQuality(food);
         verify(intakeMetrics).record("apply_existing", "success");
         verify(mutationOrchestrator).reconcileAndAudit(eq(food), isNull(), eq("catalog@grun.app"), eq(72L),

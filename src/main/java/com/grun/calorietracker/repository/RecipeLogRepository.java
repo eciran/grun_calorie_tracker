@@ -45,6 +45,18 @@ public interface RecipeLogRepository extends JpaRepository<RecipeLogEntity, Long
             LocalDateTime end
     );
 
+    @Query("""
+            select recipeLog.recipe.id, max(recipeLog.logDate), count(recipeLog.id)
+            from RecipeLogEntity recipeLog
+            where recipeLog.user = :user
+              and recipeLog.logDate >= :since
+            group by recipeLog.recipe.id
+            """)
+    List<Object[]> findRecentRecipeUsage(
+            @Param("user") UserEntity user,
+            @Param("since") LocalDateTime since
+    );
+
     Optional<RecipeLogEntity> findByIdAndUser(Long id, UserEntity user);
 
     long deleteByUser(UserEntity user);

@@ -171,6 +171,7 @@ public class FoodProductQualityIssueTracker {
         Map<FoodProductQualityIssue, FoodProductQualityIssueEntity> activeByType = new LinkedHashMap<>();
         activeIssues.stream()
                 .filter(issue -> issue.getIssueType() != FoodProductQualityIssue.STALE_SOURCE)
+                .filter(issue -> issue.getIssueType() != FoodProductQualityIssue.MISSING_CANONICAL_CATEGORY)
                 .forEach(issue -> activeByType.put(issue.getIssueType(), issue));
         String identifier = resolveIdentifier(product);
 

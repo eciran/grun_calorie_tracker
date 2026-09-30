@@ -16,6 +16,7 @@ import com.grun.calorietracker.dto.FoodProductMergeRequestDto;
 import com.grun.calorietracker.dto.FoodProductMergeResponseDto;
 import com.grun.calorietracker.dto.FoodProductNutritionCorrectionImportResultDto;
 import com.grun.calorietracker.dto.FoodProductQualityIssueBackfillResultDto;
+import com.grun.calorietracker.dto.FoodCategoryBackfillResultDto;
 import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
@@ -44,6 +45,7 @@ import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
+import com.grun.calorietracker.service.FoodCategoryBackfillService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
 import org.junit.jupiter.api.Test;
@@ -90,7 +92,29 @@ class AdminFoodProductReviewControllerTest {
     private FoodProductImportService foodProductImportService;
 
     @MockBean
+    private FoodCategoryBackfillService foodCategoryBackfillService;
+
+    @MockBean
     private ProductQualitySuggestionService productQualitySuggestionService;
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void backfillCanonicalCategories_whenAdmin_returnsBoundedSummary() throws Exception {
+        when(foodCategoryBackfillService.backfill(500, 10, 1250L, "admin@test.com"))
+                .thenReturn(new FoodCategoryBackfillResultDto(500, 220, 0, 280, 0, 1, 500, 1750L));
+
+        mockMvc.perform(post("/api/v1/admin/products/categories/backfill")
+                        .param("batchSize", "500")
+                        .param("maxBatches", "10")
+                        .param("afterId", "1250"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scannedProducts").value(500))
+                .andExpect(jsonPath("$.assignedProducts").value(220))
+                .andExpect(jsonPath("$.reviewProducts").value(280))
+                .andExpect(jsonPath("$.lastProcessedId").value(1750));
+
+        verify(foodCategoryBackfillService).backfill(500, 10, 1250L, "admin@test.com");
+    }
 
     @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})

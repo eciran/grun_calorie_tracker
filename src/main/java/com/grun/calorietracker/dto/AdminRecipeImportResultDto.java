@@ -9,6 +9,7 @@ public class AdminRecipeImportResultDto {
     private String batchId;
     private int totalCandidates;
     private int createdCandidates;
+    private int updatedCandidates;
     private int skippedDuplicates;
     private int failedCandidates;
     private List<AdminRecipeImportCandidateDto> candidates;

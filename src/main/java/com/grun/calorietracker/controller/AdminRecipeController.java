@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminRecipeCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodItemLocalizationUpsertRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeDto;
 import com.grun.calorietracker.dto.AdminRecipeImportBatchRequestDto;
 import com.grun.calorietracker.dto.AdminRecipeImportCandidateDto;
@@ -11,14 +12,17 @@ import com.grun.calorietracker.dto.AdminRecipeImportReviewRequestDto;
 import com.grun.calorietracker.dto.AdminRecipePageDto;
 import com.grun.calorietracker.dto.AdminRecipeOperationsAnalyticsDto;
 import com.grun.calorietracker.dto.AdminRecipeReviewRequestDto;
+import com.grun.calorietracker.dto.AdminRecipeReviewAnalysisDto;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.AdminRecipeService;
+import com.grun.calorietracker.service.RecipeReviewAnalysisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -38,6 +42,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,6 +59,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRecipeController {
 
     private final AdminRecipeService adminRecipeService;
+    private final RecipeReviewAnalysisService recipeReviewAnalysisService;
+
+    @PostMapping("/{id}/analysis")
+    @Operation(summary = "Analyze recipe quality", description = "Starts or reuses an admin-only deterministic and AI-assisted recipe quality review. It never edits or publishes the recipe.")
+    public ResponseEntity<AdminRecipeReviewAnalysisDto> analyzeRecipe(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean force,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.accepted().body(recipeReviewAnalysisService.start(
+                id, force, userDetails == null ? null : userDetails.getUsername()));
+    }
+
+    @GetMapping("/{id}/analysis/latest")
+    @Operation(summary = "Get latest recipe analysis", description = "Returns the latest admin recipe quality analysis, or an empty response when none exists.")
+    public ResponseEntity<AdminRecipeReviewAnalysisDto> latestRecipeAnalysis(@PathVariable Long id) {
+        AdminRecipeReviewAnalysisDto result = recipeReviewAnalysisService.latest(id);
+        return result == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(result);
+    }
 
     @GetMapping("/analytics")
     @Operation(
@@ -102,6 +125,8 @@ public class AdminRecipeController {
             @RequestParam(required = false) ImageSource imageSource,
             @Parameter(description = "Optional allergen filter. Returns recipes containing this known allergen.", example = "MILK")
             @RequestParam(required = false) RecipeAllergen allergen,
+            @Parameter(description = "Only return recipes missing an active ingredient localization in this language.", example = "TR")
+            @RequestParam(required = false) PreferredLanguage missingIngredientLanguage,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -117,8 +142,29 @@ public class AdminRecipeController {
                 imageStatus,
                 imageSource,
                 allergen,
+                missingIngredientLanguage,
                 page,
                 size
+        ));
+    }
+
+    @PutMapping("/{recipeId}/ingredients/{foodItemId}/localizations/{language}")
+    @Operation(
+            summary = "Create or update an ingredient localization",
+            description = "Upserts a localized food-item display name referenced by this recipe and returns refreshed recipe translation coverage."
+    )
+    public ResponseEntity<AdminRecipeDto> upsertIngredientLocalization(
+            @PathVariable Long recipeId,
+            @PathVariable Long foodItemId,
+            @PathVariable PreferredLanguage language,
+            @RequestBody @Valid AdminFoodItemLocalizationUpsertRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminRecipeService.upsertIngredientLocalization(
+                recipeId,
+                foodItemId,
+                language,
+                request,
+                userDetails == null ? null : userDetails.getUsername()
         ));
     }
 

@@ -1,16 +1,16 @@
 {
   "batchId": "grun-athlete-recipes-stage-20-20260925",
   "createdAt": "2026-09-25",
-  "purpose": "Curated athlete recipe candidates for GRun. Covers post-training recovery, high-fuel meals, portable snacks, meal prep, and plant-based options. Every candidate requires admin food-item mapping, nutrition verification, allergen review, and image curation before publication.",
+  "purpose": "Curated athlete recipe candidates for GRUN. Covers post-training recovery, high-fuel meals, portable snacks, meal prep, and plant-based options. Every candidate requires admin food-item mapping, nutrition verification, allergen review, and image curation before publication.",
   "sourcePolicy": {
-    "sourceName": "GRun athlete recipe editorial curation",
+    "sourceName": "GRUN athlete recipe editorial curation",
     "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
-    "selectionBasis": "Selected using athlete-specific guidance from the Australian Institute of Sport and strong community popularity/rating signals from Good Food. Recipes are original GRun formulations, not copied source text.",
-    "license": "GRun original editorial content; source links retained as selection evidence",
+    "selectionBasis": "Selected using athlete-specific guidance from the Australian Institute of Sport and strong community popularity/rating signals from Good Food. Recipes are original GRUN formulations, not copied source text.",
+    "license": "GRUN original editorial content; source links retained as selection evidence",
     "licenseUrl": null,
     "attributionRequired": false,
     "shareAlikeRequired": false,
-    "notes": "No third-party images are imported. Ratings are research snapshots and must not be presented as GRun user ratings. This is not individualized medical or sports-dietitian advice."
+    "notes": "No third-party images are imported. Ratings are research snapshots and must not be presented as GRUN user ratings. This is not individualized medical or sports-dietitian advice."
   },
   "recipes": [
     {
@@ -18,11 +18,11 @@
       "sourceTitle": "Easy protein pancakes - 4.2/5 from 87 ratings at research time",
       "sourceUrl": "https://www.bbcgoodfood.com/recipes/easy-protein-pancakes",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/easy-protein-pancakes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Banana Oat Protein Pancakes",
-        "description": "Post-training breakfast with protein, carbohydrate and fruit. Original GRun formulation inspired by a highly rated protein pancake format.",
+        "description": "Post-training breakfast with protein, carbohydrate and fruit. Original GRUN formulation inspired by a highly rated protein pancake format.",
         "mealType": "BREAKFAST",
         "marketRegion": "UK_IE",
         "marketRegions": [
@@ -118,7 +118,7 @@
           {
             "language": "EN",
             "name": "Banana Oat Protein Pancakes",
-            "description": "Post-training breakfast with protein, carbohydrate and fruit. Original GRun formulation inspired by a highly rated protein pancake format.",
+            "description": "Post-training breakfast with protein, carbohydrate and fruit. Original GRUN formulation inspired by a highly rated protein pancake format.",
             "cookingSteps": [
               {
                 "instruction": "Blend the oats into a coarse flour."
@@ -161,7 +161,7 @@
       "sourceTitle": "Tuna, avocado and quinoa salad - 4.7/5 from 48 ratings at research time",
       "sourceUrl": "https://www.bbcgoodfood.com/recipes/tuna-avocado-quinoa-salad",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/tuna-avocado-quinoa-salad",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Tuna Quinoa Recovery Bowl",
@@ -305,7 +305,7 @@
       "sourceTitle": "Chicken and chorizo jambalaya - top popular chicken recipe with 2,664 ratings at research time",
       "sourceUrl": "https://www.bbcgoodfood.com/howto/guide/most-popular-chicken-recipes",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/howto/guide/most-popular-chicken-recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Lean Chicken Jambalaya",
@@ -444,7 +444,7 @@
       "sourceTitle": "Healthy BBQ chicken - high-protein and low-calorie community recipe",
       "sourceUrl": "https://www.bbcgoodfood.com/recipes/healthy-bbq-chicken",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/healthy-bbq-chicken",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Smoky BBQ Chicken and Sweet Potato",
@@ -581,7 +581,7 @@
       "sourceTitle": "Easy coronation chicken - 4.8/5 from 189 ratings at research time",
       "sourceUrl": "https://www.bbcgoodfood.com/recipes/easy-coronation-chicken",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/easy-coronation-chicken",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Curried Yogurt Chicken Wrap Filling",
@@ -703,7 +703,7 @@
       "sourceTitle": "Australian Institute of Sport athlete recipe collection - Mexican rice pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes/mexican_rice",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes/mexican_rice",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "High-Fuel Bean and Mexican Rice",
@@ -849,7 +849,7 @@
       "sourceTitle": "Australian Institute of Sport athlete recipe collection - smoothie guidance",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes/mango_smoothie",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes/mango_smoothie",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Mango Yogurt Recovery Smoothie",
@@ -958,7 +958,7 @@
       "sourceTitle": "Healthy banana pancakes - 4.6/5 from 169 ratings at research time",
       "sourceUrl": "https://www.bbcgoodfood.com/recipes/collection/breakfast-pancake-recipes",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/recipes/collection/breakfast-pancake-recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Wholegrain Banana Training Pancakes",
@@ -1089,7 +1089,7 @@
       "sourceTitle": "Post-workout meal guidance by performance nutritionist James Collins",
       "sourceUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Cajun Chicken Quinoa Bowl",
@@ -1223,7 +1223,7 @@
       "sourceTitle": "Post-workout meal guidance by performance nutritionist James Collins",
       "sourceUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Salmon Potato Recovery Tray",
@@ -1354,7 +1354,7 @@
       "sourceTitle": "Australian Institute of Sport food-first athlete meal pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Turkey Meatballs with Tomato Pasta",
@@ -1497,7 +1497,7 @@
       "sourceTitle": "Australian Institute of Sport food-first athlete meal pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Beef Broccoli Rice Bowl",
@@ -1633,7 +1633,7 @@
       "sourceTitle": "Australian Institute of Sport food-first athlete meal pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Egg and Spinach Breakfast Wrap",
@@ -1765,7 +1765,7 @@
       "sourceTitle": "Australian Institute of Sport food-first athlete snack pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Greek Yogurt Berry Overnight Oats",
@@ -1881,7 +1881,7 @@
       "sourceTitle": "Australian Institute of Sport plant-based athlete meal pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Tofu Edamame Noodle Bowl",
@@ -2020,7 +2020,7 @@
       "sourceTitle": "Australian Institute of Sport plant-based athlete meal pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Red Lentil Sweet Potato Curry",
@@ -2161,7 +2161,7 @@
       "sourceTitle": "Australian Institute of Sport convenient athlete snack pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "No-Bake Oat Date Energy Bites",
@@ -2286,7 +2286,7 @@
       "sourceTitle": "Australian Institute of Sport food-first recovery pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Cottage Cheese Berry Recovery Cup",
@@ -2395,7 +2395,7 @@
       "sourceTitle": "Post-workout meal guidance by performance nutritionist James Collins",
       "sourceUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
       "sourceRevisionUrl": "https://www.bbcgoodfood.com/health/fitness/best-post-workout-meals",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Prawn Tomato Wholewheat Pasta",
@@ -2532,7 +2532,7 @@
       "sourceTitle": "Australian Institute of Sport balanced athlete breakfast pattern",
       "sourceUrl": "https://www.ais.gov.au/nutrition/recipes",
       "sourceRevisionUrl": "https://www.ais.gov.au/nutrition/recipes",
-      "license": "Original GRun editorial adaptation; source used for selection evidence only",
+      "license": "Original GRUN editorial adaptation; source used for selection evidence only",
       "recommendedImportStatus": "EDITORIAL_AND_INGREDIENT_MAPPING_REQUIRED",
       "recipe": {
         "name": "Turkish Eggs and Yogurt Bowl",

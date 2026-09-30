@@ -1,6 +1,11 @@
 package com.grun.calorietracker.dto;
 
+import com.grun.calorietracker.enums.NextMealSuggestionReason;
+import com.grun.calorietracker.enums.NextMealSuggestionStrategy;
 import lombok.Data;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 public class NextMealRecipeSuggestionDto {
@@ -12,4 +17,6 @@ public class NextMealRecipeSuggestionDto {
     private Double carbsPerServing;
     private Double fatPerServing;
     private Integer matchScore;
+    private NextMealSuggestionStrategy strategy;
+    private List<NextMealSuggestionReason> reasonCodes = new ArrayList<>();
 }

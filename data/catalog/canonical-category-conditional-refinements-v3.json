@@ -1,0 +1,35 @@
+{
+  "version": 3,
+  "status": "APPLIED_AND_VERIFIED_ON_STAGING",
+  "description": "Conservative exact-subtype candidates discovered in the active 3478-product category review queue.",
+  "rules": [
+    {
+      "id": "bread-residual-exact-subtypes-v3",
+      "sourceReviewCategory": "bread-bakery-staples",
+      "targetCategory": "bread-bakery-staples",
+      "requiredAnyTags": ["en:pains-de-campagne", "en:hot-cross-buns", "en:focaccia", "en:unleavened-breads", "en:crumpets", "en:seeded-bread", "en:soda-bread", "en:sourdough-loaf"],
+      "excludedAnyTags": ["en:flours", "en:cereal-flours", "en:cereal-bars", "en:croutons", "en:bread-mix"]
+    },
+    {
+      "id": "vegetable-residual-exact-produce-v3",
+      "sourceReviewCategory": "vegetables",
+      "targetCategory": "vegetables",
+      "requiredAnyTags": ["en:asparagus", "en:artichokes", "en:artichoke-hearts", "en:aubergines", "en:beet", "en:beetroot", "en:broccoli", "en:brussels-sprouts", "en:cabbages", "en:cucumbers", "en:leeks", "en:parsnip", "en:radishes", "en:red-cabbage", "en:rocket", "en:sweet-potatoes"],
+      "excludedAnyTags": ["en:meals", "en:prepared-salads", "en:rice", "en:condiments", "en:culinary-plants", "en:hamburgers", "en:vegetarian-hamburgers"]
+    },
+    {
+      "id": "pizza-residual-seafood-subtype-v3",
+      "sourceReviewCategory": "pizza-pies",
+      "targetCategory": "pizza-pies",
+      "requiredAnyTags": ["en:seafood-pizza"],
+      "excludedAnyTags": ["en:pizza-sauces", "en:pizza-dough"]
+    },
+    {
+      "id": "sandwich-residual-exact-subtypes-v3",
+      "sourceReviewCategory": "sandwiches-wraps",
+      "targetCategory": "sandwiches-wraps",
+      "requiredAnyTags": ["en:fish-sandwiches"],
+      "excludedAnyTags": ["en:hamburgers", "en:beef-hamburgers", "en:chicken-hamburgers", "en:vegetarian-hamburgers", "en:doner-kebab"]
+    }
+  ]
+}

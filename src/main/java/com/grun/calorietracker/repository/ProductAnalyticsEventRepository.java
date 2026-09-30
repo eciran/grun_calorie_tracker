@@ -25,6 +25,18 @@ public interface ProductAnalyticsEventRepository extends JpaRepository<ProductAn
     long countByEventTypeAndCreatedAtAfter(ProductAnalyticsEventType eventType, LocalDateTime createdAt);
 
     @Query("""
+            select distinct event.targetId
+            from ProductAnalyticsEventEntity event
+            where event.user = :user
+              and event.eventType = com.grun.calorietracker.enums.ProductAnalyticsEventType.NEXT_MEAL_SUGGESTION_DISMISSED
+              and event.targetId is not null
+              and event.createdAt >= :createdAt
+            """)
+    List<Long> findRecentlyDismissedNextMealRecipeIds(
+            @Param("user") UserEntity user,
+            @Param("createdAt") LocalDateTime createdAt);
+
+    @Query("""
             select avg(event.durationMs)
             from ProductAnalyticsEventEntity event
             where event.eventType = :eventType

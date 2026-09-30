@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "status": "DRY_RUN_ONLY",
+  "rules": [
+    {
+      "id": "milk-explicit-subtypes",
+      "sourceReviewCategory": "milk",
+      "targetCategory": "milk",
+      "requiredAnyTags": ["en:semi-skimmed-milks", "en:whole-milks", "en:skimmed-milks", "en:uht-milks", "en:lactose-free-milk", "en:cow-milks", "en:pasteurised-milks", "en:milk-powders"],
+      "excludedAnyTags": []
+    },
+    {
+      "id": "bread-explicit-subtypes",
+      "sourceReviewCategory": "bread-bakery-staples",
+      "targetCategory": "bread-bakery-staples",
+      "requiredAnyTags": ["en:sliced-breads", "en:flatbreads", "en:white-breads", "en:wholemeal-breads", "en:wheat-breads", "en:baguettes", "en:bagel-breads", "en:bread-rolls", "en:breadsticks", "en:sourdough"],
+      "excludedAnyTags": []
+    },
+    {
+      "id": "pizza-pie-explicit-subtypes",
+      "sourceReviewCategory": "pizza-pies",
+      "targetCategory": "pizza-pies",
+      "requiredAnyTags": ["en:frozen-pizzas", "en:vegetarian-pizzas", "en:pies", "en:quiches", "en:cheese-pizzas", "en:pepperoni-pizzas", "en:margherita-pizza", "en:meat-pies", "en:pork-pies"],
+      "excludedAnyTags": []
+    },
+    {
+      "id": "sandwich-wrap-explicit-subtypes",
+      "sourceReviewCategory": "sandwiches-wraps",
+      "targetCategory": "sandwiches-wraps",
+      "requiredAnyTags": ["en:wraps", "en:chicken-wraps", "en:sandwiches-filled-with-cold-cuts", "en:poultry-sandwiches", "en:chicken-sandwiches", "en:sandwich-made-with-loaf-bread", "en:cheese-sandwiches", "en:ham-sandwiches", "en:burritos", "en:sandwich-wrap"],
+      "excludedAnyTags": ["en:hamburgers", "en:beef-hamburgers"]
+    },
+    {
+      "id": "pork-explicit-cuts",
+      "sourceReviewCategory": "red-meat",
+      "targetCategory": "red-meat",
+      "requiredAnyTags": ["en:pork-ribs", "en:pork-roasts", "en:pork-filet-mignon", "en:pork-loin", "en:pork-belly"],
+      "excludedAnyTags": ["en:bacon", "en:bacon-rashers", "en:back-bacon", "en:beef", "en:beef-and-its-products"]
+    },
+    {
+      "id": "pork-bacon-to-processed-meat",
+      "sourceReviewCategory": "red-meat",
+      "targetCategory": "processed-meat",
+      "requiredAnyTags": ["en:bacon", "en:bacon-rashers", "en:back-bacon", "en:smoked-bacon", "en:unsmoked-bacon", "en:smoked-back-bacon", "en:unsmoked-back-bacon"],
+      "excludedAnyTags": []
+    },
+    {
+      "id": "tea-coffee-explicit-subtypes",
+      "sourceReviewCategory": "hot-drinks",
+      "targetCategory": "hot-drinks",
+      "requiredAnyTags": ["en:teas", "en:herbal-teas", "en:tea-bags", "en:green-teas", "en:black-teas", "en:oolong-teas", "en:tea-leaves", "en:coffees", "en:coffee-capsules"],
+      "excludedAnyTags": ["en:iced-teas"]
+    },
+    {
+      "id": "sports-protein-powder-shake",
+      "sourceReviewCategory": "sports-nutrition",
+      "targetCategory": "sports-nutrition",
+      "requiredAnyTags": ["en:protein-powders", "en:protein-shakes"],
+      "excludedAnyTags": ["en:meal-replacements", "en:nutritionally-complete-food"]
+    },
+    {
+      "id": "supplement-explicit-subtypes",
+      "sourceReviewCategory": "dietary-supplements",
+      "targetCategory": "dietary-supplements",
+      "requiredAnyTags": ["en:vitamins", "en:spirulina", "en:collagen", "en:folic-acid"],
+      "excludedAnyTags": ["en:meal-replacements"]
+    }
+  ]
+}

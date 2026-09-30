@@ -6,6 +6,8 @@ import com.grun.calorietracker.dto.FoodProductImportResultDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodCategoryEntity;
+import com.grun.calorietracker.entity.FoodItemCategoryEntity;
 import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
@@ -22,6 +24,8 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
+import com.grun.calorietracker.repository.FoodCategoryRepository;
+import com.grun.calorietracker.repository.FoodItemCategoryRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
@@ -56,6 +60,12 @@ class FoodItemServiceSearchIntegrationTest {
 
     @Autowired
     private FoodCanonicalResolutionRepository foodCanonicalResolutionRepository;
+
+    @Autowired
+    private FoodCategoryRepository foodCategoryRepository;
+
+    @Autowired
+    private FoodItemCategoryRepository foodItemCategoryRepository;
 
     @Autowired
     private FoodItemRepository foodItemRepository;
@@ -1459,6 +1469,56 @@ FoodSearchCriteriaDto bananaEnglish = new FoodSearchCriteriaDto();
             assertEquals(2, foodItemService.searchFoodItems(criteria, 0, 20).getTotalElements(), term);
         }
         assertEquals("Marks & Spencer", legacy.getBrand());
+    }
+
+    @Test
+    void categoryFilterIncludesDirectChildrenAndExcludesUnrelatedProducts() {
+        FoodCategoryEntity parent = category("drinks", null, 1);
+        FoodCategoryEntity child = category("milk", parent, 2);
+        FoodCategoryEntity unrelated = category("fruit", null, 3);
+        foodCategoryRepository.saveAllAndFlush(List.of(parent, child, unrelated));
+
+        FoodItemEntity parentProduct = product("Mixed Drink", "9940000000001", VerificationStatus.VERIFIED);
+        FoodItemEntity childProduct = product("Whole Milk", "9940000000002", VerificationStatus.VERIFIED);
+        FoodItemEntity unrelatedProduct = product("Fresh Apple", "9940000000003", VerificationStatus.VERIFIED);
+        foodItemRepository.saveAllAndFlush(List.of(parentProduct, childProduct, unrelatedProduct));
+        foodItemCategoryRepository.saveAllAndFlush(List.of(
+                categoryAssignment(parentProduct, parent, true),
+                categoryAssignment(childProduct, child, true),
+                categoryAssignment(unrelatedProduct, unrelated, true)
+        ));
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setCategoryId(parent.getId());
+        FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 20);
+
+        assertEquals(2, result.getTotalElements());
+        assertTrue(result.getContent().stream().anyMatch(item -> "9940000000001".equals(item.getBarcode())));
+        assertTrue(result.getContent().stream().anyMatch(item -> "9940000000002".equals(item.getBarcode())));
+        assertTrue(result.getContent().stream().noneMatch(item -> "9940000000003".equals(item.getBarcode())));
+    }
+
+    private FoodCategoryEntity category(String slug, FoodCategoryEntity parent, int order) {
+        FoodCategoryEntity category = new FoodCategoryEntity();
+        category.setSlug(slug);
+        category.setNameEn(slug);
+        category.setNameTr(slug);
+        category.setParent(parent);
+        category.setSortOrder(order);
+        category.setActive(true);
+        return category;
+    }
+
+    private FoodItemCategoryEntity categoryAssignment(
+            FoodItemEntity product, FoodCategoryEntity category, boolean primary) {
+        FoodItemCategoryEntity assignment = new FoodItemCategoryEntity();
+        assignment.setFoodItem(product);
+        assignment.setCategory(category);
+        assignment.setPrimaryCategory(primary);
+        assignment.setAssignmentSource(com.grun.calorietracker.enums.FoodCategoryAssignmentSource.IMPORT);
+        assignment.setConfidenceScore(95);
+        assignment.setReviewed(false);
+        return assignment;
     }
 
     @Test

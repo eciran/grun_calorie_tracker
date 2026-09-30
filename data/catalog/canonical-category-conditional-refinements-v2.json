@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "status": "APPLIED_STAGING",
+  "description": "Narrow subtype evidence for the uncategorized residual review cohort.",
+  "rules": [
+    {
+      "id": "bread-residual-explicit-subtypes",
+      "sourceReviewCategory": "bread-bakery-staples",
+      "targetCategory": "bread-bakery-staples",
+      "requiredAnyTags": ["en:special-breads", "en:hamburger-buns", "en:crispbreads", "en:gluten-free-breads", "en:bread-crumbs", "en:rye-breads", "en:toasts", "en:brioches", "en:sourdough-bread", "en:sourdough-breads", "en:english-muffins", "en:ciabatta", "en:hot-dog-buns", "en:breads-with-corn", "en:naan-bread"],
+      "excludedAnyTags": ["en:flours", "en:cereal-flours"]
+    },
+    {
+      "id": "vegetable-residual-explicit-subtypes",
+      "sourceReviewCategory": "vegetables",
+      "targetCategory": "vegetables",
+      "requiredAnyTags": ["en:tomatoes", "en:canned-vegetables", "en:fresh-vegetables", "en:mixed-vegetables", "en:carrots", "en:frozen-vegetables", "en:lettuces", "en:broccoli", "en:sweet-peppers", "en:spinachs", "en:pickles"],
+      "excludedAnyTags": ["en:meals", "en:prepared-salads", "en:rice"]
+    },
+    {
+      "id": "sports-residual-explicit-bars",
+      "sourceReviewCategory": "sports-nutrition",
+      "targetCategory": "sports-nutrition",
+      "requiredAnyTags": ["en:protein-bars", "en:protein-energy-bars", "en:energy-bars", "en:protein-balls", "en:protein-water"],
+      "excludedAnyTags": ["en:breakfast-cereals", "en:meal-replacements", "en:nutritionally-complete-food"]
+    },
+    {
+      "id": "pizza-pie-residual-explicit-subtypes",
+      "sourceReviewCategory": "pizza-pies",
+      "targetCategory": "pizza-pies",
+      "requiredAnyTags": ["en:pizza-with-ham-and-cheese", "en:chicken-pizza", "en:frozen-pizzas-and-pies", "en:salted-pies", "en:salmon-pizza", "en:ham-pizzas", "en:mini-appetizer-pizzas", "en:chorizo-pizzas", "en:frozen-pies", "en:cheese-pies", "en:regina-pizza", "en:cured-ham-pizza", "en:prosciutto-pizza", "en:pizzas-with-ham"],
+      "excludedAnyTags": ["en:pizza-sauces"]
+    },
+    {
+      "id": "sandwich-residual-explicit-subtypes",
+      "sourceReviewCategory": "sandwiches-wraps",
+      "targetCategory": "sandwiches-wraps",
+      "requiredAnyTags": ["en:tuna-sandwiches", "en:paninis", "en:salmon-sandwiches"],
+      "excludedAnyTags": ["en:hamburgers", "en:beef-hamburgers", "en:chicken-hamburgers", "en:vegetarian-hamburgers", "en:doner-kebab"]
+    },
+    {
+      "id": "milk-residual-explicit-subtypes",
+      "sourceReviewCategory": "milk",
+      "targetCategory": "milk",
+      "requiredAnyTags": ["en:dairy-drinks", "en:flavoured-milks", "en:evaporated-milks", "en:chocolate-milks", "en:goat-milks", "en:fresh-milks", "en:milkshakes", "en:condensed-milks", "en:buttermilks", "en:vanilla-milks", "en:strawberry-milks", "en:sheep-milks"],
+      "excludedAnyTags": ["en:plant-based-foods", "en:plant-based-beverages", "en:coconut-milks-and-creams"]
+    },
+    {
+      "id": "pork-residual-explicit-subtypes",
+      "sourceReviewCategory": "red-meat",
+      "targetCategory": "red-meat",
+      "requiredAnyTags": ["en:pork-shoulders", "en:pork-knuckle", "en:ground-pork-meat", "en:pork-skewers", "en:pork-spare-ribs"],
+      "excludedAnyTags": ["en:beef", "en:beef-and-its-products", "en:cooked-meats", "en:pancetta", "en:gammon"]
+    },
+    {
+      "id": "hot-drink-residual-cocoa",
+      "sourceReviewCategory": "hot-drinks",
+      "targetCategory": "hot-drinks",
+      "requiredAnyTags": ["en:cocoa-and-its-products", "en:cocoa-and-chocolate-powders", "en:instant-chocolate-powders"],
+      "excludedAnyTags": ["en:iced-teas", "en:flavored-waters", "en:waters"]
+    }
+  ]
+}

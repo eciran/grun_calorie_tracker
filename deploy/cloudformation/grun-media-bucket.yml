@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Private GRun media bucket with short-lived product evidence retention.
+Description: Private GRUN media bucket with short-lived product evidence retention.
 
 Parameters:
   BucketName:

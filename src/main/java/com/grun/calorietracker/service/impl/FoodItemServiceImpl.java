@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
+import com.grun.calorietracker.entity.FoodBrandedDuplicateSearchCollapseMemberEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
@@ -205,6 +206,15 @@ public class FoodItemServiceImpl implements FoodItemService {
                     criteriaBuilder.isNull(root.get("isCustom")),
                     criteriaBuilder.isFalse(root.get("isCustom"))
             ));
+            var brandedCollapseSubquery = query.subquery(Long.class);
+            var brandedCollapseMember = brandedCollapseSubquery
+                    .from(FoodBrandedDuplicateSearchCollapseMemberEntity.class);
+            brandedCollapseSubquery.select(brandedCollapseMember.get("id"));
+            brandedCollapseSubquery.where(
+                    criteriaBuilder.equal(brandedCollapseMember.get("suppressedFoodItem"), root),
+                    criteriaBuilder.isTrue(brandedCollapseMember.get("collapse").get("active"))
+            );
+            predicates.add(criteriaBuilder.not(criteriaBuilder.exists(brandedCollapseSubquery)));
 
             var canonicalResolutionSubquery = query.subquery(String.class);
             predicates.add(criteriaBuilder.not(criteriaBuilder.exists(

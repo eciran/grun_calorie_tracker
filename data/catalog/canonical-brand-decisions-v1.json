@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "status": "REVIEWED",
+  "source": "OWNER_REVIEWED_ALIAS_V1",
+  "rules": [
+    { "canonicalName": "M&S", "aliases": ["Marks & Spencer", "Marks And Spencer"] },
+    { "canonicalName": "M&S Food", "aliases": ["M & S Food"] },
+    { "canonicalName": "Waitrose", "aliases": ["Waitrose & Partners"] },
+    { "canonicalName": "Essential Waitrose", "aliases": ["Essential Waitrose & Partners"] },
+    { "canonicalName": "Tesco", "aliases": [] },
+    { "canonicalName": "Tesco Finest", "aliases": [] },
+    { "canonicalName": "Lidl", "aliases": [] },
+    { "canonicalName": "Dunnes Stores", "aliases": [] },
+    { "canonicalName": "Aldi", "aliases": [] },
+    { "canonicalName": "Specially Selected", "aliases": [] },
+    { "canonicalName": "Deluxe", "aliases": [] },
+    { "canonicalName": "7UP", "aliases": ["7 Up"] },
+    { "canonicalName": "7DAYS", "aliases": ["7 Days"] },
+    { "canonicalName": "VITHIT", "aliases": ["Vit Hit"] }
+  ]
+}

@@ -81,6 +81,7 @@ public class AiCompletionNotificationService {
             case AI_NUTRITION_PLAN -> "notification.ai.label.nutrition-plan";
             case AI_WORKOUT_PLAN -> "notification.ai.label.workout-plan";
             case AI_DAILY_INSIGHT, AI_WEEKLY_INSIGHT -> "notification.ai.label.insight";
+            case AI_RECIPE_QUALITY_REVIEW -> "notification.ai.label.recipe-generation";
         };
         String label = messageSource.getMessage(labelKey, null, labelKey, locale);
         String route = switch (type) {
@@ -90,6 +91,7 @@ public class AiCompletionNotificationService {
             case AI_NUTRITION_PLAN -> "ai-nutrition-plan";
             case AI_WORKOUT_PLAN -> "ai-workout-planner";
             case AI_DAILY_INSIGHT, AI_WEEKLY_INSIGHT -> "ai-insights";
+            case AI_RECIPE_QUALITY_REVIEW -> "admin-recipes";
         };
         if (status == AiRequestStatus.FAILED) {
             return new NotificationCopy(

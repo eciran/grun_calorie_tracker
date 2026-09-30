@@ -20,7 +20,7 @@ class DeploymentPostgresMigrationTest {
                 .load();
         flyway.migrate();
         assertTrue(flyway.validateWithResult().validationSuccessful);
-        assertEquals("286", flyway.info().current().getVersion().getVersion());
+        assertEquals("295", flyway.info().current().getVersion().getVersion());
     }
 
     @Test
@@ -64,6 +64,57 @@ class DeploymentPostgresMigrationTest {
         assertTrue(actionConstraint.contains("OWNER_ERROR_GROUP_STATUS_UPDATE"));
         assertTrue(targetConstraint.contains("OWNER_OPERATIONAL_ALERT"));
         assertTrue(targetConstraint.contains("OWNER_ERROR_GROUP"));
+    }
+
+    @Test
+    void categoryImportResolutionRulesAreSeededCompletely() {
+        var dataSource = new org.springframework.jdbc.datasource.DriverManagerDataSource(
+                System.getenv("GRUN_DEPLOY_VALIDATION_JDBC_URL"), "postgres",
+                System.getenv("GRUN_DEPLOY_VALIDATION_DB_PASSWORD"));
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration")
+                .cleanDisabled(true).load().migrate();
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+
+        assertEquals(55, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM food_category_source_mappings", Integer.class));
+        assertEquals(43, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM food_category_source_mappings WHERE status = 'ACTIVE'
+                """, Integer.class));
+        assertEquals(12, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM food_category_source_mappings WHERE status = 'REVIEW_REQUIRED'
+                """, Integer.class));
+        assertEquals(21, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM food_category_resolution_rules WHERE status = 'ACTIVE'
+                """, Integer.class));
+        assertEquals(158, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM food_category_resolution_required_tags", Integer.class));
+        assertEquals(55, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM food_category_resolution_excluded_tags", Integer.class));
+        assertEquals(4, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM food_category_resolution_rules
+                WHERE updated_by = 'flyway-v291' AND status = 'ACTIVE'
+                """, Integer.class));
+    }
+
+    @Test
+    void productQualityIssueConstraintMatchesRuntimeCategoryIssues() {
+        var dataSource = new org.springframework.jdbc.datasource.DriverManagerDataSource(
+                System.getenv("GRUN_DEPLOY_VALIDATION_JDBC_URL"), "postgres",
+                System.getenv("GRUN_DEPLOY_VALIDATION_DB_PASSWORD"));
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration")
+                .cleanDisabled(true).load().migrate();
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+
+        String definition = jdbc.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'chk_food_product_quality_issues_type'
+                  AND conrelid = 'food_product_quality_issues'::regclass
+                """, String.class);
+
+        assertNotNull(definition);
+        assertTrue(definition.contains("MISSING_CANONICAL_CATEGORY"));
+        assertTrue(definition.contains("STALE_SOURCE"));
     }
 
     @Test

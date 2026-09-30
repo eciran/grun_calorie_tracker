@@ -2,7 +2,7 @@ import { FormEvent, lazy, Suspense, useEffect, useState } from "react";
 
 import { formatRequestError, PageResponse, request } from "../api";
 
-import { FoodProduct, AdminRecipe, AdminRecipeOperationsAnalytics, AdminRecipeImportCandidate, AdminRecipeImportResult } from "../types";
+import { FoodProduct, AdminRecipe, AdminRecipeOperationsAnalytics, AdminRecipeImportCandidate, AdminRecipeImportResult, AdminRecipeReviewAnalysis } from "../types";
 
 import { AsyncState, CollapsiblePanel, DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar, useDialogAccessibility } from "../AdminPrimitives";
 
@@ -159,10 +159,13 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   const [marketRegion, setMarketRegion] = useState("");
   const [imageStatus, setImageStatus] = useState("");
   const [imageSource, setImageSource] = useState("");
+  const [missingIngredientLanguage, setMissingIngredientLanguage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRecipe, setSelectedRecipe] = useState<AdminRecipe | null>(null);
-  const [recipeDetailTab, setRecipeDetailTab] = useState<"overview" | "details" | "content" | "moderation">("overview");
+  const [recipeDetailTab, setRecipeDetailTab] = useState<"overview" | "details" | "content" | "analysis" | "moderation">("overview");
+  const [recipeAnalysis, setRecipeAnalysis] = useState<AdminRecipeReviewAnalysis | null>(null);
+  const [recipeAnalysisLoading, setRecipeAnalysisLoading] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
   const [draftMealType, setDraftMealType] = useState("");
@@ -213,6 +216,15 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   const [activeIngredientSearchIndex, setActiveIngredientSearchIndex] = useState<number | null>(null);
   const [ingredientSearchResults, setIngredientSearchResults] = useState<FoodProduct[]>([]);
   const [ingredientSearchState, setIngredientSearchState] = useState<LoadState>("idle");
+  const [localizationEditor, setLocalizationEditor] = useState<{
+    foodItemId: number;
+    foodName: string;
+    trDisplayName: string;
+    trShortDisplayName: string;
+    enDisplayName: string;
+    enShortDisplayName: string;
+  } | null>(null);
+  const [savingLocalization, setSavingLocalization] = useState(false);
   const importCandidateDialogRef = useDialogAccessibility(() => setSelectedImportCandidate(null), Boolean(selectedImportCandidate));
   const recipeDialogRef = useDialogAccessibility(closeRecipe, Boolean(selectedRecipe));
   const path = buildRecipeAdminPath({
@@ -225,6 +237,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     marketRegion,
     imageStatus,
     imageSource,
+    missingIngredientLanguage,
     page,
     size: pageSize
   });
@@ -243,11 +256,27 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   const { data: importData, state: importState, reload: reloadImports } = useEndpoint<PageResponse<AdminRecipeImportCandidate>>(importPath, onError);
   const importRows = importData?.content ?? [];
   const rows = data?.content ?? [];
-  const activeFilterCount = [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource].filter(Boolean).length;
+  const activeFilterCount = [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, missingIngredientLanguage].filter(Boolean).length;
+
+  useEffect(() => {
+    if (!selectedRecipe?.id || recipeAnalysis?.status !== "PROCESSING") return;
+    const timer = window.setInterval(async () => {
+      try {
+        const latest = await request<AdminRecipeReviewAnalysis | null>(`/api/v1/admin/recipes/${selectedRecipe.id}/analysis/latest`, { bypassCache: true });
+        setRecipeAnalysis(latest);
+        if (latest?.status !== "PROCESSING") {
+          await reload();
+        }
+      } catch (error) {
+        setRecipeActionError(formatRequestError(error));
+      }
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [selectedRecipe?.id, recipeAnalysis?.status, reload]);
 
   useEffect(() => {
     setPage(0);
-  }, [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, pageSize]);
+  }, [query, verificationStatus, visibility, archived, ownerEmail, mealType, marketRegion, imageStatus, imageSource, missingIngredientLanguage, pageSize]);
 
   useEffect(() => {
     setImportPage(0);
@@ -263,6 +292,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setMarketRegion("");
     setImageStatus("");
     setImageSource("");
+    setMissingIngredientLanguage("");
   }
 
 
@@ -535,7 +565,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
         body: { reviewNote: "Approved from admin recipe JSON import queue." },
         timeoutMs: 60000
       });
-      setSelectedRecipe(created);
+      openRecipe(created);
       setSelectedImportCandidate(null);
       await reloadImports();
       await reload();
@@ -621,7 +651,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       });
       setCreateForm(emptyRecipeCreateForm);
       setShowCreateRecipe(false);
-      setSelectedRecipe(created);
+      openRecipe(created);
       await reload();
     } catch (err) {
       onError(formatRequestError(err));
@@ -649,10 +679,37 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setDraftCategories(recipe.categories ?? []);
     setDraftCookingSteps((recipe.cookingSteps ?? []).map((step) => step.instruction ?? "").filter(Boolean));
     setReviewNote("");
+    setRecipeAnalysis(null);
+    if (recipe.id) void loadRecipeAnalysis(recipe.id);
+  }
+
+  async function loadRecipeAnalysis(recipeId: number) {
+    try {
+      const latest = await request<AdminRecipeReviewAnalysis | null>(`/api/v1/admin/recipes/${recipeId}/analysis/latest`, { bypassCache: true });
+      setRecipeAnalysis(latest);
+    } catch (error) {
+      setRecipeActionError(formatRequestError(error));
+    }
+  }
+
+  async function analyzeRecipe(force = false) {
+    if (!selectedRecipe?.id || recipeAnalysisLoading) return;
+    setRecipeAnalysisLoading(true);
+    setRecipeActionError(null);
+    try {
+      const analysis = await request<AdminRecipeReviewAnalysis>(`/api/v1/admin/recipes/${selectedRecipe.id}/analysis?force=${force}`, { method: "POST", timeoutMs: 30000 });
+      setRecipeAnalysis(analysis);
+      setRecipeDetailTab("analysis");
+    } catch (error) {
+      setRecipeActionError(formatRequestError(error));
+    } finally {
+      setRecipeAnalysisLoading(false);
+    }
   }
 
   function closeRecipe() {
     setSelectedRecipe(null);
+    setLocalizationEditor(null);
     setRecipeDetailTab("overview");
     setDraftName("");
     setDraftDescription("");
@@ -663,11 +720,62 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setDraftCookingSteps([]);
     setReviewNote("");
     setRecipeActionError(null);
+    setRecipeAnalysis(null);
+  }
+
+  function openLocalizationEditor(ingredient: NonNullable<AdminRecipe["ingredients"]>[number]) {
+    if (!ingredient.foodItemId) return;
+    setLocalizationEditor({
+      foodItemId: ingredient.foodItemId,
+      foodName: ingredient.foodName ?? ingredient.resolvedDisplayName ?? `#${ingredient.foodItemId}`,
+      trDisplayName: ingredient.displayNameTr ?? "",
+      trShortDisplayName: ingredient.shortDisplayNameTr ?? "",
+      enDisplayName: ingredient.displayNameEn ?? "",
+      enShortDisplayName: ingredient.shortDisplayNameEn ?? ""
+    });
+    setRecipeActionError(null);
+  }
+
+  async function saveIngredientLocalizations() {
+    if (!selectedRecipe?.id || !localizationEditor) return;
+    const updates = [
+      { language: "TR", displayName: localizationEditor.trDisplayName.trim(), shortDisplayName: localizationEditor.trShortDisplayName.trim() },
+      { language: "EN", displayName: localizationEditor.enDisplayName.trim(), shortDisplayName: localizationEditor.enShortDisplayName.trim() }
+    ].filter((item) => item.displayName);
+    if (!updates.length) {
+      setRecipeActionError(tr ? "En az bir dil için görünen ad girin." : "Enter a display name for at least one language.");
+      return;
+    }
+    setSavingLocalization(true);
+    setRecipeActionError(null);
+    try {
+      let refreshed = selectedRecipe;
+      for (const update of updates) {
+        refreshed = await request<AdminRecipe>(
+          `/api/v1/admin/recipes/${selectedRecipe.id}/ingredients/${localizationEditor.foodItemId}/localizations/${update.language}`,
+          { method: "PUT", body: { displayName: update.displayName, shortDisplayName: update.shortDisplayName || null, active: true } }
+        );
+      }
+      setSelectedRecipe(refreshed);
+      setLocalizationEditor(null);
+      await reload();
+      setSavedNotice(tr ? "Ürün çevirileri kaydedildi" : "Ingredient translations saved");
+      window.setTimeout(() => setSavedNotice(null), 2200);
+    } catch (err) {
+      setRecipeActionError(formatRequestError(err));
+    } finally {
+      setSavingLocalization(false);
+    }
   }
 
   async function saveRecipeReview() {
     if (!selectedRecipe?.id) {
       setRecipeActionError(tr ? "Tarif kimliği bulunamadı." : "Recipe id is missing.");
+      return;
+    }
+    const effectiveName = draftName.trim() || selectedRecipe.name?.trim() || "";
+    if (!effectiveName) {
+      setRecipeActionError(tr ? "Tarif adı zorunludur." : "Recipe name is required.");
       return;
     }
     setSaving(true);
@@ -677,7 +785,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       const updated = await request<AdminRecipe>(`/api/v1/admin/recipes/${selectedRecipe.id}/review`, {
         method: "PATCH",
         body: {
-          name: draftName.trim(),
+          name: effectiveName,
           description: draftDescription,
           mealType: draftMealType || null,
           marketRegion: draftMarketRegion || null,
@@ -841,7 +949,8 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
               <div className="correction-result-grid">
                 <MetricCard label="Batch" value={importResult.batchId ?? "-"} hint="Stored import batch" />
                 <MetricCard label="Created" value={formatValue(importResult.createdCandidates)} hint="New pending candidates" />
-                <MetricCard label="Skipped" value={formatValue(importResult.skippedDuplicates)} hint="Duplicate source keys" />
+                <MetricCard label="Updated" value={formatValue(importResult.updatedCandidates)} hint="Existing candidates refreshed" />
+                <MetricCard label="Skipped" value={formatValue(importResult.skippedDuplicates)} hint="Already approved candidates" />
                 <MetricCard label="Failed" value={formatValue(importResult.failedCandidates)} hint="Invalid rows" />
                 <MetricCard label="Total" value={formatValue(importResult.totalCandidates)} hint="Rows in JSON" />
               </div>
@@ -1385,11 +1494,19 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
               {IMAGE_SOURCES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
             </select>
           </label>
+          <label>
+            {tr ? "Eksik malzeme çevirisi" : "Missing ingredient translation"}
+            <select value={missingIngredientLanguage} onChange={(event) => setMissingIngredientLanguage(event.target.value)}>
+              <option value="">{tr ? "Tümü" : "All"}</option>
+              <option value="TR">{tr ? "Türkçe eksik" : "Missing Turkish"}</option>
+              <option value="EN">{tr ? "İngilizce eksik" : "Missing English"}</option>
+            </select>
+          </label>
         </div>
       </CollapsiblePanel>
 
       <DataTable
-        columns={["Recipe", "Owner", "State", "Engagement", "Nutrition", "Actions"]}
+        columns={["Recipe", "Owner", "State", tr ? "Dil kapsamı" : "Language coverage", "Engagement", "Nutrition", "Actions"]}
         rows={rows.map((recipe) => [
           <div className="entity-cell">
             <strong>{recipe.name ?? "-"}</strong>
@@ -1403,6 +1520,12 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
             <Badge value={recipe.verificationStatus} />
             <Badge value={recipe.imageStatus} tone="neutral" />
             <Badge value={recipe.archived ? "ARCHIVED" : recipe.visibility} tone={recipe.archived ? "danger" : "neutral"} />
+          </div>,
+          <div className="table-stack">
+            <span>{(recipe.missingRequestedIngredientTranslationCount ?? 0) === 0
+              ? (tr ? "Hedef dil tamam" : "Target language complete")
+              : `${formatValue(recipe.missingRequestedIngredientTranslationCount)} ${tr ? "eksik" : "missing"}`}</span>
+            <small>TR {formatValue(recipe.missingTurkishIngredientTranslationCount)} · EN {formatValue(recipe.missingEnglishIngredientTranslationCount)}</small>
           </div>,
           <RecipeEngagementCell recipe={recipe} />,
           <div className="table-stack">
@@ -1448,7 +1571,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                 <nav className="recipe-review-tabs" aria-label={tr ? "Tarif inceleme bölümleri" : "Recipe review sections"}>
                   {([[
                     "overview", tr ? "Genel bakış" : "Overview"
-                  ], ["details", tr ? "Tarif bilgileri" : "Recipe details"], ["content", tr ? "İçerik" : "Content"], ["moderation", tr ? "Moderasyon" : "Moderation"]] as const).map(([tab, label]) => (
+                  ], ["details", tr ? "Tarif bilgileri" : "Recipe details"], ["content", tr ? "İçerik" : "Content"], ["analysis", tr ? "AI analizi" : "AI analysis"], ["moderation", tr ? "Moderasyon" : "Moderation"]] as const).map(([tab, label]) => (
                     <button key={tab} className={recipeDetailTab === tab ? "active" : ""} type="button" aria-current={recipeDetailTab === tab ? "page" : undefined} onClick={() => setRecipeDetailTab(tab)}>{label}</button>
                   ))}
                 </nav>
@@ -1457,6 +1580,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                     <div><span>{tr ? "Doğrulama" : "Verification"}</span><Badge value={selectedRecipe.verificationStatus} /></div>
                     <div><span>{tr ? "Görünürlük" : "Visibility"}</span><Badge value={selectedRecipe.archived ? "ARCHIVED" : selectedRecipe.visibility} tone={selectedRecipe.archived ? "danger" : "neutral"} /></div>
                     <div><span>{tr ? "Görsel" : "Image"}</span><Badge value={selectedRecipe.imageStatus} tone="neutral" /></div>
+                    <div><span>{tr ? "Kaynak" : "Source"}</span><Badge value={selectedRecipe.sourceType} tone="neutral" /></div>
                   </div>
                   <div className="recipe-review-fact-grid">
                     <DetailItem label={tr ? "Sahip" : "Owner"} value={selectedRecipe.ownerEmail} />
@@ -1475,6 +1599,41 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                     <article><span>{tr ? "Yağ" : "Fat"}</span><strong>{formatValue(selectedRecipe.fat)} g</strong></article>
                   </div>
                   {selectedRecipe.description && <p className="recipe-review-description">{selectedRecipe.description}</p>}
+                </section>}
+                {recipeDetailTab === "analysis" && <section className="recipe-review-pane recipe-analysis-pane">
+                  <div className="recipe-analysis-header">
+                    <div>
+                      <h3>{tr ? "Tarif kalite incelemesi" : "Recipe quality review"}</h3>
+                      <p>{tr ? "Besin toplamları backend tarafından yeniden hesaplanır; AI porsiyon, adım ve alerjen tutarlılığını inceler. Sonuç tarifi değiştirmez veya yayınlamaz." : "Nutrition totals are recalculated by the backend; AI reviews portion, step and allergen coherence. The result never edits or publishes the recipe."}</p>
+                    </div>
+                    <button className="primary-button" type="button" disabled={recipeAnalysisLoading || recipeAnalysis?.status === "PROCESSING"} onClick={() => analyzeRecipe(Boolean(recipeAnalysis))}>
+                      {recipeAnalysisLoading || recipeAnalysis?.status === "PROCESSING" ? (tr ? "Analiz ediliyor…" : "Analyzing...") : recipeAnalysis ? (tr ? "Yeniden analiz et" : "Re-analyze") : (tr ? "Tarifi analiz et" : "Analyze recipe")}
+                    </button>
+                  </div>
+                  {!recipeAnalysis && <div className="empty-state compact-empty">{tr ? "Bu tarif için henüz analiz yapılmadı." : "This recipe has not been analyzed yet."}</div>}
+                  {recipeAnalysis && <>
+                    <div className="recipe-review-state-strip">
+                      <div><span>{tr ? "Durum" : "Status"}</span><Badge value={recipeAnalysis.status} /></div>
+                      <div><span>{tr ? "Risk" : "Risk"}</span><Badge value={recipeAnalysis.riskLevel} tone={recipeAnalysis.riskLevel === "BLOCKED" ? "danger" : "neutral"} /></div>
+                      <div><span>{tr ? "Toplam puan" : "Overall score"}</span><strong>{recipeAnalysis.qualityScore ?? "-"}/100</strong></div>
+                    </div>
+                    {recipeAnalysis.summary && <p className="recipe-review-description">{recipeAnalysis.summary}</p>}
+                    {recipeAnalysis.errorMessage && <div className="modal-error" role="alert">{recipeAnalysis.errorMessage}</div>}
+                    {recipeAnalysis.status === "COMPLETED" && <div className="recipe-review-decision-grid">
+                      <article><span>{tr ? "Deterministik" : "Deterministic"}</span><strong>{recipeAnalysis.deterministicScore ?? "-"}/100</strong></article>
+                      <article><span>AI</span><strong>{recipeAnalysis.aiScore ?? "-"}/100</strong></article>
+                      <article><span>{tr ? "Güven" : "Confidence"}</span><strong>{recipeAnalysis.confidence == null ? "-" : `${Math.round(recipeAnalysis.confidence * 100)}%`}</strong></article>
+                    </div>}
+                    {[...(recipeAnalysis.deterministicResult?.issues ?? []), ...(recipeAnalysis.aiResult?.issues ?? [])].length > 0 && <Panel title={tr ? "İnceleme bulguları" : "Review findings"}>
+                      <div className="recipe-analysis-issues">
+                        {[...(recipeAnalysis.deterministicResult?.issues ?? []), ...(recipeAnalysis.aiResult?.issues ?? [])].map((issue, index) => <article key={`${issue.type}-${index}`}>
+                          <div><Badge value={issue.severity} tone={issue.severity === "CRITICAL" || issue.severity === "HIGH" ? "danger" : "neutral"} /><strong>{humanizeFeature(issue.type)}</strong></div>
+                          <p>{issue.message}</p>
+                          {issue.suggestedAction && <small>{issue.suggestedAction}</small>}
+                        </article>)}
+                      </div>
+                    </Panel>}
+                  </>}
                 </section>}
                 {recipeDetailTab === "details" && <section className="recipe-review-pane">
                 <div className="detail-grid editable">
@@ -1579,14 +1738,42 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                 </Panel>
                 <Panel title="Ingredients">
                   <DataTable
-                    columns={["Food", "Portion", "Normalized"]}
+                    columns={["Food", tr ? "Dil kapsamı" : "Language coverage", "Portion", "Normalized", ""]}
                     rows={(selectedRecipe.ingredients ?? []).map((ingredient) => [
-                      ingredient.foodName ?? "-",
+                      <div className="entity-cell">
+                        <strong>{ingredient.resolvedDisplayName ?? ingredient.foodName ?? "-"}</strong>
+                        <small>#{formatValue(ingredient.foodItemId)} · {humanizeFeature(ingredient.resolvedDisplayLanguage)}</small>
+                      </div>,
+                      ingredient.snapshotIngredient
+                        ? <Badge value="SNAPSHOT" tone="neutral" />
+                        : <div className="table-stack">
+                            <span>TR: {ingredient.displayNameTr ?? (tr ? "Eksik" : "Missing")}</span>
+                            <span>EN: {ingredient.displayNameEn ?? (tr ? "Eksik" : "Missing")}</span>
+                          </div>,
                       `${formatValue(ingredient.portionSize)} ${ingredient.portionUnit ?? ""}`,
-                      `${formatValue(ingredient.normalizedPortionGrams)} g`
+                      `${formatValue(ingredient.normalizedPortionGrams)} g`,
+                      ingredient.foodItemId
+                        ? <button className="ghost-button" type="button" onClick={() => openLocalizationEditor(ingredient)}>{tr ? "Çevirileri düzenle" : "Edit translations"}</button>
+                        : null
                     ])}
                     empty="No ingredients returned."
                   />
+                  {localizationEditor && <div className="recipe-localization-editor">
+                    <div className="recipe-localization-editor-header">
+                      <div><strong>{localizationEditor.foodName}</strong><span>#{localizationEditor.foodItemId}</span></div>
+                      <button className="icon-button" type="button" onClick={() => setLocalizationEditor(null)} aria-label={tr ? "Kapat" : "Close"}>×</button>
+                    </div>
+                    <div className="review-filter-grid">
+                      <label>Türkçe görünen ad<input value={localizationEditor.trDisplayName} onChange={(event) => setLocalizationEditor((current) => current ? { ...current, trDisplayName: event.target.value } : current)} maxLength={255} /></label>
+                      <label>Türkçe kısa ad<input value={localizationEditor.trShortDisplayName} onChange={(event) => setLocalizationEditor((current) => current ? { ...current, trShortDisplayName: event.target.value } : current)} maxLength={255} /></label>
+                      <label>English display name<input value={localizationEditor.enDisplayName} onChange={(event) => setLocalizationEditor((current) => current ? { ...current, enDisplayName: event.target.value } : current)} maxLength={255} /></label>
+                      <label>English short name<input value={localizationEditor.enShortDisplayName} onChange={(event) => setLocalizationEditor((current) => current ? { ...current, enShortDisplayName: event.target.value } : current)} maxLength={255} /></label>
+                    </div>
+                    <div className="modal-actions inline-actions">
+                      <button className="ghost-button" type="button" onClick={() => setLocalizationEditor(null)}>{tr ? "İptal" : "Cancel"}</button>
+                      <button className="primary-button" type="button" disabled={savingLocalization} onClick={saveIngredientLocalizations}>{savingLocalization ? (tr ? "Kaydediliyor…" : "Saving...") : (tr ? "Çevirileri kaydet" : "Save translations")}</button>
+                    </div>
+                  </div>}
                 </Panel>
                 <Panel title="Review cooking steps">
                   <div className="recipe-step-list">
@@ -1700,6 +1887,7 @@ export function buildRecipeAdminPath(filters: {
   marketRegion: string;
   imageStatus: string;
   imageSource: string;
+  missingIngredientLanguage: string;
   page: number;
   size: number;
 }): string {
@@ -1713,6 +1901,7 @@ export function buildRecipeAdminPath(filters: {
   if (filters.marketRegion) params.set("marketRegion", filters.marketRegion);
   if (filters.imageStatus) params.set("imageStatus", filters.imageStatus);
   if (filters.imageSource) params.set("imageSource", filters.imageSource);
+  if (filters.missingIngredientLanguage) params.set("missingIngredientLanguage", filters.missingIngredientLanguage);
   params.set("page", String(filters.page));
   params.set("size", String(filters.size));
   return `/api/v1/admin/recipes?${params.toString()}`;

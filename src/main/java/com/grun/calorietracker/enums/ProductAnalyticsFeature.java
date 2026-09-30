@@ -9,6 +9,7 @@ public enum ProductAnalyticsFeature {
     SLEEP,
     PROGRESS,
     RECIPES,
+    NEXT_MEAL,
     HEALTH_SYNC,
     AI
 }
