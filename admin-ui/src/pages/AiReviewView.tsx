@@ -329,7 +329,9 @@ export function AiReviewView({ mode, onError, targetContext, onClearTarget, acce
           <MetricCard label={locale === "tr" ? "Token kullanımı" : "Token usage"} value={formatValue(summary?.recipeReviewUsage?.totalTokens)} hint={locale === "tr" ? "Yalnızca tarif kalite analizleri" : "Recipe quality analyses only"} />
           <MetricCard label={locale === "tr" ? "Tahmini maliyet" : "Estimated cost"} value={formatCurrencyBreakdown(summary?.recipeReviewUsage?.estimatedCostByCurrency)} hint={locale === "tr" ? "Genel AI maliyet bütçesine dahildir" : "Included in the overall AI cost budget"} />
         </div>
-        <a className="ghost-button" href={sectionPaths.recipes}>{locale === "tr" ? "Tarif incelemelerini aç" : "Open recipe reviews"} →</a>
+        <div className="ai-recipe-review-action">
+          <a className="ghost-button" href={sectionPaths.recipes}>{locale === "tr" ? "Tarif incelemelerini aç" : "Open recipe reviews"} →</a>
+        </div>
       </AiOverviewPanel>
 
       <AiOverviewPanel title={locale === "tr" ? "Fotoğraf analizi" : "Photo analysis economics"} description={locale === "tr" ? "Fotoğraftan öğün analizinin sonuçları, token kullanımı ve etkin model fiyatları." : "Photo meal analysis outcomes, token usage and active model pricing."} className="ai-photo-panel">

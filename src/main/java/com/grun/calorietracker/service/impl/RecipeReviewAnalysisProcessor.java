@@ -9,6 +9,7 @@ import com.grun.calorietracker.enums.AiProvider;
 import com.grun.calorietracker.enums.AiRequestType;
 import com.grun.calorietracker.enums.RecipeReviewAnalysisStatus;
 import com.grun.calorietracker.enums.RecipeReviewRiskLevel;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeReviewAnalysisRepository;
 import com.grun.calorietracker.service.AiMealDraftProviderClient;
@@ -37,7 +38,7 @@ class RecipeReviewAnalysisProcessor {
 
     @Async("recipeReviewExecutor")
     @Transactional
-    public void process(Long analysisId) {
+    public void process(Long analysisId, PreferredLanguage responseLanguage) {
         RecipeReviewAnalysisEntity analysis = analysisRepository.findById(analysisId).orElse(null);
         if (analysis == null) {
             return;
@@ -46,7 +47,7 @@ class RecipeReviewAnalysisProcessor {
         try {
             RecipeEntity recipe = recipeRepository.findById(analysis.getRecipe().getId())
                     .orElseThrow(() -> new IllegalStateException("Recipe no longer exists."));
-            RecipeReviewAnalysisEngine.AnalysisInput input = engine.analyze(recipe);
+            RecipeReviewAnalysisEngine.AnalysisInput input = engine.analyze(recipe, responseLanguage);
             analysis.setContentHash(input.contentHash());
             analysis.setDeterministicScore(input.deterministicScore());
             analysis.setCriticalIssue(input.criticalIssue());

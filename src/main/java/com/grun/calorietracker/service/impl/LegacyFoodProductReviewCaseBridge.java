@@ -92,11 +92,11 @@ public class LegacyFoodProductReviewCaseBridge {
     public FoodProductReviewCaseEntity linkCorrection(ProductCorrectionSuggestionEntity correction) {
         FoodItemEntity foodItem = correction.getFoodItem();
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("calories", correction.getSuggestedCalories());
-        values.put("protein", correction.getSuggestedProtein());
-        values.put("carbs", correction.getSuggestedCarbs());
-        values.put("fat", correction.getSuggestedFat());
-        values.put("note", correction.getNote());
+        putSubmittedValue(values, "calories", correction.getSuggestedCalories());
+        putSubmittedValue(values, "protein", correction.getSuggestedProtein());
+        putSubmittedValue(values, "carbs", correction.getSuggestedCarbs());
+        putSubmittedValue(values, "fat", correction.getSuggestedFat());
+        putSubmittedValue(values, "note", correction.getNote());
 
         return reviewCaseService.finalizeCase(new FoodProductReviewCaseCommand(
                 "legacy-correction:" + correction.getId(),
@@ -127,6 +127,13 @@ public class LegacyFoodProductReviewCaseBridge {
                 false,
                 null
         ));
+    }
+
+    private void putSubmittedValue(Map<String, Object> values, String field, Object value) {
+        if (value == null || value instanceof String text && text.isBlank()) {
+            return;
+        }
+        values.put(field, value);
     }
 
     private String json(Object value) {

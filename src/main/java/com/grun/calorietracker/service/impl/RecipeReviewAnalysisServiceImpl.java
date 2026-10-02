@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.AdminRecipeReviewAnalysisDto;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeReviewAnalysisEntity;
 import com.grun.calorietracker.enums.RecipeReviewAnalysisStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.RecipeReviewAnalysisRepository;
@@ -29,10 +30,11 @@ public class RecipeReviewAnalysisServiceImpl implements RecipeReviewAnalysisServ
 
     @Override
     @Transactional
-    public AdminRecipeReviewAnalysisDto start(Long recipeId, boolean force, String requestedBy) {
+    public AdminRecipeReviewAnalysisDto start(Long recipeId, boolean force, String requestedBy, PreferredLanguage responseLanguage) {
         RecipeEntity recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
-        RecipeReviewAnalysisEngine.AnalysisInput input = engine.analyze(recipe);
+        PreferredLanguage analysisLanguage = responseLanguage == null ? PreferredLanguage.EN : responseLanguage;
+        RecipeReviewAnalysisEngine.AnalysisInput input = engine.analyze(recipe, analysisLanguage);
         if (!force) {
             var cached = analysisRepository.findFirstByRecipeIdAndContentHashAndStatusOrderByCreatedAtDesc(
                     recipeId, input.contentHash(), RecipeReviewAnalysisStatus.COMPLETED);
@@ -56,7 +58,7 @@ public class RecipeReviewAnalysisServiceImpl implements RecipeReviewAnalysisServ
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                processor.process(analysisId);
+                processor.process(analysisId, analysisLanguage);
             }
         });
         return toDto(entity);

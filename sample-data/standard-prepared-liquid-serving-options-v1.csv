@@ -1,0 +1,39 @@
+profile_key,option_key,market_scope,label_en,label_tr,unit_type,quantity,ml_volume,is_default,quality_status
+ESPRESSO,single,BOTH,Single shot,Tek shot,SHOT,1,30,true,VERIFIED_STANDARD
+ESPRESSO,double,BOTH,Double shot,Çift shot,SHOT,1,60,false,VERIFIED_STANDARD
+HOT_DRINK,small,BOTH,Small,Küçük,MUG,1,240,false,VERIFIED_STANDARD
+HOT_DRINK,medium,BOTH,Medium,Orta,MUG,1,350,true,VERIFIED_STANDARD
+HOT_DRINK,large,BOTH,Large,Büyük,MUG,1,470,false,VERIFIED_STANDARD
+MILK_COFFEE,small,BOTH,Small,Küçük,MUG,1,240,false,VERIFIED_STANDARD
+MILK_COFFEE,medium,BOTH,Medium,Orta,MUG,1,350,true,VERIFIED_STANDARD
+MILK_COFFEE,large,BOTH,Large,Büyük,MUG,1,470,false,VERIFIED_STANDARD
+TURKISH_COFFEE,single,TR,Single cup,Tek fincan,CUP,1,65,true,VERIFIED_STANDARD
+TURKISH_COFFEE,double,TR,Double cup,Çift fincan,CUP,1,130,false,VERIFIED_STANDARD
+COLD_DRINK,small,BOTH,Small,Küçük,GLASS,1,250,false,VERIFIED_STANDARD
+COLD_DRINK,medium,BOTH,Medium,Orta,GLASS,1,330,true,VERIFIED_STANDARD
+COLD_DRINK,large,BOTH,Large,Büyük,GLASS,1,500,false,VERIFIED_STANDARD
+BLENDED_DRINK,small,BOTH,Small,Küçük,GLASS,1,300,false,VERIFIED_STANDARD
+BLENDED_DRINK,medium,BOTH,Medium,Orta,GLASS,1,400,true,VERIFIED_STANDARD
+BLENDED_DRINK,large,BOTH,Large,Büyük,GLASS,1,500,false,VERIFIED_STANDARD
+MILK_DRINK,glass,BOTH,Glass,Bardak,GLASS,1,250,true,VERIFIED_STANDARD
+MILK_DRINK,large_glass,BOTH,Large glass,Büyük bardak,GLASS,1,350,false,VERIFIED_STANDARD
+TEA_CUP,cup,BOTH,Cup,Fincan,CUP,1,200,true,VERIFIED_STANDARD
+TEA_CUP,large_cup,BOTH,Large cup,Büyük fincan,CUP,1,300,false,VERIFIED_STANDARD
+TEA_MUG,mug,BOTH,Mug,Kupa,MUG,1,300,true,VERIFIED_STANDARD
+TEA_MUG,large_mug,BOTH,Large mug,Büyük kupa,MUG,1,400,false,VERIFIED_STANDARD
+TURKISH_TEA_GLASS,tea_glass,TR,Tea glass,İnce belli bardak,GLASS,1,100,true,VERIFIED_STANDARD
+TURKISH_TEA_GLASS,large_tea_glass,TR,Large tea glass,Büyük çay bardağı,GLASS,1,150,false,VERIFIED_STANDARD
+SHAKER,regular,BOTH,Regular shaker,Standart shaker,BOTTLE,1,350,true,VERIFIED_STANDARD
+SHAKER,large,BOTH,Large shaker,Büyük shaker,BOTTLE,1,500,false,VERIFIED_STANDARD
+ALCOHOL_VOLUME,small_bottle,BOTH,Small bottle,Küçük şişe,BOTTLE,1,330,true,VERIFIED_STANDARD
+ALCOHOL_VOLUME,pint,UK_IE,Pint,Pint,GLASS,1,568,false,VERIFIED_STANDARD
+ALCOHOL_VOLUME,half_pint,UK_IE,Half pint,Yarım pint,GLASS,1,284,false,VERIFIED_STANDARD
+ALCOHOL_VOLUME,large_bottle,TR,Large bottle,Büyük şişe,BOTTLE,1,500,false,VERIFIED_STANDARD
+COCKTAIL_GLASS,standard,BOTH,Standard cocktail,Standart kokteyl,GLASS,1,150,true,VERIFIED_STANDARD
+COCKTAIL_GLASS,large,BOTH,Large cocktail,Büyük kokteyl,GLASS,1,250,false,VERIFIED_STANDARD
+WINE_GLASS,small,BOTH,Small glass,Küçük kadeh,GLASS,1,125,false,VERIFIED_STANDARD
+WINE_GLASS,standard,BOTH,Standard glass,Standart kadeh,GLASS,1,175,true,VERIFIED_STANDARD
+WINE_GLASS,large,BOTH,Large glass,Büyük kadeh,GLASS,1,250,false,VERIFIED_STANDARD
+SPIRIT_MEASURE,uk_single,UK_IE,UK single measure,UK tek ölçü,SHOT,1,25,true,VERIFIED_STANDARD
+SPIRIT_MEASURE,ireland_single,UK_IE,Ireland single measure,İrlanda tek ölçü,SHOT,1,35.5,false,VERIFIED_STANDARD
+SPIRIT_MEASURE,tr_single,TR,Single measure,Tek ölçü,SHOT,1,40,true,VERIFIED_STANDARD

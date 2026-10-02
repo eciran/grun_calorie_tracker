@@ -13,6 +13,7 @@ import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
 import com.grun.calorietracker.repository.GoalRepository;
+import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.UserGoalService;
 import com.grun.calorietracker.service.UserService;
@@ -46,6 +47,7 @@ public class UserGoalServiceImpl implements UserGoalService {
     private final ProfileEnergyExpenditureCalculator profileEnergyCalculator;
     private final UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
     private final UserRepository userRepository;
+    private final ProgressLogRepository progressLogRepository;
 
     @Override
     @Transactional
@@ -79,6 +81,7 @@ public class UserGoalServiceImpl implements UserGoalService {
         newGoal.setEffectiveFrom(effectiveAt);
         newGoal.setEffectiveLocalDate(LocalDate.now(zoneId));
         newGoal.setEffectiveTimeZone(zoneId.getId());
+        newGoal.setStartWeightKg(resolveStartWeight(user, effectiveAt));
         UserGoalEntity saved = userGoalRepository.save(newGoal);
 
         log.info("New goal saved for user: {} with id {}", email, saved.getId());
@@ -93,6 +96,17 @@ public class UserGoalServiceImpl implements UserGoalService {
         } catch (RuntimeException ignored) {
             return ZoneId.of("UTC");
         }
+    }
+
+    private Double resolveStartWeight(UserEntity user, LocalDateTime effectiveAt) {
+        return progressLogRepository.findTopByUserAndLogDateLessThanOrderByLogDateDesc(user, effectiveAt.plusNanos(1))
+                .map(com.grun.calorietracker.entity.ProgressLogEntity::getWeight)
+                .filter(UserGoalServiceImpl::isValidWeight)
+                .orElseGet(() -> isValidWeight(user.getWeight()) ? user.getWeight() : null);
+    }
+
+    private static boolean isValidWeight(Double weight) {
+        return weight != null && Double.isFinite(weight) && weight > 0.0;
     }
 
     @Override

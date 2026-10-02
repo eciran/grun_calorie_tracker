@@ -16,6 +16,7 @@ public class UserGoalMapper {
         entity.setId(dto.getId());
         entity.setUser(user);
         entity.setTargetWeight(dto.getTargetWeight());
+        entity.setStartWeightKg(dto.getStartWeightKg());
         entity.setDailyCalorieGoal(dto.getDailyCalorieGoal());
         entity.setDailyProteinGoal(dto.getDailyProteinGoal());
         entity.setDailyFatGoal(dto.getDailyFatGoal());
@@ -46,6 +47,7 @@ public class UserGoalMapper {
         UserGoalDto dto = new UserGoalDto();
         dto.setId(entity.getId());
         dto.setTargetWeight(entity.getTargetWeight());
+        dto.setStartWeightKg(entity.getStartWeightKg());
         dto.setDailyCalorieGoal(entity.getDailyCalorieGoal());
         dto.setDailyProteinGoal(entity.getDailyProteinGoal());
         dto.setDailyFatGoal(entity.getDailyFatGoal());

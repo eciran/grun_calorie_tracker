@@ -878,6 +878,10 @@ public class ProgressAnalyticsServiceImpl implements ProgressAnalyticsService {
 
     private Double resolveGoalStartWeight(UserEntity user, UserGoalDto goal, LocalDate endDate) {
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        if (goal != null && goal.getStartWeightKg() != null
+                && Double.isFinite(goal.getStartWeightKg()) && goal.getStartWeightKg() > 0.0) {
+            return goal.getStartWeightKg();
+        }
         if (goal != null && goal.getCreatedAt() != null) {
             Optional<ProgressLogEntity> atGoalStart = progressLogRepository
                     .findTopByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(

@@ -8,6 +8,7 @@ import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.repository.GoalRepository;
+import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.UserGoalServiceImpl;
 import com.grun.calorietracker.service.support.ProfileEnergyExpenditureCalculator;
@@ -40,12 +41,16 @@ class UserGoalServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private UserAnalyticsCacheRevisionService analyticsCacheRevisionService;
+    @Mock
+    private ProgressLogRepository progressLogRepository;
 
     private UserGoalServiceImpl userGoalService;
 
     @BeforeEach
     void setUp() {
-        userGoalService = new UserGoalServiceImpl(goalRepository, userService, new ProfileEnergyExpenditureCalculator(), analyticsCacheRevisionService, userRepository);
+        userGoalService = new UserGoalServiceImpl(goalRepository, userService,
+                new ProfileEnergyExpenditureCalculator(), analyticsCacheRevisionService,
+                userRepository, progressLogRepository);
     }
 
     @Test
@@ -152,6 +157,7 @@ class UserGoalServiceImplTest {
         assertEquals(-0.5, result.getWeeklyWeightChangeTargetKg());
         assertEquals(com.grun.calorietracker.enums.GoalCalculationMode.AUTO, result.getCalculationMode());
         assertEquals(2209, result.getAutomaticReferenceCalories());
+        assertEquals(80.0, result.getStartWeightKg());
         assertNotNull(result.getEffectiveFrom());
         assertNotNull(result.getEffectiveLocalDate());
         assertNotNull(result.getEffectiveTimeZone());

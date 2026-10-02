@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -27,6 +28,10 @@ class RecipeReviewAnalysisEngine {
     }
 
     AnalysisInput analyze(RecipeEntity recipe) {
+        return analyze(recipe, PreferredLanguage.EN);
+    }
+
+    AnalysisInput analyze(RecipeEntity recipe, PreferredLanguage responseLanguage) {
         List<Issue> issues = new ArrayList<>();
         Nutrition recalculated = new Nutrition();
         if (recipe.getIngredients() == null || recipe.getIngredients().isEmpty()) {
@@ -62,13 +67,14 @@ class RecipeReviewAnalysisEngine {
         }
         score = Math.max(0, score);
         boolean critical = issues.stream().anyMatch(issue -> "CRITICAL".equals(issue.severity()));
-        AiRecipeQualityReviewRequestDto request = request(recipe, recalculated, issues);
+        PreferredLanguage resolvedLanguage = responseLanguage == null ? PreferredLanguage.EN : responseLanguage;
+        AiRecipeQualityReviewRequestDto request = request(recipe, recalculated, issues, resolvedLanguage);
         Map<String, Object> deterministic = new LinkedHashMap<>();
         deterministic.put("storedNutrition", nutritionMap(recipe));
         deterministic.put("recalculatedNutrition", recalculated);
         deterministic.put("issues", issues);
         deterministic.put("score", score);
-        return new AnalysisInput(contentHash(recipe), request, deterministic, score, critical);
+        return new AnalysisInput(contentHash(recipe, resolvedLanguage), request, deterministic, score, critical);
     }
 
     private void accumulate(RecipeEntity recipe, RecipeIngredientEntity ingredient, Nutrition total, List<Issue> issues) {
@@ -95,12 +101,13 @@ class RecipeReviewAnalysisEngine {
         total.sugar += value(food == null ? ingredient.getSnapshotSugar() : food.getSugar()) * factor;
     }
 
-    private AiRecipeQualityReviewRequestDto request(RecipeEntity recipe, Nutrition recalculated, List<Issue> issues) {
+    private AiRecipeQualityReviewRequestDto request(RecipeEntity recipe, Nutrition recalculated, List<Issue> issues,
+                                                    PreferredLanguage responseLanguage) {
         AiRecipeQualityReviewRequestDto dto = new AiRecipeQualityReviewRequestDto();
         dto.setRecipeId(recipe.getId());
         dto.setName(recipe.getName());
         dto.setDescription(recipe.getDescription());
-        dto.setLanguage(recipe.getLanguage());
+        dto.setLanguage(responseLanguage.name().toLowerCase(java.util.Locale.ROOT));
         dto.setMarketRegion(recipe.getMarketRegion() == null ? null : recipe.getMarketRegion().name());
         dto.setTotalYieldGrams(recipe.getTotalYieldGrams());
         dto.setDefaultServingGrams(recipe.getDefaultServingGrams());
@@ -128,10 +135,11 @@ class RecipeReviewAnalysisEngine {
         return dto;
     }
 
-    private String contentHash(RecipeEntity recipe) {
+    private String contentHash(RecipeEntity recipe, PreferredLanguage responseLanguage) {
         Map<String, Object> source = new LinkedHashMap<>();
         source.put("name", recipe.getName());
         source.put("description", recipe.getDescription());
+        source.put("analysisLanguage", responseLanguage == null ? PreferredLanguage.EN.name() : responseLanguage.name());
         source.put("yield", recipe.getTotalYieldGrams());
         source.put("serving", recipe.getDefaultServingGrams());
         source.put("count", recipe.getServingCount());

@@ -31,6 +31,7 @@ class AdvancedUserGoalServiceImplTest {
     @Mock SubscriptionService subscriptionService;
     @Mock UserAnalyticsCacheRevisionService cacheRevisionService;
     @Mock ProductAnalyticsService productAnalyticsService;
+    @Mock ProgressLogRepository progressLogRepository;
 
     private AdvancedUserGoalServiceImpl service;
     private UserEntity user;
@@ -43,7 +44,8 @@ class AdvancedUserGoalServiceImplTest {
         service = new AdvancedUserGoalServiceImpl(
                 goalRepository, acknowledgementRepository, previewRepository, saveRequestRepository,
                 userRepository, userService, userGoalService, subscriptionService,
-                new AdvancedMacroTargetPolicy(), cacheRevisionService, productAnalyticsService);
+                new AdvancedMacroTargetPolicy(), cacheRevisionService, productAnalyticsService,
+                progressLogRepository);
         user = new UserEntity();
         user.setId(7L);
         user.setEmail("advanced@grun.app");
@@ -110,6 +112,7 @@ class AdvancedUserGoalServiceImplTest {
 
         assertEquals(first.getId(), replay.getId());
         assertEquals(11L, replay.getId());
+        assertEquals(80.0, first.getStartWeightKg());
         assertNotNull(activeGoal.getEffectiveUntil());
         var order = inOrder(userRepository, goalRepository);
         order.verify(userRepository).findByEmailForUpdate(user.getEmail());

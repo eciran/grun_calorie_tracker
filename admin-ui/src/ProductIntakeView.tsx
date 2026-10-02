@@ -18,6 +18,11 @@ type IntakeDetail = {
   summary: IntakeSummary;
   reviewNote?: string;
   linkedFoodItemId?: number;
+  linkedProductPublicationStatus?: string;
+  submittedByEmail?: string;
+  sourceReference?: string;
+  submittedFields?: Record<string, unknown>;
+  catalogFields?: Record<string, unknown>;
   fieldComparisons?: Array<{ field: string; submittedValue?: unknown; catalogValue?: unknown; equal: boolean; highImpact: boolean }>;
   corroboratingEvidence?: Array<{ field: string; provider: string; numericValue: number; basis: string; confidenceScore: number; observedAt?: string; sourceVersion?: string }>;
   warnings?: string[];
@@ -240,6 +245,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
           <SummaryItem label={locale === "tr" ? "Sorumlu" : "Assignee"} value={selected.summary.assignedAdminEmail ?? (locale === "tr" ? "Atanmamış" : "Unassigned")} />
           <SummaryItem label={locale === "tr" ? "Katalog kaydı" : "Catalog record"} value={selected.linkedFoodItemId ? `#${selected.linkedFoodItemId}` : (locale === "tr" ? "Bağlı değil" : "Not linked")} />
         </div>
+        {selected.summary.resolutionMode === "UPDATE_EXISTING" && selected.linkedFoodItemId && <LinkedCatalogProduct detail={selected} locale={locale} />}
         <div className="contribution-review-body">
           <div className="contribution-review-details">
             <FieldComparisonReview comparisons={selected.fieldComparisons ?? []} locale={locale} canEdit={canWrite && selectedEvidenceReviewable} editValues={submittedEdits} onEdit={(field, value) => setSubmittedEdits((current) => ({ ...current, [field]: value }))} onSave={() => void saveSubmittedEdits()} editBusy={busy} canSelect={canWrite && selected.summary.status === "APPROVED" && selected.summary.resolutionMode === "UPDATE_EXISTING"} selectedFields={applyFields} onSelectionChange={setApplyFields} />
@@ -324,9 +330,39 @@ function SummaryItem({ label, value, tone }: { label: string; value?: string; to
   return <div className={`intake-summary-item${tone ? ` ${tone}` : ""}`}><span>{label}</span><strong>{value?.replaceAll("_", " ") || "-"}</strong></div>;
 }
 
+function LinkedCatalogProduct({ detail, locale }: { detail: IntakeDetail; locale: "tr" | "en" }) {
+  const catalog = detail.catalogFields ?? {};
+  const name = displayIdentityValue(catalog.productName, locale === "tr" ? "Ürün adı bulunamadı" : "Product name unavailable");
+  const brand = displayIdentityValue(catalog.brand, locale === "tr" ? "Marka belirtilmedi" : "Brand unavailable");
+  const requestLabel = detail.summary.source === "USER_CORRECTION"
+    ? (locale === "tr" ? "Kullanıcı düzeltmesi" : "User correction")
+    : detail.summary.source?.replaceAll("_", " ") || "-";
+  return <section className="linked-catalog-product" aria-label={locale === "tr" ? "Düzeltme isteği kaynağı" : "Correction request source"}>
+    <div className="linked-catalog-product-heading">
+      <span>{locale === "tr" ? "DÜZELTME İSTEĞİNİN GELDİĞİ ÜRÜN" : "PRODUCT THAT RECEIVED THE CORRECTION"}</span>
+      <strong>{name}</strong>
+      <small>{brand}</small>
+    </div>
+    <div className="linked-catalog-product-meta">
+      <span><small>{locale === "tr" ? "Ürün kimliği" : "Product ID"}</small><strong>#{detail.linkedFoodItemId}</strong></span>
+      <span><small>{locale === "tr" ? "Barkod" : "Barcode"}</small><strong>{detail.summary.barcode || "-"}</strong></span>
+      <span><small>{locale === "tr" ? "Pazar" : "Market"}</small><strong>{detail.summary.marketRegion || "-"}</strong></span>
+      <span><small>{locale === "tr" ? "Yayın durumu" : "Publication"}</small><strong>{detail.linkedProductPublicationStatus?.replaceAll("_", " ") || "-"}</strong></span>
+      <span><small>{locale === "tr" ? "İstek türü" : "Request type"}</small><strong>{requestLabel}</strong></span>
+      <span><small>{locale === "tr" ? "Düzeltme kimliği" : "Correction ID"}</small><strong>{detail.sourceReference ? `#${detail.sourceReference}` : "-"}</strong></span>
+      <span><small>{locale === "tr" ? "Gönderen" : "Submitted by"}</small><strong title={detail.submittedByEmail}>{detail.submittedByEmail || "-"}</strong></span>
+      <span><small>{locale === "tr" ? "Gönderim zamanı" : "Submitted at"}</small><strong>{formatDate(detail.summary.createdAt)}</strong></span>
+    </div>
+  </section>;
+}
+
+function displayIdentityValue(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
 function FieldComparisonReview({ comparisons, locale, canEdit, editValues, onEdit, onSave, editBusy, canSelect, selectedFields, onSelectionChange }: { comparisons: FieldComparison[]; locale: "tr" | "en"; canEdit: boolean; editValues: Record<string, string>; onEdit: (field: string, value: string) => void; onSave: () => void; editBusy: boolean; canSelect: boolean; selectedFields: string[]; onSelectionChange: (fields: string[]) => void }) {
   const groups = ["identity", "nutrition", "serving", "metadata"] as const;
-  const visible = comparisons.filter((item) => item.field !== "originalInput" && !item.equal);
+  const visible = comparisons.filter((item) => item.field !== "originalInput" && hasSubmittedValue(item.submittedValue) && !item.equal);
   const raw = comparisons.find((item) => item.field === "originalInput");
   const differenceCount = visible.filter((item) => !item.equal).length;
   const highImpactCount = visible.filter((item) => !item.equal && item.highImpact).length;
@@ -342,7 +378,7 @@ function FieldComparisonReview({ comparisons, locale, canEdit, editValues, onEdi
       return <section className="comparison-group" key={group}><h4>{comparisonGroupLabel(group, locale)}</h4><div>{items.map((item) => {
         const applyField = toApplyField(item.field);
         const selectable = canSelect && Boolean(applyField);
-        const editable = canEdit && Boolean(applyField);
+        const editable = canEdit && Boolean(applyField) && hasSubmittedValue(item.submittedValue);
         const checked = Boolean(applyField && selectedFields.includes(applyField));
         return <div className={`comparison-row${item.equal ? " equal" : item.highImpact ? " high-impact" : " different"}`} key={item.field}>
           <div className="comparison-field">{selectable && <input type="checkbox" aria-label={`${locale === "tr" ? "Uygula" : "Apply"} ${fieldLabel(item.field, locale)}`} checked={checked} onChange={(event) => onSelectionChange(event.target.checked ? [...selectedFields, applyField!] : selectedFields.filter((value) => value !== applyField))} />}<strong>{fieldLabel(item.field, locale)}</strong><small>{item.field}</small></div>
@@ -356,6 +392,10 @@ function FieldComparisonReview({ comparisons, locale, canEdit, editValues, onEdi
     {!visible.length && <p className="muted-text">{locale === "tr" ? "Karşılaştırılabilir alan bulunmuyor." : "No field comparison is available."}</p>}
     {raw && <details className="raw-submission"><summary>{locale === "tr" ? "Ham OCR girdisini görüntüle" : "View raw OCR input"}</summary><pre>{prettyField(raw.submittedValue)}</pre></details>}
   </section>;
+}
+
+function hasSubmittedValue(value: unknown) {
+  return value !== null && value !== undefined && (typeof value !== "string" || value.trim() !== "");
 }
 
 function ComparisonValue({ value, emptyLabel }: { value: unknown; emptyLabel: string }) {

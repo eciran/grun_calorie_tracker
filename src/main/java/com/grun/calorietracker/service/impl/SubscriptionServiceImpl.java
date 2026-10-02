@@ -28,6 +28,7 @@ import com.grun.calorietracker.repository.SubscriptionCreditAllocationRepository
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.repository.UserSubscriptionEntitlementRepository;
 import com.grun.calorietracker.service.MailDeliveryService;
+import com.grun.calorietracker.service.AppLinkService;
 import com.grun.calorietracker.service.AiCreditPricingService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.PushDeliveryService;
@@ -68,6 +69,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final com.grun.calorietracker.repository.AiCreditDebitRepository aiCreditDebitRepository;
     @Autowired(required = false) private MailProperties mailProperties;
     @Autowired(required = false) private PushDeliveryService pushDeliveryService;
+    @Autowired(required = false) private AppLinkService appLinkService;
 
     @Override
     public SubscriptionDto getCurrentSubscription(String email) {
@@ -932,19 +934,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Long userId = user.getId();
         Runnable mailTask = () -> {
             try {
+                boolean turkish = user.getPreferredLanguage() == PreferredLanguage.TR;
+                String actionUrl = appLinkService == null ? null
+                        : appLinkService.destination("plans", user.getPreferredLanguage());
+                String linkedTextBody = actionUrl == null ? textBody
+                        : textBody + System.lineSeparator() + (turkish ? "Planlarını görüntüle: " : "View your plans: ") + actionUrl;
                 if (mailProperties == null) {
-                    mailDeliveryService.sendTransactionalEmail(email, subject, textBody);
+                    mailDeliveryService.sendTransactionalEmail(email, subject, linkedTextBody);
                     return;
                 }
-                boolean turkish = user.getPreferredLanguage() == PreferredLanguage.TR;
                 long templateId = turkish
                         ? mailProperties.getBrevo().getTemplates().getSubscriptionFeatureChangeTr()
                         : mailProperties.getBrevo().getTemplates().getSubscriptionFeatureChangeEn();
-                mailDeliveryService.sendTransactionalTemplate(email, templateId, Map.of(
+                java.util.Map<String, Object> parameters = new java.util.HashMap<>(Map.of(
                         "feature", feature.name(), "plan", planType.name(),
                         "effectiveFrom", effectiveFrom.toString(),
                         "validUntil", validUntil == null ? "" : validUntil.toString()
-                ), subject, textBody, null);
+                ));
+                if (actionUrl != null) parameters.put("actionUrl", actionUrl);
+                mailDeliveryService.sendTransactionalTemplate(email, templateId, parameters, subject, linkedTextBody, null);
             } catch (RuntimeException ex) {
                 log.warn("Subscription feature change email could not be sent to userId={}", userId, ex);
             }

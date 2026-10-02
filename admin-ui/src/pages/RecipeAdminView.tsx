@@ -62,6 +62,7 @@ export type AdminRecipeCreateForm = {
   description: string;
   mealType: string;
   marketRegion: string;
+  marketRegions: string[];
   language: string;
   imageUrl: string;
   totalYieldGrams: string;
@@ -74,8 +75,20 @@ export type AdminRecipeCreateForm = {
   reviewNote: string;
   categories: string[];
   cookingSteps: string[];
+  translations: RecipeTranslationDraft[];
   ingredients: AdminRecipeIngredientForm[];
 };
+
+type RecipeTranslationDraft = {
+  language: "EN" | "TR";
+  name: string;
+  description: string;
+  cookingSteps: string[];
+};
+
+function emptyTranslationDraft(language: "EN" | "TR"): RecipeTranslationDraft {
+  return { language, name: "", description: "", cookingSteps: [""] };
+}
 
 export type AdminCatalogProductCreateForm = {
   name: string;
@@ -125,6 +138,7 @@ export const emptyRecipeCreateForm: AdminRecipeCreateForm = {
   description: "",
   mealType: "LUNCH",
   marketRegion: "",
+  marketRegions: [],
   language: "en",
   imageUrl: "",
   totalYieldGrams: "",
@@ -137,6 +151,7 @@ export const emptyRecipeCreateForm: AdminRecipeCreateForm = {
   reviewNote: "",
   categories: [],
   cookingSteps: [""],
+  translations: [emptyTranslationDraft("TR"), emptyTranslationDraft("EN")],
   ingredients: [{ foodItemId: "", productSearchQuery: "", productLabel: "", portionSize: "100", portionUnit: "GRAM" }]
 };
 
@@ -170,6 +185,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   const [draftDescription, setDraftDescription] = useState("");
   const [draftMealType, setDraftMealType] = useState("");
   const [draftMarketRegion, setDraftMarketRegion] = useState("");
+  const [draftMarketRegions, setDraftMarketRegions] = useState<string[]>([]);
   const [draftLanguage, setDraftLanguage] = useState("");
   const [draftTotalYieldGrams, setDraftTotalYieldGrams] = useState("");
   const [draftDefaultServingGrams, setDraftDefaultServingGrams] = useState("");
@@ -182,6 +198,9 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
   const [draftImageSource, setDraftImageSource] = useState("");
   const [draftCategories, setDraftCategories] = useState<string[]>([]);
   const [draftCookingSteps, setDraftCookingSteps] = useState<string[]>([]);
+  const [draftTranslations, setDraftTranslations] = useState<RecipeTranslationDraft[]>([
+    emptyTranslationDraft("TR"), emptyTranslationDraft("EN")
+  ]);
   const [reviewNote, setReviewNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [recipeActionError, setRecipeActionError] = useState<string | null>(null);
@@ -346,6 +365,31 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     }));
   }
 
+  function updateCreateTranslation(language: "EN" | "TR", patch: Partial<RecipeTranslationDraft>) {
+    setCreateForm((current) => ({
+      ...current,
+      translations: current.translations.map((item) => item.language === language ? { ...item, ...patch } : item)
+    }));
+  }
+
+  function updateCreateTranslationStep(language: "EN" | "TR", index: number, value: string) {
+    setCreateForm((current) => ({
+      ...current,
+      translations: current.translations.map((item) => item.language === language
+        ? { ...item, cookingSteps: item.cookingSteps.map((step, stepIndex) => stepIndex === index ? value : step) }
+        : item)
+    }));
+  }
+
+  function addCreateTranslationStep(language: "EN" | "TR") {
+    setCreateForm((current) => ({
+      ...current,
+      translations: current.translations.map((item) => item.language === language
+        ? { ...item, cookingSteps: [...item.cookingSteps, ""] }
+        : item)
+    }));
+  }
+
   function updateDraftCookingStep(index: number, value: string) {
     setDraftCookingSteps((current) => current.map((step, itemIndex) => itemIndex === index ? value : step));
   }
@@ -356,6 +400,28 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
 
   function removeDraftCookingStep(index: number) {
     setDraftCookingSteps((current) => current.length <= 1 ? current : current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function updateTranslation(language: "EN" | "TR", patch: Partial<RecipeTranslationDraft>) {
+    setDraftTranslations((current) => current.map((item) => item.language === language ? { ...item, ...patch } : item));
+  }
+
+  function updateTranslationStep(language: "EN" | "TR", index: number, value: string) {
+    setDraftTranslations((current) => current.map((item) => item.language === language
+      ? { ...item, cookingSteps: item.cookingSteps.map((step, stepIndex) => stepIndex === index ? value : step) }
+      : item));
+  }
+
+  function addTranslationStep(language: "EN" | "TR") {
+    setDraftTranslations((current) => current.map((item) => item.language === language
+      ? { ...item, cookingSteps: [...item.cookingSteps, ""] }
+      : item));
+  }
+
+  function removeTranslationStep(language: "EN" | "TR", index: number) {
+    setDraftTranslations((current) => current.map((item) => item.language === language
+      ? { ...item, cookingSteps: item.cookingSteps.length <= 1 ? item.cookingSteps : item.cookingSteps.filter((_, stepIndex) => stepIndex !== index) }
+      : item));
   }
   async function searchCreateIngredientProducts(index: number) {
     const ingredient = createForm.ingredients[index];
@@ -603,6 +669,12 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       onError("Recipe name is required.");
       return;
     }
+    if (createForm.visibility === "PUBLIC_ADMIN" && createForm.translations.some((translation) => !translation.name.trim())) {
+      onError(tr
+        ? "Keşfet yayını için Türkçe ve İngilizce tarif adlarını tamamlayın."
+        : "Complete both Turkish and English recipe names before publishing to Discover.");
+      return;
+    }
     if (ingredients.some((ingredient) => !ingredient.foodItemId || !ingredient.portionSize)) {
       onError("Each recipe ingredient needs a food item id and amount.");
       return;
@@ -619,6 +691,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
         description: createForm.description.trim() || null,
         mealType: createForm.mealType || null,
         marketRegion: createForm.marketRegion || null,
+        marketRegions: createForm.marketRegions,
         language: createForm.language.trim() || null,
         imageUrl: createForm.imageUrl.trim() || null,
         totalYieldGrams: numericOrNull(createForm.totalYieldGrams),
@@ -626,6 +699,14 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
         servingCount,
         categories: createForm.categories,
         cookingSteps: createForm.cookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction),
+        translations: createForm.translations
+          .map((translation) => ({
+            language: translation.language,
+            name: translation.name.trim(),
+            description: translation.description.trim() || null,
+            cookingSteps: translation.cookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction)
+          }))
+          .filter((translation) => translation.name),
         ingredients
       },
       reviewNote: createForm.reviewNote.trim() || "Created from admin panel."
@@ -666,6 +747,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setDraftDescription(recipe.description ?? "");
     setDraftMealType(recipe.mealType ?? "");
     setDraftMarketRegion(recipe.marketRegion ?? "");
+    setDraftMarketRegions(recipe.marketRegions?.length ? recipe.marketRegions : recipe.marketRegion ? [recipe.marketRegion] : []);
     setDraftLanguage(recipe.language ?? "");
     setDraftTotalYieldGrams(recipe.totalYieldGrams == null ? "" : String(recipe.totalYieldGrams));
     setDraftDefaultServingGrams(recipe.defaultServingGrams == null ? "" : String(recipe.defaultServingGrams));
@@ -678,6 +760,20 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setDraftImageSource(recipe.imageSource ?? "");
     setDraftCategories(recipe.categories ?? []);
     setDraftCookingSteps((recipe.cookingSteps ?? []).map((step) => step.instruction ?? "").filter(Boolean));
+    setDraftTranslations((["TR", "EN"] as const).map((language) => {
+      const translation = recipe.translations?.find((item) => item.language === language);
+      const sourceLanguage = (recipe.language ?? "").toUpperCase().startsWith(language);
+      const sourceSteps = sourceLanguage
+        ? (recipe.cookingSteps ?? []).map((step) => step.instruction ?? "").filter(Boolean)
+        : [];
+      return {
+        language,
+        name: translation?.name ?? (sourceLanguage ? recipe.name ?? "" : ""),
+        description: translation?.description ?? (sourceLanguage ? recipe.description ?? "" : ""),
+        cookingSteps: translation?.cookingSteps?.map((step) => step.instruction ?? "").filter(Boolean)
+          ?? (sourceSteps.length ? sourceSteps : [""])
+      };
+    }));
     setReviewNote("");
     setRecipeAnalysis(null);
     if (recipe.id) void loadRecipeAnalysis(recipe.id);
@@ -697,7 +793,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setRecipeAnalysisLoading(true);
     setRecipeActionError(null);
     try {
-      const analysis = await request<AdminRecipeReviewAnalysis>(`/api/v1/admin/recipes/${selectedRecipe.id}/analysis?force=${force}`, { method: "POST", timeoutMs: 30000 });
+      const analysis = await request<AdminRecipeReviewAnalysis>(`/api/v1/admin/recipes/${selectedRecipe.id}/analysis?force=${force}&language=${tr ? "TR" : "EN"}`, { method: "POST", timeoutMs: 30000 });
       setRecipeAnalysis(analysis);
       setRecipeDetailTab("analysis");
     } catch (error) {
@@ -718,6 +814,8 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
     setDraftImageSource("");
     setDraftCategories([]);
     setDraftCookingSteps([]);
+    setDraftMarketRegions([]);
+    setDraftTranslations([emptyTranslationDraft("TR"), emptyTranslationDraft("EN")]);
     setReviewNote("");
     setRecipeActionError(null);
     setRecipeAnalysis(null);
@@ -778,6 +876,14 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
       setRecipeActionError(tr ? "Tarif adı zorunludur." : "Recipe name is required.");
       return;
     }
+    if ((draftVisibility || selectedRecipe.visibility) === "PUBLIC_ADMIN"
+        && draftTranslations.some((translation) => !translation.name.trim())) {
+      setRecipeDetailTab("details");
+      setRecipeActionError(tr
+        ? "Keşfet yayını için Türkçe ve İngilizce tarif adlarını tamamlayın."
+        : "Complete both Turkish and English recipe names before publishing to Discover.");
+      return;
+    }
     setSaving(true);
     setRecipeActionError(null);
     onError(null);
@@ -789,6 +895,7 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
           description: draftDescription,
           mealType: draftMealType || null,
           marketRegion: draftMarketRegion || null,
+          marketRegions: draftMarketRegions,
           language: draftLanguage || null,
           totalYieldGrams: numericOrNull(draftTotalYieldGrams),
           defaultServingGrams: numericOrNull(draftDefaultServingGrams),
@@ -801,6 +908,14 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
           imageSource: draftImageSource || null,
           categories: draftCategories,
           cookingSteps: draftCookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction),
+          translations: draftTranslations
+            .map((translation) => ({
+              language: translation.language,
+              name: translation.name.trim(),
+              description: translation.description.trim() || null,
+              cookingSteps: translation.cookingSteps.map((instruction) => ({ instruction: instruction.trim() })).filter((step) => step.instruction)
+            }))
+            .filter((translation) => translation.name),
           reviewNote: reviewNote || "Updated from admin panel."
         }
       });
@@ -1277,13 +1392,21 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                   {MEAL_TYPES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
                 </select>
               </label>
-              <label>
-                Region
-                <select value={createForm.marketRegion} onChange={(event) => updateCreateForm("marketRegion", event.target.value)}>
-                  <option value="">None</option>
-                  {MARKET_REGIONS.map((value) => <option key={value} value={value}>{value}</option>)}
-                </select>
-              </label>
+              <div className="recipe-region-field">
+                <span>{tr ? "Yayın bölgeleri" : "Publication regions"}</span>
+                <div className="recipe-region-selector">
+                  {MARKET_REGIONS.map((value) => <label key={value} className={createForm.marketRegions.includes(value) ? "selected" : ""}>
+                    <input type="checkbox" checked={createForm.marketRegions.includes(value)} onChange={(event) => {
+                      const regions = event.target.checked
+                        ? Array.from(new Set([...createForm.marketRegions, value]))
+                        : createForm.marketRegions.filter((region) => region !== value);
+                      updateCreateForm("marketRegions", regions);
+                      updateCreateForm("marketRegion", regions[0] ?? "");
+                    }} />
+                    <span>{value}</span>
+                  </label>)}
+                </div>
+              </div>
               <label>
                 Language
                 <input value={createForm.language} onChange={(event) => updateCreateForm("language", event.target.value)} placeholder="en" />
@@ -1335,6 +1458,21 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
               Description
               <textarea value={createForm.description} onChange={(event) => updateCreateForm("description", event.target.value)} placeholder="Preparation note or short description" />
             </label>
+            <div className="recipe-translation-grid admin-recipe-translation-grid">
+              {createForm.translations.map((translation) => <section className="recipe-translation-card" key={`create-${translation.language}`}>
+                <header><strong>{translation.language === "TR" ? "Türkçe yayın metni" : "English publication copy"}</strong></header>
+                <label>{translation.language === "TR" ? "Tarif adı" : "Recipe name"}<input value={translation.name} onChange={(event) => updateCreateTranslation(translation.language, { name: event.target.value })} maxLength={160} /></label>
+                <label>{translation.language === "TR" ? "Açıklama" : "Description"}<textarea value={translation.description} onChange={(event) => updateCreateTranslation(translation.language, { description: event.target.value })} maxLength={1000} /></label>
+                <div className="recipe-translation-steps">
+                  <span>{translation.language === "TR" ? "Pişirme adımları" : "Cooking steps"}</span>
+                  {translation.cookingSteps.map((step, index) => <div className="recipe-step-editor-row" key={`create-${translation.language}-step-${index}`}>
+                    <span>{index + 1}</span>
+                    <textarea value={step} onChange={(event) => updateCreateTranslationStep(translation.language, index, event.target.value)} maxLength={1000} />
+                  </div>)}
+                  <button className="ghost-button" type="button" onClick={() => addCreateTranslationStep(translation.language)}>{tr ? "Adım ekle" : "Add step"}</button>
+                </div>
+              </section>)}
+            </div>
             <div className="category-editor admin-recipe-category-editor">
               {RECIPE_CATEGORIES.map((category) => (
                 <label key={category} className="inline-check category-check">
@@ -1654,11 +1792,23 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                       {MEAL_TYPES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
                     </select>
                   </EditableDetail>
-                  <EditableDetail label="Region">
-                    <select value={draftMarketRegion} onChange={(event) => setDraftMarketRegion(event.target.value)}>
-                      <option value="">None</option>
-                      {MARKET_REGIONS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
+                  <EditableDetail label={tr ? "Yayın bölgeleri" : "Publication regions"}>
+                    <div className="recipe-region-selector" role="group" aria-label={tr ? "Yayın bölgeleri" : "Publication regions"}>
+                      {MARKET_REGIONS.map((value) => <label key={value} className={draftMarketRegions.includes(value) ? "selected" : ""}>
+                        <input
+                          type="checkbox"
+                          checked={draftMarketRegions.includes(value)}
+                          onChange={(event) => {
+                            const regions = event.target.checked
+                              ? Array.from(new Set([...draftMarketRegions, value]))
+                              : draftMarketRegions.filter((region) => region !== value);
+                            setDraftMarketRegions(regions);
+                            setDraftMarketRegion(regions[0] ?? "");
+                          }}
+                        />
+                        <span>{value}</span>
+                      </label>)}
+                    </div>
                   </EditableDetail>
                   <EditableDetail label="Language">
                     <input value={draftLanguage} onChange={(event) => setDraftLanguage(event.target.value)} maxLength={12} placeholder="en / tr" />
@@ -1709,6 +1859,29 @@ export function RecipeAdminView({ onError }: { onError: (message: string | null)
                 <EditableDetail label="Description">
                   <textarea value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} maxLength={1000} placeholder="Recipe description" />
                 </EditableDetail>
+                <Panel
+                  title={tr ? "Yayın metinleri" : "Publication copy"}
+                  description={tr
+                    ? "Keşfet ekranında kullanıcının uygulama diline göre gösterilecek Türkçe ve İngilizce metinler. Kaynak tarif ve snapshot alanları değiştirilmez."
+                    : "Turkish and English copy shown in Discover according to the user's app language. Source recipe and snapshot fields remain unchanged."}
+                >
+                  <div className="recipe-translation-grid">
+                    {draftTranslations.map((translation) => <section className="recipe-translation-card" key={translation.language}>
+                      <header><strong>{translation.language === "TR" ? "Türkçe" : "English"}</strong><Badge value={translation.name.trim() ? (tr ? "HAZIR" : "READY") : (tr ? "EKSİK" : "MISSING")} tone={translation.name.trim() ? "good" : "neutral"} /></header>
+                      <label>{translation.language === "TR" ? "Tarif adı" : "Recipe name"}<input value={translation.name} onChange={(event) => updateTranslation(translation.language, { name: event.target.value })} maxLength={160} /></label>
+                      <label>{translation.language === "TR" ? "Açıklama" : "Description"}<textarea value={translation.description} onChange={(event) => updateTranslation(translation.language, { description: event.target.value })} maxLength={1000} /></label>
+                      <div className="recipe-translation-steps">
+                        <span>{translation.language === "TR" ? "Pişirme adımları" : "Cooking steps"}</span>
+                        {translation.cookingSteps.map((step, index) => <div className="recipe-step-editor-row" key={`${translation.language}-step-${index}`}>
+                          <span>{index + 1}</span>
+                          <textarea value={step} onChange={(event) => updateTranslationStep(translation.language, index, event.target.value)} placeholder={translation.language === "TR" ? "Hazırlama adımını yazın" : "Describe this preparation step"} maxLength={1000} />
+                          <button className="ghost-button danger-text" type="button" onClick={() => removeTranslationStep(translation.language, index)} disabled={translation.cookingSteps.length <= 1}>{tr ? "Kaldır" : "Remove"}</button>
+                        </div>)}
+                        <button className="ghost-button" type="button" onClick={() => addTranslationStep(translation.language)}>{tr ? "Adım ekle" : "Add step"}</button>
+                      </div>
+                    </section>)}
+                  </div>
+                </Panel>
                 </section>}
                 {recipeDetailTab === "content" && <section className="recipe-review-pane recipe-review-content">
                 <div className="detail-grid compact">

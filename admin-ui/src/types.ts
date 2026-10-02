@@ -555,6 +555,7 @@ export type AdminRecipe = {
   visibility?: string;
   verificationStatus?: string;
   marketRegion?: string;
+  marketRegions?: string[];
   language?: string;
   sourceType?: string;
   sourceAiRequestId?: number;
@@ -563,6 +564,8 @@ export type AdminRecipe = {
   analysisRiskLevel?: string;
   analysisQualityScore?: number;
   analysisUpdatedAt?: string;
+  availableLanguages?: string[];
+  translations?: RecipeTranslation[];
   imageUrl?: string;
   imageSource?: string;
   imageStatus?: string;
@@ -584,6 +587,7 @@ export type AdminRecipe = {
   ratingCount?: number;
   averageRating?: number;
   categories?: string[];
+  allergens?: string[];
   archived?: boolean;
   ingredientCount?: number;
   missingTurkishIngredientTranslationCount?: number;
@@ -592,6 +596,13 @@ export type AdminRecipe = {
   createdAt?: string;
   updatedAt?: string;
   ingredients?: RecipeIngredient[];
+  cookingSteps?: RecipeStep[];
+};
+
+export type RecipeTranslation = {
+  language: "EN" | "TR";
+  name: string;
+  description?: string;
   cookingSteps?: RecipeStep[];
 };
 

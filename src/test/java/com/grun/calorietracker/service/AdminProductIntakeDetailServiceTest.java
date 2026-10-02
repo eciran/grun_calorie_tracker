@@ -33,6 +33,10 @@ class AdminProductIntakeDetailServiceTest {
         food.setSourceCategoryTags(new LinkedHashSet<>(List.of("en:sodas", "en:beverages")));
         food.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
         FoodProductReviewCaseEntity reviewCase = baseCase(food);
+        UserEntity submitter = new UserEntity();
+        submitter.setEmail("contributor@example.com");
+        reviewCase.setSubmittedBy(submitter);
+        reviewCase.setSourceReference("42");
         reviewCase.setSubmittedValuesJson("{\"productName\":\"User name\",\"brand\":\"Same brand\"}");
         FoodProductReviewCaseAssetEntity asset = evidence(LocalDateTime.now().plusDays(10));
         when(cases.findById(12L)).thenReturn(Optional.of(reviewCase));
@@ -41,6 +45,8 @@ class AdminProductIntakeDetailServiceTest {
         var detail = service.detail(12L);
 
         assertEquals(5L, detail.linkedFoodItemId());
+        assertEquals("contributor@example.com", detail.submittedByEmail());
+        assertEquals("42", detail.sourceReference());
         assertTrue(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("productName") && !value.equal()));
         assertFalse(detail.fieldComparisons().stream().anyMatch(value -> value.field().equals("brand")));
         assertTrue(detail.fieldComparisons().stream().allMatch(value -> !value.equal()));
@@ -50,6 +56,27 @@ class AdminProductIntakeDetailServiceTest {
         assertFalse(Arrays.stream(detail.evidence().get(0).getClass().getRecordComponents())
                 .anyMatch(component -> component.getName().toLowerCase().contains("url")
                         || component.getName().toLowerCase().contains("storage")));
+    }
+
+    @Test
+    void detailDoesNotPresentMissingCorrectionValuesAsCatalogDifferences() {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setId(5L);
+        food.setName("Catalog name");
+        food.setCalories(120d);
+        food.setProtein(8d);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        FoodProductReviewCaseEntity reviewCase = baseCase(food);
+        reviewCase.setSource(FoodProductReviewCaseSource.USER_CORRECTION);
+        reviewCase.setSubmittedValuesJson("{\"calories\":null,\"protein\":\" \",\"carbs\":12.5}");
+        when(cases.findById(12L)).thenReturn(Optional.of(reviewCase));
+        when(assets.findAllByReviewCaseIdOrderByAssetTypeAsc(12L)).thenReturn(List.of());
+
+        var detail = service.detail(12L);
+
+        assertEquals(1, detail.fieldComparisons().size());
+        assertEquals("carbs", detail.fieldComparisons().get(0).field());
+        assertEquals(12.5, detail.fieldComparisons().get(0).submittedValue());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.RecipeCookingStepEntity;
 import com.grun.calorietracker.entity.RecipeEntity;
 import com.grun.calorietracker.entity.RecipeIngredientEntity;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -59,6 +60,18 @@ class RecipeReviewAnalysisEngineTest {
         assertThat(result.criticalIssue()).isTrue();
         assertThat(result.request().getDeterministicIssues())
                 .contains("Ingredient is missing the normalized amount required by its nutrition reference unit.");
+    }
+
+    @Test
+    void usesAdminInterfaceLanguageForAiOutputAndCacheIdentity() {
+        RecipeEntity recipe = recipeWithIngredient(400.0);
+
+        RecipeReviewAnalysisEngine.AnalysisInput turkish = engine.analyze(recipe, PreferredLanguage.TR);
+        RecipeReviewAnalysisEngine.AnalysisInput english = engine.analyze(recipe, PreferredLanguage.EN);
+
+        assertThat(turkish.request().getLanguage()).isEqualTo("tr");
+        assertThat(english.request().getLanguage()).isEqualTo("en");
+        assertThat(turkish.contentHash()).isNotEqualTo(english.contentHash());
     }
 
     private RecipeEntity recipeWithIngredient(double storedCalories) {

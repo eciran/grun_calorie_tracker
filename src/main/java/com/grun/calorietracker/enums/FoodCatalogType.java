@@ -13,6 +13,9 @@ public enum FoodCatalogType {
     @Schema(description = "Regional or traditional dish represented by a standard recipe/nutrition profile.")
     LOCAL_DISH,
 
+    @Schema(description = "Barcode-free prepared food or drink represented by a reviewed recipe, portion profile and nutrition basis.")
+    STANDARD_PREPARED_ITEM,
+
     @Schema(description = "Private food created by the authenticated user.")
     USER_CUSTOM
 }

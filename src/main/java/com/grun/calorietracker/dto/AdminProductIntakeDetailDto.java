@@ -11,6 +11,8 @@ public record AdminProductIntakeDetailDto(
         String reviewNote,
         Long linkedFoodItemId,
         CatalogPublicationStatus linkedProductPublicationStatus,
+        String submittedByEmail,
+        String sourceReference,
         Map<String, Object> submittedFields,
         Map<String, Object> catalogFields,
         List<FieldComparison> fieldComparisons,

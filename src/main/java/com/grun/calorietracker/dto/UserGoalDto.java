@@ -28,6 +28,9 @@ public class UserGoalDto {
     @Schema(description = "Target body weight in kilograms.", example = "78.0", requiredMode = Schema.RequiredMode.REQUIRED)
     private Double targetWeight;
 
+    @Schema(description = "Body weight captured when this goal became active, in kilograms.", example = "82.4")
+    private Double startWeightKg;
+
     @NotNull(message = "{validation.user-goal.daily-calorie-goal.required}")
     @Min(value = 1000, message = "{validation.user-goal.daily-calorie-goal.min}")
     @Schema(description = "Daily calorie target.", example = "2300", requiredMode = Schema.RequiredMode.REQUIRED)

@@ -48,6 +48,7 @@ docs/*
 !docs/MEAL_REMINDER_ACCEPTANCE_MATRIX_2026-08-29.md
 !docs/MEAL_REMINDER_RELEASE_RUNBOOK_2026-08-29.md
 !docs/NOTIFICATION_PLATFORM_SPRINT_PLAN_2026-08-31.md
+!docs/STANDARD_PREPARED_CATALOG_200_PLAN.md
 logs/
 .deploy-snapshot-*/
 .mvn-home/
@@ -74,6 +75,12 @@ src/main/resources/application.yml
 GIT_COMMANDS_CHEATSHEET.md
 frontend_mikro_besin_entegrasyon_notu_2026-06-10.txt
 sample-data/
+!sample-data/
+sample-data/*
+!sample-data/standard-prepared-catalog-200-v1.csv
+!sample-data/standard-prepared-portion-profiles-v1.csv
+!sample-data/standard-prepared-liquid-serving-options-v1.csv
+!sample-data/standard-prepared-modifier-rules-v1.csv
 frontend_kullanilmayan_backend_api_notu_2026-06-21.txt
 frontend_fasting_uyum_analizi_2026-06-23.txt
 frontend_edit_profile_uyum_notu_2026-06-22.txt

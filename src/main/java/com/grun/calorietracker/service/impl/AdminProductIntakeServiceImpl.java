@@ -573,6 +573,8 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
         return new AdminProductIntakeDetailDto(toSummary(reviewCase), reviewCase.getReviewNote(),
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getId(),
                 reviewCase.getFoodItem() == null ? null : reviewCase.getFoodItem().getPublicationStatus(),
+                reviewCase.getSubmittedBy() == null ? null : reviewCase.getSubmittedBy().getEmail(),
+                reviewCase.getSourceReference(),
                 submitted, catalog, comparisons(submitted, catalog), List.copyOf(warnings), expiry, evidence,
                 corroboratingEvidence(reviewCase), ocrRuns(caseId, warnings));
     }
@@ -664,11 +666,16 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
             Map<String, Object> submitted, Map<String, Object> catalog
     ) {
         return new TreeSet<>(submitted.keySet()).stream()
+                .filter(field -> hasSubmittedValue(submitted.get(field)))
                 .filter(field -> !comparisonValuesEqual(submitted.get(field), catalog.get(field)))
                 .map(field -> new AdminProductIntakeDetailDto.FieldComparison(field,
                 submitted.get(field), catalog.get(field), false,
                 isHighImpactField(field, catalog.get(field), submitted.get(field))))
                 .toList();
+    }
+
+    private boolean hasSubmittedValue(Object value) {
+        return value != null && (!(value instanceof String text) || !text.isBlank());
     }
 
     private boolean comparisonValuesEqual(Object submitted, Object catalog) {

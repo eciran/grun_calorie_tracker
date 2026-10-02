@@ -72,6 +72,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/webhooks/revenuecat").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/error-telemetry/proxy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/verify-email", "/open/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/.well-known/apple-app-site-association", "/.well-known/assetlinks.json").permitAll()
                         .requestMatchers(HttpMethod.GET, "/email-assets/grun-logo.png").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/admin-ui/**").permitAll()

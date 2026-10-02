@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>GRUN</title>
+  <style>
+    html,body{margin:0;min-height:100%;background:#fff}body{display:grid;place-items:center;padding:24px;box-sizing:border-box;color:#211527;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:440px;text-align:center}h1{font-size:24px;margin:0 0 12px}p{line-height:1.5;margin:0 0 20px;color:#655b69}a{display:inline-block;padding:13px 22px;border-radius:999px;background:#6812a3;color:#fff;text-decoration:none;font-weight:600}@media(prefers-color-scheme:dark){html,body{background:#17131a}body{color:#f8f4fa}p{color:#c8bdcc}}
+  </style>
+</head>
+<body>
+<main><h1 id="title">Opening GRUN</h1><p id="message">Continue this action securely in the GRUN app.</p><a id="open" href="#">Open GRUN</a></main>
+<script>
+  (function(){
+    var allowed={'/verify-email':'verify-email','/reset-password':'reset-password','/open/plans':'pro-upgrade','/open/notifications':'notifications','/open/profile':'profile'};
+    var target=allowed[window.location.pathname];var query=new URLSearchParams(window.location.search);var isTr=(query.get('lang')||'').toLowerCase()==='tr';document.documentElement.lang=isTr?'tr':'en';
+    if(!target){window.location.replace('/');return;}var safeQuery=new URLSearchParams();if((target==='verify-email'||target==='reset-password')&&query.get('token'))safeQuery.set('token',query.get('token'));if(isTr)safeQuery.set('lang','tr');
+    var appUrl='grun://'+target+(safeQuery.toString()?'?'+safeQuery.toString():'');var link=document.getElementById('open');link.href=appUrl;document.getElementById('title').textContent=isTr?'GRUN açılıyor':'Opening GRUN';document.getElementById('message').textContent=isTr?'Bu işleme güvenli şekilde GRUN uygulamasında devam et.':'Continue this action securely in the GRUN app.';link.textContent=isTr?'GRUN’da aç':'Open GRUN';window.location.replace(appUrl);
+  }());
+</script>
+</body>
+</html>

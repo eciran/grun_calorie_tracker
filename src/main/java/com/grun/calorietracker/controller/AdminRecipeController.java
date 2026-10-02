@@ -21,6 +21,7 @@ import com.grun.calorietracker.enums.RecipeAllergen;
 import com.grun.calorietracker.enums.RecipeImportCandidateStatus;
 import com.grun.calorietracker.enums.RecipeVisibility;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.service.AdminRecipeService;
 import com.grun.calorietracker.service.RecipeReviewAnalysisService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,9 +67,10 @@ public class AdminRecipeController {
     public ResponseEntity<AdminRecipeReviewAnalysisDto> analyzeRecipe(
             @PathVariable Long id,
             @RequestParam(defaultValue = "false") boolean force,
+            @RequestParam(defaultValue = "EN") PreferredLanguage language,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.accepted().body(recipeReviewAnalysisService.start(
-                id, force, userDetails == null ? null : userDetails.getUsername()));
+                id, force, userDetails == null ? null : userDetails.getUsername(), language));
     }
 
     @GetMapping("/{id}/analysis/latest")

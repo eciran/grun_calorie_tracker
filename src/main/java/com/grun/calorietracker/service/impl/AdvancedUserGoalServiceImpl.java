@@ -23,6 +23,7 @@ import com.grun.calorietracker.repository.GoalTargetAcknowledgementRepository;
 import com.grun.calorietracker.repository.AdvancedGoalPreviewRepository;
 import com.grun.calorietracker.repository.AdvancedGoalSaveRequestRepository;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.repository.ProgressLogRepository;
 import com.grun.calorietracker.service.AdvancedUserGoalService;
 import com.grun.calorietracker.service.SubscriptionService;
 import com.grun.calorietracker.service.UserGoalService;
@@ -63,6 +64,7 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
     private final AdvancedMacroTargetPolicy policy;
     private final UserAnalyticsCacheRevisionService cacheRevisionService;
     private final ProductAnalyticsService productAnalyticsService;
+    private final ProgressLogRepository progressLogRepository;
 
     @Override
     public AdvancedGoalPreviewDto preview(AdvancedGoalRequestDto request, String email) {
@@ -144,6 +146,7 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
         ZoneId zone = zone(user);
         entity.setEffectiveLocalDate(LocalDate.now(zone));
         entity.setEffectiveTimeZone(zone.getId());
+        entity.setStartWeightKg(resolveStartWeight(user, now));
         UserGoalEntity saved = goalRepository.save(entity);
         if (preview.isRequiresAcknowledgement()) {
             GoalTargetAcknowledgementEntity acknowledgement = new GoalTargetAcknowledgementEntity();
@@ -268,6 +271,17 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
         Integer maintenance = preview.getAutomaticReference().getMaintenanceCalories();
         if (maintenance == null) return 0.0;
         return Math.round(((preview.getCalories() - maintenance) * 7.0 / 7700.0) * 1000.0) / 1000.0;
+    }
+
+    private Double resolveStartWeight(UserEntity user, LocalDateTime effectiveAt) {
+        return progressLogRepository.findTopByUserAndLogDateLessThanOrderByLogDateDesc(user, effectiveAt.plusNanos(1))
+                .map(com.grun.calorietracker.entity.ProgressLogEntity::getWeight)
+                .filter(AdvancedUserGoalServiceImpl::isValidWeight)
+                .orElseGet(() -> isValidWeight(user.getWeight()) ? user.getWeight() : null);
+    }
+
+    private static boolean isValidWeight(Double weight) {
+        return weight != null && Double.isFinite(weight) && weight > 0.0;
     }
 
     private void recordEvent(String email, ProductAnalyticsEventType type, GoalCalculationMode mode) {

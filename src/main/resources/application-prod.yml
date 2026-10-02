@@ -246,6 +246,11 @@ grun:
       quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 40 2 * * *}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:BREVO}
+  app-links:
+    public-base-url: ${GRUN_APP_LINKS_PUBLIC_BASE_URL:https://api.gruncalorietracker.com}
+    ios-app-id: ${GRUN_APP_LINKS_IOS_APP_ID:}
+    android-package-name: ${GRUN_APP_LINKS_ANDROID_PACKAGE_NAME:com.grun.calorietracker}
+    android-sha256-cert-fingerprints: ${GRUN_APP_LINKS_ANDROID_SHA256_CERT_FINGERPRINTS:}
   tokens:
     cleanup-interval-ms: ${GRUN_TOKENS_CLEANUP_INTERVAL_MS:3600000}
   rate-limit:

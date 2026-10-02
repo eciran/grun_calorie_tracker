@@ -1,0 +1,33 @@
+profile_key,measurement_basis,nutrition_reference_unit,serving_strategy,item_measurement_required,description
+ALCOHOL_VOLUME,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Beer and cider volume servings
+BLENDED_DRINK,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Blended cold drink volumes
+BOWL,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Bowl weight depends on the reviewed recipe
+BURGER,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Burger weight depends on the reviewed recipe
+COCKTAIL_GLASS,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Cocktail glass volumes
+COLD_DRINK,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Cold drink volumes
+DESSERT_CUP,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Dessert cup requires recipe yield
+EGG_PORTION,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Egg portion requires item count and cooked yield
+ESPRESSO,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Espresso shot volumes
+HOT_DRINK,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,General hot drink volumes
+MILK_COFFEE,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Milk coffee volumes
+MILK_DRINK,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Milk based drink volumes
+PIECE,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Piece weight must be reviewed per item
+PIECE_COUNT,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Count conversion must be reviewed per item
+PLATE,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Plate weight depends on the reviewed recipe
+PORTION,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Portion weight must be reviewed per item
+ROLL,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Roll weight must be reviewed per item
+SANDWICH,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Sandwich weight depends on the reviewed recipe
+SCOOP,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Scoop weight must be reviewed per item
+SHAKER,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Prepared shake volumes
+SKILLET_PORTION,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Skillet portion depends on the reviewed recipe
+SLICE,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Slice weight must be reviewed per item
+SLICE_COUNT,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Slice count conversion must be reviewed per item
+SPIRIT_MEASURE,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Regional spirit measures
+STACK,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Stack weight depends on item count and recipe
+TEA_CUP,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Tea cup volumes
+TEA_MUG,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Tea mug volumes
+TOAST_PORTION,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Toast portion requires bread and topping yield
+TURKISH_COFFEE,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Turkish coffee cup volumes
+TURKISH_TEA_GLASS,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Turkish tea glass volumes
+WINE_GLASS,LIQUID_ML,PER_100ML,PROFILE_OPTIONS,false,Wine glass volumes
+WRAP,ITEM_GRAMS,PER_100G,ITEM_EVIDENCE,true,Wrap weight depends on the reviewed recipe

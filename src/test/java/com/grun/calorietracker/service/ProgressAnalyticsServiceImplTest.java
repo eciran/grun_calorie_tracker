@@ -101,6 +101,7 @@ class ProgressAnalyticsServiceImplTest {
     void getAnalytics_UsesGoalBaselineAndDistinguishesMissingFoodDays() {
         LocalDate start = LocalDate.of(2026, 7, 1);
         LocalDate end = LocalDate.of(2026, 7, 7);
+        goal.setStartWeightKg(100.0);
         when(userService.findByEmail("analytics@grun.app")).thenReturn(Optional.of(user));
         when(userGoalService.getCurrentUserGoal("analytics@grun.app")).thenReturn(goal);
 
@@ -145,10 +146,6 @@ class ProgressAnalyticsServiceImplTest {
                 .thenReturn(trendWeights);
         when(progressLogRepository.findTopByUserAndLogDateLessThanOrderByLogDateDesc(user, end.plusDays(1).atStartOfDay()))
                 .thenReturn(Optional.of(rangeWeights.get(1)));
-        when(progressLogRepository.findTopByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
-                user, goal.getCreatedAt(), end.plusDays(1).atStartOfDay()))
-                .thenReturn(Optional.of(weight(user, goal.getCreatedAt(), 100.0)));
-
         ProgressAnalyticsDto result = service.getAnalytics("analytics@grun.app", start, end, true);
 
         assertEquals(50.0, result.getBody().getGoalProgressPercent());

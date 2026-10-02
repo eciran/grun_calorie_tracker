@@ -26,6 +26,7 @@ public class UserGoalEntity {
     private UserEntity user;
 
     private Double targetWeight;
+    private Double startWeightKg;
     private Integer dailyCalorieGoal;
     private Double dailyProteinGoal;
     private Double dailyFatGoal;
