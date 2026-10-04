@@ -223,6 +223,8 @@ export type NutritionCorrectionImportResult = {
   errors?: string[];
 };
 
+type CorrectionImportNotice = { tone: "success" | "warning" | "info"; message: string };
+
 const productReviewMessages = {
   tr: {
     modeTitle: { queue: "Ürün inceleme kuyruğu", images: "Ürün görseli inceleme", nutrition: "Besin değeri inceleme", rejected: "Reddedilen ürünler" },
@@ -230,7 +232,7 @@ const productReviewMessages = {
     resetFilters: "Filtreleri sıfırla", returnedProducts: "Eşleşen ürün", returnedProductsHint: "Geçerli filtre sonucundaki toplam", highPriority: "Yüksek öncelik", highPriorityHint: "Öncelik puanı 100 ve üzeri", missingImages: "Görseli eksik", missingImagesHint: "Kullanılabilir görseli olmayan satırlar", activeFilters: "Etkin filtre", activeFiltersHint: "Kuyruğa uygulanan ölçütler",
     filtersTitle: "Kuyruğu daralt", filtersDescription: "İncelenecek ürünleri görev, kaynak ve kalite sorununa göre odaklayın.", productSearch: "Ürün ara", productSearchPlaceholder: "Ad, marka veya barkod", verification: "Doğrulama", imageStatus: "Görsel durumu", region: "Bölge", catalog: "Katalog", dataSource: "Veri kaynağı", qualityIssue: "Kalite sorunu", all: "Tümü", anyIssue: "Tüm sorunlar",
     categoryQueue: "Kategori kararları", categoryQueueHint: "Birincil kategorisi bulunmayan ürünler", openQueue: "Kuyruğu aç",
-    bulkTools: "Toplu düzeltme araçları", bulkWorkflow: "Toplu düzeltme akışı", bulkDescription: "Mevcut filtreyi dışa aktarın, değerleri dosyada düzeltin, önce prova çalıştırın ve sonuç temizse uygulayın.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Aktarılan satırları doğrulandı olarak işaretle", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula",
+    bulkTools: "Toplu düzeltme araçları", bulkWorkflow: "Toplu düzeltme akışı", bulkDescription: "Mevcut filtreyi dışa aktarın, değerleri dosyada düzeltin, önce prova çalıştırın ve sonuç temizse uygulayın.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Aktarılan satırları doğrulandı olarak işaretle", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
     queueEyebrow: "ÇALIŞMA KUYRUĞU", queueTitle: "İncelenecek ürünler", queueDescription: "Bir satır seçerek kanıt, kalite önerileri ve düzenleme alanlarını açın.", product: "Ürün", source: "Kaynak", review: "İnceleme", quality: "Kalite", nutrition: "Besin değerleri", empty: "Bu filtre için incelenecek ürün bulunamadı.", rejectTitle: "Ürün reddedilsin mi?", rejectMessage: "Ürün ve görsel reddedildi olarak işaretlenecek; karar denetim geçmişine kaydedilecek.", rejectAction: "Ürünü reddet"
   },
   en: {
@@ -239,7 +241,7 @@ const productReviewMessages = {
     resetFilters: "Reset filters", returnedProducts: "Matching products", returnedProductsHint: "Total in the current filter", highPriority: "High priority", highPriorityHint: "Priority score 100 or above", missingImages: "Missing images", missingImagesHint: "Rows without a usable image", activeFilters: "Active filters", activeFiltersHint: "Criteria applied to the queue",
     filtersTitle: "Refine the queue", filtersDescription: "Focus the workload by task, source, and quality issue.", productSearch: "Product search", productSearchPlaceholder: "Name, brand, or barcode", verification: "Verification", imageStatus: "Image status", region: "Region", catalog: "Catalog", dataSource: "Data source", qualityIssue: "Quality issue", all: "All", anyIssue: "Any issue",
     categoryQueue: "Category decisions", categoryQueueHint: "Products without a primary category", openQueue: "Open queue",
-    bulkTools: "Bulk correction tools", bulkWorkflow: "Bulk correction workflow", bulkDescription: "Export the current filter, correct values in the file, run a dry run, and apply only after the result is clean.", exportFilter: "Export current filter", correctionFile: "Correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Mark imported rows verified", dryRun: "Run dry run", applyImport: "Apply import",
+    bulkTools: "Bulk correction tools", bulkWorkflow: "Bulk correction workflow", bulkDescription: "Export the current filter, correct values in the file, run a dry run, and apply only after the result is clean.", exportFilter: "Export current filter", correctionFile: "Correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Mark imported rows verified", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
     queueEyebrow: "WORK QUEUE", queueTitle: "Products to review", queueDescription: "Select a row to open evidence, quality recommendations, and editing fields.", product: "Product", source: "Source", review: "Review", quality: "Quality", nutrition: "Nutrition", empty: "No products need review for this filter.", rejectTitle: "Reject product?", rejectMessage: "The product and its image will be marked rejected and the decision will be recorded in audit history.", rejectAction: "Reject product"
   }
 } as const;
@@ -270,6 +272,7 @@ export function ProductReviewView({ mode, onError, canManage = false }: { mode: 
     const [savedNotice, setSavedNotice] = useState<string | null>(null);
 const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [correctionResult, setCorrectionResult] = useState<NutritionCorrectionImportResult | null>(null);
+  const [correctionNotice, setCorrectionNotice] = useState<CorrectionImportNotice | null>(null);
   const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
   const [transferState, setTransferState] = useState<LoadState>("idle");
   const path = buildProductReviewPath({
@@ -513,6 +516,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       return;
     }
     setTransferState("loading");
+    setCorrectionNotice(null);
     onError(null);
     try {
       const formData = new FormData();
@@ -524,11 +528,34 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       );
       setCorrectionResult(result);
       setTransferState("ready");
+      const updated = result.updatedRows ?? 0;
+      const skipped = result.skippedRows ?? 0;
+      const errors = result.errors?.length ?? 0;
+      if (dryRun) {
+        setCorrectionNotice({
+          tone: errors > 0 ? "warning" : "info",
+          message: locale === "tr"
+            ? `Prova tamamlandı. ${result.totalRows ?? 0} satır kontrol edildi; ${result.candidateRows ?? updated} satır eşleşti, ${skipped} satır atlanacak.${errors ? ` ${errors} hata bulundu.` : " Dosyada henüz değişiklik uygulanmadı."}`
+            : `Dry run completed. ${result.totalRows ?? 0} rows checked; ${result.candidateRows ?? updated} matched and ${skipped} will be skipped.${errors ? ` ${errors} errors found.` : " No data has been changed yet."}`
+        });
+      } else {
+        setCorrectionNotice({
+          tone: errors > 0 || updated === 0 ? "warning" : "success",
+          message: locale === "tr"
+            ? (updated > 0
+              ? `İçe aktarma tamamlandı. ${updated} satırdaki ürün verileri güncellendi, ${skipped} satır atlandı.${errors ? ` ${errors} satır hatası ayrıntılarda gösteriliyor.` : " Güncel veriler listeye yeniden yüklendi."}`
+              : `İçe aktarma tamamlandı ancak hiçbir ürün verisi güncellenmedi. ${skipped} satır atlandı${errors ? ` ve ${errors} hata bulundu.` : "."}`)
+            : (updated > 0
+              ? `Import completed. Product data in ${updated} rows was updated and ${skipped} rows were skipped.${errors ? ` ${errors} row errors are shown below.` : " The list has been reloaded with current data."}`
+              : `Import completed, but no product data was updated. ${skipped} rows were skipped${errors ? ` and ${errors} errors were found.` : "."}`)
+        });
+      }
       if (!dryRun) {
         await reload();
       }
     } catch (err) {
       setTransferState("error");
+      setCorrectionNotice(null);
       onError(formatRequestError(err));
     }
   }
@@ -640,7 +667,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
             <button className="ghost-button product-review-export-action" type="button" disabled={transferState === "loading"} onClick={exportCurrentFilter}>{text.exportFilter}</button>
             <label className="file-picker product-review-file-picker">
               <span>{text.correctionFile}</span>
-              <input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onChange={(event) => setCorrectionFile(event.target.files?.[0] ?? null)} />
+              <input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onChange={(event) => { setCorrectionFile(event.target.files?.[0] ?? null); setCorrectionResult(null); setCorrectionNotice(null); }} />
               <span className="product-review-file-control"><b>{text.chooseFile}</b><em>{correctionFile?.name ?? text.noFile}</em></span>
             </label>
             <label className="inline-check review-transfer-check">
@@ -649,12 +676,13 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
             </label>
             <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(true)}>{text.dryRun}</button><button className="primary-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(false)}>{text.applyImport}</button></div>
           </div>
+          {correctionNotice && <div className={`product-review-import-notice ${correctionNotice.tone}`} role="status" aria-live="polite"><strong>{correctionNotice.tone === "success" ? (locale === "tr" ? "İçe aktarma başarılı" : "Import successful") : correctionNotice.tone === "warning" ? (locale === "tr" ? "İşlem tamamlandı, kontrol gerekli" : "Completed with attention required") : (locale === "tr" ? "Prova sonucu" : "Dry-run result")}</strong><span>{correctionNotice.message}</span></div>}
           {correctionResult && <div className="correction-result-grid">
-            <MetricPill label="Mode" value={correctionResult.dryRun ? "Dry-run" : "Applied"} />
-            <MetricPill label="Total rows" value={formatValue(correctionResult.totalRows)} />
-            <MetricPill label="Matched rows" value={formatValue(correctionResult.candidateRows ?? correctionResult.updatedRows)} />
-            <MetricPill label="Updated rows" value={formatValue(correctionResult.updatedRows)} />
-            <MetricPill label="Skipped rows" value={formatValue(correctionResult.skippedRows)} />
+            <MetricPill label={text.importMode} value={correctionResult.dryRun ? (locale === "tr" ? "Prova" : "Dry-run") : (locale === "tr" ? "Uygulandı" : "Applied")} />
+            <MetricPill label={text.totalRows} value={formatValue(correctionResult.totalRows)} />
+            <MetricPill label={text.matchedRows} value={formatValue(correctionResult.candidateRows ?? correctionResult.updatedRows)} />
+            <MetricPill label={text.updatedRows} value={formatValue(correctionResult.updatedRows)} />
+            <MetricPill label={text.skippedRows} value={formatValue(correctionResult.skippedRows)} />
           </div>}
           {correctionResult?.errors?.length ? <div className="correction-error-list">
             {correctionResult.errors.slice(0, 5).map((error) => <span key={error}>{error}</span>)}

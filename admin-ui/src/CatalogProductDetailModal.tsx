@@ -27,18 +27,24 @@ const ALLERGEN_GROUPS = [
 ] as const;
 const ALLERGEN_CODES = new Set<string>(ALLERGEN_GROUPS.flatMap(group => [...group.values]));
 
-export function CatalogProductDetailModal({ product, canManage, onClose, onSaved }: {
+export function CatalogProductDetailModal({ product, canManage, onClose, onSaved, startEditing = false, requestContext }: {
   product: FoodProduct;
   canManage: boolean;
   onClose: () => void;
   onSaved: (product: FoodProduct) => void;
+  startEditing?: boolean;
+  requestContext?: {
+    note?: string;
+    sourceReference?: string;
+    submittedByEmail?: string;
+  };
 }) {
   const { locale } = useAdminLocale();
   const tr = locale === "tr";
   const tx = (en: string, turkish: string) => tr ? turkish : en;
   const dialogRef = useDialogAccessibility<HTMLElement>(onClose);
   const [tab, setTab] = useState<DetailTab>("overview");
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState<ProductReviewDraft>(() => toProductReviewDraft(product));
   const [reviewNote, setReviewNote] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -81,7 +87,9 @@ export function CatalogProductDetailModal({ product, canManage, onClose, onSaved
           allergens: draft.allergens, sourceCategoryTags: draft.sourceCategoryTags.split(",").map(value => value.trim()).filter(Boolean),
           adminSourceName: draft.adminSourceName, adminSourceUrl: draft.adminSourceUrl,
           adminCreationNote: draft.adminCreationNote, ...productReviewNutritionPayload(draft),
-          reviewNote: reviewNote.trim() || "Updated from catalog search workspace."
+          reviewNote: reviewNote.trim() || (requestContext?.sourceReference
+            ? `Updated from product correction ${requestContext.sourceReference}.`
+            : "Updated from catalog search workspace.")
         }
       });
       onSaved(updated); setDraft(toProductReviewDraft(updated)); setEditing(false); setReviewNote("");
@@ -108,6 +116,11 @@ export function CatalogProductDetailModal({ product, canManage, onClose, onSaved
       <header className="modal-header catalog-detail-header"><div><p className="eyebrow">{tx("CATALOG PRODUCT", "KATALOG ÜRÜNÜ")}</p><h2 id="catalog-detail-title">{productName(product)}</h2><span>#{product.id} · {product.brand || tx("No brand", "Marka yok")}</span></div><div className="catalog-detail-header-actions">{canManage && !editing && <button className="primary-button" type="button" onClick={() => setEditing(true)}>{tx("Edit product", "Ürünü düzenle")}</button>}<button className="icon-button" type="button" onClick={onClose} aria-label={tx("Close", "Kapat")}>×</button></div></header>
       {actionError && <div className="modal-error catalog-detail-message" role="alert"><div><strong>{tx("Action could not be completed", "İşlem tamamlanamadı")}</strong><span>{actionError}</span></div><button type="button" onClick={() => setActionError(null)} aria-label={tx("Dismiss error", "Hatayı kapat")}>×</button></div>}
       {notice && <div className="success-banner catalog-detail-message" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label={tx("Dismiss message", "Mesajı kapat")}>×</button></div>}
+      {requestContext?.note && <section className="catalog-correction-context">
+        <div><span>{tx("CORRECTION REQUEST", "DÜZELTME İSTEĞİ")}{requestContext.sourceReference ? ` · #${requestContext.sourceReference}` : ""}</span><strong>{tx("User note", "Kullanıcı notu")}</strong>{requestContext.submittedByEmail && <small>{requestContext.submittedByEmail}</small>}</div>
+        <p>{requestContext.note}</p>
+        {editing && requestContext.note.trim().length <= 255 && <button className="ghost-button" type="button" onClick={() => { updateDraft("productName", requestContext.note!.trim()); setTab("overview"); }}>{tx("Copy note to product name", "Notu ürün adı alanına aktar")}</button>}
+      </section>}
       <nav className="catalog-detail-tabs" aria-label={tx("Product detail sections", "Ürün detay bölümleri")}>
         {(["overview", "nutrition", "identity"] as DetailTab[]).map(value => <button key={value} className={tab === value ? "active" : ""} type="button" onClick={() => setTab(value)}>{value === "overview" ? tx("Product details", "Ürün detayları") : value === "nutrition" ? tx("Nutrition details", "Besin değerleri") : tx("Barcode & identity", "Barkod ve kimlik")}</button>)}
       </nav>

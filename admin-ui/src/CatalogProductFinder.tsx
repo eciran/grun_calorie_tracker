@@ -15,6 +15,13 @@ type Props = {
   onSelectionClear?: () => void;
   refreshToken?: number;
   canManage?: boolean;
+  allowInlineEdit?: boolean;
+  detailContext?: {
+    note?: string;
+    sourceReference?: string;
+    submittedByEmail?: string;
+  };
+  onProductSaved?: (product: FoodProduct) => void;
 };
 
 type CatalogFilters = { verificationStatus: string; imageStatus: string; region: string; catalogType: string; dataSource: string };
@@ -22,7 +29,7 @@ const EMPTY_FILTERS: CatalogFilters = { verificationStatus: "", imageStatus: "",
 const CATALOG_TYPES = ["BRANDED_PRODUCT", "GENERIC_INGREDIENT", "LOCAL_DISH", "USER_CUSTOM"];
 const DATA_SOURCES = ["MANUAL", "OPEN_FOOD_FACTS", "USDA_FOODDATA", "COFID", "EDAMAM", "NUTRITIONIX", "LOCAL_CURATED", "ADMIN_IMPORT", "USER_SUBMITTED_LABEL", "ADMIN_REVIEWED_LABEL"];
 
-export function CatalogProductFinder({ compact = false, initialProductId, onError, onSelect, onSelectionClear, refreshToken = 0, canManage = false }: Props) {
+export function CatalogProductFinder({ compact = false, initialProductId, onError, onSelect, onSelectionClear, refreshToken = 0, canManage = false, allowInlineEdit = false, detailContext, onProductSaved }: Props) {
   const { locale } = useAdminLocale();
   const tx = (en: string, tr: string) => locale === "tr" ? tr : en;
   const [query, setQuery] = useState("");
@@ -124,8 +131,12 @@ export function CatalogProductFinder({ compact = false, initialProductId, onErro
       </button>)}
       {!loading && !rows.length && <div className="empty-state"><strong>{tx("No catalog product found", "Katalog ürünü bulunamadı")}</strong><span>{tx("Try a product name, brand, exact barcode or numeric product ID.", "Ürün adı, marka, tam barkod veya sayısal ürün kimliği deneyin.")}</span></div>}
     </div>
+    {compact && selected && allowInlineEdit && <div className="catalog-inline-edit-action">
+      <div><span>{tx("Selected product", "Seçilen ürün")}</span><strong>{productName(selected)}</strong><small>#{selected.id} · {selected.brand || tx("No brand", "Marka yok")}</small></div>
+      <button className="ghost-button" type="button" disabled={!canManage} onClick={() => setDetailProduct(selected)}>{tx("View and edit product", "Ürünü görüntüle ve düzenle")}</button>
+    </div>}
     {!compact && (data?.totalPages ?? 0) > 1 && <div className="catalog-product-search-pagination"><button className="ghost-button" disabled={page <= 0} onClick={() => setPage((value) => value - 1)} type="button">{tx("Previous", "Önceki")}</button><span>{page + 1} / {data?.totalPages}</span><button className="ghost-button" disabled={Boolean(data?.last)} onClick={() => setPage((value) => value + 1)} type="button">{tx("Next", "Sonraki")}</button></div>}
-    {detailProduct && <CatalogProductDetailModal product={detailProduct} canManage={canManage} onClose={() => setDetailProduct(null)} onSaved={(updated) => { setDetailProduct(updated); setSelected(updated); setData(current => current ? { ...current, content: current.content?.map(item => item.id === updated.id ? updated : item) } : current); }} />}
+    {detailProduct && <CatalogProductDetailModal product={detailProduct} canManage={canManage} startEditing={compact && allowInlineEdit && canManage} requestContext={detailContext} onClose={() => setDetailProduct(null)} onSaved={(updated) => { setDetailProduct(updated); setSelected(updated); setData(current => current ? { ...current, content: current.content?.map(item => item.id === updated.id ? updated : item) } : current); onSelect?.(updated); onProductSaved?.(updated); }} />}
   </div>;
 }
 

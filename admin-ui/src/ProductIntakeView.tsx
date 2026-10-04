@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatRequestError, request, requestBlob } from "./api";
 import { CollapsiblePanel, DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar } from "./AdminPrimitives";
-import type { AdminAccessProfile } from "./types";
+import type { AdminAccessProfile, FoodProduct } from "./types";
 import { ManualProductIntakeForm } from "./ManualProductIntakeForm";
 import { useAdminLocale } from "./admin/locale";
 import { sectionPaths } from "./admin/navigation";
@@ -124,6 +124,26 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
       onError(formatRequestError(error));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleCatalogProductSaved(product: FoodProduct) {
+    if (!selected || !product.id) return;
+    setFoodItemId(String(product.id));
+    if (selected.linkedFoodItemId !== product.id) {
+      setNotice(locale === "tr" ? "Ürün güncellendi. İsterseniz şimdi bu incelemeye bağlayabilirsiniz." : "Product updated. You can now attach it to this review.");
+      window.setTimeout(() => setNotice(null), 3000);
+      return;
+    }
+    try {
+      const refreshed = await request<IntakeDetail>(`/api/v1/admin/product-intakes/${selected.summary.id}`);
+      setSelected(refreshed);
+      setSubmittedEdits(comparisonEditValues(refreshed.fieldComparisons ?? []));
+      setApplyFields([]);
+      setNotice(locale === "tr" ? "Ürün güncellendi ve karşılaştırma yenilendi." : "Product updated and the comparison was refreshed.");
+      window.setTimeout(() => setNotice(null), 3000);
+    } catch (error) {
+      onError(formatRequestError(error));
     }
   }
 
@@ -274,7 +294,7 @@ export function ProductIntakeView({ accessProfile, onError, targetContext, onCle
             {!selected.evidence?.length && <span>{locale === "tr" ? "Kanıt eklenmemiş." : "No evidence attached."}</span>}
             <small>{canWrite ? "Images use short-lived private links and are loaded only when selected." : "Private evidence requires owner or catalog-admin access."}</small>
             {canWrite && !selectedTerminal && <section className="intake-side-action"><div><span>{locale === "tr" ? "SORUMLULUK" : "OWNERSHIP"}</span><strong>{locale === "tr" ? "İncelemeyi yönet" : "Manage review"}</strong></div><div className="inline-actions"><button className="ghost-button" disabled={busy || Boolean(selected.summary.assignedAdminEmail && !selectedAssignedToMe)} type="button" onClick={() => void mutate("claim", undefined, locale === "tr" ? "İnceleme üzerinize alındı." : "Case claimed.")}>{selectedAssignedToMe ? (locale === "tr" ? "Üzerinizde" : "Assigned to you") : (locale === "tr" ? "Üzerime al" : "Claim")}</button><button className="ghost-button" disabled={busy || !selected.summary.assignedAdminEmail || (!isOwner && !selectedAssignedToMe)} type="button" onClick={() => void mutate("release", undefined, locale === "tr" ? "Atama kaldırıldı." : "Case released.")}>{locale === "tr" ? "Serbest bırak" : "Release"}</button></div>{isOwner && <div className="compact-action-form"><label>{locale === "tr" ? "Başka katalog yöneticisine ata" : "Reassign to catalog admin"}<input type="email" value={reassignEmail} onChange={(event) => setReassignEmail(event.target.value)} placeholder="admin@example.com" /></label><button className="ghost-button" disabled={busy || !reassignEmail.trim()} type="button" onClick={() => void mutate("reassign", { adminEmail: reassignEmail.trim() }, locale === "tr" ? "İnceleme yeniden atandı." : "Case reassigned.")}>{locale === "tr" ? "Ata" : "Reassign"}</button></div>}</section>}
-            {canWrite && !selectedTerminal && <section className="intake-side-action intake-catalog-linker"><div><span>{locale === "tr" ? "KATALOG BAĞLANTISI" : "CATALOG LINK"}</span><strong>{locale === "tr" ? "Mevcut ürünü ara ve doğrula" : "Search and verify the existing product"}</strong><small>{locale === "tr" ? "Tüm veritabanında ad, marka, barkod veya ürün kimliğiyle arayın; doğru ürünü seçmeden bağlantı kurulmaz." : "Search the full database by name, brand, barcode or product ID. A link is created only after selecting a result."}</small></div><CatalogProductFinder compact initialProductId={selected.linkedFoodItemId} onError={onError} onSelect={(product) => setFoodItemId(product.id ? String(product.id) : "")} onSelectionClear={() => setFoodItemId("")} />{foodItemId && <div className="catalog-link-confirm"><span>{locale === "tr" ? "Seçilen katalog kaydı" : "Selected catalog record"}</span><strong>#{foodItemId}</strong><button className="primary-button" disabled={busy} type="button" onClick={() => void mutate("attach-existing-product", { foodItemId: Number(foodItemId) }, locale === "tr" ? "Mevcut ürün bağlandı." : "Existing product attached.")}>{locale === "tr" ? "Seçilen ürüne bağla" : "Attach selected product"}</button></div>}</section>}
+            {canWrite && !selectedTerminal && <section className="intake-side-action intake-catalog-linker"><div><span>{locale === "tr" ? "KATALOG BAĞLANTISI" : "CATALOG LINK"}</span><strong>{locale === "tr" ? "Mevcut ürünü ara, düzenle ve doğrula" : "Search, edit and verify the existing product"}</strong><small>{locale === "tr" ? "Tüm veritabanında ürünü bulun; bu ekrandan ayrılmadan detaylarını düzenleyin veya incelemeye bağlayın." : "Find the product in the full database, then edit its details or attach it to the review without leaving this screen."}</small></div><CatalogProductFinder compact initialProductId={selected.linkedFoodItemId} onError={onError} onSelect={(product) => setFoodItemId(product.id ? String(product.id) : "")} onSelectionClear={() => setFoodItemId("")} canManage={canWrite} allowInlineEdit detailContext={{ note: typeof selected.submittedFields?.note === "string" ? selected.submittedFields.note : undefined, sourceReference: selected.sourceReference, submittedByEmail: selected.submittedByEmail }} onProductSaved={(product) => void handleCatalogProductSaved(product)} />{foodItemId && <div className="catalog-link-confirm"><span>{locale === "tr" ? "Seçilen katalog kaydı" : "Selected catalog record"}</span><strong>#{foodItemId}</strong><button className="primary-button" disabled={busy} type="button" onClick={() => void mutate("attach-existing-product", { foodItemId: Number(foodItemId) }, locale === "tr" ? "Mevcut ürün bağlandı." : "Existing product attached.")}>{locale === "tr" ? "Seçilen ürüne bağla" : "Attach selected product"}</button></div>}</section>}
           </div>
         </div>
         <footer className="modal-actions padded-actions">

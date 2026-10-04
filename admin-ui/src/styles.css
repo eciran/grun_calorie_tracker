@@ -1054,15 +1054,16 @@ html, body, button, input, select, textarea, optgroup, option, table, svg text {
 .product-review-file-picker > span { color:var(--muted-strong); font-size:.76rem; font-weight:700; }
 .product-review-file-picker input[type="file"] { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .product-review-file-control { display:flex; align-items:center; min-width:0; min-height:44px; padding:5px; border:1px dashed color-mix(in srgb,var(--primary) 30%,var(--line)); border-radius:10px; background:var(--surface-muted); cursor:pointer; }
-.product-review-file-control b { flex:0 0 auto; min-height:32px; padding:7px 12px; border-radius:8px; background:var(--primary); color:var(--on-primary); font-size:.75rem; line-height:18px; }
+.product-review-file-control b { flex:0 0 auto; min-height:32px; padding:7px 12px; border:1px solid color-mix(in srgb,var(--primary) 42%,var(--line)); border-radius:8px; background:var(--surface); color:var(--primary); font-size:.75rem; line-height:18px; box-shadow:0 1px 2px color-mix(in srgb,var(--primary) 8%,transparent); }
 .product-review-file-control em { min-width:0; padding:0 10px; overflow:hidden; color:var(--muted); font-size:.75rem; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
-.product-review-file-picker:hover .product-review-file-control b { filter:brightness(.94); }
+.product-review-file-picker:hover .product-review-file-control b { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 7%,var(--surface)); }
 .product-review-file-picker:focus-within .product-review-file-control { outline:2px solid var(--primary); outline-offset:2px; }
 .product-review-bulk-tools .review-transfer-check { display:flex; align-items:center; gap:9px; min-height:44px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--surface-muted); }
 .product-review-bulk-tools .review-transfer-check input { flex:0 0 auto; }
 .product-review-bulk-tools .review-transfer-check span { font-size:.78rem; line-height:1.3; }
 .product-review-import-actions { display:flex; gap:8px; }
 .product-review-import-actions button { white-space:nowrap; }
+.product-review-import-notice{display:grid;gap:4px;margin:0 18px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font-size:.82rem;line-height:1.45}.product-review-import-notice strong{font-size:.86rem}.product-review-import-notice.success{border-color:color-mix(in srgb,var(--success) 38%,var(--line));background:color-mix(in srgb,var(--success) 9%,var(--surface));color:var(--success)}.product-review-import-notice.warning{border-color:color-mix(in srgb,var(--warning) 45%,var(--line));background:color-mix(in srgb,var(--warning) 11%,var(--surface));color:var(--warning-text)}.product-review-import-notice.info{border-color:color-mix(in srgb,var(--primary) 35%,var(--line));background:color-mix(in srgb,var(--primary) 7%,var(--surface));color:var(--muted-strong)}
 .product-review-bulk-tools .correction-result-grid,.product-review-bulk-tools .correction-error-list { margin:0 18px 18px; }
 
 .product-review-queue {
@@ -1172,6 +1173,81 @@ html, body, button, input, select, textarea, optgroup, option, table, svg text {
 .product-review-editor-grid select,
 .product-review-editor-grid textarea { width: 100%; min-width: 0; }
 .product-review-editor-grid textarea { min-height: 96px; resize: vertical; }
+
+/* Product review: make text and numeric editing controls visibly interactive. */
+.product-review-modal .editable-detail:has(> input) {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--line));
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+}
+.product-review-modal .editable-detail:has(> input) > span,
+.product-review-modal .product-review-editor-grid label:has(> input) > span,
+.product-review-modal .product-review-editor-grid label:has(> textarea) > span,
+.product-review-modal .nutrition-input:has(input) > span,
+.product-review-modal .product-review-edit-pane > label:has(textarea) {
+  color: var(--muted-strong);
+  font-weight: 700;
+}
+.product-review-modal .editable-detail:has(> input) > span::after,
+.product-review-modal .product-review-editor-grid label:has(> input) > span::after,
+.product-review-modal .product-review-editor-grid label:has(> textarea) > span::after,
+.product-review-modal .nutrition-input:has(input) > span::after {
+  content: "\270E";
+  margin-left: 6px;
+  color: var(--primary);
+  font-size: .78rem;
+}
+.product-review-modal .editable-detail > input,
+.product-review-modal .product-review-editor-grid input,
+.product-review-modal .product-review-editor-grid textarea,
+.product-review-modal .product-review-edit-pane > label > textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--line-strong));
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.product-review-modal .editable-detail > input {
+  min-height: 42px;
+  padding: 9px 11px;
+}
+.product-review-modal .product-review-editor-grid input {
+  min-height: 42px;
+  padding: 9px 11px;
+}
+.product-review-modal .product-review-editor-grid textarea,
+.product-review-modal .product-review-edit-pane > label > textarea {
+  padding: 10px 11px;
+}
+.product-review-modal .editable-detail > input:hover,
+.product-review-modal .product-review-editor-grid input:hover,
+.product-review-modal .product-review-editor-grid textarea:hover,
+.product-review-modal .product-review-edit-pane > label > textarea:hover {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--line-strong));
+}
+.product-review-modal .editable-detail > input:focus,
+.product-review-modal .product-review-editor-grid input:focus,
+.product-review-modal .product-review-editor-grid textarea:focus,
+.product-review-modal .product-review-edit-pane > label > textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  outline-offset: 2px;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.product-review-modal .nutrition-input-control {
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line-strong));
+  background: var(--surface);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.product-review-modal .nutrition-input-control:hover {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--line-strong));
+}
+.product-review-modal .nutrition-input-control:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
 
 @media (max-width: 1100px) {
   .product-review-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -13224,12 +13300,16 @@ a:focus-visible {
 .ai-photo-facts { display: grid; gap: 16px; }
 .ai-photo-facts .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .ai-photo-facts .ghost-button { justify-self: start; }
-.ai-recipe-review-action { display:flex; justify-content:flex-start; }
+.ai-recipe-review-layout { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:center; }
+.ai-recipe-review-layout > .metric-grid { min-width:0; }
+.ai-recipe-review-action { display:flex; align-items:center; justify-content:flex-end; min-width:max-content; padding:0 14px; }
 .ai-recipe-review-action .ghost-button { width:auto; }
 .ai-photo-facts .metric-card { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 980px) {
   .ai-photo-layout { grid-template-columns: 1fr; gap: 12px; }
   .ai-photo-echart { height: 250px; }
+  .ai-recipe-review-layout { grid-template-columns:1fr; gap:14px; }
+  .ai-recipe-review-action { justify-content:flex-end; padding:0; }
 }
 @media (max-width: 600px) {
   .ai-photo-facts .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -13423,6 +13503,8 @@ a:focus-visible {
 .catalog-product-finder.compact .catalog-product-results{max-height:330px;overflow-y:auto;overscroll-behavior:contain;padding:2px}
 .catalog-product-finder.compact .catalog-product-result{grid-template-columns:40px minmax(0,1fr) auto;padding:9px}
 .catalog-product-finder.compact .catalog-product-thumb{width:40px;height:40px;border-radius:10px}
+.catalog-inline-edit-action{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:var(--radius-md);background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.catalog-inline-edit-action>div{display:grid;gap:3px;min-width:0}.catalog-inline-edit-action span,.catalog-inline-edit-action small{color:var(--muted);font-size:.7rem}.catalog-inline-edit-action strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem}
 .intake-catalog-linker{gap:14px}
 .catalog-link-confirm{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 10px;padding:12px;border:1px solid color-mix(in srgb,var(--primary) 30%,var(--line));border-radius:var(--radius-md);background:color-mix(in srgb,var(--primary) 6%,var(--surface))}
 .catalog-link-confirm span{color:var(--muted);font-size:.7rem}.catalog-link-confirm strong{font-size:1rem}.catalog-link-confirm button{grid-column:2;grid-row:1/3}
@@ -13436,6 +13518,8 @@ a:focus-visible {
 .catalog-detail-message{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:12px 22px 0}
 .catalog-detail-message>div{display:grid;gap:3px;min-width:0}
 .catalog-detail-message button{flex:0 0 auto;border:0;background:transparent;color:inherit;font:inherit;font-size:1.15rem;cursor:pointer}
+.catalog-correction-context{display:grid;grid-template-columns:minmax(170px,.45fr) minmax(0,1fr) auto;align-items:center;gap:12px;margin:12px 22px 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.catalog-correction-context>div{display:grid;gap:3px;min-width:0}.catalog-correction-context span{color:var(--accent);font-size:.66rem;font-weight:800;letter-spacing:.06em}.catalog-correction-context strong{font-size:.82rem}.catalog-correction-context small{overflow:hidden;color:var(--muted);font-size:.68rem;text-overflow:ellipsis;white-space:nowrap}.catalog-correction-context p{min-width:0;margin:0;padding:9px 11px;border-left:3px solid var(--accent);background:var(--surface);overflow-wrap:anywhere;font-size:.8rem;line-height:1.45}
 .catalog-detail-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:16px 22px 0;padding:5px;border:1px solid var(--line);border-radius:16px;background:var(--surface-soft)}
 .catalog-detail-tabs button{min-height:43px;border:0;border-radius:12px;background:transparent;color:var(--muted);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}
 .catalog-detail-tabs button.active{background:var(--surface);color:var(--primary);box-shadow:0 5px 16px rgba(43,29,55,.09)}
@@ -13486,8 +13570,8 @@ a:focus-visible {
 .catalog-allergen-groups label{display:flex;align-items:center;gap:9px;min-height:34px;padding:4px 6px;border-radius:8px;cursor:pointer}.catalog-allergen-groups label:hover{background:var(--surface-soft)}.catalog-allergen-groups input{width:16px;height:16px;accent-color:var(--primary)}.catalog-allergen-groups label span{display:flex;min-width:0;align-items:baseline;justify-content:space-between;gap:8px;width:100%;font-size:.78rem}.catalog-allergen-groups label small{color:var(--muted);font-size:.59rem}
 .catalog-allergen-preserved{display:grid;gap:4px;margin:0 14px 14px;padding:11px;border:1px dashed var(--line-strong);border-radius:11px;background:var(--surface)}.catalog-allergen-preserved strong{font-size:.73rem}.catalog-allergen-preserved span{overflow-wrap:anywhere;font-size:.78rem}.catalog-allergen-preserved small{color:var(--muted);font-size:.66rem}
 .catalog-allergen-picker.readonly{display:grid;gap:8px;padding:12px}.catalog-allergen-picker.readonly>span{color:var(--muted);font-size:.7rem;font-weight:700}.catalog-allergen-summary{display:flex;flex-wrap:wrap;gap:6px}.catalog-allergen-summary>span{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border-radius:999px;background:color-mix(in srgb,var(--primary) 9%,var(--surface));font-size:.75rem;font-weight:700}.catalog-allergen-summary small{color:var(--muted);font-size:.58rem}.catalog-allergen-summary .legacy{background:var(--surface);border:1px solid var(--line);font-weight:500}
-@media(max-width:860px){.catalog-detail-body{grid-template-columns:1fr}.catalog-detail-summary{position:static;grid-template-columns:150px minmax(0,1fr);align-items:start}.catalog-detail-summary .product-image-frame{min-height:130px;aspect-ratio:1}.catalog-detail-badges,.catalog-detail-score{grid-column:2}.catalog-nutrition-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-detail-actions{flex-wrap:wrap}.catalog-detail-actions>div{width:100%}.catalog-detail-actions>label{width:100%;order:2}.catalog-detail-actions button{order:3}}
-@media(max-width:620px){.catalog-detail-modal{width:calc(100vw - 12px);height:calc(100dvh - 12px);max-height:calc(100dvh - 12px)}.catalog-detail-header{padding:13px 14px;gap:8px}.catalog-detail-header-actions{margin-left:auto;align-items:flex-end;flex-direction:column-reverse}.catalog-detail-header-actions .primary-button{min-height:34px;padding:0 10px;font-size:.7rem}.catalog-detail-tabs{display:flex;overflow-x:auto;margin:10px 14px 0}.catalog-detail-tabs button{flex:0 0 auto;min-width:145px}.catalog-detail-body{padding:12px 14px}.catalog-detail-summary{grid-template-columns:104px minmax(0,1fr)}.catalog-detail-summary .product-image-frame{min-height:104px}.catalog-detail-grid,.catalog-nutrition-grid,.catalog-barcode-fields,.catalog-allergen-groups{grid-template-columns:1fr}.catalog-barcode-workbench header{display:grid}.catalog-barcode-workbench header small{text-align:left}.catalog-detail-actions{display:grid;grid-template-columns:1fr 1fr;padding:11px 14px}.catalog-detail-actions>div,.catalog-detail-actions>label{grid-column:1/-1}.catalog-detail-actions .primary-button{grid-column:1/-1}}
+@media(max-width:860px){.catalog-detail-body{grid-template-columns:1fr}.catalog-detail-summary{position:static;grid-template-columns:150px minmax(0,1fr);align-items:start}.catalog-detail-summary .product-image-frame{min-height:130px;aspect-ratio:1}.catalog-detail-badges,.catalog-detail-score{grid-column:2}.catalog-nutrition-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-detail-actions{flex-wrap:wrap}.catalog-detail-actions>div{width:100%}.catalog-detail-actions>label{width:100%;order:2}.catalog-detail-actions button{order:3}.catalog-correction-context{grid-template-columns:1fr auto}.catalog-correction-context p{grid-column:1/-1;grid-row:2}}
+@media(max-width:620px){.catalog-detail-modal{width:calc(100vw - 12px);height:calc(100dvh - 12px);max-height:calc(100dvh - 12px)}.catalog-detail-header{padding:13px 14px;gap:8px}.catalog-detail-header-actions{margin-left:auto;align-items:flex-end;flex-direction:column-reverse}.catalog-detail-header-actions .primary-button{min-height:34px;padding:0 10px;font-size:.7rem}.catalog-correction-context{grid-template-columns:1fr;margin:10px 14px 0}.catalog-correction-context p{grid-column:auto;grid-row:auto}.catalog-correction-context .ghost-button,.catalog-inline-edit-action .ghost-button{width:100%}.catalog-inline-edit-action{grid-template-columns:1fr}.catalog-detail-tabs{display:flex;overflow-x:auto;margin:10px 14px 0}.catalog-detail-tabs button{flex:0 0 auto;min-width:145px}.catalog-detail-body{padding:12px 14px}.catalog-detail-summary{grid-template-columns:104px minmax(0,1fr)}.catalog-detail-summary .product-image-frame{min-height:104px}.catalog-detail-grid,.catalog-nutrition-grid,.catalog-barcode-fields,.catalog-allergen-groups{grid-template-columns:1fr}.catalog-barcode-workbench header{display:grid}.catalog-barcode-workbench header small{text-align:left}.catalog-detail-actions{display:grid;grid-template-columns:1fr 1fr;padding:11px 14px}.catalog-detail-actions>div,.catalog-detail-actions>label{grid-column:1/-1}.catalog-detail-actions .primary-button{grid-column:1/-1}}
 .mailbox-account-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; overflow-y:auto; }
 .mailbox-account-form > label,.mailbox-account-form fieldset label { display:grid; gap:6px; }
 .mailbox-account-form fieldset { display:grid; grid-template-columns:minmax(0,1fr) 110px; align-items:end; gap:10px; min-width:0; margin:0; padding:13px; border:1px solid var(--line); border-radius:var(--radius-lg); }
