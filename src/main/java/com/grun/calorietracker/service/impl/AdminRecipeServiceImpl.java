@@ -986,6 +986,17 @@ public class AdminRecipeServiceImpl implements AdminRecipeService {
             if (unresolved > 0) {
                 issues.add(unresolved + " unresolved ingredient foodItemId value(s)");
             }
+            long unresolvedCountWeights = ingredients.stream()
+                    .filter(Objects::nonNull)
+                    .filter(ingredient -> ingredient.getPortionUnit() == com.grun.calorietracker.enums.FoodPortionUnit.PIECE
+                            || ingredient.getPortionUnit() == com.grun.calorietracker.enums.FoodPortionUnit.SLICE
+                            || ingredient.getPortionUnit() == com.grun.calorietracker.enums.FoodPortionUnit.SERVING)
+                    .filter(ingredient -> ingredient.getEstimatedGrams() == null || ingredient.getEstimatedGrams() <= 0)
+                    .count();
+            if (unresolvedCountWeights > 0) {
+                issues.add(unresolvedCountWeights
+                        + " count-based ingredient(s) require a mapped product serving weight before approval");
+            }
         }
         if (candidate.getRecipe().getCategories() == null || candidate.getRecipe().getCategories().isEmpty()) {
             issues.add("categories missing");
