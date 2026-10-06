@@ -303,6 +303,20 @@ Bu nedenle 5-6'nin yerel tarama/uyumlu duzeltme parcasi yapildi; tum guvenlik ka
 
 Kaynaklar: [Spring 3.5 reference](https://docs.spring.io/spring-boot/3.5/reference/index.html), [Spring CVE-2026-47884](https://spring.io/security/cve-2026-47884/), [Tomcat security](https://tomcat.apache.org/security-10.html), [Jackson 2.21 release](https://github.com/FasterXML/jackson/wiki/Jackson-Release-2.21), [Aqua scanner incident](https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know/), [Trivy Java coverage](https://www.trivy.dev/docs/latest/coverage/language/java/), [Gitleaks](https://github.com/gitleaks/gitleaks).
 
+## Staging kapanis guncellemesi: 2026-10-07
+
+Backend/admin birlesik paket ve boyut optimizasyonu `ae563dc2` / `4aec14a3`
+commit'leriyle staging'e aktarildi. ECS revision 86, rollout COMPLETED, health UP;
+V299-V305 migration'lari basarili. Snapshot, immutable image digest ve 63 admin
+asset hash kontrolu kayitli. Admin production test zinciri ve npm audit artik gecer.
+
+Spring bulgusu silinmedi/yamalanmis sayilmadi: uygulama sinif hash'lerine bagli uc
+Linux testiyle yalniz staging konfigurasyonu icin 2026-10-13 UTC'ye kadar sureli
+degerlendirme var. Production scanner bu degerlendirmeyi kabul etmez. WAF/Redis,
+mobil/native kabul, tam V2 browser fixture bakimi ve diger genis audit maddeleri
+tamamlanmis sayilmaz. Ayrintili sonuc ve kalan kabul sinirlari:
+`ops/security/STAGING_RELEASE_2026-10-06.md`.
+
 ## Yontem kaynaklari
 
 - [OWASP API Security Top 10](https://api-security.owasp.org/editions/2023/en/0x11-t10/): yetkilendirme, kimlik ve kaynak tuketimi kapsami.

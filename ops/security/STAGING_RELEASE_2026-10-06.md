@@ -29,8 +29,8 @@
    Official fixes require Spring 7.0.9 OSS or 6.2.20 enterprise.
    Source: https://spring.io/security/cve-2026-47884/
 2. The original HEIC/CSS size failures were resolved without raising existing budgets.
-3. Staging configuration parity, actual database history and snapshot, immutable
-   image/source identity, migration logs, rollout and post-deploy smoke remain required.
+3. Staging parity, database history, snapshot, image identity, migrations, rollout
+   and post-deploy smoke were verified as recorded below.
 
 ## Follow-up assessment and optimization
 
@@ -63,6 +63,40 @@ RDS snapshot grun-staging-pre-security-20261006 is available. The final runtime 
 hash matches the Linux build JAR and its tested application classes. Three unrelated
 liquid-catalog research scripts appeared concurrently and are excluded from this
 release commit; they do not alter the packaged application.
+
+## Deployment result: 2026-10-07 Europe/Dublin
+
+- Source: ae563dc2 plus optimization commit 4aec14a3.
+- ECR tag: staging-20261007-4aec14a3.
+- Image digest: sha256:85f73dec22f23a28711bc720eab9ad6d2465359fe9c07e99d7792348cbe3ad1e.
+- ECS task definition: grun-staging-api-task:86; previous revision 85 retained.
+- Service rollout COMPLETED, desired/running 1, pending 0, failed tasks 0.
+- Circuit breaker and automatic rollback enabled. Existing environment, secret
+  references, task roles, CPU/memory and network configuration preserved.
+- Runtime user explicitly 10001:10001. No WAF/Redis provisioning or mobile build.
+- Read-only database preflight: V298 successful, TLSv1.3. Temporary preflight task
+  exited 0 and its task definition was deregistered afterward.
+- Flyway validated 300 migration files and applied V299-V305 successfully; schema V305.
+- Startup completed in 174.09 seconds. No ERROR entries in checked startup/recent window.
+- Health UP; anonymous users/me 401; /.env and /v3/api-docs blocked.
+- All 63 deployed admin assets hash-match local packaged files; WASM content type
+  application/wasm. HEIC/paywall/error-layout browser fixtures rerun successfully.
+- npm audit full and omit-dev: zero reported vulnerabilities.
+
+### Remaining acceptance limits
+
+- The Spring configuration assessment expires 2026-10-13 UTC; production remains
+  blocked until an appropriate patch/review decision. The library finding remains.
+- The full V2 browser fixture needs maintenance; targeted browser checks are not
+  equivalent to that full suite or real Apple/Android purchase acceptance.
+- Flyway logs a PostgreSQL 18.3 support warning (this Flyway version advertises
+  tested support through 17). Actual staging migrations succeeded; a supported
+  Flyway/PostgreSQL compatibility upgrade is a separate production follow-up.
+- One CSS request returned 404 while old/new targets overlapped during rollout;
+  final stable checks passed for every asset. Versioned asset availability for
+  long-lived admin tabs and mixed-target rollouts remains a production follow-up.
+- Four concurrent liquid-catalog research/apply-package scripts remain untracked
+  and were not executed, committed or included in the runtime image.
 
 ## Rollback constraints
 
