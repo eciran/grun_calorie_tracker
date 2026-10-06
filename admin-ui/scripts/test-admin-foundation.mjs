@@ -1,10 +1,11 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const app = readAdminAppSource();
 const primitives = fs.readFileSync(new URL("../src/AdminPrimitives.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 
 assert.match(app, /from "\.\.?\/AdminPrimitives"/, "App must consume the shared admin primitives.");
 assert.doesNotMatch(app, /function SectionToolbar\(/, "SectionToolbar must not be redefined in App.");

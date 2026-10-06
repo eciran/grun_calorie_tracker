@@ -1,10 +1,11 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const app = readAdminAppSource();
 const charts = fs.readFileSync(new URL("../src/CampaignOperationsCharts.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 const controller = fs.readFileSync(new URL("../../src/main/java/com/grun/calorietracker/controller/AdminNotificationCampaignController.java", import.meta.url), "utf8");
 const summary = fs.readFileSync(new URL("../../src/main/java/com/grun/calorietracker/dto/AdminNotificationCampaignSummaryDto.java", import.meta.url), "utf8");
 

@@ -1,3 +1,4 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -5,7 +6,7 @@ const app = readAdminAppSource();
 const view = fs.readFileSync(new URL("../src/modules/notifications/MealReminderAutomationView.tsx", import.meta.url), "utf8");
 const definitions = fs.readFileSync(new URL("../src/modules/notifications/NotificationDefinitionsView.tsx", import.meta.url), "utf8");
 const subscriptionNotifications = fs.readFileSync(new URL("../src/modules/notifications/SubscriptionNotificationOperationsView.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 const controller = fs.readFileSync(new URL("../../src/main/java/com/grun/calorietracker/controller/AdminMealReminderAutomationController.java", import.meta.url), "utf8");
 assert.match(app, /mealReminderAutomation/, "Meal reminder automation must be deep-linkable and navigable.");
 assert.match(app, /<MealReminderAutomationView accessProfile=/, "App must pass backend access context to the view.");

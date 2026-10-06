@@ -1,0 +1,6 @@
+HEIC preview uses libheif-js 1.23.5, an unmodified WebAssembly distribution of libheif.
+License texts for libheif and its bundled dependencies accompany this notice.
+JavaScript wrapper and build instructions: https://github.com/catdad-experiments/libheif-js
+libheif source and build instructions: https://github.com/strukturag/libheif/tree/v1.23.5
+The decoder is a separate replaceable .wasm asset, loaded only for HEIC previews.
+Original uploaded images are not modified by the preview conversion.

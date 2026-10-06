@@ -1,3 +1,4 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -8,7 +9,7 @@ const read = (relative) => fs.readFileSync(new URL(relative, root), "utf8");
 const app = readAdminAppSource();
 const api = read("src/api.ts");
 const primitives = read("src/AdminPrimitives.tsx");
-const styles = read("src/styles.css");
+const styles = readAdminStyleSource();
 const runbook = read("README.md");
 
 assert.match(app, /sectionFromLocation\(\)/, "Deep links must resolve through the typed section allowlist.");
@@ -67,6 +68,10 @@ assert.ok(jsAssets.every((asset) => fs.statSync(new URL(`../src/main/resources/s
 assert.ok(totalJsBytes <= 2_500_000, `Total admin JS budget exceeded: ${totalJsBytes} bytes (limit 2500000).`);
 // Consolidated admin workspaces, responsive editors and operational dashboards establish a 325 KB baseline.
 assert.ok(cssBytes <= 340_000, `Admin CSS budget exceeded: ${cssBytes} bytes (limit 340000).`);
+const wasmAssets = assets.filter(name => name.endsWith(".wasm"));
+assert.equal(wasmAssets.length, 1, "Exactly one optional HEIC decoder is expected.");
+assert.ok(wasmAssets.every(asset => fs.statSync(new URL(`../src/main/resources/static/admin-ui/assets/${asset}`, root)).size <= 2_000_000), "Optional HEIC WASM must remain below 2 MB.");
+assert.doesNotMatch(indexHtml, /\.wasm/, "The HEIC codec must not preload with the admin shell.");
 
 for (const heading of ["Operator Runbook", "Role Walkthroughs", "Incident Playbook", "Glossary", "Known Production Dependencies"]) {
   assert.match(runbook, new RegExp(`## ${heading}`), `${heading} must be documented.`);

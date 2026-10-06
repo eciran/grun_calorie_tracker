@@ -1,0 +1,15 @@
+{
+  "vulnerabilityId": "CVE-2026-47884",
+  "packageName": "org.springframework:spring-webmvc",
+  "installedVersion": "6.2.19",
+  "environment": "staging",
+  "decision": "not_affected_by_current_configuration",
+  "reviewUntilUtc": "2026-10-13T00:00:00Z",
+  "reason": "All mapped application handlers use ResponseBody or explicit HttpEntity responses. XsltView and XsltViewResolver beans are rejected before initialization. The advisory's XSLT and implicit wildcard view-rendering prerequisites are absent. This is not a patched library claim.",
+  "requiredTests": [
+    "applicationHandlersNeverUseImplicitViewRendering",
+    "rejectsXsltViewsAndResolversBeforeInitialization",
+    "startupFailsIfXsltResolverIsAccidentallyConfigured"
+  ],
+  "advisory": "https://spring.io/security/cve-2026-47884/"
+}

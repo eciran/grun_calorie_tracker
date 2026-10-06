@@ -1,10 +1,11 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const app = readAdminAppSource();
 const chart = fs.readFileSync(new URL("../src/RevenueCatEChart.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 
 assert.match(app, /lazy\(\(\) => import\("\.\.?\/RevenueCatEChart"\)/, "Commercial charts must be loaded outside the admin shell bundle.");
 assert.match(app, /<RevenueCatEChart chart=\{\{ \.\.\.chart, points \}\}/, "RevenueCat monitoring must render the shared ECharts view.");

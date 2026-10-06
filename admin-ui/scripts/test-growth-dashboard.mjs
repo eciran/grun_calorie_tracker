@@ -1,3 +1,4 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -6,7 +7,7 @@ const app = readAdminAppSource();
 const chart = fs.readFileSync(new URL("../src/GrowthTrendChart.tsx", import.meta.url), "utf8");
 const insightCharts = fs.readFileSync(new URL("../src/DashboardInsightCharts.tsx", import.meta.url), "utf8");
 const engine = fs.readFileSync(new URL("../src/AdminEChart.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 const types = fs.readFileSync(new URL("../src/types.ts", import.meta.url), "utf8");
 
 assert.match(app, /\/api\/v1\/admin\/dashboard\/growth\?from=/, "Growth data must come from the aggregate backend endpoint.");

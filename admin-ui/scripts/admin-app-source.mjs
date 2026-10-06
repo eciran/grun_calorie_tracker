@@ -1,5 +1,10 @@
 import fs from "node:fs";
 
+export function readAdminStyleSource() {
+  const paths = ["styles.css", "pages/mail-pages.css", "pages/product-review.css", "pages/owner-errors.css"];
+  return paths.map(path => fs.readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8")).join("\n");
+}
+
 // Legacy contracts previously inspected the monolithic App. Keep that exact
 // migrated surface covered; architectural behavior is tested separately.
 export function readAdminAppSource() {

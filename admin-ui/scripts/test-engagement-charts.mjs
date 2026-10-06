@@ -1,3 +1,4 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -5,7 +6,7 @@ import fs from "node:fs";
 const app = readAdminAppSource();
 const charts = fs.readFileSync(new URL("../src/EngagementCharts.tsx", import.meta.url), "utf8");
 const engine = fs.readFileSync(new URL("../src/AdminEChart.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 
 assert.match(app, /lazy\(\(\) => import\("\.\.?\/EngagementCharts"\)/, "Engagement charts must be lazy loaded.");
 assert.match(app, /OnboardingFunnelChart items=\{onboardingFunnelItems\}/, "Onboarding analytics must render the funnel chart.");

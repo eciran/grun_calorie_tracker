@@ -32,3 +32,4 @@ export function MailInboxView({ onError }: { onError: (message: string | null) =
     </section>}
   </div>;
 }
+import "./mail-pages.css";

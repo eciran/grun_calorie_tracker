@@ -1549,3 +1549,4 @@ export function parseOptionalNumber(value: string): number | null {
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
 }
+import "./product-review.css";

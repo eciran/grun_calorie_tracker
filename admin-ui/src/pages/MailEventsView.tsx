@@ -93,3 +93,4 @@ export function MailEventsView({ onError, embedded = false }: { onError: (messag
     </div>
   );
 }
+import "./mail-pages.css";

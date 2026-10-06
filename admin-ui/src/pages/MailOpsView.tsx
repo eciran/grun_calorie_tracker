@@ -189,3 +189,4 @@ export function readCounter(data: AdminMailMonitoring | null, key: string): numb
   const value = data?.counters?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
+import "./mail-pages.css";

@@ -57,7 +57,7 @@ try {
   await context.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.origin !== origin) return route.abort();
-    if (breakPush && /PushDeliveryView-.*\.js$/.test(url.pathname)) return route.abort();
+    if (breakPush && /DeliveryCenterView-.*\.js$/.test(url.pathname)) return route.abort();
     if (!url.pathname.startsWith("/api/")) return route.continue();
     calls.push(url.pathname);
     const json = body => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -133,6 +133,20 @@ try {
     if (url.pathname === "/api/v1/admin/system/push-monitoring") return json({ activeTokensByProvider: {}, enabled: false });
     return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Unexpected fixture endpoint" }) });
   });
+  if (process.env.V2_STYLE_SMOKE === "1") {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${origin}/admin/system/errors`);
+      await page.getByRole("heading", { name: "Request error history" }).waitFor();
+      await page.locator(".error-center-metrics").waitFor();
+      assert.equal(await page.locator(".error-filter-panel").evaluate(node => getComputedStyle(node).display), "grid");
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Lazy error CSS must fit the viewport.");
+      await assertAccessibleSurface("page-loaded error styles");
+      if (process.env.V2_SCREENSHOT_DIR) await page.screenshot({ path: path.join(process.env.V2_SCREENSHOT_DIR, `error-styles-${width}.png`), fullPage: true });
+    }
+    assert.deepEqual(errors, []);
+    console.log("Focused error-page lazy CSS browser smoke passed: desktop/mobile, layout, accessibility, no runtime errors. API traffic mocked.");
+  } else {
   // V1 bookmarks still work and are replaced without an extra history entry.
   await page.goto(`${origin}/admin-ui/index.html#/audits`);
   await page.getByRole("heading", { name: "Admin action audits" }).waitFor();
@@ -151,34 +165,35 @@ try {
   await page.getByRole("navigation", { name: "Table pagination" }).waitFor();
   await page.getByRole("button", { name: "Refresh Admin action audits", exact: true }).waitFor();
   await actionFilter.selectOption("SUBSCRIPTION_UPDATE");
-  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("tr");
+  await page.getByRole("group", { name: "Language", exact: true }).getByRole("button", { name: "TR", exact: true }).click();
   await page.getByRole("heading", { name: "Denetim kayıtları", exact: true }).waitFor();
   assert.equal(await actionFilter.inputValue(), "SUBSCRIPTION_UPDATE", "Changing locale must preserve page state.");
   await page.getByRole("navigation", { name: "Tablo sayfalama" }).waitFor();
   await page.getByRole("button", { name: "Admin action audits verilerini yenile", exact: true }).waitFor();
   await page.getByText("Sonuç bulunamadı", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Önceki sayfa", exact: true }).isDisabled(), true);
-  await page.getByRole("combobox", { name: "Dil", exact: true }).selectOption("en");
+  await page.getByRole("group", { name: "Dil", exact: true }).getByRole("button", { name: "EN", exact: true }).click();
   await page.getByRole("navigation", { name: "Table pagination" }).waitFor();
   assert.equal(await actionFilter.inputValue(), "SUBSCRIPTION_UPDATE");
-  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("tr");
+  await page.getByRole("group", { name: "Language", exact: true }).getByRole("button", { name: "TR", exact: true }).click();
   assert.equal(await page.locator("html").getAttribute("lang"), "tr");
   await page.getByLabel("Sayfa ara", { exact: true }).fill("push");
   const popupPromise = context.waitForEvent("page");
-  await page.getByRole("link", { name: "Push teslimatı Cihaz token takibi" }).click({ modifiers: ["Control"] });
+  popupPromise.catch(() => {});
+  await page.locator('a[href="/admin/notifications/push-delivery"]').first().click({ modifiers: ["Control"] });
   const popup = await popupPromise;
-  await popup.getByRole("heading", { name: "Push delivery monitoring" }).waitFor();
+  await popup.getByRole("heading", { name: /Delivery Center|Teslimat merkezi/ }).waitFor();
   assert.equal(new URL(popup.url()).pathname, "/admin/notifications/push-delivery");
   await popup.close();
-  await page.getByRole("link", { name: "Push teslimatı Cihaz token takibi" }).click();
-  await page.getByRole("heading", { name: "Push delivery monitoring" }).waitFor();
+  await page.locator('a[href="/admin/notifications/push-delivery"]').first().click();
+  await page.getByRole("heading", { name: /Delivery Center|Teslimat merkezi/ }).waitFor();
   await page.goBack();
   await page.getByRole("heading", { name: "Admin action audits" }).waitFor();
   await page.goForward();
-  await page.getByRole("heading", { name: "Push delivery monitoring" }).waitFor();
+  await page.getByRole("heading", { name: /Delivery Center|Teslimat merkezi/ }).waitFor();
   await page.reload();
-  await page.getByRole("heading", { name: "Push teslimatı", exact: true }).waitFor();
-  assert.equal(await page.getByRole("combobox", { name: "Dil", exact: true }).inputValue(), "tr");
+  await page.getByRole("heading", { name: "Teslimat merkezi", exact: true }).waitFor();
+  assert.equal(await page.getByRole("group", { name: "Dil", exact: true }).getByRole("button", { name: "TR", exact: true }).getAttribute("aria-pressed"), "true");
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     if (width === 390) await page.waitForFunction(() => document.querySelector("#admin-navigation").getBoundingClientRect().right <= 0);
@@ -352,7 +367,7 @@ try {
   await page.waitForFunction(() => document.querySelector("#admin-navigation").getBoundingClientRect().right <= 0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Error center must fit mobile width.");
   if (process.env.V2_SCREENSHOT_DIR) await page.screenshot({ path: path.join(process.env.V2_SCREENSHOT_DIR, "owner-errors-mobile.png"), fullPage: true });
-  await page.getByRole("combobox", { name: "Dil", exact: true }).selectOption("en");
+  await page.getByRole("group", { name: "Dil", exact: true }).getByRole("button", { name: "EN", exact: true }).click();
   await page.getByRole("heading", { name: "Request error history" }).waitFor();
   await assertAccessibleSurface("owner error center");
   errorReadFailure = true;
@@ -406,10 +421,10 @@ try {
   await page.getByText("OCR product candidate", { exact: true }).waitFor();
   await page.getByText("Open error group", { exact: true }).waitFor();
   await page.getByText("Mail delivery needs attention.", { exact: true }).first().waitFor();
-  await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("tr");
+  await page.getByRole("group", { name: "Language", exact: true }).getByRole("button", { name: "TR", exact: true }).click();
   await page.getByText("Bildirim dağılımı", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Tümünü okundu işaretle", exact: true }).waitFor();
-  await page.getByRole("combobox", { name: "Dil", exact: true }).selectOption("en");
+  await page.getByRole("group", { name: "Dil", exact: true }).getByRole("button", { name: "EN", exact: true }).click();
   await page.getByRole("button", { name: "Review decision", exact: true }).click();
   await page.waitForURL(url => url.pathname === "/admin/approvals");
   inboxView = false;
@@ -446,6 +461,7 @@ try {
   await page.getByRole("heading", { name: "Integrations", exact: true }).waitFor();
   assert.ok(!calls.includes("/api/v1/admin/owner-alerts"), "Non-owner must not fetch the owner alert outbox.");
   console.log("V2 browser passed: navigation, mobile/TR/EN, unified role inbox, addressable product operations, Customer 360 handoffs, owner approvals/errors/alert outbox and non-owner denial. All API traffic mocked.");
+  }
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

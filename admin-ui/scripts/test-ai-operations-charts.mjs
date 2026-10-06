@@ -1,10 +1,11 @@
+import { readAdminStyleSource } from "./admin-app-source.mjs";
 import { readAdminAppSource } from "./admin-app-source.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const app = readAdminAppSource();
 const charts = fs.readFileSync(new URL("../src/AiOperationsCharts.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readAdminStyleSource();
 
 assert.match(app, /\/api\/v1\/admin\/ai\/requests\/summary\?windowHours=/, "AI charts must use the privacy-safe aggregate summary endpoint.");
 assert.match(app, /userId: userContext\?\.userId/, "AI request operations must preserve the exact Customer 360 user filter.");
