@@ -89,7 +89,7 @@ class PasswordResetServiceImplTest {
         PasswordResetRequestDto request = new PasswordResetRequestDto();
         request.setEmail("user@example.com");
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.empty());
         when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of());
 
@@ -113,7 +113,7 @@ class PasswordResetServiceImplTest {
         request.setEmail("user@example.com");
         user.setPreferredLanguage(PreferredLanguage.TR);
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.empty());
         when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of());
 
@@ -132,7 +132,7 @@ class PasswordResetServiceImplTest {
         PasswordResetRequestDto request = new PasswordResetRequestDto();
         request.setEmail("missing@example.com");
 
-        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailForUpdate("missing@example.com")).thenReturn(Optional.empty());
 
         PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
 
@@ -151,7 +151,7 @@ class PasswordResetServiceImplTest {
         recentToken.setUser(user);
         recentToken.setCreatedAt(LocalDateTime.now().minusSeconds(30));
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(recentToken));
 
         PasswordResetResponseDto response = passwordResetService.requestPasswordReset(request);
@@ -171,7 +171,7 @@ class PasswordResetServiceImplTest {
         oldToken.setUser(user);
         oldToken.setCreatedAt(LocalDateTime.now().minusMinutes(5));
 
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
         when(passwordResetTokenRepository.findTopByUserOrderByCreatedAtDesc(user)).thenReturn(Optional.of(oldToken));
         when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of(oldToken));
 
@@ -190,6 +190,7 @@ class PasswordResetServiceImplTest {
         request.setToken("raw-token");
         request.setNewPassword("NewStrongPass1!");
         user.setEmailVerified(false);
+        when(passwordResetTokenRepository.consumeIfAvailable(anyString(), any())).thenReturn(1);
 
         PasswordResetTokenEntity token = new PasswordResetTokenEntity();
         token.setUser(user);
@@ -197,6 +198,7 @@ class PasswordResetServiceImplTest {
 
         when(passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(anyString())).thenReturn(Optional.of(token));
         when(passwordEncoder.encode("NewStrongPass1!")).thenReturn("encoded-new-password");
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         PasswordResetResponseDto response = passwordResetService.confirmPasswordReset(request);
 
@@ -206,7 +208,7 @@ class PasswordResetServiceImplTest {
         assertThat(token.getUsedAt()).isNotNull();
         verify(userRepository).save(user);
         verify(refreshTokenService).revokeAllForUser(user);
-        verify(passwordResetTokenRepository).save(token);
+        verify(passwordResetTokenRepository).consumeIfAvailable(anyString(), any());
     }
 
     @Test
@@ -219,7 +221,7 @@ class PasswordResetServiceImplTest {
         user.setRole(UserRole.ADMIN_CATALOG);
 
         when(userRepository.findByEmail("owner@grun.app")).thenReturn(Optional.of(owner));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)).thenReturn(List.of());
 
         PasswordResetResponseDto response = passwordResetService.requestAdminPasswordReset("owner@grun.app", 1L, "cid-1");
@@ -237,10 +239,12 @@ class PasswordResetServiceImplTest {
 
     @Test
     void confirmPasswordReset_whenAdminTokenIsValid_revokesAdminSessionsAndSendsSecurityMail() {
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         PasswordResetConfirmRequestDto request = new PasswordResetConfirmRequestDto();
         request.setToken("raw-token");
         request.setNewPassword("NewStrongPass1!");
         user.setRole(UserRole.ADMIN_CATALOG);
+        when(passwordResetTokenRepository.consumeIfAvailable(anyString(), any())).thenReturn(1);
         PasswordResetTokenEntity token = new PasswordResetTokenEntity();
         token.setUser(user);
         token.setExpiresAt(LocalDateTime.now().plusMinutes(10));

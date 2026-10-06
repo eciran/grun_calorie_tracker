@@ -1253,6 +1253,8 @@ public class FoodItemServiceImpl implements FoodItemService {
                         productIds,
                         com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
                 )
+                .stream()
+                .filter(option -> !Boolean.FALSE.equals(option.getUserVisible()))
                 .forEach(option -> result
                         .computeIfAbsent(option.getFoodItem().getId(), ignored -> new ArrayList<>())
                         .add(option));
@@ -1370,7 +1372,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                 foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
                         product,
                         com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
-                );
+                ).stream().filter(option -> !Boolean.FALSE.equals(option.getUserVisible())).toList();
         PreferredLanguage resolvedLanguage = resolveLanguage(language);
         FoodItemLocalizationEntity localization = foodItemLocalizationRepository
                 .findByFoodItemIdAndLanguageAndActiveTrue(product.getId(), resolvedLanguage)
@@ -1399,6 +1401,7 @@ Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servi
         FoodProductDto dto = FoodItemMapper.mapEntityToDto(product);
         applyLocalization(dto, product, language, localization);
         var compatibleOptions = servingOptions.stream()
+                .filter(option -> !Boolean.FALSE.equals(option.getUserVisible()))
                 .filter(option -> com.grun.calorietracker.service.support.FoodPortionUnitResolver.supportsOption(product, option))
                 .toList();
 dto.setServingOptions(compatibleOptions.stream().map(option -> {

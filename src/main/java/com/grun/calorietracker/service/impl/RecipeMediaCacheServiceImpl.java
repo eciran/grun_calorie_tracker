@@ -7,18 +7,23 @@ import com.grun.calorietracker.service.RecipeMediaCacheService;
 import com.grun.calorietracker.service.media.MediaNamespace;
 import com.grun.calorietracker.service.media.MediaObjectStorage;
 import com.grun.calorietracker.service.media.MediaStorageKeyPolicy;
+import com.grun.calorietracker.service.media.PublicImageDnsResolver;
+import com.grun.calorietracker.service.support.FoodProductEvidenceImageInspector;
 import lombok.RequiredArgsConstructor;
+import org.apache.hc.client5.http.SystemDefaultDnsResolver;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
@@ -36,6 +41,7 @@ public class RecipeMediaCacheServiceImpl implements RecipeMediaCacheService {
     private final MediaStorageKeyPolicy keyPolicy;
     private final MediaStorageProperties mediaProperties;
     private final RecipeMediaProperties recipeMediaProperties;
+    private final FoodProductEvidenceImageInspector imageInspector;
 
     @Override
     public boolean cacheApprovedImage(RecipeEntity recipe) {
@@ -61,47 +67,57 @@ public class RecipeMediaCacheServiceImpl implements RecipeMediaCacheService {
 
     private DownloadedImage download(URI initialUri) {
         try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(8))
-                    .followRedirects(HttpClient.Redirect.NEVER)
-                    .build();
-            URI uri = initialUri;
-            for (int redirects = 0; ; redirects++) {
-                HttpRequest request = HttpRequest.newBuilder(uri)
-                        .timeout(Duration.ofSeconds(15))
-                        .header("Accept", "image/jpeg,image/png,image/webp")
-                        .header("User-Agent", CACHE_USER_AGENT)
-                        .GET().build();
-                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                if (isRedirect(response.statusCode())) {
-                    try (InputStream ignored = response.body()) {
-                        if (redirects >= MAX_REDIRECTS) {
-                            throw new IllegalArgumentException("Recipe image redirect limit was exceeded.");
+            var connections = PoolingHttpClientConnectionManagerBuilder.create()
+                    .setDnsResolver(new PublicImageDnsResolver(SystemDefaultDnsResolver.INSTANCE)).build();
+            try (var client = HttpClients.custom().setConnectionManager(connections)
+                    .disableRedirectHandling().disableAutomaticRetries().disableContentCompression()
+                    .setDefaultRequestConfig(RequestConfig.custom().setConnectTimeout(Timeout.ofSeconds(8))
+                            .setConnectionRequestTimeout(Timeout.ofSeconds(8)).setResponseTimeout(Timeout.ofSeconds(15)).build())
+                    .build()) {
+                URI uri = initialUri;
+                for (int redirects = 0; ; redirects++) {
+                    HttpGet request = new HttpGet(uri);
+                    request.setHeader("Accept", "image/jpeg,image/png,image/webp");
+                    request.setHeader("User-Agent", CACHE_USER_AGENT);
+                    var response = client.execute(request);
+                    try {
+                        if (isRedirect(response.getCode())) {
+                            if (redirects >= MAX_REDIRECTS) {
+                                throw new IllegalArgumentException("Recipe image redirect limit was exceeded.");
+                            }
+                            if (response.getFirstHeader("location") == null) {
+                                throw new IllegalArgumentException("Recipe image redirect has no location.");
+                            }
+                            String location = response.getFirstHeader("location").getValue();
+                            uri = requirePublicHttpsUrl(uri.resolve(location).toString());
+                            continue;
                         }
-                        String location = response.headers().firstValue("location")
-                                .orElseThrow(() -> new IllegalArgumentException("Recipe image redirect has no location."));
-                        uri = requirePublicHttpsUrl(uri.resolve(location).toString());
-                        continue;
+                        if (response.getCode() < 200 || response.getCode() >= 300 || response.getEntity() == null) {
+                            throw new IllegalArgumentException("Recipe image could not be cached (HTTP " + response.getCode() + ").");
+                        }
+                        String contentType = response.getEntity().getContentType();
+                        contentType = (contentType == null ? "" : contentType).split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+                        extension(contentType);
+                        // Abort the response below instead of draining an oversized or hostile stream on close.
+                        InputStream input = response.getEntity().getContent();
+                        ByteArrayOutputStream output = new ByteArrayOutputStream();
+                        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+                        byte[] buffer = new byte[8192];
+                        long total = 0;
+                        int count;
+                        while ((count = input.read(buffer)) != -1) {
+                            if (System.nanoTime() > deadline) throw new IllegalArgumentException("Recipe image download timed out.");
+                            total += count;
+                            if (total > maximumBytes()) throw new IllegalArgumentException("Recipe image exceeds the configured cache limit.");
+                            output.write(buffer, 0, count);
+                        }
+                        if (total == 0) throw new IllegalArgumentException("Recipe image response was empty.");
+                        byte[] content = output.toByteArray();
+                        imageInspector.inspectImage(content, contentType, maximumBytes(), recipeMediaProperties.getImage().getMaxDecodedPixels());
+                        return new DownloadedImage(content, contentType);
+                    } finally {
+                        response.close(CloseMode.IMMEDIATE);
                     }
-                }
-                if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    try (InputStream ignored = response.body()) {
-                        throw new IllegalArgumentException("Recipe image could not be cached (HTTP " + response.statusCode() + ").");
-                    }
-                }
-                String contentType = response.headers().firstValue("content-type").orElse("").split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
-                extension(contentType);
-                try (InputStream input = response.body(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-                    byte[] buffer = new byte[8192];
-                    long total = 0;
-                    int count;
-                    while ((count = input.read(buffer)) != -1) {
-                        total += count;
-                        if (total > maximumBytes()) throw new IllegalArgumentException("Recipe image exceeds the configured cache limit.");
-                        output.write(buffer, 0, count);
-                    }
-                    if (total == 0) throw new IllegalArgumentException("Recipe image response was empty.");
-                    return new DownloadedImage(output.toByteArray(), contentType);
                 }
             }
         } catch (IllegalArgumentException exception) {
@@ -118,15 +134,11 @@ public class RecipeMediaCacheServiceImpl implements RecipeMediaCacheService {
     private URI requirePublicHttpsUrl(String value) {
         try {
             URI uri = URI.create(value.trim());
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null) {
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
+                    || (uri.getPort() != -1 && uri.getPort() != 443) || uri.getFragment() != null) {
                 throw new IllegalArgumentException("Recipe cache source must be a public HTTPS URL.");
             }
-            for (InetAddress address : InetAddress.getAllByName(uri.getHost())) {
-                if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
-                        || address.isSiteLocalAddress() || address.isMulticastAddress()) {
-                    throw new IllegalArgumentException("Recipe cache source host is not public.");
-                }
-            }
+            new PublicImageDnsResolver(SystemDefaultDnsResolver.INSTANCE).resolve(uri.getHost());
             return uri;
         } catch (IllegalArgumentException exception) {
             throw exception;

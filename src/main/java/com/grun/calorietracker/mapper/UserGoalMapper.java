@@ -23,6 +23,7 @@ public class UserGoalMapper {
         entity.setDailyCarbGoal(dto.getDailyCarbGoal());
         entity.setWeeklyWeightChangeTargetKg(dto.getWeeklyWeightChangeTargetKg());
         entity.setGoalType(dto.getGoalType());
+        entity.setBodyCompositionFocus(dto.getBodyCompositionFocus());
         entity.setActivityLevel(dto.getActivityLevel());
         entity.setCreatedAt(dto.getCreatedAt());
         entity.setCalculationMode(dto.getCalculationMode());
@@ -54,6 +55,7 @@ public class UserGoalMapper {
         dto.setDailyCarbGoal(entity.getDailyCarbGoal());
         dto.setWeeklyWeightChangeTargetKg(entity.getWeeklyWeightChangeTargetKg());
         dto.setGoalType(entity.getGoalType());
+        dto.setBodyCompositionFocus(entity.getBodyCompositionFocus());
         dto.setActivityLevel(entity.getActivityLevel());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setCalculationMode(entity.getCalculationMode());

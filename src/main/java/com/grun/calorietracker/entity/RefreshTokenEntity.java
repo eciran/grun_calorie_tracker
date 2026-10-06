@@ -34,6 +34,9 @@ public class RefreshTokenEntity {
     @Column(name = "token_hash", nullable = false, unique = true, length = 128)
     private String tokenHash;
 
+    @Column(name = "auth_token_version", nullable = false)
+    private long authTokenVersion = 0;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 

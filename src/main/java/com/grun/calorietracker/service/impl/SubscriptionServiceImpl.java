@@ -322,8 +322,34 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         boolean lifecycleStateEvent = command.getPlanType() != null || command.getStatus() != null
                 || (Boolean.TRUE.equals(command.getRefund()) && command.getAiAddonQuotaAmount() == null);
+        boolean startsNewPeriod = Boolean.TRUE.equals(command.getGrantPlanCreditAllocation());
+        if (lifecycleStateEvent && !startsNewPeriod && entity.getProvider() == PaymentProvider.REVENUECAT
+                && entity.getProviderOriginalTransactionId() != null
+                && command.getProviderOriginalTransactionId() != null
+                && (!entity.getProviderOriginalTransactionId().equals(command.getProviderOriginalTransactionId())
+                    || (entity.getProviderProductId() != null && command.getProviderProductId() != null
+                        && !entity.getProviderProductId().equals(command.getProviderProductId()))
+                    || (entity.getProviderTransactionId() != null && command.getProviderTransactionId() != null
+                        && !entity.getProviderTransactionId().equals(command.getProviderTransactionId())))) {
+            return toDto(entity);
+        }
         if (lifecycleStateEvent && command.getProviderEventAt() != null && entity.getLastProviderEventAt() != null
                 && command.getProviderEventAt().isBefore(entity.getLastProviderEventAt())) {
+            // A cancellation may arrive before its purchase webhook. Repair only that exact period's allocation.
+            if (startsNewPeriod && entity.getProvider() == PaymentProvider.REVENUECAT
+                    && entity.getPlanType() == command.getPlanType()
+                    && isActiveEntitlement(entity.getStatus(), entity.getEndDate())
+                    && entity.getProviderOriginalTransactionId() != null
+                    && entity.getProviderOriginalTransactionId().equals(command.getProviderOriginalTransactionId())
+                    && entity.getProviderTransactionId() != null
+                    && entity.getProviderTransactionId().equals(command.getProviderTransactionId())
+                    && java.util.Objects.equals(entity.getProviderProductId(), command.getProviderProductId())
+                    && entity.getAiCreditAllocationKey() == null
+                    && reservePlanCreditAllocation(userId, command)) {
+                entity.setAiCreditAllocationKey(command.getCreditAllocationKey());
+                entity.setUpdatedAt(LocalDateTime.now());
+                return toDto(subscriptionRepository.save(entity));
+            }
             return toDto(entity);
         }
 

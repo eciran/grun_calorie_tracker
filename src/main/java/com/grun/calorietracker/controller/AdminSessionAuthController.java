@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.AdminSessionService;
+import com.grun.calorietracker.security.AdminAuthenticationAttemptGuard;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -18,6 +19,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,13 +31,19 @@ public class AdminSessionAuthController {
     private final UserRepository users;
     private final AdminMfaService adminMfaService;
     private final AdminSessionService adminSessions;
+    private final AdminAuthenticationAttemptGuard attemptGuard;
     @Value("${grun.security.admin-session.secure-cookie:true}") private boolean secureCookie;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest request,HttpServletRequest httpRequest,HttpServletResponse response) {
+        attemptGuard.requireAllowed(request.getEmail());
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(),request.getPassword()));
         UserEntity user=users.findByEmail(request.getEmail()).orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
         if(user.getRole()==null || !user.getRole().isAdminRole()) throw new IllegalArgumentException("Admin account required.");
+        if (adminMfaService.requiresEnrollment(user)) {
+            return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                    .body(adminMfaService.enrollmentLogin(user));
+        }
         adminMfaService.verifyLogin(user,request.getAdminMfaCode());
         AdminSessionService.AdminSessionLogin login=adminSessions.create(user, requestHeader(httpRequest, "User-Agent"), httpRequest.getRemoteAddr());
         response.addHeader(HttpHeaders.SET_COOKIE,cookie(login.rawSessionToken(),false).toString());
@@ -64,6 +72,6 @@ public class AdminSessionAuthController {
 
     private String requestHeader(HttpServletRequest request,String name){String value=request.getHeader(name);return value==null?"":value;}
     private ResponseCookie cookie(String value,boolean clear){ ResponseCookie.ResponseCookieBuilder b=ResponseCookie.from(COOKIE_NAME,value).httpOnly(true).secure(secureCookie).sameSite("Strict").path("/api/v1/auth/admin"); if(clear)b.maxAge(0); return b.build(); }
-    private String requiredCookie(HttpServletRequest r){String v=cookieValue(r);if(v==null)throw new IllegalArgumentException("Admin session is invalid or expired.");return v;}
+    private String requiredCookie(HttpServletRequest r){String v=cookieValue(r);if(v==null)throw new BadCredentialsException("Admin session is invalid or expired.");return v;}
     private String cookieValue(HttpServletRequest r){if(r.getCookies()==null)return null;for(Cookie c:r.getCookies())if(COOKIE_NAME.equals(c.getName()))return c.getValue();return null;}
 }

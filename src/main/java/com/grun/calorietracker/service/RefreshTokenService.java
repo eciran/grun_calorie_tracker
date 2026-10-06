@@ -11,5 +11,6 @@ public interface RefreshTokenService {
 
     void revokeRefreshToken(String rawRefreshToken);
 
+    /** Revokes access JWTs, refresh tokens and admin sessions across all devices. */
     void revokeAllForUser(UserEntity user);
 }

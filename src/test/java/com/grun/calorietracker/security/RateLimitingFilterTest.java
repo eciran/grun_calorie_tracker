@@ -17,6 +17,32 @@ import static org.mockito.Mockito.verify;
 class RateLimitingFilterTest {
 
     @Test
+    void aiRoutesShareBudgetAcrossFeaturesAndDifferentPlanIds() throws Exception {
+        RateLimitingFilter filter = buildFilter(1);
+        ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", 1);
+        FilterChain chain = mock(FilterChain.class);
+        filter.doFilter(post("/api/v1/ai/workout-plans/generate"), new MockHttpServletResponse(), chain);
+        for (String path : new String[]{"/api/v1/ai/meal-drafts/photo-references", "/api/v1/ai/insights/daily",
+                "/api/v1/ai/insights/weekly", "/api/v1/meal-plans/99/items/2/preparation-guide/generate",
+                "/api/v1/meal-plans/100/items/3/preparation-guide/regenerate"}) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(post(path), response, chain);
+            assertEquals(429, response.getStatus(), path);
+            assertEquals("60", response.getHeader("Retry-After"));
+        }
+    }
+
+    @Test
+    void aiHistoryReadDoesNotConsumeGenerationBudget() throws Exception {
+        RateLimitingFilter filter = buildFilter(1);
+        FilterChain chain = mock(FilterChain.class);
+        filter.doFilter(new MockHttpServletRequest("GET", "/api/v1/ai/requests/history"), new MockHttpServletResponse(), chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/ai/insights/daily"), response, chain);
+        assertEquals(200, response.getStatus());
+    }
+
+    @Test
     void protectedAuthPathReturnsTooManyRequestsAfterLimitIsExceeded() throws Exception {
         RateLimitingFilter filter = buildFilter(1);
 
@@ -279,6 +305,35 @@ class RateLimitingFilterTest {
         assertEquals(429, secondResponse.getStatus());
     }
 
+    @Test
+    void adminLoginAndAllMfaRoutesShareAnIpBudget() throws Exception {
+        for (String path : java.util.List.of("/api/v1/auth/admin/mfa/enrollment", "/api/v1/auth/admin/mfa/enrollment/verify",
+                "/api/v1/admin/security/mfa/enrollment",
+                "/api/v1/admin/security/mfa/enrollment/verify", "/api/v1/admin/security/mfa/disable",
+                "/api/v1/admin/security/mfa/reauthenticate", "/api/v1/auth/admin/login")) {
+            RateLimitingFilter filter = buildFilter(1);
+            FilterChain chain = mock(FilterChain.class);
+            filter.doFilter(post("/api/v1/auth/admin/login"), new MockHttpServletResponse(), chain);
+            MockHttpServletResponse blocked = new MockHttpServletResponse();
+            MockHttpServletRequest request = post(path);
+            request.addHeader("X-Forwarded-For", "203.0.113.99");
+            filter.doFilter(request, blocked, chain);
+            assertEquals(429, blocked.getStatus(), path);
+            assertEquals("60", blocked.getHeader("Retry-After"));
+            assertEquals("RATE_LIMIT_EXCEEDED", objectMapper().readTree(blocked.getContentAsString()).get("code").asText());
+        }
+    }
+
+    @Test
+    void mfaStatusReadDoesNotConsumeAttemptBudget() throws Exception {
+        RateLimitingFilter filter = buildFilter(1);
+        FilterChain chain = mock(FilterChain.class);
+        filter.doFilter(get("/api/v1/admin/security/mfa"), new MockHttpServletResponse(), chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/auth/admin/login"), response, chain);
+        assertEquals(200, response.getStatus());
+    }
+
     private MockHttpServletRequest post(String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", uri);
         request.setRemoteAddr("127.0.0.1");
@@ -312,6 +367,7 @@ class RateLimitingFilterTest {
         RateLimitingFilter filter = new RateLimitingFilter(new InMemoryRateLimiter(), objectMapper(), messageSource());
         ReflectionTestUtils.setField(filter, "enabled", true);
         ReflectionTestUtils.setField(filter, "authMaxRequestsPerMinute", authMaxRequestsPerMinute);
+        ReflectionTestUtils.setField(filter, "adminAuthMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "passwordResetMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "accountLinkMaxRequestsPerMinute", authMaxRequestsPerMinute);
         ReflectionTestUtils.setField(filter, "emailVerificationResendMaxRequestsPerMinute", authMaxRequestsPerMinute);

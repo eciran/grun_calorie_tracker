@@ -46,6 +46,7 @@ public class AdminProductQualityWorkbenchDto {
             Boolean defaultOption,
             FoodServingOptionSource source,
             FoodServingOptionQualityStatus qualityStatus,
+            Boolean userVisible,
             List<ServingLocalizationDto> localizations
     ) {
     }

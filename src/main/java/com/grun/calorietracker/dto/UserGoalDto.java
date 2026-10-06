@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.GoalCalculationMode;
 import com.grun.calorietracker.enums.GoalControlledStrategy;
@@ -57,6 +58,9 @@ public class UserGoalDto {
     @NotNull(message = "{validation.user-goal.goal-type.required}")
     @Schema(description = "User's goal type.", example = "LOSE_WEIGHT", requiredMode = Schema.RequiredMode.REQUIRED)
     private GoalType goalType;
+
+    @Schema(description = "Body-composition focus applied to this goal.", example = "BUILD_MUSCLE")
+    private BodyCompositionFocus bodyCompositionFocus;
 
     @NotNull(message = "{validation.user-goal.activity-level.required}")
     @Schema(description = "User's activity level.", example = "MODERATE", requiredMode = Schema.RequiredMode.REQUIRED)

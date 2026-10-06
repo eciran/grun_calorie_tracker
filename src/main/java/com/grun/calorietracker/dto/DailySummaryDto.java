@@ -98,6 +98,9 @@ public class DailySummaryDto {
     @Schema(description = "Active goal type.", example = "LOSE_WEIGHT")
     private String goalType;
 
+    @Schema(description = "Active body-composition focus.", example = "BUILD_MUSCLE")
+    private String bodyCompositionFocus;
+
     @Schema(description = "Total exercise duration in minutes for the day.", example = "45")
     private Integer totalExerciseMinutes;
 

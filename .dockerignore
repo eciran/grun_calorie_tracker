@@ -11,3 +11,10 @@ node_modules
 *.env
 GIT_COMMANDS_CHEATSHEET.md
 grun-web
+**/*.p8
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*_laptop.zip
+storage
+src/main/resources/application.yml

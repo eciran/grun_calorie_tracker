@@ -12,6 +12,7 @@ import com.grun.calorietracker.dto.AdminMfaStatusDto;
 import com.grun.calorietracker.dto.AdminMfaVerificationDto;
 import com.grun.calorietracker.dto.AdminReauthenticationDto;
 import com.grun.calorietracker.security.CorrelationIdFilter;
+import com.grun.calorietracker.security.AdminAuthenticationAttemptGuard;
 import com.grun.calorietracker.service.AdminSecurityService;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.AdminSessionService;
@@ -49,6 +50,7 @@ public class AdminSecurityController {
     private final AdminSessionService adminSessionService;
     private final JwtUtil jwtUtil;
     private final PasswordResetService passwordResetService;
+    private final AdminAuthenticationAttemptGuard attemptGuard;
 
     @GetMapping("/me")
     public ResponseEntity<AdminAccessProfileDto> currentAccess(
@@ -113,6 +115,7 @@ public class AdminSecurityController {
             @RequestBody @Valid AdminMfaEnrollmentRequestDto request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
+        attemptGuard.requireAllowed(userDetails.getUsername());
         return ResponseEntity.ok(adminMfaService.beginEnrollment(userDetails.getUsername(), request.currentPassword(), correlationId(httpRequest)));
     }
 
@@ -121,6 +124,7 @@ public class AdminSecurityController {
             @RequestBody @Valid AdminMfaCodeRequestDto request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
+        attemptGuard.requireAllowed(userDetails.getUsername());
         return ResponseEntity.ok(adminMfaService.verifyEnrollment(userDetails.getUsername(), request.code(), correlationId(httpRequest)));
     }
 
@@ -129,6 +133,7 @@ public class AdminSecurityController {
             @RequestBody @Valid AdminMfaCodeRequestDto request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
+        attemptGuard.requireAllowed(userDetails.getUsername());
         return ResponseEntity.ok(adminMfaService.disable(userDetails.getUsername(), request.code(), correlationId(httpRequest)));
     }
 
@@ -137,6 +142,7 @@ public class AdminSecurityController {
             @RequestBody @Valid AdminMfaCodeRequestDto request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
+        attemptGuard.requireAllowed(userDetails.getUsername());
         return ResponseEntity.ok(adminMfaService.reauthenticate(userDetails.getUsername(), request.code(), request.purpose(), correlationId(httpRequest)));
     }
     @GetMapping("/owner-sessions")

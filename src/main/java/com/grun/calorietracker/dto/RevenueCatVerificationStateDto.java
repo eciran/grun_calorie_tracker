@@ -9,5 +9,9 @@ public record RevenueCatVerificationStateDto(
         Instant nextAttemptAt,
         Instant leaseUntil,
         Instant updatedAt,
-        boolean allocationReferencePresent) {
+        boolean allocationReferencePresent,
+        Instant createdAt,
+        String reasonCode,
+        String resolvedProductId,
+        String providerTransactionId) {
 }

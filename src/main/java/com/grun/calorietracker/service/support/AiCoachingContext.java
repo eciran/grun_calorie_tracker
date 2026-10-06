@@ -19,6 +19,7 @@ public final class AiCoachingContext {
         context.put("currentWeightKg", day.getCurrentWeight());
         context.put("targetWeightKg", day.getTargetWeight());
         context.put("goalType", day.getGoalType());
+        context.put("bodyCompositionFocus", day.getBodyCompositionFocus());
         context.put("weightBasis", "Latest recorded weight or profile fallback; not necessarily a measurement on the analysis date");
         context.put("foodLogCount", day.getFoodLogs() == null ? null : day.getFoodLogs().size());
         context.put("mealCount", day.getFoodLogs() == null ? null : (int) day.getFoodLogs().stream()

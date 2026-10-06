@@ -67,6 +67,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    @ExceptionHandler(AdminAuthenticationRateLimitException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleAdminAuthenticationRateLimit(
+            AdminAuthenticationRateLimitException exception, HttpServletRequest request) {
+        ResponseEntity<ApiErrorResponseDto> response = buildResponse(HttpStatus.TOO_MANY_REQUESTS,
+                "error.rate-limit-exceeded", exception.getMessage(), null, request);
+        return ResponseEntity.status(response.getStatusCode())
+                .header("Retry-After", Integer.toString(exception.getRetryAfterSeconds()))
+                .body(response.getBody());
+    }
+
     private boolean isAdminApiRequest(HttpServletRequest request) {
         String path = request == null ? null : request.getRequestURI();
         return path != null && path.startsWith("/api/v1/admin/");

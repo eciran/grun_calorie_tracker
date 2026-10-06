@@ -140,6 +140,11 @@ public class DashboardServiceImpl implements DashboardService {
         Double currentWeight = latestProgressOpt.map(ProgressLogEntity::getWeight).orElse(user.getWeight());
         Double targetWeight = goalOpt.map(UserGoalEntity::getTargetWeight).orElse(null);
         String goalType = goalOpt.map(goal -> goal.getGoalType() != null ? goal.getGoalType().name() : null).orElse(null);
+        String bodyCompositionFocus = goalOpt
+                .map(goal -> goal.getBodyCompositionFocus() != null
+                        ? goal.getBodyCompositionFocus().name()
+                        : null)
+                .orElse(null);
 
         List<FoodLogsDto> foodLogs = foodLogsRepository.findByUserAndLogDateGreaterThanEqualAndLogDateLessThanOrderByLogDateAsc(
                         user,
@@ -204,6 +209,7 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTargetWeight(targetWeight);
         dto.setWeightTrend(calculateWeightTrend(user, date, targetWeight));
         dto.setGoalType(goalType);
+        dto.setBodyCompositionFocus(bodyCompositionFocus);
         dto.setTotalExerciseMinutes(totalExerciseMinutes);
         dto.setHasActiveGoal(hasActiveGoal);
         dto.setOnboardingCompleted(isOnboardingCompleted(user, hasActiveGoal));

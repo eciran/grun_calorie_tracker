@@ -24,6 +24,16 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RateLimitingFilter extends OncePerRequestFilter {
 
+    private static final Set<String> ADMIN_AUTH_PATHS = Set.of(
+            "/api/v1/auth/admin/login",
+            "/api/v1/auth/admin/mfa/enrollment",
+            "/api/v1/auth/admin/mfa/enrollment/verify",
+            "/api/v1/admin/security/mfa/enrollment",
+            "/api/v1/admin/security/mfa/enrollment/verify",
+            "/api/v1/admin/security/mfa/disable",
+            "/api/v1/admin/security/mfa/reauthenticate"
+    );
+
     private static final Set<String> PROTECTED_AUTH_PATHS = Set.of(
             "/api/v1/auth/login",
             "/api/v1/auth/google",
@@ -44,6 +54,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final Set<String> AI_DRAFT_PATHS = Set.of(
             "/api/v1/ai/meal-drafts/voice",
             "/api/v1/ai/meal-drafts/photo",
+            "/api/v1/ai/meal-drafts/photo-references",
+            "/api/v1/ai/workout-plans/generate",
+            "/api/v1/ai/insights/daily",
+            "/api/v1/ai/insights/weekly",
             "/api/v1/ai/recipes/generate",
             "/api/v1/ai/nutrition-plans/generate"
     );
@@ -59,6 +73,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Value("${grun.rate-limit.auth.max-requests-per-minute:20}")
     private int authMaxRequestsPerMinute;
+
+    @Value("${grun.rate-limit.admin-auth.ip.max-requests-per-minute:20}")
+    private int adminAuthMaxRequestsPerMinute = 20;
 
     @Value("${grun.rate-limit.password-reset.max-requests-per-minute:5}")
     private int passwordResetMaxRequestsPerMinute;
@@ -105,6 +122,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private boolean isProtectedRequest(HttpServletRequest request) {
+        if (isAdminAuthRequest(request)) return true;
         if ("POST".equalsIgnoreCase(request.getMethod()) && PROTECTED_AUTH_PATHS.contains(request.getRequestURI())) {
             return true;
         }
@@ -142,7 +160,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private boolean isProductEvidenceReadPath(String path) {
         return path.startsWith(ADMIN_PRODUCT_EVIDENCE_PATH_PREFIX) && path.endsWith("/evidence-url");
     }
-    private boolean isAiGenerationPath(String path) {
+    static boolean isAiGenerationPath(String path) {
         return AI_DRAFT_PATHS.contains(path)
                 || (path.startsWith("/api/v1/meal-plans/")
                 && (path.endsWith("/preparation-guide/generate")
@@ -151,7 +169,15 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private String clientKey(HttpServletRequest request) {
         String ip = resolveClientIp(request);
+        if (isAdminAuthRequest(request)) return ip + ":admin-auth";
+        if ("POST".equalsIgnoreCase(request.getMethod()) && isAiGenerationPath(request.getRequestURI())) {
+            return ip + ":ai-generation";
+        }
         return ip + ":" + request.getRequestURI();
+    }
+
+    private boolean isAdminAuthRequest(HttpServletRequest request) {
+        return "POST".equalsIgnoreCase(request.getMethod()) && ADMIN_AUTH_PATHS.contains(request.getRequestURI());
     }
 
     private String resolveClientIp(HttpServletRequest request) {
@@ -171,6 +197,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private int resolveMaxRequests(HttpServletRequest request) {
+        if (isAdminAuthRequest(request)) return adminAuthMaxRequestsPerMinute;
         String path = request.getRequestURI();
         if (PASSWORD_RESET_REQUEST_PATH.equals(path)) {
             return passwordResetMaxRequestsPerMinute;
@@ -198,6 +225,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private void writeRateLimitResponse(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setHeader("Retry-After", "60");
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         ApiErrorResponseDto body = new ApiErrorResponseDto(
                 LocalDateTime.now(),

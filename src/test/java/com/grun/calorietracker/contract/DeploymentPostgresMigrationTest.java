@@ -20,7 +20,7 @@ class DeploymentPostgresMigrationTest {
                 .load();
         flyway.migrate();
         assertTrue(flyway.validateWithResult().validationSuccessful);
-        assertEquals("295", flyway.info().current().getVersion().getVersion());
+        assertEquals("305", flyway.info().current().getVersion().getVersion());
     }
 
     @Test

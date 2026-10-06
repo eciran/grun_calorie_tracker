@@ -485,7 +485,7 @@ export type AdminProductQualityWorkbench = {
   aliases?: FoodSearchAlias[];
   servingOptions?: Array<{
     id?: number; label?: string; unitType?: string; quantity?: number; gramWeight?: number; mlVolume?: number;
-    defaultOption?: boolean; source?: string; qualityStatus?: string;
+    defaultOption?: boolean; source?: string; qualityStatus?: string; userVisible?: boolean;
     localizations?: Array<{ id?: number; language?: string; label?: string; source?: string; active?: boolean }>;
   }>;
   evidence?: { evidence?: FoodProductEvidence[]; comparisons?: FoodProductEvidenceComparison[] };
@@ -505,6 +505,18 @@ export type AdminProductQualityWorkbench = {
     id?: number; foodItemId?: number; reviewedBy?: string; actionType?: string; fieldName?: string;
     oldValue?: string; newValue?: string; note?: string; createdAt?: string;
   }>;
+};
+
+export type AdminFoodServingOptionUpsert = {
+  label: string;
+  unitType: string;
+  quantity: number;
+  gramWeight?: number;
+  mlVolume?: number;
+  defaultOption: boolean;
+  userVisible: boolean;
+  qualityStatus: "VERIFIED" | "NEEDS_REVIEW";
+  localizations: Array<{ language: "EN" | "TR"; label: string }>;
 };
 export type RecipeStep = {
   stepNumber?: number;
@@ -840,11 +852,18 @@ export type RevenueCatCustomerEvidence = {
   verification?: {
     status?: string; productId?: string; attempts?: number; nextAttemptAt?: string;
     leaseUntil?: string; updatedAt?: string; allocationReferencePresent?: boolean;
+    createdAt?: string; reasonCode?: string; resolvedProductId?: string; providerTransactionId?: string;
   } | null;
   purchases?: Array<{
     transactionId?: string; productId?: string; environment?: string; store?: string;
     purchasedAt?: string; expiresAt?: string; ownershipConflict?: boolean;
   }>;
+};
+
+export type RevenueCatVerificationIssue = {
+  userId: number; status: string; productId: string; resolvedProductId?: string;
+  reasonCode?: string; attempts: number; createdAt?: string; updatedAt?: string;
+  nextAttemptAt?: string; allocationReferencePresent: boolean;
 };
 
 export type RevenueCatMonitoringCharts = {
@@ -1561,6 +1580,7 @@ export type MealReminderSummary = {
   reminderOptOutRate: number; measurementNote: string;
 };
 export type AdminMfaStatus = {
+  required?: boolean;
   enabled?: boolean;
   enrollmentPending?: boolean;
   recoveryCodesRemaining?: number;

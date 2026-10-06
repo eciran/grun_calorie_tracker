@@ -16,5 +16,11 @@ public class SubscriptionVerificationEntity {
     private Instant nextAttemptAt;
     private Instant leaseUntil;
     private String allocationReference;
+    private Instant createdAt;
+    private Instant recoveryStartedAt;
+    @Column(length = 255) private String expectedTransactionId;
+    @Column(length = 80) private String reasonCode;
+    @Column(length = 255) private String resolvedProductId;
+    @Column(length = 255) private String providerTransactionId;
     @Column(nullable = false) private Instant updatedAt;
 }

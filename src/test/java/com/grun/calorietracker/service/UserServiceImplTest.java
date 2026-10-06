@@ -129,7 +129,7 @@ class UserServiceImplTest {
         testUser.setFailedLoginAttempts(2);
         testUser.setLastFailedLoginAt(LocalDateTime.now().minusMinutes(1));
         when(userRepository.findByEmailForUpdate("test@example.com")).thenReturn(Optional.of(testUser));
-        when(jwtUtil.generateToken("test@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateUserToken(testUser)).thenReturn("jwt-token");
 
         String token = userService.loginUser("test@example.com", "rawpassword");
 

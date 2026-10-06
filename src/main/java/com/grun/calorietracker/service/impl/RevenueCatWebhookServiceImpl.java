@@ -86,6 +86,10 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     public Long captureWebhook(String authorizationHeader, JsonNode payload) {
         validateAuthorization(authorizationHeader);
         var event = requireEvent(toWebhook(payload));
+        if (RevenueCatEventType.from(event.getType()) == RevenueCatEventType.NON_RENEWING_PURCHASE) {
+            var completed = completedAddon(event);
+            if (completed.isPresent()) return completed.get().getId();
+        }
         String eventId = resolveProviderEventId(event);
         return eventRepository.findByProviderAndProviderEventId(PaymentProvider.REVENUECAT, eventId)
                 .map(SubscriptionProviderEventEntity::getId)
@@ -120,6 +124,12 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
         RevenueCatWebhookEventDto webhook = toWebhook(payload);
         RevenueCatWebhookEventDto.Event event = requireEvent(webhook);
         String providerEventId = resolveProviderEventId(event);
+
+        if (RevenueCatEventType.from(event.getType()) == RevenueCatEventType.NON_RENEWING_PURCHASE) {
+            var completed = completedAddon(event);
+            if (completed.isPresent()) return new RevenueCatWebhookResponseDto(true, true,
+                    completed.get().getProviderEventId(), "PROCESSED", "Store transaction already allocated.");
+        }
 
         Optional<SubscriptionProviderEventEntity> existingEvent =
                 eventRepository.findByProviderAndProviderEventId(PaymentProvider.REVENUECAT, providerEventId);
@@ -641,11 +651,30 @@ public class RevenueCatWebhookServiceImpl implements RevenueCatWebhookService {
     }
 
     private String resolveProviderEventId(RevenueCatWebhookEventDto.Event event) {
+        if (RevenueCatEventType.from(event.getType()) == RevenueCatEventType.NON_RENEWING_PURCHASE) {
+            if (event.getTransactionId() == null || event.getTransactionId().isBlank()
+                    || event.getStore() == null || event.getEnvironment() == null)
+                throw new IllegalArgumentException("Add-on purchase requires store transaction identity");
+            String identity = event.getEnvironment() + ":" + event.getStore() + ":" + event.getTransactionId();
+            try {
+                return "addon:" + java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            } catch (java.security.NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }
+        }
         String id = firstNonBlank(event.getId(), event.getTransactionId());
         if (id != null) {
             return id + ":" + firstNonBlank(event.getType(), "UNKNOWN") + ":" + firstNonNull(event.getEventTimestampMs(), 0L);
         }
         return firstNonBlank(event.getType(), "UNKNOWN") + ":" + firstNonBlank(event.getProductId(), "unknown-product") + ":" + firstNonNull(event.getEventTimestampMs(), System.currentTimeMillis());
+    }
+
+    private Optional<SubscriptionProviderEventEntity> completedAddon(RevenueCatWebhookEventDto.Event event) {
+        if (event.getTransactionId() == null || event.getTransactionId().isBlank()
+                || event.getEnvironment() == null || event.getEnvironment().isBlank()
+                || event.getStore() == null || event.getStore().isBlank()) return Optional.empty();
+        return eventRepository.findFirstByProviderAndTransactionIdAndEnvironmentAndStoreAndEventTypeAndStatus(
+                PaymentProvider.REVENUECAT, event.getTransactionId(), event.getEnvironment(), event.getStore(),
+                "NON_RENEWING_PURCHASE", SubscriptionProviderEventStatus.PROCESSED);
     }
 
     private LocalDate toLocalDate(Long epochMs) {

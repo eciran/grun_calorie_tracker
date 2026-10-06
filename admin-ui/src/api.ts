@@ -1,4 +1,5 @@
 export type LoginResponse = {
+  mfaEnrollmentRequired?: boolean;
   token: string;
   refreshToken?: string;
   tokenType?: string;
@@ -117,6 +118,7 @@ async function flushClientFailures() {
 export function getToken(): string | null { return accessToken; }
 
 export function saveTokens(response: LoginResponse) {
+  if (response.mfaEnrollmentRequired) throw new Error("MFA enrollment token cannot start an admin session.");
   accessToken = response.token;
   const state = response.adminSession;
   sessionTiming = null;
@@ -220,6 +222,8 @@ export function isUnauthorizedError(error: unknown): boolean {
 
 export function formatRequestError(error: unknown): string {
   if (error instanceof ApiRequestError) {
+    if (error.path === "/api/v1/auth/admin/login") return error.message;
+    if (error.status === 401 && error.path.startsWith("/api/v1/auth/admin/mfa/enrollment")) return "MFA setup expired. Return to sign in and start again.";
     if (error.status === 401) return "Session expired. Please sign in again.";
     if (error.status === 403) return error.message || "This account does not have admin permission for this action.";
     return error.correlationId ? `${error.message} (Reference: ${error.correlationId})` : error.message;
@@ -341,7 +345,7 @@ async function executeRequest<T>(
         }
       }
     }
-    if (response.status === 401) {
+    if (response.status === 401 && options.auth !== false) {
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     }
     const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;

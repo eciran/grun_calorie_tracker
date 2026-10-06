@@ -86,6 +86,8 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
     private static final int MAX_MANUAL_SCAN_LIMIT = 500;
     private static final int MAX_SCHEDULED_SCAN_LIMIT = 250;
     private static final int MAX_AI_SELECTED_VALIDATION_LIMIT = 25;
+    private static final int MAX_AI_ISSUES_PER_PRODUCT = 25;
+    private static final double MIN_AI_CLEAN_VALIDATION_CONFIDENCE = 0.80d;
     private static final String AI_PRODUCT_CONTEXT_SCHEMA_VERSION = "product_quality_context_v2";
     private static final String AI_PRODUCT_PROMPT_VERSION = "product_quality_prompt_v3";
     private static final String AI_PRODUCT_RESPONSE_SCHEMA_VERSION = "product_quality_response_v2";
@@ -324,7 +326,7 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 continue;
             }
 
-            AiProductQualityValidationRequestDto validationRequest = toAiValidationRequest(product);
+            AiProductQualityValidationRequestDto validationRequest = toAiValidationRequest(product, request);
             AiProductQualityValidationResponseDto response = activeProvider().validateProductQuality(validationRequest);
             validateAiResponse(response);
             List<AiProductQualityValidationResponseDto.AiProductQualityIssueDto> issues =
@@ -359,7 +361,7 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 hasIssue = true;
             }
 
-            if (!hasIssue) {
+            if (!hasIssue && aiResponseCanValidateProduct(response)) {
                 product.setQualityValidatedAt(LocalDateTime.now());
                 product.setQualityValidatedBy(actor);
                 product.setQualityValidationSource(ProductQualitySuggestionSource.AI_ASSISTED);
@@ -369,6 +371,24 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 productsToMarkValidated.add(product);
                 runItemsToSave.add(toValidatedRunItem(run, product, ProductQualityScanItemStatus.VALIDATED, product.getQualityValidationNotes()));
                 validated++;
+            } else if (!hasIssue) {
+                ProductQualitySuggestionEntity reviewSuggestion = buildAiReviewRequiredSuggestion(product, response);
+                boolean exists = productQualitySuggestionRepository.existsOpenDedupe(
+                        product.getId(), reviewSuggestion.getSuggestionType(), reviewSuggestion.getFieldName(),
+                        reviewSuggestion.getSuggestedValue(), ProductQualitySuggestionStatus.OPEN
+                );
+                if (exists) {
+                    skippedExisting++;
+                    runItemsToSave.add(toRunItem(run, product, reviewSuggestion,
+                            ProductQualityScanItemStatus.SKIPPED_EXISTING,
+                            "AI result requires review and a matching open review item already exists."));
+                } else {
+                    suggestionsToSave.add(reviewSuggestion);
+                    runItemsToSave.add(toRunItem(run, product, reviewSuggestion,
+                            ProductQualityScanItemStatus.SUGGESTION_CREATED,
+                            "AI result was not confident enough to validate the product automatically."));
+                    created++;
+                }
             }
         }
 
@@ -542,7 +562,8 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                         .toList();
         return new com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto.ServingOptionDto(
                 value.getId(), value.getLabel(), value.getUnitType(), value.getQuantity(), value.getGramWeight(),
-                value.getMlVolume(), value.getIsDefault(), value.getSource(), value.getQualityStatus(), localized
+                value.getMlVolume(), value.getIsDefault(), value.getSource(), value.getQualityStatus(),
+                value.getUserVisible(), localized
         );
     }
 
@@ -656,7 +677,10 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         return ids.stream().limit(max).toList();
     }
 
-    private AiProductQualityValidationRequestDto toAiValidationRequest(FoodItemEntity product) {
+    private AiProductQualityValidationRequestDto toAiValidationRequest(
+            FoodItemEntity product,
+            AdminProductQualityAiValidationRequestDto selection
+    ) {
         AiProductQualityValidationRequestDto request = new AiProductQualityValidationRequestDto();
         request.setSchemaVersion(AI_PRODUCT_CONTEXT_SCHEMA_VERSION);
         request.setPromptVersion(AI_PRODUCT_PROMPT_VERSION);
@@ -707,12 +731,16 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         request.setLocalizations(loadLocalizationContext(product.getId()));
         request.setSearchAliases(loadAliasContext(product.getId()));
         request.setServingOptions(loadServingContext(product.getId()));
-        request.setActiveQualityIssues(loadQualityIssueContext(product.getId()));
+        request.setActiveQualityIssues(loadQualityIssueContext(product.getId(), selection));
         request.setCanonicalDuplicate(loadCanonicalContext(product));
         com.grun.calorietracker.dto.FoodProductEvidenceContextDto evidenceContext = foodProductEvidenceService.buildContext(product);
         request.setSourceEvidence(evidenceContext == null ? List.of() : evidenceContext.getEvidence());
         request.setEvidenceComparisons(evidenceContext == null ? List.of() : evidenceContext.getComparisons());
         return request;
+    }
+
+    private AiProductQualityValidationRequestDto toAiValidationRequest(FoodItemEntity product) {
+        return toAiValidationRequest(product, null);
     }
 
     private List<AiProductQualityValidationRequestDto.LocalizationContext> loadLocalizationContext(Long productId) {
@@ -755,12 +783,43 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 .toList();
     }
 
-    private List<AiProductQualityValidationRequestDto.QualityIssueContext> loadQualityIssueContext(Long productId) {
-        return foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(productId).stream()
+    private List<AiProductQualityValidationRequestDto.QualityIssueContext> loadQualityIssueContext(
+            Long productId,
+            AdminProductQualityAiValidationRequestDto selection
+    ) {
+        List<AiProductQualityValidationRequestDto.QualityIssueContext> context = new ArrayList<>(
+                foodProductQualityIssueRepository.findByFoodItemIdAndResolvedFalse(productId).stream()
                 .map(value -> new AiProductQualityValidationRequestDto.QualityIssueContext(
                         value.getId(), enumName(value.getIssueType()), value.getIdentifier(), value.getReason(),
                         value.getFirstDetectedAt(), value.getLastDetectedAt()))
-                .toList();
+                .toList()
+        );
+        if (selection == null || selection.getSuggestionIds() == null) {
+            return context;
+        }
+        for (Long suggestionId : selection.getSuggestionIds()) {
+            if (suggestionId == null || suggestionId <= 0) {
+                continue;
+            }
+            productQualitySuggestionRepository.findForUpdateById(suggestionId)
+                    .filter(value -> value.getStatus() == ProductQualitySuggestionStatus.OPEN)
+                    .filter(value -> value.getFoodItem() != null && Objects.equals(value.getFoodItem().getId(), productId))
+                    .ifPresent(value -> context.add(new AiProductQualityValidationRequestDto.QualityIssueContext(
+                            value.getId(),
+                            "SELECTED_" + enumName(value.getSuggestionType()),
+                            value.getFieldName(),
+                            selectedSuggestionContext(value),
+                            value.getCreatedAt(),
+                            value.getCreatedAt()
+                    )));
+        }
+        return context;
+    }
+
+    private String selectedSuggestionContext(ProductQualitySuggestionEntity suggestion) {
+        return "Selected admin queue finding. current=" + Objects.toString(suggestion.getCurrentValue(), "<missing>")
+                + "; proposed=" + Objects.toString(suggestion.getSuggestedValue(), "<review-only>")
+                + "; reason=" + Objects.toString(suggestion.getReason(), "No reason recorded") + ".";
     }
 
     private AiProductQualityValidationRequestDto.CanonicalDuplicateContext loadCanonicalContext(FoodItemEntity product) {
@@ -794,6 +853,60 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         if (!AI_PRODUCT_RESPONSE_SCHEMA_VERSION.equals(response.getSchemaVersion())) {
             throw new IllegalArgumentException("Unsupported AI product quality response schema version.");
         }
+        if (response.getConfidence() == null || !Double.isFinite(response.getConfidence())
+                || response.getConfidence() < 0.0d || response.getConfidence() > 1.0d) {
+            throw new IllegalArgumentException("AI product quality confidence must be between 0 and 1.");
+        }
+        if (response.getQualityScore() == null || response.getQualityScore() < 0 || response.getQualityScore() > 100) {
+            throw new IllegalArgumentException("AI product quality score must be between 0 and 100.");
+        }
+        if (response.getReviewRequired() == null) {
+            throw new IllegalArgumentException("AI product quality response must declare whether admin review is required.");
+        }
+        List<AiProductQualityValidationResponseDto.AiProductQualityIssueDto> issues =
+                response.getIssues() == null ? List.of() : response.getIssues();
+        if (issues.size() > MAX_AI_ISSUES_PER_PRODUCT) {
+            throw new IllegalArgumentException("AI product quality response returned too many issues.");
+        }
+        for (AiProductQualityValidationResponseDto.AiProductQualityIssueDto issue : issues) {
+            if (issue == null || issue.getSuggestionType() == null || !isAllowedAiIssue(issue)) {
+                throw new IllegalArgumentException("AI product quality response contains an unsupported issue.");
+            }
+            if (trimToNull(issue.getReason()) == null) {
+                throw new IllegalArgumentException("AI product quality issue must include an evidence-based reason.");
+            }
+            if (issue.getConfidenceScore() == null || issue.getConfidenceScore() < 0 || issue.getConfidenceScore() > 100) {
+                throw new IllegalArgumentException("AI product quality issue confidence must be between 0 and 100.");
+            }
+        }
+    }
+
+    private boolean aiResponseCanValidateProduct(AiProductQualityValidationResponseDto response) {
+        return !Boolean.TRUE.equals(response.getReviewRequired())
+                && response.getConfidence() != null
+                && response.getConfidence() >= MIN_AI_CLEAN_VALIDATION_CONFIDENCE;
+    }
+
+    private ProductQualitySuggestionEntity buildAiReviewRequiredSuggestion(
+            FoodItemEntity product,
+            AiProductQualityValidationResponseDto response
+    ) {
+        ProductQualitySuggestionEntity suggestion = new ProductQualitySuggestionEntity();
+        suggestion.setFoodItem(product);
+        suggestion.setSuggestionType(ProductQualitySuggestionType.LABEL_REVIEW_REQUIRED);
+        suggestion.setSource(ProductQualitySuggestionSource.AI_ASSISTED);
+        suggestion.setStatus(ProductQualitySuggestionStatus.OPEN);
+        suggestion.setFieldName("name");
+        suggestion.setCurrentValue(product.getName());
+        suggestion.setSuggestedValue(null);
+        String summary = trimToNull(response.getSummary());
+        suggestion.setReason(trimToMax(
+                (summary == null ? "AI could not establish a reliable clean result." : summary)
+                        + " Admin review is required; the product was not marked as quality validated.",
+                1000
+        ));
+        suggestion.setConfidenceScore((int) Math.round(response.getConfidence() * 100.0d));
+        return suggestion;
     }
 
     private boolean isAllowedAiIssue(AiProductQualityValidationResponseDto.AiProductQualityIssueDto issue) {

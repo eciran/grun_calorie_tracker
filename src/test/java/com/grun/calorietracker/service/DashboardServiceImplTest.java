@@ -183,6 +183,7 @@ class DashboardServiceImplTest {
         goal.setDailyCarbGoal(250.0);
         goal.setTargetWeight(78.0);
         goal.setGoalType(com.grun.calorietracker.enums.GoalType.LOSE_WEIGHT);
+        goal.setBodyCompositionFocus(com.grun.calorietracker.enums.BodyCompositionFocus.BUILD_MUSCLE);
         LocalDate date = LocalDate.of(2026, 5, 20);
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = date.plusDays(1).atStartOfDay();
@@ -231,6 +232,7 @@ class DashboardServiceImplTest {
         assertEquals(50.0, result.getCarbsProgressPercent());
         assertEquals(true, result.getHasActiveGoal());
         assertEquals(true, result.getOnboardingCompleted());
+        assertEquals("BUILD_MUSCLE", result.getBodyCompositionFocus());
         assertEquals(false, result.getHasFoodLogs());
         assertEquals(false, result.getHasExerciseLogs());
         assertEquals(false, result.getHasAnyDiaryEntry());

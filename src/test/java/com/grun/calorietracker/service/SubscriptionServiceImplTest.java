@@ -115,6 +115,42 @@ class SubscriptionServiceImplTest {
     }
 
     @Test
+    void expirationFromPreviousChainCannotRevokeCurrentPro() {
+        var entity = new SubscriptionEntity();
+        entity.setUser(user); entity.setPlanType(SubscriptionPlan.PRO); entity.setStatus(SubscriptionStatus.ACTIVE);
+        entity.setProvider(PaymentProvider.REVENUECAT); entity.setProviderOriginalTransactionId("current-chain");
+        entity.setProviderProductId("pro"); entity.setAiMonthlyQuota(150);
+        entity.setEndDate(java.time.LocalDate.now().plusMonths(1));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        var command = new SubscriptionProviderEventCommand();
+        command.setEventType(RevenueCatEventType.EXPIRATION); command.setStatus(SubscriptionStatus.EXPIRED);
+        command.setProviderOriginalTransactionId("old-chain"); command.setProviderProductId("plus");
+        command.setProviderEventAt(Instant.now());
+        var result = service.applyProviderEvent(1L, command);
+        assertEquals(SubscriptionStatus.ACTIVE, result.getStatus());
+        assertEquals(SubscriptionPlan.PRO, result.getPlanType());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    void expirationOfPreviousTransactionInSameChainCannotRevokeCurrentRenewal() {
+        var entity = new SubscriptionEntity();
+        entity.setUser(user); entity.setPlanType(SubscriptionPlan.PRO); entity.setStatus(SubscriptionStatus.ACTIVE);
+        entity.setProvider(PaymentProvider.REVENUECAT); entity.setProviderOriginalTransactionId("chain");
+        entity.setProviderProductId("pro"); entity.setProviderTransactionId("renewal2"); entity.setAiMonthlyQuota(150);
+        entity.setEndDate(java.time.LocalDate.now().plusMonths(1));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(subscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(entity));
+        var command = new SubscriptionProviderEventCommand();
+        command.setEventType(RevenueCatEventType.EXPIRATION); command.setStatus(SubscriptionStatus.EXPIRED);
+        command.setProviderOriginalTransactionId("chain"); command.setProviderProductId("pro");
+        command.setProviderTransactionId("renewal1"); command.setProviderEventAt(Instant.now());
+        assertEquals(SubscriptionStatus.ACTIVE, service.applyProviderEvent(1L, command).getStatus());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
     void getCurrentSubscription_whenMissing_returnsFreeDefaults() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(subscriptionRepository.findByUser(user)).thenReturn(Optional.empty());
@@ -864,6 +900,33 @@ class SubscriptionServiceImplTest {
         assertEquals(8, result.getAiPlanUsedThisPeriod());
         verify(subscriptionCreditAllocationRepository, never()).reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any());
         verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    void latePurchaseRepairsOnlyMissingAllocationWithoutResettingUsageOrCancellation() {
+        var now = Instant.now();
+        var entity = subscription(SubscriptionPlan.PRO, SubscriptionStatus.CANCELED, 150, 8);
+        entity.setEndDate(java.time.LocalDate.now().plusDays(20));
+        entity.setAiPlanUsedThisPeriod(8);
+        entity.setAutoRenew(false);
+        entity.setProvider(PaymentProvider.REVENUECAT);
+        entity.setProviderProductId("grun_pro_monthly");
+        entity.setProviderTransactionId("tx-plan");
+        entity.setProviderOriginalTransactionId("otx-plan");
+        entity.setLastProviderEventAt(now);
+        entity.setAiCreditAllocationKey(null);
+        stubProviderApply(entity, 1);
+        var command = planCommand(SubscriptionPlan.PRO, "a".repeat(64), now.minusSeconds(30));
+
+        var result = service.applyProviderEvent(1L, command);
+        assertEquals("a".repeat(64), result.getAiCreditAllocationReference());
+        assertEquals(8, result.getAiPlanUsedThisPeriod());
+        assertEquals(SubscriptionStatus.CANCELED, result.getStatus());
+        assertEquals(false, entity.getAutoRenew());
+        assertEquals(now, entity.getLastProviderEventAt());
+
+        service.applyProviderEvent(1L, command);
+        verify(subscriptionCreditAllocationRepository, org.mockito.Mockito.times(1)).reserve(anyLong(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

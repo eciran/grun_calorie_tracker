@@ -47,12 +47,9 @@ public class RevenueCatPurchaseEvidenceClient {
             throw new IllegalStateException("Invalid verification environment");
         }
         String customerId = "user:" + userId;
-        JsonNode subscriptions = get("/projects/{project}/customers/{customer}/subscriptions",
+        JsonNode subscriptions = collection("/projects/{project}/customers/{customer}/subscriptions",
                 api.getProjectId(), customerId);
         var evidence = new ArrayList<Evidence>();
-        // A truncated collection must never be treated as authoritative absence.
-        requireComplete(subscriptions);
-        if (subscriptions.path("items").size() > 5) throw new IllegalStateException("Too many provider subscriptions");
         for (JsonNode subscription : subscriptions.path("items")) {
             if (!subscription.path("gives_access").asBoolean(false)
                     || subscription.path("pending_payment").asBoolean(true)) continue;
@@ -65,7 +62,7 @@ public class RevenueCatPurchaseEvidenceClient {
             String latest = subscription.path("store_subscription_identifier").asText("");
             String subscriptionId = subscription.path("id").asText("");
             if (blank(latest) || blank(subscriptionId)) continue;
-            JsonNode transactions = get("/projects/{project}/subscriptions/{subscription}/transactions",
+            JsonNode transactions = collection("/projects/{project}/subscriptions/{subscription}/transactions",
                     api.getProjectId(), subscriptionId);
             if (!transactions.path("items").isArray()) throw new IllegalStateException("Invalid transaction response");
             boolean latestFound = false;
@@ -106,33 +103,73 @@ public class RevenueCatPurchaseEvidenceClient {
         return result;
     }
 
-    private void requireComplete(JsonNode response) {
-        if (!response.path("next_page").isNull() && !response.path("next_page").isMissingNode()
-                && !response.path("next_page").asText().isBlank()) {
-            throw new IllegalStateException("Provider subscriptions require pagination review");
+    private JsonNode collection(String path, Object... variables) {
+        var result = JsonNodeFactory.instance.objectNode();
+        var items = result.putArray("items");
+        String cursor = null;
+        var seen = new java.util.HashSet<String>();
+        for (int page = 0; page < 10; page++) {
+            JsonNode response = getPage(path, cursor, variables);
+            response.path("items").forEach(items::add);
+            if (response.path("next_page").asText("").isBlank()) return result;
+            JsonNode batch = response.path("items");
+            cursor = batch.isEmpty() ? "" : batch.get(batch.size() - 1).path("id").asText("");
+            if (blank(cursor) || !seen.add(cursor)) {
+                throw new IllegalStateException("Provider pagination did not advance");
+            }
         }
+        throw new IllegalStateException("Provider pagination exceeded verification budget");
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }
 
     public JsonNode recoverablePurchaseEvent(Long userId, Evidence evidence) {
-        var history = JsonNodeFactory.instance.arrayNode();
-        String cursor = null;
-        var seen = new java.util.HashSet<String>();
-        for (int page = 0; page < 3; page++) {
-            JsonNode response = getPage("/projects/{project}/customers/{customer}/events", cursor,
-                    properties.getApi().getProjectId(), "user:" + userId);
-            response.path("items").forEach(history::add);
-            if (response.path("next_page").asText("").isBlank()) break;
-            JsonNode items = response.path("items");
-            cursor = items.isEmpty() ? "" : items.get(items.size() - 1).path("id").asText("");
-            if (page == 2 || blank(cursor) || !seen.add(cursor)) {
-                throw new IllegalStateException("Provider event pagination requires review");
-            }
+        var events = recoverablePurchaseEvents(userId, evidence);
+        return events.isEmpty() ? null : events.get(0);
+    }
+
+    public JsonNode recoverableAddonPurchase(Long userId, String productId, Instant startedAt, String expectedTransactionId) {
+        var history = collection("/projects/{project}/customers/{customer}/events",
+                properties.getApi().getProjectId(), "user:" + userId).path("items");
+        ObjectNode candidate = null;
+        for (JsonNode item : history) {
+            var body = item.path("body");
+            if (!(body instanceof ObjectNode) || !"PURCHASES_NON_RENEWING_PURCHASE".equals(item.path("type").asText())
+                    || !productId.equals(body.path("product_id").asText())
+                    || !("user:" + userId).equals(body.path("app_user_id").asText())
+                    || !properties.getApi().getVerificationEnvironment().equalsIgnoreCase(body.path("environment").asText())
+                    || !List.of("APP_STORE", "PLAY_STORE").contains(body.path("store").asText())
+                    || blank(body.path("transaction_id").asText()) || blank(item.path("id").asText())) continue;
+            if (expectedTransactionId != null && !expectedTransactionId.equals(body.path("transaction_id").asText())) continue;
+            long purchasedAt = body.path("purchased_at_ms").asLong();
+            if (purchasedAt <= 0 || purchasedAt > Instant.now().toEpochMilli()) continue;
+            if (expectedTransactionId == null && (startedAt == null || purchasedAt < startedAt.toEpochMilli())) continue;
+            if (candidate != null && !candidate.path("transaction_id").asText().equals(body.path("transaction_id").asText()))
+                throw new IllegalStateException("Ambiguous add-on transactions");
+            candidate = ((ObjectNode) body).deepCopy();
+            candidate.put("id", item.path("id").asText());
+            candidate.put("type", "NON_RENEWING_PURCHASE");
         }
+        if (candidate == null) return null;
+        String transaction = candidate.path("transaction_id").asText();
+        for (JsonNode item : history) {
+            var body = item.path("body");
+            if (transaction.equals(body.path("transaction_id").asText())
+                    && "CUSTOMER_SUPPORT".equals(body.path("cancel_reason").asText())
+                    && "PURCHASES_CANCELLATION".equals(item.path("type").asText())) return null;
+        }
+        ObjectNode result = JsonNodeFactory.instance.objectNode().put("api_version", "1.0");
+        result.set("event", candidate);
+        return result;
+    }
+
+    public List<JsonNode> recoverablePurchaseEvents(Long userId, Evidence evidence) {
+        JsonNode history = collection("/projects/{project}/customers/{customer}/events",
+                properties.getApi().getProjectId(), "user:" + userId).path("items");
         ObjectNode candidate = null;
         long candidateAt = -1;
         long latestOtherEventAt = -1;
+        var lifecycle = new ArrayList<ObjectNode>();
         for (JsonNode item : history) {
             JsonNode body = item.path("body");
             if (!(body instanceof ObjectNode) || !evidence.transactionId().equals(body.path("transaction_id").asText())
@@ -143,6 +180,19 @@ public class RevenueCatPurchaseEvidenceClient {
             String type = item.path("type").asText("");
             long at = body.path("event_timestamp_ms").asLong(0);
             if (!List.of("PURCHASES_INITIAL_PURCHASE", "PURCHASES_RENEWAL").contains(type)) {
+                boolean harmlessCancellation = "PURCHASES_CANCELLATION".equals(type)
+                        && "UNSUBSCRIBE".equals(body.path("cancel_reason").asText());
+                if (harmlessCancellation || "PURCHASES_UNCANCELLATION".equals(type)
+                        || "PURCHASES_PRODUCT_CHANGE".equals(type)) {
+                    ObjectNode followup = ((ObjectNode) body).deepCopy();
+                    followup.put("id", item.path("id").asText());
+                    followup.put("type", type.substring("PURCHASES_".length()));
+                    if (at > 0 && at <= Instant.now().toEpochMilli()
+                            && !blank(followup.path("id").asText())
+                            && !blank(followup.path("original_transaction_id").asText())) lifecycle.add(followup);
+                    else latestOtherEventAt = Math.max(latestOtherEventAt, at);
+                    continue;
+                }
                 latestOtherEventAt = Math.max(latestOtherEventAt, at);
                 continue;
             }
@@ -158,10 +208,22 @@ public class RevenueCatPurchaseEvidenceClient {
             }
         }
         // Do not synthesize a store transaction or overwrite a later cancellation/refund/change.
-        if (candidate == null || latestOtherEventAt >= candidateAt) return null;
+        if (candidate == null || latestOtherEventAt >= candidateAt) return List.of();
         ObjectNode payload = JsonNodeFactory.instance.objectNode();
         payload.put("api_version", "1.0");
         payload.set("event", candidate);
-        return payload;
+        var result = new ArrayList<JsonNode>();
+        result.add(payload);
+        long purchaseEventAt = candidateAt;
+        String chain = candidate.path("original_transaction_id").asText();
+        lifecycle.sort(java.util.Comparator.comparingLong(item -> item.path("event_timestamp_ms").asLong()));
+        for (ObjectNode item : lifecycle) {
+            if (item.path("event_timestamp_ms").asLong() <= purchaseEventAt) continue;
+            if (!chain.equals(item.path("original_transaction_id").asText())) return List.of();
+            ObjectNode followup = JsonNodeFactory.instance.objectNode().put("api_version", "1.0");
+            followup.set("event", item);
+            result.add(followup);
+        }
+        return List.copyOf(result);
     }
 }

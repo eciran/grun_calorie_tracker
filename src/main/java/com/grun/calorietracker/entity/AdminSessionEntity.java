@@ -16,6 +16,8 @@ public class AdminSessionEntity {
     private UserEntity user;
     @Column(name = "session_token_hash", nullable = false, unique = true, length = 64)
     private String sessionTokenHash;
+    @Column(name = "auth_token_version", nullable = false)
+    private long authTokenVersion = 0;
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
     @Column(name = "last_activity_at", nullable = false)

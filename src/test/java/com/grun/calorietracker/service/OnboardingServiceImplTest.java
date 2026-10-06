@@ -14,6 +14,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserFitnessPreferenceEntity;
 import com.grun.calorietracker.entity.UserNutritionPreferenceEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.DietaryPreference;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -172,7 +173,8 @@ class OnboardingServiceImplTest {
                 78.0,
                 0.5,
                 GoalType.LOSE_WEIGHT,
-                ActivityLevel.MODERATE
+                ActivityLevel.MODERATE,
+                BodyCompositionFocus.BUILD_MUSCLE
         ));
 
         var state = onboardingService.updateStep(OnboardingStep.GOAL, request, "user@example.com");
@@ -181,6 +183,9 @@ class OnboardingServiceImplTest {
         assertEquals(3, state.getCompletedSteps().size());
         org.junit.jupiter.api.Assertions.assertFalse(state.isCanComplete());
         assertEquals(GoalType.LOSE_WEIGHT, draft.getGoalType());
+        assertEquals(BodyCompositionFocus.BUILD_MUSCLE, draft.getBodyCompositionFocus());
+        assertEquals(BodyCompositionFocus.BUILD_MUSCLE,
+                state.getGoal().getBodyCompositionFocus());
     }
 
     @Test
@@ -205,6 +210,7 @@ class OnboardingServiceImplTest {
     @Test
     void completeOnboarding_isIdempotentAfterFirstSuccessfulCompletion() {
         OnboardingDraftEntity draft = completeDraft();
+        draft.setBodyCompositionFocus(BodyCompositionFocus.BUILD_MUSCLE);
         UserProfileDto profile = UserProfileDto.builder().name("Emrah").build();
         UserGoalDto goal = savedGoal();
 
@@ -234,7 +240,11 @@ class OnboardingServiceImplTest {
         assertEquals("MIFFLIN_ST_JEOR", retry.getCalculation().getFormula());
         assertEquals(8, retry.getCalculation().getEstimatedDurationWeeks());
         verify(userService, times(1)).updateCurrentUser(any(), eq("user@example.com"));
-        verify(userGoalService, times(1)).saveUserGoal(any(), eq("user@example.com"));
+        org.mockito.ArgumentCaptor<com.grun.calorietracker.dto.GoalCalculationRequestDto> goalCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.grun.calorietracker.dto.GoalCalculationRequestDto.class);
+        verify(userGoalService, times(1)).saveUserGoal(goalCaptor.capture(), eq("user@example.com"));
+        assertEquals(BodyCompositionFocus.BUILD_MUSCLE,
+                goalCaptor.getValue().getBodyCompositionFocus());
         org.mockito.ArgumentCaptor<UserNutritionPreferenceEntity> nutritionCaptor =
                 org.mockito.ArgumentCaptor.forClass(UserNutritionPreferenceEntity.class);
         verify(userNutritionPreferenceRepository, times(1)).save(nutritionCaptor.capture());

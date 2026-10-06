@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 public class OwnerErrorCaptureFilter implements Filter {
     private static final String STATE = OwnerErrorCaptureFilter.class.getName();
@@ -58,7 +60,7 @@ public class OwnerErrorCaptureFilter implements Filter {
         try {
             PathContainer path = PathContainer.parsePath(state.path);
             String route = patterns.get().stream().filter(pattern -> pattern.matches(path))
-                .sorted(PathPattern.SPECIFICITY_COMPARATOR).map(PathPattern::getPatternString).filter(value -> value.startsWith("/api/") && value.length()<=300).findFirst().orElse("/api/[unmapped]");
+                .sorted(PathPattern.SPECIFICITY_COMPARATOR).map(PathPattern::getPatternString).filter(value -> value.startsWith("/api/") && value.length()<=300).findFirst().orElseGet(() -> unmappedRoute(state.path));
             String cid = Objects.toString(request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE), "");
             if (!cid.matches("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")) cid=null;
             String method = Set.of("GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS","TRACE").contains(state.method) ? state.method : "OTHER";
@@ -67,5 +69,32 @@ public class OwnerErrorCaptureFilter implements Filter {
                 (String)request.getAttribute(OwnerErrorMetadata.LOCATION),Math.max(0,(System.nanoTime()-state.start)/1_000_000),
                 "BACKEND",null,null));
         } catch (RuntimeException captureFailure) { recorder.captureFailed(); }
+    }
+
+    /**
+     * Keeps unknown paths distinguishable without persisting the raw path. Values that commonly
+     * contain identities are normalized before hashing so repeated probes still form one family.
+     */
+    static String unmappedRoute(String rawPath) {
+        try {
+            String normalized = Arrays.stream(Objects.toString(rawPath, "").split("/"))
+                    .filter(segment -> !segment.isBlank())
+                    .limit(8)
+                    .map(OwnerErrorCaptureFilter::normalizeUnknownSegment)
+                    .reduce((left, right) -> left + "/" + right)
+                    .orElse("api");
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalized.getBytes(StandardCharsets.UTF_8));
+            String family = HexFormat.of().formatHex(digest, 0, 6);
+            String version = normalized.matches("api/v[0-9]+(/.*)?") ? "/" + normalized.split("/", 3)[1] : "";
+            return "/api/[unmapped]" + version + "/family-" + family;
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private static String normalizeUnknownSegment(String segment) {
+        if (segment.matches("(?i)[0-9a-f]{8}-[0-9a-f-]{27,}") || segment.matches("[0-9]{2,}")) return "{id}";
+        if (segment.contains("@") || segment.length() > 32 || !segment.matches("[A-Za-z0-9._~-]+")) return "{value}";
+        return segment.toLowerCase(Locale.ROOT);
     }
 }

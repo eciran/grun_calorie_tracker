@@ -38,7 +38,15 @@ class OwnerErrorCaptureFilterTest {
         filter.doFilter(new MockHttpServletRequest("GET","/admin/system/errors"),new MockHttpServletResponse(),(req,res)->((HttpServletResponse)res).setStatus(500));
         verifyNoInteractions(recorder);
         filter.doFilter(new MockHttpServletRequest("GET","/api/unknown/secret"),new MockHttpServletResponse(),(req,res)->((HttpServletResponse)res).setStatus(404));
-        verify(recorder).record(argThat(event -> event.route().equals("/api/[unmapped]")));
+        verify(recorder).record(argThat(event -> event.route().matches("/api/\\[unmapped]/family-[0-9a-f]{12}") && !event.route().contains("secret")));
+    }
+    @Test void unknownRouteFamiliesAreStableAndMaskDynamicValues() {
+        String first=OwnerErrorCaptureFilter.unmappedRoute("/api/v1/legacy/users/12345");
+        String second=OwnerErrorCaptureFilter.unmappedRoute("/api/v1/legacy/users/98765");
+        String different=OwnerErrorCaptureFilter.unmappedRoute("/api/v1/removed/endpoint");
+        assertEquals(first,second); assertNotEquals(first,different);
+        assertTrue(first.matches("/api/\\[unmapped]/v1/family-[0-9a-f]{12}"));
+        assertFalse(OwnerErrorCaptureFilter.unmappedRoute("/api/private@example.com").contains("private"));
     }
     @Test void errorDispatchUsesFinalStatusAndDoesNotDuplicate() throws Exception {
         var request = new MockHttpServletRequest("GET","/api/v1/users/42"); var response = new MockHttpServletResponse();

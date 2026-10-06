@@ -22,6 +22,7 @@ import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
+import com.grun.calorietracker.security.AdminAuthenticationAttemptGuard;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.EmailVerificationService;
 import com.grun.calorietracker.service.FederatedAuthService;
@@ -64,6 +65,7 @@ public class AuthController {
     private final FederatedAuthService federatedAuthService;
     private final UserActivityService userActivityService;
     private final AdminMfaService adminMfaService;
+    private final AdminAuthenticationAttemptGuard attemptGuard;
 
 
     @PostMapping("/register")
@@ -162,7 +164,7 @@ public class AuthController {
     }
 
     private AuthResponse buildAuthResponse(UserEntity user, String message) {
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateUserToken(user);
         String refreshToken = refreshTokenService.createRefreshToken(user);
         return new AuthResponse(token, refreshToken, "Bearer", jwtUtil.getExpirationSeconds(), message);
     }
@@ -191,16 +193,23 @@ public class AuthController {
             )
     })
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest request) {
+        java.util.Optional<UserEntity> account = userRepository.findByEmail(request.getEmail());
+        account.filter(user -> user.getRole() != null && user.getRole().isAdminRole())
+                .ifPresent(user -> attemptGuard.requireAllowed(request.getEmail()));
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        UserEntity user = userRepository.findByEmail(request.getEmail())
+        UserEntity user = account
                 .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+        if (adminMfaService.requiresEnrollment(user)) {
+            return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                    .body(adminMfaService.enrollmentLogin(user));
+        }
         adminMfaService.verifyLogin(user, request.getAdminMfaCode());
         recordLoginSafely(user.getEmail());
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateUserToken(user);
         String refreshToken = refreshTokenService.createRefreshToken(user);
         return ResponseEntity.ok(new AuthResponse(token, refreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Login successful"));
     }

@@ -15,6 +15,7 @@ class RevenueCatPurchaseEvidenceClientTest {
     HttpServer server;
     RevenueCatPurchaseEvidenceClient client;
     ObjectNode subscription, transaction, event, events;
+    ObjectNode subscriptionsResponse, subscriptionsNextPage;
     long purchased, expires;
     int httpStatus;
     String lastAuthorization;
@@ -34,12 +35,16 @@ class RevenueCatPurchaseEvidenceClientTest {
                 .put("product_id", "pro").put("event_timestamp_ms", purchased + 1)
                 .put("purchased_at_ms", purchased).put("expiration_at_ms", expires));
         events = list(event);
+        subscriptionsResponse = null;
+        subscriptionsNextPage = null;
         httpStatus = 200;
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             lastAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
             String path = exchange.getRequestURI().getPath();
-            ObjectNode response = path.endsWith("/subscriptions") ? list(subscription)
+            ObjectNode response = path.endsWith("/subscriptions")
+                    ? (exchange.getRequestURI().getQuery().contains("starting_after=") && subscriptionsNextPage != null
+                        ? subscriptionsNextPage : subscriptionsResponse == null ? list(subscription) : subscriptionsResponse)
                     : path.endsWith("/transactions") ? list(transaction) : events;
             byte[] bytes = mapper.writeValueAsBytes(response);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -54,6 +59,35 @@ class RevenueCatPurchaseEvidenceClientTest {
         client = new RevenueCatPurchaseEvidenceClient(properties, RestClient.builder());
     }
     @AfterEach void cleanup() { if (server != null) server.stop(0); }
+
+    @Test void addonProofRequiresExactUserProductTransactionAndEnvironment() {
+        event.put("type", "PURCHASES_NON_RENEWING_PURCHASE");
+        ((ObjectNode) event.path("body")).put("product_id", "addon");
+        assertThat(client.recoverableAddonPurchase(44L, "addon", Instant.now(), null)).isNull();
+        assertThat(client.recoverableAddonPurchase(44L, "addon", Instant.now(), "tx1")).isNotNull();
+        assertThat(client.recoverableAddonPurchase(44L, "addon", Instant.ofEpochMilli(purchased - 1), "wrong")).isNull();
+        ((ObjectNode) event.path("body")).put("environment", "PRODUCTION");
+        assertThat(client.recoverableAddonPurchase(44L, "addon", Instant.ofEpochMilli(purchased - 1), "tx1")).isNull();
+    }
+
+    @Test void refundedAddonCannotBeRecoveredAsNewCredits() {
+        event.put("type", "PURCHASES_NON_RENEWING_PURCHASE");
+        ((ObjectNode) event.path("body")).put("product_id", "addon");
+        var refund = event.deepCopy().put("id", "refund1").put("type", "PURCHASES_CANCELLATION");
+        ((ObjectNode) refund.path("body")).put("cancel_reason", "CUSTOMER_SUPPORT");
+        ((com.fasterxml.jackson.databind.node.ArrayNode) events.path("items")).add(refund);
+        assertThat(client.recoverableAddonPurchase(44L, "addon", Instant.ofEpochMilli(purchased - 1), "tx1")).isNull();
+    }
+
+    @Test void ambiguousAddonHistoryFailsClosedWithoutSynthesizingTransaction() {
+        event.put("type", "PURCHASES_NON_RENEWING_PURCHASE");
+        ((ObjectNode) event.path("body")).put("product_id", "addon");
+        var second = event.deepCopy().put("id", "second1");
+        ((ObjectNode) second.path("body")).put("transaction_id", "tx2");
+        ((com.fasterxml.jackson.databind.node.ArrayNode) events.path("items")).add(second);
+        assertThatThrownBy(() -> client.recoverableAddonPurchase(44L, "addon", Instant.ofEpochMilli(purchased - 1), null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Ambiguous");
+    }
 
     @Test void validatesActiveTransactionAndPreservesOriginalTransactionForRecovery() {
         var proof = client.activePurchases(44L, "pro");
@@ -107,6 +141,47 @@ class RevenueCatPurchaseEvidenceClientTest {
         httpStatus = 403;
         assertThatThrownBy(() -> client.activePurchases(44L, "pro"))
                 .isInstanceOf(org.springframework.web.client.RestClientResponseException.class);
+    }
+
+    @Test void expiredHistoryDoesNotBlockActivePurchase() {
+        subscriptionsResponse = list(subscription);
+        for (int i = 0; i < 12; i++) {
+            subscriptionsResponse.withArray("items").add(subscription.deepCopy().put("id", "expired" + i).put("gives_access", false));
+        }
+        assertThat(client.activePurchases(44L, "pro")).hasSize(1);
+    }
+
+    @Test void findsActivePurchaseOnSecondSubscriptionPage() {
+        subscriptionsResponse = list(subscription.deepCopy().put("id", "expired1").put("gives_access", false));
+        subscriptionsResponse.put("next_page", "more");
+        subscriptionsNextPage = list(subscription);
+        assertThat(client.activePurchases(44L, "pro")).hasSize(1);
+    }
+
+    @Test void nonAdvancingSubscriptionPageCannotBecomeAbsence() {
+        subscriptionsResponse = list(subscription.deepCopy().put("gives_access", false));
+        subscriptionsResponse.put("next_page", "more");
+        assertThatThrownBy(() -> client.activePurchases(44L, "pro"))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("did not advance");
+    }
+
+    @Test void unsubscribeRecoversPurchaseAndThenCancellationWithoutInventingEvents() {
+        var cancellation = event.deepCopy().put("id", "cancel1").put("type", "PURCHASES_CANCELLATION");
+        ((ObjectNode) cancellation.path("body")).put("event_timestamp_ms", purchased + 5).put("cancel_reason", "UNSUBSCRIBE");
+        events.withArray("items").add(cancellation);
+        var proof = client.activePurchases(44L, "pro").get(0);
+        var recovery = client.recoverablePurchaseEvents(44L, proof);
+        assertThat(recovery).hasSize(2);
+        assertThat(recovery.get(0).at("/event/type").asText()).isEqualTo("INITIAL_PURCHASE");
+        assertThat(recovery.get(1).at("/event/type").asText()).isEqualTo("CANCELLATION");
+        assertThat(recovery.get(1).at("/event/id").asText()).isEqualTo("cancel1");
+    }
+
+    @Test void refundNeverReplaysPurchaseEvenWhenProviderStillShowsAccess() {
+        var cancellation = event.deepCopy().put("id", "refund1").put("type", "PURCHASES_CANCELLATION");
+        ((ObjectNode) cancellation.path("body")).put("event_timestamp_ms", purchased + 5).put("cancel_reason", "CUSTOMER_SUPPORT");
+        events.withArray("items").add(cancellation);
+        assertThat(client.recoverablePurchaseEvents(44L, client.activePurchases(44L, "pro").get(0))).isEmpty();
     }
     private ObjectNode list(ObjectNode item) {
         ObjectNode response = mapper.createObjectNode().putNull("next_page");

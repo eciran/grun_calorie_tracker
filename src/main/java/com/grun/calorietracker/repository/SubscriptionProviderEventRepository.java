@@ -28,7 +28,16 @@ public interface SubscriptionProviderEventRepository extends JpaRepository<Subsc
     List<Long> findDueRetries(@Param("now") LocalDateTime now, org.springframework.data.domain.Pageable page);
     Optional<SubscriptionProviderEventEntity> findByProviderAndProviderEventId(PaymentProvider provider, String providerEventId);
     boolean existsByProviderAndProviderEventId(PaymentProvider provider, String providerEventId);
+    Optional<SubscriptionProviderEventEntity> findFirstByProviderAndTransactionIdAndEnvironmentAndStoreAndEventTypeAndStatus(
+            PaymentProvider provider, String transactionId, String environment, String store, String eventType,
+            SubscriptionProviderEventStatus status);
     long countByStatus(SubscriptionProviderEventStatus status);
+    boolean existsByUser_IdAndProviderAndProductIdAndTransactionIdAndEnvironmentAndEventTypeAndStatus(
+            Long userId, PaymentProvider provider, String productId, String transactionId, String environment,
+            String eventType, SubscriptionProviderEventStatus status);
+    boolean existsByUser_IdAndProviderAndTransactionIdAndCancelReasonAndStatus(
+            Long userId, PaymentProvider provider, String transactionId, String cancelReason,
+            SubscriptionProviderEventStatus status);
     long countByReceivedAtAfter(LocalDateTime receivedAt);
     long countByStatusAndReceivedAtAfter(SubscriptionProviderEventStatus status, LocalDateTime receivedAt);
     List<SubscriptionProviderEventEntity> findByUserOrderByReceivedAtDesc(UserEntity user);

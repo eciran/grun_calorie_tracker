@@ -39,6 +39,10 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
   const [aiValidationResult, setAiValidationResult] = useState<AdminProductQualityAiValidationResult | null>(null);
   const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<number[]>([]);
   const [selectedQualitySuggestion, setSelectedQualitySuggestion] = useState<ProductQualitySuggestion | null>(null);
+  const [suggestionQuery, setSuggestionQuery] = useState("");
+  const [suggestionSource, setSuggestionSource] = useState("");
+  const [suggestionType, setSuggestionType] = useState("");
+  const [minimumConfidence, setMinimumConfidence] = useState("0");
   const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, page: suggestionPage, size: suggestionPageSize });
   const { data: suggestions, state: suggestionState, reload: reloadSuggestions } = useEndpoint<ProductQualitySuggestionPage>(suggestionPath, onError);
   const { data: scanRuns, state: scanRunState, reload: reloadScanRuns } = useEndpoint<ProductQualityScanRunPage>("/api/v1/admin/products/quality-suggestions/scan-runs?page=0&size=5", onError);
@@ -51,6 +55,15 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
   const [qualityScanHistoryOpen, setQualityScanHistoryOpen] = useState(false);
   const rows = products?.content ?? [];
   const suggestionRows = suggestions?.content ?? [];
+  const suggestionTypes = Array.from(new Set(suggestionRows.map((item) => item.suggestionType).filter(Boolean) as string[])).sort();
+  const visibleSuggestionRows = suggestionRows.filter((item) => {
+    const query = suggestionQuery.trim().toLocaleLowerCase(locale === "tr" ? "tr-TR" : "en-US");
+    const haystack = `${item.productName ?? ""} ${item.brand ?? ""} ${item.fieldName ?? ""} ${item.reason ?? ""}`.toLocaleLowerCase(locale === "tr" ? "tr-TR" : "en-US");
+    return (!query || haystack.includes(query))
+      && (!suggestionSource || item.source === suggestionSource)
+      && (!suggestionType || item.suggestionType === suggestionType)
+      && Number(item.confidenceScore ?? 0) >= Number(minimumConfidence || 0);
+  });
   const scanRunRows = scanRuns?.content ?? [];
   const selectedOpenSuggestionIds = selectedSuggestionIds.filter((id) => suggestionRows.some((item) => item.id === id && item.status === "OPEN"));
   const byRegion = countBy(rows, (item) => item.marketRegion ?? "Unknown");
@@ -252,6 +265,12 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
             <article><span>{tr ? "Ortalama puan" : "Average score"}</span><strong>{qualityAnalytics?.averageQualityScore == null ? "-" : Number(qualityAnalytics.averageQualityScore).toFixed(1)}</strong><small>/ 100</small></article>
           </div>
         </section>
+        <section className="quality-decision-pipeline" aria-label={tr ? "Kalite karar akışı" : "Quality decision pipeline"}>
+          <article><span>1</span><div><strong>{tr ? "Kurallarla tara" : "Scan with rules"}</strong><small>{tr ? "Eksik, tutarsız ve sınır dışı alanları deterministik kontroller bulur." : "Deterministic checks find missing, inconsistent, and out-of-range fields."}</small></div></article>
+          <article><span>2</span><div><strong>{tr ? "Kanıtı karşılaştır" : "Compare evidence"}</strong><small>{tr ? "Kaynak kayıtları, bölge ve ürün bağlamı öneriyle birlikte değerlendirilir." : "Source records, region, and product context are evaluated with the finding."}</small></div></article>
+          <article><span>3</span><div><strong>{tr ? "AI ile ikinci görüş" : "AI second opinion"}</strong><small>{tr ? "Seçilen bulgu AI'a açıkça iletilir; düşük güven temiz sonuç sayılmaz." : "The selected finding is sent explicitly; a low-confidence result is never treated as clean."}</small></div></article>
+          <article><span>4</span><div><strong>{tr ? "Yönetici kararı" : "Admin decision"}</strong><small>{tr ? "Değişiklik yalnız desteklenen alan ve geçerli kanıtla uygulanır; tüm kararlar izlenir." : "Changes apply only to supported fields with valid evidence, and every decision is audited."}</small></div></article>
+        </section>
         <div className="catalog-quality-summary">
           <div><span className="eyebrow">{tr ? "ANALİTİK GÖRÜNÜM" : "ANALYTICS VIEW"}</span><strong>{tr ? "Kalite hareketi" : "Quality movement"}</strong><small>{tr ? "Grafikler seçilen zaman aralığını kullanır." : "Charts use the selected reporting window."}</small></div>
           <label>
@@ -400,13 +419,13 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
         </div>
       </CollapsiblePanel>}
       {selectedScanRunDetail && <QualityScanRunDetailModal detail={selectedScanRunDetail} onClose={() => setSelectedScanRunDetail(null)} />}
-      {mode === "quality" && <Panel title="Quality suggestion queue" className="quality-table-panel compact-empty-panel">
+      {mode === "quality" && <Panel title={tr ? "Kalite bulguları kuyruğu" : "Quality finding queue"} className="quality-table-panel compact-empty-panel">
         <div className="quality-suggestion-toolbar">
           <div>
-            <strong>{formatValue(selectedOpenSuggestionIds.length)} selected</strong>
-            <small>AI validation is capped at 25 selected open suggestions.</small>
+            <strong>{tr ? `${formatValue(selectedOpenSuggestionIds.length)} bulgu seçildi` : `${formatValue(selectedOpenSuggestionIds.length)} findings selected`}</strong>
+            <small>{tr ? "AI, seçilen bulguları ürün kanıtlarıyla yeniden analiz eder. Yönetici onayı olmadan veri değiştirilmez." : "AI reanalyzes selected findings with product evidence. No data changes without admin approval."}</small>
           </div>
-          <button className="primary-button" type="button" disabled={qualityActionState === "loading" || selectedOpenSuggestionIds.length === 0} onClick={validateSelectedSuggestionsWithAi}>Validate selected with AI</button>
+          <button className="primary-button" type="button" disabled={qualityActionState === "loading" || selectedOpenSuggestionIds.length === 0} onClick={validateSelectedSuggestionsWithAi}>{tr ? "Seçilenleri AI ile analiz et" : "Analyze selected with AI"}</button>
         </div>
         {aiValidationResult && <div className="metric-grid compact-grid">
           <MetricCard label="AI run" value={formatValue(aiValidationResult.scanRunId)} hint="AI-assisted scan history id" />
@@ -415,18 +434,45 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
           <MetricCard label="Already open" value={formatValue(aiValidationResult.skippedExistingSuggestions)} hint="Duplicates skipped" />
           <MetricCard label="Validated" value={formatValue(aiValidationResult.validatedProducts)} hint="No AI issues found" />
         </div>}
-        <div className="audit-filter-grid">
+        <div className="quality-finding-filters">
           <label>
-            Status
+            {tr ? "Ara" : "Search"}
+            <input value={suggestionQuery} onChange={(event) => setSuggestionQuery(event.target.value)} placeholder={tr ? "Ürün, marka, alan veya gerekçe" : "Product, brand, field, or reason"} />
+          </label>
+          <label>
+            {tr ? "Durum" : "Status"}
             <select value={suggestionStatus} onChange={(event) => { setSuggestionStatus(event.target.value); setSuggestionPage(0); setSelectedSuggestionIds([]); }}>
               {PRODUCT_QUALITY_SUGGESTION_STATUSES.map((item) => <option key={item} value={item}>{shortFeature(item)}</option>)}
             </select>
           </label>
+          <label>
+            {tr ? "Kaynak" : "Source"}
+            <select value={suggestionSource} onChange={(event) => setSuggestionSource(event.target.value)}>
+              <option value="">{tr ? "Tüm kaynaklar" : "All sources"}</option>
+              <option value="RULE_BASED">{tr ? "Kural tabanlı" : "Rule based"}</option>
+              <option value="AI_ASSISTED">{tr ? "AI destekli" : "AI assisted"}</option>
+            </select>
+          </label>
+          <label>
+            {tr ? "Sorun türü" : "Issue type"}
+            <select value={suggestionType} onChange={(event) => setSuggestionType(event.target.value)}>
+              <option value="">{tr ? "Tüm türler" : "All types"}</option>
+              {suggestionTypes.map((item) => <option key={item} value={item}>{shortFeature(item)}</option>)}
+            </select>
+          </label>
+          <label>
+            {tr ? "En düşük güven" : "Minimum confidence"}
+            <select value={minimumConfidence} onChange={(event) => setMinimumConfidence(event.target.value)}>
+              <option value="0">{tr ? "Tümü" : "All"}</option>
+              <option value="50">50+</option><option value="70">70+</option><option value="80">80+</option><option value="90">90+</option>
+            </select>
+          </label>
         </div>
+        <div className="quality-filter-result"><strong>{visibleSuggestionRows.length}</strong><span>{tr ? "bu sayfadaki filtrelenmiş bulgu" : "filtered findings on this page"}</span></div>
         <DataTable
-          columns={["", "Product", "Type", "Field", "Confidence", "Current", "Suggested", "Decision", "Actions"]}
-          rows={suggestionRows.map((item) => [
-            <input aria-label="Select suggestion for AI validation" type="checkbox" disabled={item.status !== "OPEN"} checked={item.id ? selectedOpenSuggestionIds.includes(item.id) : false} onChange={(event) => toggleSuggestionSelection(item, event.target.checked)} onClick={(event) => event.stopPropagation()} />,
+          columns={["", tr ? "Ürün" : "Product", tr ? "Tür" : "Type", tr ? "Alan" : "Field", tr ? "Güven" : "Confidence", tr ? "Mevcut" : "Current", tr ? "Önerilen" : "Suggested", tr ? "Karar" : "Decision", tr ? "İşlemler" : "Actions"]}
+          rows={visibleSuggestionRows.map((item) => [
+            <input aria-label={tr ? "AI analizi için bulguyu seç" : "Select finding for AI analysis"} type="checkbox" disabled={item.status !== "OPEN"} checked={item.id ? selectedOpenSuggestionIds.includes(item.id) : false} onChange={(event) => toggleSuggestionSelection(item, event.target.checked)} onClick={(event) => event.stopPropagation()} />,
             <div className="entity-cell"><strong>{item.productName ?? `Product #${item.foodItemId ?? "-"}`}</strong><small>{item.brand ?? "-"}</small></div>,
             <div className="badge-stack"><Badge value={item.suggestionType} /><Badge value={item.source} tone="neutral" /></div>,
             item.fieldName ?? "-",
@@ -435,13 +481,13 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
             item.suggestedValue ?? "-",
             <QualitySuggestionDecision item={item} />,
             <div className="table-stack">
-              <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); setSelectedQualitySuggestion(item); }}>View details</button>
+              <button className="ghost-button" type="button" onClick={(event) => { event.stopPropagation(); setSelectedQualitySuggestion(item); }}>{tr ? "Ayrıntıları aç" : "View details"}</button>
               <Badge value={item.status} tone={item.status === "OPEN" ? "warn" : item.status === "ACCEPTED" ? "good" : "neutral"} />
-              {item.status === "OPEN" && <button className="ghost-button" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "accept"); }}>Accept</button>}
-              {item.status === "OPEN" && <button className="ghost-button danger-text" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "reject"); }}>Reject</button>}
+              {item.status === "OPEN" && <button className="ghost-button" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "accept"); }}>{tr ? "Kabul et" : "Accept"}</button>}
+              {item.status === "OPEN" && <button className="ghost-button danger-text" type="button" disabled={qualityActionState === "loading"} onClick={(event) => { event.stopPropagation(); void reviewQualitySuggestion(item, "reject"); }}>{tr ? "Reddet" : "Reject"}</button>}
             </div>
           ])}
-          empty="No product quality suggestions returned."
+          empty={tr ? "Filtrelerle eşleşen kalite bulgusu yok." : "No quality findings match the filters."}
         />
         <PaginationControls
           page={suggestions?.page ?? suggestionPage}

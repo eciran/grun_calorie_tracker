@@ -2,11 +2,13 @@ package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminSessionAuthResponse;
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.security.AdminAuthenticationAttemptGuard;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.AdminSessionService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.time.Instant;
 import static org.mockito.Mockito.*;
@@ -18,7 +20,7 @@ class AdminSessionDeadlineContractTest {
     @Test void restoreAndActivityUseSeparateCookieAuthenticatedRoutesAndNoStore() throws Exception {
         var sessions = mock(AdminSessionService.class);
         var controller = new AdminSessionAuthController(mock(AuthenticationManager.class), mock(UserRepository.class),
-                mock(AdminMfaService.class), sessions);
+                mock(AdminMfaService.class), sessions, mock(AdminAuthenticationAttemptGuard.class));
         var now = Instant.now();
         var response = new AdminSessionAuthResponse("jwt", 60, "ok",
                 new AdminSessionAuthResponse.SessionState("sid", now, now.plusSeconds(90), now.plusSeconds(3600), 300_000, now.plusSeconds(60)));
@@ -40,6 +42,6 @@ class AdminSessionDeadlineContractTest {
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
         verify(sessions).refresh("opaque");
         // A JWT alone is not a replacement for the HttpOnly session cookie.
-        assertThrows(IllegalArgumentException.class, () -> controller.session(new org.springframework.mock.web.MockHttpServletRequest()));
+        assertThrows(BadCredentialsException.class, () -> controller.session(new org.springframework.mock.web.MockHttpServletRequest()));
     }
 }

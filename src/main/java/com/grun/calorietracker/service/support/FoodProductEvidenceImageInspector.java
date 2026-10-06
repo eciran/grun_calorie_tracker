@@ -23,6 +23,13 @@ public class FoodProductEvidenceImageInspector {
                 expectedSha256.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
             throw new IllegalArgumentException("Product evidence checksum does not match the reserved upload.");
         }
+        return inspectImage(bytes, contentType, properties.getMaxUploadBytes(), properties.getMaxDecodedPixels());
+    }
+
+    public Dimensions inspectImage(byte[] bytes, String contentType, long maximumBytes, long maximumPixels) {
+        if (bytes == null || bytes.length == 0 || maximumBytes <= 0 || bytes.length > maximumBytes) {
+            throw new IllegalArgumentException("Image size is invalid.");
+        }
         Dimensions dimensions = switch (contentType == null ? "" : contentType.toLowerCase(java.util.Locale.ROOT)) {
             case "image/png" -> png(bytes);
             case "image/jpeg" -> jpeg(bytes);
@@ -31,7 +38,7 @@ public class FoodProductEvidenceImageInspector {
         };
         long pixels = (long) dimensions.width() * dimensions.height();
         if (dimensions.width() <= 0 || dimensions.height() <= 0
-                || pixels <= 0 || pixels > properties.getMaxDecodedPixels()) {
+                || pixels <= 0 || pixels > maximumPixels) {
             throw new IllegalArgumentException("Product evidence decoded dimensions exceed the configured limit.");
         }
         return dimensions;

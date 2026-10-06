@@ -130,7 +130,8 @@ public class AccountIdentityServiceImpl implements AccountIdentityService {
     @Override
     @Transactional
     public AccountPasswordResponseDto updatePassword(String userEmail, AccountPasswordRequestDto request) {
-        UserEntity user = findUser(userEmail);
+        UserEntity user = userRepository.findByEmailForUpdate(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
         if (Boolean.TRUE.equals(user.getPasswordSet())) {
             String currentPassword = request.getCurrentPassword();
             if (currentPassword == null || currentPassword.isBlank()

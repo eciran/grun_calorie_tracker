@@ -12,6 +12,7 @@ import com.grun.calorietracker.entity.GoalTargetAcknowledgementEntity;
 import com.grun.calorietracker.entity.AdvancedGoalPreviewEntity;
 import com.grun.calorietracker.entity.AdvancedGoalSaveRequestEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalCalculationMode;
 import com.grun.calorietracker.enums.ProductAnalyticsEventType;
 import com.grun.calorietracker.enums.SubscriptionFeature;
@@ -133,6 +134,9 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
         entity.setWeeklyWeightChangeTargetKg(weeklyRate(preview));
         entity.setGoalType(request.getGoalType());
         entity.setActivityLevel(request.getActivityLevel());
+        entity.setBodyCompositionFocus(request.getBodyCompositionFocus() == null
+                ? BodyCompositionFocus.STANDARD
+                : request.getBodyCompositionFocus());
         entity.setCalculationMode(request.getMode());
         entity.setControlledStrategy(request.getStrategy());
         entity.setLockedMacros(lockedMacros(request));
@@ -230,6 +234,7 @@ public class AdvancedUserGoalServiceImpl implements AdvancedUserGoalService {
                 Objects.toString(request.getWeeklyWeightChangeTargetKg(), ""),
                 Objects.toString(request.getGoalType(), ""),
                 Objects.toString(request.getActivityLevel(), ""),
+                Objects.toString(request.getBodyCompositionFocus(), ""),
                 Objects.toString(request.getMode(), ""),
                 Objects.toString(request.getStrategy(), ""),
                 Objects.toString(request.getProteinGrams(), ""),

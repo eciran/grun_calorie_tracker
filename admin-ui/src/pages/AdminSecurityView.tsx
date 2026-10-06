@@ -83,7 +83,8 @@ export function AdminMfaEnrollmentPanel({ onError }: { onError: (message: string
           <details className="admin-mfa-manual"><summary>Manual setup</summary><code>{enrollment.secret}</code><small>Enter this key manually only when the QR code cannot be scanned.</small></details>
         </div>
       </div>}
-      {status?.enabled && <div className="admin-mfa-disable">
+      {status?.enabled && status.required && <div className="form-notice">MFA is required for this account. Use recovery codes if your authenticator is unavailable.</div>}
+      {status?.enabled && !status.required && <div className="admin-mfa-disable">
         <div className="admin-mfa-disable-copy"><strong>Disable multi-factor authentication</strong><small>This reduces account security. Confirm with a current authenticator or recovery code.</small></div>
         <div className="admin-mfa-disable-controls">
           <label>Authenticator or recovery code<input autoComplete="one-time-code" maxLength={32} value={code} onChange={(event) => setCode(event.target.value)} /></label>

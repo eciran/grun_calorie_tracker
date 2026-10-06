@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.CountryCode;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -88,6 +89,9 @@ public class OnboardingCompleteRequestDto {
     @Schema(description = "User's goal type.", example = "LOSE_WEIGHT", requiredMode = Schema.RequiredMode.REQUIRED)
     private GoalType goalType;
 
+    @Schema(description = "Optional body-composition focus. Defaults to STANDARD.", example = "BUILD_MUSCLE")
+    private BodyCompositionFocus bodyCompositionFocus;
+
     @NotNull(message = "{validation.user-goal.activity-level.required}")
     @Schema(description = "User's activity level.", example = "MODERATE", requiredMode = Schema.RequiredMode.REQUIRED)
     private ActivityLevel activityLevel;
@@ -110,6 +114,7 @@ public class OnboardingCompleteRequestDto {
     }
 
     public GoalCalculationRequestDto toGoalCalculationRequestDto() {
-        return new GoalCalculationRequestDto(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel);
+        return new GoalCalculationRequestDto(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel,
+                bodyCompositionFocus);
     }
 }

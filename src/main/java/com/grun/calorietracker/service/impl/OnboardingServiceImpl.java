@@ -151,7 +151,8 @@ public class OnboardingServiceImpl implements OnboardingService {
                 request.getTargetWeight(),
                 request.getWeeklyWeightChangeTargetKg(),
                 request.getGoalType(),
-                request.getActivityLevel()
+                request.getActivityLevel(),
+                request.getBodyCompositionFocus()
         ));
         applyLegacyNutritionDefaults(draft);
         onboardingDraftRepository.save(draft);
@@ -271,6 +272,7 @@ public class OnboardingServiceImpl implements OnboardingService {
             draft.setWeeklyWeightChangeTargetKg(goal.getWeeklyWeightChangeTargetKg());
             draft.setGoalType(goal.getGoalType());
             draft.setActivityLevel(goal.getActivityLevel());
+            draft.setBodyCompositionFocus(goal.getBodyCompositionFocus());
         }
         hydratePersistedPreferences(draft);
         if (goal != null && !nutritionComplete(draft)) {
@@ -362,6 +364,9 @@ public class OnboardingServiceImpl implements OnboardingService {
         }
         if (goal.getActivityLevel() != null) {
             draft.setActivityLevel(goal.getActivityLevel());
+        }
+        if (goal.getBodyCompositionFocus() != null) {
+            draft.setBodyCompositionFocus(goal.getBodyCompositionFocus());
         }
     }
     private void applyNutrition(OnboardingDraftEntity draft, OnboardingNutritionStepDto nutrition) {
@@ -579,7 +584,8 @@ public class OnboardingServiceImpl implements OnboardingService {
                 draft.getTargetWeight(),
                 draft.getWeeklyWeightChangeTargetKg(),
                 draft.getGoalType(),
-                draft.getActivityLevel()
+                draft.getActivityLevel(),
+                draft.getBodyCompositionFocus()
         );
     }
 

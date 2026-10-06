@@ -29,7 +29,9 @@ class AdminMfaServiceImplLoginTest {
                 mock(TotpService.class),
                 mock(AdminMfaSecretCipher.class),
                 mock(JwtUtil.class),
-                mock(AdminAuditService.class)
+                mock(AdminAuditService.class),
+                new com.grun.calorietracker.security.AdminMfaAccessPolicy(),
+                mock(AdminSessionService.class)
         );
         UserEntity owner = new UserEntity();
         owner.setRole(UserRole.OWNER);

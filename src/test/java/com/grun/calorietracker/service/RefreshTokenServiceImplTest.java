@@ -49,6 +49,7 @@ class RefreshTokenServiceImplTest {
     void setUp() {
         refreshTokenService = new RefreshTokenServiceImpl(refreshTokenRepository, userRepository, jwtUtil, userActivityService);
         ReflectionTestUtils.setField(refreshTokenService, "expirationDays", 30L);
+        org.mockito.Mockito.lenient().when(refreshTokenRepository.consumeIfAvailable(anyString(), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(1);
 
         user = new UserEntity();
         user.setId(1L);
@@ -72,14 +73,15 @@ class RefreshTokenServiceImplTest {
 
     @Test
     void refreshAccessToken_whenTokenValid_rotatesRefreshTokenAndReturnsAccessToken() {
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(0L));
         RefreshTokenEntity existing = new RefreshTokenEntity();
         existing.setUser(user);
         existing.setExpiresAt(LocalDateTime.now().plusDays(1));
 
         when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
                 .thenReturn(Optional.of(existing));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(jwtUtil.generateToken("user@example.com")).thenReturn("access-token");
+        when(jwtUtil.generateUserToken(user)).thenReturn("access-token");
         when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
 
         AuthResponse response = refreshTokenService.refreshAccessToken("raw-refresh-token");
@@ -89,12 +91,13 @@ class RefreshTokenServiceImplTest {
         assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getExpiresIn()).isEqualTo(900L);
         assertThat(existing.getUsedAt()).isNotNull();
-        verify(refreshTokenRepository).save(existing);
-        verify(refreshTokenRepository, times(2)).save(any(RefreshTokenEntity.class));
+        verify(refreshTokenRepository).consumeIfAvailable(anyString(), any(), org.mockito.ArgumentMatchers.eq(0L));
+        verify(refreshTokenRepository).save(any(RefreshTokenEntity.class));
     }
 
     @Test
     void refreshAccessToken_whenEmailUnverified_keepsSessionActive() {
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(0L));
         user.setEmailVerified(false);
         RefreshTokenEntity existing = new RefreshTokenEntity();
         existing.setUser(user);
@@ -102,8 +105,8 @@ class RefreshTokenServiceImplTest {
 
         when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
                 .thenReturn(Optional.of(existing));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(jwtUtil.generateToken("user@example.com")).thenReturn("access-token");
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(jwtUtil.generateUserToken(user)).thenReturn("access-token");
         when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
 
         AuthResponse response = refreshTokenService.refreshAccessToken("raw-refresh-token");
@@ -167,6 +170,9 @@ class RefreshTokenServiceImplTest {
 
     @Test
     void refreshAccessToken_whenUsedTokenReplayed_revokesActiveTokensForUser() {
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(userRepository.incrementAuthTokenVersion(1L)).thenReturn(1);
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(0L), Optional.of(1L));
         RefreshTokenEntity reused = new RefreshTokenEntity();
         reused.setUser(user);
         reused.setUsedAt(LocalDateTime.now().minusMinutes(1));
@@ -187,11 +193,15 @@ class RefreshTokenServiceImplTest {
 
         assertThat(reused.getRevokedAt()).isNotNull();
         assertThat(active.getRevokedAt()).isNotNull();
+        assertThat(user.getAuthTokenVersion()).isEqualTo(1);
         verify(refreshTokenRepository).save(reused);
     }
 
     @Test
     void revokeAllForUser_marksAllActiveTokensRevoked() {
+        when(userRepository.incrementAuthTokenVersion(1L)).thenReturn(1);
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(1L));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         RefreshTokenEntity first = new RefreshTokenEntity();
         RefreshTokenEntity second = new RefreshTokenEntity();
 
@@ -202,5 +212,86 @@ class RefreshTokenServiceImplTest {
 
         assertThat(first.getRevokedAt()).isNotNull();
         assertThat(second.getRevokedAt()).isNotNull();
+        assertThat(user.getAuthTokenVersion()).isEqualTo(1);
+        verify(userRepository).incrementAuthTokenVersion(1L);
+    }
+
+    @Test
+    void refreshAfterGlobalRevocationCannotMintNewVersionFromStaleToken() {
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(1L));
+        RefreshTokenEntity token = new RefreshTokenEntity();
+        token.setUser(user);
+        token.setExpiresAt(LocalDateTime.now().plusDays(1));
+        user.setAuthTokenVersion(1);
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(token));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("stale"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(token.getRevokedAt()).isNotNull();
+        org.mockito.Mockito.verifyNoInteractions(jwtUtil);
+    }
+
+    @Test
+    void refreshTokenCapturesIssuingVersion() {
+        user.setAuthTokenVersion(7);
+        refreshTokenService.createRefreshToken(user);
+        verify(refreshTokenRepository).save(org.mockito.ArgumentMatchers.argThat(token -> token.getAuthTokenVersion() == 7));
+    }
+
+    @Test
+    void singleDeviceLogoutDoesNotInvalidateOtherAccessTokens() {
+        when(refreshTokenRepository.revokeIfAvailable(anyString(), any())).thenReturn(1);
+        refreshTokenService.revokeRefreshToken("logout");
+        assertThat(user.getAuthTokenVersion()).isZero();
+        org.mockito.Mockito.verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void concurrentConsumptionLoserCannotMintTokens() {
+        RefreshTokenEntity token = new RefreshTokenEntity();
+        token.setUser(user);
+        token.setExpiresAt(LocalDateTime.now().plusDays(1));
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString())).thenReturn(Optional.of(token));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(0L));
+        when(refreshTokenRepository.consumeIfAvailable(anyString(), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(0);
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("race"))
+                .isInstanceOf(com.grun.calorietracker.exception.RequestConflictException.class);
+        org.mockito.Mockito.verifyNoInteractions(jwtUtil);
+        verify(refreshTokenRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void recentReplayRejectsWithoutRevokingTheWinningSession() {
+        RefreshTokenEntity used = new RefreshTokenEntity();
+        used.setUser(user);
+        used.setUsedAt(LocalDateTime.now());
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString())).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(used));
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(0L));
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("recent"))
+                .isInstanceOf(com.grun.calorietracker.exception.RequestConflictException.class);
+        org.mockito.Mockito.verifyNoInteractions(jwtUtil);
+        verify(userRepository, org.mockito.Mockito.never()).incrementAuthTokenVersion(any());
+        verify(refreshTokenRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void replayFromRetiredGenerationCannotRevokeFreshSessions() {
+        RefreshTokenEntity retired = new RefreshTokenEntity();
+        retired.setUser(user);
+        retired.setUsedAt(LocalDateTime.now().minusMinutes(1));
+        user.setAuthTokenVersion(1);
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(retired));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(1L));
+        assertThatThrownBy(() -> refreshTokenService.refreshAccessToken("retired"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(userRepository, org.mockito.Mockito.never()).incrementAuthTokenVersion(any());
+        verify(refreshTokenRepository, org.mockito.Mockito.never()).findByUserAndRevokedAtIsNullAndUsedAtIsNull(any());
+        assertThat(retired.getRevokedAt()).isNotNull();
     }
 }

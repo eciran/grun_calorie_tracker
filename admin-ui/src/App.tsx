@@ -1,6 +1,8 @@
 import { FormEvent, MouseEvent, lazy, useEffect, useRef, useState, Suspense } from "react";
 
 import { createAdminSessionActivity } from "./adminSessionActivity";
+import { AdminMfaSetupView } from "./AdminMfaSetupView";
+import { ApiRequestError } from "./api";
 
 const CatalogEvidenceWorkspace = lazy(() => import("./pages/CatalogEvidenceWorkspace").then(module => ({ default: module.CatalogEvidenceWorkspace })));
 
@@ -578,6 +580,7 @@ function LoginView({
   const [busy, setBusy] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [showMfa, setShowMfa] = useState(false);
+  const [enrollmentToken, setEnrollmentToken] = useState<string | null>(null);
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgotMode, setForgotMode] = useState(false);
@@ -594,11 +597,15 @@ function LoginView({
         return;
       }
       const response = await login(email, password);
+      if (response.mfaEnrollmentRequired) {
+        setEnrollmentToken(response.token);
+        return;
+      }
       saveTokens(response);
       onLogin();
     } catch (err) {
       const message = formatRequestError(err);
-      if (message.toLowerCase().includes("mfa") || message.toLowerCase().includes("authenticator")) {
+      if (err instanceof ApiRequestError && ["ADMIN_MFA_REQUIRED", "ADMIN_MFA_INVALID"].includes(err.code ?? "")) {
         setMfaCode("");
         setMfaError(null);
         setShowMfa(true);
@@ -612,11 +619,16 @@ function LoginView({
 
   async function submitMfa(event: FormEvent) {
     event.preventDefault();
-    if (mfaCode.length !== 6) return;
+    if (mfaCode.trim().length < 6) return;
     setBusy(true);
     setMfaError(null);
     try {
       const response = await login(email, password, mfaCode);
+      if (response.mfaEnrollmentRequired) {
+        setShowMfa(false);
+        setEnrollmentToken(response.token);
+        return;
+      }
       saveTokens(response);
       onLogin();
     } catch (err) {
@@ -632,6 +644,13 @@ function LoginView({
     setMfaCode("");
     setMfaError(null);
   }
+
+  if (enrollmentToken) return <AdminMfaSetupView token={enrollmentToken} password={password} onExit={(complete) => {
+    setEnrollmentToken(null);
+    setPassword("");
+    closeMfa();
+    setResetNotice(complete ? "MFA enabled. Sign in again with your authenticator or recovery code." : null);
+  }} />;
 
   return (
     <main className="login-page">
@@ -678,18 +697,16 @@ function LoginView({
             <div className="confirm-dialog-icon neutral" aria-hidden="true">6</div>
             <div className="confirm-dialog-copy">
               <p className="eyebrow">Secure verification</p>
-              <h2 id="login-mfa-title">Enter your 6-digit code</h2>
-              <p>Open your authenticator app and enter the current code to complete sign-in.</p>
+              <h2 id="login-mfa-title">Verify your sign-in</h2>
+              <p>Enter an authenticator code or a single-use recovery code.</p>
               <label>
-                Authenticator code
+                Authenticator or recovery code
                 <input
                   autoFocus
-                  inputMode="numeric"
-                  pattern="[0-9]*"
                   autoComplete="one-time-code"
-                  maxLength={6}
+                  maxLength={32}
                   value={mfaCode}
-                  onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onChange={(event) => setMfaCode(event.target.value.replace(/[^0-9A-Za-z-]/g, "").slice(0, 32))}
                   placeholder="000000"
                   aria-invalid={Boolean(mfaError)}
                 />
@@ -699,7 +716,7 @@ function LoginView({
           </div>
           <div className="modal-actions">
             <button className="ghost-button" disabled={busy} onClick={closeMfa} type="button">Cancel</button>
-            <button className="primary-button" disabled={busy || mfaCode.length !== 6} type="submit">{busy ? "Verifying..." : "Verify and sign in"}</button>
+            <button className="primary-button" disabled={busy || mfaCode.trim().length < 6} type="submit">{busy ? "Verifying..." : "Verify and sign in"}</button>
           </div>
         </form>
       </div>}

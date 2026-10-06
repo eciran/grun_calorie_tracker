@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatRequestError, PageResponse, request, requestBlob, requestFormData } from "../api";
 
-import { AdminProductQualityWorkbench, AdminProductQualityAiValidationResult, FoodProduct, FoodSearchAlias, ProductQualitySuggestion } from "../types";
+import { AdminFoodServingOptionUpsert, AdminProductQualityWorkbench, AdminProductQualityAiValidationResult, FoodProduct, FoodSearchAlias, ProductQualitySuggestion } from "../types";
 
 import { CollapsiblePanel, DataTable, LoadState, MetricCard, PaginationControls, Panel, SectionToolbar, useDialogAccessibility } from "../AdminPrimitives";
 
@@ -17,6 +17,7 @@ export const PREPARATION_STATES = ["UNSPECIFIED", "RAW", "COOKED", "BOILED", "GR
 export const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA", "USER_CUSTOM"];
 
 export const FOOD_SEARCH_ALIAS_TYPES = ["ADMIN_MANUAL", "TRANSLATION", "SYNONYM", "ASCII_NORMALIZED", "COMMON_NAME"];
+export const FOOD_SERVING_OPTION_UNITS = ["SERVING", "PIECE", "SLICE", "SCOOP", "CUP", "TABLESPOON", "TEASPOON", "CAN", "BOTTLE", "GLASS", "MUG", "SHOT", "PACKAGE", "BAR", "BOWL", "PLATE", "PORTION"];
 
 export const QUALITY_ISSUES = [
   "MISSING_CANONICAL_CATEGORY",
@@ -1019,6 +1020,7 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
   const [data, setData] = useState<AdminProductQualityWorkbench | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [pendingHighImpact, setPendingHighImpact] = useState<ProductQualitySuggestion | null>(null);
+  const [servingEditor, setServingEditor] = useState<{ id?: number; value: AdminFoodServingOptionUpsert } | null>(null);
 
   useEffect(() => {
     void loadWorkbench();
@@ -1063,6 +1065,44 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
       await request(`/api/v1/admin/products/quality-suggestions/${item.id}/${action}`, { method: "PATCH" });
       setPendingHighImpact(null);
       await loadWorkbench();
+    } catch (error) {
+      setState("error");
+      onError(formatRequestError(error));
+    }
+  }
+
+  function openServingEditor(item?: NonNullable<AdminProductQualityWorkbench["servingOptions"]>[number]) {
+    const localized = (language: "EN" | "TR") => item?.localizations?.find((value) => value.language === language)?.label ?? "";
+    setServingEditor({
+      id: item?.id,
+      value: {
+        label: item?.label ?? "",
+        unitType: item?.unitType ?? "SERVING",
+        quantity: item?.quantity ?? 1,
+        gramWeight: item?.gramWeight,
+        mlVolume: item?.mlVolume,
+        defaultOption: item?.defaultOption ?? false,
+        userVisible: item?.userVisible ?? true,
+        qualityStatus: item?.qualityStatus === "NEEDS_REVIEW" ? "NEEDS_REVIEW" : "VERIFIED",
+        localizations: [
+          { language: "EN", label: localized("EN") },
+          { language: "TR", label: localized("TR") }
+        ]
+      }
+    });
+  }
+
+  async function saveServingOption() {
+    if (!product.id || !servingEditor) return;
+    setState("loading");
+    try {
+      await request(`/api/v1/admin/products/${product.id}/serving-options${servingEditor.id ? `/${servingEditor.id}` : ""}`, {
+        method: servingEditor.id ? "PUT" : "POST",
+        body: servingEditor.value
+      });
+      setServingEditor(null);
+      await loadWorkbench();
+      setTab("serving");
     } catch (error) {
       setState("error");
       onError(formatRequestError(error));
@@ -1119,7 +1159,12 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
     </div>}
     {tab === "aliases" && <div className="workbench-pane"><ProductAliasManager productId={product.id} onError={onError} /><WorkbenchSuggestionTable suggestions={aliasSuggestions} comparisons={comparisons} onReview={reviewSuggestion} /></div>}
     {tab === "serving" && <div className="workbench-pane">
-      <DataTable columns={["Serving", "Conversion", "Source", "Quality", "Localizations"]} rows={(data?.servingOptions ?? []).map((item) => [<div className="entity-cell"><strong>{item.label ?? "-"}</strong><small>{item.defaultOption ? "Default" : item.unitType ?? "-"}</small></div>, item.gramWeight != null ? `${item.gramWeight} g` : item.mlVolume != null ? `${item.mlVolume} ml` : `${formatValue(item.quantity)} ${item.unitType ?? ""}`, item.source ?? "-", <Badge value={item.qualityStatus ?? "-"} />, (item.localizations ?? []).map((value) => `${value.language}: ${value.label}`).join(", ") || "-"])} empty="No serving options." />
+      <div className="product-workbench-toolbar serving-option-toolbar">
+        <div><strong>{locale === "tr" ? "Manuel porsiyon seçenekleri" : "Manual serving options"}</strong><small>{locale === "tr" ? "Gram/ml dönüşümü ve EN/TR etiketleri birlikte yönetilir." : "Manage gram/ml conversion and EN/TR labels together."}</small></div>
+        <button className="primary-button" type="button" onClick={() => openServingEditor()}>{locale === "tr" ? "Porsiyon ekle" : "Add serving"}</button>
+      </div>
+      {servingEditor && <ServingOptionEditor editor={servingEditor} locale={locale} busy={state === "loading"} onChange={setServingEditor} onCancel={() => setServingEditor(null)} onSave={saveServingOption} />}
+      <DataTable columns={locale === "tr" ? ["Porsiyon", "Dönüşüm", "Kaynak", "Kalite", "Diller", "İşlem"] : ["Serving", "Conversion", "Source", "Quality", "Localizations", "Action"]} rows={(data?.servingOptions ?? []).map((item) => [<div className="entity-cell"><strong>{item.label ?? "-"}</strong><small>{item.defaultOption ? (locale === "tr" ? "Varsayılan" : "Default") : item.unitType ?? "-"} · {item.userVisible === false ? (locale === "tr" ? "Gizli" : "Hidden") : (locale === "tr" ? "Görünür" : "Visible")}</small></div>, [item.gramWeight != null ? `${item.gramWeight} g` : null, item.mlVolume != null ? `${item.mlVolume} ml` : null].filter(Boolean).join(" / ") || `${formatValue(item.quantity)} ${item.unitType ?? ""}`, item.source ?? "-", <Badge value={item.qualityStatus ?? "-"} tone={item.qualityStatus === "VERIFIED" ? "good" : "warn"} />, (item.localizations ?? []).map((value) => `${value.language}: ${value.label}`).join(", ") || "-", <button className="ghost-button" type="button" onClick={() => openServingEditor(item)}>{locale === "tr" ? "Düzenle" : "Edit"}</button>])} empty={locale === "tr" ? "Porsiyon seçeneği yok." : "No serving options."} />
       <WorkbenchSuggestionTable suggestions={servingSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />
     </div>}
     {tab === "evidence" && <div className="workbench-pane">
@@ -1130,6 +1175,32 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
     {tab === "audit" && <DataTable columns={["When", "Action", "Field", "Change", "Admin", "Note"]} rows={(data?.audit ?? []).map((item) => [formatDate(item.createdAt), item.actionType ?? "-", item.fieldName ?? "-", `${item.oldValue ?? "-"} -> ${item.newValue ?? "-"}`, item.reviewedBy ?? "-", item.note ?? "-"])} empty="No product audit history." />}
 
     {pendingHighImpact && <ConfirmDialog title="Apply nutrition change?" message={`This changes ${pendingHighImpact.fieldName ?? "a nutrition field"} from ${pendingHighImpact.currentValue ?? "empty"} to ${pendingHighImpact.suggestedValue ?? "empty"}. Confirm only after checking the provider evidence shown in this workbench.`} confirmLabel="Apply verified change" danger busy={state === "loading"} onCancel={() => setPendingHighImpact(null)} onConfirm={() => reviewSuggestion(pendingHighImpact, "accept", true)} />}
+  </section>;
+}
+
+export function ServingOptionEditor({ editor, locale, busy, onChange, onCancel, onSave }: { editor: { id?: number; value: AdminFoodServingOptionUpsert }; locale: "tr" | "en"; busy: boolean; onChange: (value: { id?: number; value: AdminFoodServingOptionUpsert }) => void; onCancel: () => void; onSave: () => void }) {
+  const tr = locale === "tr";
+  const update = (patch: Partial<AdminFoodServingOptionUpsert>) => onChange({ ...editor, value: { ...editor.value, ...patch } });
+  const updateLocalization = (language: "EN" | "TR", label: string) => update({ localizations: editor.value.localizations.map((item) => item.language === language ? { ...item, label } : item) });
+  const valid = editor.value.label.trim() && editor.value.quantity > 0 && (Number(editor.value.gramWeight) > 0 || Number(editor.value.mlVolume) > 0) && editor.value.localizations.every((item) => item.label.trim()) && (!editor.value.defaultOption || (editor.value.userVisible && editor.value.qualityStatus === "VERIFIED")) && (!editor.value.userVisible || editor.value.qualityStatus === "VERIFIED");
+  return <section className="serving-option-editor" aria-label={tr ? "Porsiyon seçeneği düzenleyici" : "Serving option editor"}>
+    <header><div><span className="eyebrow">{editor.id ? (tr ? "PORSİYON DÜZENLE" : "EDIT SERVING") : (tr ? "YENİ PORSİYON" : "NEW SERVING")}</span><strong>{tr ? "Kullanıcıya sunulacak ölçüyü tanımlayın" : "Define the measure shown to users"}</strong></div></header>
+    <div className="serving-option-form-grid">
+      <label><span>{tr ? "İç etiket" : "Internal label"}</span><input value={editor.value.label} maxLength={120} onChange={(event) => update({ label: event.target.value })} /></label>
+      <label><span>{tr ? "Birim" : "Unit"}</span><select value={editor.value.unitType} onChange={(event) => update({ unitType: event.target.value })}>{FOOD_SERVING_OPTION_UNITS.map((unit) => <option key={unit} value={unit}>{humanizeFeature(unit)}</option>)}</select></label>
+      <label><span>{tr ? "Miktar" : "Quantity"}</span><input type="number" min="0.01" step="0.01" value={editor.value.quantity} onChange={(event) => update({ quantity: Number(event.target.value) })} /></label>
+      <label><span>{tr ? "Gram karşılığı" : "Gram equivalent"}</span><input type="number" min="0.01" step="0.01" value={editor.value.gramWeight ?? ""} placeholder={tr ? "Sıvıda opsiyonel" : "Optional for liquids"} onChange={(event) => update({ gramWeight: event.target.value ? Number(event.target.value) : undefined })} /></label>
+      <label><span>{tr ? "Mililitre karşılığı" : "Milliliter equivalent"}</span><input type="number" min="0.01" step="0.01" value={editor.value.mlVolume ?? ""} placeholder={tr ? "Katıda opsiyonel" : "Optional for solids"} onChange={(event) => update({ mlVolume: event.target.value ? Number(event.target.value) : undefined })} /></label>
+      <label><span>{tr ? "Kalite durumu" : "Quality status"}</span><select value={editor.value.qualityStatus} onChange={(event) => update({ qualityStatus: event.target.value as AdminFoodServingOptionUpsert["qualityStatus"] })}><option value="VERIFIED">VERIFIED</option><option value="NEEDS_REVIEW">NEEDS_REVIEW</option></select></label>
+      <label><span>{tr ? "İngilizce etiket" : "English label"}</span><input value={editor.value.localizations.find((item) => item.language === "EN")?.label ?? ""} maxLength={120} onChange={(event) => updateLocalization("EN", event.target.value)} /></label>
+      <label><span>{tr ? "Türkçe etiket" : "Turkish label"}</span><input value={editor.value.localizations.find((item) => item.language === "TR")?.label ?? ""} maxLength={120} onChange={(event) => updateLocalization("TR", event.target.value)} /></label>
+    </div>
+    <div className="serving-option-switches">
+      <label><input type="checkbox" checked={editor.value.userVisible} onChange={(event) => update({ userVisible: event.target.checked })} /><span>{tr ? "Mobil uygulamada göster" : "Show in mobile app"}</span></label>
+      <label><input type="checkbox" checked={editor.value.defaultOption} onChange={(event) => update({ defaultOption: event.target.checked })} /><span>{tr ? "Varsayılan seçenek" : "Default option"}</span></label>
+    </div>
+    <p className="serving-option-help">{tr ? "En az bir dönüşüm değeri zorunludur. Görünür ve varsayılan seçenekler doğrulanmış olmalıdır." : "At least one conversion is required. Visible and default options must be verified."}</p>
+    <div className="inline-actions"><button className="ghost-button" type="button" onClick={onCancel}>{tr ? "İptal" : "Cancel"}</button><button className="primary-button" type="button" disabled={busy || !valid} onClick={onSave}>{busy ? (tr ? "Kaydediliyor…" : "Saving...") : (tr ? "Kaydet" : "Save")}</button></div>
   </section>;
 }
 

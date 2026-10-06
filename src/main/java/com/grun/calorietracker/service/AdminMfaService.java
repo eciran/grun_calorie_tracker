@@ -4,6 +4,8 @@ import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.UserEntity;
 
 public interface AdminMfaService {
+    boolean requiresEnrollment(UserEntity user);
+    AuthResponse enrollmentLogin(UserEntity user);
     AdminMfaStatusDto status(String email);
     AdminMfaEnrollmentDto beginEnrollment(String email, String currentPassword, String correlationId);
     AdminMfaVerificationDto verifyEnrollment(String email, String code, String correlationId);

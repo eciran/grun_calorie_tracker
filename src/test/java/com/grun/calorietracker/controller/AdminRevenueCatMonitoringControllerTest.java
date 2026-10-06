@@ -24,6 +24,37 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminRevenueCatMonitoringControllerTest {
     @Autowired MockMvc mockMvc;
     @MockBean RevenueCatMonitoringService monitoring;
+    @MockBean com.grun.calorietracker.repository.SubscriptionVerificationRepository verifications;
+
+    @Test
+    @WithMockUser(authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ"})
+    void unresolvedVerificationQueueShowsSafeDiagnosticsWithoutAttemptSecrets() throws Exception {
+        var state = new com.grun.calorietracker.entity.SubscriptionVerificationEntity();
+        state.setUserId(18L); state.setProductId("grun_plus_monthly"); state.setStatus("REQUIRES_REVIEW");
+        state.setReasonCode("PROVIDER_NETWORK_ERROR"); state.setAttemptId("private-attempt");
+        state.setAllocationReference("private-allocation"); state.setAttempts(8);
+        when(verifications.findByStatusIn(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(state)));
+        mockMvc.perform(get("/api/v1/admin/revenuecat/monitoring/verification-issues"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].userId").value(18))
+                .andExpect(jsonPath("$.content[0].reasonCode").value("PROVIDER_NETWORK_ERROR"))
+                .andExpect(jsonPath("$.content[0].attemptId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].allocationReference").doesNotExist());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_USER")
+    void unresolvedVerificationQueueRejectsNonAdmin() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/revenuecat/monitoring/verification-issues"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unresolvedVerificationQueueRejectsAnonymousAccess() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/revenuecat/monitoring/verification-issues"))
+                .andExpect(status().isUnauthorized());
+    }
 
     @Test
     @WithMockUser(authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_FINANCE_READ"})

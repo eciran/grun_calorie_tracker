@@ -28,6 +28,8 @@ class AiCoachingContextTest {
     @Test
     void projectsTrainingAndMealMacrosWithoutIdentifiersOrRawMetadata() {
         var day = new DailySummaryDto();
+        day.setGoalType("LOSE_WEIGHT");
+        day.setBodyCompositionFocus("BUILD_MUSCLE");
         var exercise = new ExerciseLogsDto(); exercise.setId(1L); exercise.setExternalId("private-id");
         exercise.setExtraData("private-metadata"); exercise.setExerciseItemName("Squat");
         exercise.setSetCount(3); exercise.setReps(8); exercise.setWeightKg(40.0);
@@ -40,6 +42,8 @@ class AiCoachingContextTest {
         assertEquals(3, item.get("sets")); assertEquals(8, item.get("reps"));
         assertFalse(item.containsKey("id")); assertFalse(item.containsKey("extraData"));
         assertFalse(context.toString().contains("private"));
+        assertEquals("LOSE_WEIGHT", context.get("goalType"));
+        assertEquals("BUILD_MUSCLE", context.get("bodyCompositionFocus"));
         assertEquals(25.0, ((java.util.Map<?, ?>) ((List<?>) context.get("mealMacros")).get(0)).get("proteinGrams"));
     }
 }

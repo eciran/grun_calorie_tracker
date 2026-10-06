@@ -28,9 +28,9 @@ class AdminSessionServiceImplTest {
     @Mock AdminAuditService auditService;
     AdminSessionServiceImpl service;
 
-    @BeforeEach void setup(){ service=new AdminSessionServiceImpl(sessions,jwtUtil); ReflectionTestUtils.setField(service,"auditService",auditService); ReflectionTestUtils.setField(service,"idleTimeout",Duration.ofMinutes(15)); ReflectionTestUtils.setField(service,"absoluteTimeout",Duration.ofHours(8)); }
+    @BeforeEach void setup(){ service=new AdminSessionServiceImpl(sessions,jwtUtil,new com.grun.calorietracker.security.AdminMfaAccessPolicy()); ReflectionTestUtils.setField(service,"auditService",auditService); ReflectionTestUtils.setField(service,"idleTimeout",Duration.ofMinutes(15)); ReflectionTestUtils.setField(service,"absoluteTimeout",Duration.ofHours(8)); }
 
-    @Test void createsHashedServerSideSession(){ UserEntity owner=user(); when(jwtUtil.getExpirationSeconds()).thenReturn(3600L); when(jwtUtil.generateAdminSessionToken(anyString(),anyString(),any())).thenReturn("jwt"); var login=service.create(owner); assertNull(login.response().getRefreshToken()); verify(sessions).save(argThat(s -> !s.getSessionTokenHash().equals(login.rawSessionToken()) && s.getAbsoluteExpiresAt().isAfter(s.getCreatedAt()))); }
+    @Test void createsHashedServerSideSession(){ UserEntity owner=user(); when(jwtUtil.getExpirationSeconds()).thenReturn(3600L); when(jwtUtil.generateAdminSessionToken(anyString(),anyString(),any(),anyLong())).thenReturn("jwt"); var login=service.create(owner); assertNull(login.response().getRefreshToken()); verify(sessions).save(argThat(s -> !s.getSessionTokenHash().equals(login.rawSessionToken()) && s.getAbsoluteExpiresAt().isAfter(s.getCreatedAt()))); }
 
     @Test void newLoginRevokesEveryPreviousSessionForTheSameAdmin(){
         UserEntity owner=user();
@@ -38,7 +38,7 @@ class AdminSessionServiceImplTest {
         AdminSessionEntity second=session(Instant.now().minusSeconds(20),Instant.now().plusSeconds(3600)); second.setId("second");
         when(sessions.findByUserAndRevokedAtIsNull(owner)).thenReturn(List.of(first,second));
         when(jwtUtil.getExpirationSeconds()).thenReturn(3600L);
-        when(jwtUtil.generateAdminSessionToken(anyString(),anyString(),any())).thenReturn("jwt");
+        when(jwtUtil.generateAdminSessionToken(anyString(),anyString(),any(),anyLong())).thenReturn("jwt");
 
         var login=service.create(owner,"Safari iPhone","192.168.1.24");
 
@@ -59,7 +59,7 @@ class AdminSessionServiceImplTest {
 
     @Test void idleSessionIsRevokedImmediately(){ AdminSessionEntity session=session(Instant.now().minus(Duration.ofMinutes(16)),Instant.now().plusSeconds(60)); when(sessions.findById("sid")).thenReturn(Optional.of(session)); assertFalse(service.validateAndTouch("sid","owner@test.com")); assertNotNull(session.getRevokedAt()); }
 
-    @Test void revokedSessionCannotRefresh(){ AdminSessionEntity session=session(Instant.now(),Instant.now().plusSeconds(60)); session.setRevokedAt(Instant.now()); when(sessions.findBySessionTokenHashAndRevokedAtIsNull(anyString())).thenReturn(Optional.empty()); assertThrows(IllegalArgumentException.class,()->service.refresh("raw")); }
+    @Test void revokedSessionCannotRefresh(){ AdminSessionEntity session=session(Instant.now(),Instant.now().plusSeconds(60)); session.setRevokedAt(Instant.now()); when(sessions.findBySessionTokenHashAndRevokedAtIsNull(anyString())).thenReturn(Optional.empty()); assertThrows(org.springframework.security.authentication.BadCredentialsException.class,()->service.refresh("raw")); }
 
     @Test void cannotRevokeCurrentSessionThroughRemoteRevoke(){ AdminSessionEntity current=session(Instant.now(),Instant.now().plusSeconds(3600)); assertThrows(IllegalArgumentException.class,()->service.revokeSession("owner@test.com","sid","sid","reason","cid")); assertNull(current.getRevokedAt()); }
 
@@ -100,7 +100,7 @@ class AdminSessionServiceImplTest {
         AdminSessionEntity current = session(lastActivity, absolute);
         when(sessions.findBySessionTokenHashAndRevokedAtIsNull(anyString())).thenReturn(Optional.of(current));
         when(jwtUtil.getExpirationSeconds()).thenReturn(3600L);
-        when(jwtUtil.generateAdminSessionToken(anyString(), anyString(), any())).thenReturn("jwt");
+        when(jwtUtil.generateAdminSessionToken(anyString(), anyString(), any(), anyLong())).thenReturn("jwt");
         var response = (AdminSessionAuthResponse) service.restore("raw");
         assertEquals(lastActivity, current.getLastActivityAt());
         assertEquals(lastActivity.plusSeconds(300), response.getAdminSession().idleExpiresAt());
@@ -130,8 +130,8 @@ class AdminSessionServiceImplTest {
                     Instant.now().plusSeconds(idleExpired ? 3600 : -1));
             Instant previous = current.getLastActivityAt();
             when(sessions.findBySessionTokenHashAndRevokedAtIsNull(anyString())).thenReturn(Optional.of(current));
-            assertThrows(IllegalArgumentException.class, () -> service.restore("raw"));
-            assertThrows(IllegalArgumentException.class, () -> service.refresh("raw"));
+            assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.restore("raw"));
+            assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.refresh("raw"));
             assertEquals(previous, current.getLastActivityAt());
         }
     }
@@ -144,11 +144,31 @@ class AdminSessionServiceImplTest {
             if (failure == 2) current.setRevokedAt(Instant.now());
             if (failure == 3) current.getUser().setRole(UserRole.STANDARD);
             when(sessions.findBySessionTokenHashAndRevokedAtIsNull(anyString())).thenReturn(Optional.of(current));
-            assertThrows(IllegalArgumentException.class, () -> service.restore("raw"));
-            assertThrows(IllegalArgumentException.class, () -> service.refresh("raw"));
+            assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.restore("raw"));
+            assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.refresh("raw"));
         }
     }
 
-    private UserEntity user(){UserEntity u=new UserEntity();u.setId(1L);u.setEmail("owner@test.com");u.setRole(UserRole.OWNER);u.setAccountEnabled(true);u.setAccountLocked(false);return u;}
+    @Test void unenrolledOwnerCannotCreateOrUseAnExistingSession() {
+        UserEntity owner = user();
+        owner.setAdminMfaEnabled(false);
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.create(owner));
+        verify(sessions, never()).save(any());
+        var old = session(Instant.now(), Instant.now().plusSeconds(3600));
+        old.getUser().setAdminMfaEnabled(false);
+        when(sessions.findById("sid")).thenReturn(Optional.of(old));
+        assertFalse(service.validateAndTouch("sid", "owner@test.com"));
+        assertNotNull(old.getRevokedAt());
+    }
+
+    @Test void sessionCreatedBeforeMfaEnrollmentCannotRegainAccess() {
+        var old = session(Instant.now().minusSeconds(10), Instant.now().plusSeconds(3600));
+        old.getUser().setAdminMfaVerifiedAt(Instant.now());
+        when(sessions.findById("sid")).thenReturn(Optional.of(old));
+        assertFalse(service.validateAndTouch("sid", "owner@test.com"));
+        assertNotNull(old.getRevokedAt());
+    }
+
+    private UserEntity user(){UserEntity u=new UserEntity();u.setId(1L);u.setEmail("owner@test.com");u.setRole(UserRole.OWNER);u.setAccountEnabled(true);u.setAccountLocked(false);u.setAdminMfaEnabled(true);return u;}
     private AdminSessionEntity session(Instant activity,Instant absolute){AdminSessionEntity s=new AdminSessionEntity();s.setId("sid");s.setUser(user());s.setCreatedAt(activity);s.setLastActivityAt(activity);s.setAbsoluteExpiresAt(absolute);return s;}
 }

@@ -839,6 +839,7 @@ public class AiNutritionPlanServiceImpl implements AiNutritionPlanService {
         context.put("preferredLanguage", user.getPreferredLanguage());
         context.put("unitPreference", user.getUnitPreference());
         context.put("goalType", goal.getGoalType());
+        context.put("bodyCompositionFocus", goal.getBodyCompositionFocus());
         context.put("activityLevel", goal.getActivityLevel());
         context.put("targetWeightKg", goal.getTargetWeight());
         context.put("targetMode", goal.getCalculationMode());

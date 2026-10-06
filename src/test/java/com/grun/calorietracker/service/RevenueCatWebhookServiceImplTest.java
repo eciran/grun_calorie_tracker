@@ -105,6 +105,44 @@ class RevenueCatWebhookServiceImplTest {
         verify(notificationRepository).saveAll(any());
     }
 
+    @Test void addonCaptureUsesReceiptIdentityInsteadOfDeliveryId() throws Exception {
+        var first = objectMapper.readTree("""
+                {"event":{"id":"delivery-1","type":"NON_RENEWING_PURCHASE","app_user_id":"user:1",
+                "product_id":"grun_ai_15_credits","transaction_id":"receipt-1","environment":"SANDBOX",
+                "store":"APP_STORE","event_timestamp_ms":1771950000000}}
+                """);
+        var second = first.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) second.get("event")).put("id", "delivery-2")
+                .put("event_timestamp_ms", 1771950001000L);
+        when(eventRepository.saveAndFlush(any())).thenAnswer(call -> {
+            SubscriptionProviderEventEntity record = call.getArgument(0); record.setId(91L); return record;
+        });
+        service.captureWebhook("Bearer rc-secret", first);
+        service.captureWebhook("Bearer rc-secret", second);
+        var captor = ArgumentCaptor.forClass(SubscriptionProviderEventEntity.class);
+        verify(eventRepository, org.mockito.Mockito.times(2)).saveAndFlush(captor.capture());
+        assertEquals(captor.getAllValues().get(0).getProviderEventId(), captor.getAllValues().get(1).getProviderEventId());
+    }
+
+    @Test void oldProcessedAddonReceiptCannotGrantAgainWithNewDeliveryId() throws Exception {
+        var payload = objectMapper.readTree("""
+                {"event":{"id":"new-delivery","type":"NON_RENEWING_PURCHASE","app_user_id":"user:1",
+                "product_id":"grun_ai_15_credits","transaction_id":"receipt-1","environment":"SANDBOX","store":"APP_STORE"}}
+                """);
+        var old = new SubscriptionProviderEventEntity();
+        old.setId(91L); old.setProviderEventId("legacy-delivery"); old.setStatus(SubscriptionProviderEventStatus.PROCESSED);
+        when(eventRepository.findFirstByProviderAndTransactionIdAndEnvironmentAndStoreAndEventTypeAndStatus(
+                PaymentProvider.REVENUECAT, "receipt-1", "SANDBOX", "APP_STORE", "NON_RENEWING_PURCHASE",
+                SubscriptionProviderEventStatus.PROCESSED)).thenReturn(Optional.of(old));
+        assertEquals(91L, service.captureWebhook("Bearer rc-secret", payload));
+        var result = service.processWebhook("Bearer rc-secret", payload);
+        assertEquals(true, result.getDuplicate());
+        assertEquals("PROCESSED", result.getStatus());
+        org.mockito.Mockito.verifyNoInteractions(subscriptionService);
+        verify(eventRepository, never()).saveAndFlush(any());
+        verify(eventRepository, never()).save(any());
+    }
+
     @Test
     void processWebhook_whenInitialPurchase_appliesProSubscription() throws Exception {
         String payload = """
@@ -183,6 +221,8 @@ class RevenueCatWebhookServiceImplTest {
                     "app_user_id": "user:1",
                     "product_id": "grun_ai_15_credits",
                     "transaction_id": "tx_addon",
+                    "environment": "SANDBOX",
+                    "store": "APP_STORE",
                     "event_timestamp_ms": 1771950000000
                   }
                 }
@@ -203,7 +243,7 @@ class RevenueCatWebhookServiceImplTest {
     @Test
     void processWebhook_whenFiftyCreditAddonPurchased_grantsConfiguredQuota() throws Exception {
         String payload = """
-                {"event":{"id":"evt_addon_50","type":"NON_RENEWING_PURCHASE","app_user_id":"user:1","product_id":"grun_ai_50_credits","transaction_id":"tx_addon_50","event_timestamp_ms":1771950000000}}
+                {"event":{"id":"evt_addon_50","type":"NON_RENEWING_PURCHASE","app_user_id":"user:1","product_id":"grun_ai_50_credits","transaction_id":"tx_addon_50","environment":"SANDBOX","store":"APP_STORE","event_timestamp_ms":1771950000000}}
                 """;
         when(eventRepository.findByProviderAndProviderEventId(any(), any())).thenReturn(Optional.empty());
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));

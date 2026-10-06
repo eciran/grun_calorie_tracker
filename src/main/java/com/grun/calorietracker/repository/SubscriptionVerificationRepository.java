@@ -11,6 +11,9 @@ import java.util.List;
 public interface SubscriptionVerificationRepository extends JpaRepository<SubscriptionVerificationEntity, Long> {
     long countByStatus(String status);
 
+    org.springframework.data.domain.Page<SubscriptionVerificationEntity> findByStatusIn(
+            java.util.Collection<String> statuses, Pageable pageable);
+
     @Query("select v.userId from SubscriptionVerificationEntity v where v.nextAttemptAt <= :now "
             + "and (v.leaseUntil is null or v.leaseUntil <= :now) order by v.nextAttemptAt")
     List<Long> findDue(@Param("now") Instant now, Pageable pageable);

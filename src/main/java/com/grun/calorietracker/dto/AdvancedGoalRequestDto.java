@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalCalculationMode;
 import com.grun.calorietracker.enums.GoalControlledStrategy;
 import com.grun.calorietracker.enums.GoalType;
@@ -14,6 +15,7 @@ public class AdvancedGoalRequestDto {
     private Double weeklyWeightChangeTargetKg;
     @NotNull private GoalType goalType;
     @NotNull private ActivityLevel activityLevel;
+    private BodyCompositionFocus bodyCompositionFocus;
     @NotNull private GoalCalculationMode mode;
     private GoalControlledStrategy strategy;
     @Min(0) private Double proteinGrams;
@@ -27,6 +29,7 @@ public class AdvancedGoalRequestDto {
     public GoalCalculationRequestDto automaticRequest() {
         // Manual calories come from macros; a hidden, previously saved pace must not block the reference calculation.
         return new GoalCalculationRequestDto(targetWeight,
-                mode == GoalCalculationMode.MANUAL ? null : weeklyWeightChangeTargetKg, goalType, activityLevel);
+                mode == GoalCalculationMode.MANUAL ? null : weeklyWeightChangeTargetKg,
+                goalType, activityLevel, bodyCompositionFocus);
     }
 }

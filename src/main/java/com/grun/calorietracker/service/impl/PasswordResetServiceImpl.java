@@ -65,7 +65,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Override
     @Transactional
     public PasswordResetResponseDto requestPasswordReset(PasswordResetRequestDto request) {
-        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+        userRepository.findByEmailForUpdate(request.getEmail()).ifPresent(user -> {
             if (isWithinRequestCooldown(user)) {
                 return;
             }
@@ -93,7 +93,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 || !Boolean.TRUE.equals(owner.getAccountEnabled()) || Boolean.TRUE.equals(owner.getAccountLocked())) {
             throw new IllegalArgumentException("Only an active owner can request an admin password reset.");
         }
-        UserEntity target = userRepository.findById(userId)
+        UserEntity target = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin account was not found."));
         if (target.getRole() == null || !target.getRole().isAdminRole() || target.getRole().isOwner()) {
             throw new IllegalArgumentException("Password reset links can only be sent to delegated admin accounts.");
@@ -106,7 +106,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 Math.max(requestCooldownSeconds, 0L));
     }
     @Override
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    @Transactional(noRollbackFor = ExpiredPasswordResetTokenException.class)
     public PasswordResetResponseDto confirmPasswordReset(PasswordResetConfirmRequestDto request) {
         PasswordResetTokenEntity token = passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(hashToken(request.getToken()))
                 .orElseThrow(() -> new IllegalArgumentException("Password reset token is invalid or expired"));
@@ -114,10 +114,15 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
             token.setUsedAt(LocalDateTime.now());
             passwordResetTokenRepository.save(token);
-            throw new IllegalArgumentException("Password reset token is invalid or expired");
+            throw new ExpiredPasswordResetTokenException();
         }
 
-        UserEntity user = token.getUser();
+        UserEntity user = userRepository.findByIdForUpdate(token.getUser().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired password reset token"));
+        LocalDateTime consumedAt = LocalDateTime.now();
+        if (passwordResetTokenRepository.consumeIfAvailable(hashToken(request.getToken()), consumedAt) != 1) {
+            throw new IllegalArgumentException("Password reset token is invalid or expired");
+        }
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setPasswordSet(true);
         user.setEmailVerified(true);
@@ -142,8 +147,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             }
         }
 
-        token.setUsedAt(LocalDateTime.now());
-        passwordResetTokenRepository.save(token);
+        token.setUsedAt(consumedAt);
 
         return new PasswordResetResponseDto(CONFIRM_MESSAGE);
     }
@@ -152,6 +156,12 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         LocalDateTime now = LocalDateTime.now();
         passwordResetTokenRepository.findByUserAndUsedAtIsNull(user)
                 .forEach(token -> token.setUsedAt(now));
+    }
+
+    private static final class ExpiredPasswordResetTokenException extends IllegalArgumentException {
+        private ExpiredPasswordResetTokenException() {
+            super("Password reset token is invalid or expired");
+        }
     }
 
     private boolean isWithinRequestCooldown(UserEntity user) {

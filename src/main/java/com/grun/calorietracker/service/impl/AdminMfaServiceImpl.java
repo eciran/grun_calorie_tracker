@@ -9,14 +9,15 @@ import com.grun.calorietracker.repository.AdminMfaRecoveryCodeRepository;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.AdminMfaSecretCipher;
+import com.grun.calorietracker.security.AdminMfaAccessPolicy;
 import com.grun.calorietracker.security.JwtUtil;
 import com.grun.calorietracker.security.TotpService;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.AdminSecurityAlertService;
+import com.grun.calorietracker.service.AdminSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,10 +41,20 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     private final AdminMfaSecretCipher secretCipher;
     private final JwtUtil jwtUtil;
     private final AdminAuditService auditService;
+    private final AdminMfaAccessPolicy accessPolicy;
+    private final AdminSessionService adminSessions;
     @Autowired(required=false) private AdminSecurityAlertService securityAlerts;
 
-    @Value("${grun.security.admin-mfa-required:false}")
-    private boolean adminMfaRequired;
+    @Override
+    public boolean requiresEnrollment(UserEntity user) {
+        return accessPolicy.requiresEnrollment(user);
+    }
+
+    @Override
+    public AuthResponse enrollmentLogin(UserEntity user) {
+        if (!requiresEnrollment(user)) throw new IllegalArgumentException("MFA enrollment is not required.");
+        return new AdminMfaEnrollmentAuthResponse(jwtUtil.generateAdminMfaEnrollmentTokenForUser(user));
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -56,6 +67,9 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     @Transactional
     public AdminMfaEnrollmentDto beginEnrollment(String email, String currentPassword, String correlationId) {
         UserEntity user = requireAdmin(email, true);
+        if (Boolean.TRUE.equals(user.getAdminMfaEnabled())) {
+            throw new IllegalArgumentException("MFA is already enabled. Existing protection cannot be replaced with a password alone.");
+        }
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             throw new IllegalArgumentException("Current password is invalid.");
         }
@@ -76,8 +90,12 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     @Transactional
     public AdminMfaVerificationDto verifyEnrollment(String email, String code, String correlationId) {
         UserEntity user = requireAdmin(email, true);
+        if (Boolean.TRUE.equals(user.getAdminMfaEnabled())) throw new IllegalArgumentException("MFA is already enabled.");
         if (user.getAdminMfaSecretEncrypted() == null || user.getAdminMfaEnrollmentStartedAt() == null) {
             throw new IllegalArgumentException("Start MFA enrollment before verification.");
+        }
+        if (!user.getAdminMfaEnrollmentStartedAt().plusSeconds(300).isAfter(Instant.now())) {
+            throw new IllegalArgumentException("MFA enrollment expired. Start enrollment again.");
         }
         if (!totpService.verify(secretCipher.decrypt(user.getAdminMfaSecretEncrypted()), code)) {
             throw new IllegalArgumentException("Authenticator code is invalid.");
@@ -90,6 +108,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
         auditService.record(email, AdminAuditActionType.ADMIN_MFA_ENROLL, AdminAuditTargetType.ADMIN_ACCOUNT,
                 user.getId().toString(), Map.of("enabled", false), Map.of("enabled", true), correlationId);
         revokeRefreshTokens(user);
+        adminSessions.revokeAllForUser(user);
         return new AdminMfaVerificationDto(true, recoveryCodes);
     }
 
@@ -97,6 +116,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     @Transactional
     public AdminMfaStatusDto disable(String email, String code, String correlationId) {
         UserEntity user = requireAdmin(email, true);
+        if (accessPolicy.isRequired(user)) throw new IllegalArgumentException("MFA is required for this admin account and cannot be disabled.");
         requireValidCode(user, code, true);
         user.setAdminMfaEnabled(false);
         user.setAdminMfaSecretEncrypted(null);
@@ -105,6 +125,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
         recoveryCodeRepository.deleteByUser(user);
         userRepository.save(user);
         revokeRefreshTokens(user);
+        adminSessions.revokeAllForUser(user);
         auditService.record(email, AdminAuditActionType.ADMIN_MFA_DISABLE, AdminAuditTargetType.ADMIN_ACCOUNT,
                 user.getId().toString(), Map.of("enabled", true), Map.of("enabled", false), correlationId);
         return toStatus(user);
@@ -119,7 +140,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
         requireValidCode(user, code, true);
         auditService.record(email, AdminAuditActionType.ADMIN_MFA_REAUTHENTICATE,
                 AdminAuditTargetType.ADMIN_ACCOUNT, user.getId().toString(), null, Map.of("verified", true, "purpose", purpose.name()), correlationId);
-        return new AdminReauthenticationDto(jwtUtil.generateAdminReauthenticationToken(email, purpose), 300);
+        return new AdminReauthenticationDto(jwtUtil.generateAdminReauthenticationTokenForUser(user, purpose), 300);
     }
 
     @Override
@@ -127,8 +148,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     public void verifyLogin(UserEntity user, String code) {
         if (!user.getRole().isAdminRole()) return;
         if (!Boolean.TRUE.equals(user.getAdminMfaEnabled())) {
-            if (user.getRole() == com.grun.calorietracker.enums.UserRole.OWNER) return;
-            if (adminMfaRequired) {
+            if (requiresEnrollment(user)) {
                 throw new IllegalArgumentException("Admin MFA enrollment is required before secure login.");
             }
             return;
@@ -157,9 +177,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
         if (rawCode == null) return false;
         for (AdminMfaRecoveryCodeEntity stored : recoveryCodeRepository.findByUserAndUsedAtIsNull(user)) {
             if (passwordEncoder.matches(normalizeRecovery(rawCode), stored.getCodeHash())) {
-                stored.setUsedAt(Instant.now());
-                recoveryCodeRepository.save(stored);
-                return true;
+                return recoveryCodeRepository.consumeIfAvailable(stored.getId(), user.getId(), Instant.now()) == 1;
             }
         }
         return false;
@@ -187,7 +205,7 @@ public class AdminMfaServiceImpl implements AdminMfaService {
     private AdminMfaStatusDto toStatus(UserEntity user) {
         return new AdminMfaStatusDto(Boolean.TRUE.equals(user.getAdminMfaEnabled()),
                 !Boolean.TRUE.equals(user.getAdminMfaEnabled()) && user.getAdminMfaSecretEncrypted() != null,
-                recoveryCodeRepository.countByUserAndUsedAtIsNull(user), user.getAdminMfaVerifiedAt());
+                recoveryCodeRepository.countByUserAndUsedAtIsNull(user), user.getAdminMfaVerifiedAt(), accessPolicy.isRequired(user));
     }
 
     private UserEntity requireAdmin(String email, boolean lock) {
@@ -195,6 +213,9 @@ public class AdminMfaServiceImpl implements AdminMfaService {
                 .orElseThrow(() -> new IllegalArgumentException("Admin account was not found."));
         if (user.getRole() == null || !user.getRole().isAdminRole()) {
             throw new IllegalArgumentException("Account is not an admin team member.");
+        }
+        if (!Boolean.TRUE.equals(user.getAccountEnabled()) || Boolean.TRUE.equals(user.getAccountLocked())) {
+            throw new org.springframework.security.authentication.BadCredentialsException("Admin account is disabled or locked.");
         }
         return user;
     }

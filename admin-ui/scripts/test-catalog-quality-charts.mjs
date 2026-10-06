@@ -23,6 +23,6 @@ assert.match(charts, /Scanned[\s\S]*Validated[\s\S]*Suggestions[\s\S]*Failed run
 assert.match(charts, /aria: \{ enabled: true/, "Catalog quality charts must expose accessible descriptions.");
 assert.match(styles, /\.catalog-quality-chart-grid[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/, "Catalog quality charts must use a stable desktop grid.");
 assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.catalog-quality-chart-grid[\s\S]*grid-template-columns: 1fr/, "Catalog quality charts must collapse on narrow screens.");
-assert.match(app, /Recent quality scan runs[\s\S]*Quality suggestion queue/, "Exact scan and suggestion diagnostics must remain available.");
+assert.match(app, /Recent quality scan runs[\s\S]*Quality finding queue/, "Exact scan and suggestion diagnostics must remain available.");
 
 console.log("Catalog quality chart checks passed.");

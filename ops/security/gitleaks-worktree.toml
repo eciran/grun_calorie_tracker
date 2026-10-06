@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+# Generated dependencies/artifacts are scanned separately, not as source.
+[allowlist]
+paths = [
+  '''(^|/)(node_modules|target|dist|\.git|outputs|storage)/''',
+  '''(^|/)(\.codex-deploy|tmp|\.m2|\.m2-codex)/'''
+]

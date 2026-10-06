@@ -13,9 +13,8 @@ public class ProgressLogMapper {
             return null;
         }
         ProgressLogEntity entity = new ProgressLogEntity();
-        entity.setId(dto.getId());
         entity.setUser(user);
-        entity.setLogDate(dto.getLogDate());
+        entity.setLogDate(java.time.LocalDateTime.now());
         entity.setWeight(dto.getWeight());
         entity.setCalorieIntake(dto.getCalorieIntake());
         entity.setProteinIntake(dto.getProteinIntake());

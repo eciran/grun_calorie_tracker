@@ -146,6 +146,7 @@ grun:
   recipe-media:
     image:
       max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
+      max-decoded-pixels: ${GRUN_RECIPE_IMAGE_MAX_DECODED_PIXELS:48000000}
       allowed-content-types: ${GRUN_RECIPE_IMAGE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
       storage-directory: ${GRUN_RECIPE_IMAGE_STORAGE_DIRECTORY:storage/recipe-images}
       public-base-url: ${GRUN_RECIPE_IMAGE_PUBLIC_BASE_URL:https://api.grun.app}
@@ -255,11 +256,20 @@ grun:
     cleanup-interval-ms: ${GRUN_TOKENS_CLEANUP_INTERVAL_MS:3600000}
   rate-limit:
     enabled: true
+    admin-auth:
+      ip:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_ADMIN_AUTH_IP_MAX_REQUESTS_PER_MINUTE:20}
+      account:
+        max-requests-per-minute: ${GRUN_RATE_LIMIT_ADMIN_AUTH_ACCOUNT_MAX_REQUESTS_PER_MINUTE:5}
+        max-requests-per-fifteen-minutes: ${GRUN_RATE_LIMIT_ADMIN_AUTH_ACCOUNT_MAX_REQUESTS_PER_FIFTEEN_MINUTES:20}
     trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
       enabled: true
     account-link:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_ACCOUNT_LINK_MAX_REQUESTS_PER_MINUTE:5}
+    ai-draft:
+      max-requests-per-minute: ${GRUN_RATE_LIMIT_AI_DRAFT_MAX_REQUESTS_PER_MINUTE:10}
+      account-max-requests-per-minute: ${GRUN_RATE_LIMIT_AI_ACCOUNT_MAX_REQUESTS_PER_MINUTE:10}
     product-intake:
       upload:
         max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_UPLOAD_MAX_REQUESTS_PER_MINUTE:6}

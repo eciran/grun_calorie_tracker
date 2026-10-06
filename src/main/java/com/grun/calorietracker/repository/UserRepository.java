@@ -48,6 +48,13 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
     @Query("select u from UserEntity u where u.id = :id")
     Optional<UserEntity> findByIdForUpdate(@Param("id") Long id);
 
+    @Query("select u.authTokenVersion from UserEntity u where u.id = :id")
+    Optional<Long> findAuthTokenVersionById(@Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update UserEntity u set u.authTokenVersion = u.authTokenVersion + 1 where u.id = :id")
+    int incrementAuthTokenVersion(@Param("id") Long id);
+
     long countByRole(UserRole role);
 
     List<UserEntity> findByRole(UserRole role);

@@ -30,6 +30,11 @@ public class UserEntity {
 
     private String password;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    // Only the explicit repository revocation query may advance this security state.
+    @Column(name = "auth_token_version", nullable = false, updatable = false)
+    private long authTokenVersion = 0;
+
     private Integer age;
 
     @Column(name = "birth_date")

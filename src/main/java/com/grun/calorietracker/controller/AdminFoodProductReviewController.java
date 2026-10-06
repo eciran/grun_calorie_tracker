@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.AdminFoodServingOptionUpsertRequestDto;
 import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
 import com.grun.calorietracker.dto.AdminProductQualityAiValidationRequestDto;
@@ -42,6 +43,7 @@ import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
+import com.grun.calorietracker.service.AdminFoodServingOptionService;
 import com.grun.calorietracker.service.FoodCategoryBackfillService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
@@ -69,6 +71,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -93,6 +96,7 @@ public class AdminFoodProductReviewController {
     private final FoodCategoryBackfillService foodCategoryBackfillService;
     private final FoodProductImportService foodProductImportService;
     private final ProductQualitySuggestionService productQualitySuggestionService;
+    private final AdminFoodServingOptionService adminFoodServingOptionService;
 
     @PostMapping("/preflight")
     @Operation(summary = "Check an admin catalog product before creation", description = "Returns potential duplicates and nutrition consistency warnings without writing catalog data.")
@@ -755,6 +759,33 @@ public class AdminFoodProductReviewController {
                 request,
                 userDetails == null ? null : userDetails.getUsername()
         ));
+    }
+
+    @PostMapping("/{id}/serving-options")
+    @Operation(
+            summary = "Create a manual product serving option",
+            description = "Creates an admin-managed serving conversion with mandatory EN/TR labels, mobile visibility and default-option governance."
+    )
+    public ResponseEntity<AdminProductQualityWorkbenchDto.ServingOptionDto> createServingOption(
+            @PathVariable Long id,
+            @RequestBody @Valid AdminFoodServingOptionUpsertRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminFoodServingOptionService.create(
+                id, request, userDetails == null ? null : userDetails.getUsername()));
+    }
+
+    @PutMapping("/{id}/serving-options/{optionId}")
+    @Operation(
+            summary = "Update a product serving option",
+            description = "Updates conversion, EN/TR labels, default state, quality status and whether the option is exposed to mobile users."
+    )
+    public ResponseEntity<AdminProductQualityWorkbenchDto.ServingOptionDto> updateServingOption(
+            @PathVariable Long id,
+            @PathVariable Long optionId,
+            @RequestBody @Valid AdminFoodServingOptionUpsertRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(adminFoodServingOptionService.update(
+                id, optionId, request, userDetails == null ? null : userDetails.getUsername()));
     }
 
     @PatchMapping("/{id}/barcode")

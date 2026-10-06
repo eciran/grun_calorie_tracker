@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
@@ -25,7 +26,15 @@ public class OnboardingGoalStepDto {
 
     private ActivityLevel activityLevel;
 
+    private BodyCompositionFocus bodyCompositionFocus;
+
+    public OnboardingGoalStepDto(Double targetWeight, Double weeklyWeightChangeTargetKg,
+                                 GoalType goalType, ActivityLevel activityLevel) {
+        this(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel, BodyCompositionFocus.STANDARD);
+    }
+
     public GoalCalculationRequestDto toGoalCalculationRequestDto() {
-        return new GoalCalculationRequestDto(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel);
+        return new GoalCalculationRequestDto(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel,
+                bodyCompositionFocus);
     }
 }

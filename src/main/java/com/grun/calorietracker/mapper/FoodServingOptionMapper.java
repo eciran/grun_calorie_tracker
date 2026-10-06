@@ -23,6 +23,7 @@ public final class FoodServingOptionMapper {
         dto.setDefaultOption(entity.getIsDefault());
         dto.setSource(entity.getSource());
         dto.setQualityStatus(entity.getQualityStatus());
+        dto.setUserVisible(entity.getUserVisible());
         return dto;
     }
 }

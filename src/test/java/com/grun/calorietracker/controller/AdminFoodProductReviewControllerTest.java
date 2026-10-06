@@ -33,6 +33,9 @@ import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
+import com.grun.calorietracker.enums.FoodServingOptionSource;
+import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.ImageSource;
@@ -45,6 +48,7 @@ import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
+import com.grun.calorietracker.service.AdminFoodServingOptionService;
 import com.grun.calorietracker.service.FoodCategoryBackfillService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
@@ -71,6 +75,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -96,6 +101,78 @@ class AdminFoodProductReviewControllerTest {
 
     @MockBean
     private ProductQualitySuggestionService productQualitySuggestionService;
+
+    @MockBean
+    private AdminFoodServingOptionService adminFoodServingOptionService;
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void createServingOption_whenAdmin_returnsManagedOption() throws Exception {
+        var response = new AdminProductQualityWorkbenchDto.ServingOptionDto(
+                44L, "1 medium banana", FoodServingOptionUnit.PIECE, 1.0, 118.0, null,
+                true, FoodServingOptionSource.ADMIN, FoodServingOptionQualityStatus.VERIFIED, true,
+                List.of(new AdminProductQualityWorkbenchDto.ServingLocalizationDto(
+                        1L, PreferredLanguage.TR, "1 orta boy muz", "admin-manual", true))
+        );
+        when(adminFoodServingOptionService.create(eq(12L), any(), eq("admin@test.com")))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/admin/products/12/serving-options")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "label": "1 medium banana",
+                                  "unitType": "PIECE",
+                                  "quantity": 1,
+                                  "gramWeight": 118,
+                                  "defaultOption": true,
+                                  "userVisible": true,
+                                  "qualityStatus": "VERIFIED",
+                                  "localizations": [
+                                    {"language": "EN", "label": "1 medium banana"},
+                                    {"language": "TR", "label": "1 orta boy muz"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(44))
+                .andExpect(jsonPath("$.userVisible").value(true));
+
+        verify(adminFoodServingOptionService).create(eq(12L), any(), eq("admin@test.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void updateServingOption_whenAdmin_returnsUpdatedOption() throws Exception {
+        var response = new AdminProductQualityWorkbenchDto.ServingOptionDto(
+                44L, "1 large banana", FoodServingOptionUnit.PIECE, 1.0, 136.0, null,
+                false, FoodServingOptionSource.ADMIN, FoodServingOptionQualityStatus.VERIFIED, true, List.of());
+        when(adminFoodServingOptionService.update(eq(12L), eq(44L), any(), eq("admin@test.com")))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/admin/products/12/serving-options/44")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "label": "1 large banana",
+                                  "unitType": "PIECE",
+                                  "quantity": 1,
+                                  "gramWeight": 136,
+                                  "defaultOption": false,
+                                  "userVisible": true,
+                                  "qualityStatus": "VERIFIED",
+                                  "localizations": [
+                                    {"language": "EN", "label": "1 large banana"},
+                                    {"language": "TR", "label": "1 büyük muz"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gramWeight").value(136))
+                .andExpect(jsonPath("$.userVisible").value(true));
+
+        verify(adminFoodServingOptionService).update(eq(12L), eq(44L), any(), eq("admin@test.com"));
+    }
 
     @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})

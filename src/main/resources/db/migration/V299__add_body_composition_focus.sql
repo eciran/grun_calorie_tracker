@@ -1,0 +1,5 @@
+ALTER TABLE goals
+    ADD COLUMN IF NOT EXISTS body_composition_focus VARCHAR(30) NOT NULL DEFAULT 'STANDARD';
+
+ALTER TABLE onboarding_drafts
+    ADD COLUMN IF NOT EXISTS body_composition_focus VARCHAR(30) NOT NULL DEFAULT 'STANDARD';

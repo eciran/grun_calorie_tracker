@@ -112,7 +112,7 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
         validateLogRequest(request);
         UserEntity user = userForUpdate(email);
         String key = normalizeKey(idempotencyKey);
-        MealPlanItemConsumptionDto replay = replay(user, itemId, key);
+        MealPlanItemConsumptionDto replay = replay(user, planId, itemId, key);
         if (replay != null) {
             return replay;
         }
@@ -218,7 +218,7 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
             String email, Long planId, Long itemId, String idempotencyKey) {
         UserEntity user = userForUpdate(email);
         String key = normalizeKey(idempotencyKey);
-        MealPlanItemConsumptionDto replay = replay(user, itemId, key);
+        MealPlanItemConsumptionDto replay = replay(user, planId, itemId, key);
         if (replay != null) {
             return replay;
         }
@@ -239,7 +239,7 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
         validateReplacement(request);
         UserEntity user = userForUpdate(email);
         String key = normalizeKey(idempotencyKey);
-        MealPlanItemConsumptionDto replay = replay(user, itemId, key);
+        MealPlanItemConsumptionDto replay = replay(user, planId, itemId, key);
         if (replay != null) {
             return replay;
         }
@@ -282,9 +282,12 @@ public class MealPlanTrackingServiceImpl implements MealPlanTrackingService {
         return item;
     }
 
-    private MealPlanItemConsumptionDto replay(UserEntity user, Long itemId, String key) {
+    private MealPlanItemConsumptionDto replay(UserEntity user, Long planId, Long itemId, String key) {
         return consumptionRepository.findByUserAndIdempotencyKey(user, key)
                 .map(existing -> {
+                    if (!existing.getMealPlanItem().getMealPlan().getId().equals(planId)) {
+                        throw new ResourceNotFoundException("Meal-plan item not found");
+                    }
                     if (!existing.getMealPlanItem().getId().equals(itemId)) {
                         throw new RequestConflictException(
                                 "Idempotency-Key was already used for a different meal-plan item.");

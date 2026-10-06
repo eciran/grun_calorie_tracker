@@ -15,6 +15,7 @@ import com.grun.calorietracker.repository.AdminSessionRepository;
 import com.grun.calorietracker.repository.NotificationRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.JwtUtil;
+import com.grun.calorietracker.security.AdminMfaAccessPolicy;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.AdminSessionService;
 import com.grun.calorietracker.service.PushDeliveryService;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -40,6 +42,7 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private final AdminSessionRepository sessions;
     private final JwtUtil jwtUtil;
+    private final AdminMfaAccessPolicy mfaAccessPolicy;
     @Autowired(required=false) private AdminAuditService auditService;
     @Autowired(required=false) private NotificationRepository notifications;
     @Autowired(required=false) private UserRepository users;
@@ -55,9 +58,17 @@ public class AdminSessionServiceImpl implements AdminSessionService {
         if (user.getRole() == null || !user.getRole().isAdminRole()) throw new IllegalArgumentException("Admin account required.");
         UserEntity sessionUser=user;
         if(users!=null&&user.getId()!=null)sessionUser=users.findByIdForUpdate(user.getId()).orElse(user);
+        if (users != null && !users.findAuthTokenVersionById(user.getId())
+                .filter(version -> version == user.getAuthTokenVersion()).isPresent()) {
+            throw new BadCredentialsException("Admin credentials changed. Sign in again.");
+        }
+        if (sessionUser.getRole() == null || !sessionUser.getRole().isAdminRole()
+                || !Boolean.TRUE.equals(sessionUser.getAccountEnabled()) || Boolean.TRUE.equals(sessionUser.getAccountLocked())
+                || mfaAccessPolicy.requiresEnrollment(sessionUser)) throw new BadCredentialsException("Admin account is not eligible for a session. Complete MFA enrollment if required.");
         Instant now=Instant.now(); String raw=randomToken();
         AdminSessionEntity session=new AdminSessionEntity();
         session.setId(UUID.randomUUID().toString()); session.setUser(sessionUser); session.setSessionTokenHash(hash(raw));
+        session.setAuthTokenVersion(user.getAuthTokenVersion());
         session.setCreatedAt(now); session.setLastActivityAt(now); session.setAbsoluteExpiresAt(now.plus(absoluteTimeout));
         session.setDeviceLabel(deviceLabel(userAgent)); session.setMaskedIp(maskIp(remoteAddress));
         var existingSessions=sessions.findByUserAndRevokedAtIsNull(sessionUser);
@@ -75,7 +86,7 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     @Override @Transactional
     public AuthResponse refresh(String raw) {
         AdminSessionEntity session=sessions.findBySessionTokenHashAndRevokedAtIsNull(hash(raw))
-                .orElseThrow(() -> new IllegalArgumentException("Admin session is invalid or expired."));
+                .orElseThrow(() -> new BadCredentialsException("Admin session is invalid or expired."));
         requireUsable(session, Instant.now()); session.setLastActivityAt(Instant.now());
         return response(session,"Admin session refreshed");
     }
@@ -83,7 +94,7 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     @Override @Transactional
     public AuthResponse restore(String raw) {
         AdminSessionEntity session=sessions.findBySessionTokenHashAndRevokedAtIsNull(hash(raw))
-                .orElseThrow(() -> new IllegalArgumentException("Admin session is invalid or expired."));
+                .orElseThrow(() -> new BadCredentialsException("Admin session is invalid or expired."));
         requireUsable(session, Instant.now());
         return response(session, "Admin session restored");
     }
@@ -92,7 +103,7 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     public boolean validateAndTouch(String id,String email) {
         return sessions.findById(id).filter(s -> s.getUser().getEmail().equalsIgnoreCase(email)).map(s -> {
             try { requireUsable(s,Instant.now()); return true; }
-            catch (IllegalArgumentException ex) { return false; }
+            catch (BadCredentialsException | IllegalArgumentException ex) { return false; }
         }).orElse(false);
     }
 
@@ -149,11 +160,25 @@ public class AdminSessionServiceImpl implements AdminSessionService {
     private AdminSessionEntity ownedSession(String email,String id){return sessions.findById(id).filter(s->s.getRevokedAt()==null&&s.getUser().getEmail().equalsIgnoreCase(email)).orElseThrow(()->new IllegalArgumentException("Admin session was not found."));}
     private void notifyPrimaryOwner(String title,String message,AdminSessionEntity session){if(notifications==null||users==null||primaryOwnerEmail==null||primaryOwnerEmail.isBlank())return;users.findByEmail(primaryOwnerEmail).ifPresent(primary->{NotificationEntity n=new NotificationEntity();n.setUser(primary);n.setTitle(title);n.setMessage(message);n.setNote("Device: "+session.getDeviceLabel()+" | Network: "+session.getMaskedIp());n.setType("admin_security_alert");n.setSeverity("CRITICAL");n.setSource("ADMIN_SECURITY");n.setTargetType("ADMIN_SESSION");n.setTargetId(session.getId());n.setTargetRoute("admins");n.setVisibleInApp(true);n.setIsRead(false);n.setCreatedAt(LocalDateTime.now());NotificationEntity saved=notifications.save(n);if(pushDeliveryService!=null)pushDeliveryService.deliver(saved);});}
     private void audit(String email,AdminAuditActionType action,String id,String reason,String correlationId){if(auditService!=null)auditService.record(email,action,AdminAuditTargetType.ADMIN_SESSION,id,null,Map.of("reason",reason),correlationId);}
-    private void requireUsable(AdminSessionEntity s,Instant now) { UserEntity u=s.getUser(); if(s.getRevokedAt()!=null || !s.getAbsoluteExpiresAt().isAfter(now) || !s.getLastActivityAt().plus(idleTimeout).isAfter(now) || !Boolean.TRUE.equals(u.getAccountEnabled()) || Boolean.TRUE.equals(u.getAccountLocked()) || u.getRole()==null || !u.getRole().isAdminRole()) { if(s.getRevokedAt()==null) s.setRevokedAt(now); throw new IllegalArgumentException("Admin session is invalid or expired."); } }
+    private void requireUsable(AdminSessionEntity session, Instant now) {
+        UserEntity user = session.getUser();
+        boolean predatesMfaEnrollment = user.getAdminMfaVerifiedAt() != null
+                && (session.getCreatedAt() == null || session.getCreatedAt().isBefore(user.getAdminMfaVerifiedAt()));
+        boolean staleCredentials = users != null && !users.findAuthTokenVersionById(user.getId())
+                .filter(version -> version == session.getAuthTokenVersion()).isPresent();
+        if (session.getRevokedAt() != null || !session.getAbsoluteExpiresAt().isAfter(now)
+                || !session.getLastActivityAt().plus(idleTimeout).isAfter(now)
+                || !Boolean.TRUE.equals(user.getAccountEnabled()) || Boolean.TRUE.equals(user.getAccountLocked())
+                || user.getRole() == null || !user.getRole().isAdminRole()
+                || mfaAccessPolicy.requiresEnrollment(user) || predatesMfaEnrollment || staleCredentials) {
+            if (session.getRevokedAt() == null) session.setRevokedAt(now);
+            throw new BadCredentialsException("Admin session is invalid or expired.");
+        }
+    }
     private AuthResponse response(AdminSessionEntity s,String message) {
         Instant now = Instant.now();
         long seconds = Math.max(0, Math.min(jwtUtil.getExpirationSeconds(), Duration.between(now, s.getAbsoluteExpiresAt()).getSeconds()));
-        String jwt=jwtUtil.generateAdminSessionToken(s.getUser().getEmail(),s.getId(),s.getAbsoluteExpiresAt());
+        String jwt=jwtUtil.generateAdminSessionToken(s.getUser().getEmail(),s.getId(),s.getAbsoluteExpiresAt(),s.getAuthTokenVersion());
         return new AdminSessionAuthResponse(jwt, seconds, message,
                 new AdminSessionAuthResponse.SessionState(s.getId(), now, s.getLastActivityAt().plus(idleTimeout),
                         s.getAbsoluteExpiresAt(), idleTimeout.toMillis(), now.plusSeconds(seconds)));

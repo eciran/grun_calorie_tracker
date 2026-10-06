@@ -39,4 +39,7 @@ public class FoodServingOptionDto {
 
     @Schema(description = "Review quality of this serving option.", example = "VERIFIED")
     private FoodServingOptionQualityStatus qualityStatus;
+
+    @Schema(description = "Whether the option is suitable for display in user-facing serving selectors.", example = "true")
+    private Boolean userVisible;
 }

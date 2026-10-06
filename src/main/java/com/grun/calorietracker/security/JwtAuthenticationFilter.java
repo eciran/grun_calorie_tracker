@@ -79,6 +79,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             boolean admin = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (tokenValid && jwtUtil.isAdminMfaEnrollmentToken(jwt)) {
+                boolean enrollmentRoute = "POST".equals(request.getMethod()) && (
+                        "/api/v1/auth/admin/mfa/enrollment".equals(request.getRequestURI())
+                        || "/api/v1/auth/admin/mfa/enrollment/verify".equals(request.getRequestURI()));
+                if (admin && enrollmentRoute && userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
+                    var auth = new UsernamePasswordAuthenticationToken(userDetails, null,
+                            java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ADMIN_MFA_ENROLLMENT")));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                } else {
+                    SecurityContextHolder.clearContext();
+                }
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (tokenValid && admin) {
                 String sessionId = jwtUtil.extractAdminSessionId(jwt);
                 tokenValid = sessionId != null && adminSessionService.validateAndTouch(sessionId, username);

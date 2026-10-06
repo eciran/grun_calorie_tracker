@@ -98,7 +98,7 @@ class FederatedAuthServiceImplTest {
                 .thenReturn(new VerifiedGoogleIdentityDto("google-sub", user.getEmail(), "OAuth User", true));
         when(federatedIdentityRepository.findByProviderAndProviderSubject(AuthProvider.GOOGLE, "google-sub"))
                 .thenReturn(Optional.of(identity));
-        when(jwtUtil.generateToken(user.getEmail())).thenReturn("access");
+        when(jwtUtil.generateUserToken(user)).thenReturn("access");
         when(refreshTokenService.createRefreshToken(user)).thenReturn("refresh");
 
         AuthResponse response = federatedAuthService.loginWithGoogle("raw-id-token");
@@ -121,7 +121,7 @@ class FederatedAuthServiceImplTest {
         when(userRepository.findByEmail("new@grun.app")).thenReturn(Optional.empty());
         when(passwordEncoder.encode(any())).thenReturn("encoded-random-password");
         when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtUtil.generateToken("new@grun.app")).thenReturn("access");
+        when(jwtUtil.generateUserToken(any(UserEntity.class))).thenReturn("access");
         when(refreshTokenService.createRefreshToken(any(UserEntity.class))).thenReturn("refresh");
 
         federatedAuthService.loginWithGoogle("raw-id-token");
@@ -149,7 +149,7 @@ class FederatedAuthServiceImplTest {
                 .thenReturn(new VerifiedAppleIdentityDto("apple-sub", null, false));
         when(federatedIdentityRepository.findByProviderAndProviderSubject(AuthProvider.APPLE, "apple-sub"))
                 .thenReturn(Optional.of(identity));
-        when(jwtUtil.generateToken(user.getEmail())).thenReturn("apple-access");
+        when(jwtUtil.generateUserToken(user)).thenReturn("apple-access");
         when(refreshTokenService.createRefreshToken(user)).thenReturn("apple-refresh");
 
         AuthResponse response = federatedAuthService.loginWithApple("apple-id-token", "apple-nonce");
@@ -171,7 +171,7 @@ class FederatedAuthServiceImplTest {
 
         assertThrows(InvalidCredentialsException.class, () -> federatedAuthService.loginWithGoogle("raw-id-token"));
 
-        verify(jwtUtil, never()).generateToken(any());
+        verify(jwtUtil, never()).generateUserToken(any());
         verify(refreshTokenService, never()).createRefreshToken(any());
     }
 
@@ -188,7 +188,7 @@ class FederatedAuthServiceImplTest {
         when(userRepository.findByEmail("relay@privaterelay.appleid.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode(any())).thenReturn("encoded-apple-password");
         when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtUtil.generateToken("relay@privaterelay.appleid.com")).thenReturn("access");
+        when(jwtUtil.generateUserToken(any(UserEntity.class))).thenReturn("access");
         when(refreshTokenService.createRefreshToken(any(UserEntity.class))).thenReturn("refresh");
 
         federatedAuthService.loginWithApple("apple-id-token", "apple-nonce");

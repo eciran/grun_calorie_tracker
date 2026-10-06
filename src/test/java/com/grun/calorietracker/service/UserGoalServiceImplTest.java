@@ -6,6 +6,7 @@ import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.repository.GoalRepository;
 import com.grun.calorietracker.repository.ProgressLogRepository;
@@ -70,6 +71,37 @@ class UserGoalServiceImplTest {
         assertEquals(2136, result.getMaintenanceCalories());
         assertEquals(0.0, result.getEffectiveWeeklyRateKg());
         assertEquals(0, result.getEstimatedDurationWeeks());
+    }
+
+    @Test
+    void calculateGoal_maintainWithMuscleFocus_keepsMaintenanceCaloriesAndUsesMuscleMacros() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        GoalCalculationRequestDto goal = goal(GoalType.MAINTAIN_WEIGHT, ActivityLevel.SEDENTARY, 0.5);
+        goal.setBodyCompositionFocus(BodyCompositionFocus.BUILD_MUSCLE);
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        GoalCalculationResponse result = userGoalService.calculateGoal(goal, "user@example.com");
+
+        assertEquals(2136, result.getCalculatedCalorieNeed());
+        assertEquals(0, result.getCalorieAdjustment());
+        assertEquals(0.0, result.getEffectiveWeeklyRateKg());
+        assertEquals(160, result.getRecommendedProteinGrams());
+        assertEquals(59, result.getRecommendedFatGrams());
+        assertEquals(241, result.getRecommendedCarbGrams());
+    }
+
+    @Test
+    void calculateGoal_loseWithMuscleFocus_capsLossAtHalfPercentBodyWeight() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        GoalCalculationRequestDto goal = goal(GoalType.LOSE_WEIGHT, ActivityLevel.MODERATE, 1.0);
+        goal.setBodyCompositionFocus(BodyCompositionFocus.BUILD_MUSCLE);
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        GoalCalculationResponse result = userGoalService.calculateGoal(goal, "user@example.com");
+
+        assertEquals(-0.4, result.getEffectiveWeeklyRateKg());
+        assertEquals(-440, result.getCalorieAdjustment());
+        assertTrue(result.isSafetyAdjusted());
     }
 
     @Test
@@ -164,6 +196,20 @@ class UserGoalServiceImplTest {
     }
 
     @Test
+    void saveUserGoal_persistsBodyCompositionFocus() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        GoalCalculationRequestDto goal = goal(GoalType.MAINTAIN_WEIGHT, ActivityLevel.MODERATE, null);
+        goal.setBodyCompositionFocus(BodyCompositionFocus.BUILD_MUSCLE);
+        when(userRepository.findByEmailForUpdate("user@example.com")).thenReturn(Optional.of(user));
+        when(goalRepository.findByUser(user)).thenReturn(Optional.empty());
+        when(goalRepository.save(any(UserGoalEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = userGoalService.saveUserGoal(goal, "user@example.com");
+
+        assertEquals(BodyCompositionFocus.BUILD_MUSCLE, result.getBodyCompositionFocus());
+    }
+
+    @Test
     void saveUserGoal_closesExistingGoalInsteadOfDeletingHistory() {
         UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
         UserGoalEntity existing = new UserGoalEntity();
@@ -224,6 +270,21 @@ class UserGoalServiceImplTest {
         );
 
         assertTrue(error.getMessage().contains("higher than the current weight"));
+    }
+
+    @Test
+    void calculateGoal_rejectsMaintenanceOutsideSharedHalfKilogramTolerance() {
+        UserEntity user = user("user@example.com", "MALE", 30, 180.0, 80.0, null);
+        GoalCalculationRequestDto goal = goal(GoalType.MAINTAIN_WEIGHT, ActivityLevel.MODERATE, null);
+        goal.setTargetWeight(80.75);
+        when(userService.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        var error = assertThrows(
+                IllegalArgumentException.class,
+                () -> userGoalService.calculateGoal(goal, "user@example.com")
+        );
+
+        assertTrue(error.getMessage().contains("0.5 kg"));
     }
 
     @Test

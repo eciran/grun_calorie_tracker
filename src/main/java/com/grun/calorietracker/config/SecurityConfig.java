@@ -16,6 +16,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.Customizer;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.*;
@@ -157,9 +158,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(Environment environment) {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(allowedCorsOriginPatterns());
+        configuration.setAllowedOriginPatterns(allowedCorsOriginPatterns(
+                !environment.matchesProfiles("prod", "staging")));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(allowedCorsHeaders());
         configuration.setExposedHeaders(List.of("Authorization", "X-Correlation-Id"));
@@ -173,16 +175,21 @@ public class SecurityConfig {
 
     static List<String> allowedCorsOriginPatterns() {
         return List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "http://192.168.*.*:*",
-                "http://10.*.*.*:*",
-                "http://172.*.*.*:*",
                 "https://gruncalorietracker.com",
                 "https://www.gruncalorietracker.com",
                 "https://api.gruncalorietracker.com",
                 "https://api-staging.gruncalorietracker.com"
         );
+    }
+
+    static List<String> allowedCorsOriginPatterns(boolean localDevelopment) {
+        if (!localDevelopment) {
+            return allowedCorsOriginPatterns();
+        }
+        java.util.ArrayList<String> origins = new java.util.ArrayList<>(allowedCorsOriginPatterns());
+        origins.addAll(List.of("http://localhost:*", "http://127.0.0.1:*",
+                "http://192.168.*.*:*", "http://10.*.*.*:*", "http://172.*.*.*:*"));
+        return List.copyOf(origins);
     }
 
     static List<String> allowedCorsHeaders() {

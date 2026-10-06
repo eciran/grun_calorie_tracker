@@ -99,7 +99,8 @@ public class RevenueCatMonitoringServiceImpl implements RevenueCatMonitoringServ
         var state = verificationRepository.findById(userId).orElse(null);
         RevenueCatVerificationStateDto verification = state == null ? null : new RevenueCatVerificationStateDto(
                 state.getStatus(), state.getProductId(), state.getAttempts(), state.getNextAttemptAt(),
-                state.getLeaseUntil(), state.getUpdatedAt(), hasText(state.getAllocationReference()));
+                state.getLeaseUntil(), state.getUpdatedAt(), hasText(state.getAllocationReference()),
+                state.getCreatedAt(), state.getReasonCode(), state.getResolvedProductId(), state.getProviderTransactionId());
         try {
             var purchases = purchaseEvidenceClient.activePurchases(userId).stream()
                     .map(item -> new RevenueCatPurchaseEvidenceDto(item.transactionId(), item.productId(),

@@ -71,7 +71,7 @@ public class FederatedAuthServiceImpl implements FederatedAuthService {
         }
         recordLoginSafely(user.getEmail());
         return new AuthResponse(
-                jwtUtil.generateToken(user.getEmail()),
+                jwtUtil.generateUserToken(user),
                 refreshTokenService.createRefreshToken(user),
                 "Bearer",
                 jwtUtil.getExpirationSeconds(),

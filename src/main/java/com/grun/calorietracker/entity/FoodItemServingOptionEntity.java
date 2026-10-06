@@ -47,4 +47,7 @@ public class FoodItemServingOptionEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private FoodServingOptionQualityStatus qualityStatus;
+
+    @Column(nullable = false)
+    private Boolean userVisible = true;
 }

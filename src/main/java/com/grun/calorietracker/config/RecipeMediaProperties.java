@@ -11,6 +11,7 @@ public class RecipeMediaProperties {
     @Data
     public static class Image {
         private long maxUploadBytes = 4 * 1024 * 1024;
+        private long maxDecodedPixels = 48_000_000;
         private String allowedContentTypes = "image/jpeg,image/png,image/webp";
         private String storageDirectory = "storage/recipe-images";
         private String publicBaseUrl = "http://localhost:8080";

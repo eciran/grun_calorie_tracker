@@ -1,0 +1,39 @@
+.login-page.admin-mfa-setup-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+  padding: 24px 12px;
+}
+
+.admin-mfa-setup-page .login-card {
+  width: min(100%, 480px);
+  max-width: 480px;
+}
+
+.admin-mfa-setup-qr {
+  margin-inline: auto;
+  width: fit-content;
+  padding: 16px;
+  background: white;
+}
+
+.admin-mfa-setup-recovery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-mfa-setup-page .recovery-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-mfa-setup-page .recovery-confirmation input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}

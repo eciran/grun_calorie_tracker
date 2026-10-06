@@ -126,7 +126,7 @@ class AccountIdentityServiceImplTest {
         user.setPasswordSet(false);
         AccountPasswordRequestDto request = new AccountPasswordRequestDto();
         request.setNewPassword("NewStrongPass1!");
-        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
         when(passwordEncoder.encode(request.getNewPassword())).thenReturn("encoded");
 
         service.updatePassword(user.getEmail(), request);
@@ -144,7 +144,7 @@ class AccountIdentityServiceImplTest {
         AccountPasswordRequestDto request = new AccountPasswordRequestDto();
         request.setCurrentPassword("wrong");
         request.setNewPassword("NewStrongPass1!");
-        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "old-encoded")).thenReturn(false);
 
         assertThrows(InvalidCredentialsException.class,

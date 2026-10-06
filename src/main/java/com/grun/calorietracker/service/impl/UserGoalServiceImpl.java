@@ -9,6 +9,7 @@ import com.grun.calorietracker.dto.UserProfileDto;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.exception.InvalidCredentialsException;
 import com.grun.calorietracker.mapper.UserGoalMapper;
@@ -37,7 +38,7 @@ import java.util.List;
 public class UserGoalServiceImpl implements UserGoalService {
 
     private static final double WEIGHT_DIRECTION_TOLERANCE_KG = 0.5;
-    private static final double MAINTENANCE_TOLERANCE_KG = 1.0;
+    private static final double MAINTENANCE_TOLERANCE_KG = WEIGHT_DIRECTION_TOLERANCE_KG;
     private static final double KCAL_PER_KG = 7700.0;
     private static final int MALE_MINIMUM_CALORIES = 1500;
     private static final int FEMALE_MINIMUM_CALORIES = 1200;
@@ -149,6 +150,7 @@ public class UserGoalServiceImpl implements UserGoalService {
         calculatedGoal.setWeeklyWeightChangeTargetKg(calculation.getEffectiveWeeklyRateKg());
         calculatedGoal.setGoalType(goalData.getGoalType());
         calculatedGoal.setActivityLevel(goalData.getActivityLevel());
+        calculatedGoal.setBodyCompositionFocus(normalizeBodyCompositionFocus(goalData.getBodyCompositionFocus()));
         calculatedGoal.setCreatedAt(LocalDateTime.now());
         return calculatedGoal;
     }
@@ -174,7 +176,8 @@ public class UserGoalServiceImpl implements UserGoalService {
                 floorApplied ? "Daily calorie target was raised to the minimum safety floor." : null
         );
 
-        GoalCalculationResponse response = calculateMacros(goalCalories, goalData.getGoalType());
+        BodyCompositionFocus bodyCompositionFocus = normalizeBodyCompositionFocus(goalData.getBodyCompositionFocus());
+        GoalCalculationResponse response = calculateMacros(goalCalories, goalData.getGoalType(), bodyCompositionFocus);
         response.setFormula(energy.formula());
         response.setBmr(roundTwoDecimals(energy.restingEnergyCalories()));
         response.setMaintenanceCalories(maintenanceCalories);
@@ -195,9 +198,16 @@ public class UserGoalServiceImpl implements UserGoalService {
         return response;
     }
 
-    private static GoalCalculationResponse calculateMacros(int goalCalories, GoalType goalType) {
-        int proteinGrams = (int) Math.round(goalCalories * goalType.getProteinPercentage() / 4);
-        int fatGrams = (int) Math.round(goalCalories * goalType.getFatPercentage() / 9);
+    private static GoalCalculationResponse calculateMacros(
+            int goalCalories,
+            GoalType goalType,
+            BodyCompositionFocus bodyCompositionFocus
+    ) {
+        GoalType macroProfile = bodyCompositionFocus == BodyCompositionFocus.BUILD_MUSCLE
+                ? GoalType.BUILD_MUSCLE
+                : goalType;
+        int proteinGrams = (int) Math.round(goalCalories * macroProfile.getProteinPercentage() / 4);
+        int fatGrams = (int) Math.round(goalCalories * macroProfile.getFatPercentage() / 9);
         int remainingCaloriesForCarbs = goalCalories - (proteinGrams * 4) - (fatGrams * 9);
         int carbGrams = remainingCaloriesForCarbs > 0 ? (int) Math.round(remainingCaloriesForCarbs / 4.0) : 0;
         return new GoalCalculationResponse(goalCalories, proteinGrams, fatGrams, carbGrams);
@@ -226,7 +236,11 @@ public class UserGoalServiceImpl implements UserGoalService {
             requestedMagnitude = Math.abs(goalData.getWeeklyWeightChangeTargetKg());
         }
 
-        double maximumMagnitude = maximumSafeWeeklyRate(goalType, currentWeightKg);
+        double maximumMagnitude = maximumSafeWeeklyRate(
+                goalType,
+                currentWeightKg,
+                normalizeBodyCompositionFocus(goalData.getBodyCompositionFocus())
+        );
         double effectiveMagnitude = Math.min(requestedMagnitude, maximumMagnitude);
         boolean adjusted = requestedMagnitude > maximumMagnitude + 0.0001;
         double direction = goalType == GoalType.LOSE_WEIGHT ? -1.0 : 1.0;
@@ -240,13 +254,25 @@ public class UserGoalServiceImpl implements UserGoalService {
         );
     }
 
-    private static double maximumSafeWeeklyRate(GoalType goalType, double currentWeightKg) {
+    private static double maximumSafeWeeklyRate(
+            GoalType goalType,
+            double currentWeightKg,
+            BodyCompositionFocus bodyCompositionFocus
+    ) {
         return switch (goalType) {
-            case LOSE_WEIGHT -> Math.min(1.0, currentWeightKg * 0.01);
-            case GAIN_WEIGHT -> Math.min(0.5, currentWeightKg * 0.005);
+            case LOSE_WEIGHT -> bodyCompositionFocus == BodyCompositionFocus.BUILD_MUSCLE
+                    ? Math.min(0.5, currentWeightKg * 0.005)
+                    : Math.min(1.0, currentWeightKg * 0.01);
+            case GAIN_WEIGHT -> bodyCompositionFocus == BodyCompositionFocus.BUILD_MUSCLE
+                    ? Math.min(0.25, currentWeightKg * 0.003)
+                    : Math.min(0.5, currentWeightKg * 0.005);
             case BUILD_MUSCLE -> Math.min(0.25, currentWeightKg * 0.003);
             case MAINTAIN_WEIGHT -> 0.0;
         };
+    }
+
+    private static BodyCompositionFocus normalizeBodyCompositionFocus(BodyCompositionFocus focus) {
+        return focus == null ? BodyCompositionFocus.STANDARD : focus;
     }
 
     private static void validateRequiredInputs(GoalCalculationRequestDto goalData, UserEntity user) {
@@ -288,7 +314,7 @@ public class UserGoalServiceImpl implements UserGoalService {
             }
             case MAINTAIN_WEIGHT -> {
                 if (Math.abs(difference) > MAINTENANCE_TOLERANCE_KG) {
-                    throw new GoalValidationException("GOAL_MAINTAIN_DIRECTION", "A maintenance target must stay within 1 kg of the current weight.");
+                    throw new GoalValidationException("GOAL_MAINTAIN_DIRECTION", "A maintenance target must stay within 0.5 kg of the current weight.");
                 }
             }
         }

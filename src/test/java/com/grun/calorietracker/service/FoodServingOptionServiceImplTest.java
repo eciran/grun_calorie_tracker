@@ -99,4 +99,38 @@ class FoodServingOptionServiceImplTest {
 
         assertEquals(List.of(7L), result.stream().map(FoodServingOptionDto::getId).toList());
     }
+
+    @Test
+    void getServingOptions_hidesSourceEvidenceThatIsNotSuitableForMobile() {
+        FoodItemEntity foodItem = new FoodItemEntity();
+        foodItem.setId(14L);
+        foodItem.setIsCustom(false);
+        FoodItemServingOptionEntity piece = new FoodItemServingOptionEntity();
+        piece.setId(8L);
+        piece.setFoodItem(foodItem);
+        piece.setLabel("1 medium peach");
+        piece.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.PIECE);
+        piece.setGramWeight(161.0);
+        piece.setUserVisible(true);
+        FoodItemServingOptionEntity cupSlices = new FoodItemServingOptionEntity();
+        cupSlices.setId(9L);
+        cupSlices.setFoodItem(foodItem);
+        cupSlices.setLabel("1 cup peach slices");
+        cupSlices.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.CUP);
+        cupSlices.setGramWeight(154.0);
+        cupSlices.setUserVisible(false);
+
+        when(foodItemRepository.findById(14L)).thenReturn(Optional.of(foodItem));
+        when(foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
+                foodItem,
+                FoodServingOptionQualityStatus.VERIFIED
+        )).thenReturn(List.of(piece, cupSlices));
+        when(foodItemServingOptionLocalizationRepository
+                .findByServingOptionIdInAndLanguageInAndActiveTrue(anyCollection(), anyCollection()))
+                .thenReturn(List.of());
+
+        List<FoodServingOptionDto> result = service.getServingOptions(14L, "user@example.com", PreferredLanguage.EN);
+
+        assertEquals(List.of(8L), result.stream().map(FoodServingOptionDto::getId).toList());
+    }
 }

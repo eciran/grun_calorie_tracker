@@ -46,6 +46,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         RefreshTokenEntity token = new RefreshTokenEntity();
         token.setUser(user);
+        token.setAuthTokenVersion(user.getAuthTokenVersion());
         token.setTokenHash(hashToken(rawToken));
         token.setExpiresAt(LocalDateTime.now().plusDays(expirationDays));
         refreshTokenRepository.save(token);
@@ -54,7 +55,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     @Override
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public AuthResponse refreshAccessToken(String rawRefreshToken) {
         String tokenHash = hashToken(rawRefreshToken);
         RefreshTokenEntity token = refreshTokenRepository
@@ -64,46 +65,65 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
             token.setUsedAt(LocalDateTime.now());
             refreshTokenRepository.save(token);
-            throw new IllegalArgumentException("Refresh token is invalid or expired");
+            throw new InvalidRefreshTokenException();
         }
 
         UserEntity user = token.getUser();
         if (!isSessionAllowed(user)) {
             token.setRevokedAt(LocalDateTime.now());
             refreshTokenRepository.save(token);
-            throw new IllegalArgumentException("Refresh token is invalid or expired");
+            throw new InvalidRefreshTokenException();
         }
 
-        token.setUsedAt(LocalDateTime.now());
-        refreshTokenRepository.save(token);
-
-        UserEntity managedUser = userRepository.findById(user.getId()).orElse(user);
+        UserEntity managedUser = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new InvalidRefreshTokenException());
+        long currentVersion = userRepository.findAuthTokenVersionById(user.getId())
+                .orElseThrow(() -> new InvalidRefreshTokenException());
+        if (token.getAuthTokenVersion() != currentVersion) {
+            token.setRevokedAt(LocalDateTime.now());
+            refreshTokenRepository.save(token);
+            throw new InvalidRefreshTokenException();
+        }
         if (!isSessionAllowed(managedUser)) {
+            token.setRevokedAt(LocalDateTime.now());
             refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(managedUser)
                     .forEach(activeToken -> activeToken.setRevokedAt(LocalDateTime.now()));
-            throw new IllegalArgumentException("Refresh token is invalid or expired");
+            throw new InvalidRefreshTokenException();
         }
+        managedUser.setAuthTokenVersion(currentVersion);
+        LocalDateTime consumedAt = LocalDateTime.now();
+        if (refreshTokenRepository.consumeIfAvailable(tokenHash, consumedAt, currentVersion) != 1) {
+            throw new com.grun.calorietracker.exception.RequestConflictException("Refresh token was already consumed. Use the latest session token.");
+        }
+        // The conditional update clears stale managed snapshots; never save the old token back over it.
+        token.setUsedAt(consumedAt);
         String newRefreshToken = createRefreshToken(managedUser);
-        String accessToken = jwtUtil.generateToken(managedUser.getEmail());
+        String accessToken = jwtUtil.generateUserToken(managedUser);
         recordActivitySafely(managedUser.getEmail());
 
         return new AuthResponse(accessToken, newRefreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Token refreshed successfully");
     }
 
     @Override
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    @Transactional
     public void revokeRefreshToken(String rawRefreshToken) {
-        RefreshTokenEntity token = refreshTokenRepository
-                .findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(hashToken(rawRefreshToken))
-                .orElseThrow(() -> new IllegalArgumentException("Refresh token is invalid or expired"));
-
-        token.setRevokedAt(LocalDateTime.now());
-        refreshTokenRepository.save(token);
+        if (refreshTokenRepository.revokeIfAvailable(hashToken(rawRefreshToken), LocalDateTime.now()) != 1) {
+            throw new InvalidRefreshTokenException();
+        }
     }
 
     @Override
     @Transactional
     public void revokeAllForUser(UserEntity user) {
+        UserEntity managedUser = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (userRepository.incrementAuthTokenVersion(user.getId()) != 1) {
+            throw new IllegalStateException("Could not revoke account access tokens");
+        }
+        long currentVersion = userRepository.findAuthTokenVersionById(user.getId())
+                .orElseThrow(() -> new IllegalStateException("Could not read account security state"));
+        managedUser.setAuthTokenVersion(currentVersion);
+        user.setAuthTokenVersion(currentVersion);
         if (adminSessionService != null) adminSessionService.revokeAllForUser(user);
         LocalDateTime now = LocalDateTime.now();
         refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user)
@@ -120,9 +140,16 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private RefreshTokenEntity handlePotentialTokenReuse(String tokenHash) {
         refreshTokenRepository.findByTokenHash(tokenHash)
-                .filter(token -> token.getUsedAt() != null && token.getUser() != null)
-                .ifPresent(this::revokeTokenFamilyAfterReuse);
-        throw new IllegalArgumentException("Refresh token is invalid or expired");
+                .filter(token -> token.getUsedAt() != null && token.getRevokedAt() == null && token.getUser() != null)
+                .ifPresent(token -> {
+                    if (token.getUsedAt().isAfter(LocalDateTime.now().minusSeconds(30))
+                            && userRepository.findAuthTokenVersionById(token.getUser().getId())
+                            .filter(version -> version == token.getAuthTokenVersion()).isPresent()) {
+                        throw new com.grun.calorietracker.exception.RequestConflictException("Refresh token was already consumed. Use the latest session token.");
+                    }
+                    revokeTokenFamilyAfterReuse(token);
+                });
+        throw new InvalidRefreshTokenException();
     }
 
     private boolean isSessionAllowed(UserEntity user) {
@@ -133,13 +160,21 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     private void revokeTokenFamilyAfterReuse(RefreshTokenEntity reusedToken) {
+        UserEntity user = userRepository.findByIdForUpdate(reusedToken.getUser().getId())
+                .orElseThrow(() -> new InvalidRefreshTokenException());
+        long currentVersion = userRepository.findAuthTokenVersionById(user.getId())
+                .orElseThrow(() -> new InvalidRefreshTokenException());
+        // An already-retired credential generation must not log out a fresh session.
+        if (reusedToken.getAuthTokenVersion() == currentVersion) revokeAllForUser(user);
         LocalDateTime now = LocalDateTime.now();
         if (reusedToken.getRevokedAt() == null) {
             reusedToken.setRevokedAt(now);
             refreshTokenRepository.save(reusedToken);
         }
-        refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(reusedToken.getUser())
-                .forEach(activeToken -> activeToken.setRevokedAt(now));
+    }
+
+    private static final class InvalidRefreshTokenException extends IllegalArgumentException {
+        private InvalidRefreshTokenException() { super("Refresh token is invalid or expired"); }
     }
 
     private String generateRawToken() {

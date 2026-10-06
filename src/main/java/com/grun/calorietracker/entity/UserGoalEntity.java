@@ -1,6 +1,7 @@
 package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalType;
 import com.grun.calorietracker.enums.GoalCalculationMode;
 import com.grun.calorietracker.enums.GoalControlledStrategy;
@@ -36,6 +37,10 @@ public class UserGoalEntity {
 
     @Enumerated(EnumType.STRING)
     private GoalType goalType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "body_composition_focus", nullable = false, length = 30)
+    private BodyCompositionFocus bodyCompositionFocus = BodyCompositionFocus.STANDARD;
 
     @Enumerated(EnumType.STRING)
     private ActivityLevel activityLevel;

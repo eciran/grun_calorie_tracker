@@ -29,6 +29,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRevenueCatMonitoringController {
 
     private final RevenueCatMonitoringService monitoringService;
+    private final com.grun.calorietracker.repository.SubscriptionVerificationRepository verificationRepository;
+
+    @GetMapping("/verification-issues")
+    public ResponseEntity<org.springframework.data.domain.Page<com.grun.calorietracker.dto.RevenueCatVerificationIssueDto>> getVerificationIssues(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Invalid verification page");
+        var rows = verificationRepository.findByStatusIn(
+                java.util.List.of("PREPARED", "PENDING", "PROVIDER_UNAVAILABLE", "REQUIRES_REVIEW"),
+                org.springframework.data.domain.PageRequest.of(page, size,
+                        org.springframework.data.domain.Sort.by("updatedAt").ascending()));
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(rows.map(com.grun.calorietracker.dto.RevenueCatVerificationIssueDto::from));
+    }
 
     @GetMapping("/overview")
     @Operation(summary = "Get RevenueCat monitoring overview", description = "Returns RevenueCat overview metrics for production or local sandbox webhook-event metrics.")

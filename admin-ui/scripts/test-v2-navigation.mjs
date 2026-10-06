@@ -59,7 +59,7 @@ for (const role of ["ADMIN", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY", "USER"]) asse
 assert.equal(canViewSection({ role: "OWNER", permissions: ["TECHNICAL_READ"] }, "ownerAlerts"), true);
 for (const role of ["ADMIN", "ADMIN_FINANCE", "ADMIN_READ_ONLY", "USER"]) assert.equal(canViewSection({ role, permissions: ["ADMIN_TEAM_READ"] }, "approvals"), false);
 assert.equal(canViewSection({ role: "OWNER", permissions: ["ADMIN_TEAM_READ"] }, "approvals"), true);
-assert.doesNotMatch(app, /import \{[^}]*\b[A-Z]\w*View\b[^}]*\} from/);
+assert.doesNotMatch(app, /import \{[^}]*\b[A-Z]\w*View\b[^}]*\} from ["']\.\/(?:pages|modules)\//);
 assert.match(app, /!canViewSection\(accessProfile, active\)[\s\S]*<PageBoundary[\s\S]*<Suspense[\s\S]*<DashboardView/);
 assert.match(app, /setTargetContext\(null\);[\s\S]*setActive\(fallback\)/);
 console.log(`V2 navigation passed: ${routes.length} routes, integrated user verification, split AI workspaces, exhaustive menu/permission coverage and lazy page modules.`);

@@ -13,17 +13,17 @@ import com.grun.calorietracker.repository.RecipeRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.RecipeImageService;
 import com.grun.calorietracker.service.RecipeService;
+import com.grun.calorietracker.service.support.FoodProductEvidenceImageInspector;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.ByteArrayResource;
+import com.grun.calorietracker.service.media.LocalMediaPathGuard;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -40,6 +40,7 @@ public class RecipeImageServiceImpl implements RecipeImageService {
     private final UserRepository userRepository;
     private final RecipeRepository recipeRepository;
     private final RecipeService recipeService;
+    private final FoodProductEvidenceImageInspector imageInspector;
 
     @Override
     @Transactional
@@ -50,14 +51,25 @@ public class RecipeImageServiceImpl implements RecipeImageService {
         RecipeEntity recipe = recipeRepository.findByIdAndOwnerUserAndArchivedFalse(recipeId, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Recipe not found"));
 
-        String extension = extension(file.getOriginalFilename(), file.getContentType());
+        byte[] content;
+        try (var input = file.getInputStream()) {
+            long maximum = properties.getImage().getMaxUploadBytes();
+            if (maximum <= 0 || maximum >= Integer.MAX_VALUE) throw new IllegalArgumentException("Recipe upload limit is invalid.");
+            content = input.readNBytes((int) maximum + 1);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("Recipe image could not be read.", ex);
+        }
+        imageInspector.inspectImage(content, file.getContentType(), properties.getImage().getMaxUploadBytes(),
+                properties.getImage().getMaxDecodedPixels());
+        String extension = extension(file.getContentType());
         String filename = "r" + recipe.getId() + "-u" + user.getId() + "-" + UUID.randomUUID() + extension;
         Path target = storageRoot().resolve(filename).normalize();
         ensureInsideStorage(target);
 
         try {
             Files.createDirectories(storageRoot());
-            file.transferTo(target);
+            ensureInsideStorage(target);
+            Files.write(target, content, java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.LinkOption.NOFOLLOW_LINKS);
         } catch (IOException ex) {
             throw new IllegalArgumentException("Recipe image could not be stored.");
         }
@@ -84,12 +96,13 @@ public class RecipeImageServiceImpl implements RecipeImageService {
         }
         Path target = storageRoot().resolve(filename).normalize();
         ensureInsideStorage(target);
-        if (!Files.exists(target) || !Files.isRegularFile(target)) {
+        if (!Files.isRegularFile(target, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
             throw new ResourceNotFoundException("Recipe image not found");
         }
         try {
-            return new UrlResource(target.toUri());
-        } catch (MalformedURLException ex) {
+            return new ByteArrayResource(LocalMediaPathGuard.readBounded(storageRoot(), target,
+                    properties.getImage().getMaxUploadBytes()));
+        } catch (IOException ex) {
             throw new IllegalArgumentException("Recipe image could not be loaded.");
         }
     }
@@ -116,9 +129,7 @@ public class RecipeImageServiceImpl implements RecipeImageService {
     }
 
     private void ensureInsideStorage(Path target) {
-        if (!target.startsWith(storageRoot())) {
-            throw new IllegalArgumentException("Recipe image path is invalid.");
-        }
+        LocalMediaPathGuard.requireInside(storageRoot(), target);
     }
 
     private String publicUrl(String filename) {
@@ -156,16 +167,7 @@ public class RecipeImageServiceImpl implements RecipeImageService {
         return filename;
     }
 
-    private String extension(String originalFilename, String contentType) {
-        String filename = StringUtils.cleanPath(originalFilename == null ? "" : originalFilename);
-        String extension = "";
-        int dot = filename.lastIndexOf('.');
-        if (dot >= 0 && dot < filename.length() - 1) {
-            extension = filename.substring(dot).toLowerCase(Locale.ROOT);
-        }
-        if (Set.of(".jpg", ".jpeg", ".png", ".webp").contains(extension)) {
-            return extension;
-        }
+    private String extension(String contentType) {
         return switch (contentType == null ? "" : contentType.toLowerCase(Locale.ROOT)) {
             case "image/png" -> ".png";
             case "image/webp" -> ".webp";

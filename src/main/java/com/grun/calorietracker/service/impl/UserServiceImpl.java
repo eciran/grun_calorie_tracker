@@ -101,7 +101,7 @@ public class UserServiceImpl implements UserService {
             throw new BadCredentialsException("Invalid credentials");
         }
         resetFailedLoginProtection(user);
-        return jwtUtil.generateToken(email);
+        return jwtUtil.generateUserToken(user);
     }
 
     @Override

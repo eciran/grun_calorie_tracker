@@ -4,6 +4,7 @@ import com.grun.calorietracker.enums.ActivityLevel;
 import com.grun.calorietracker.enums.CountryCode;
 import com.grun.calorietracker.enums.DietaryPreference;
 import com.grun.calorietracker.enums.GoalType;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.OnboardingStatus;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -107,6 +108,10 @@ public class OnboardingDraftEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "goal_type", length = 30)
     private GoalType goalType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "body_composition_focus", nullable = false, length = 30)
+    private BodyCompositionFocus bodyCompositionFocus = BodyCompositionFocus.STANDARD;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "activity_level", length = 30)

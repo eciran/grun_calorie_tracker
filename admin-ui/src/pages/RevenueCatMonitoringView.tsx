@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 
-import { RevenueCatChart, RevenueCatCustomerEvidence, RevenueCatMonitoringCharts, RevenueCatMonitoringOverview } from "../types";
+import { RevenueCatChart, RevenueCatCustomerEvidence, RevenueCatMonitoringCharts, RevenueCatMonitoringOverview, RevenueCatVerificationIssue } from "../types";
 import { request } from "../api";
 
 import { EmptyState, SectionToolbar } from "../AdminPrimitives";
@@ -59,8 +59,38 @@ export function RevenueCatMonitoringView({ environment, onError }: { environment
       </SectionToolbar>
       <RevenueCatMonitoringPanel charts={charts} environment={environment} overview={overview} range={range} />
       <RevenueCatCustomerEvidencePanel onError={onError} />
+      <RevenueCatVerificationIssuesPanel onError={onError} />
     </div>
   );
+}
+
+function RevenueCatVerificationIssuesPanel({ onError }: { onError: (message: string | null) => void }) {
+  const { locale } = useAdminLocale();
+  const tx = (english: string, turkish: string) => locale === "tr" ? turkish : english;
+  const [page, setPage] = useState(0);
+  const { data, state, reload } = useEndpoint<{ content: RevenueCatVerificationIssue[]; totalPages: number; totalElements: number }>(
+    `/api/v1/admin/revenuecat/monitoring/verification-issues?page=${page}&size=25`, onError);
+  return <section className="revenuecat-evidence-panel">
+    <SectionToolbar title={tx("Purchase verification issues", "Satın alma doğrulama sorunları")} state={state} onReload={reload} />
+    <div className="table-wrap"><table><thead><tr>
+      {[tx("User ID", "Kullanıcı ID"), tx("Status", "Durum"), tx("Requested / active product", "İstenen / aktif ürün"),
+        tx("Reason", "Neden"), tx("Attempts", "Deneme"), tx("Started", "Başlangıç"), tx("Next check", "Sonraki kontrol")]
+        .map(label => <th key={label}>{label}</th>)}
+    </tr></thead><tbody>{data?.content.map(item => <tr key={item.userId}>
+      <td>{item.userId}</td><td><Badge value={item.status} tone={item.status === "REQUIRES_REVIEW" ? "danger" : "warn"} /></td>
+      <td>{item.productId}<br />{item.resolvedProductId ?? "-"}</td><td>{item.reasonCode ?? "-"}</td>
+      <td>{item.attempts}</td><td>{formatEvidenceDate(item.createdAt, locale)}</td>
+      <td>{item.nextAttemptAt ? formatEvidenceDate(item.nextAttemptAt, locale)
+        : item.status === "PREPARED" ? tx("Awaiting store checkout", "Mağaza işlemi bekleniyor")
+        : tx("Operator review", "Operatör incelemesi")}</td>
+    </tr>)}</tbody></table></div>
+    {data?.content.length === 0 && <p>{tx("No unresolved purchase verifications.", "Çözümlenmemiş satın alma doğrulaması yok.")}</p>}
+    <div className="revenuecat-evidence-search">
+      <button type="button" disabled={page === 0} onClick={() => setPage(value => value - 1)}>{tx("Previous", "Önceki")}</button>
+      <span>{page + 1} / {Math.max(1, data?.totalPages ?? 1)} ({data?.totalElements ?? 0})</span>
+      <button type="button" disabled={!data || page + 1 >= data.totalPages} onClick={() => setPage(value => value + 1)}>{tx("Next", "Sonraki")}</button>
+    </div>
+  </section>;
 }
 
 function RevenueCatCustomerEvidencePanel({ onError }: { onError: (message: string | null) => void }) {
@@ -90,6 +120,7 @@ function RevenueCatCustomerEvidencePanel({ onError }: { onError: (message: strin
 
   const subscription = evidence?.backendSubscription;
   const verification = evidence?.verification;
+  const addonProof = verification?.reasonCode === "ADDON_TRANSACTION_VERIFIED" && !!verification.providerTransactionId;
   return (
     <section className="revenuecat-evidence-panel">
       <div className="revenuecat-evidence-heading">
@@ -107,7 +138,8 @@ function RevenueCatCustomerEvidencePanel({ onError }: { onError: (message: strin
           <div><span>{tx("Active evidence", "Aktif kanıt")}</span><strong>{evidence.purchases?.length ?? 0}</strong></div>
         </div>
         <p className={evidence.providerReachable ? "evidence-status good" : "evidence-status warning"}>{evidence.statusMessage}</p>
-        {verification && <div className="evidence-detail-line"><span>{verification.productId ?? "-"}</span><span>{tx("Attempts", "Deneme")}: {verification.attempts ?? 0}</span><span>{tx("Allocation", "Tahsis")}: {verification.allocationReferencePresent ? tx("Present", "Mevcut") : tx("Missing", "Eksik")}</span><span>{tx("Updated", "Güncellendi")}: {formatEvidenceDate(verification.updatedAt, locale)}</span></div>}
+        {verification && <div className="evidence-detail-line"><span>{verification.productId ?? "-"}</span><span>{tx("Attempts", "Deneme")}: {verification.attempts ?? 0}</span><span>{tx("Allocation", "Tahsis")}: {addonProof ? tx("Credit transaction verified", "Ek kredi işlemi doğrulandı") : verification.allocationReferencePresent ? tx("Present", "Mevcut") : tx("Missing", "Eksik")}</span><span>{tx("Updated", "Güncellendi")}: {formatEvidenceDate(verification.updatedAt, locale)}</span></div>}
+        {verification && <div className="evidence-detail-line"><span>{tx("Reason", "Neden")}: {verification.reasonCode ?? "-"}</span><span>{tx("Resolved product", "Eşleşen ürün")}: {verification.resolvedProductId ?? "-"}</span><span>{tx("Transaction", "İşlem")}: {maskTransaction(verification.providerTransactionId)}</span><span>{tx("Next check", "Sonraki kontrol")}: {formatEvidenceDate(verification.nextAttemptAt, locale)}</span></div>}
         {!!evidence.purchases?.length && <div className="table-wrap"><table><thead><tr><th>{tx("Product", "Ürün")}</th><th>{tx("Store", "Mağaza")}</th><th>{tx("Transaction", "İşlem")}</th><th>{tx("Purchased", "Satın alındı")}</th><th>{tx("Expires", "Bitiş")}</th><th>{tx("Ownership", "Sahiplik")}</th></tr></thead><tbody>{evidence.purchases.map((purchase) => <tr key={`${purchase.transactionId}-${purchase.productId}`}><td>{purchase.productId}</td><td>{purchase.store}</td><td>{maskTransaction(purchase.transactionId)}</td><td>{formatEvidenceDate(purchase.purchasedAt, locale)}</td><td>{formatEvidenceDate(purchase.expiresAt, locale)}</td><td><Badge value={purchase.ownershipConflict ? tx("Conflict", "Çakışma") : tx("Matched", "Eşleşti")} tone={purchase.ownershipConflict ? "danger" : "good"} /></td></tr>)}</tbody></table></div>}
       </>}
     </section>

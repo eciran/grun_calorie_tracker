@@ -1,6 +1,7 @@
 package com.grun.calorietracker.dto;
 
 import com.grun.calorietracker.enums.ActivityLevel;
+import com.grun.calorietracker.enums.BodyCompositionFocus;
 import com.grun.calorietracker.enums.GoalType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
@@ -33,4 +34,12 @@ public class GoalCalculationRequestDto {
     @NotNull(message = "{validation.user-goal.activity-level.required}")
     @Schema(description = "User's activity level.", example = "MODERATE", requiredMode = Schema.RequiredMode.REQUIRED)
     private ActivityLevel activityLevel;
+
+    @Schema(description = "Optional body-composition focus. Defaults to STANDARD.", example = "BUILD_MUSCLE")
+    private BodyCompositionFocus bodyCompositionFocus;
+
+    public GoalCalculationRequestDto(Double targetWeight, Double weeklyWeightChangeTargetKg,
+                                     GoalType goalType, ActivityLevel activityLevel) {
+        this(targetWeight, weeklyWeightChangeTargetKg, goalType, activityLevel, BodyCompositionFocus.STANDARD);
+    }
 }

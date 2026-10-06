@@ -1,6 +1,7 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.repository.UserRepository;
+import com.grun.calorietracker.security.AdminAuthenticationAttemptGuard;
 import com.grun.calorietracker.service.AdminMfaService;
 import com.grun.calorietracker.service.AdminSessionService;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,7 @@ import static org.mockito.Mockito.mock;
 
 class AdminSessionAuthControllerCookiePolicyTest {
     @Test void loginCookieIsSecureNonPersistentBrowserSessionCookie(){
-        var controller=new AdminSessionAuthController(mock(AuthenticationManager.class),mock(UserRepository.class),mock(AdminMfaService.class),mock(AdminSessionService.class));
+        var controller=new AdminSessionAuthController(mock(AuthenticationManager.class),mock(UserRepository.class),mock(AdminMfaService.class),mock(AdminSessionService.class),mock(AdminAuthenticationAttemptGuard.class));
         ReflectionTestUtils.setField(controller,"secureCookie",true);
         ResponseCookie cookie=ReflectionTestUtils.invokeMethod(controller,"cookie","opaque",false);
         assertNotNull(cookie); assertTrue(cookie.isHttpOnly()); assertTrue(cookie.isSecure());
@@ -21,7 +22,7 @@ class AdminSessionAuthControllerCookiePolicyTest {
         assertEquals(Duration.ofSeconds(-1),cookie.getMaxAge());
     }
     @Test void logoutCookieExpiresImmediately(){
-        var controller=new AdminSessionAuthController(mock(AuthenticationManager.class),mock(UserRepository.class),mock(AdminMfaService.class),mock(AdminSessionService.class));
+        var controller=new AdminSessionAuthController(mock(AuthenticationManager.class),mock(UserRepository.class),mock(AdminMfaService.class),mock(AdminSessionService.class),mock(AdminAuthenticationAttemptGuard.class));
         ResponseCookie cookie=ReflectionTestUtils.invokeMethod(controller,"cookie","",true);
         assertNotNull(cookie); assertEquals(Duration.ZERO,cookie.getMaxAge());
     }

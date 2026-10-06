@@ -48,7 +48,7 @@ public class FoodServingOptionServiceImpl implements FoodServingOptionService {
         var options = foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
                 foodItem,
                 FoodServingOptionQualityStatus.VERIFIED
-        );
+        ).stream().filter(option -> !Boolean.FALSE.equals(option.getUserVisible())).toList();
         PreferredLanguage resolvedLanguage = language == null ? PreferredLanguage.EN : language;
         Set<PreferredLanguage> languages = resolvedLanguage == PreferredLanguage.EN
                 ? Set.of(PreferredLanguage.EN)
