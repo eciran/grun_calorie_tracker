@@ -37,7 +37,7 @@ public class AppLinkController {
                 .toList();
     }
 
-    @GetMapping(value = {"/reset-password", "/verify-email"}, produces = MediaType.TEXT_HTML_VALUE)
+    @GetMapping(value = {"/reset-password", "/verify-email", "/forgot-password"}, produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<Resource> tokenActionLandingPage() {
         return landingPage();
     }
@@ -77,11 +77,19 @@ public class AppLinkController {
                 .cacheControl(CacheControl.noStore())
                 .header("Content-Security-Policy",
                         "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
-                                + "connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+                                + "connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
                 .header("Referrer-Policy", "no-referrer")
                 .header("X-Robots-Tag", "noindex, nofollow")
                 .contentType(MediaType.TEXT_HTML)
                 .body(new ClassPathResource("static/app-action.html"));
+    }
+
+    @GetMapping(value = "/app-assets/questrial-regular.ttf", produces = "font/ttf")
+    public ResponseEntity<Resource> appFont() {
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("font/ttf"))
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(new ClassPathResource("static/app-assets/questrial-regular.ttf"));
     }
 
     private <T> ResponseEntity<T> associationResponse(T body) {

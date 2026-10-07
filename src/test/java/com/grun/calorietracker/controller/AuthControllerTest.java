@@ -46,6 +46,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class AuthControllerTest {
 
+    @Test
+    void passwordResetValidationIsPublicAndNeverCached() throws Exception {
+        when(passwordResetService.isPasswordResetTokenValid("valid-token")).thenReturn(true);
+        mockMvc.perform(post("/api/v1/auth/password-reset/validate")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"valid-token\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.valid").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+        mockMvc.perform(post("/api/v1/auth/password-reset/validate")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"used-token\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.valid").value(false));
+        mockMvc.perform(post("/api/v1/auth/password-reset/validate")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
     @Autowired
     private MockMvc mockMvc;
 

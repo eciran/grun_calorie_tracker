@@ -6,6 +6,8 @@ import com.grun.calorietracker.dto.PasswordResetResponseDto;
 
 public interface PasswordResetService {
 
+    boolean isPasswordResetTokenValid(String token);
+
     PasswordResetResponseDto requestPasswordReset(PasswordResetRequestDto request);
 
     PasswordResetResponseDto requestAdminPasswordReset(String ownerEmail, Long userId, String correlationId);

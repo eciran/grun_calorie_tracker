@@ -40,6 +40,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             "/api/v1/auth/apple",
             "/api/v1/auth/register",
             "/api/v1/auth/password-reset/request",
+            "/api/v1/auth/password-reset/validate",
             "/api/v1/auth/email-verification/resend",
             "/api/v1/auth/refresh"
     );

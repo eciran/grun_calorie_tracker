@@ -17,6 +17,16 @@ import static org.mockito.Mockito.verify;
 class RateLimitingFilterTest {
 
     @Test
+    void resetLinkValidationCannotBypassAuthRateLimit() throws Exception {
+        RateLimitingFilter filter = buildFilter(1);
+        FilterChain chain = mock(FilterChain.class);
+        filter.doFilter(post("/api/v1/auth/password-reset/validate"), new MockHttpServletResponse(), chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(post("/api/v1/auth/password-reset/validate"), response, chain);
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
     void aiRoutesShareBudgetAcrossFeaturesAndDifferentPlanIds() throws Exception {
         RateLimitingFilter filter = buildFilter(1);
         ReflectionTestUtils.setField(filter, "aiDraftMaxRequestsPerMinute", 1);

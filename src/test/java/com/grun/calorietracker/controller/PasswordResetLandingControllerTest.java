@@ -28,9 +28,20 @@ class PasswordResetLandingControllerTest {
                 .contains("'/open/plans':'pro-upgrade'")
                 .contains("/api/v1/auth/email-verification/confirm")
                 .contains("/api/v1/auth/password-reset/confirm")
+                .contains("/api/v1/auth/password-reset/validate")
+                .contains("/email-assets/grun-logo.png", "font-family:Questrial")
                 .contains("window.history.replaceState")
                 .doesNotContain("localStorage", "sessionStorage");
-        assertThat(response.getHeaders().getFirst("Content-Security-Policy")).contains("connect-src 'self'");
+        assertThat(response.getHeaders().getFirst("Content-Security-Policy"))
+                .contains("connect-src 'self'", "font-src 'self'", "img-src 'self'");
+    }
+
+    @Test
+    void brandFontIsBundledLocally() throws Exception {
+        ResponseEntity<Resource> response = controller.appFont();
+        assertThat(response.getHeaders().getContentType().toString()).isEqualTo("font/ttf");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().contentLength()).isGreaterThan(10_000);
     }
 
     @Test

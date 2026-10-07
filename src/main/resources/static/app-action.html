@@ -1,30 +1,109 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="color-scheme" content="light dark">
-  <title>GRUN</title>
-  <style>
-    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#211527;background:#f7f6f8}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px}main{width:min(100%,460px);padding:32px;border:1px solid #e2dce6;border-radius:18px;background:#fff;box-shadow:0 16px 45px rgba(55,29,67,.1);text-align:center}.mark{width:64px;height:64px;margin:0 auto 20px;display:grid;place-items:center;border-radius:18px;background:#f0e4f8;color:#6812a3;font-size:30px;font-weight:700}h1{margin:0 0 12px;font-size:24px}p{margin:0 0 22px;color:#655b69;line-height:1.55}.actions{display:grid;gap:12px}button,a.button{width:100%;min-height:50px;padding:13px 20px;border:1px solid #6812a3;border-radius:999px;background:#6812a3;color:#fff;text-decoration:none;font:600 16px inherit;cursor:pointer}button:disabled{opacity:.55;cursor:default}form{display:grid;gap:13px;text-align:left}label{display:grid;gap:6px;color:#4a404f;font-size:14px}input{width:100%;min-height:48px;padding:11px 13px;border:1px solid #cfc5d4;border-radius:12px;background:#fff;color:#211527;font:16px inherit}.hint{margin:0;color:#766c7a;font-size:13px}.status{margin:18px 0 0;padding:13px;border-radius:12px;background:#f5eff8;color:#4f2468}.status.error{background:#fff0f0;color:#a92222}.hidden{display:none!important}@media(prefers-color-scheme:dark){:root,body{background:#17131a;color:#f8f4fa}main{background:#211b24;border-color:#3d3342}p,.hint{color:#c8bdcc}label{color:#e5dce8}input{background:#17131a;border-color:#5c4d63;color:#fff}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>GRUN</title>
+<style>
+@font-face{font-family:Questrial;src:url('/app-assets/questrial-regular.ttf') format('truetype');font-display:swap}
+:root{font-family:Questrial,sans-serif;color:#201c25;background:#fafafa;color-scheme:light}
+*{box-sizing:border-box;letter-spacing:0}body{margin:0;min-height:100vh;padding:32px 24px}
+main{width:100%;max-width:460px;margin:0 auto;padding:16px 0 32px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:44px;font-size:24px}.brand img{border-radius:12px}
+h1{font-size:32px;font-weight:400;margin:0 0 16px;overflow-wrap:anywhere}p{color:#6c6573;line-height:1.6;margin:0 0 24px;font-size:17px}
+.actions{display:grid;gap:12px}button,a.button{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;padding:14px 20px;border:0;border-radius:28px;background:#7b1bc4;color:white;text-decoration:none;font:inherit;font-size:17px;cursor:pointer;text-align:center}
+button:disabled{opacity:.55;cursor:default}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #a67bd5;outline-offset:3px}
+form{display:grid;gap:20px;text-align:left}label{display:block;margin-bottom:8px;font-size:15px;color:#6c6573}.field{position:relative}
+input{width:100%;height:56px;padding:14px 56px 14px 16px;border:1px solid #dcd8e0;border-radius:14px;background:transparent;color:inherit;font:inherit;font-size:17px}
+.visibility{position:absolute;right:4px;top:6px;width:44px;min-height:44px;height:44px;padding:10px;border-radius:8px;background:transparent;color:#78717f}
+.visibility svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7}.visibility[aria-pressed=true]{color:#7b1bc4}
+.hint{font-size:14px;line-height:1.5;margin:0}.divider{margin:24px 0;text-align:center;font-size:14px}.status{padding:16px;margin:24px 0;background:#f1ebfa;border-radius:8px;color:#57326f;font-size:16px}.status.error{background:#fff0f1;color:#b02b43}
+.footer{margin:24px 0;text-align:center}.footer a{color:#7b1bc4;font-size:16px}.hidden{display:none!important}
+#retry{margin-top:16px} @media(min-width:768px){body{padding-top:64px}}
+@media(prefers-color-scheme:dark){:root{background:#17141b;color:#f8f5fa;color-scheme:dark}p,label{color:#c5becd}input{border-color:#5b5263}.status{background:#30223f;color:#e1d1f4}.status.error{background:#3a202a;color:#ffb8c6}.footer a,.visibility[aria-pressed=true]{color:#c494ee}}
+</style>
 </head>
 <body>
 <main>
-  <div class="mark" aria-hidden="true">G</div><h1 id="title">Continue in GRUN</h1><p id="message">Open the GRUN app to continue.</p>
-  <div id="verify-actions" class="actions hidden"><a id="open-app" class="button" href="#">Open GRUN</a><button id="verify-browser" type="button">Verify in this browser</button></div>
-  <div id="reset-actions" class="hidden"><div class="actions"><a id="open-reset-app" class="button" href="#">Open GRUN</a></div><p id="or-label" class="hint" style="margin:18px 0">or reset securely in this browser</p><form id="reset-form"><label><span id="password-label">New password</span><input id="password" type="password" autocomplete="new-password" minlength="8" required></label><label><span id="confirm-label">Confirm password</span><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" required></label><p id="password-hint" class="hint">Use at least 8 characters with uppercase, lowercase, a number and a special character.</p><button id="reset-submit" type="submit">Update password</button></form></div>
-  <div id="app-only-actions" class="actions hidden"><a id="open-only-app" class="button" href="#">Open GRUN</a></div><p id="status" class="status hidden" role="status" aria-live="polite"></p>
+<div class="brand"><img src="/email-assets/grun-logo.png" width="48" height="48" alt="GRUN"><span>GRUN</span></div>
+<h1 id="title">Continue in GRUN</h1><p id="message">Open the GRUN app to continue.</p>
+<div id="verify-actions" class="actions hidden"><a id="open-app" class="button" href="#">Open GRUN</a><button id="verify-browser" type="button">Verify in this browser</button></div>
+<div id="reset-actions" class="hidden">
+<a id="open-reset-app" class="button" href="#">Open GRUN</a>
+<p id="or-label" class="divider"></p>
+<form id="reset-form">
+<!-- Eye icons: Lucide v0.475.0, ISC license in app-assets/LUCIDE-LICENSE. -->
+<div><label id="password-label" for="password">New password</label><div class="field"><input id="password" type="password" autocomplete="new-password" minlength="8" required><button class="visibility" data-input="password" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+<div><label id="confirm-label" for="confirm-password">Confirm new password</label><div class="field"><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" required><button class="visibility" data-input="confirm-password" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+<p id="password-hint" class="hint"></p><button id="reset-submit" type="submit">Update password</button>
+</form></div>
+<div id="app-only-actions" class="actions hidden"><a id="open-only-app" class="button" href="#">Open GRUN</a></div>
+<form id="request-form" class="hidden"><div><label id="email-label" for="email">Email</label><input id="email" type="email" autocomplete="email" maxlength="254" required></div><button id="request-submit" type="submit"></button></form>
+<p id="status" class="status hidden" role="status" aria-live="polite"></p>
+<button id="retry" type="button" class="hidden"></button>
+<p id="new-link-wrap" class="footer hidden"><a id="new-link" href="/forgot-password"></a></p>
 </main>
 <script>
 (function(){'use strict';
-var path=window.location.pathname,allowed={'/verify-email':'verify-email','/reset-password':'reset-password','/open/plans':'pro-upgrade','/open/notifications':'notifications','/open/profile':'profile'},target=allowed[path],query=new URLSearchParams(window.location.search),token=query.get('token')||'',isTr=(query.get('lang')||'').toLowerCase()==='tr';document.documentElement.lang=isTr?'tr':'en';if(!target){window.location.replace('/');return;}
-var safeQuery=new URLSearchParams();if((target==='verify-email'||target==='reset-password')&&token)safeQuery.set('token',token);if(isTr)safeQuery.set('lang','tr');var appUrl='grun://'+target+(safeQuery.toString()?'?'+safeQuery.toString():'');if(window.history&&window.history.replaceState)window.history.replaceState({},document.title,path+(isTr?'?lang=tr':''));
-var copy=isTr?{verifyTitle:'E-posta adresini doğrula',verifyMessage:'GRUN uygulamasında devam et veya e-posta adresini bu tarayıcıda doğrula.',open:'GRUN’da aç',verify:'Bu tarayıcıda doğrula',verifying:'E-posta adresin doğrulanıyor…',verified:'E-posta adresin doğrulandı. Artık GRUN uygulamasına dönebilirsin.',resetTitle:'Şifreni sıfırla',resetMessage:'GRUN uygulamasında devam et veya şifreni bu tarayıcıda güvenli şekilde değiştir.',or:'veya bu tarayıcıda güvenli şekilde sıfırla',password:'Yeni şifre',confirm:'Yeni şifreyi doğrula',hint:'En az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter kullan.',update:'Şifreyi güncelle',updating:'Şifre güncelleniyor…',updated:'Şifren güncellendi. Artık GRUN’da giriş yapabilirsin.',mismatch:'Şifreler eşleşmiyor.',policy:'Şifre güvenlik koşullarını karşılamıyor.',invalid:'Bu bağlantı geçersiz, kullanılmış veya süresi dolmuş. Uygulamadan yeni bir bağlantı iste.',appTitle:'GRUN’da devam et',appMessage:'Bu bağlantı GRUN uygulamasındaki ilgili ekranı açar.'}:{verifyTitle:'Verify your email',verifyMessage:'Continue in the GRUN app or verify your email in this browser.',open:'Open GRUN',verify:'Verify in this browser',verifying:'Verifying your email…',verified:'Your email is verified. You can now return to the GRUN app.',resetTitle:'Reset your password',resetMessage:'Continue in the GRUN app or securely change your password in this browser.',or:'or reset securely in this browser',password:'New password',confirm:'Confirm new password',hint:'Use at least 8 characters with uppercase, lowercase, a number and a special character.',update:'Update password',updating:'Updating password…',updated:'Your password has been updated. You can now sign in to GRUN.',mismatch:'Passwords do not match.',policy:'The password does not meet the security requirements.',invalid:'This link is invalid, used, or expired. Request a new link from the app.',appTitle:'Continue in GRUN',appMessage:'This link opens the related screen in the GRUN app.'};
-var title=document.getElementById('title'),message=document.getElementById('message'),status=document.getElementById('status');function showStatus(text,error){status.textContent=text;status.className='status'+(error?' error':'');}function setBusy(button,busy,label){button.disabled=busy;button.textContent=label;}async function post(url,body){var response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},credentials:'omit',cache:'no-store',body:JSON.stringify(body)});if(!response.ok)throw new Error('request_failed');return response;}
-if(target==='verify-email'){title.textContent=copy.verifyTitle;message.textContent=copy.verifyMessage;var verifyActions=document.getElementById('verify-actions'),open=document.getElementById('open-app'),verify=document.getElementById('verify-browser');verifyActions.classList.remove('hidden');open.href=appUrl;open.textContent=copy.open;verify.textContent=copy.verify;if(!token){verify.disabled=true;showStatus(copy.invalid,true);}verify.addEventListener('click',async function(){setBusy(verify,true,copy.verifying);try{await post('/api/v1/auth/email-verification/confirm',{token:token});verifyActions.classList.add('hidden');showStatus(copy.verified,false);}catch(e){setBusy(verify,false,copy.verify);showStatus(copy.invalid,true);}});return;}
-if(target==='reset-password'){title.textContent=copy.resetTitle;message.textContent=copy.resetMessage;var resetActions=document.getElementById('reset-actions'),openReset=document.getElementById('open-reset-app'),form=document.getElementById('reset-form'),submit=document.getElementById('reset-submit');resetActions.classList.remove('hidden');openReset.href=appUrl;openReset.textContent=copy.open;document.getElementById('or-label').textContent=copy.or;document.getElementById('password-label').textContent=copy.password;document.getElementById('confirm-label').textContent=copy.confirm;document.getElementById('password-hint').textContent=copy.hint;submit.textContent=copy.update;if(!token){Array.from(form.elements).forEach(function(el){el.disabled=true;});showStatus(copy.invalid,true);return;}form.addEventListener('submit',async function(event){event.preventDefault();var password=document.getElementById('password').value,confirm=document.getElementById('confirm-password').value,pattern=/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;if(password!==confirm){showStatus(copy.mismatch,true);return;}if(!pattern.test(password)){showStatus(copy.policy,true);return;}setBusy(submit,true,copy.updating);try{await post('/api/v1/auth/password-reset/confirm',{token:token,newPassword:password});form.classList.add('hidden');showStatus(copy.updated,false);}catch(e){setBusy(submit,false,copy.update);showStatus(copy.invalid,true);}});return;}
-title.textContent=copy.appTitle;message.textContent=copy.appMessage;var appOnly=document.getElementById('app-only-actions'),openOnly=document.getElementById('open-only-app');appOnly.classList.remove('hidden');openOnly.href=appUrl;openOnly.textContent=copy.open;
+const path=window.location.pathname,allowed={'/verify-email':'verify-email','/reset-password':'reset-password','/forgot-password':'forgot-password','/open/plans':'pro-upgrade','/open/notifications':'notifications','/open/profile':'profile'},target=allowed[path],query=new URLSearchParams(window.location.search),isTr=(query.get('lang')||'').toLowerCase()==='tr';
+let token=query.get('token')||'',finished=false,checking=false,submitting=false,autoOpened=false;
+document.documentElement.lang=isTr?'tr':'en';if(!target){window.location.replace('/');return;}
+const safeQuery=new URLSearchParams();if((target==='verify-email'||target==='reset-password')&&token)safeQuery.set('token',token);if(isTr)safeQuery.set('lang','tr');
+const appUrl='grun://'+target+(safeQuery.toString()?'?'+safeQuery.toString():'');
+if(window.history&&window.history.replaceState)window.history.replaceState({},document.title,path+(isTr?'?lang=tr':''));
+const copy=isTr?{
+verifyTitle:'E-posta adresini doğrula',verifyMessage:'GRUN uygulamasında devam et veya e-posta adresini bu tarayıcıda doğrula.',open:'GRUN’da aç',verify:'Bu tarayıcıda doğrula',verifying:'E-posta adresin doğrulanıyor...',verified:'E-posta adresin doğrulandı. Artık GRUN uygulamasına dönebilirsin.',
+resetTitle:'Şifreni sıfırla',resetMessage:'GRUN uygulamasında devam et veya şifreni bu tarayıcıda güvenli şekilde değiştir.',or:'veya bu tarayıcıda devam et',password:'Yeni şifre',confirm:'Yeni şifreyi doğrula',hint:'En az 8 karakter; büyük harf, küçük harf, rakam ve özel karakter kullan.',update:'Şifreyi güncelle',updating:'Şifre güncelleniyor...',updated:'Şifren güncellendi. Artık GRUN’da giriş yapabilirsin.',mismatch:'Şifreler eşleşmiyor.',policy:'Şifre güvenlik koşullarını karşılamıyor.',invalidTitle:'Bu bağlantı artık geçerli değil',invalid:'Bağlantı geçersiz, kullanılmış veya süresi dolmuş. Devam etmek için yeni bir bağlantı iste.',checking:'Bağlantın kontrol ediliyor...',unavailable:'Bağlantı şu anda kontrol edilemiyor. Lütfen tekrar dene.',failed:'İşlem tamamlanamadı. Lütfen tekrar dene.',retry:'Tekrar dene',request:'Yeni bağlantı iste',requestMessage:'Şifre sıfırlama bağlantısını göndermemiz için e-posta adresini gir.',email:'E-posta',sending:'Gönderiliyor...',sent:'Bu e-posta adresiyle kayıtlı bir hesap varsa şifre sıfırlama bağlantısı gönderildi.',show:'Şifreyi göster',hide:'Şifreyi gizle',appTitle:'GRUN’da devam et',appMessage:'Bu bağlantı GRUN uygulamasındaki ilgili ekranı açar.'
+}:{
+verifyTitle:'Verify your email',verifyMessage:'Continue in the GRUN app or verify your email in this browser.',open:'Open GRUN',verify:'Verify in this browser',verifying:'Verifying your email...',verified:'Your email is verified. You can now return to GRUN.',
+resetTitle:'Reset your password',resetMessage:'Continue in the GRUN app or securely change your password in this browser.',or:'or continue in this browser',password:'New password',confirm:'Confirm new password',hint:'Use at least 8 characters with uppercase, lowercase, a number and a special character.',update:'Update password',updating:'Updating password...',updated:'Your password has been updated. You can now sign in to GRUN.',mismatch:'Passwords do not match.',policy:'The password does not meet the security requirements.',invalidTitle:'This link is no longer valid',invalid:'This link is invalid, used, or expired. Request a new link to continue.',checking:'Checking your link...',unavailable:'Your link could not be checked right now. Please try again.',failed:'The request could not be completed. Please try again.',retry:'Try again',request:'Request a new link',requestMessage:'Enter your email address to receive a password reset link.',email:'Email',sending:'Sending...',sent:'If an account exists with this email address, a password reset link has been sent.',show:'Show password',hide:'Hide password',appTitle:'Continue in GRUN',appMessage:'This link opens the related screen in the GRUN app.'
+};
+const el=id=>document.getElementById(id),hide=id=>el(id).classList.add('hidden'),show=id=>el(id).classList.remove('hidden');
+function status(text,error=false){el('status').textContent=text;el('status').className='status'+(error?' error':'');}
+function busy(button,value,label){button.disabled=value;button.textContent=label;}
+async function post(url,body){
+const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
+try{const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','Accept-Language':isTr?'tr':'en'},credentials:'omit',cache:'no-store',signal:controller.signal,body:JSON.stringify(body)});
+if(!response.ok){const error=new Error('request_failed');error.status=response.status;throw error;}return response;
+}finally{clearTimeout(timeout);}}
+function maybeOpenApp(){const mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(!mobile||autoOpened||document.visibilityState==='hidden')return;autoOpened=true;try{window.location.assign(appUrl);}catch(e){/* Browser may require a user gesture. */}}
+function invalidate(){finished=true;token='';el('password').value='';el('confirm-password').value='';hide('reset-actions');hide('retry');el('title').textContent=copy.invalidTitle;el('message').textContent=copy.invalid;hide('status');show('new-link-wrap');}
+async function validateReset(autoRedirect=false){
+if(finished||checking||submitting)return;checking=true;hide('reset-actions');hide('retry');status(copy.checking);
+try{if(!token||token.length>512){invalidate();return;}
+const result=await(await post('/api/v1/auth/password-reset/validate',{token})).json();
+if(result.valid===false){invalidate();return;}if(result.valid!==true)throw new Error('invalid_response');
+show('reset-actions');hide('status');if(autoRedirect)maybeOpenApp();
+}catch(e){status(copy.unavailable,true);show('retry');}finally{checking=false;}}
+el('new-link').href='/forgot-password'+(isTr?'?lang=tr':'');el('new-link').textContent=copy.request;
+el('retry').textContent=copy.retry;el('retry').addEventListener('click',()=>validateReset());
+document.querySelectorAll('.visibility').forEach(button=>{button.title=copy.show;button.setAttribute('aria-label',copy.show);button.addEventListener('click',()=>{const input=el(button.dataset.input),visible=input.type==='password';input.type=visible?'text':'password';button.setAttribute('aria-pressed',String(visible));button.title=visible?copy.hide:copy.show;button.setAttribute('aria-label',button.title);});});
+['password','confirm-password'].forEach(id=>el(id).addEventListener('input',()=>{if(!submitting&&!checking&&!finished)hide('status');}));
+if(target==='reset-password'){
+el('title').textContent=copy.resetTitle;el('message').textContent=copy.resetMessage;el('open-reset-app').href=appUrl;el('open-reset-app').textContent=copy.open;
+el('or-label').textContent=copy.or;el('password-label').textContent=copy.password;el('confirm-label').textContent=copy.confirm;el('password-hint').textContent=copy.hint;el('reset-submit').textContent=copy.update;
+el('reset-form').addEventListener('submit',async event=>{
+event.preventDefault();if(finished||checking||submitting||!token)return;
+const password=el('password').value,confirm=el('confirm-password').value,pattern=/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
+if(password!==confirm){status(copy.mismatch,true);return;}if(!pattern.test(password)){status(copy.policy,true);return;}
+submitting=true;busy(el('reset-submit'),true,copy.updating);
+try{await post('/api/v1/auth/password-reset/confirm',{token,newPassword:password});finished=true;token='';el('password').value='';el('confirm-password').value='';hide('reset-form');hide('or-label');el('open-reset-app').href='grun://login';status(copy.updated);
+}catch(e){status(copy.failed,true);if(e.status===400){try{const result=await(await post('/api/v1/auth/password-reset/validate',{token})).json();if(result.valid===false)invalidate();}catch(checkError){/* Keep retry available after a transient failure. */}}}
+finally{submitting=false;busy(el('reset-submit'),false,copy.update);}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')validateReset();});
+window.addEventListener('pageshow',event=>{if(event.persisted)validateReset();});validateReset(true);return;
+}
+if(target==='forgot-password'){
+el('title').textContent=copy.resetTitle;el('message').textContent=copy.requestMessage;el('email-label').textContent=copy.email;el('request-submit').textContent=copy.request;show('request-form');
+el('request-form').addEventListener('submit',async event=>{event.preventDefault();if(submitting)return;submitting=true;busy(el('request-submit'),true,copy.sending);try{await post('/api/v1/auth/password-reset/request',{email:el('email').value.trim()});el('email').value='';hide('request-form');status(copy.sent);}catch(e){status(copy.failed,true);}finally{submitting=false;busy(el('request-submit'),false,copy.request);}});return;
+}
+if(target==='verify-email'){
+el('title').textContent=copy.verifyTitle;el('message').textContent=copy.verifyMessage;el('open-app').href=appUrl;el('open-app').textContent=copy.open;el('verify-browser').textContent=copy.verify;
+if(!token){status(copy.invalid,true);return;}show('verify-actions');maybeOpenApp();
+el('verify-browser').addEventListener('click',async()=>{busy(el('verify-browser'),true,copy.verifying);try{await post('/api/v1/auth/email-verification/confirm',{token});token='';hide('verify-actions');status(copy.verified);}catch(e){status(e.status===400?copy.invalid:copy.failed,true);busy(el('verify-browser'),false,copy.verify);}});return;
+}
+el('title').textContent=copy.appTitle;el('message').textContent=copy.appMessage;el('open-only-app').href=appUrl;el('open-only-app').textContent=copy.open;show('app-only-actions');maybeOpenApp();
 }());
 </script>
 </body>

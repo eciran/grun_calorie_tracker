@@ -63,6 +63,16 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private long requestCooldownSeconds;
 
     @Override
+    @Transactional(readOnly = true)
+    public boolean isPasswordResetTokenValid(String rawToken) {
+        if (rawToken == null || rawToken.isBlank() || rawToken.length() > 512) return false;
+        return passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(hashToken(rawToken))
+                .filter(token -> token.getUsedAt() == null && token.getUser() != null)
+                .filter(token -> token.getExpiresAt() != null && token.getExpiresAt().isAfter(LocalDateTime.now()))
+                .isPresent();
+    }
+
+    @Override
     @Transactional
     public PasswordResetResponseDto requestPasswordReset(PasswordResetRequestDto request) {
         userRepository.findByEmailForUpdate(request.getEmail()).ifPresent(user -> {

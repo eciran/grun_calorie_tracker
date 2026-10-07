@@ -359,6 +359,14 @@ public class AuthController {
         return ResponseEntity.ok(passwordResetService.requestPasswordReset(request));
     }
 
+    @PostMapping("/password-reset/validate")
+    @Operation(summary = "Check a password reset link without consuming it")
+    public ResponseEntity<java.util.Map<String, Boolean>> validatePasswordResetToken(
+            @RequestBody @Valid com.grun.calorietracker.dto.PasswordResetTokenValidationRequestDto request) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(java.util.Map.of("valid", passwordResetService.isPasswordResetTokenValid(request.token())));
+    }
+
     @PostMapping("/password-reset/confirm")
     @Operation(
             summary = "Confirm password reset",

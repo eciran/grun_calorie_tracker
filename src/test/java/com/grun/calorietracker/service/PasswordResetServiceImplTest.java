@@ -85,6 +85,49 @@ class PasswordResetServiceImplTest {
     }
 
     @Test
+    void validationCanBeRepeatedWithoutConsumingTokenOrChangingPassword() {
+        PasswordResetTokenEntity token = new PasswordResetTokenEntity();
+        token.setUser(user);
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+        when(passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(token));
+
+        assertThat(passwordResetService.isPasswordResetTokenValid("raw-token")).isTrue();
+        assertThat(passwordResetService.isPasswordResetTokenValid("raw-token")).isTrue();
+        assertThat(token.getUsedAt()).isNull();
+        assertThat(user.getPassword()).isEqualTo("old-password");
+        verify(passwordResetTokenRepository, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(passwordEncoder, refreshTokenService, passwordResetMailSender);
+    }
+
+    @Test
+    void validationRejectsExpiredUsedOrOrphanedTokens() {
+        PasswordResetTokenEntity token = new PasswordResetTokenEntity();
+        token.setUser(user);
+        token.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        when(passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(token));
+        assertThat(passwordResetService.isPasswordResetTokenValid("raw-token")).isFalse();
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+        token.setUsedAt(LocalDateTime.now());
+        assertThat(passwordResetService.isPasswordResetTokenValid("raw-token")).isFalse();
+        token.setUsedAt(null);
+        token.setUser(null);
+        assertThat(passwordResetService.isPasswordResetTokenValid("raw-token")).isFalse();
+        verify(passwordResetTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void validationRejectsMissingMalformedAndUnknownTokens() {
+        assertThat(passwordResetService.isPasswordResetTokenValid(null)).isFalse();
+        assertThat(passwordResetService.isPasswordResetTokenValid(" ")).isFalse();
+        assertThat(passwordResetService.isPasswordResetTokenValid("x".repeat(513))).isFalse();
+        org.mockito.Mockito.verifyNoInteractions(passwordResetTokenRepository);
+        when(passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(anyString())).thenReturn(Optional.empty());
+        assertThat(passwordResetService.isPasswordResetTokenValid("unknown")).isFalse();
+    }
+
+    @Test
     void requestPasswordReset_whenUserExists_createsHashedTokenAndSendsMail() {
         PasswordResetRequestDto request = new PasswordResetRequestDto();
         request.setEmail("user@example.com");
