@@ -48,10 +48,22 @@ class PostgresTokenConcurrencyTest {
     @MockBean PasswordResetMailSender resetMail;
     @MockBean MailDeliveryService mail;
     @MockBean AdminAuditService audit;
-    @MockBean UserActivityService activity;
+    @org.springframework.boot.test.mock.mockito.SpyBean UserActivityService activity;
     @MockBean TotpService totp;
     @MockBean AdminMfaSecretCipher cipher;
     @MockBean AdminSecurityAlertService alerts;
+
+    @Test void refreshWithRealActivityRecorderCompletesWithoutWaitingOnItsOwnUserLock() {
+        UserEntity user = user();
+        String raw = refresh.createRefreshToken(user);
+
+        var result = org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
+                java.time.Duration.ofSeconds(5), () -> refresh.refreshAccessToken(raw));
+
+        assertThat(result.getToken()).isNotBlank();
+        assertThat(users.findById(user.getId()).orElseThrow().getLastActiveAt()).isNotNull();
+        verify(activity).recordActivity(user.getEmail(), com.grun.calorietracker.enums.UserActivitySource.TOKEN_REFRESH);
+    }
 
     @Test void concurrentRefreshMintsExactlyOneReplacementAndDoesNotRevokeWinner() throws Exception {
         UserEntity user = user();

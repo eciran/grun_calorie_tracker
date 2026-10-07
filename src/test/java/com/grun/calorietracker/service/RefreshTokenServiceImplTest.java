@@ -57,6 +57,41 @@ class RefreshTokenServiceImplTest {
         user.setEmailVerified(true);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void refreshAccessToken_recordsActivityOnlyAfterSuccessfulCommit(boolean committed) {
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findAuthTokenVersionById(1L)).thenReturn(Optional.of(0L));
+        RefreshTokenEntity existing = new RefreshTokenEntity();
+        existing.setUser(user);
+        existing.setExpiresAt(LocalDateTime.now().plusDays(1));
+        when(refreshTokenRepository.findByTokenHashAndRevokedAtIsNullAndUsedAtIsNull(anyString()))
+                .thenReturn(Optional.of(existing));
+        when(jwtUtil.generateUserToken(user)).thenReturn("access-token");
+        when(jwtUtil.getExpirationSeconds()).thenReturn(900L);
+
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            refreshTokenService.refreshAccessToken("raw-refresh-token");
+            org.mockito.Mockito.verifyNoInteractions(userActivityService);
+            var callbacks = org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations();
+            assertThat(callbacks).hasSize(1);
+            if (committed) {
+                callbacks.forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+                verify(userActivityService).recordActivity(user.getEmail(),
+                        com.grun.calorietracker.enums.UserActivitySource.TOKEN_REFRESH);
+            } else {
+                callbacks.forEach(callback -> callback.afterCompletion(
+                        org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK));
+                org.mockito.Mockito.verifyNoInteractions(userActivityService);
+            }
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+            org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+    }
+
     @Test
     void createRefreshToken_savesHashAndReturnsRawToken() {
         String rawToken = refreshTokenService.createRefreshToken(user);

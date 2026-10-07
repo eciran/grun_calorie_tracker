@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -99,7 +101,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         token.setUsedAt(consumedAt);
         String newRefreshToken = createRefreshToken(managedUser);
         String accessToken = jwtUtil.generateUserToken(managedUser);
-        recordActivitySafely(managedUser.getEmail());
+        recordActivityAfterCommit(managedUser.getEmail());
 
         return new AuthResponse(accessToken, newRefreshToken, "Bearer", jwtUtil.getExpirationSeconds(), "Token refreshed successfully");
     }
@@ -128,6 +130,21 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         LocalDateTime now = LocalDateTime.now();
         refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user)
                 .forEach(token -> token.setRevokedAt(now));
+    }
+
+    private void recordActivityAfterCommit(String email) {
+        // Activity uses REQUIRES_NEW and locks the same user; release the refresh lock first.
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    recordActivitySafely(email);
+                }
+            });
+            return;
+        }
+        recordActivitySafely(email);
     }
 
     private void recordActivitySafely(String email) {
