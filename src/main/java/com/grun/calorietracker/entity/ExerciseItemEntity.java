@@ -20,6 +20,11 @@ public class ExerciseItemEntity {
 
     private String name;
     private String metCode;
+    /** 2024 Adult Compendium metabolic equivalent. */
+    private Double metValue;
+    private String intensityLevel;
+    private String compendiumCode;
+    /** Legacy fallback retained for older clients and users without a body weight. */
     private Double caloriesPerMinute;
     private String description;
     private String iconUrl;

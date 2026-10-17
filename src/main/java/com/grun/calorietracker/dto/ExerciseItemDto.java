@@ -5,7 +5,6 @@ import com.grun.calorietracker.enums.ExerciseLogMeasurementType;
 import com.grun.calorietracker.enums.ExerciseTechniqueReviewStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -31,9 +30,18 @@ public class ExerciseItemDto {
     @Schema(description = "MET code or internal activity code.", example = "RUNNING_GENERAL", requiredMode = Schema.RequiredMode.REQUIRED)
     private String metCode;
 
-    @NotNull(message = "{validation.exercise-item.calories-per-minute.required}")
+    @Positive(message = "{validation.exercise-item.met-value.positive}")
+    @Schema(description = "Metabolic equivalent used for weight-aware calorie estimation.", example = "7.5")
+    private Double metValue;
+
+    @Schema(description = "Intensity represented by the MET value.", example = "VIGOROUS")
+    private String intensityLevel;
+
+    @Schema(description = "2024 Adult Compendium activity code when applicable.", example = "02020")
+    private String compendiumCode;
+
     @Positive(message = "{validation.exercise-item.calories-per-minute.positive}")
-    @Schema(description = "Estimated calories burned per minute.", example = "10.5", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Legacy calories-per-minute fallback. New estimates use metValue and user weight.", example = "10.5")
     private Double caloriesPerMinute;
 
     @Schema(description = "Exercise description.", example = "General outdoor running activity.")
@@ -96,4 +104,11 @@ public class ExerciseItemDto {
     private String reviewAssignee;
     private java.time.LocalDateTime reviewDueAt;
     private java.time.LocalDateTime reviewClaimedAt;
+
+    @jakarta.validation.constraints.AssertTrue(message = "Either metValue or legacy caloriesPerMinute must be positive.")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isEnergyEstimateConfigured() {
+        return (metValue != null && metValue > 0)
+                || (caloriesPerMinute != null && caloriesPerMinute > 0);
+    }
 }

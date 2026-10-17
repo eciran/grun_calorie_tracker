@@ -103,6 +103,9 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
 
         existing.setName(dto.getName());
         existing.setMetCode(normalizeMetCode(dto.getMetCode()));
+        existing.setMetValue(dto.getMetValue());
+        existing.setIntensityLevel(dto.getIntensityLevel());
+        existing.setCompendiumCode(dto.getCompendiumCode());
         existing.setCaloriesPerMinute(dto.getCaloriesPerMinute());
         existing.setDescription(dto.getDescription());
         existing.setIconUrl(dto.getIconUrl());
@@ -141,6 +144,13 @@ public class ExerciseItemServiceImpl implements ExerciseItemService {
     }
 
     private void applyCatalogDefaults(ExerciseItemEntity entity) {
+        if (entity.getMetValue() == null && entity.getCaloriesPerMinute() != null) {
+            entity.setMetValue(entity.getCaloriesPerMinute());
+        }
+        if (entity.getIntensityLevel() == null && entity.getMetValue() != null) {
+            entity.setIntensityLevel(entity.getMetValue() < 3.0 ? "LIGHT"
+                    : entity.getMetValue() < 6.0 ? "MODERATE" : "VIGOROUS");
+        }
         if (entity.getAiEligible() == null) {
             entity.setAiEligible(true);
         }
