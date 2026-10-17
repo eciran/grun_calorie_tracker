@@ -59,8 +59,13 @@ public class OwnerErrorCaptureFilter implements Filter {
         if (!state.finished.compareAndSet(false,true) || response.getStatus()<400 || response.getStatus()>599) return;
         try {
             PathContainer path = PathContainer.parsePath(state.path);
-            String route = patterns.get().stream().filter(pattern -> pattern.matches(path))
-                .sorted(PathPattern.SPECIFICITY_COMPARATOR).map(PathPattern::getPatternString).filter(value -> value.startsWith("/api/") && value.length()<=300).findFirst().orElseGet(() -> unmappedRoute(state.path));
+            Optional<String> mappedRoute = patterns.get().stream().filter(pattern -> pattern.matches(path))
+                .sorted(PathPattern.SPECIFICITY_COMPARATOR).map(PathPattern::getPatternString)
+                .filter(value -> value.startsWith("/api/") && value.length()<=300).findFirst();
+            // Anonymous probes against random API paths are expected internet noise, not application errors.
+            // Keep known-route authentication failures and all other unmapped failures observable.
+            if (mappedRoute.isEmpty() && response.getStatus() == HttpServletResponse.SC_UNAUTHORIZED) return;
+            String route = mappedRoute.orElseGet(() -> unmappedRoute(state.path));
             String cid = Objects.toString(request.getAttribute(CorrelationIdFilter.CORRELATION_ID_ATTRIBUTE), "");
             if (!cid.matches("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")) cid=null;
             String method = Set.of("GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS","TRACE").contains(state.method) ? state.method : "OTHER";

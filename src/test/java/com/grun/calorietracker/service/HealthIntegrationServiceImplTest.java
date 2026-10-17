@@ -438,6 +438,47 @@ class HealthIntegrationServiceImplTest {
         assertEquals(LocalDateTime.of(2026, 7, 2, 18, 30), connection.getLastSyncAt());
         verify(healthConnectionRepository, atLeastOnce()).save(connection);
     }
+
+    @Test
+    void syncWorkout_withoutProviderCalories_usesMetAndUserWeight() {
+        user.setWeight(70.0);
+        HealthConnectionEntity connection = new HealthConnectionEntity();
+        connection.setUser(user);
+        connection.setProvider(HealthProvider.HEALTH_CONNECT);
+        connection.setStatus(HealthConnectionStatus.CONNECTED);
+
+        ExerciseItemEntity running = new ExerciseItemEntity();
+        running.setId(3L);
+        running.setName("Running");
+        running.setDefaultMeasurementType(ExerciseLogMeasurementType.DISTANCE);
+        running.setMetValue(8.0);
+        running.setCaloriesPerMinute(99.0); // Must not win when MET and body weight are available.
+        running.setActive(true);
+
+        ExerciseProviderActivityMappingEntity mapping = new ExerciseProviderActivityMappingEntity();
+        mapping.setExerciseItem(running);
+
+        HealthWorkoutSyncRequestDto request = new HealthWorkoutSyncRequestDto();
+        request.setExternalId("health-connect-workout-1");
+        request.setProviderActivityType("RUNNING");
+        request.setDurationMinutes(30);
+        request.setDistanceKm(5.0);
+        request.setStartedAt(LocalDateTime.of(2026, 10, 15, 18, 0));
+
+        when(healthConnectionRepository.findByUserAndProvider(user, HealthProvider.HEALTH_CONNECT))
+                .thenReturn(Optional.of(connection));
+        when(exerciseProviderActivityMappingRepository.findByProviderAndNormalizedProviderActivityTypeAndActiveTrue(
+                HealthProvider.HEALTH_CONNECT, "RUNNING"))
+                .thenReturn(Optional.of(mapping));
+        when(exerciseLogsService.addExerciseLogFromExternal(any(ExerciseLogsDto.class), eq("user@example.com")))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.syncWorkout("user@example.com", HealthProvider.HEALTH_CONNECT, request);
+
+        verify(exerciseLogsService).addExerciseLogFromExternal(argThat(dto ->
+                dto.getCaloriesBurned().equals(294.0)
+        ), eq("user@example.com"));
+    }
     @Test
     void getRangeSummary_returnsDailyAndRangeTotals() {
         HealthConnectionEntity connection = new HealthConnectionEntity();

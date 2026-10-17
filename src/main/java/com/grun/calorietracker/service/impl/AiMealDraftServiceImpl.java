@@ -64,6 +64,8 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class AiMealDraftServiceImpl implements AiMealDraftService {
 
+    private static final double MAX_PLAUSIBLE_SODIUM_ITEM_MG = 10000.0;
+
 
     private final AiProperties properties;
     private final List<AiMealDraftProviderClient> providerClients;
@@ -745,6 +747,9 @@ public class AiMealDraftServiceImpl implements AiMealDraftService {
         validateNutritionValue(nutrition.getSugar(), "sugar", false);
         validateNutritionValue(nutrition.getSaturatedFat(), "saturated fat", false);
         validateNutritionValue(nutrition.getSodium(), "sodium", false);
+        if (nutrition.getSodium() != null && nutrition.getSodium() > MAX_PLAUSIBLE_SODIUM_ITEM_MG) {
+            throw new IllegalArgumentException("Estimated sodium is implausibly high for one item.");
+        }
         validateNutritionValue(nutrition.getPotassium(), "potassium", false);
         validateNutritionValue(nutrition.getCholesterol(), "cholesterol", false);
         validateNutritionValue(nutrition.getCalcium(), "calcium", false);

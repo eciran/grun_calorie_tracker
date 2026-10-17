@@ -814,18 +814,18 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
                 "fiber", numberSchema(),
                 "sugar", numberSchema(),
                 "saturatedFat", numberSchema(),
-                "sodium", numberSchema(),
-                "potassium", numberSchema(),
-                "cholesterol", numberSchema(),
-                "calcium", numberSchema(),
-                "iron", numberSchema(),
-                "magnesium", numberSchema(),
-                "zinc", numberSchema(),
-                "vitaminA", numberSchema(),
-                "vitaminC", numberSchema(),
-                "vitaminD", numberSchema(),
-                "vitaminE", numberSchema(),
-                "vitaminB12", numberSchema()
+                "sodium", numberSchema("Sodium in milligrams for the complete stated portion; this is sodium, not salt."),
+                "potassium", numberSchema("Potassium in milligrams for the complete stated portion."),
+                "cholesterol", numberSchema("Cholesterol in milligrams for the complete stated portion."),
+                "calcium", numberSchema("Calcium in milligrams for the complete stated portion."),
+                "iron", numberSchema("Iron in milligrams for the complete stated portion."),
+                "magnesium", numberSchema("Magnesium in milligrams for the complete stated portion."),
+                "zinc", numberSchema("Zinc in milligrams for the complete stated portion."),
+                "vitaminA", numberSchema("Vitamin A in micrograms RAE for the complete stated portion."),
+                "vitaminC", numberSchema("Vitamin C in milligrams for the complete stated portion."),
+                "vitaminD", numberSchema("Vitamin D in micrograms for the complete stated portion."),
+                "vitaminE", numberSchema("Vitamin E in milligrams for the complete stated portion."),
+                "vitaminB12", numberSchema("Vitamin B12 in micrograms for the complete stated portion.")
         ));
     }
 
@@ -1128,6 +1128,13 @@ public class OpenAiAiMealDraftProviderClient implements AiMealDraftProviderClien
 
     private Map<String, Object> numberSchema() {
         return Map.of("type", List.of("number", "null"));
+    }
+
+    private Map<String, Object> numberSchema(String description) {
+        return Map.of(
+                "type", List.of("number", "null"),
+                "description", description
+        );
     }
 
     private Map<String, Object> integerSchema() {

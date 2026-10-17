@@ -1227,6 +1227,8 @@ export function accessFeatureValue(access: SubscriptionFeatureAccess | null, fea
       return Boolean(access.workoutLogging);
     case "SAVED_MEAL_TEMPLATES":
       return Boolean(access.savedMealTemplates);
+    case "GROCERY_LIST":
+      return Boolean(access.groceryList);
     case "RECIPE_BUILDER":
       return Boolean(access.recipeBuilder);
     case "PUBLIC_RECIPE_LIBRARY":
@@ -1301,6 +1303,8 @@ export function featureDescription(value?: string): string {
       return "Manual exercise and workout history tracking.";
     case "SAVED_MEAL_TEMPLATES":
       return "Save meals and reuse them in the food diary.";
+    case "GROCERY_LIST":
+      return "Build and manage grocery lists from planned meals and recipes.";
     case "RECIPE_BUILDER":
       return "Create and manage user recipes.";
     case "PUBLIC_RECIPE_LIBRARY":

@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.enums.SubscriptionPlan;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.SubscriptionPlanCountProjection;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserActivityDailyCountProjection;
@@ -53,21 +54,22 @@ class AdminUserAnalyticsServiceImplTest {
     void getAnalytics_groupsUtcRegistrationsByDublinDayAndReturnsPrivacySafeCounts() {
         LocalDate from = LocalDate.of(2026, 3, 29);
         LocalDate to = LocalDate.of(2026, 3, 30);
-        when(userRepository.findRegistrationTimestamps(
+        when(userRepository.findRegistrationTimestampsByRole(
                 Instant.parse("2026-03-29T00:00:00Z"),
-                Instant.parse("2026-03-30T23:00:00Z")
+                Instant.parse("2026-03-30T23:00:00Z"),
+                UserRole.STANDARD
         )).thenReturn(List.of(
                 Instant.parse("2026-03-29T00:30:00Z"),
                 Instant.parse("2026-03-29T23:30:00Z")
         ));
-        when(activityRepository.countDailyActiveUsers(from, to))
+        when(activityRepository.countDailyActiveUsersByRole(from, to, UserRole.STANDARD))
                 .thenReturn(List.of(activity(LocalDate.of(2026, 3, 29), 3)));
-        when(userRepository.count()).thenReturn(10L);
-        when(userRepository.countByCreatedAtIsNull()).thenReturn(4L);
-        when(activityRepository.countDistinctUsersBetween(from, to)).thenReturn(5L);
-        when(activityRepository.countByActivityDate(to)).thenReturn(2L);
-        when(activityRepository.countDistinctUsersBetween(to.minusDays(6), to)).thenReturn(7L);
-        when(activityRepository.countDistinctUsersBetween(to.minusDays(29), to)).thenReturn(9L);
+        when(userRepository.countByRole(UserRole.STANDARD)).thenReturn(10L);
+        when(userRepository.countByRoleAndCreatedAtIsNull(UserRole.STANDARD)).thenReturn(4L);
+        when(activityRepository.countDistinctUsersBetweenByRole(from, to, UserRole.STANDARD)).thenReturn(5L);
+        when(activityRepository.countByActivityDateAndUserRole(to, UserRole.STANDARD)).thenReturn(2L);
+        when(activityRepository.countDistinctUsersBetweenByRole(to.minusDays(6), to, UserRole.STANDARD)).thenReturn(7L);
+        when(activityRepository.countDistinctUsersBetweenByRole(to.minusDays(29), to, UserRole.STANDARD)).thenReturn(9L);
         when(subscriptionRepository.countCurrentUsersByPlan())
                 .thenReturn(List.of(plan(SubscriptionPlan.PLUS, 2), plan(SubscriptionPlan.PRO, 1)));
 

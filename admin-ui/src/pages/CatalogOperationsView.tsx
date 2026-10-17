@@ -27,7 +27,7 @@ type ExerciseOverview={muscleGroups:{category:string;total:number}[];bodyScopes:
 type ExerciseFacets={primaryMuscleGroups:string[];secondaryMuscleGroups:string[];equipment:string[]};
 
 export const EMPTY_EXERCISE: ExerciseCatalogItem = {
-  name: "", metCode: "", caloriesPerMinute: 1, description: "", primaryMuscleGroup: "",
+  name: "", metCode: "", metValue: 3, intensityLevel: "MODERATE", compendiumCode: "", description: "", primaryMuscleGroup: "",
   secondaryMuscleGroups: "", equipment: "", difficulty: "BEGINNER", instructions: "", safetyNotes: "",
   thumbnailUrl: "", videoUrl: "", animationUrl: "", defaultMeasurementType: "DURATION",
   allowedMeasurementTypes: ["DURATION"], aiEligible: false, active: true, sourceName: "", sourceUrl: "",
@@ -107,8 +107,8 @@ export function CatalogOperationsView({ mode, onError }: { mode: CatalogOperatio
   async function saveExercise(event: FormEvent) {
     event.preventDefault();
     const measurements=Array.from(new Set([...(draft.allowedMeasurementTypes??[]),draft.defaultMeasurementType??"DURATION"]));
-    if(!draft.name?.trim()||!draft.metCode?.trim()||!Number.isFinite(Number(draft.caloriesPerMinute))||Number(draft.caloriesPerMinute)<=0){
-      setFormError(tr?"Ad, MET kodu ve sıfırdan büyük kalori değeri zorunludur.":"Name, MET code and a calorie value greater than zero are required.");
+    if(!draft.name?.trim()||!draft.metCode?.trim()||!Number.isFinite(Number(draft.metValue))||Number(draft.metValue)<=0){
+      setFormError(tr?"Ad, aktivite kodu ve sıfırdan büyük MET değeri zorunludur.":"Name, activity code and a MET value greater than zero are required.");
       return;
     }
     setFormError("");
@@ -116,7 +116,8 @@ export function CatalogOperationsView({ mode, onError }: { mode: CatalogOperatio
     try {
       const payload = {
         ...draft,name:draft.name.trim(),metCode:draft.metCode.trim(),
-        caloriesPerMinute: Number(draft.caloriesPerMinute),
+        metValue: Number(draft.metValue),
+        caloriesPerMinute: draft.caloriesPerMinute ? Number(draft.caloriesPerMinute) : undefined,
         allowedMeasurementTypes: measurements,
         sourceLastRefreshedAt: draft.sourceName ? new Date().toISOString().slice(0, 19) : null
       };
@@ -256,7 +257,7 @@ export function CatalogOperationsView({ mode, onError }: { mode: CatalogOperatio
         <DataTable
           columns={["Exercise", "Technique", "Muscles", "Media", "Source", "Owner / SLA", "State"]}
           rows={exerciseRows.map((item) => [
-            <div className="entity-cell"><strong>{item.name ?? "-"}</strong><small>{item.metCode ?? "-"} | {formatValue(item.caloriesPerMinute)} kcal/min</small></div>,
+            <div className="entity-cell"><strong>{item.name ?? "-"}</strong><small>{item.metCode ?? "-"} | {formatValue(item.metValue)} MET</small></div>,
             <Badge value={item.techniqueReviewStatus ?? "PENDING"} tone={item.techniqueReviewStatus === "APPROVED" ? "good" : item.techniqueReviewStatus === "REJECTED" ? "danger" : "warn"} />,
             <div className="entity-cell"><strong>{item.primaryMuscleGroup ?? "-"}</strong><small>{item.equipment ?? "No equipment"}</small></div>,
             <Badge value={item.videoUrl || item.animationUrl || item.thumbnailUrl ? "Available" : "Missing"} tone={item.videoUrl || item.animationUrl || item.thumbnailUrl ? "good" : "warn"} />,
@@ -304,8 +305,10 @@ export function CatalogOperationsView({ mode, onError }: { mode: CatalogOperatio
               <div className="exercise-editor-stage">
               {exerciseEditorTab==="identity"&&<section className="exercise-editor-section"><header><div><span>01</span><div><h3>{tr?"Kimlik ve sınıflandırma":"Identity and classification"}</h3><p>{tr?"Katalogda bulunabilirlik, enerji tahmini ve kas sınıflandırması.":"Catalog discovery, energy estimate and muscle classification."}</p></div></div><Badge value={draft.active===false?(tr?"Pasif":"Inactive"):(tr?"Aktif":"Active")} tone={draft.active===false?"neutral":"good"}/></header><div className="catalog-exercise-form-grid">
                 <label>{tr?"Egzersiz adı":"Exercise name"}<input required value={draft.name ?? ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-                <label>MET code<input required value={draft.metCode ?? ""} onChange={(event) => setDraft({ ...draft, metCode: event.target.value.toUpperCase() })} /></label>
-                <label>{tr?"Dakikadaki kalori":"Calories / minute"}<input required min="0.01" step="0.01" type="number" value={draft.caloriesPerMinute ?? 1} onChange={(event) => setDraft({ ...draft, caloriesPerMinute: Number(event.target.value) })} /></label>
+                <label>{tr?"Aktivite kodu":"Activity code"}<input required value={draft.metCode ?? ""} onChange={(event) => setDraft({ ...draft, metCode: event.target.value.toUpperCase() })} /></label>
+                <label>MET<input required min="0.1" step="0.1" type="number" value={draft.metValue ?? 3} onChange={(event) => setDraft({ ...draft, metValue: Number(event.target.value) })} /></label>
+                <label>{tr?"Yoğunluk":"Intensity"}<select value={draft.intensityLevel ?? "MODERATE"} onChange={(event) => setDraft({...draft,intensityLevel:event.target.value})}><option value="LIGHT">LIGHT</option><option value="MODERATE">MODERATE</option><option value="VIGOROUS">VIGOROUS</option></select></label>
+                <label>{tr?"Compendium kodu":"Compendium code"}<input value={draft.compendiumCode ?? ""} onChange={(event) => setDraft({...draft,compendiumCode:event.target.value})}/></label>
                 <label>{tr?"Zorluk":"Difficulty"}<select value={draft.difficulty ?? "BEGINNER"} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value })}>{["BEGINNER", "INTERMEDIATE", "ADVANCED"].map((item) => <option key={item} value={item}>{humanizeFeature(item)}</option>)}</select></label>
                 <label>{tr?"Ana kas grubu":"Primary muscle"}<select value={primaryCustom?"__custom__":draft.primaryMuscleGroup??""} onChange={event=>{if(event.target.value==="__custom__"){setPrimaryCustom(true);setDraft({...draft,primaryMuscleGroup:""});}else{setPrimaryCustom(false);setDraft({...draft,primaryMuscleGroup:event.target.value});}}}><option value="">{tr?"Seçin":"Select"}</option>{(exerciseFacets?.primaryMuscleGroups??[]).map(value=><option key={value} value={value}>{value}</option>)}<option value="__custom__">{tr?"Yeni değer ekle…":"Add a new value…"}</option></select>{primaryCustom&&<input autoFocus value={draft.primaryMuscleGroup??""} onChange={event=>setDraft({...draft,primaryMuscleGroup:event.target.value})} placeholder={tr?"Yeni ana kas grubu":"New primary muscle group"}/>}</label>
                 <label>{tr?"Ekipman":"Equipment"}<select value={equipmentCustom?"__custom__":draft.equipment??""} onChange={event=>{if(event.target.value==="__custom__"){setEquipmentCustom(true);setDraft({...draft,equipment:""});}else{setEquipmentCustom(false);setDraft({...draft,equipment:event.target.value});}}}><option value="">{tr?"Ekipman yok / seçin":"No equipment / select"}</option>{(exerciseFacets?.equipment??[]).map(value=><option key={value} value={value}>{value}</option>)}<option value="__custom__">{tr?"Yeni değer ekle…":"Add a new value…"}</option></select>{equipmentCustom&&<input autoFocus value={draft.equipment??""} onChange={event=>setDraft({...draft,equipment:event.target.value})} placeholder={tr?"Yeni ekipman standardı":"New equipment standard"}/>}</label>

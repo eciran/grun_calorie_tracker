@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.*;
 import com.grun.calorietracker.entity.SubscriptionEntity;
+import com.grun.calorietracker.entity.UserDailyActivityEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminUserActivityFilter;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
@@ -193,11 +194,22 @@ public class UserServiceImpl implements UserService {
         if (activeFrom != null && activeTo != null && !activeFrom.isBefore(activeTo)) {
             throw new IllegalArgumentException("activeFrom must be before activeTo");
         }
-        if (activeFrom != null) {
-            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.greaterThanOrEqualTo(root.get("lastActiveAt"), activeFrom));
-        }
-        if (activeTo != null) {
-            specification = specification.and((root, query, criteriaBuilder) -> criteriaBuilder.lessThan(root.get("lastActiveAt"), activeTo));
+        if (activeFrom != null || activeTo != null) {
+            specification = specification.and((root, query, criteriaBuilder) -> {
+                var subquery = query.subquery(Long.class);
+                var dailyActivity = subquery.from(UserDailyActivityEntity.class);
+                var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+                predicates.add(criteriaBuilder.equal(dailyActivity.get("user").get("id"), root.get("id")));
+                if (activeFrom != null) {
+                    predicates.add(criteriaBuilder.greaterThanOrEqualTo(dailyActivity.get("lastSeenAt"), activeFrom));
+                }
+                if (activeTo != null) {
+                    predicates.add(criteriaBuilder.lessThan(dailyActivity.get("firstSeenAt"), activeTo));
+                }
+                subquery.select(dailyActivity.get("user").get("id"));
+                subquery.where(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+                return criteriaBuilder.exists(subquery);
+            });
         }
         if (activity != null) {
             Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);

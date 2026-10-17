@@ -346,7 +346,7 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         dto.setReps(request.getReps());
         dto.setSetCount(request.getSetCount());
         dto.setWeightKg(request.getWeightKg());
-        dto.setCaloriesBurned(resolveWorkoutCalories(request, exerciseItem));
+        dto.setCaloriesBurned(resolveWorkoutCalories(request, exerciseItem, user.getWeight()));
         dto.setLogDate(request.getStartedAt());
         dto.setSource(provider.name());
         dto.setExternalId(trimToNull(request.getExternalId()));
@@ -474,11 +474,18 @@ public class HealthIntegrationServiceImpl implements HealthIntegrationService {
         return normalized;
     }
 
-    private Double resolveWorkoutCalories(HealthWorkoutSyncRequestDto request, ExerciseItemEntity exerciseItem) {
+    private Double resolveWorkoutCalories(HealthWorkoutSyncRequestDto request, ExerciseItemEntity exerciseItem, Double userWeightKg) {
         if (request.getCaloriesBurned() != null && request.getCaloriesBurned() > 0) {
             return request.getCaloriesBurned();
         }
-        if (request.getDurationMinutes() != null && request.getDurationMinutes() > 0 && exerciseItem.getCaloriesPerMinute() != null) {
+        if (request.getDurationMinutes() != null && request.getDurationMinutes() > 0
+                && exerciseItem.getMetValue() != null && exerciseItem.getMetValue() > 0
+                && userWeightKg != null && userWeightKg > 0) {
+            double caloriesPerMinute = exerciseItem.getMetValue() * 3.5d * userWeightKg / 200.0d;
+            return round(request.getDurationMinutes() * caloriesPerMinute);
+        }
+        if (request.getDurationMinutes() != null && request.getDurationMinutes() > 0
+                && exerciseItem.getCaloriesPerMinute() != null && exerciseItem.getCaloriesPerMinute() > 0) {
             return round(request.getDurationMinutes() * exerciseItem.getCaloriesPerMinute());
         }
         throw new IllegalArgumentException("Workout caloriesBurned must be positive or derivable from duration and mapped exercise intensity.");

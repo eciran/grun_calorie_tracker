@@ -95,6 +95,37 @@ class AiMealDraftResponseValidatorImplTest {
     }
 
     @Test
+    void validateAndNormalize_whenSingleItemSodiumExceedsDailyReference_requiresExplicitReview() {
+        AiMealDraftItemDto item = item();
+        item.getEstimatedNutrition().setSodium(2400.0);
+        item.setReviewRequired(false);
+        item.setNeedsUserPortionConfirmation(false);
+        AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setItems(List.of(item));
+
+        AiMealDraftResponseDto result = validator.validateAndNormalize(
+                response, AiRequestType.VOICE_FOOD_LOG, AiProvider.OPENAI, "model");
+
+        assertTrue(result.getItems().get(0).getReviewRequired());
+        assertTrue(result.getItems().get(0).getNeedsUserPortionConfirmation());
+        assertEquals("HIGH_SODIUM_ESTIMATE_REVIEW_REQUIRED", result.getItems().get(0).getSafetyWarning());
+        assertTrue(result.getReviewReasons().contains("HIGH_SODIUM_ESTIMATE_REVIEW_REQUIRED"));
+        assertTrue(result.getItems().get(0).getNutritionEstimateNote().contains("2,300 mg"));
+    }
+
+    @Test
+    void validateAndNormalize_whenSingleItemSodiumIsImplausible_rejectsProviderResponse() {
+        AiMealDraftItemDto item = item();
+        item.getEstimatedNutrition().setSodium(10001.0);
+        AiMealDraftResponseDto response = new AiMealDraftResponseDto();
+        response.setItems(List.of(item));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> validator.validateAndNormalize(
+                        response, AiRequestType.VOICE_FOOD_LOG, AiProvider.OPENAI, "model"));
+    }
+
+    @Test
     void validateAndNormalize_whenPhotoContainsDuplicatePreparedFood_groupsPiecesAndNutrition() {
         AiMealDraftItemDto first = chickenItem(281.0, 53.0, 180.0, 0.84);
         AiMealDraftItemDto second = chickenItem(315.0, 59.0, 200.0, 0.82);

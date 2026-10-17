@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.grun.calorietracker.dto.AdminUserAnalyticsDayDto;
 import com.grun.calorietracker.dto.AdminUserAnalyticsDto;
 import com.grun.calorietracker.enums.SubscriptionPlan;
+import com.grun.calorietracker.enums.UserRole;
 import com.grun.calorietracker.repository.SubscriptionPlanCountProjection;
 import com.grun.calorietracker.repository.SubscriptionRepository;
 import com.grun.calorietracker.repository.UserActivityDailyCountProjection;
@@ -48,11 +49,11 @@ public class AdminUserAnalyticsServiceImpl implements AdminUserAnalyticsService 
         Instant toExclusive = to.plusDays(1).atStartOfDay(zoneId).toInstant();
 
         Map<LocalDate, Long> registrationsByDay = registrationsByDay(
-                userRepository.findRegistrationTimestamps(fromInclusive, toExclusive),
+                userRepository.findRegistrationTimestampsByRole(fromInclusive, toExclusive, UserRole.STANDARD),
                 zoneId
         );
         Map<LocalDate, Long> activityByDay = activityByDay(
-                activityRepository.countDailyActiveUsers(from, to)
+                activityRepository.countDailyActiveUsersByRole(from, to, UserRole.STANDARD)
         );
         List<AdminUserAnalyticsDayDto> daily = buildDailySeries(
                 from,
@@ -61,9 +62,9 @@ public class AdminUserAnalyticsServiceImpl implements AdminUserAnalyticsService 
                 activityByDay
         );
 
-        long totalUsers = userRepository.count();
+        long totalUsers = userRepository.countByRole(UserRole.STANDARD);
         long registrationsInRange = registrationsByDay.values().stream().mapToLong(Long::longValue).sum();
-        long activeUsersInRange = activityRepository.countDistinctUsersBetween(from, to);
+        long activeUsersInRange = activityRepository.countDistinctUsersBetweenByRole(from, to, UserRole.STANDARD);
 
         return new AdminUserAnalyticsDto(
                 from,
@@ -72,12 +73,12 @@ public class AdminUserAnalyticsServiceImpl implements AdminUserAnalyticsService 
                 "DAILY",
                 generatedAt,
                 totalUsers,
-                userRepository.countByCreatedAtIsNull(),
+                userRepository.countByRoleAndCreatedAtIsNull(UserRole.STANDARD),
                 registrationsInRange,
                 activeUsersInRange,
-                activityRepository.countByActivityDate(to),
-                activityRepository.countDistinctUsersBetween(to.minusDays(6), to),
-                activityRepository.countDistinctUsersBetween(to.minusDays(29), to),
+                activityRepository.countByActivityDateAndUserRole(to, UserRole.STANDARD),
+                activityRepository.countDistinctUsersBetweenByRole(to.minusDays(6), to, UserRole.STANDARD),
+                activityRepository.countDistinctUsersBetweenByRole(to.minusDays(29), to, UserRole.STANDARD),
                 planDistribution(totalUsers),
                 daily
         );

@@ -3,7 +3,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { AdminEChart, adminChartPalette } from "./AdminEChart";
 import type { GrowthTrendPoint } from "./types";
 
-function chartOptions(points: GrowthTrendPoint[], locale: "tr" | "en", metric: "both" | "registrations" | "active"): EChartsCoreOption {
+function chartOptions(points: GrowthTrendPoint[], locale: "tr" | "en", metric: "both" | "registrations" | "active", selectedDate?: string): EChartsCoreOption {
   const hasZoom = points.length > 30;
   const palette = adminChartPalette();
 
@@ -87,7 +87,9 @@ function chartOptions(points: GrowthTrendPoint[], locale: "tr" | "en", metric: "
       {
         name: locale === "tr" ? "Aktif kullanıcılar" : "Active users",
         type: "line",
-        data: points.map((point) => point.activeUsers),
+        data: points.map((point) => point.date === selectedDate
+          ? { value: point.activeUsers, symbolSize: 11, itemStyle: { color: palette.accent, borderColor: palette.surface, borderWidth: 3 } }
+          : point.activeUsers),
         smooth: 0.25,
         symbol: "circle",
         symbolSize: points.length > 30 ? 4 : 6,
@@ -99,7 +101,7 @@ function chartOptions(points: GrowthTrendPoint[], locale: "tr" | "en", metric: "
   };
 }
 
-export function GrowthTrendChart({ points, locale = "en", metric = "both", onPointSelect }: { points: GrowthTrendPoint[]; locale?: "tr" | "en"; metric?: "both" | "registrations" | "active"; onPointSelect?: (point: GrowthTrendPoint) => void }) {
-  const buildOption = useCallback(() => chartOptions(points, locale, metric), [points, locale, metric]);
+export function GrowthTrendChart({ points, locale = "en", metric = "both", selectedDate, onPointSelect }: { points: GrowthTrendPoint[]; locale?: "tr" | "en"; metric?: "both" | "registrations" | "active"; selectedDate?: string; onPointSelect?: (point: GrowthTrendPoint) => void }) {
+  const buildOption = useCallback(() => chartOptions(points, locale, metric, selectedDate), [points, locale, metric, selectedDate]);
   return <AdminEChart ariaLabel={locale === "tr" ? "Günlük kayıt ve aktif kullanıcı eğilimi" : "Daily registration and active user trend"} buildOption={buildOption} className="growth-echart" dataPointCount={points.length} onDataPointClick={onPointSelect ? index => points[index] && onPointSelect(points[index]) : undefined} />;
 }

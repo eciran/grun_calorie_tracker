@@ -40,6 +40,15 @@ class OwnerErrorCaptureFilterTest {
         filter.doFilter(new MockHttpServletRequest("GET","/api/unknown/secret"),new MockHttpServletResponse(),(req,res)->((HttpServletResponse)res).setStatus(404));
         verify(recorder).record(argThat(event -> event.route().matches("/api/\\[unmapped]/family-[0-9a-f]{12}") && !event.route().contains("secret")));
     }
+    @Test void anonymousUnknownRouteIsNotRecordedButKnownRouteUnauthorizedRemainsVisible() throws Exception {
+        filter.doFilter(new MockHttpServletRequest("GET", "/api/v1/random-probe"), new MockHttpServletResponse(),
+                (req, res) -> ((HttpServletResponse) res).setStatus(401));
+        verifyNoInteractions(recorder);
+
+        filter.doFilter(new MockHttpServletRequest("GET", "/api/v1/users/42"), new MockHttpServletResponse(),
+                (req, res) -> ((HttpServletResponse) res).setStatus(401));
+        verify(recorder).record(argThat(event -> event.status() == 401 && "/api/v1/users/{id}".equals(event.route())));
+    }
     @Test void unknownRouteFamiliesAreStableAndMaskDynamicValues() {
         String first=OwnerErrorCaptureFilter.unmappedRoute("/api/v1/legacy/users/12345");
         String second=OwnerErrorCaptureFilter.unmappedRoute("/api/v1/legacy/users/98765");

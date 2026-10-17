@@ -77,7 +77,9 @@ export function AdminEChart({
   const chartRef = useRef<echarts.EChartsType | null>(null);
   const optionRef = useRef(buildOption);
   const seriesClickRef = useRef(onSeriesDataClick);
+  const dataPointClickRef = useRef(onDataPointClick);
   seriesClickRef.current = onSeriesDataClick;
+  dataPointClickRef.current = onDataPointClick;
   optionRef.current = buildOption;
 
   const render = useCallback(() => {
@@ -100,7 +102,10 @@ export function AdminEChart({
     const chart = echarts.init(container, undefined, { renderer: "canvas", devicePixelRatio: Math.max(2, window.devicePixelRatio || 1) });
     chartRef.current = chart;
     chart.on("click", params => {
-      if (params.componentType === "series" && typeof params.dataIndex === "number") seriesClickRef.current?.(params.dataIndex, params.name ?? "");
+      if (params.componentType === "series" && typeof params.dataIndex === "number") {
+        dataPointClickRef.current?.(params.dataIndex);
+        seriesClickRef.current?.(params.dataIndex, params.name ?? "");
+      }
     });
     const resizeObserver = new ResizeObserver(() => chart.resize());
     const themeObserver = new MutationObserver(render);
@@ -127,11 +132,5 @@ export function AdminEChart({
     render();
   }, [buildOption, render]);
 
-  return <div aria-label={ariaLabel} className={className} ref={containerRef} role="img" onClick={onDataPointClick && dataPointCount ? event => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const plotLeft = 46;
-    const plotWidth = Math.max(1, bounds.width - plotLeft - 20);
-    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left - plotLeft) / plotWidth));
-    onDataPointClick(Math.round(ratio * Math.max(0, dataPointCount - 1)));
-  } : undefined} />;
+  return <div aria-label={ariaLabel} className={className} ref={containerRef} role="img" />;
 }

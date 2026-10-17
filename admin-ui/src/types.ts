@@ -730,6 +730,7 @@ export type SubscriptionFeatureAccess = {
   waterTracking?: boolean;
   workoutLogging?: boolean;
   savedMealTemplates?: boolean;
+  groceryList?: boolean;
   recipeBuilder?: boolean;
   publicRecipeLibrary?: boolean;
   nextMealSuggestions?: boolean;
@@ -1665,7 +1666,8 @@ export type AdminCatalogImportJob = {
 };
 
 export type ExerciseCatalogItem = {
-  id?: number; name?: string; metCode?: string; caloriesPerMinute?: number; description?: string;
+  id?: number; name?: string; metCode?: string; metValue?: number; intensityLevel?: string;
+  compendiumCode?: string; caloriesPerMinute?: number; description?: string;
   iconUrl?: string; primaryMuscleGroup?: string; secondaryMuscleGroups?: string; equipment?: string;
   difficulty?: string; instructions?: string; safetyNotes?: string; thumbnailUrl?: string; videoUrl?: string;
   animationUrl?: string; defaultMeasurementType?: string; allowedMeasurementTypes?: string[];

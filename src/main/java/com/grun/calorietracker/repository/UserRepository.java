@@ -67,6 +67,8 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
 
     long countByRoleAndAccountEnabledTrue(UserRole role);
 
+    long countByRoleAndCreatedAtIsNull(UserRole role);
+
     long countByCreatedAtIsNull();
 
     @Query("""
@@ -134,4 +136,16 @@ public interface UserRepository extends JpaRepository<UserEntity, Long>, JpaSpec
             """)
     List<Instant> findRegistrationTimestamps(@Param("fromInclusive") Instant fromInclusive,
                                              @Param("toExclusive") Instant toExclusive);
+
+    @Query("""
+            select user.createdAt
+            from UserEntity user
+            where user.createdAt >= :fromInclusive
+              and user.createdAt < :toExclusive
+              and user.role = :role
+            order by user.createdAt
+            """)
+    List<Instant> findRegistrationTimestampsByRole(@Param("fromInclusive") Instant fromInclusive,
+                                                   @Param("toExclusive") Instant toExclusive,
+                                                   @Param("role") UserRole role);
 }

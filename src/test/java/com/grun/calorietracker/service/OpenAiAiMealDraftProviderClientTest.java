@@ -52,6 +52,10 @@ class OpenAiAiMealDraftProviderClientTest {
                 .andExpect(jsonPath("$.store").value(false))
                 .andExpect(jsonPath("$.max_output_tokens").value(12000))
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.sodium").exists())
+                .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.sodium.description")
+                        .value(org.hamcrest.Matchers.containsString("milligrams")))
+                .andExpect(jsonPath("$.input[1].content[0].text")
+                        .value(org.hamcrest.Matchers.containsString("Never return sodium in grams")))
                 .andExpect(jsonPath("$.text.format.schema.properties.photoOutcome").doesNotExist())
                 .andExpect(jsonPath("$.text.format.schema.properties.items.items.properties.estimatedNutrition.properties.vitaminB12").exists())
                 .andRespond(withSuccess(outputMessageResponse("""

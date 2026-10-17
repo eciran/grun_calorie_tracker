@@ -536,12 +536,31 @@ public class RecipeServiceImpl implements RecipeService {
             throw new IllegalArgumentException("Recipe ingredient requires foodItemId or snapshotFoodName.");
         }
         ingredient.setSnapshotFoodName(snapshotName);
-        ingredient.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(request.getPortionSize(), unit, null));
+        applySnapshotPortionNormalization(ingredient, request.getPortionSize(), unit, hasRecipeNutritionSnapshot);
         applyIngredientSnapshotNutrition(ingredient, request);
         if (!hasRecipeNutritionSnapshot && !hasRequiredIngredientMacroSnapshot(request)) {
             throw new IllegalArgumentException("Snapshot recipe ingredient requires calories, protein, carbs, and fat when no full recipe nutrition snapshot is provided.");
         }
         return ingredient;
+    }
+
+    private void applySnapshotPortionNormalization(RecipeIngredientEntity ingredient,
+                                                   Double portionSize,
+                                                   FoodPortionUnit unit,
+                                                   boolean hasRecipeNutritionSnapshot) {
+        if (unit == FoodPortionUnit.GRAM) {
+            ingredient.setNormalizedPortionGrams(portionSize);
+            return;
+        }
+        if (unit == FoodPortionUnit.MILLILITER) {
+            ingredient.setNormalizedPortionMilliliters(portionSize);
+            return;
+        }
+        if (hasRecipeNutritionSnapshot) {
+            // Keep household-unit snapshot ingredients exact without inventing a gram conversion.
+            return;
+        }
+        ingredient.setNormalizedPortionGrams(FoodPortionCalculator.normalizeToGrams(portionSize, unit, null));
     }
 
     private FoodItemServingOptionEntity resolveServingOption(Long servingOptionId, FoodItemEntity foodItem) {
@@ -961,8 +980,22 @@ public class RecipeServiceImpl implements RecipeService {
     private void applyTranslations(RecipeEntity recipe, RecipeRequestDto request) {
         List<RecipeTranslationRequestDto> requested = request.getTranslations();
         if (requested != null) {
-            recipe.getTranslations().clear();
-            requested.forEach(item -> recipe.getTranslations().add(toTranslation(recipe, item)));
+            Set<PreferredLanguage> requestedLanguages = requested.stream()
+                    .map(RecipeTranslationRequestDto::getLanguage)
+                    .collect(java.util.stream.Collectors.toSet());
+            recipe.getTranslations().removeIf(item -> !requestedLanguages.contains(item.getLanguage()));
+            Map<PreferredLanguage, RecipeTranslationEntity> existingByLanguage = recipe.getTranslations().stream()
+                    .collect(java.util.stream.Collectors.toMap(RecipeTranslationEntity::getLanguage, item -> item));
+            requested.forEach(item -> {
+                RecipeTranslationEntity translation = existingByLanguage.get(item.getLanguage());
+                if (translation == null) {
+                    translation = new RecipeTranslationEntity();
+                    translation.setRecipe(recipe);
+                    translation.setLanguage(item.getLanguage());
+                    recipe.getTranslations().add(translation);
+                }
+                applyTranslationFields(translation, item.getName(), item.getDescription(), item.getCookingSteps());
+            });
             return;
         }
         PreferredLanguage sourceLanguage = languageOf(request.getLanguage());
@@ -976,36 +1009,34 @@ public class RecipeServiceImpl implements RecipeService {
                     recipe.getTranslations().add(item);
                     return item;
                 });
-        translation.setName(request.getName().trim());
-        translation.setDescription(trimToNull(request.getDescription()));
-        translation.getCookingSteps().clear();
-        if (request.getCookingSteps() != null) {
-            for (int index = 0; index < request.getCookingSteps().size(); index++) {
-                RecipeTranslationStepEntity step = new RecipeTranslationStepEntity();
-                step.setTranslation(translation);
-                step.setStepOrder(index);
-                step.setInstruction(request.getCookingSteps().get(index).getInstruction().trim());
-                translation.getCookingSteps().add(step);
-            }
-        }
+        applyTranslationFields(translation, request.getName(), request.getDescription(), request.getCookingSteps());
     }
 
-    private RecipeTranslationEntity toTranslation(RecipeEntity recipe, RecipeTranslationRequestDto request) {
-        RecipeTranslationEntity translation = new RecipeTranslationEntity();
-        translation.setRecipe(recipe);
-        translation.setLanguage(request.getLanguage());
-        translation.setName(request.getName().trim());
-        translation.setDescription(trimToNull(request.getDescription()));
-        if (request.getCookingSteps() != null) {
-            for (int index = 0; index < request.getCookingSteps().size(); index++) {
-                RecipeTranslationStepEntity step = new RecipeTranslationStepEntity();
+    private void applyTranslationFields(RecipeTranslationEntity translation,
+                                        String name,
+                                        String description,
+                                        List<RecipeStepRequestDto> requestedSteps) {
+        translation.setName(name.trim());
+        translation.setDescription(trimToNull(description));
+        if (requestedSteps == null) {
+            translation.getCookingSteps().clear();
+            return;
+        }
+        while (translation.getCookingSteps().size() > requestedSteps.size()) {
+            translation.getCookingSteps().remove(translation.getCookingSteps().size() - 1);
+        }
+        for (int index = 0; index < requestedSteps.size(); index++) {
+            RecipeTranslationStepEntity step;
+            if (index < translation.getCookingSteps().size()) {
+                step = translation.getCookingSteps().get(index);
+            } else {
+                step = new RecipeTranslationStepEntity();
                 step.setTranslation(translation);
-                step.setStepOrder(index);
-                step.setInstruction(request.getCookingSteps().get(index).getInstruction().trim());
                 translation.getCookingSteps().add(step);
             }
+            step.setStepOrder(index);
+            step.setInstruction(requestedSteps.get(index).getInstruction().trim());
         }
-        return translation;
     }
 
     private void validateTranslations(List<RecipeTranslationRequestDto> translations) {

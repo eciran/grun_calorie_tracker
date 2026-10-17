@@ -23,6 +23,9 @@ import java.util.Objects;
 public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseValidator {
 
     private static final int MAX_ITEMS = 20;
+    private static final double HIGH_SODIUM_ITEM_MG = 2300.0;
+    private static final double MAX_PLAUSIBLE_SODIUM_ITEM_MG = 10000.0;
+    private static final String HIGH_SODIUM_REVIEW_REASON = "HIGH_SODIUM_ESTIMATE_REVIEW_REQUIRED";
 
     @Override
     public AiMealDraftResponseDto validateAndNormalize(AiMealDraftResponseDto response,
@@ -54,8 +57,53 @@ public class AiMealDraftResponseValidatorImpl implements AiMealDraftResponseVali
             normalizeCountablePhotoPortions(response.getItems());
             response.setItems(mergeDuplicatePhotoItems(response.getItems()));
         }
+        applySodiumGuardrails(response);
         normalizeQuality(response);
         return response;
+    }
+
+    private void applySodiumGuardrails(AiMealDraftResponseDto response) {
+        boolean highSodiumEstimate = false;
+        for (AiMealDraftItemDto item : response.getItems()) {
+            Double sodium = item.getEstimatedNutrition() == null
+                    ? null
+                    : item.getEstimatedNutrition().getSodium();
+            if (sodium == null) {
+                continue;
+            }
+            if (sodium > MAX_PLAUSIBLE_SODIUM_ITEM_MG) {
+                throw new IllegalArgumentException("AI provider returned implausible estimated sodium for one item.");
+            }
+            if (sodium > HIGH_SODIUM_ITEM_MG) {
+                highSodiumEstimate = true;
+                item.setReviewRequired(true);
+                item.setNeedsUserPortionConfirmation(true);
+                item.setSafetyWarning(HIGH_SODIUM_REVIEW_REASON);
+                item.setNutritionEstimateNote(appendSentence(
+                        item.getNutritionEstimateNote(),
+                        "Estimated sodium exceeds 2,300 mg for this item; verify the product label and portion before saving."
+                ));
+            }
+        }
+        if (highSodiumEstimate) {
+            List<String> reasons = new ArrayList<>(response.getReviewReasons() == null
+                    ? List.of()
+                    : response.getReviewReasons());
+            if (!reasons.contains(HIGH_SODIUM_REVIEW_REASON)) {
+                reasons.add(HIGH_SODIUM_REVIEW_REASON);
+            }
+            response.setReviewReasons(reasons);
+        }
+    }
+
+    private String appendSentence(String existing, String sentence) {
+        if (isBlank(existing)) {
+            return sentence;
+        }
+        if (existing.contains(sentence)) {
+            return existing;
+        }
+        return existing.trim() + " " + sentence;
     }
 
     private void validatePhotoOutcome(AiMealDraftResponseDto response) {

@@ -8,6 +8,8 @@ import com.grun.calorietracker.dto.RecipeNutritionDto;
 import com.grun.calorietracker.dto.RecipeRequestDto;
 import com.grun.calorietracker.dto.RecipeReportDto;
 import com.grun.calorietracker.dto.RecipeReportRequestDto;
+import com.grun.calorietracker.dto.RecipeStepRequestDto;
+import com.grun.calorietracker.dto.RecipeTranslationRequestDto;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -54,6 +56,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -133,6 +137,34 @@ class RecipeServiceImplTest {
         assertEquals(true, result.getIngredients().get(0).getSnapshotIngredient());
         assertEquals("Lean Steak", result.getIngredients().get(0).getFoodName());
         assertEquals(190.0, result.getIngredients().get(0).getSnapshotCalories());
+    }
+
+    @Test
+    void createRecipe_withRecipeSnapshot_acceptsSnapshotPieceWithoutInventingGramWeight() {
+        UserEntity user = user();
+        RecipeIngredientRequestDto ingredient = new RecipeIngredientRequestDto();
+        ingredient.setSnapshotFoodName("egg");
+        ingredient.setPortionSize(3.0);
+        ingredient.setPortionUnit(FoodPortionUnit.PIECE);
+
+        RecipeRequestDto request = recipeRequest(600.0, 100.0, 6);
+        request.setIngredients(List.of(ingredient));
+        request.setSnapshotNutritionTotal(new RecipeNutritionDto(
+                900.0, 45.0, 100.0, 35.0, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null
+        ));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.save(any(RecipeEntity.class))).thenAnswer(invocation -> {
+            RecipeEntity recipe = invocation.getArgument(0);
+            recipe.setId(10L);
+            return recipe;
+        });
+
+        RecipeDto result = service.createRecipe("user@test.com", request);
+
+        assertEquals(FoodPortionUnit.PIECE, result.getIngredients().get(0).getPortionUnit());
+        assertEquals(3.0, result.getIngredients().get(0).getPortionSize());
+        assertNull(result.getIngredients().get(0).getNormalizedPortionGrams());
     }
 
     @Test
@@ -370,6 +402,47 @@ class RecipeServiceImplTest {
 
         assertEquals(RecipeVisibility.PRIVATE, result.getVisibility());
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getVerificationStatus());
+    }
+
+    @Test
+    void updateRecipe_reusesExistingTranslationAndSteps() {
+        UserEntity user = user();
+        RecipeEntity recipe = recipeEntity(user);
+        RecipeTranslationEntity existingTranslation = new RecipeTranslationEntity();
+        existingTranslation.setId(21L);
+        existingTranslation.setRecipe(recipe);
+        existingTranslation.setLanguage(PreferredLanguage.TR);
+        existingTranslation.setName("Eski ad");
+        RecipeTranslationStepEntity existingStep = new RecipeTranslationStepEntity();
+        existingStep.setId(31L);
+        existingStep.setTranslation(existingTranslation);
+        existingStep.setStepOrder(0);
+        existingStep.setInstruction("Eski adim");
+        existingTranslation.getCookingSteps().add(existingStep);
+        recipe.getTranslations().add(existingTranslation);
+
+        RecipeStepRequestDto translatedStep = new RecipeStepRequestDto();
+        translatedStep.setInstruction("Yeni adim");
+        RecipeTranslationRequestDto translationRequest = new RecipeTranslationRequestDto();
+        translationRequest.setLanguage(PreferredLanguage.TR);
+        translationRequest.setName("Yeni ad");
+        translationRequest.setCookingSteps(List.of(translatedStep));
+        RecipeRequestDto request = recipeRequest(400.0, 100.0, 4);
+        request.setTranslations(List.of(translationRequest));
+
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(recipeRepository.findByIdAndOwnerUserAndArchivedFalse(10L, user)).thenReturn(Optional.of(recipe));
+        when(foodItemRepository.findById(2L)).thenReturn(Optional.of(product()));
+        when(recipeRepository.save(recipe)).thenReturn(recipe);
+
+        service.updateRecipe("user@test.com", 10L, request);
+
+        assertEquals(1, recipe.getTranslations().size());
+        assertSame(existingTranslation, recipe.getTranslations().get(0));
+        assertEquals("Yeni ad", existingTranslation.getName());
+        assertEquals(1, existingTranslation.getCookingSteps().size());
+        assertSame(existingStep, existingTranslation.getCookingSteps().get(0));
+        assertEquals("Yeni adim", existingStep.getInstruction());
     }
 
     @Test
