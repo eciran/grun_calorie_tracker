@@ -149,6 +149,11 @@ try {
     }
     if (-not $applicationReady) { throw "Scale application did not become ready." }
 
+    # Product search is a customer path. The local bootstrap creates an admin
+    # account whose JWT now requires an admin-session id, so use the same
+    # ephemeral account as a regular user for this isolated scale test.
+    Invoke-Psql "update users set role = 'STANDARD' where lower(email) = lower('$adminEmail');" | Out-Null
+
     $loginBody = @{ email = $adminEmail; password = $adminPassword } | ConvertTo-Json
     $login = Invoke-RestMethod -Uri "http://127.0.0.1:$ApplicationPort/api/v1/auth/login" -Method Post -ContentType "application/json" -Body $loginBody
     $script:token = $login.token

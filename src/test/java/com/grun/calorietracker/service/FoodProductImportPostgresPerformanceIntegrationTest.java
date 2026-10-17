@@ -99,8 +99,11 @@ class FoodProductImportPostgresPerformanceIntegrationTest {
         assertEquals(0, result.getUpdatedRows());
         assertEquals(PRODUCT_COUNT, result.getSavedRows());
         assertEquals(0, result.getSkippedRows());
+        // Each row intentionally persists the product, two aliases, two localizations,
+        // and two independently reviewable quality issues. Keep a narrow allowance
+        // above that seven-write contract for the fixed batch lookup queries.
         assertTrue(
-                statementCount <= 3125,
+                statementCount <= 3600,
                 "500-row PostgreSQL import executed " + statementCount + " SQL statements."
         );
         assertTrue(
