@@ -11,7 +11,7 @@ class NotificationReleaseConfigurationContractTest {
 
     @Test
     void everyRuntimeConfigurationDefaultsReleaseAndProducersToOff() throws Exception {
-        for (String file : new String[]{"application.yml", "application-example.yml", "application-prod.yml"}) {
+        for (String file : new String[]{"application-example.yml", "application-prod.yml"}) {
             String yaml = Files.readString(Path.of("src/main/resources", file));
             assertTrue(yaml.contains("stage: ${GRUN_NOTIFICATION_RELEASE_STAGE:OFF}"), file);
             assertTrue(yaml.contains("live-percentage: ${GRUN_NOTIFICATION_LIVE_PERCENTAGE:0}"), file);

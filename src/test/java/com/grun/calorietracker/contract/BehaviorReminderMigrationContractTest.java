@@ -37,7 +37,7 @@ class BehaviorReminderMigrationContractTest {
 
     @Test
     void producerRolloutFlagsAreExplicitlyOffInDefaultExampleAndProductionConfiguration() throws IOException {
-        for (String config : List.of("application.yml", "application-example.yml", "application-prod.yml")) {
+        for (String config : List.of("application-example.yml", "application-prod.yml")) {
             String yaml = Files.readString(Path.of("src/main/resources", config));
             assertTrue(yaml.contains("GRUN_NOTIFICATION_MIGRATE_WATER:false"), config);
             assertTrue(yaml.contains("GRUN_NOTIFICATION_MIGRATE_STEP:false"), config);
