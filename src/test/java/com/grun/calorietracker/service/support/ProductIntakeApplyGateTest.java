@@ -93,6 +93,8 @@ class ProductIntakeApplyGateTest {
         product.setName("Valid product");
         product.setCalories(120.0);
         product.setProtein(4.0);
+        product.setFat(3.0);
+        product.setCarbs(18.0);
         FoodProductReviewCaseEntity value = new FoodProductReviewCaseEntity();
         value.setId(5L);
         value.setFoodItem(product);

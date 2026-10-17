@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.dto.TypedNutrientEvidenceRequest;
 import com.grun.calorietracker.dto.TypedSourceObservationRequest;
 import com.grun.calorietracker.service.TypedNutrientEvidenceService;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.*;
 import org.springframework.context.annotation.*;
@@ -25,6 +26,7 @@ class AdminTypedNutrientEvidenceControllerTest {
     @Configuration @EnableMethodSecurity
     static class Config {
         @Bean TypedNutrientEvidenceService evidence() { return mock(TypedNutrientEvidenceService.class); }
+        @Bean ExternalFoodImportFence externalFoodImportFence() { return mock(ExternalFoodImportFence.class); }
         @Bean AdminTypedNutrientEvidenceController controller(TypedNutrientEvidenceService service) {
             return new AdminTypedNutrientEvidenceController(service);
         }
@@ -37,6 +39,7 @@ class AdminTypedNutrientEvidenceControllerTest {
         context = new AnnotationConfigApplicationContext(Config.class);
         controller = context.getBean(AdminTypedNutrientEvidenceController.class);
         service = context.getBean(TypedNutrientEvidenceService.class);
+        clearInvocations(service);
     }
     @AfterEach void close() { SecurityContextHolder.clearContext(); context.close(); }
     void role(String role) {

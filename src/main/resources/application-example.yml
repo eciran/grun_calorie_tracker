@@ -1,7 +1,10 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: grun-calorie-tracker
   messages:
+    # Use the requested TR/EN locale, never the server operating-system language.
     fallback-to-system-locale: false
     encoding: UTF-8
   datasource:
@@ -25,6 +28,13 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:6MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:7MB}
+  cache:
+    type: ${SPRING_CACHE_TYPE:simple}
+    cache-names: foodProductById,foodProductByBarcode,foodProductSearch,dashboardDailySummary,progressBasicAnalytics,progressAdvancedAnalytics,energyBalanceAnalytics,micronutrientAnalytics
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -36,7 +46,7 @@ spring:
         enabled: false
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   error:
     include-message: never
     include-binding-errors: never
@@ -57,7 +67,7 @@ management:
 
 info:
   app:
-    name: GRUN Calorie Tracker API
+    name: GRun Calorie Tracker API
     version: 0.0.1-SNAPSHOT
 
 logging:
@@ -65,6 +75,7 @@ logging:
     level: "%5p [cid:%X{correlationId:-}]"
 
 jwt:
+  # Base64 encoded secret key with sufficient length for HS256
   secret: ${JWT_SECRET:Q0hBTkdFX01FX0xPQ0FMX0RFVkVMT1BNRU5UX1NFQ1JFVF9LRVlfMTIzNDU2Nzg5MA==}
   expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 
@@ -88,167 +99,7 @@ grun:
       ttl: ${GRUN_PRODUCT_CACHE_DETAIL_TTL:5m}
       max-entries: ${GRUN_PRODUCT_CACHE_DETAIL_MAX_ENTRIES:512}
       max-value-bytes: ${GRUN_PRODUCT_CACHE_DETAIL_MAX_VALUE_BYTES:16384}
-  error-center:
-    proxy-ingest-key: ${GRUN_ERROR_CENTER_PROXY_INGEST_KEY:}
-  owner-alerts:
-    enabled: ${GRUN_OWNER_ALERTS_ENABLED:false}
-    scan-interval-ms: ${GRUN_OWNER_ALERTS_SCAN_INTERVAL_MS:60000}
-    daily-report-cron: ${GRUN_OWNER_ALERTS_DAILY_REPORT_CRON:0 55 23 * * *}
-    daily-report-zone: ${GRUN_OWNER_ALERTS_DAILY_REPORT_ZONE:Europe/Dublin}
-  product-intake:
-    rollout:
-      enabled: ${GRUN_PRODUCT_INTAKE_ROLLOUT_ENABLED:false}
-      kill-switch: ${GRUN_PRODUCT_INTAKE_KILL_SWITCH:false}
-      percentage: ${GRUN_PRODUCT_INTAKE_ROLLOUT_PERCENTAGE:0}
-      markets: ${GRUN_PRODUCT_INTAKE_ROLLOUT_MARKETS:}
-      internal-dogfood-emails: ${GRUN_PRODUCT_INTAKE_DOGFOOD_EMAILS:}
-      cohort-salt: ${GRUN_PRODUCT_INTAKE_COHORT_SALT:product-intake-v1}
-  errors:
-    include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
-  food-contribution-storage:
-    provider: ${GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER:LOCAL}
-    max-upload-bytes: ${GRUN_FOOD_CONTRIBUTION_MAX_UPLOAD_BYTES:6291456}
-    max-decoded-pixels: ${GRUN_FOOD_CONTRIBUTION_MAX_DECODED_PIXELS:24000000}
-    allowed-content-types: ${GRUN_FOOD_CONTRIBUTION_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
-    storage-directory: ${GRUN_FOOD_CONTRIBUTION_STORAGE_DIRECTORY:storage/food-contribution-evidence}
-    private-base-url: ${GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL:https://api.grun.app}
-    upload-session-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_SESSION_TTL:20m}
-    upload-url-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_URL_TTL:10m}
-    admin-read-url-ttl: ${GRUN_FOOD_CONTRIBUTION_ADMIN_READ_URL_TTL:5m}
-    pending-retention-days: ${GRUN_FOOD_CONTRIBUTION_PENDING_RETENTION_DAYS:28}
-    approved-evidence-deletion-delay: ${GRUN_FOOD_CONTRIBUTION_APPROVED_DELETION_DELAY:24h}
-    rejected-evidence-retention: ${GRUN_FOOD_CONTRIBUTION_REJECTED_RETENTION:7d}
-    cleanup-batch-size: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_BATCH_SIZE:50}
-    cleanup-interval: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_INTERVAL:1h}
-    s3:
-      endpoint: ${GRUN_FOOD_CONTRIBUTION_S3_ENDPOINT:}
-      jurisdiction: ${GRUN_FOOD_CONTRIBUTION_S3_JURISDICTION:}
-      access-key: ${GRUN_FOOD_CONTRIBUTION_S3_ACCESS_KEY:}
-      secret-key: ${GRUN_FOOD_CONTRIBUTION_S3_SECRET_KEY:}
-      bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
-      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
-      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:pending/product-intakes}
-      path-style-access: ${GRUN_FOOD_CONTRIBUTION_S3_PATH_STYLE_ACCESS:false}
-  media-storage:
-    provider: ${GRUN_MEDIA_STORAGE_PROVIDER:LOCAL}
-    local-directory: ${GRUN_MEDIA_STORAGE_LOCAL_DIRECTORY:storage/media}
-    root-prefix: ${GRUN_MEDIA_STORAGE_ROOT_PREFIX:grun}
-    public-base-url: ${GRUN_MEDIA_STORAGE_PUBLIC_BASE_URL:https://api.grun.app}
-    s3:
-      endpoint: ${GRUN_MEDIA_STORAGE_S3_ENDPOINT:}
-      access-key: ${GRUN_MEDIA_STORAGE_S3_ACCESS_KEY:}
-      secret-key: ${GRUN_MEDIA_STORAGE_S3_SECRET_KEY:}
-      bucket: ${GRUN_MEDIA_STORAGE_S3_BUCKET:}
-      region: ${GRUN_MEDIA_STORAGE_S3_REGION:eu-west-1}
-      path-style-access: ${GRUN_MEDIA_STORAGE_S3_PATH_STYLE_ACCESS:false}
-  recipe-media:
-    image:
-      max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
-      max-decoded-pixels: ${GRUN_RECIPE_IMAGE_MAX_DECODED_PIXELS:48000000}
-      allowed-content-types: ${GRUN_RECIPE_IMAGE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
-      storage-directory: ${GRUN_RECIPE_IMAGE_STORAGE_DIRECTORY:storage/recipe-images}
-      public-base-url: ${GRUN_RECIPE_IMAGE_PUBLIC_BASE_URL:https://api.grun.app}
-  profile-media:
-    avatar:
-      max-upload-bytes: ${GRUN_PROFILE_AVATAR_MAX_UPLOAD_BYTES:2097152}
-      allowed-content-types: ${GRUN_PROFILE_AVATAR_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
-      storage-directory: ${GRUN_PROFILE_AVATAR_STORAGE_DIRECTORY:storage/profile-avatars}
-      public-base-url: ${GRUN_PROFILE_AVATAR_PUBLIC_BASE_URL:https://api.grun.app}
-  security:
-    admin-mfa-required: ${GRUN_SECURITY_ADMIN_MFA_REQUIRED:false}
-    subscription-feature-filter-enabled: ${GRUN_SUBSCRIPTION_FEATURE_FILTER_ENABLED:true}
-    login:
-      max-failed-attempts: ${GRUN_SECURITY_LOGIN_MAX_FAILED_ATTEMPTS:5}
-      lock-minutes: ${GRUN_SECURITY_LOGIN_LOCK_MINUTES:15}
-  ai:
-    enabled: ${GRUN_AI_ENABLED:false}
-    provider: ${GRUN_AI_PROVIDER:DISABLED}
-    model: ${GRUN_AI_MODEL:not-configured}
-    max-history-limit: ${GRUN_AI_MAX_HISTORY_LIMIT:30}
-    completion-notifications:
-      enabled: ${GRUN_AI_COMPLETION_NOTIFICATIONS_ENABLED:true}
-      scan-interval-ms: ${GRUN_AI_COMPLETION_NOTIFICATIONS_SCAN_INTERVAL_MS:15000}
-    safety:
-      enabled: ${GRUN_AI_SAFETY_ENABLED:true}
-      max-item-calories: ${GRUN_AI_SAFETY_MAX_ITEM_CALORIES:3000}
-      max-total-calories: ${GRUN_AI_SAFETY_MAX_TOTAL_CALORIES:6000}
-    photo:
-      provider: ${GRUN_AI_PHOTO_PROVIDER:OPENAI}
-      model: ${GRUN_AI_PHOTO_MODEL:gpt-5.6-terra}
-      input-token-cost-per-1m: ${GRUN_AI_PHOTO_INPUT_TOKEN_COST_PER_1M:2.00}
-      output-token-cost-per-1m: ${GRUN_AI_PHOTO_OUTPUT_TOKEN_COST_PER_1M:12.00}
-      cost-currency: ${GRUN_AI_PHOTO_COST_CURRENCY:USD}
-      max-image-reference-length: ${GRUN_AI_PHOTO_MAX_IMAGE_REFERENCE_LENGTH:2048}
-      allowed-reference-prefixes: ${GRUN_AI_PHOTO_ALLOWED_REFERENCE_PREFIXES:s3://,https://}
-      max-upload-bytes: ${GRUN_AI_PHOTO_MAX_UPLOAD_BYTES:5242880}
-      allowed-content-types: ${GRUN_AI_PHOTO_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
-      reference-ttl: ${GRUN_AI_PHOTO_REFERENCE_TTL:30m}
-      cleanup-interval-ms: ${GRUN_AI_PHOTO_CLEANUP_INTERVAL_MS:3600000}
-      storage-directory: ${GRUN_AI_PHOTO_STORAGE_DIRECTORY:storage/ai-meal-photos}
-      public-base-url: ${GRUN_AI_PHOTO_PUBLIC_BASE_URL:https://api.grun.app}
-      alternative-snapshots-enabled: ${GRUN_AI_PHOTO_ALTERNATIVE_SNAPSHOTS_ENABLED:false}
-      max-alternative-snapshots: ${GRUN_AI_PHOTO_MAX_ALTERNATIVE_SNAPSHOTS:2}
-    http-json:
-      endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
-      api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}
-      timeout: ${GRUN_AI_HTTP_JSON_TIMEOUT:30s}
-    openai:
-      api-key: ${GRUN_AI_OPENAI_API_KEY:}
-      base-url: ${GRUN_AI_OPENAI_BASE_URL:https://api.openai.com/v1/responses}
-      connect-timeout: ${GRUN_AI_OPENAI_CONNECT_TIMEOUT:10s}
-      timeout: ${GRUN_AI_OPENAI_TIMEOUT:120s}
-      max-output-tokens: ${GRUN_AI_OPENAI_MAX_OUTPUT_TOKENS:12000}
-      input-token-cost-per-1m: ${GRUN_AI_OPENAI_INPUT_TOKEN_COST_PER_1M:0}
-      output-token-cost-per-1m: ${GRUN_AI_OPENAI_OUTPUT_TOKEN_COST_PER_1M:0}
-      cost-currency: ${GRUN_AI_OPENAI_COST_CURRENCY:USD}
-    gemini:
-      api-key: ${GRUN_AI_GEMINI_API_KEY:}
-      base-url: ${GRUN_AI_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
-      connect-timeout: ${GRUN_AI_GEMINI_CONNECT_TIMEOUT:10s}
-      timeout: ${GRUN_AI_GEMINI_TIMEOUT:120s}
-      max-output-tokens: ${GRUN_AI_GEMINI_MAX_OUTPUT_TOKENS:12000}
-      input-token-cost-per-1m: ${GRUN_AI_GEMINI_INPUT_TOKEN_COST_PER_1M:0.75}
-      output-token-cost-per-1m: ${GRUN_AI_GEMINI_OUTPUT_TOKEN_COST_PER_1M:3.75}
-      cost-currency: ${GRUN_AI_GEMINI_COST_CURRENCY:USD}
-    recipe-image-moderation:
-      enabled: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENABLED:false}
-      endpoint: ${GRUN_AI_RECIPE_IMAGE_MODERATION_ENDPOINT:}
-      api-key: ${GRUN_AI_RECIPE_IMAGE_MODERATION_API_KEY:}
-      timeout: ${GRUN_AI_RECIPE_IMAGE_MODERATION_TIMEOUT:15s}
-      reject-threshold: ${GRUN_AI_RECIPE_IMAGE_MODERATION_REJECT_THRESHOLD:0.85}
-      approve-threshold: ${GRUN_AI_RECIPE_IMAGE_MODERATION_APPROVE_THRESHOLD:0.95}
-  revenuecat:
-    webhook-authorization: ${GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION:}
-    strict-product-mapping: ${GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING:true}
-    api:
-      enabled: ${GRUN_REVENUECAT_API_ENABLED:false}
-      base-url: ${GRUN_REVENUECAT_API_BASE_URL:https://api.revenuecat.com/v2}
-      secret-key: ${GRUN_REVENUECAT_API_SECRET_KEY:}
-      project-id: ${GRUN_REVENUECAT_PROJECT_ID:}
-      verification-environment: ${GRUN_REVENUECAT_VERIFICATION_ENVIRONMENT:production}
-      currency: ${GRUN_REVENUECAT_CURRENCY:EUR}
-    entitlements:
-      plus: ${GRUN_REVENUECAT_PLUS_ENTITLEMENTS:plus,plus_access}
-      pro: ${GRUN_REVENUECAT_PRO_ENTITLEMENTS:pro,pro_access}
-    products:
-      plus: ${GRUN_REVENUECAT_PLUS_PRODUCT_IDS:grun_plus_monthly,grun_plus_yearly}
-      pro: ${GRUN_REVENUECAT_PRO_PRODUCT_IDS:grun_pro_monthly,grun_pro_yearly}
-      default-ai-addon-validity-days: ${GRUN_REVENUECAT_AI_ADDON_DEFAULT_VALIDITY_DAYS:30}
-      ai-addon-quotas:
-        grun_ai_15_credits: 15
-        grun_ai_50_credits: 50
-      ai-addon-validity-days:
-        grun_ai_15_credits: 30
-        grun_ai_50_credits: 30
-  product-search:
-    telemetry-cleanup-cron: ${GRUN_PRODUCT_SEARCH_TELEMETRY_CLEANUP_CRON:0 20 3 * * *}
   product-catalog:
-    maintenance:
-      stale-days: ${GRUN_PRODUCT_CATALOG_STALE_DAYS:180}
-      batch-size: ${GRUN_PRODUCT_CATALOG_MAINTENANCE_BATCH_SIZE:500}
-      scheduled-quality-enabled: ${GRUN_PRODUCT_CATALOG_SCHEDULED_QUALITY_ENABLED:false}
-      stale-scan-cron: ${GRUN_PRODUCT_CATALOG_STALE_SCAN_CRON:0 10 2 * * *}
-      quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 10 5 * * *}
     audit:
       enabled: ${GRUN_PRODUCT_CATALOG_AUDIT_ENABLED:false}
       batch-size: ${GRUN_PRODUCT_CATALOG_AUDIT_BATCH_SIZE:250}
@@ -261,9 +112,149 @@ grun:
       zone: ${GRUN_PRODUCT_CATALOG_AUDIT_ZONE:Europe/Dublin}
       downtime-start: ${GRUN_PRODUCT_CATALOG_AUDIT_DOWNTIME_START:01:30}
       downtime-end: ${GRUN_PRODUCT_CATALOG_AUDIT_DOWNTIME_END:05:00}
+  owner-alerts:
+    enabled: ${GRUN_OWNER_ALERTS_ENABLED:false}
+    scan-interval-ms: ${GRUN_OWNER_ALERTS_SCAN_INTERVAL_MS:60000}
+  product-ocr:
+    cloud-enabled: ${GRUN_PRODUCT_OCR_CLOUD_ENABLED:false}
+    gemini-model: ${GRUN_PRODUCT_OCR_GEMINI_MODEL:gemini-2.5-flash}
+    fallback-threshold: ${GRUN_PRODUCT_OCR_FALLBACK_THRESHOLD:0.92}
+    media-resolution: ${GRUN_PRODUCT_OCR_MEDIA_RESOLUTION:HIGH}
+    max-attempts: ${GRUN_PRODUCT_OCR_MAX_ATTEMPTS:1}
+    targeted-second-pass-enabled: ${GRUN_PRODUCT_OCR_TARGETED_SECOND_PASS_ENABLED:false}
+    rollout-stage: ${GRUN_PRODUCT_OCR_ROLLOUT_STAGE:OFF}
+    rollout-percentage: ${GRUN_PRODUCT_OCR_ROLLOUT_PERCENTAGE:0}
+    internal-user-ids: ${GRUN_PRODUCT_OCR_INTERNAL_USER_IDS:}
+    cache-ttl: ${GRUN_PRODUCT_OCR_CACHE_TTL:15m}
+    cache-max-entries: ${GRUN_PRODUCT_OCR_CACHE_MAX_ENTRIES:5000}
+    estimated-request-cost-usd: ${GRUN_PRODUCT_OCR_ESTIMATED_REQUEST_COST_USD:0}
+  test-feedback:
+    enabled: ${GRUN_TEST_FEEDBACK_ENABLED:false}
+    allowed-environments: ${GRUN_TEST_FEEDBACK_ALLOWED_ENVIRONMENTS:preview,test,internal}
+    screenshot-upload-url-ttl: ${GRUN_TEST_FEEDBACK_SCREENSHOT_UPLOAD_URL_TTL:10m}
+    screenshot-admin-read-url-ttl: ${GRUN_TEST_FEEDBACK_SCREENSHOT_ADMIN_READ_URL_TTL:5m}
+    screenshot-pending-ttl: ${GRUN_TEST_FEEDBACK_SCREENSHOT_PENDING_TTL:1h}
+    screenshot-retention-days: ${GRUN_TEST_FEEDBACK_SCREENSHOT_RETENTION_DAYS:28}
+    screenshot-max-upload-bytes: ${GRUN_TEST_FEEDBACK_SCREENSHOT_MAX_UPLOAD_BYTES:20971520}
+    screenshot-cleanup-interval: ${GRUN_TEST_FEEDBACK_SCREENSHOT_CLEANUP_INTERVAL:1h}
+  product-intake:
+    rollout:
+      enabled: ${GRUN_PRODUCT_INTAKE_ROLLOUT_ENABLED:false}
+      kill-switch: ${GRUN_PRODUCT_INTAKE_KILL_SWITCH:false}
+      percentage: ${GRUN_PRODUCT_INTAKE_ROLLOUT_PERCENTAGE:0}
+      markets: ${GRUN_PRODUCT_INTAKE_ROLLOUT_MARKETS:}
+      internal-dogfood-emails: ${GRUN_PRODUCT_INTAKE_DOGFOOD_EMAILS:}
+      cohort-salt: ${GRUN_PRODUCT_INTAKE_COHORT_SALT:product-intake-v1}
+  food-contribution-storage:
+    provider: ${GRUN_FOOD_CONTRIBUTION_STORAGE_PROVIDER:LOCAL}
+    max-upload-bytes: ${GRUN_FOOD_CONTRIBUTION_MAX_UPLOAD_BYTES:6291456}
+    max-decoded-pixels: ${GRUN_FOOD_CONTRIBUTION_MAX_DECODED_PIXELS:24000000}
+    allowed-content-types: ${GRUN_FOOD_CONTRIBUTION_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+    storage-directory: ${GRUN_FOOD_CONTRIBUTION_STORAGE_DIRECTORY:storage/food-contribution-evidence}
+    private-base-url: ${GRUN_FOOD_CONTRIBUTION_PRIVATE_BASE_URL:http://localhost:8080}
+    upload-session-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_SESSION_TTL:20m}
+    upload-url-ttl: ${GRUN_FOOD_CONTRIBUTION_UPLOAD_URL_TTL:10m}
+    admin-read-url-ttl: ${GRUN_FOOD_CONTRIBUTION_ADMIN_READ_URL_TTL:5m}
+    pending-retention-days: ${GRUN_FOOD_CONTRIBUTION_PENDING_RETENTION_DAYS:28}
+    approved-evidence-deletion-delay: ${GRUN_FOOD_CONTRIBUTION_APPROVED_DELETION_DELAY:24h}
+    rejected-evidence-retention: ${GRUN_FOOD_CONTRIBUTION_REJECTED_RETENTION:7d}
+    cleanup-batch-size: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_BATCH_SIZE:50}
+    cleanup-interval: ${GRUN_FOOD_CONTRIBUTION_CLEANUP_INTERVAL:1h}
+    s3:
+      endpoint: ${GRUN_FOOD_CONTRIBUTION_S3_ENDPOINT:}
+      jurisdiction: ${GRUN_FOOD_CONTRIBUTION_S3_JURISDICTION:eu-west-1}
+      access-key: ${GRUN_FOOD_CONTRIBUTION_S3_ACCESS_KEY:}
+      secret-key: ${GRUN_FOOD_CONTRIBUTION_S3_SECRET_KEY:}
+      bucket: ${GRUN_FOOD_CONTRIBUTION_S3_BUCKET:}
+      region: ${GRUN_FOOD_CONTRIBUTION_S3_REGION:eu-west-1}
+      prefix: ${GRUN_FOOD_CONTRIBUTION_S3_PREFIX:pending/product-intakes}
+      path-style-access: ${GRUN_FOOD_CONTRIBUTION_S3_PATH_STYLE_ACCESS:false}
+  media-storage:
+    provider: ${GRUN_MEDIA_STORAGE_PROVIDER:LOCAL}
+    local-directory: ${GRUN_MEDIA_STORAGE_LOCAL_DIRECTORY:storage/media}
+    root-prefix: ${GRUN_MEDIA_STORAGE_ROOT_PREFIX:grun}
+    public-base-url: ${GRUN_MEDIA_STORAGE_PUBLIC_BASE_URL:http://localhost:8080}
+    s3:
+      endpoint: ${GRUN_MEDIA_STORAGE_S3_ENDPOINT:}
+      access-key: ${GRUN_MEDIA_STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${GRUN_MEDIA_STORAGE_S3_SECRET_KEY:}
+      bucket: ${GRUN_MEDIA_STORAGE_S3_BUCKET:}
+      region: ${GRUN_MEDIA_STORAGE_S3_REGION:eu-west-1}
+      path-style-access: ${GRUN_MEDIA_STORAGE_S3_PATH_STYLE_ACCESS:false}
+  analytics:
+    time-zone: ${GRUN_ANALYTICS_TIME_ZONE:Europe/Dublin}
+    activity-throttle-minutes: ${GRUN_ANALYTICS_ACTIVITY_THROTTLE_MINUTES:15}
+    activity-retention-days: ${GRUN_ANALYTICS_ACTIVITY_RETENTION_DAYS:400}
+    activity-cleanup-cron: ${GRUN_ANALYTICS_ACTIVITY_CLEANUP_CRON:0 30 3 * * *}
+  errors:
+    include-internal-details: ${GRUN_ERRORS_INCLUDE_INTERNAL_DETAILS:false}
+  recipe-media:
+    image:
+      max-upload-bytes: ${GRUN_RECIPE_IMAGE_MAX_UPLOAD_BYTES:4194304}
+      max-decoded-pixels: ${GRUN_RECIPE_IMAGE_MAX_DECODED_PIXELS:48000000}
+      allowed-content-types: ${GRUN_RECIPE_IMAGE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+      storage-directory: ${GRUN_RECIPE_IMAGE_STORAGE_DIRECTORY:storage/recipe-images}
+      public-base-url: ${GRUN_RECIPE_IMAGE_PUBLIC_BASE_URL:http://localhost:8080}
+  security:
+    admin-session:
+      idle-timeout: ${GRUN_ADMIN_SESSION_IDLE_TIMEOUT:15m}
+      absolute-timeout: ${GRUN_ADMIN_SESSION_ABSOLUTE_TIMEOUT:8h}
+      secure-cookie: ${GRUN_ADMIN_SESSION_SECURE_COOKIE:false}
+    owner-bootstrap:
+      enabled: ${GRUN_OWNER_BOOTSTRAP_ENABLED:false}
+      primary-email: ${GRUN_OWNER_PRIMARY_EMAIL:}
+      primary-password: ${GRUN_OWNER_PRIMARY_PASSWORD:}
+      recovery-password: ${GRUN_OWNER_RECOVERY_PASSWORD:}
+    subscription-feature-filter-enabled: ${GRUN_SUBSCRIPTION_FEATURE_FILTER_ENABLED:true}
+    swagger-public: ${GRUN_SWAGGER_PUBLIC:true}
+  http-client:
+    connect-timeout: ${GRUN_HTTP_CLIENT_CONNECT_TIMEOUT:3s}
+    read-timeout: ${GRUN_HTTP_CLIENT_READ_TIMEOUT:10s}
+  ai:
+    enabled: ${GRUN_AI_ENABLED:false}
+    provider: ${GRUN_AI_PROVIDER:DISABLED}
+    model: ${GRUN_AI_MODEL:not-configured}
+    prompt-version: ${GRUN_AI_PROMPT_VERSION:ai-prompt-v2}
+    max-history-limit: ${GRUN_AI_MAX_HISTORY_LIMIT:30}
+    completion-notifications:
+      enabled: ${GRUN_AI_COMPLETION_NOTIFICATIONS_ENABLED:true}
+      scan-interval-ms: ${GRUN_AI_COMPLETION_NOTIFICATIONS_SCAN_INTERVAL_MS:15000}
+    photo:
+      model: ${GRUN_AI_PHOTO_MODEL:}
+      max-image-reference-length: ${GRUN_AI_PHOTO_MAX_IMAGE_REFERENCE_LENGTH:2048}
+      allowed-reference-prefixes: ${GRUN_AI_PHOTO_ALLOWED_REFERENCE_PREFIXES:s3://grun-meals/}
+      max-upload-bytes: ${GRUN_AI_PHOTO_MAX_UPLOAD_BYTES:5242880}
+      allowed-content-types: ${GRUN_AI_PHOTO_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp}
+      reference-ttl: ${GRUN_AI_PHOTO_REFERENCE_TTL:30m}
+      cleanup-interval-ms: ${GRUN_AI_PHOTO_CLEANUP_INTERVAL_MS:3600000}
+      storage-directory: ${GRUN_AI_PHOTO_STORAGE_DIRECTORY:storage/ai-meal-photos}
+      public-base-url: ${GRUN_AI_PHOTO_PUBLIC_BASE_URL:https://api.grun.app}
+      alternative-snapshots-enabled: ${GRUN_AI_PHOTO_ALTERNATIVE_SNAPSHOTS_ENABLED:false}
+      max-alternative-snapshots: ${GRUN_AI_PHOTO_MAX_ALTERNATIVE_SNAPSHOTS:2}
+    monitoring:
+      min-requests-for-alert: ${GRUN_AI_MONITORING_MIN_REQUESTS_FOR_ALERT:5}
+      failure-rate-threshold: ${GRUN_AI_MONITORING_FAILURE_RATE_THRESHOLD:0.20}
+      rejection-rate-threshold: ${GRUN_AI_MONITORING_REJECTION_RATE_THRESHOLD:0.40}
+      max-tokens-per-window: ${GRUN_AI_MONITORING_MAX_TOKENS_PER_WINDOW:1000000}
+      max-estimated-cost-per-currency: ${GRUN_AI_MONITORING_MAX_ESTIMATED_COST_PER_CURRENCY:20.0}
+    http-json:
+      endpoint: ${GRUN_AI_HTTP_JSON_ENDPOINT:}
+      api-key: ${GRUN_AI_HTTP_JSON_API_KEY:}
+      timeout: ${GRUN_AI_HTTP_JSON_TIMEOUT:30s}
+    openai:
+      api-key: ${GRUN_AI_OPENAI_API_KEY:}
+      base-url: ${GRUN_AI_OPENAI_BASE_URL:https://api.openai.com/v1/responses}
+      connect-timeout: ${GRUN_AI_OPENAI_CONNECT_TIMEOUT:10s}
+      timeout: ${GRUN_AI_OPENAI_TIMEOUT:120s}
+      max-output-tokens: ${GRUN_AI_OPENAI_MAX_OUTPUT_TOKENS:12000}
+      repair-enabled: ${GRUN_AI_OPENAI_REPAIR_ENABLED:true}
+      max-repair-attempts: ${GRUN_AI_OPENAI_MAX_REPAIR_ATTEMPTS:1}
+      input-token-cost-per-1m: ${GRUN_AI_OPENAI_INPUT_TOKEN_COST_PER_1M:0}
+      output-token-cost-per-1m: ${GRUN_AI_OPENAI_OUTPUT_TOKEN_COST_PER_1M:0}
+      cost-currency: ${GRUN_AI_OPENAI_COST_CURRENCY:USD}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
-    from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@gruncalorietracker.com}
+    from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@grun.local}
     from-name: ${GRUN_MAIL_FROM_NAME:GRUN}
     brevo:
       api-key: ${GRUN_BREVO_API_KEY:}
@@ -298,11 +289,58 @@ grun:
       base-retry-delay: ${GRUN_NOTIFICATION_DELIVERY_BASE_RETRY_DELAY:2m}
       default-ttl: ${GRUN_NOTIFICATION_DELIVERY_DEFAULT_TTL:24h}
       max-attempts: ${GRUN_NOTIFICATION_DELIVERY_MAX_ATTEMPTS:3}
-  account-link:
-    authorization-ttl-seconds: ${GRUN_ACCOUNT_LINK_AUTHORIZATION_TTL_SECONDS:300}
-    provider-proof-max-age-seconds: ${GRUN_ACCOUNT_LINK_PROVIDER_PROOF_MAX_AGE_SECONDS:300}
-  refresh-token:
-    expiration-days: ${GRUN_REFRESH_TOKEN_EXPIRATION_DAYS:30}
+  revenuecat:
+    # Set this to the exact Authorization header configured in RevenueCat dashboard.
+    webhook-authorization: ${GRUN_REVENUECAT_WEBHOOK_AUTHORIZATION:}
+    strict-product-mapping: ${GRUN_REVENUECAT_STRICT_PRODUCT_MAPPING:true}
+    api:
+      enabled: ${GRUN_REVENUECAT_API_ENABLED:false}
+      base-url: ${GRUN_REVENUECAT_API_BASE_URL:https://api.revenuecat.com/v2}
+      secret-key: ${GRUN_REVENUECAT_API_SECRET_KEY:}
+      project-id: ${GRUN_REVENUECAT_PROJECT_ID:}
+      currency: ${GRUN_REVENUECAT_CURRENCY:EUR}
+    entitlements:
+      plus: ${GRUN_REVENUECAT_PLUS_ENTITLEMENTS:plus,plus_access}
+      pro: ${GRUN_REVENUECAT_PRO_ENTITLEMENTS:pro,pro_access}
+    products:
+      plus: ${GRUN_REVENUECAT_PLUS_PRODUCT_IDS:}
+      pro: ${GRUN_REVENUECAT_PRO_PRODUCT_IDS:}
+      default-ai-addon-validity-days: ${GRUN_REVENUECAT_AI_ADDON_DEFAULT_VALIDITY_DAYS:30}
+      ai-addon-quotas:
+        grun_ai_15_credits: 15
+        grun_ai_50_credits: 50
+      ai-addon-validity-days:
+        grun_ai_15_credits: 30
+        grun_ai_50_credits: 30
+  push:
+    enabled: ${GRUN_PUSH_ENABLED:false}
+    provider: ${GRUN_PUSH_PROVIDER:LOG}
+    expo:
+      url: ${GRUN_PUSH_EXPO_URL:https://exp.host/--/api/v2/push/send}
+      access-token: ${GRUN_PUSH_EXPO_ACCESS_TOKEN:}
+    fcm:
+      project-id: ${GRUN_PUSH_FCM_PROJECT_ID:}
+      access-token: ${GRUN_PUSH_FCM_ACCESS_TOKEN:}
+      credentials-json: ${GRUN_PUSH_FCM_CREDENTIALS_JSON:}
+    onesignal:
+      app-id: ${GRUN_PUSH_ONESIGNAL_APP_ID:}
+      api-key: ${GRUN_PUSH_ONESIGNAL_API_KEY:}
+  oauth:
+    google:
+      # Comma-separated Google client ids that are allowed to call the backend.
+      client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+    apple:
+      # Comma-separated Apple App ID or Services ID audiences accepted by the backend.
+      client-ids: ${APPLE_OAUTH_CLIENT_IDS:}
+  email-verification:
+    base-url: ${GRUN_EMAIL_VERIFICATION_BASE_URL:http://localhost:8082/verify-email}
+    resend-cooldown-level-1-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_1_SECONDS:30}
+    resend-cooldown-level-2-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_2_SECONDS:120}
+    resend-cooldown-level-3-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_3_SECONDS:300}
+  password-reset:
+    expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
+    base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8082/reset-password}
+    request-cooldown-seconds: ${GRUN_PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:60}
   tokens:
     cleanup-interval-ms: ${GRUN_TOKENS_CLEANUP_INTERVAL_MS:3600000}
   rate-limit:
@@ -316,10 +354,6 @@ grun:
     trusted-proxy-count: ${GRUN_RATE_LIMIT_TRUSTED_PROXY_COUNT:0}
     redis:
       enabled: ${GRUN_RATE_LIMIT_REDIS_ENABLED:false}
-    auth:
-      max-requests-per-minute: ${GRUN_RATE_LIMIT_AUTH_MAX_REQUESTS_PER_MINUTE:20}
-    account-link:
-      max-requests-per-minute: ${GRUN_RATE_LIMIT_ACCOUNT_LINK_MAX_REQUESTS_PER_MINUTE:5}
     password-reset:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_PASSWORD_RESET_MAX_REQUESTS_PER_MINUTE:5}
     email-verification-resend:
@@ -327,51 +361,8 @@ grun:
     ai-draft:
       max-requests-per-minute: ${GRUN_RATE_LIMIT_AI_DRAFT_MAX_REQUESTS_PER_MINUTE:10}
       account-max-requests-per-minute: ${GRUN_RATE_LIMIT_AI_ACCOUNT_MAX_REQUESTS_PER_MINUTE:10}
-    product-intake:
-      upload:
-        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_UPLOAD_MAX_REQUESTS_PER_MINUTE:6}
-      finalize:
-        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_FINALIZE_MAX_REQUESTS_PER_MINUTE:12}
-      evidence-read:
-        max-requests-per-minute: ${GRUN_RATE_LIMIT_PRODUCT_INTAKE_EVIDENCE_READ_MAX_REQUESTS_PER_MINUTE:30}
-  oauth:
-    google:
-      client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
-    apple:
-      client-ids: ${APPLE_OAUTH_CLIENT_IDS:}
-  admin-password-reset:
-    base-url: ${GRUN_ADMIN_PASSWORD_RESET_BASE_URL:http://localhost:8080/admin-ui/index.html}
-  password-reset:
-    expiration-minutes: ${GRUN_PASSWORD_RESET_EXPIRATION_MINUTES:30}
-    base-url: ${GRUN_PASSWORD_RESET_BASE_URL:http://localhost:8080/reset-password}
-    request-cooldown-seconds: ${GRUN_PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:60}
-  email-verification:
-    expiration-minutes: ${GRUN_EMAIL_VERIFICATION_EXPIRATION_MINUTES:1440}
-    base-url: ${GRUN_EMAIL_VERIFICATION_BASE_URL:http://localhost:8080/verify-email}
-    resend-cooldown-level-1-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_1_SECONDS:30}
-    resend-cooldown-level-2-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_2_SECONDS:120}
-    resend-cooldown-level-3-seconds: ${GRUN_EMAIL_VERIFICATION_RESEND_COOLDOWN_LEVEL_3_SECONDS:300}
-  app-links:
-    public-base-url: ${GRUN_APP_LINKS_PUBLIC_BASE_URL:http://localhost:8080}
-    ios-app-id: ${GRUN_APP_LINKS_IOS_APP_ID:SY845HL39N.com.grun.calorietracker}
-    android-package-name: ${GRUN_APP_LINKS_ANDROID_PACKAGE_NAME:com.grun.calorietracker}
-    android-sha256-cert-fingerprints: ${GRUN_APP_LINKS_ANDROID_SHA256_CERT_FINGERPRINTS:F8:1D:B4:2E:27:7F:21:BF:4A:2E:00:70:FF:1F:EA:C8:79:A5:8B:56:14:DF:A6:37:69:62:65:E4:C8:B8:D1:69}
   water:
     default-daily-target-ml: ${GRUN_WATER_DEFAULT_DAILY_TARGET_ML:2500}
     reminders:
       enabled: ${GRUN_WATER_REMINDER_ENABLED:true}
       scan-interval-ms: ${GRUN_WATER_REMINDER_SCAN_INTERVAL_MS:300000}
-  local:
-    admin:
-      bootstrap-enabled: ${GRUN_LOCAL_ADMIN_BOOTSTRAP_ENABLED:false}
-      email: ${GRUN_LOCAL_ADMIN_EMAIL:}
-      password: ${GRUN_LOCAL_ADMIN_PASSWORD:}
-    demo-seed:
-      enabled: ${GRUN_LOCAL_DEMO_SEED_ENABLED:false}
-      user-email: ${GRUN_LOCAL_DEMO_USER_EMAIL:}
-      user-password: ${GRUN_LOCAL_DEMO_USER_PASSWORD:}
-
-
-  admin-invitation:
-    expiration-hours: ${GRUN_ADMIN_INVITATION_EXPIRATION_HOURS:48}
-    base-url: ${GRUN_ADMIN_INVITATION_BASE_URL:https://admin.gruncalorietracker.com/?adminInvitation=true}
