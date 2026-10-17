@@ -16,6 +16,7 @@ import com.grun.calorietracker.entity.FoodLogsEntity;
 import com.grun.calorietracker.entity.RecipeLogEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AnalyticsMutationSource;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodLogSource;
 import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -786,6 +787,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (foodItem.getVerificationStatus() == VerificationStatus.REJECTED) {
             throw new ProductNotFoundException("Food item is not available");
         }
+        if (!Boolean.TRUE.equals(foodItem.getIsCustom())
+                && ((foodItem.getPublicationStatus() != null
+                        && foodItem.getPublicationStatus() != CatalogPublicationStatus.PUBLISHED)
+                    || !FoodProductQualityRules.hasValidCoreNutrition(foodItem))) {
+            throw new ProductNotFoundException("Catalog food is not published with complete valid nutrition");
+        }
     }
 
     private void publishDiaryChanged(UserEntity user, LocalDateTime timestamp) {
@@ -962,6 +969,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                         foodItem,
                         com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
                 )
+                .filter(option -> !Boolean.FALSE.equals(option.getUserVisible()))
+                .filter(option -> com.grun.calorietracker.service.support.FoodPortionUnitResolver.supportsOption(foodItem, option))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Serving option is not verified or does not belong to the selected food item."
                 ));

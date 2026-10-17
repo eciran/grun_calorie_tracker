@@ -9,8 +9,11 @@ import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.CatalogPublicationService;
+import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
@@ -21,6 +24,14 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
 
     private final FoodItemRepository foodItemRepository;
     private final AdminAuditService adminAuditService;
+    private ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(ExternalFoodImportFence fence) { this.externalFoodImportFence = fence; }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     @Override
     @Transactional
@@ -33,6 +44,7 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
         if (product.getId() != null) {
             throw new IllegalArgumentException("New publication cannot reference a persisted product");
         }
+        acquireCatalogWriteFence();
         return publishGuarded(product, actor, reason, correlationId);
     }
 
@@ -44,6 +56,7 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
             String reason,
             String correlationId
     ) {
+        acquireCatalogWriteFence();
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
         return publishGuarded(product, actor, reason, correlationId);
@@ -65,8 +78,9 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
             throw new IllegalArgumentException("Rejected products cannot be published");
         }
         requireText(product.getName(), "Product name is required for publication");
-        if (product.getCalories() == null || product.getCalories() < 0.0 || product.getCalories() > 900.0) {
-            throw new IllegalArgumentException("Valid calories are required for publication");
+        if (FoodProductQualityRules.hasCriticalIssue(product)
+                || product.getNutritionReferenceUnit() == null) {
+            throw new IllegalArgumentException("Complete, finite, non-negative core nutrition and an explicit nutrition reference unit are required for publication");
         }
 
         CatalogPublicationStatus oldStatus = product.getPublicationStatus();

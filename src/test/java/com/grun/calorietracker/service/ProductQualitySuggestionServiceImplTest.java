@@ -98,6 +98,18 @@ class ProductQualitySuggestionServiceImplTest {
     private ProductQualitySuggestionServiceImpl service;
 
     @Test
+    void auditHookReusesOpenSuggestionsWithoutMarkingProductValidated() {
+        var product = product(1L, "milk", 48.0);
+        when(productQualitySuggestionRepository.existsOpenDedupe(any(), any(), any(), any(), eq(ProductQualitySuggestionStatus.OPEN)))
+                .thenReturn(true);
+        assertEquals(0, service.createRuleSuggestionsForAudit(product));
+        assertEquals("milk", product.getName());
+        org.junit.jupiter.api.Assertions.assertNull(product.getQualityValidatedAt());
+        verify(foodItemRepository, never()).save(any());
+        verify(productQualitySuggestionRepository, never()).saveAll(any());
+    }
+
+    @Test
     void updateAiSettings_recordsAdminAudit() {
         ProductQualityAiSettingsEntity settings = new ProductQualityAiSettingsEntity();
         settings.setDailyProductLimit(250);
@@ -483,7 +495,7 @@ class ProductQualitySuggestionServiceImplTest {
     void acceptSuggestion_whenLocalization_appliesLocalizedNameBeforeClosing() {
         FoodItemEntity product = product(1L, "Milk", 48.0);
         ProductQualitySuggestionEntity suggestion = suggestion(
-                11L, product, ProductQualitySuggestionType.LOCALIZATION, null, "Sut"
+                11L, product, ProductQualitySuggestionType.LOCALIZATION, null, "İÇİM SÜT"
         );
         suggestion.setFieldName("localizations.TR.displayName");
         when(productQualitySuggestionRepository.findForUpdateById(11L)).thenReturn(Optional.of(suggestion));
@@ -498,7 +510,7 @@ class ProductQualitySuggestionServiceImplTest {
         ArgumentCaptor<com.grun.calorietracker.entity.FoodItemLocalizationEntity> localization =
                 ArgumentCaptor.forClass(com.grun.calorietracker.entity.FoodItemLocalizationEntity.class);
         verify(foodItemLocalizationRepository).save(localization.capture());
-        assertEquals("Sut", localization.getValue().getDisplayName());
+        assertEquals("İçim Süt", localization.getValue().getDisplayName());
         assertEquals(PreferredLanguage.TR, localization.getValue().getLanguage());
     }
 

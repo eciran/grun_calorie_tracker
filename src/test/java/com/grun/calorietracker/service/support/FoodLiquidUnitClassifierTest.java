@@ -10,6 +10,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FoodLiquidUnitClassifierTest {
 
     @Test
+    void milkAlcoholAndNonAlcoholTagsArePhysicalCandidatesNotDensityProof() {
+        for (String tag : Set.of("en:milks", "en:plant-based-milks", "en:non-alcoholic-beverages", "en:alcoholic-beverages")) {
+            assertEquals(FoodLiquidUnitClassifier.Decision.MASS_VOLUME_BRIDGE_REQUIRED,
+                    FoodLiquidUnitClassifier.classify(Set.of(tag), FoodNutritionReferenceUnit.PER_100G));
+        }
+        assertEquals(FoodLiquidUnitClassifier.Decision.FORM_CONFLICT_REVIEW,
+                FoodLiquidUnitClassifier.classify(Set.of("en:milks", "en:milk-powders"), FoodNutritionReferenceUnit.PER_100ML));
+    }
+
+    @Test
     void strongBeverageCategoryAndVolumeBasisSupportMl() {
         assertEquals(
                 FoodLiquidUnitClassifier.Decision.ML_SOURCE_SUPPORTED,

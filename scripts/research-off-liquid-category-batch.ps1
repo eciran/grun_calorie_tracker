@@ -1,8 +1,8 @@
 param(
     [ValidateRange(1, 100)]
     [int] $Limit = 60,
-    [ValidateRange(500, 10000)]
-    [int] $DelayMilliseconds = 1200
+    [ValidateRange(4500, 60000)]
+    [int] $DelayMilliseconds = 4500
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,7 +66,7 @@ foreach ($row in ($queue | Select-Object -First $Limit)) {
         }
     }
     $results.Add([pscustomobject] $result)
-    if ($result.status -eq "FETCH_FAILED" -and $result.httpStatus -in @(403, 429)) {
+    if ($result.status -eq "FETCH_FAILED") {
         break
     }
     Start-Sleep -Milliseconds $DelayMilliseconds

@@ -1,11 +1,19 @@
 package com.grun.calorietracker.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.List;
+import java.util.ArrayList;
 
 @Schema(description = "Paginated product search response.")
 public class FoodProductSearchPageDto {
+    @JsonIgnore
+    private boolean cacheable = true;
+
+    @JsonIgnore
+    public boolean isCacheable() { return cacheable; }
+    public void setCacheable(boolean cacheable) { this.cacheable = cacheable; }
 
     @Schema(description = "Anonymous identifier used to report which search result was selected.")
     private String searchRequestId;
@@ -30,6 +38,20 @@ public class FoodProductSearchPageDto {
 
     @Schema(description = "Whether this is the last page.", example = "false")
     private Boolean last;
+
+    public FoodProductSearchPageDto copyWithSearchRequestId(String requestId) {
+        FoodProductSearchPageDto response = new FoodProductSearchPageDto();
+        response.searchRequestId = requestId;
+        response.content = content == null ? null : new ArrayList<>(content);
+        response.page = page;
+        response.size = size;
+        response.totalElements = totalElements;
+        response.totalPages = totalPages;
+        response.first = first;
+        response.last = last;
+        response.cacheable = cacheable;
+        return response;
+    }
 
     public String getSearchRequestId() {
         return searchRequestId;

@@ -82,6 +82,24 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class ProductQualitySuggestionServiceImpl implements ProductQualitySuggestionService {
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+    private com.grun.calorietracker.service.support.ProductQualityAiProviderInvoker aiProviderInvoker;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setExternalFoodImportFence(com.grun.calorietracker.service.support.ExternalFoodImportFence fence) {
+        this.externalFoodImportFence = fence;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setAiProviderInvoker(
+            com.grun.calorietracker.service.support.ProductQualityAiProviderInvoker aiProviderInvoker
+    ) {
+        this.aiProviderInvoker = aiProviderInvoker;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     private static final int MAX_MANUAL_SCAN_LIMIT = 500;
     private static final int MAX_SCHEDULED_SCAN_LIMIT = 250;
@@ -127,6 +145,7 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
             ProductQualityScanTriggerType triggerType,
             String triggeredBy
     ) {
+        acquireCatalogWriteFence();
         ProductQualityScanTriggerType resolvedTriggerType = triggerType == null ? ProductQualityScanTriggerType.MANUAL : triggerType;
         int resolvedLimit = resolveScanLimit(limit, resolvedTriggerType);
         String actor = normalizeActor(triggeredBy);
@@ -151,8 +170,8 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
         int skippedExisting = 0;
         int validatedProducts = 0;
         List<ProductQualitySuggestionEntity> suggestionsToSave = new ArrayList<>();
-                List<ProductQualityScanRunItemEntity> runItemsToSave = new ArrayList<>();
-List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
+        List<ProductQualityScanRunItemEntity> runItemsToSave = new ArrayList<>();
+        List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
 
         List<FoodItemEntity> candidateProducts = new ArrayList<>(candidates.getContent());
         for (FoodItemEntity product : candidateProducts) {
@@ -236,6 +255,21 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
     }
 
     @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public int createRuleSuggestionsForAudit(FoodItemEntity product) {
+        List<ProductQualitySuggestionEntity> created = buildSuggestions(product).stream()
+                .filter(suggestion -> !productQualitySuggestionRepository.existsOpenDedupe(
+                        product.getId(), suggestion.getSuggestionType(), suggestion.getFieldName(),
+                        suggestion.getSuggestedValue(), ProductQualitySuggestionStatus.OPEN))
+                .toList();
+        if (!created.isEmpty()) {
+            productQualitySuggestionRepository.saveAll(created);
+        }
+        // Being scanned does not mean the facts were source-verified or suggestions accepted.
+        return created.size();
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ProductQualityScanRunPageDto getScanRuns(int page, int size) {
         int resolvedPage = Math.max(page, 0);
@@ -314,8 +348,9 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
         int skippedValidated = 0;
         int validated = 0;
         List<ProductQualitySuggestionEntity> suggestionsToSave = new ArrayList<>();
-                List<ProductQualityScanRunItemEntity> runItemsToSave = new ArrayList<>();
-List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
+        List<ProductQualityScanRunItemEntity> runItemsToSave = new ArrayList<>();
+        List<AiValidationMark> productsToMarkValidated = new ArrayList<>();
+        List<PendingAiSuggestion> pendingSuggestions = new ArrayList<>();
 
         for (FoodItemEntity product : products) {
             if (!forceRescan
@@ -327,7 +362,7 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
             }
 
             AiProductQualityValidationRequestDto validationRequest = toAiValidationRequest(product, request);
-            AiProductQualityValidationResponseDto response = activeProvider().validateProductQuality(validationRequest);
+            AiProductQualityValidationResponseDto response = invokeAiProvider(validationRequest);
             validateAiResponse(response);
             List<AiProductQualityValidationResponseDto.AiProductQualityIssueDto> issues =
                     response.getIssues() == null ? List.of() : response.getIssues();
@@ -342,61 +377,62 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 if (suggestion == null) {
                     continue;
                 }
-                boolean exists = productQualitySuggestionRepository.existsOpenDedupe(
-                        product.getId(),
-                        suggestion.getSuggestionType(),
-                        suggestion.getFieldName(),
-                        suggestion.getSuggestedValue(),
-                        ProductQualitySuggestionStatus.OPEN
-                );
-                if (exists) {
-                    skippedExisting++;
-                    runItemsToSave.add(toRunItem(run, product, suggestion, ProductQualityScanItemStatus.SKIPPED_EXISTING, "Matching open suggestion already exists."));
-                    hasIssue = true;
-                    continue;
-                }
-                suggestionsToSave.add(suggestion);
-                runItemsToSave.add(toRunItem(run, product, suggestion, ProductQualityScanItemStatus.SUGGESTION_CREATED, "New AI-assisted quality suggestion created."));
-                created++;
+                pendingSuggestions.add(new PendingAiSuggestion(
+                        product, suggestion,
+                        "New AI-assisted quality suggestion created.",
+                        "Matching open suggestion already exists."
+                ));
                 hasIssue = true;
             }
 
             if (!hasIssue && aiResponseCanValidateProduct(response)) {
-                product.setQualityValidatedAt(LocalDateTime.now());
-                product.setQualityValidatedBy(actor);
-                product.setQualityValidationSource(ProductQualitySuggestionSource.AI_ASSISTED);
-                product.setQualityValidationNotes(response.getSummary() == null
+                String validationNotes = response.getSummary() == null
                         ? "AI-assisted validation found no reviewable issue."
-                        : response.getSummary());
-                productsToMarkValidated.add(product);
-                runItemsToSave.add(toValidatedRunItem(run, product, ProductQualityScanItemStatus.VALIDATED, product.getQualityValidationNotes()));
+                        : response.getSummary();
+                productsToMarkValidated.add(new AiValidationMark(product, validationNotes));
+                runItemsToSave.add(toValidatedRunItem(run, product, ProductQualityScanItemStatus.VALIDATED, validationNotes));
                 validated++;
             } else if (!hasIssue) {
                 ProductQualitySuggestionEntity reviewSuggestion = buildAiReviewRequiredSuggestion(product, response);
-                boolean exists = productQualitySuggestionRepository.existsOpenDedupe(
-                        product.getId(), reviewSuggestion.getSuggestionType(), reviewSuggestion.getFieldName(),
-                        reviewSuggestion.getSuggestedValue(), ProductQualitySuggestionStatus.OPEN
-                );
-                if (exists) {
-                    skippedExisting++;
-                    runItemsToSave.add(toRunItem(run, product, reviewSuggestion,
-                            ProductQualityScanItemStatus.SKIPPED_EXISTING,
-                            "AI result requires review and a matching open review item already exists."));
-                } else {
-                    suggestionsToSave.add(reviewSuggestion);
-                    runItemsToSave.add(toRunItem(run, product, reviewSuggestion,
-                            ProductQualityScanItemStatus.SUGGESTION_CREATED,
-                            "AI result was not confident enough to validate the product automatically."));
-                    created++;
-                }
+                pendingSuggestions.add(new PendingAiSuggestion(
+                        product, reviewSuggestion,
+                        "AI result was not confident enough to validate the product automatically.",
+                        "AI result requires review and a matching open review item already exists."
+                ));
             }
         }
 
+        acquireCatalogWriteFence();
+        for (PendingAiSuggestion pending : pendingSuggestions) {
+            ProductQualitySuggestionEntity suggestion = pending.suggestion();
+            boolean exists = productQualitySuggestionRepository.existsOpenDedupe(
+                    pending.product().getId(), suggestion.getSuggestionType(), suggestion.getFieldName(),
+                    suggestion.getSuggestedValue(), ProductQualitySuggestionStatus.OPEN
+            );
+            if (exists) {
+                skippedExisting++;
+                runItemsToSave.add(toRunItem(run, pending.product(), suggestion,
+                        ProductQualityScanItemStatus.SKIPPED_EXISTING, pending.existingNote()));
+            } else {
+                suggestionsToSave.add(suggestion);
+                runItemsToSave.add(toRunItem(run, pending.product(), suggestion,
+                        ProductQualityScanItemStatus.SUGGESTION_CREATED, pending.createdNote()));
+                created++;
+            }
+        }
+        LocalDateTime validatedAt = LocalDateTime.now();
+        for (AiValidationMark mark : productsToMarkValidated) {
+            FoodItemEntity product = mark.product();
+            product.setQualityValidatedAt(validatedAt);
+            product.setQualityValidatedBy(actor);
+            product.setQualityValidationSource(ProductQualitySuggestionSource.AI_ASSISTED);
+            product.setQualityValidationNotes(mark.notes());
+        }
         if (!suggestionsToSave.isEmpty()) {
             productQualitySuggestionRepository.saveAll(suggestionsToSave);
         }
         if (!productsToMarkValidated.isEmpty()) {
-            foodItemRepository.saveAll(productsToMarkValidated);
+            foodItemRepository.saveAll(productsToMarkValidated.stream().map(AiValidationMark::product).toList());
         }
         if (!runItemsToSave.isEmpty()) {
             productQualityScanRunItemRepository.saveAll(runItemsToSave);
@@ -469,8 +505,9 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
     }
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public ProductQualitySuggestionDto acceptSuggestion(Long suggestionId, String reviewedBy) {
+        acquireCatalogWriteFence();
         ProductQualitySuggestionEntity suggestion = findOpenSuggestion(suggestionId);
         ProductQualitySuggestionType suggestionType = suggestion.getSuggestionType();
         validateSuggestionApplication(suggestion);
@@ -499,6 +536,7 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
     @Override
     @Transactional
     public ProductQualitySuggestionDto rejectSuggestion(Long suggestionId, String reviewedBy) {
+        acquireCatalogWriteFence();
         ProductQualitySuggestionEntity suggestion = findOpenSuggestion(suggestionId);
         closeSuggestion(suggestion, ProductQualitySuggestionStatus.REJECTED, reviewedBy);
         return toDto(productQualitySuggestionRepository.save(suggestion));
@@ -643,6 +681,15 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
                 .filter(client -> client.provider() == properties.getProvider())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Configured AI provider client is not available."));
+    }
+
+    private AiProductQualityValidationResponseDto invokeAiProvider(
+            AiProductQualityValidationRequestDto request
+    ) {
+        AiMealDraftProviderClient provider = activeProvider();
+        return aiProviderInvoker == null
+                ? provider.validateProductQuality(request)
+                : aiProviderInvoker.validate(provider, request);
     }
     private int resolveScanLimit(int limit, ProductQualityScanTriggerType triggerType) {
         int max = triggerType == ProductQualityScanTriggerType.SCHEDULED ? MAX_SCHEDULED_SCAN_LIMIT : MAX_MANUAL_SCAN_LIMIT;
@@ -1112,12 +1159,13 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
 
     private void applyLocalizationSuggestion(ProductQualitySuggestionEntity suggestion, String reviewedBy) {
         String field = trimToNull(suggestion.getFieldName());
-        String suggestedValue = FoodProductNormalizationRules.normalizeProductDisplayName(suggestion.getSuggestedValue());
+        String suggestedValue = trimToNull(suggestion.getSuggestedValue());
         if (field == null || suggestedValue == null || !field.matches("localizations\\.(EN|TR)\\.(displayName|shortDisplayName)")) {
             throw new IllegalArgumentException("Localization suggestion is incomplete or unsupported.");
         }
         String[] parts = field.split("\\.");
         PreferredLanguage language = PreferredLanguage.valueOf(parts[1]);
+        suggestedValue = FoodProductNormalizationRules.normalizeProductDisplayName(suggestedValue, language);
         FoodItemEntity product = suggestion.getFoodItem();
         FoodItemLocalizationEntity localization = foodItemLocalizationRepository
                 .findByFoodItemIdAndLanguage(product.getId(), language)
@@ -1842,5 +1890,16 @@ List<FoodItemEntity> productsToMarkValidated = new ArrayList<>();
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private record AiValidationMark(FoodItemEntity product, String notes) {
+    }
+
+    private record PendingAiSuggestion(
+            FoodItemEntity product,
+            ProductQualitySuggestionEntity suggestion,
+            String createdNote,
+            String existingNote
+    ) {
     }
 }

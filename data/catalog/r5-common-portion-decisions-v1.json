@@ -1,0 +1,20 @@
+{
+  "version": "R5_COMMON_PORTION_DECISIONS_V1",
+  "liveApplyAllowed": false,
+  "policy": "Retain old IDs, labels and gram weights for history. Retire selection/default flags only. Append exact source portions with gram-explicit localized labels; no ml inference.",
+  "entries": [
+    {"foodId":"49682","optionId":128,"oldGrams":13.5,"sourceModifier":"tbsp","sourceGrams":15,"unit":"TABLESPOON","en":"1 tablespoon mayonnaise (15 g)","tr":"1 yemek kaşığı mayonez (15 g)","reason":"Old oil-sized spoon and oil label belong to the wrong food identity."},
+    {"foodId":"180986","optionId":3634,"oldGrams":243,"sourceModifier":"cup (4.86 large eggs)","sourceGrams":243,"unit":"CUP","en":"1 source cup (4.86 large eggs; 243 g)","tr":"1 kaynak ölçü kabı (4,86 büyük yumurta; 243 g)","reason":"Retain exact source mass and egg-equivalence qualifier; a source cup is not a Turkish water glass or ml bridge."},
+    {"foodId":"180987","optionId":2301,"oldGrams":50,"sourceModifier":"large","sourceGrams":46,"unit":"PIECE","en":"1 large fried egg (46 g)","tr":"1 büyük sahanda yumurta (46 g)","reason":"Use source cooked edible weight, not raw egg weight."},
+    {"foodId":"180988","optionId":2303,"oldGrams":50,"sourceModifier":"large","sourceGrams":61,"unit":"PIECE","en":"1 large omelet (61 g)","tr":"1 büyük omlet (61 g)","reason":"Prepared omelet source portion is not a 50 g raw egg."},
+    {"foodId":"180990","optionId":2307,"oldGrams":50,"sourceModifier":"egg","sourceGrams":79,"unit":"PIECE","en":"1 turkey egg (79 g)","tr":"1 hindi yumurtası (79 g)","reason":"Source is one turkey egg, not an invented large chicken-sized egg."},
+    {"foodId":"180991","optionId":3228,"oldGrams":30,"sourceModifier":"oz","sourceGrams":28.35,"unit":"PORTION","en":"1 oz portion (28.35 g)","tr":"1 ons porsiyon (28,35 g)","reason":"No source slice-size proof. Replace unproven slice with an explicit source mass measure; do not borrow Foundation Feta's 30 g RACC."},
+    {"foodId":"180995","optionId":2316,"oldGrams":200,"sourceModifier":"cup","sourceGrams":245,"unit":"CUP","en":"1 source cup (245 g)","tr":"1 kaynak ölçü kabı (245 g)","reason":"Source sheep-milk cup has 245 g; no ml density or local glass size is inferred."},
+    {"foodId":"180997","optionId":3230,"oldGrams":8,"sourceModifier":"tbsp","sourceGrams":6.5,"unit":"TABLESPOON","en":"1 tablespoon powder (6.5 g)","tr":"1 yemek kaşığı toz (6,5 g)","reason":"Dried buttermilk source tablespoon is 6.5 g; never treat powder as liquid."},
+    {"foodId":"180998","optionId":2322,"oldGrams":200,"sourceModifier":"cup","sourceGrams":244,"unit":"CUP","en":"1 source cup (244 g)","tr":"1 kaynak ölçü kabı (244 g)","reason":"Source low-sodium milk cup has 244 g; cup alone is not ml proof."},
+    {"foodId":"181150","optionId":3235,"oldGrams":173,"sourceModifier":"medium","sourceGrams":151,"unit":"PIECE","en":"1 medium boiled peeled sweet potato (151 g)","tr":"1 orta boy haşlanmış kabuksuz tatlı patates (151 g)","reason":"Use the source cooked peeled edible portion, not another preparation's medium weight."},
+    {"foodId":"181453","optionId":3256,"oldGrams":243,"sourceModifier":"cup","sourceGrams":243,"unit":"CUP","en":"1 source cup (243 g)","tr":"1 kaynak ölçü kabı (243 g)","reason":"Keep historical LIFEWAY mass portion, not the modern retail 240 ml measure."},
+    {"foodId":"181459","optionId":3258,"oldGrams":244,"sourceModifier":"cup","sourceGrams":244,"unit":"CUP","en":"1 source cup (244 g)","tr":"1 kaynak ölçü kabı (244 g)","reason":"Cream of rice cooked with water is gram-based food, not a liquid inference."},
+    {"foodId":"181467","optionId":3265,"oldGrams":155,"sourceModifier":"cup","sourceGrams":155,"unit":"CUP","en":"1 source cup (155 g)","tr":"1 kaynak ölçü kabı (155 g)","reason":"Keep source-confirmed prepared edamame mass; do not call this an unqualified Turkish water glass or invent ml."}
+  ]
+}

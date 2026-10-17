@@ -53,6 +53,18 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperationsService {
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setExternalFoodImportFence(
+            com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence
+    ) {
+        this.externalFoodImportFence = externalFoodImportFence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
     private static final int MAX_PAGE_SIZE = 100;
     private static final int FRESHNESS_DAYS = 120;
 
@@ -366,6 +378,7 @@ public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperations
         Map<String, Object> oldValue;
         switch (normalizedType) {
             case "FOOD" -> {
+                acquireCatalogWriteFence();
                 FoodItemEntity item = foodItemRepository.findById(itemId)
                         .orElseThrow(() -> new ResourceNotFoundException("Food item not found: " + itemId));
                 oldValue = assignmentValue(item.getReviewAssignee(), item.getReviewDueAt());
@@ -477,6 +490,9 @@ public class AdminCatalogOperationsServiceImpl implements AdminCatalogOperations
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("name", item.getName());
         value.put("metCode", item.getMetCode());
+        value.put("metValue", item.getMetValue());
+        value.put("intensityLevel", item.getIntensityLevel());
+        value.put("compendiumCode", item.getCompendiumCode());
         value.put("active", item.getActive());
         value.put("aiEligible", item.getAiEligible());
         value.put("techniqueReviewStatus", item.getTechniqueReviewStatus());

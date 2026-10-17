@@ -4,6 +4,8 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.service.support.FoodCategoryImportResolutionService;
+import com.grun.calorietracker.service.support.FoodCategoryBackfillBatchService;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +32,8 @@ class FoodCategoryBackfillServiceTest {
     @BeforeEach
     void setUp() {
         service = new FoodCategoryBackfillService(
-                foodItemRepository, qualityIssueRepository, resolutionService);
+                foodItemRepository, qualityIssueRepository,
+                new FoodCategoryBackfillBatchService(foodItemRepository, resolutionService, mock(ExternalFoodImportFence.class)));
     }
 
     @Test

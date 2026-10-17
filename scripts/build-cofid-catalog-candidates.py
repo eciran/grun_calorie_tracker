@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
+import hashlib
 import re
 import unicodedata
 from collections import Counter
@@ -23,7 +25,7 @@ OUTPUT_FIELDS = [
     "preparation_state", "nutrition_basis", "nutrition_reference_unit", "calories", "protein", "fat", "carbs",
     "fiber", "sugar", "sodium", "serving_size_grams", "serving_unit",
     "serving_options_json", "source_ref", "source_version", "license_id",
-    "provenance_note", "source_record_id", "approval_status", "review_reasons",
+    "provenance_note", "source_record_id", "approval_status", "review_reasons", "source_value_qualifiers",
 ]
 
 PREPARED_TERMS = re.compile(
@@ -45,11 +47,11 @@ CANONICAL_DISPLAY_NAMES = {
     "tea green infusion": "Green Tea",
     "tea herbal infusion": "Herbal Tea",
     "lemonade": "Lemonade",
-    "lemonade homemade": "Lemonade",
+    "lemonade homemade": "Homemade Lemonade",
     "fruit juice mixed": "Mixed Fruit Juice",
     "wine red": "Red Wine",
-    "wine white dry": "White Wine",
-    "wine white medium": "White Wine",
+    "wine white dry": "Dry White Wine",
+    "wine white medium": "Medium White Wine",
     "wine white sparkling": "Sparkling Wine",
     "wine rose medium": "Rose Wine",
 }
@@ -70,9 +72,10 @@ def number(value: object) -> str:
     if not raw or raw.upper() in {"N", "ND", "N/A"}:
         return ""
     if raw.lower() in {"tr", "trace"}:
-        return "0"
+        return ""
     try:
-        return f"{float(raw):g}"
+        value = float(raw)
+        return f"{value:g}" if math.isfinite(value) and value >= 0 else ""
     except ValueError:
         return ""
 
@@ -183,8 +186,13 @@ def main() -> int:
     args = parser.parse_args()
 
     manifest = load_manifest(args.manifest)
-    manifest_by_display = {normalized_name(item["display_name_en"]): item for item in manifest}
+    manifest_by_display: dict[str, list[dict[str, str]]] = {}
+    for item in manifest:
+        manifest_by_display.setdefault(normalized_name(item["display_name_en"]), []).append(item)
     workbook = openpyxl.load_workbook(args.workbook, read_only=True, data_only=True)
+    notes = " ".join(text(value) for values in workbook["1.1 Notes"].values for value in values)
+    if "per 100g" not in notes or "alcoholic beverages" not in notes or "per 100ml" not in notes:
+        raise ValueError("CoFID source basis notes are missing or changed; do not infer basis from names.")
     sheet = workbook["1.3 Proximates"]
     source_rows = [values for values in sheet.iter_rows(min_row=4, values_only=True) if values[0] and values[1]]
     code_counts = Counter(text(values[0]) for values in source_rows)
@@ -204,9 +212,7 @@ def main() -> int:
         row_type = catalog_type(name, group)
         prep = preparation_state(name)
         user_display_name, display_needs_review = display_name(name)
-        canonical_item = manifest_by_display.get(normalized_name(user_display_name))
-        if canonical_item:
-            user_display_name = canonical_item["display_name_en"]
+        # Matching a cleaned title is only a search candidate, not formulation evidence.
         reasons: list[str] = []
         if not calories:
             reasons.append("MISSING_CALORIES")
@@ -237,6 +243,12 @@ def main() -> int:
             reasons.append("DISPLAY_NAME_REVIEW")
         if code_counts[code] > 1:
             reasons.append("DUPLICATE_SOURCE_RECORD_ID")
+        qualifiers = {
+            field: text(value) for field, value in zip(
+                ("calories", "protein", "fat", "carbs", "sugar"),
+                (values[12], values[9], values[10], values[11], values[16]))
+            if text(value).lower() in {"tr", "trace", "n", "nd", "n/a"}
+        }
         if name_counts[normalized_name(name)] > 1:
             reasons.append("DUPLICATE_SOURCE_NAME")
         match_key, match_score = closest_manifest(name, manifest)
@@ -263,7 +275,7 @@ def main() -> int:
             "catalog_type": row_type,
             "data_source": "COFID",
             "source_registry_id": "UK_COFID_2021",
-            "source_key": f"COFID_2021:{code}:{normalized_name(name).replace(' ', '_')}" if code_counts[code] > 1 else f"COFID_2021:{code}",
+            "source_key": f"COFID_2021:{code}",
             "name": name,
             "display_name": user_display_name,
             "short_display_name": user_display_name,
@@ -277,7 +289,7 @@ def main() -> int:
             "fat": fat,
             "carbs": carbs,
             "sugar": sugar,
-            "serving_size_grams": "100",
+            "serving_size_grams": "" if is_alcoholic_beverage else "100",
             "serving_unit": serving_unit,
             "serving_options_json": json.dumps(serving_options, ensure_ascii=False, separators=(",", ":")),
             "source_ref": OFFICIAL_SOURCE,
@@ -287,12 +299,13 @@ def main() -> int:
             "source_record_id": code,
             "approval_status": "PENDING_REVIEW",
             "review_reasons": "|".join(sorted(reasons)),
+            "source_value_qualifiers": json.dumps(qualifiers, ensure_ascii=False, sort_keys=True),
         })
         rows.append(result)
         type_counts[row_type] += 1
         reason_counts.update(reasons)
 
-    exclusion_reasons = {"MISSING_CALORIES", "IMPLAUSIBLE_CORE_NUTRITION", "ENERGY_COMPONENT_MISMATCH"}
+    exclusion_reasons = {"MISSING_CALORIES", "IMPLAUSIBLE_CORE_NUTRITION", "ENERGY_COMPONENT_MISMATCH", "DUPLICATE_SOURCE_RECORD_ID"}
     excluded_rows = [
         row for row in rows if set(row["review_reasons"].split("|")) & exclusion_reasons
     ]
@@ -328,7 +341,8 @@ def main() -> int:
     decision_fields = [
         "source_record_id", "source_name", "proposed_display_name_en", "decision",
         "matched_item_key", "canonical_display_name_en", "canonical_display_name_tr",
-        "portion_profile", "match_score", "review_reasons",
+        "portion_profile", "match_score", "review_reasons", "match_evidence", "apply_allowed",
+        "source_key", "source_preparation_state", "source_reference_unit",
     ]
     decisions: list[dict[str, object]] = []
     for row in import_candidate_rows:
@@ -338,8 +352,8 @@ def main() -> int:
         matched_key, matched_score = closest_manifest(row["display_name_en"], manifest)
         matched = next((item for item in manifest if item["item_key"] == matched_key), None)
         if exact:
-            decision = "MERGE_AS_EVIDENCE"
-            matched = exact
+            decision = "EXACT_NAME_OVERLAP_REVIEW"
+            matched = exact[0] if len(exact) == 1 else None
             matched_score = 1.0
         elif matched and matched_score >= 0.82 and token_overlap(row["display_name_en"], matched["display_name_en"]) >= 0.5:
             decision = "POSSIBLE_VARIANT_REVIEW"
@@ -352,11 +366,16 @@ def main() -> int:
             "proposed_display_name_en": row["display_name_en"],
             "decision": decision,
             "matched_item_key": matched["item_key"] if matched else "",
-            "canonical_display_name_en": matched["display_name_en"] if matched else "",
-            "canonical_display_name_tr": matched["display_name_tr"] if matched else "",
-            "portion_profile": matched["portion_profile"] if matched else "",
+            "canonical_display_name_en": "",
+            "canonical_display_name_tr": "",
+            "portion_profile": "",
             "match_score": f"{matched_score:.4f}",
             "review_reasons": row["review_reasons"],
+            "match_evidence": "NAME_ONLY" if exact else "FUZZY_NAME_ONLY" if matched else "NO_MATCH",
+            "apply_allowed": "false",
+            "source_key": row["source_key"],
+            "source_preparation_state": row["preparation_state"],
+            "source_reference_unit": row["nutrition_reference_unit"],
         })
     with args.decision_output.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=decision_fields)
@@ -366,7 +385,7 @@ def main() -> int:
     non_new_source_ids = {
         str(row["source_record_id"])
         for row in decisions
-        if row["decision"] in {"MERGE_AS_EVIDENCE", "POSSIBLE_VARIANT_REVIEW"}
+        if row["decision"] in {"EXACT_NAME_OVERLAP_REVIEW", "POSSIBLE_VARIANT_REVIEW"}
     }
     prepared_new_rows = [
         row for row in prepared_rows if row["source_record_id"] not in non_new_source_ids
@@ -400,10 +419,19 @@ def main() -> int:
 
     report = {
         "result": "PASS",
+        "ruleset": "R3_COFID_IDENTITY_V1",
+        "sourceSha256": hashlib.sha256(args.workbook.read_bytes()).hexdigest(),
+        "manifestSha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
+        "basisEvidence": "Workbook 1.1 Notes: per 100g except alcoholic beverages per 100ml; Q source group.",
+        "automaticMergeRows": 0,
+        "artifactSha256": {field: hashlib.sha256(getattr(args, field).read_bytes()).hexdigest()
+                           for field in ("output", "prepared_output", "decision_output", "generic_output", "generic_review_output")},
         "source": "CoFID 2021 official workbook",
         "sourceUrl": OFFICIAL_SOURCE,
         "sourceRows": len(rows),
         "excludedRows": len(excluded_rows),
+        "excludedRecords": [{"sourceKey": row["source_key"], "sourceRecordId": row["source_record_id"],
+                             "name": row["name"], "reviewReasons": row["review_reasons"]} for row in excluded_rows],
         "excludedReasonCounts": dict(excluded_reason_counts),
         "importCandidateRows": len(import_candidate_rows),
         "importCandidateTypeCounts": dict(import_type_counts),
@@ -424,7 +452,7 @@ def main() -> int:
         "releasePolicy": "Review-only output; no row is production-approved automatically.",
     }
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({key: value for key, value in report.items() if key != "overlapCandidates"}, ensure_ascii=False, indent=2))
+    print(json.dumps({key: value for key, value in report.items() if key not in {"overlapCandidates", "excludedRecords"}}, ensure_ascii=False, indent=2))
     return 0
 
 

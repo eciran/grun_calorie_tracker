@@ -1,0 +1,19 @@
+{
+  "version": "r7-capacity-source-judgments-v1",
+  "cohortSha256": "4ec88a084dd83ddfe99c67725b84006cfcfed5faf8ce8984430b36ffcc37850b",
+  "scope": "Independent predicates from pinned source names, markets and preparation; not new source approval or a live181k audit",
+  "judgments": [
+    {"id":"capacity-raw-rice-only","q":"rice","language":"EN","region":"UK_IE","catalogType":"GENERIC_INGREDIENT","preparationState":"RAW","fixtureApprovalSimulation":true,
+     "expectedKeys":["COFID_2021:11-874"],"acceptableTopKeys":["COFID_2021:11-874"]},
+    {"id":"capacity-boiled-broccoli-retains-salt-variants","q":"broccoli","language":"TR","region":"UK_IE","catalogType":"GENERIC_INGREDIENT","preparationState":"BOILED","fixtureApprovalSimulation":true,
+     "expectedKeys":["COFID_2021:13-503","COFID_2021:13-583"],"acceptableTopKeys":["COFID_2021:13-503","COFID_2021:13-583"]},
+    {"id":"capacity-steamed-not-boiled","q":"broccoli","language":"EN","region":"UK_IE","preparationState":"STEAMED","fixtureApprovalSimulation":true,
+     "expectedKeys":["COFID_2021:13-504"],"acceptableTopKeys":["COFID_2021:13-504"]},
+    {"id":"capacity-brand-not-local-dish","q":"ham","language":"TR","region":"UK_IE","catalogType":"LOCAL_DISH",
+     "expectedKeys":[],"acceptableTopKeys":[]},
+    {"id":"capacity-literal-percent-must-not-match200k","q":"Capacity%","language":"EN","region":"UK_IE",
+     "expectedKeys":[],"acceptableTopKeys":[]},
+    {"id":"capacity-uk-branded-not-eu","q":"ham","language":"EN","region":"EU",
+     "expectedKeys":[],"acceptableTopKeys":[]}
+  ]
+}

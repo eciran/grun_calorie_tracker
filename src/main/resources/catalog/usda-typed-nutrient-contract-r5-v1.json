@@ -1,0 +1,23 @@
+{
+  "version": "usda-typed-nutrient-contract-r5-v1",
+  "scope": "Exact source export and offline reattestation proposals; not certification of old DB scalar units.",
+  "basis": "PER_100G",
+  "fields": {
+    "vitamin_a": {"nutrientId": 1106, "nutrientNumber": "320", "sourceUnit": "ug", "semantic": "VITAMIN_A_RAE", "canonicalUnit": "MCG_RAE"},
+    "vitamin_d": {"nutrientId": 1114, "nutrientNumber": "328", "sourceUnit": "ug", "semantic": "VITAMIN_D_D2_D3", "canonicalUnit": "MCG"},
+    "sugar": {"nutrientId": 2000, "nutrientNumber": "269", "sourceUnit": "g", "semantic": "USDA_TOTAL_SUGARS_2000", "canonicalUnit": "G"}
+  },
+  "policy": {
+    "allowNameFallback": false,
+    "allowNumericCandidateSelection": false,
+    "allowIuConversion": false,
+    "allowSugarDefinitionAliasing": false,
+    "allowLegacyUnitInference": false,
+    "allowLiveApply": false
+  },
+  "references": [
+    "https://fdc.nal.usda.gov/data-documentation/",
+    "https://fdc.nal.usda.gov/Foundation_Foods_Documentation/",
+    "https://ods.od.nih.gov/factsheets/VitaminA-HealthProfessional/"
+  ]
+}

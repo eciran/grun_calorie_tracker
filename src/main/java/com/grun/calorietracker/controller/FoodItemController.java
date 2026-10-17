@@ -70,10 +70,11 @@ public class FoodItemController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Matching products returned."),
+            @ApiResponse(responseCode = "400", description = "Search text exceeds 256 characters or 24 words, or required criteria are missing."),
             @ApiResponse(responseCode = "401", description = "JWT token is missing or invalid.")
     })
     public ResponseEntity<FoodProductSearchPageDto> searchProducts(
-            @Parameter(description = "Search text, product name, or barcode fragment.", example = "milk")
+            @Parameter(description = "Search text, product name, or barcode fragment. Maximum 256 characters and 24 words.", example = "milk")
             @RequestParam(name = "q", required = false) String q,
             @Parameter(description = "Alias for q. Kept for frontend/client compatibility.", example = "milk")
             @RequestParam(name = "query", required = false) String query,
@@ -96,6 +97,7 @@ public class FoodItemController {
             @RequestHeader(name = "Accept-Language", required = false) String acceptLanguage,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         String searchText = q != null ? q : query;
+        com.grun.calorietracker.service.support.FoodProductNormalizationRules.validateSearchQuery(searchText);
         if ((searchText == null || searchText.isBlank()) && categoryId == null) {
             throw new IllegalArgumentException("Search query or categoryId is required.");
         }
@@ -109,9 +111,9 @@ public class FoodItemController {
         criteria.setPreferredLanguage(resolveSearchLanguage(language, acceptLanguage, userDetails));
 
         FoodProductSearchPageDto products = foodItemService.searchFoodItems(criteria, page, size);
-        products.setSearchRequestId(foodSearchTelemetryService.recordSearch(criteria, products));
-
-        return ResponseEntity.ok(products);
+        String searchRequestId = products.isCacheable()
+                ? foodSearchTelemetryService.recordSearch(criteria, products) : null;
+        return ResponseEntity.ok(products.copyWithSearchRequestId(searchRequestId));
     }
 
     @PostMapping("/search/{searchRequestId}/selection")

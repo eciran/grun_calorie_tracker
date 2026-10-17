@@ -2,13 +2,12 @@ package com.grun.calorietracker.service;
 
 import com.grun.calorietracker.dto.FoodCategoryBackfillResultDto;
 import com.grun.calorietracker.dto.FoodCategoryBackfillPreviewDto;
-import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.service.support.FoodCategoryImportResolutionService;
+import com.grun.calorietracker.service.support.FoodCategoryBackfillBatchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +19,7 @@ public class FoodCategoryBackfillService {
 
     private final FoodItemRepository foodItemRepository;
     private final FoodProductQualityIssueRepository qualityIssueRepository;
-    private final FoodCategoryImportResolutionService resolutionService;
+    private final FoodCategoryBackfillBatchService batchService;
 
     public FoodCategoryBackfillPreviewDto preview() {
         long count = foodItemRepository.countCategoryResolutionBackfillCandidates();
@@ -34,6 +33,9 @@ public class FoodCategoryBackfillService {
 
     public FoodCategoryBackfillResultDto backfill(int requestedBatchSize, int maxBatches,
                                                   long afterId, String actor) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Category backfill must run outside an outer transaction; each batch owns its transaction");
+        }
         int batchSize = Math.max(1, Math.min(requestedBatchSize, MAX_BATCH_SIZE));
         int batchLimit = Math.max(1, Math.min(maxBatches, 1000));
         long cursor = Math.max(0L, afterId);
@@ -44,21 +46,17 @@ public class FoodCategoryBackfillService {
         int batches = 0;
 
         while (batches < batchLimit) {
-            List<Long> ids = foodItemRepository.findCategoryResolutionBackfillIds(
-                    cursor, PageRequest.of(0, batchSize));
-            if (ids.isEmpty()) break;
-
-            List<FoodItemEntity> products = foodItemRepository.findByIdIn(ids, Sort.by("id").ascending());
-            FoodCategoryImportResolutionService.ResolutionSummary result =
-                    resolutionService.resolveAfterImport(products, actor);
-            scanned += products.size();
+            var batch = batchService.process(cursor, batchSize, actor);
+            if (batch.selected() == 0) break;
+            var result = batch.resolution();
+            scanned += batch.scanned();
             assigned += result.assignedProducts();
             preserved += result.preservedProducts();
             review += result.reviewProducts();
-            cursor = ids.get(ids.size() - 1);
+            cursor = batch.nextId();
             batches++;
 
-            if (ids.size() < batchSize) break;
+            if (batch.selected() < batchSize) break;
         }
 
         String resolvedActor = actor == null || actor.isBlank()

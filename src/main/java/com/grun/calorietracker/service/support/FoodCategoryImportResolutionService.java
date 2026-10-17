@@ -21,7 +21,8 @@ public class FoodCategoryImportResolutionService {
     private final FoodItemCategoryRepository itemCategoryRepository;
     private final FoodProductQualityIssueRepository qualityIssueRepository;
 
-    @Transactional
+    // Both callers load their product entities inside an already-fenced writer transaction.
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
     public ResolutionSummary resolveAfterImport(List<FoodItemEntity> products, String actor) {
         List<FoodItemEntity> eligibleProducts = products == null ? List.of() : products.stream()
                 .filter(Objects::nonNull)

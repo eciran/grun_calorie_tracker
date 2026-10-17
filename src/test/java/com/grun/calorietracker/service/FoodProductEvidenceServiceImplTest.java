@@ -46,6 +46,39 @@ class FoodProductEvidenceServiceImplTest {
     private FoodProductEvidenceServiceImpl service;
 
     @Test
+    void buildContext_usesSelectedProductVolumeBasisWithoutRewritingMassHistory() {
+        FoodItemEntity product = product(1L, FoodDataSource.USDA_FOODDATA, FoodCatalogType.GENERIC_INGREDIENT);
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML);
+        var mass = evidence(1L, product, 65.0, LocalDateTime.now());
+        var volume = evidence(2L, product, 60.0, LocalDateTime.now());
+        volume.setBasis(FoodEvidenceBasis.PER_100_ML);
+        when(evidenceRepository.findByFoodItemIdInOrderByObservedAtDescIdDesc(List.of(1L)))
+                .thenReturn(List.of(volume, mass));
+
+        var context = service.buildContext(product);
+        var calories = context.getComparisons().stream()
+                .filter(value -> value.getFieldName() == FoodEvidenceField.CALORIES).findFirst().orElseThrow();
+        assertEquals(FoodEvidenceBasis.PER_100_ML, calories.getBasis());
+        assertEquals(List.of(2L), calories.getEvidenceIds());
+        assertEquals(2, context.getEvidence().size());
+        assertEquals(FoodEvidenceBasis.PER_100_G, mass.getBasis());
+    }
+
+    @Test
+    void buildContext_massHistoryDoesNotValidateCurrentVolumeNutrition() {
+        FoodItemEntity product = product(1L, FoodDataSource.USDA_FOODDATA, FoodCatalogType.GENERIC_INGREDIENT);
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML);
+        when(evidenceRepository.findByFoodItemIdInOrderByObservedAtDescIdDesc(List.of(1L)))
+                .thenReturn(List.of(evidence(1L, product, 60.0, LocalDateTime.now())));
+        var context = service.buildContext(product);
+        var calories = context.getComparisons().stream()
+                .filter(value -> value.getFieldName() == FoodEvidenceField.CALORIES).findFirst().orElseThrow();
+        assertEquals(FoodEvidenceComparisonState.MISSING, calories.getState());
+        assertTrue(calories.getEvidenceIds().isEmpty());
+        assertEquals(1, context.getEvidence().size());
+    }
+
+    @Test
     void recordImportEvidence_isIdempotentForExistingFingerprints() {
         FoodItemEntity product = product(1L, FoodDataSource.USDA_FOODDATA, FoodCatalogType.GENERIC_INGREDIENT);
         product.setCalories(130.0);

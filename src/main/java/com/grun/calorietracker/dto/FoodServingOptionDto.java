@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 @Data
-@Schema(description = "Product-specific serving option. These options convert user-friendly units such as slice, cup, or bottle into grams for nutrition calculation.")
+@Schema(description = "Product-specific serving option with explicit mass/volume conversions for the product's nutrition reference dimension.")
 public class FoodServingOptionDto {
 
     @Schema(description = "Serving option id.", example = "5")
@@ -42,4 +42,7 @@ public class FoodServingOptionDto {
 
     @Schema(description = "Whether the option is suitable for display in user-facing serving selectors.", example = "true")
     private Boolean userVisible;
+
+    @Schema(description = "Input units allowed with this servingOptionId. SERVING/semantic units are option counts; GRAM/MILLILITER are absolute quantities and require an explicit mass-volume pair.")
+    private java.util.List<com.grun.calorietracker.enums.FoodPortionUnit> allowedInputUnits = java.util.List.of();
 }

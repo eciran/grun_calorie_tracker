@@ -3,6 +3,7 @@ import readline from 'node:readline';
 import zlib from 'node:zlib';
 
 const LIQUID_CATEGORIES = new Set([
+  'en:non-alcoholic-beverages', 'en:alcoholic-beverages', 'en:milks', 'en:plant-based-milks',
   'en:beverages', 'en:waters', 'en:juices-and-nectars', 'en:fruit-juices',
   'en:soft-drinks', 'en:carbonated-drinks', 'en:energy-drinks', 'en:sports-drinks',
   'en:milk-drinks', 'en:dairy-drinks', 'en:fermented-drinks', 'en:fermented-milk-drinks',
@@ -11,6 +12,7 @@ const LIQUID_CATEGORIES = new Set([
   'tr:içecek', 'tr:gazlı-içecek'
 ]);
 const CONFLICT_CATEGORIES = new Set([
+  'en:milk-powders', 'en:plant-based-drink-powders',
   'en:powders', 'en:drink-powders', 'en:concentrates',
   'en:ice-creams', 'en:frozen-desserts', 'en:pickles'
 ]);

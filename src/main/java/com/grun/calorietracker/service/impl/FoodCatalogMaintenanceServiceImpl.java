@@ -4,11 +4,9 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
-import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.service.FoodCatalogMaintenanceService;
-import com.grun.calorietracker.service.ProductQualitySuggestionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +21,18 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class FoodCatalogMaintenanceServiceImpl implements FoodCatalogMaintenanceService {
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setExternalFoodImportFence(
+            com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence
+    ) {
+        this.externalFoodImportFence = externalFoodImportFence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
     private static final EnumSet<FoodDataSource> EXTERNAL_SOURCES = EnumSet.of(
             FoodDataSource.OPEN_FOOD_FACTS, FoodDataSource.USDA_FOODDATA,
             FoodDataSource.EDAMAM, FoodDataSource.NUTRITIONIX
@@ -30,7 +40,7 @@ public class FoodCatalogMaintenanceServiceImpl implements FoodCatalogMaintenance
 
     private final FoodItemRepository foodItemRepository;
     private final FoodProductQualityIssueRepository issueRepository;
-    private final ProductQualitySuggestionService qualitySuggestionService;
+    private final ProductCatalogAuditService catalogAuditService;
 
     @Value("${grun.product-catalog.maintenance.stale-days:180}")
     private int staleDays;
@@ -42,6 +52,7 @@ public class FoodCatalogMaintenanceServiceImpl implements FoodCatalogMaintenance
     @Override
     @Transactional
     public int refreshStaleSourceQueue() {
+        acquireCatalogWriteFence();
         LocalDateTime cutoff = LocalDateTime.now().minusDays(staleDays);
         LocalDateTime now = LocalDateTime.now();
         List<FoodProductQualityIssueEntity> activeStaleIssues = issueRepository
@@ -80,8 +91,7 @@ public class FoodCatalogMaintenanceServiceImpl implements FoodCatalogMaintenance
     @Override
     public void runScheduledQualityQueue() {
         if (scheduledQualityEnabled) {
-            qualitySuggestionService.scanSuggestions(null, Math.min(batchSize, 500), false,
-                    ProductQualityScanTriggerType.SCHEDULED, "system:product-maintenance");
+            catalogAuditService.scheduledStep();
         }
     }
 
@@ -90,7 +100,8 @@ public class FoodCatalogMaintenanceServiceImpl implements FoodCatalogMaintenance
         refreshStaleSourceQueue();
     }
 
-    @Scheduled(cron = "${grun.product-catalog.maintenance.quality-scan-cron:0 40 2 * * *}")
+    @Scheduled(cron = "${grun.product-catalog.maintenance.quality-scan-cron:0 10 5 * * *}",
+            zone = "${grun.product-catalog.audit.zone:Europe/Dublin}")
     public void scheduledQualityQueue() {
         runScheduledQualityQueue();
     }

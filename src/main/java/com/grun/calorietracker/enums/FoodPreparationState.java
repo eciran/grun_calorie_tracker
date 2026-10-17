@@ -31,6 +31,6 @@ public enum FoodPreparationState {
     @Schema(description = "Steamed food.")
     STEAMED,
 
-    @Schema(description = "Prepared mixed food or recipe-like dish.")
+    @Schema(description = "Prepared food, including a source-described prepared ingredient without a specified cooking method. Does not imply boiled, steamed, or a mixed recipe.")
     PREPARED
 }

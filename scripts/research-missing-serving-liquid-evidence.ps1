@@ -1,8 +1,8 @@
 param(
     [string]$InputPath = ".\outputs\serving-option-candidates\liquid-review\potential_liquid_requires_source_fetch.csv",
     [string]$OutputDirectory = ".\outputs\serving-option-candidates\liquid-review\live-off-evidence",
-    [ValidateRange(650, 10000)]
-    [int]$DelayMilliseconds = 2100
+    [ValidateRange(4500, 60000)]
+    [int]$DelayMilliseconds = 4500
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,13 +63,8 @@ foreach ($row in $rows) {
     }
     [IO.File]::WriteAllText($itemPath, ($result | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
     $results.Add($result)
-    if ($result.status -eq "FETCH_FAILED" -and $result.httpStatus -eq 403) {
+    if ($result.status -eq "FETCH_FAILED") {
         break
-    }
-    if ($result.status -eq "FETCH_FAILED" -and $result.httpStatus -eq 429) {
-        Remove-Item -LiteralPath $itemPath -Force
-        Start-Sleep -Seconds 60
-        continue
     }
     Start-Sleep -Milliseconds $DelayMilliseconds
 }

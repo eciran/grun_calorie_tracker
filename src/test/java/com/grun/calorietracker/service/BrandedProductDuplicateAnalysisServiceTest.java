@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +17,31 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class BrandedProductDuplicateAnalysisServiceTest {
+
+    @Test
+    void duplicateHintNeverApprovesVariantOrPartialIdentity() {
+        String sql = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "IDENTITY_CTE");
+        assertThat(sql).contains("item.nutrition_reference_unit", "CANDIDATE_SAME_GTIN",
+                "REVIEW_VARIANT_CONFLICT", "REVIEW_INCOMPLETE_PROFILE", "REVIEW_MISSING_SOURCE_KEY");
+        assertThat(sql).doesNotContain("AUTO_SAFE", "round(calories::numeric, 1)");
+        assertThat(sql.indexOf("REVIEW_VARIANT_CONFLICT")).isLessThan(sql.indexOf("CANDIDATE_SAME_GTIN"));
+    }
+
+    @Test
+    void fullReviewProfilesAreComputedOnlyForSelectedCandidates() {
+        String profile = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "REVIEW_PROFILE_SQL");
+        String identity = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "IDENTITY_CTE");
+        String count = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "COUNT_SQL");
+        String page = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "PAGE_SQL");
+        String exact = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "EXACT_GROUP_SQL");
+        assertThat(profile).contains("sha256", "to_jsonb(food)", "food_item_market_regions",
+                "food_item_serving_options", "food_item_serving_option_localizations", "food_product_source_evidence",
+                "- 'usage_count' - 'search_selection_count'", "to_jsonb(brand_row)", "food_item_source_categories");
+        assertThat(identity).doesNotContain("review_profile_fingerprint", "food_product_source_evidence");
+        assertThat(count).doesNotContain("review_profile_fingerprint", "food_item_serving_options");
+        assertThat(page).contains(profile);
+        assertThat(exact).contains(profile);
+    }
 
     @Mock
     private JdbcTemplate jdbcTemplate;

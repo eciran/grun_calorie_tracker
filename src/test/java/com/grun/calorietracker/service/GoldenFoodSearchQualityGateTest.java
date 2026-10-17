@@ -10,6 +10,8 @@ import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
@@ -24,9 +26,11 @@ import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepos
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.service.impl.FoodItemServiceImpl;
+import com.grun.calorietracker.service.impl.CatalogPublicationServiceImpl;
 import com.grun.calorietracker.service.impl.FoodProductImportServiceImpl;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
+import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -113,11 +117,23 @@ class GoldenFoodSearchQualityGateTest {
                     option.setGramWeight(240.0);
                     option.setMlVolume(null);
                 });
-        foodItemRepository.findAll().forEach(product ->
-                product.setPublicationStatus(
-                        com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED
-                )
-        );
+        CatalogPublicationServiceImpl publicationService = new CatalogPublicationServiceImpl(
+                foodItemRepository, Mockito.mock(AdminAuditService.class));
+        foodItemRepository.findAll().forEach(product -> {
+            // This is a synthetic ranking fixture, not approval of the underlying seed for release.
+            // Its ambiguous milk sugar is unknown here; the original import safety test retains it.
+            if ("GLOBAL:GENERIC_INGREDIENT:RAW:whole_milk".equals(product.getSourceKey())) {
+                product.setSugar(null);
+            }
+            product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+            product.setVerificationStatus(VerificationStatus.VERIFIED);
+            FoodProductQualityRules.updateQualityAndReviewPriority(product);
+            issueTracker.syncReviewIssues(product, "synthetic-golden-fixture");
+            publicationService.publish(product.getId(), "synthetic-golden-fixture",
+                    "Explicit mass-basis synthetic search fixture", null);
+        });
+        foodItemServingOptionRepository.findAll().forEach(option ->
+                option.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED));
         foodItemRepository.flush();
         seedMarketProducts();
         seedGuardrailProducts();

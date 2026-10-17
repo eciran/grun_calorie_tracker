@@ -16,6 +16,8 @@ import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 
 public interface ProductQualitySuggestionService {
 
+    int createRuleSuggestionsForAudit(com.grun.calorietracker.entity.FoodItemEntity product);
+
     ProductQualitySuggestionScanResultDto scanSuggestions(MarketRegion marketRegion, int limit, boolean forceRescan, ProductQualityScanTriggerType triggerType, String triggeredBy);
 
     default ProductQualitySuggestionScanResultDto scanSuggestions(MarketRegion marketRegion, int limit) {

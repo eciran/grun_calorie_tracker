@@ -30,6 +30,7 @@ param(
     [ValidateRange(0, 10000)]
     [int] $RequestDelayMs = 250,
 
+    [ValidateSet("Foundation", "SR Legacy")]
     [string[]] $DataTypes = @("Foundation", "SR Legacy"),
 
     [string] $BaseUrl = "https://api.nal.usda.gov/fdc/v1/foods/search",
@@ -39,6 +40,64 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$typedContractPath = Join-Path $PSScriptRoot "../src/main/resources/catalog/usda-typed-nutrient-contract-r5-v1.json"
+$typedContract = Get-Content -LiteralPath $typedContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($typedContract.version -ne "usda-typed-nutrient-contract-r5-v1" -or $typedContract.basis -ne "PER_100G") {
+    throw "Unsupported USDA typed nutrient contract."
+}
+$expectedTypedFields = @{
+    vitamin_a = @("1106", "320", "ug", "VITAMIN_A_RAE", "MCG_RAE")
+    vitamin_d = @("1114", "328", "ug", "VITAMIN_D_D2_D3", "MCG")
+    sugar = @("2000", "269", "g", "USDA_TOTAL_SUGARS_2000", "G")
+}
+foreach ($field in $expectedTypedFields.Keys) {
+    $actual = $typedContract.fields.$field
+    $values = @([string] $actual.nutrientId, [string] $actual.nutrientNumber,
+        [string] $actual.sourceUnit, [string] $actual.semantic, [string] $actual.canonicalUnit)
+    if (($values -join '|') -cne ($expectedTypedFields[$field] -join '|')) { throw "Invalid exact USDA mapping: $field" }
+}
+foreach ($permission in $typedContract.policy.PSObject.Properties) {
+    if ($permission.Value -isnot [bool] -or $permission.Value) { throw "USDA unit inference/conversion is forbidden." }
+}
+
+function Get-ExactTypedUsdaNutrient {
+    param($Food, [ValidateSet("vitamin_a", "vitamin_d", "sugar")] [string] $Field)
+
+    $specification = $typedContract.fields.$Field
+    $matches = @()
+    foreach ($nutrient in $Food.foodNutrients) {
+        $id = [string] $nutrient.nutrientId
+        $number = [string] $nutrient.nutrientNumber
+        $exactId = $id -eq [string] $specification.nutrientId
+        $exactNumber = $number -eq [string] $specification.nutrientNumber
+        if (($exactId -and $number -and -not $exactNumber) -or ($exactNumber -and $id -and -not $exactId)) {
+            throw "Conflicting USDA nutrient identity for $Field."
+        }
+        if ($exactId -or (-not $id -and $exactNumber)) { $matches += $nutrient }
+    }
+    if ($matches.Count -eq 0) { return $null }
+    if ($matches.Count -ne 1) { throw "Duplicate USDA nutrient identity for $Field." }
+    $record = $matches[0]
+    $unit = ([string] $record.unitName).ToLowerInvariant().Replace([char]0x00B5, 'u').Replace([char]0x03BC, 'u')
+    if ($unit -ne $specification.sourceUnit) { throw "Invalid USDA source unit for $Field." }
+    if ($null -eq $record.value) { return $null }
+    $value = 0.0
+    if ($record.value -is [bool] -or -not [double]::TryParse(
+            [Convert]::ToString($record.value, [System.Globalization.CultureInfo]::InvariantCulture), [System.Globalization.NumberStyles]::Float,
+            [System.Globalization.CultureInfo]::InvariantCulture, [ref] $value) -or
+            [double]::IsNaN($value) -or [double]::IsInfinity($value) -or $value -lt 0) {
+        throw "Invalid USDA source value for $Field."
+    }
+    $exported = [Math]::Round($value, 1, [MidpointRounding]::AwayFromZero)
+    return [pscustomobject]@{
+        nutrientId = $specification.nutrientId; nutrientNumber = $specification.nutrientNumber
+        sourceUnit = $unit; semantic = $specification.semantic; canonicalUnit = $specification.canonicalUnit
+        sourceAmount = $value; exportedValue = $exported.ToString("0.#", [System.Globalization.CultureInfo]::InvariantCulture)
+        basis = "PER_100G"; numericConversion = $false
+        selector = $(if ([string] $record.nutrientId) { "EXACT_FDC_NUTRIENT_ID" } else { "EXACT_LEGACY_NUTRIENT_NUMBER" })
+        legacyDatabaseUnitAttested = $false
+    }
+}
 
 function Resolve-OutputFile {
     param([string] $Path)
@@ -358,11 +417,53 @@ if ($RunRuleTests) {
         throw "USDA Atwater energy fallback rule failed."
     }
 
+    $typedTests = 0
+    $iu = [pscustomobject]@{ nutrientId=1104; nutrientNumber="318"; nutrientName="Vitamin A, IU"; unitName="IU"; value=20 }
+    $rae = [pscustomobject]@{ nutrientId=1106; nutrientNumber="320"; nutrientName="Vitamin A, RAE"; unitName="UG"; value=6 }
+    $selected = Get-ExactTypedUsdaNutrient -Food ([pscustomobject]@{ foodNutrients=@($iu, $rae) }) -Field vitamin_a
+    if ($selected.exportedValue -ne "6" -or $selected.nutrientId -ne 1106 -or $selected.canonicalUnit -ne "MCG_RAE" -or $selected.numericConversion) {
+        throw "Exact RAE export selection failed."
+    }
+    $typedTests++
+    foreach ($nutrients in @(@($iu), @([pscustomobject]@{ nutrientName="Vitamin A, RAE"; unitName="UG"; value=6 }))) {
+        if ($null -ne (Get-ExactTypedUsdaNutrient -Food ([pscustomobject]@{ foodNutrients=$nutrients }) -Field vitamin_a)) {
+            throw "Missing exact RAE identity must remain unknown."
+        }
+        $typedTests++
+    }
+    foreach ($defect in @("unit", "duplicate", "bool", "nan", "negative", "conflictingId")) {
+        $bad = [pscustomobject]@{ nutrientId=1106; nutrientNumber="320"; unitName="UG"; value=6 }
+        $records = @($bad)
+        switch ($defect) {
+            "unit" { $bad.unitName = "IU" }
+            "duplicate" { $records = @($bad, $bad) }
+            "bool" { $bad.value = $true }
+            "nan" { $bad.value = "NaN" }
+            "negative" { $bad.value = -1 }
+            "conflictingId" { $bad.nutrientId = 1104 }
+        }
+        $rejected = $false
+        try { $null = Get-ExactTypedUsdaNutrient -Food ([pscustomobject]@{ foodNutrients=$records }) -Field vitamin_a }
+        catch { $rejected = $true }
+        if (-not $rejected) { throw "Typed USDA negative test failed: $defect" }
+        $typedTests++
+    }
+    $d = Get-ExactTypedUsdaNutrient -Food ([pscustomobject]@{ foodNutrients=@(
+        [pscustomobject]@{ nutrientId=1110; nutrientNumber="324"; unitName="IU"; value=12 },
+        [pscustomobject]@{ nutrientId=1114; nutrientNumber="328"; unitName="UG"; value=0.3 }
+    ) }) -Field vitamin_d
+    if ($d.exportedValue -ne "0.3" -or $d.nutrientId -ne 1114) { throw "Vitamin D exact-unit rule failed." }
+    $typedTests++
+    if ($null -ne (Get-ExactTypedUsdaNutrient -Food ([pscustomobject]@{ foodNutrients=@(
+        [pscustomobject]@{ nutrientId=1063; nutrientNumber="269.3"; unitName="G"; value=1 }
+    ) }) -Field sugar)) { throw "Sugar definitions must not be silently aliased." }
+    $typedTests++
+
     $failures = @($cases | Where-Object { $_.actual -ne $_.expected })
     if ($failures.Count -gt 0) {
         throw "USDA generic export rule tests failed: $($failures.name -join ', ')"
     }
-    [pscustomobject]@{ passed = $cases.Count + 1; failed = 0 } | ConvertTo-Json
+    [pscustomobject]@{ passed = $cases.Count + 1 + $typedTests; typedNutrientTests = $typedTests; failed = 0 } | ConvertTo-Json
     return
 }
 
@@ -404,6 +505,9 @@ foreach ($query in $Queries) {
     $queryRows = [System.Collections.Generic.List[object]]::new()
     foreach ($food in $result.foods) {
         $rowsSeen++
+        if ([string] $food.dataType -notin @("Foundation", "SR Legacy")) {
+            throw "Unexpected USDA subtype in generic export: $($food.dataType). No catalog import was performed."
+        }
         $fdcId = [string] $food.fdcId
         if ([string]::IsNullOrWhiteSpace($fdcId) -or $seenFdcIds.Contains($fdcId)) {
             continue
@@ -430,9 +534,13 @@ foreach ($query in $Queries) {
             continue
         }
         $queryNutritionMatches++
+        $typedA = Get-ExactTypedUsdaNutrient -Food $food -Field vitamin_a
+        $typedD = Get-ExactTypedUsdaNutrient -Food $food -Field vitamin_d
+        $typedSugar = Get-ExactTypedUsdaNutrient -Food $food -Field sugar
         $row = [pscustomobject]@{
             catalog_type = "GENERIC_INGREDIENT"
             data_source = "USDA_FOODDATA"
+            source_data_type = [string] $food.dataType
             fdc_id = $fdcId
             source_key = "USDA_FOODDATA:fdc:$fdcId"
             name = $description
@@ -441,7 +549,7 @@ foreach ($query in $Queries) {
             fat = $fat
             carbs = $carbs
             fiber = Get-NutrientValue -Food $food -Numbers @("291", "1079") -Names @("Fiber")
-            sugar = Get-NutrientValue -Food $food -Numbers @("269", "2000") -Names @("Sugars")
+            sugar = $typedSugar.exportedValue
             sodium = Get-NutrientValue -Food $food -Numbers @("307", "1093") -Names @("Sodium")
             potassium = Get-NutrientValue -Food $food -Numbers @("306", "1092") -Names @("Potassium")
             cholesterol = Get-NutrientValue -Food $food -Numbers @("601", "1253") -Names @("Cholesterol")
@@ -449,9 +557,9 @@ foreach ($query in $Queries) {
             iron = Get-NutrientValue -Food $food -Numbers @("303", "1089") -Names @("Iron")
             magnesium = Get-NutrientValue -Food $food -Numbers @("304", "1090") -Names @("Magnesium")
             zinc = Get-NutrientValue -Food $food -Numbers @("309", "1095") -Names @("Zinc")
-            vitamin_a = Get-NutrientValue -Food $food -Numbers @("318", "1104") -Names @("Vitamin A")
+            vitamin_a = $typedA.exportedValue
             vitamin_c = Get-NutrientValue -Food $food -Numbers @("401", "1162") -Names @("Vitamin C")
-            vitamin_d = Get-NutrientValue -Food $food -Numbers @("328", "1114") -Names @("Vitamin D")
+            vitamin_d = $typedD.exportedValue
             vitamin_e = Get-NutrientValue -Food $food -Numbers @("323", "1109") -Names @("Vitamin E")
             vitamin_b12 = Get-NutrientValue -Food $food -Numbers @("418", "1178") -Names @("Vitamin B-12", "Vitamin B12")
             serving_size_grams = "100"
@@ -467,6 +575,11 @@ foreach ($query in $Queries) {
             )
             alias_en = $query
             source_note = "USDA FoodData Central; dataType=$($food.dataType); query=$query"
+            nutrient_provenance_json = (@{
+                version = $typedContract.version; sourceKey = "USDA_FOODDATA:fdc:$fdcId"
+                fields = @{ vitamin_a=$typedA; vitamin_d=$typedD; sugar=$typedSugar }
+                databaseUnitAttestation = $false
+            } | ConvertTo-Json -Compress -Depth 6)
             relevance_score = Get-DescriptionRelevanceScore -Query $query -Description $description -DataType ([string] $food.dataType)
         }
         $queryRows.Add($row) | Out-Null

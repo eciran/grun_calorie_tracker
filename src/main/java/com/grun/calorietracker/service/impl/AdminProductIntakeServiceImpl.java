@@ -61,6 +61,16 @@ import java.util.EnumMap;
 
 @Service
 public class AdminProductIntakeServiceImpl implements AdminProductIntakeService {
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(com.grun.calorietracker.service.support.ExternalFoodImportFence fence) {
+        this.externalFoodImportFence = fence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
     private static final String THANK_YOU_NOTE_TR = "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri ve kanıtlar incelendi; katkınız onaylandı.";
     private static final String THANK_YOU_NOTE_EN = "Thank you for your contribution. The product information and evidence you submitted were reviewed, and your contribution was approved.";
     private static final String REJECTION_NOTE_TR = "Katkınız için teşekkür ederiz. Gönderdiğiniz ürün bilgileri mevcut kanıtlarla doğrulanamadığı için katkınız bu aşamada onaylanamadı.";
@@ -283,6 +293,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Override
     @Transactional
     public AdminProductIntakeActionDto attachExistingProduct(Long caseId, String actorEmail, Long foodItemId) {
+        acquireCatalogWriteFence();
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
         requireMutableReview(reviewCase);
@@ -310,6 +321,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Override
     @Transactional
     public AdminProductIntakeActionDto publishCandidate(Long caseId, String actorEmail, String reason, String correlationId, boolean confirmed) {
+        acquireCatalogWriteFence();
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
         requireAssignedOrOwner(reviewCase, actor);
@@ -342,6 +354,7 @@ public class AdminProductIntakeServiceImpl implements AdminProductIntakeService 
     @Override
     @Transactional
     public AdminProductIntakeActionDto applyExistingProduct(Long caseId, String actorEmail, Set<ProductIntakeApplyField> fields, boolean confirmed) {
+        acquireCatalogWriteFence();
         UserEntity actor = requireActiveAdmin(actorEmail);
         FoodProductReviewCaseEntity reviewCase = lockedCase(caseId);
         requireAssignedOrOwner(reviewCase, actor);

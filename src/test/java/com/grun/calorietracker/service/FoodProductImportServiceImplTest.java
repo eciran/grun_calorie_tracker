@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,6 +92,305 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void usdaBrandedWithoutBarcodeMustNotBeInferredAsGeneric() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit
+                123,Branded,Packaged Milk,60,3,3,5,PER_100G
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals(1, result.getSavedRows());
+        assertEquals(FoodCatalogType.BRANDED_PRODUCT, captor.getValue().get(0).getCatalogType());
+        assertEquals(1, result.getReviewRequiredRows());
+    }
+
+    @Test
+    void usdaFoundationSourceKeyClassifiesWithoutFdcIdColumn() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                data_source,source_key,data_type,name,calories,protein,fat,carbs,nutrition_reference_unit
+                USDA_FOODDATA,USDA_FOODDATA:fdc:123,Foundation,Raw Banana,89,1.1,0.3,22.8,PER_100G
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals(1, result.getSavedRows());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, captor.getValue().get(0).getCatalogType());
+    }
+
+    @Test
+    void usdaConflictingDeclaredTypeRejectsRowRatherThanOverwritingClassification() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,catalog_type,description,calories
+                123,Branded,GENERIC_INGREDIENT,Packaged Milk,60
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+        assertEquals(0, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
+    }
+
+    @Test
+    void pendingCofidArtifactCannotBePromotedByCuratedAdminImport() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,data_source,name,catalog_type,approval_status,calories,protein,fat,carbs,nutrition_reference_unit
+                COFID_2021:1,COFID,Milk,GENERIC_INGREDIENT,PENDING_REVIEW,60,3,3,5,PER_100G
+                """), "admin@test.com");
+        assertEquals(1, result.getSkippedRows());
+        assertEquals(0, result.getSavedRows());
+    }
+
+    @Test
+    void sourceKeyAndFdcIdConflictLeavesExistingProductUntouched() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setSourceKey("USDA_FOODDATA:fdc:123");
+        existing.setName("Original");
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,fdc_id,data_type,name,calories
+                USDA_FOODDATA:fdc:123,124,Foundation,Changed,89
+                """), "admin@test.com");
+        assertEquals(1, result.getSkippedRows());
+        assertEquals("Original", existing.getName());
+    }
+
+    @Test
+    void evidencedReclassificationPreservesDatabaseIdAndExternalSourceKey() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(99L);
+        existing.setSourceKey("USDA_FOODDATA:fdc:123");
+        existing.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        existing.setDataSource(FoodDataSource.USDA_FOODDATA);
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,data_type,name,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state,food_concept_key,composition_variant_key
+                USDA_FOODDATA:fdc:123,Foundation,Raw Banana,89,1.1,0.3,22.8,PER_100G,RAW,banana,fdc_123
+                """), "admin@test.com");
+        assertEquals(1, result.getUpdatedRows());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, existing.getCatalogType());
+        assertEquals(99L, existing.getId());
+        assertEquals("USDA_FOODDATA:fdc:123", existing.getSourceKey());
+        assertEquals(FoodDataSource.USDA_FOODDATA, existing.getDataSource());
+        assertEquals("Foundation", existing.getSourceDataType());
+    }
+
+    @Test
+    void sourceSubtypeIsPersistedAndMissingSubtypeStaysInReviewEvenWithExplicitBasis() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit
+                123,Foundation,Raw Banana,89,1.1,0.3,22.8,PER_100G
+                124,,Raw Banana,89,1.1,0.3,22.8,PER_100G
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        assertEquals("Foundation", captor.getValue().get(0).getSourceDataType());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, captor.getValue().get(1).getPublicationStatus());
+        assertEquals(1, result.getQualityWarningCounts().get("MISSING_USDA_DATA_TYPE"));
+    }
+
+    @Test
+    void invalidClassificationDoesNotAbortOtherRows() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,name,catalog_type,calories
+                manual:1,Invalid,typo,89
+                manual:2,Banana,GENERIC_INGREDIENT,89
+                """), "admin@test.com");
+        assertEquals(1, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
+    }
+
+    @Test
+    void reviewedIdentityCannotBeReassignedAndInvalidRowLeavesExistingEntityUntouched() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setSourceKey("manual:banana");
+        existing.setName("Old Banana");
+        existing.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        existing.setPreparationState(FoodPreparationState.RAW);
+        existing.setFoodConceptKey("banana");
+        existing.setCompositionVariantKey("edible_flesh");
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,name,catalog_type,preparation_state,food_concept_key,composition_variant_key
+                manual:banana,Changed Banana,GENERIC_INGREDIENT,RAW,apple,edible_flesh
+                """), "admin@test.com");
+        assertEquals(1, result.getSkippedRows());
+        assertEquals("Old Banana", existing.getName());
+        assertEquals("banana", existing.getFoodConceptKey());
+    }
+
+    @Test
+    void reviewedIdentitySurvivesDisplayAndMarketEditAndRawImportsCannotAssignIt() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        MockMultipartFile file = csv("""
+                source_key,name,catalog_type,preparation_state,food_concept_key,composition_variant_key,market_region
+                manual:banana,Raw Banana,GENERIC_INGREDIENT,RAW,banana,edible_flesh,GLOBAL
+                """);
+        var rawResult = foodProductImportService.importCsv(file, "bulk@test.com", FoodProductImportMode.RAW_EXTERNAL);
+        assertEquals(1, rawResult.getSkippedRows());
+        var result = foodProductImportService.importCsv(file, "admin@test.com");
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository, times(2)).saveAll(captor.capture());
+        FoodItemEntity existing = captor.getValue().get(0);
+        String canonical = existing.getCanonicalFoodKey();
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        result = foodProductImportService.importCsv(csv("""
+                source_key,name,market_region
+                manual:banana,Muz,TR
+                """), "admin@test.com");
+        assertEquals(1, result.getSavedRows());
+        assertEquals(canonical, existing.getCanonicalFoodKey());
+        assertEquals("manual:banana", existing.getSourceKey());
+    }
+
+    @Test
+    void missingSourceBasisStaysInReviewAndCannotCreateMassEvidence() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs
+                1111111111111,Milk without source basis,60,3,3,5
+                """), "admin@test.com");
+        assertEquals(1, result.getReviewRequiredRows());
+        assertEquals(1, result.getQualityWarningCounts().get("MISSING_NUTRITION_REFERENCE_UNIT"));
+        org.mockito.Mockito.verifyNoInteractions(foodProductEvidenceService);
+    }
+
+    @Test
+    void missingSourceBasisReplayCannotPromoteFallbackUnitToSourceEvidence() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        MockMultipartFile file = csv("""
+                barcode,name,calories,protein,fat,carbs
+                1111111111111,Milk without source basis,60,3,3,5
+                """);
+        foodProductImportService.importCsv(file, "admin@test.com");
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity existing = captor.getValue().get(0);
+        existing.setId(1L);
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+
+        var replay = foodProductImportService.importCsv(file, "admin@test.com");
+
+        assertEquals(1, replay.getReviewRequiredRows());
+        assertEquals(VerificationStatus.NEEDS_REVIEW, existing.getVerificationStatus());
+        org.junit.jupiter.api.Assertions.assertFalse(existing.getAutoApprovedForCatalog());
+        org.mockito.Mockito.verifyNoInteractions(foodProductEvidenceService);
+    }
+
+    @Test
+    void importCsv_rejectsBasisRelabelWithoutMutatingExistingNutrition() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setNormalizedBarcode("1111111111111");
+        existing.setName("Mass milk");
+        existing.setCalories(62.0);
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs,nutrition_reference_unit
+                1111111111111,Changed Milk,60,3,3,5,PER_100ML
+                """), "admin@test.com");
+        assertEquals(1, result.getSkippedRows());
+        assertEquals(62.0, existing.getCalories());
+        assertEquals("Mass milk", existing.getName());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, existing.getNutritionReferenceUnit());
+    }
+
+    @Test
+    void importCsv_rejectsInvalidOptionalNutritionAndServingValues() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs,vitamin_c,serving_size_grams,nutrition_reference_unit
+                1111111111111,Invalid vitamin,60,3,3,5,NaN,100,PER_100G
+                2222222222222,Negative portion,60,3,3,5,1,-10,PER_100G
+                3333333333333,Zero portion,60,3,3,5,1,0,PER_100G
+                4444444444444,Measured zero,0,0,0,0,0,100,PER_100G
+                """), "admin@test.com");
+        assertEquals(3, result.getSkippedRows());
+        assertEquals(1, result.getSavedRows());
+        assertEquals(0, result.getReviewRequiredRows());
+    }
+
+    @Test
+    void importCsv_recordsMassAndVolumeEvidenceSeparately() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs,nutrition_reference_unit
+                1111111111111,Milk,60,3,3,5,PER_100ML
+                2222222222222,Rice,130,3,1,25,PER_100G
+                """), "admin@test.com");
+        assertEquals(2, result.getSavedRows());
+        verify(foodProductEvidenceService).recordImportEvidence(
+                org.mockito.ArgumentMatchers.argThat(products -> products.size() == 1
+                        && products.get(0).getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML),
+                eq(com.grun.calorietracker.enums.FoodEvidenceBasis.PER_100_ML), any(), any(), eq("admin@test.com"));
+        verify(foodProductEvidenceService).recordImportEvidence(
+                org.mockito.ArgumentMatchers.argThat(products -> products.size() == 1
+                        && products.get(0).getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100G),
+                eq(com.grun.calorietracker.enums.FoodEvidenceBasis.PER_100_G), any(), any(), eq("admin@test.com"));
+    }
+
+    @Test
+    void importCsv_rejectsInvalidNumbersBeforeMutatingExistingProduct() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(1L);
+        existing.setNormalizedBarcode("1111111111111");
+        existing.setName("Original milk");
+        existing.setCalories(60.0);
+        existing.setProtein(3.0);
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        for (String invalid : List.of("NaN", "Infinity", "-1", "not-a-number", "1e309")) {
+            var result = foodProductImportService.importCsv(csv(
+                    "barcode,name,calories,protein,nutrition_reference_unit\n"
+                            + "1111111111111,Changed milk,70," + invalid + ",PER_100G\n"), "admin@test.com");
+            assertEquals(0, result.getSavedRows(), invalid);
+            assertEquals(1, result.getSkippedRows(), invalid);
+            assertEquals("Original milk", existing.getName());
+            assertEquals(60.0, existing.getCalories());
+            assertEquals(3.0, existing.getProtein());
+            assertEquals(FoodNutritionReferenceUnit.PER_100ML, existing.getNutritionReferenceUnit());
+        }
+    }
+
+    @Test
+    void importCsv_partialMacrosRequireReviewWithoutInventingZeroValues() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,nutrition_reference_unit
+                1111111111111,Partial milk,60,3,PER_100ML
+                """), "admin@test.com");
+        assertEquals(1, result.getReviewRequiredRows());
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        FoodItemEntity saved = captor.getValue().get(0);
+        assertEquals(VerificationStatus.NEEDS_REVIEW, saved.getVerificationStatus());
+        org.junit.jupiter.api.Assertions.assertNull(saved.getFat());
+        org.junit.jupiter.api.Assertions.assertNull(saved.getCarbs());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, saved.getPublicationStatus());
+    }
+
+    @Test
+    void importCsv_volumeServingDoesNotBecomeGramWeight() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs,nutrition_reference_unit,serving_quantity,serving_quantity_unit,serving_size
+                1111111111111,Milk,60,3,3,5,PER_100ML,250,ml,250 ml
+                """), "admin@test.com");
+        ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        org.junit.jupiter.api.Assertions.assertNull(captor.getValue().get(0).getServingSizeGrams());
+        assertEquals("ml", captor.getValue().get(0).getServingUnit());
+    }
+
+    @Test
     void importCsv_insertsAndUpdatesProductsByNormalizedBarcode() {
         FoodItemEntity existing = new FoodItemEntity();
         existing.setId(1L);
@@ -101,9 +402,9 @@ class FoodProductImportServiceImplTest {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMultipartFile file = csv("""
-                barcode,name,calories,protein,fat,carbs,market_region,display_image_url
-                3017620422003,Nutella,539,6.3,30.9,57.5,UK_IE,https://cdn.grun.app/nutella.jpg
-                8690000000011,GRun Yogurt,65,10,1.5,3.2,TR,
+                barcode,name,calories,protein,fat,carbs,market_region,display_image_url,nutrition_reference_unit
+                3017620422003,Nutella,539,6.3,30.9,57.5,UK_IE,https://cdn.grun.app/nutella.jpg,PER_100G
+                8690000000011,GRun Yogurt,65,10,1.5,3.2,TR,,PER_100G
                 """);
 
         FoodProductImportResultDto result = foodProductImportService.importCsv(file, "admin@test.com");
@@ -194,9 +495,194 @@ class FoodProductImportServiceImplTest {
         List<FoodItemEntity> savedProducts = captor.getValue();
 
         assertEquals("Milk", savedProducts.get(0).getName());
-        assertEquals("Almond Breeze", savedProducts.get(0).getBrand());
+        assertEquals("almond breeze", savedProducts.get(0).getBrand());
         assertEquals("Peanut Butter Protein Bar", savedProducts.get(1).getName());
         assertEquals("M&S Food", savedProducts.get(1).getBrand());
+    }
+
+    @Test
+    void sourceVerifiedDryRiceGetsBilingualNamesWithoutCookedOrNutritionRelabelling() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.forEach(product -> product.setId(950L));
+            return products;
+        });
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                168876,SR Legacy,"Rice, brown, parboiled, dry, UNCLE BEN'S",375,7.5,2.7,80.9,PER_100G,BOILED
+                """), "admin@test.com", FoodProductImportMode.CURATED_ADMIN, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        var product = products.getValue().get(0);
+        assertEquals(FoodPreparationState.UNSPECIFIED, product.getPreparationState());
+        assertEquals("Dry Parboiled Brown Rice (Uncle Ben's)", product.getDisplayName());
+        assertEquals(375.0, product.getCalories());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, product.getNutritionReferenceUnit());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, product.getPublicationStatus());
+        ArgumentCaptor<List<FoodItemLocalizationEntity>> locales = ArgumentCaptor.forClass(List.class);
+        verify(foodItemLocalizationRepository).saveAll(locales.capture());
+        assertEquals(2, locales.getValue().size());
+        assertTrue(locales.getValue().stream().anyMatch(locale -> locale.getLanguage() == PreferredLanguage.TR && locale.getDisplayName().contains("Kuru")));
+    }
+
+    @Test
+    void frozenPreparedEdamameImportUsesSourceStateAndBilingualFrozenQualifier() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.forEach(product -> product.setId(181467L));
+            return products;
+        });
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                168411,SR Legacy,"Edamame, frozen, prepared",121,11.9,5.2,8.9,PER_100G,BOILED
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        var product = products.getValue().get(0);
+        assertEquals(FoodPreparationState.PREPARED, product.getPreparationState());
+        assertEquals("Prepared Edamame (From Frozen)", product.getDisplayName());
+        assertEquals("GLOBAL:GENERIC_INGREDIENT:PREPARED:edamame_from_frozen", product.getCanonicalFoodKey());
+        assertEquals(121.0, product.getCalories());
+        assertEquals(11.9, product.getProtein());
+        assertEquals(5.2, product.getFat());
+        assertEquals(8.9, product.getCarbs());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, product.getNutritionReferenceUnit());
+        assertEquals("SR Legacy", product.getSourceDataType());
+        ArgumentCaptor<List<FoodItemLocalizationEntity>> locales = ArgumentCaptor.forClass(List.class);
+        verify(foodItemLocalizationRepository).saveAll(locales.capture());
+        assertTrue(locales.getValue().stream().anyMatch(locale -> locale.getLanguage() == PreferredLanguage.TR
+                && "Dondurulmuştan Hazırlanmış Edamame".equals(locale.getDisplayName())));
+    }
+
+    @Test
+    void edamameDescriptionOrSubtypeDriftCannotBypassExactPreparationRule() {
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                168411,SR Legacy,"Edamame, frozen, raw",121,11.9,5.2,8.9,PER_100G,RAW
+                168411,Foundation,"Edamame, frozen, prepared",121,11.9,5.2,8.9,PER_100G,BOILED
+                """), "admin@test.com", FoodProductImportMode.CURATED_ADMIN, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(0, result.getSavedRows());
+        assertEquals(2, result.getErrors().size());
+        assertTrue(result.getErrors().stream().allMatch(error -> error.getReason().contains("exact source description and subtype")));
+    }
+
+    @Test
+    void edamameRuleCannotRewriteReviewedConceptPreparation() {
+        var existing = new FoodItemEntity();
+        existing.setId(181467L);
+        existing.setSourceKey("USDA_FOODDATA:fdc:168411");
+        existing.setName("Prepared Edamame");
+        existing.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        existing.setDataSource(FoodDataSource.USDA_FOODDATA);
+        existing.setSourceDataType("SR Legacy");
+        existing.setPreparationState(FoodPreparationState.BOILED);
+        existing.setFoodConceptKey("edamame");
+        existing.setCompositionVariantKey("fdc_168411");
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit
+                168411,SR Legacy,"Edamame, frozen, prepared",121,11.9,5.2,8.9,PER_100G
+                """), "admin@test.com", FoodProductImportMode.CURATED_ADMIN, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getErrors().size());
+        assertEquals(0, result.getSavedRows());
+        assertEquals(FoodPreparationState.BOILED, existing.getPreparationState());
+        assertEquals("Prepared Edamame", existing.getName());
+    }
+
+    @Test
+    void genericNamesKeepGradeCutAndEdiblePartQualifiers() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                999901,SR Legacy,"Beef, tenderloin, choice, boneless, separable lean only, raw",100,10,5,0,PER_100G,RAW
+                999902,SR Legacy,"Broccoli, leaves, raw",28,3,0.4,5.1,PER_100G,RAW
+                999903,SR Legacy,"Broccoli, raw",34,2.8,0.4,6.6,PER_100G,UNSPECIFIED
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(3, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        String beef = products.getValue().get(0).getDisplayName().toLowerCase(java.util.Locale.ROOT);
+        assertTrue(beef.contains("choice"));
+        assertTrue(beef.contains("boneless"));
+        assertTrue(beef.contains("lean only"));
+        assertEquals("Broccoli (Leaves)", products.getValue().get(1).getDisplayName());
+        assertEquals("Broccoli (Raw)", products.getValue().get(2).getDisplayName());
+    }
+
+    @Test
+    void explicitTurkishSourceAndLocalizationUseTurkishCasing() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.forEach(product -> product.setId(951L));
+            return products;
+        });
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,catalog_type,name,source_language,display_name_tr,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                test:tr-spinach,GENERIC_INGREDIENT,ISPANAK,TR,ÇİĞ ISPANAK,23,2.9,0.4,3.6,PER_100G,RAW
+                """), "admin@test.com");
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        assertEquals("Ispanak", products.getValue().get(0).getName());
+        ArgumentCaptor<List<FoodItemLocalizationEntity>> locales = ArgumentCaptor.forClass(List.class);
+        verify(foodItemLocalizationRepository).saveAll(locales.capture());
+        assertEquals("Çiğ Ispanak", locales.getValue().get(0).getDisplayName());
+    }
+
+    @Test
+    void curatedImportWithUnsafeDisplayStaysInternalReview() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,catalog_type,name,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                test:html-milk,GENERIC_INGREDIENT,<b>Milk</b>,50,3,2,5,PER_100G,RAW
+                """), "admin@test.com");
+        assertEquals(1, result.getSavedRows());
+        assertEquals(1, result.getQualityWarningCounts().get("DISPLAY_TEXT_REQUIRES_REVIEW"));
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, products.getValue().get(0).getPublicationStatus());
+        assertEquals(false, products.getValue().get(0).getAutoApprovedForCatalog());
+    }
+
+    @Test
+    void namingRuleCannotSilentlyChangeAnExistingReviewedPreparationIdentity() {
+        var existing = new FoodItemEntity();
+        existing.setId(952L);
+        existing.setSourceKey("USDA_FOODDATA:fdc:168876");
+        existing.setName("Boiled Brown Rice");
+        existing.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        existing.setDataSource(FoodDataSource.USDA_FOODDATA);
+        existing.setSourceDataType("SR Legacy");
+        existing.setPreparationState(FoodPreparationState.BOILED);
+        existing.setFoodConceptKey("brown_rice");
+        existing.setCompositionVariantKey("fdc_168876");
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit
+                168876,SR Legacy,"Rice, brown, parboiled, dry, UNCLE BEN'S",375,7.5,2.7,80.9,PER_100G
+                """), "admin@test.com", FoodProductImportMode.CURATED_ADMIN, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getErrors().size());
+        assertEquals(FoodPreparationState.BOILED, existing.getPreparationState());
+        assertEquals("Boiled Brown Rice", existing.getName());
+        assertEquals(0, result.getSavedRows());
+        verify(foodItemRepository).saveAll(List.of());
+    }
+
+    @Test
+    void explicitNameCannotAutoPublishAFalseCutOverTheReviewedSource() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,display_name,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                171466,SR Legacy,"Chicken, broilers or fryers, light meat, meat only, cooked, roasted",Roasted Chicken Breast,173,30.9,4.5,0,PER_100G,ROASTED
+                """), "admin@test.com", FoodProductImportMode.CURATED_ADMIN, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getQualityWarningCounts().get("SOURCE_NAME_OVERRIDE_REQUIRES_REVIEW"));
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, products.getValue().get(0).getPublicationStatus());
     }
 
     @Test
@@ -294,6 +780,75 @@ class FoodProductImportServiceImplTest {
         assertEquals("semi skim milk", aliases.get(2).getNormalizedAlias());
     }
     @Test
+    void importAliasesKeepParenthesizedQualifiersAsOneSearchIdentity() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        foodProductImportService.importCsv(csv("""
+                source_key,catalog_type,name,calories,protein,fat,carbs,nutrition_reference_unit,aliases_en
+                fixture:broccoli,GENERIC_INGREDIENT,Broccoli,34,2.8,0.4,6.6,PER_100G,"Boiled Broccoli (Frozen, Chopped);cooked broccoli"
+                """), "admin@test.com");
+        ArgumentCaptor<List<FoodItemSearchAliasEntity>> aliases = ArgumentCaptor.forClass(List.class);
+        verify(foodItemSearchAliasRepository).saveAll(aliases.capture());
+        assertEquals(List.of("Boiled Broccoli (Frozen, Chopped)", "cooked broccoli"),
+                aliases.getValue().stream().map(FoodItemSearchAliasEntity::getAlias).toList());
+    }
+    @Test
+    void jsonAliasArrayKeepsCommasInsideACompleteIdentity() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        foodProductImportService.importCsv(csv("""
+                source_key,catalog_type,name,calories,protein,fat,carbs,nutrition_reference_unit,aliases_en
+                fixture:json-alias,GENERIC_INGREDIENT,Broccoli,34,2.8,0.4,6.6,PER_100G,"[""Broccoli, boiled, drained"",""cooked broccoli""]"
+                """), "admin@test.com");
+        ArgumentCaptor<List<FoodItemSearchAliasEntity>> aliases = ArgumentCaptor.forClass(List.class);
+        verify(foodItemSearchAliasRepository).saveAll(aliases.capture());
+        assertEquals(List.of("Broccoli, boiled, drained", "cooked broccoli"),
+                aliases.getValue().stream().map(FoodItemSearchAliasEntity::getAlias).toList());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "Boiled Broccoli (Frozen, Chopped", "[\"broccoli\",4]", "[\"broccoli\""
+    })
+    void malformedAliasesRejectRowBeforeManagedProductChanges(String rawAliases) {
+        var existing = new FoodItemEntity();
+        existing.setId(998L);
+        existing.setName("Original Broccoli");
+        existing.setSourceKey("fixture:alias-original");
+        existing.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        var result = foodProductImportService.importCsv(csv(
+                "source_key,catalog_type,name,calories,protein,fat,carbs,aliases_en\n"
+                        + "fixture:alias-original,GENERIC_INGREDIENT,Changed Broccoli,34,2.8,0.4,6.6,\""
+                        + rawAliases.replace("\"", "\"\"") + "\"\n"), "admin@test.com");
+        assertEquals(1, result.getSkippedRows());
+        assertEquals(0, result.getSavedRows());
+        assertEquals("Original Broccoli", existing.getName());
+        assertNull(existing.getCalories());
+    }
+    @Test
+    void exactReviewedBroccoliImportGetsGenericTypeAndBothQualifiedNames() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.forEach(product -> product.setId(997L));
+            return products;
+        });
+        var result = foodProductImportService.importCsv(csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit,preparation_state
+                169969,SR Legacy,"Broccoli, frozen, chopped, cooked, boiled, drained, without salt",28,3.1,0.1,5.4,PER_100G,BOILED
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> foods = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(foods.capture());
+        var food = foods.getValue().get(0);
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, food.getCatalogType());
+        assertEquals("USDA_FOODDATA:fdc:169969", food.getSourceKey());
+        assertEquals(FoodPreparationState.BOILED, food.getPreparationState());
+        ArgumentCaptor<List<FoodItemLocalizationEntity>> locales = ArgumentCaptor.forClass(List.class);
+        verify(foodItemLocalizationRepository).saveAll(locales.capture());
+        assertEquals(2, locales.getValue().size());
+        assertTrue(locales.getValue().stream().filter(l -> l.getLanguage() == PreferredLanguage.TR)
+                .allMatch(l -> l.getDisplayName().contains("Do\u011franm\u0131\u015f")
+                        && l.getDisplayName().contains("Tuzsuz") && l.getDisplayName().contains("S\u00fcz\u00fclm\u00fc\u015f")));
+    }
+    @Test
     void importCsv_pilotFileSupportsUkIeTrAndEuRegions() {
         when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -311,7 +866,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(4, result.getTotalRows());
         assertEquals(4, result.getInsertedRows());
         assertEquals(0, result.getSkippedRows());
-        assertEquals(0, result.getReviewRequiredRows());
+        assertEquals(4, result.getReviewRequiredRows());
         assertEquals(2, result.getMarketRegionCounts().get("UK_IE"));
         assertEquals(1, result.getMarketRegionCounts().get("TR"));
         assertEquals(1, result.getMarketRegionCounts().get("EU"));
@@ -324,7 +879,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(MarketRegion.TR, savedProducts.get(1).getMarketRegion());
         assertEquals(MarketRegion.UK_IE, savedProducts.get(2).getMarketRegion());
         assertEquals(MarketRegion.EU, savedProducts.get(3).getMarketRegion());
-        assertEquals(VerificationStatus.VERIFIED, savedProducts.get(0).getVerificationStatus());
+        assertEquals(VerificationStatus.NEEDS_REVIEW, savedProducts.get(0).getVerificationStatus());
         assertEquals(ImageStatus.APPROVED, savedProducts.get(0).getImageStatus());
     }
 
@@ -574,6 +1129,23 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
                 .getId());
     }
     @Test
+    void importCsvRejectsInvalidSecondaryServingDimensionInsteadOfSilentlyDroppingIt() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> products = invocation.getArgument(0);
+            products.get(0).setId(42L);
+            return products;
+        });
+        var file = csv("""
+                catalog_type,source_key,name,calories,protein,fat,carbs,market_region,preparation_state,nutrition_reference_unit,serving_options_json
+                GENERIC_INGREDIENT,test:invalid-secondary,Apple raw,52,0.3,0.2,14,GLOBAL,RAW,PER_100G,"[{""label"":""1 apple"",""unitType"":""PIECE"",""quantity"":1,""gramWeight"":180,""mlVolume"":-250}]"
+                """);
+        var result = foodProductImportService.importCsv(file, "reviewer");
+        assertEquals(1, result.getQualityWarningCounts().getOrDefault("INVALID_SERVING_OPTIONS", 0));
+        verify(foodItemServingOptionRepository, times(0)).saveAll(any());
+    }
+
+    @Test
     void importCsv_reportsInvalidServingOptionsAndDoesNotPersistThem() {
         when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
@@ -797,7 +1369,8 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, imported.getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, imported.getVerificationStatus());
         assertEquals(80, imported.getConfidenceScore());
-        assertEquals(true, imported.getAutoApprovedForCatalog());
+        assertEquals(false, imported.getAutoApprovedForCatalog());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, imported.getPublicationStatus());
         assertEquals(ImageStatus.APPROVED, imported.getImageStatus());
         assertEquals("https://images.openfoodfacts.org/coke.jpg", imported.getExternalImageUrl());
         assertEquals(null, imported.getDisplayImageUrl());
@@ -942,6 +1515,66 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
     }
 
     @Test
+    void reviewedLifewaySourceIsBrandedWithoutInventingRetailBarcodeOrChangingSubtype() {
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var file = csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit
+                170904,SR Legacy,"Kefir, lowfat, plain, LIFEWAY",43,3.8,1,4.8,PER_100G
+                """);
+        var result = foodProductImportService.importCsv(file, "review@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getInsertedRows());
+        var captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(captor.capture());
+        var imported = (FoodItemEntity) captor.getValue().get(0);
+        assertEquals(FoodCatalogType.BRANDED_PRODUCT, imported.getCatalogType());
+        assertEquals("SR Legacy", imported.getSourceDataType());
+        assertEquals("Lifeway", imported.getBrand());
+        assertEquals("USDA_FOODDATA:fdc:170904", imported.getSourceKey());
+        assertEquals(null, imported.getBarcode());
+        assertEquals(null, imported.getCanonicalFoodKey());
+        assertEquals(VerificationStatus.RAW_IMPORTED, imported.getVerificationStatus());
+        assertEquals(1, result.getReviewRequiredRows());
+        assertEquals(com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW, imported.getPublicationStatus());
+    }
+
+    @Test
+    void lifewayGenericDeclarationAndWrongManufacturerAreRejectedBeforeSave() {
+        for (String row : List.of(
+                "170904,SR Legacy,\"Kefir, lowfat, plain, LIFEWAY\",GENERIC_INGREDIENT,Lifeway,43,3.8,1,4.8,PER_100G",
+                "170904,SR Legacy,\"Kefir, lowfat, plain, LIFEWAY\",BRANDED_PRODUCT,Other Brand,43,3.8,1,4.8,PER_100G")) {
+            var file = csv("fdc_id,data_type,description,catalog_type,brand,calories,protein,fat,carbs,nutrition_reference_unit\n" + row);
+            var result = foodProductImportService.importCsv(file, "review@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.USDA_FOODDATA);
+            assertEquals(1, result.getSkippedRows());
+            assertEquals(0, result.getSavedRows());
+        }
+        var captor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository, times(2)).saveAll(captor.capture());
+        assertTrue(captor.getAllValues().stream().allMatch(List::isEmpty));
+    }
+
+    @Test
+    void rawLifewayRefreshCannotReclassifyExistingGenericOrModifyItsNutrients() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(181453L);
+        existing.setName("Plain Low-Fat Kefir");
+        existing.setSourceKey("USDA_FOODDATA:fdc:170904");
+        existing.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        existing.setCalories(43.0);
+        when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of(existing));
+        var file = csv("""
+                fdc_id,data_type,description,calories,protein,fat,carbs,nutrition_reference_unit
+                170904,SR Legacy,"Kefir, lowfat, plain, LIFEWAY",55,4,1.1,5,PER_100G
+                """);
+        var result = foodProductImportService.importCsv(file, "review@test.com", FoodProductImportMode.RAW_EXTERNAL, FoodProductImportFormat.USDA_FOODDATA);
+        assertEquals(1, result.getSkippedRows());
+        assertEquals(43.0, existing.getCalories());
+        assertEquals("Plain Low-Fat Kefir", existing.getName());
+        assertEquals(FoodCatalogType.GENERIC_INGREDIENT, existing.getCatalogType());
+        assertEquals(null, existing.getBrand());
+    }
+
+    @Test
     void importCsv_whenDifferentUsdaRecordsShareCanonicalIdentity_reportsPotentialGenericDuplicate() {
         when(foodItemRepository.findBySourceKeyIn(any(), any(Sort.class))).thenReturn(List.of());
         when(foodItemRepository.findByCanonicalFoodKeyIn(any(), any(Sort.class))).thenReturn(List.of());
@@ -1021,7 +1654,8 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(9, result.getTotalRows());
         assertEquals(9, result.getInsertedRows());
         assertEquals(0, result.getSkippedRows());
-        assertEquals(0, result.getReviewRequiredRows());
+        assertEquals(9, result.getReviewRequiredRows());
+        assertEquals(9, result.getQualityWarningCounts().get("MISSING_NUTRITION_REFERENCE_UNIT"));
 
         ArgumentCaptor<List<FoodItemEntity>> captor = ArgumentCaptor.forClass(List.class);
         verify(foodItemRepository).saveAll(captor.capture());
@@ -1054,7 +1688,8 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(10, result.getTotalRows());
         assertEquals(10, result.getInsertedRows());
         assertEquals(0, result.getSkippedRows());
-        assertEquals(0, result.getReviewRequiredRows());
+        assertEquals(10, result.getReviewRequiredRows());
+        assertEquals(10, result.getQualityWarningCounts().get("MISSING_NUTRITION_REFERENCE_UNIT"));
         assertEquals(10, result.getMarketRegionCounts().get("UK_IE"));
         assertEquals(10, result.getDataSourceCounts().get("OPEN_FOOD_FACTS"));
 
@@ -1064,7 +1699,7 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
 
         assertEquals(10, savedProducts.stream().filter(product -> product.getMarketRegion() == MarketRegion.UK_IE).count());
         assertEquals(10, savedProducts.stream().filter(product -> product.getVerificationStatus() == VerificationStatus.RAW_IMPORTED).count());
-        assertEquals(10, savedProducts.stream().filter(product -> Boolean.TRUE.equals(product.getAutoApprovedForCatalog())).count());
+        assertEquals(0, savedProducts.stream().filter(product -> Boolean.TRUE.equals(product.getAutoApprovedForCatalog())).count());
         assertEquals(10, savedProducts.stream().filter(product -> product.getImageStatus() == ImageStatus.APPROVED).count());
     }
 

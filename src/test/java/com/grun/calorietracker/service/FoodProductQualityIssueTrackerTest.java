@@ -30,6 +30,26 @@ class FoodProductQualityIssueTrackerTest {
     private final FoodProductQualityIssueTracker tracker = new FoodProductQualityIssueTracker(repository);
 
     @Test
+    void partialOrInvalidCoreNutritionBlocksEvenVerifiedProducts() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setVerificationStatus(VerificationStatus.VERIFIED);
+        product.setCalories(60.0);
+        product.setProtein(3.0);
+        product.setFat(3.0);
+        assertTrue(tracker.deriveFieldIssues(product).containsKey(FoodProductQualityIssue.MISSING_MACROS));
+        assertTrue(FoodProductQualityRules.hasCriticalIssue(product));
+        assertFalse(FoodProductQualityRules.isAutoApprovedForCatalog(product));
+        product.setCarbs(5.0);
+        assertFalse(FoodProductQualityRules.hasCriticalIssue(product));
+        for (Double invalid : List.of(Double.NaN, Double.POSITIVE_INFINITY, -1.0)) {
+            product.setProtein(invalid);
+            assertTrue(tracker.deriveFieldIssues(product).containsKey(FoodProductQualityIssue.SUSPICIOUS_MACROS));
+            assertTrue(FoodProductQualityRules.hasCriticalIssue(product));
+            assertFalse(FoodProductQualityRules.isAutoApprovedForCatalog(product));
+        }
+    }
+
+    @Test
     void syncImportIssues_createsCurrentIssuesAndResolvesFixedOnes() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(10L);

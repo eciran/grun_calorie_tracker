@@ -17,6 +17,19 @@ public final class FoodProductCanonicalKeyRules {
         if (product == null) {
             return null;
         }
+        if (product.getFoodConceptKey() != null || product.getCompositionVariantKey() != null) {
+            String concept = validateIdentityToken(product.getFoodConceptKey());
+            String variant = validateIdentityToken(product.getCompositionVariantKey());
+            if (concept == null || variant == null || product.getCatalogType() == null
+                    || product.getCatalogType() == FoodCatalogType.BRANDED_PRODUCT
+                    || product.getCatalogType() == FoodCatalogType.USER_CUSTOM
+                    || product.getPreparationState() == null
+                    || product.getPreparationState() == FoodPreparationState.UNSPECIFIED) {
+                throw new IllegalArgumentException("Reviewed concept identity requires non-branded type, explicit state, concept and variant.");
+            }
+            return "C2:" + product.getCatalogType().name() + ":" + product.getPreparationState().name()
+                    + ":" + concept + ":" + variant;
+        }
         String identityName = FoodProductNormalizationRules.normalizeText(product.getDisplayName());
         if (identityName == null) {
             identityName = FoodProductNormalizationRules.normalizeText(product.getName());
@@ -85,6 +98,16 @@ public final class FoodProductCanonicalKeyRules {
     public static String normalizeLocalDishIdentityKey(String value) {
         String normalized = FoodProductNormalizationRules.normalizeText(value);
         return normalized == null ? null : slug(normalized);
+    }
+
+    public static String validateIdentityToken(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        if (!value.matches("[a-z0-9][a-z0-9_-]{0,79}")) {
+            throw new IllegalArgumentException("Concept/variant keys must be explicit lowercase ASCII ids of at most 80 characters.");
+        }
+        return value;
     }
 
     private static String normalizeCanonicalGenericName(String displayName) {

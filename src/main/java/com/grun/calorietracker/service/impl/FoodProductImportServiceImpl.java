@@ -1,6 +1,8 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.service.support.FoodProductCanonicalKeyRules;
+import com.grun.calorietracker.service.support.FoodSourceNameRules;
+import com.grun.calorietracker.service.support.FoodCatalogNamingRules;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +15,7 @@ import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodEvidenceBasis;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
@@ -74,6 +77,26 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
     private static final int MAX_ERROR_DETAILS = 50;
     private static final int MAX_WARNING_DETAILS = 50;
+    private static final Set<String> ALIAS_COLUMNS = Set.of(
+            "alias_tr", "aliases_tr", "search_alias_tr", "search_aliases_tr", "turkish_alias", "turkish_aliases",
+            "alias_en", "aliases_en", "search_alias_en", "search_aliases_en", "english_alias", "english_aliases",
+            "alias", "aliases", "search_alias", "search_aliases");
+    private static final Set<String> NUMERIC_COLUMNS = Set.of(
+            "calories", "energy_kcal_100g", "energy_kcal", "kcal_100g",
+            "protein", "proteins_100g", "protein_100g", "fat", "fat_100g",
+            "carbs", "carbohydrates_100g", "carbohydrate_100g", "fiber", "fiber_100g",
+            "sugar", "sugars_100g", "sodium", "sodium_100g", "potassium", "potassium_100g",
+            "cholesterol", "cholesterol_100g", "calcium", "calcium_100g", "iron", "iron_100g",
+            "magnesium", "magnesium_100g", "zinc", "zinc_100g",
+            "vitamin_a", "vitamina", "vitamin_a_100g", "vitamina_100g",
+            "vitamin_c", "vitaminc", "vitamin_c_100g", "vitaminc_100g",
+            "vitamin_d", "vitamind", "vitamin_d_100g", "vitamind_100g",
+            "vitamin_e", "vitamine", "vitamin_e_100g", "vitamine_100g",
+            "vitamin_b12", "vitaminb12", "vitamin_b12_100g", "vitaminb12_100g",
+            "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g",
+            "trans_fat", "transfat", "trans_fat_100g", "transfat_100g",
+            "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g",
+            "servingsizegrams", "serving_size_grams", "serving_quantity");
 
     private final FoodItemRepository foodItemRepository;
     private final FoodItemLocalizationRepository foodItemLocalizationRepository;
@@ -84,6 +107,12 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private final FoodProductEvidenceService foodProductEvidenceService;
     private final ObjectMapper objectMapper;
     private FoodCategoryImportResolutionService foodCategoryImportResolutionService;
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(com.grun.calorietracker.service.support.ExternalFoodImportFence fence) {
+        this.externalFoodImportFence = fence;
+    }
 
     @Autowired
     void setFoodCategoryImportResolutionService(
@@ -102,13 +131,14 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
 
     @Override
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductImportResultDto importCsv(MultipartFile file, String importedBy, FoodProductImportMode importMode, FoodProductImportFormat importFormat) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required.");
         }
 
         ParsedCsv parsedCsv = parseCsv(file, normalizeImportFormat(importFormat));
+        if (!parsedCsv.rows().isEmpty() && externalFoodImportFence != null) externalFoodImportFence.acquire();
         Map<String, FoodItemEntity> existingProducts = loadExistingProducts(
                 parsedCsv.normalizedBarcodes(),
                 parsedCsv.sourceKeys()
@@ -131,7 +161,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         for (CsvRow row : parsedCsv.rows()) {
             RegionResolution regionResolution = resolveMarketRegion(row, null);
-            String inputSourceKey = resolveInputKey(row, regionResolution.region());
+            String inputSourceKey;
+            try {
+                inputSourceKey = resolveInputKey(row, regionResolution.region());
+            } catch (IllegalArgumentException exception) {
+                addError(errors, new FoodProductImportErrorDto(row.rowNumber(), null, exception.getMessage()));
+                continue;
+            }
             if (inputSourceKey != null && seenInputKeys.contains(inputSourceKey)) {
                 duplicateInputRows++;
                 addWarning(
@@ -145,6 +181,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 continue;
             }
             FoodItemEntity existingProduct = existingProducts.get(inputSourceKey);
+            boolean evidenceBasisKnown = firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") != null;
             if (existingProduct != null) {
                 regionResolution = resolveMarketRegion(row, existingProduct.getMarketRegion());
             }
@@ -165,7 +202,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 unsupportedMarketRegionRows++;
             }
             productsToSave.add(rowResult.product());
-            productImportContexts.add(new ProductImportContext(rowResult.product(), regionResolution, row));
+            productImportContexts.add(new ProductImportContext(rowResult.product(), regionResolution, row, evidenceBasisKnown));
             String regionKey = rowResult.product().getMarketRegion() == null ? "UNSPECIFIED" : rowResult.product().getMarketRegion().name();
             marketRegionCounts.merge(regionKey, 1, Integer::sum);
             String catalogTypeKey = rowResult.product().getCatalogType() == null ? "UNSPECIFIED" : rowResult.product().getCatalogType().name();
@@ -189,13 +226,23 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         List<FoodItemEntity> savedProducts = new ArrayList<>();
         foodItemRepository.saveAll(productsToSave).forEach(savedProducts::add);
-        foodProductEvidenceService.recordImportEvidence(
-                savedProducts,
-                FoodEvidenceBasis.PER_100_G,
-                LocalDateTime.now(),
-                parsedCsv.sourceFormat().name(),
-                importedBy
-        );
+        List<FoodItemEntity> evidenceProducts = new ArrayList<>();
+        for (int index = 0; index < productImportContexts.size(); index++) {
+            if (productImportContexts.get(index).evidenceBasisKnown()) {
+                evidenceProducts.add(index < savedProducts.size() ? savedProducts.get(index) : productImportContexts.get(index).product());
+            }
+        }
+        LocalDateTime evidenceObservedAt = LocalDateTime.now();
+        for (FoodNutritionReferenceUnit unit : FoodNutritionReferenceUnit.values()) {
+            List<FoodItemEntity> sameBasis = evidenceProducts.stream()
+                    .filter(product -> product.getNutritionReferenceUnit() == unit).toList();
+            if (!sameBasis.isEmpty()) {
+                foodProductEvidenceService.recordImportEvidence(sameBasis,
+                        unit == FoodNutritionReferenceUnit.PER_100ML
+                                ? FoodEvidenceBasis.PER_100_ML : FoodEvidenceBasis.PER_100_G,
+                        evidenceObservedAt, parsedCsv.sourceFormat().name(), importedBy);
+            }
+        }
         syncQualityIssues(savedProducts, productImportContexts, importedBy);
         syncSearchAliases(savedProducts, productImportContexts);
         syncLocalizations(savedProducts, productImportContexts);
@@ -260,7 +307,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 if (normalizedBarcode != null) {
                     normalizedBarcodes.add(normalizedBarcode);
                 }
-                String sourceKey = resolveInputKey(row, resolveMarketRegion(row, null).region());
+                String sourceKey;
+                try {
+                    sourceKey = resolveInputKey(row, resolveMarketRegion(row, null).region());
+                } catch (IllegalArgumentException exception) {
+                    // Invalid classification is reported per row, not as a whole-file failure.
+                    sourceKey = null;
+                }
                 if (sourceKey != null) {
                     sourceKeys.add(sourceKey);
                 }
@@ -305,12 +358,17 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     ) {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(firstText(row, "barcode", "code", "gtin", "ean", "upc"));
         String rawName = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
-        String name = FoodProductNormalizationRules.normalizeProductDisplayName(rawName);
+        String name = FoodProductNormalizationRules.normalizeProductDisplayName(rawName, displayLanguage(row));
         if (name == null) {
             return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), firstText(row, "barcode", "code", "fdc_id"), "Product name is required."));
         }
 
-        FoodCatalogType catalogType = resolveCatalogType(row, normalizedBarcode);
+        FoodCatalogType catalogType;
+        try {
+            catalogType = resolveCatalogType(row, normalizedBarcode);
+        } catch (IllegalArgumentException exception) {
+            return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), firstText(row, "source_key", "fdc_id"), exception.getMessage()));
+        }
         FoodPreparationState preparationState = resolvePreparationState(row);
         String sourceKey = resolveSourceKey(row, normalizedBarcode, name, catalogType, regionResolution.region(), preparationState);
         if (sourceKey == null) {
@@ -323,18 +381,126 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         FoodItemEntity product = existingProducts.get(sourceKey);
         boolean inserted = product == null;
-        if (!inserted && importMode == FoodProductImportMode.RAW_EXTERNAL && isCuratedProduct(product)) {
-            return new RowResult(product, false, null);
-        }
+        boolean missingReferenceUnit = firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null;
+        boolean knownReferenceUnit = !missingReferenceUnit;
         FoodNutritionReferenceUnit referenceUnit;
+        String conceptKey;
+        String variantKey;
+        String sourceDataType;
+        FoodSourceNameRules.Decision reviewedNaming;
         try {
+            // Validate before touching a managed entity: skipped rows must not flush partial edits.
+            String approvalStatus = firstText(row, "approval_status", "approvalstatus");
+            if (approvalStatus != null && !"APPROVED".equalsIgnoreCase(approvalStatus)) {
+                throw new IllegalArgumentException("Review-only source artifacts cannot be imported. Resolve evidence/identity decisions and create a separately approved release manifest.");
+            }
+            for (String column : ALIAS_COLUMNS) {
+                String input = firstText(row, column);
+                if (input != null) parseAliasEntries(input);
+            }
+            if (isUsdaRow(row)) {
+                com.grun.calorietracker.service.support.UsdaCatalogClassificationRules.validateSourceIdentity(
+                        firstText(row, "fdc_id", "fdcid", "fdc"), firstText(row, "sourcekey", "source_key", "externalid", "external_id"));
+            }
+            for (String column : row.headers().keySet()) {
+                if (NUMERIC_COLUMNS.contains(column)) {
+                    Double value = parseDouble(null, row, column);
+                    if (value != null && (column.startsWith("serving") && value <= 0.0)) {
+                        throw new IllegalArgumentException("Positive serving quantity required for field: " + column);
+                    }
+                }
+            }
+            parseServingSizeGrams(row, null);
             referenceUnit = resolveNutritionReferenceUnit(row);
-            if (firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null
+            if (missingReferenceUnit
                     && product != null && product.getNutritionReferenceUnit() != null) {
                 referenceUnit = product.getNutritionReferenceUnit();
             }
+            sourceDataType = isUsdaRow(row) ? com.grun.calorietracker.service.support.UsdaCatalogClassificationRules.normalizeDataType(
+                    firstText(row, "source_data_type", "data_type", "datatype")) : null;
+            if (sourceDataType == null && product != null) {
+                sourceDataType = product.getSourceDataType();
+            }
+            reviewedNaming = FoodSourceNameRules.match(sourceKey, rawName, sourceDataType).orElse(null);
+            if (reviewedNaming == null && FoodSourceNameRules.reviewedSource(sourceKey)
+                    .filter(decision -> decision.targetState() == FoodPreparationState.PREPARED).isPresent()) {
+                throw new IllegalArgumentException("Reviewed prepared source requires its exact source description and subtype; audited evidence review required.");
+            }
+            if (reviewedNaming != null) {
+                if (product != null && product.getFoodConceptKey() != null && product.getPreparationState() != reviewedNaming.targetState()) {
+                    throw new IllegalArgumentException("Source naming correction changes reviewed preparation identity; audited compatibility review required.");
+                }
+                preparationState = reviewedNaming.targetState();
+            }
+            if (product != null && product.getFoodConceptKey() != null) {
+                if (declaredCatalogType(row) == null) {
+                    catalogType = product.getCatalogType();
+                }
+                if (firstText(row, "preparationstate", "preparation_state", "prepstate", "prep_state", "cookingstate", "cooking_state", "state") == null) {
+                    preparationState = product.getPreparationState();
+                }
+            }
+            if (isUsdaRow(row)) {
+                catalogType = com.grun.calorietracker.service.support.UsdaCatalogClassificationRules.resolve(
+                        sourceDataType, product != null && product.getFoodConceptKey() != null && declaredCatalogType(row) == null
+                                ? product.getCatalogType() : declaredCatalogType(row), normalizedBarcode != null, sourceKey, rawName);
+                var namedBrand = com.grun.calorietracker.service.support.UsdaNamedBrandRules.match(sourceKey, rawName, sourceDataType);
+                if (namedBrand.isPresent()) {
+                    String incomingBrand = firstText(row, "brand", "brands", "manufacturer", "producer");
+                    if (incomingBrand != null && !namedBrand.get().canonicalBrand().equalsIgnoreCase(incomingBrand)) {
+                        throw new IllegalArgumentException("Incoming brand conflicts with exact USDA named-manufacturer evidence.");
+                    }
+                    if (product != null && product.getCanonicalBrand() != null
+                            && (!namedBrand.get().canonicalBrand().equalsIgnoreCase(product.getCanonicalBrand().getCanonicalName())
+                                || product.getCanonicalBrand().getStatus() != com.grun.calorietracker.enums.FoodBrandStatus.ACTIVE)) {
+                        throw new IllegalArgumentException("Existing canonical brand conflicts with named source; audited reassignment required.");
+                    }
+                    if (product != null && product.getCatalogType() != FoodCatalogType.BRANDED_PRODUCT
+                            && (importMode != FoodProductImportMode.CURATED_ADMIN || !"APPROVED".equalsIgnoreCase(approvalStatus))) {
+                        throw new IllegalArgumentException("Existing generic-to-brand identity needs explicit approved curated review.");
+                    }
+                }
+            }
+            conceptKey = FoodProductCanonicalKeyRules.validateIdentityToken(firstText(row, "food_concept_key", "foodconceptkey"));
+            variantKey = FoodProductCanonicalKeyRules.validateIdentityToken(firstText(row, "composition_variant_key", "compositionvariantkey"));
+            if ((conceptKey == null) != (variantKey == null)) {
+                throw new IllegalArgumentException("Concept and composition variant must be supplied together.");
+            }
+            if (conceptKey != null && importMode != FoodProductImportMode.CURATED_ADMIN) {
+                throw new IllegalArgumentException("Concept assignment requires a reviewed CURATED_ADMIN import.");
+            }
+            if (product != null && product.getFoodConceptKey() != null) {
+                if ((conceptKey != null && (!conceptKey.equals(product.getFoodConceptKey())
+                        || !variantKey.equals(product.getCompositionVariantKey())))
+                        || catalogType != product.getCatalogType() || preparationState != product.getPreparationState()) {
+                    throw new IllegalArgumentException("Existing reviewed identity cannot be reassigned by import; use an audited compatibility review.");
+                }
+                conceptKey = product.getFoodConceptKey();
+                variantKey = product.getCompositionVariantKey();
+            }
+            if (product != null && product.getSourceDataType() != null && sourceDataType != null
+                    && !product.getSourceDataType().equals(sourceDataType)) {
+                throw new IllegalArgumentException("Existing source subtype conflicts with import evidence.");
+            }
+            // Validate the proposed identity before mutating a managed catalog record.
+            if (conceptKey != null) {
+                FoodItemEntity identity = new FoodItemEntity();
+                identity.setFoodConceptKey(conceptKey);
+                identity.setCompositionVariantKey(variantKey);
+                identity.setCatalogType(catalogType);
+                identity.setPreparationState(preparationState);
+                FoodProductCanonicalKeyRules.resolve(identity);
+            }
         } catch (IllegalArgumentException exception) {
             return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), sourceKey, exception.getMessage()));
+        }
+        if (!inserted && importMode == FoodProductImportMode.RAW_EXTERNAL && isCuratedProduct(product)) {
+            return new RowResult(product, false, null);
+        }
+        if (!inserted && product.getNutritionReferenceUnit() != null
+                && product.getNutritionReferenceUnit() != referenceUnit) {
+            return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), sourceKey,
+                    "Nutrition reference unit cannot be relabelled by import. Use a source-verified conversion/review operation."));
         }
         if (inserted) {
             product = new FoodItemEntity();
@@ -346,22 +512,21 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setNormalizedBarcode(normalizedBarcode);
         product.setSourceKey(sourceKey);
         product.setName(name);
-        ProductDisplayNames displayNames = resolveProductDisplayNames(name, catalogType, preparationState, row, sourceFormat);
+        ProductDisplayNames displayNames = resolveProductDisplayNames(name, catalogType, preparationState, row, sourceFormat, reviewedNaming);
         product.setDisplayName(displayNames.displayName());
         product.setShortDisplayName(displayNames.shortDisplayName());
         String dishFamilyKey = resolveLocalDishIdentityKey(row, catalogType, "dishfamilykey", "dish_family_key");
         String dishVariantKey = resolveLocalDishIdentityKey(row, catalogType, "dishvariantkey", "dish_variant_key");
         product.setDishFamilyKey(dishFamilyKey);
         product.setDishVariantKey(dishVariantKey);
-        product.setCanonicalFoodKey(resolveCanonicalFoodKey(
-                catalogType,
-                regionResolution.region(),
-                preparationState,
-                displayNames.displayName(),
-                dishFamilyKey,
-                dishVariantKey
-        ));
+        product.setFoodConceptKey(conceptKey);
+        product.setCompositionVariantKey(variantKey);
+        product.setSourceDataType(sourceDataType);
         String brand = firstText(row, "brand", "brands", "manufacturer", "producer");
+        if (isUsdaRow(row)) {
+            var reviewedBrand = com.grun.calorietracker.service.support.UsdaNamedBrandRules.match(sourceKey, rawName, sourceDataType);
+            if (reviewedBrand.isPresent()) brand = reviewedBrand.get().canonicalBrand();
+        }
         if (brand != null) {
             product.setBrand(FoodProductNormalizationRules.normalizeBrandDisplayName(brand));
         }
@@ -374,6 +539,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             product.setSourceCategoryTags(sourceCategoryTags);
         }
         mergeMarketAvailability(product, row, regionResolution.region());
+        product.setCanonicalFoodKey(FoodProductCanonicalKeyRules.resolve(product));
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);
 
         setIfPresent(row, product::setImageUrl, "imageurl", "image_url", "image_front_url");
@@ -417,6 +583,24 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
 
         updateQualityMetadata(product, importMode);
+        if (FoodProductQualityRules.hasCriticalIssue(product) || !knownReferenceUnit
+                || FoodCatalogNamingRules.requiresManualDisplayReview(product.getDisplayName())
+                || FoodCatalogNamingRules.requiresManualDisplayReview(product.getShortDisplayName())
+                || hasUnsafeLocalizedDisplay(row)
+                || hasUnreviewedNamingOverride(row, reviewedNaming)
+                || (isUsdaRow(row) && catalogType == FoodCatalogType.GENERIC_INGREDIENT
+                    && FoodCatalogNamingRules.sourcePreparationConflict(rawName, preparationState))
+                || (reviewedNaming != null && reviewedNaming.servingReviewRequired())
+                || (isUsdaRow(row) && (sourceDataType == null
+                    || "Experimental".equals(sourceDataType)
+                    || (catalogType == FoodCatalogType.BRANDED_PRODUCT && normalizedBarcode == null)))) {
+            if (importMode == FoodProductImportMode.CURATED_ADMIN) {
+                product.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+            }
+            product.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+            FoodProductQualityRules.updateQualityAndReviewPriority(product);
+            product.setAutoApprovedForCatalog(false);
+        }
         return new RowResult(product, inserted, null);
     }
 
@@ -425,14 +609,19 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             FoodCatalogType catalogType,
             FoodPreparationState preparationState,
             CsvRow row,
-            FoodProductImportFormat sourceFormat
+            FoodProductImportFormat sourceFormat,
+            FoodSourceNameRules.Decision reviewedNaming
     ) {
-        String explicitDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, "display_name", "displayname"));
-        String explicitShortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, "short_display_name", "shortdisplayname"));
+        String explicitDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, "display_name", "displayname"), displayLanguage(row));
+        String explicitShortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, "short_display_name", "shortdisplayname"), displayLanguage(row));
         if (explicitDisplayName != null || explicitShortDisplayName != null) {
             String displayName = explicitDisplayName != null ? explicitDisplayName : sourceName;
             String shortDisplayName = explicitShortDisplayName != null ? explicitShortDisplayName : displayName;
             return new ProductDisplayNames(displayName, shortDisplayName);
+        }
+
+        if (reviewedNaming != null) {
+            return new ProductDisplayNames(reviewedNaming.displayNameEn(), reviewedNaming.displayNameEn());
         }
 
         boolean usdaGeneric = sourceFormat == FoodProductImportFormat.USDA_FOODDATA
@@ -441,8 +630,34 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return buildUsdaGenericDisplayNames(sourceName, preparationState);
         }
 
-        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(sourceName);
+        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(sourceName, displayLanguage(row));
         return new ProductDisplayNames(displayName, displayName);
+    }
+
+    private PreferredLanguage displayLanguage(CsvRow row) {
+        String language = firstText(row, "source_language", "name_language", "language", "lang");
+        return "TR".equalsIgnoreCase(language) ? PreferredLanguage.TR : PreferredLanguage.EN;
+    }
+
+    private boolean hasUnsafeLocalizedDisplay(CsvRow row) {
+        for (String column : List.of("display_name_en", "displayname_en", "english_display_name", "short_display_name_en", "shortdisplayname_en", "english_short_display_name",
+                "display_name_tr", "displayname_tr", "turkish_display_name", "short_display_name_tr", "shortdisplayname_tr", "turkish_short_display_name")) {
+            String value = firstText(row, column);
+            if (value != null && FoodCatalogNamingRules.requiresManualDisplayReview(value)) return true;
+        }
+        return false;
+    }
+
+    private boolean hasUnreviewedNamingOverride(CsvRow row, FoodSourceNameRules.Decision decision) {
+        if (decision == null) return false;
+        for (String column : List.of("display_name", "displayname", "short_display_name", "shortdisplayname",
+                "display_name_en", "displayname_en", "english_display_name", "short_display_name_en", "shortdisplayname_en", "english_short_display_name",
+                "display_name_tr", "displayname_tr", "turkish_display_name", "short_display_name_tr", "shortdisplayname_tr", "turkish_short_display_name")) {
+            String value = firstText(row, column);
+            PreferredLanguage language = column.endsWith("_tr") || column.startsWith("turkish_") ? PreferredLanguage.TR : PreferredLanguage.EN;
+            if (value != null && !decision.displayName(language).equals(FoodProductNormalizationRules.normalizeProductDisplayName(value, language))) return true;
+        }
+        return false;
     }
 
     private ProductDisplayNames buildUsdaGenericDisplayNames(String sourceName, FoodPreparationState preparationState) {
@@ -451,11 +666,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         StringBuilder descriptors = new StringBuilder();
         for (int index = 1; index < parts.size(); index++) {
             String descriptor = parts.get(index).trim().toLowerCase(Locale.ROOT);
-            if (descriptor.isBlank() || isUsdaDescriptorNoise(descriptor) || isPreparationDescriptor(descriptor)) {
+            if (descriptor.isBlank() || isRedundantPreparationDescriptor(descriptor, preparationState)) {
                 continue;
             }
             if (!descriptors.isEmpty()) {
-                descriptors.append(' ');
+                descriptors.append(", ");
             }
             descriptors.append(descriptor);
         }
@@ -478,31 +693,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return normalizedBase;
         }
         if (normalizedBase.equalsIgnoreCase("fish")) {
-            return normalizedDescriptors;
+            String[] parts = normalizedDescriptors.split(", ", 2);
+            return parts[0] + (parts.length == 2 ? " (" + parts[1] + ")" : "");
         }
         if (normalizedBase.equalsIgnoreCase("flour")) {
             return normalizedDescriptors + " flour";
         }
-        return normalizedDescriptors + " " + normalizedBase;
-    }
-    private boolean isUsdaDescriptorNoise(String descriptor) {
-        return descriptor.contains("broiler or fryers")
-                || descriptor.contains("separable lean")
-                || descriptor.contains("trimmed to")
-                || descriptor.contains("choice")
-                || descriptor.contains("select")
-                || descriptor.contains("includes")
-                || descriptor.contains("drained solids")
-                || descriptor.contains("meat only")
-                || descriptor.contains("boneless")
-                || descriptor.contains("skinless")
-                || descriptor.contains("unprepared")
-                || descriptor.contains("slightly ripe")
-                || descriptor.contains("overripe")
-                || descriptor.contains("dry heat")
-                || descriptor.contains("moist heat")
-                || descriptor.contains("cooked as purchased")
-                || descriptor.contains("unheated");
+        return normalizedBase + " (" + normalizedDescriptors + ")";
     }
 
     private boolean isPreparationDescriptor(String descriptor) {
@@ -515,6 +712,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 || descriptor.equals("roasted")
                 || descriptor.equals("steamed")
                 || descriptor.equals("prepared");
+    }
+
+    private boolean isRedundantPreparationDescriptor(String descriptor, FoodPreparationState state) {
+        if (!isPreparationDescriptor(descriptor) || state == null || state == FoodPreparationState.UNSPECIFIED) return false;
+        if (descriptor.equals(state.name().toLowerCase(Locale.ROOT))) return true;
+        return descriptor.equals("cooked") && Set.of(FoodPreparationState.BOILED, FoodPreparationState.ROASTED,
+                FoodPreparationState.GRILLED, FoodPreparationState.FRIED, FoodPreparationState.BAKED, FoodPreparationState.STEAMED).contains(state);
     }
 
     private String singularizeSimpleFoodName(String value) {
@@ -590,12 +794,47 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private String resolveInputKey(CsvRow row, MarketRegion marketRegion) {
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(firstText(row, "barcode", "code", "gtin", "ean", "upc"));
         String name = firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description");
+        String explicitKey = firstText(row, "sourcekey", "source_key", "externalid", "external_id");
+        if (explicitKey != null) {
+            return explicitKey;
+        }
+        String fdcId = firstText(row, "fdc_id", "fdcid", "fdc");
+        if (fdcId != null) {
+            return "USDA_FOODDATA:fdc:" + fdcId;
+        }
+        if (normalizedBarcode != null) {
+            return "barcode:" + normalizedBarcode;
+        }
         FoodCatalogType catalogType = resolveCatalogType(row, normalizedBarcode);
         FoodPreparationState preparationState = resolvePreparationState(row);
         return resolveSourceKey(row, normalizedBarcode, name, catalogType, marketRegion, preparationState);
     }
 
     private FoodCatalogType resolveCatalogType(CsvRow row, String normalizedBarcode) {
+        FoodCatalogType declared = declaredCatalogType(row);
+        if (isUsdaRow(row)) {
+            return com.grun.calorietracker.service.support.UsdaCatalogClassificationRules.resolve(
+                    firstText(row, "source_data_type", "data_type", "datatype"), declared, normalizedBarcode != null,
+                    usdaSourceIdentity(row), firstText(row, "name", "product_name", "description"));
+        }
+        return declared == null ? FoodCatalogType.BRANDED_PRODUCT : declared;
+    }
+
+    private String usdaSourceIdentity(CsvRow row) {
+        String key = firstText(row, "source_key", "sourcekey", "externalid", "external_id");
+        String fdc = firstText(row, "fdc_id", "fdcid", "fdc");
+        return key != null ? key : fdc != null ? "USDA_FOODDATA:fdc:" + fdc : null;
+    }
+
+    private boolean isUsdaRow(CsvRow row) {
+        String source = firstText(row, "data_source", "datasource");
+        String key = firstText(row, "source_key", "sourcekey");
+        return firstText(row, "fdc_id", "fdcid", "fdc") != null
+                || (source != null && (source.equalsIgnoreCase("USDA") || source.equalsIgnoreCase("USDA_FOODDATA")))
+                || (key != null && key.toUpperCase(Locale.ROOT).startsWith("USDA"));
+    }
+
+    private FoodCatalogType declaredCatalogType(CsvRow row) {
         String value = firstText(row, "catalogtype", "catalog_type", "producttype", "product_type", "type");
         if (value != null) {
             String normalized = value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
@@ -608,15 +847,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             }
             try {
                 return FoodCatalogType.valueOf(normalized);
-            } catch (IllegalArgumentException ignored) {
-                return FoodCatalogType.BRANDED_PRODUCT;
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException("Unsupported catalog_type: " + value);
             }
         }
-        String fdcId = firstText(row, "fdc_id", "fdcid", "fdc");
-        if (fdcId != null && normalizedBarcode == null) {
-            return FoodCatalogType.GENERIC_INGREDIENT;
-        }
-        return FoodCatalogType.BRANDED_PRODUCT;
+        return null;
     }
 
 
@@ -682,24 +917,6 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             throw new IllegalArgumentException("Unsupported nutrition reference unit: " + value
                     + ". Supply PER_100G or PER_100ML from the nutrition source.");
         }
-    }
-
-    private String resolveCanonicalFoodKey(
-            FoodCatalogType catalogType,
-            MarketRegion marketRegion,
-            FoodPreparationState preparationState,
-            String displayName,
-            String dishFamilyKey,
-            String dishVariantKey
-    ) {
-        return FoodProductCanonicalKeyRules.resolve(
-                catalogType,
-                marketRegion,
-                preparationState,
-                displayName,
-                dishFamilyKey,
-                dishVariantKey
-        );
     }
 
     private String resolveLocalDishIdentityKey(CsvRow row, FoodCatalogType catalogType, String... columns) {
@@ -819,7 +1036,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             FoodProductImportFormat sourceFormat
     ) {
         if (importMode == FoodProductImportMode.RAW_EXTERNAL) {
-            FoodDataSource dataSource = resolveDataSource(row, defaultDataSource(importMode, sourceFormat));
+            FoodDataSource dataSource = resolveDataSource(row, product.getDataSource() != null
+                    ? product.getDataSource() : defaultDataSource(importMode, sourceFormat));
             product.setDataSource(dataSource);
             product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
             product.setImageSource(dataSource == FoodDataSource.OPEN_FOOD_FACTS ? ImageSource.OPEN_FOOD_FACTS : ImageSource.ADMIN_UPLOAD);
@@ -830,7 +1048,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return;
         }
 
-        product.setDataSource(resolveDataSource(row, defaultDataSource(importMode, sourceFormat)));
+        product.setDataSource(resolveDataSource(row, product.getDataSource() != null
+                ? product.getDataSource() : defaultDataSource(importMode, sourceFormat)));
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         product.setImageSource(resolveImageSource(row));
         product.setImageStatus(resolveImageStatus(row));
@@ -858,6 +1077,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     }
 
     private boolean requiresReview(FoodItemEntity product) {
+        if (product.getPublicationStatus() == CatalogPublicationStatus.INTERNAL_REVIEW) {
+            return true;
+        }
         if (product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW) {
             return true;
         }
@@ -873,6 +1095,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             RegionResolution regionResolution
     ) {
         String identifier = resolveWarningIdentifier(row, product);
+        if (isUsdaRow(row) && product.getSourceDataType() == null) {
+            addWarning(warningCounts, warnings, row, identifier, "MISSING_USDA_DATA_TYPE",
+                    "FDC id/provider alone cannot prove classification; source subtype is required before release.");
+        }
         if (firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_NUTRITION_REFERENCE_UNIT",
                     "Nutrition reference unit was not supplied. Existing basis was retained, or legacy PER_100G used for a new row; verify against the source before publication.");
@@ -886,8 +1112,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (product.getCalories() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_CALORIES", "Product has no calories value.");
         }
-        if (product.getProtein() == null && product.getFat() == null && product.getCarbs() == null) {
-            addWarning(warningCounts, warnings, row, identifier, "MISSING_MACROS", "Product has no protein, fat, or carbohydrate values.");
+        if (product.getProtein() == null || product.getFat() == null || product.getCarbs() == null) {
+            addWarning(warningCounts, warnings, row, identifier, "MISSING_MACROS", "Product is missing at least one protein, fat, or carbohydrate value; unknown is not zero.");
         }
         if (product.getServingSizeGrams() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_SERVING_SIZE", "Product has no serving size value.");
@@ -904,6 +1130,26 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (hasSuspiciousUserFacingName(product)) {
             addWarning(warningCounts, warnings, row, identifier, "SUSPICIOUS_DISPLAY_NAME", "Product display name looks too long, source-like, or unsuitable for mobile search results.");
         }
+        if (isUsdaRow(row) && product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT
+                && FoodCatalogNamingRules.sourcePreparationConflict(product.getName(), product.getPreparationState())) {
+            addWarning(warningCounts, warnings, row, identifier, "SOURCE_PREPARATION_NAME_CONFLICT",
+                    "Explicit source preparation descriptors disagree with the declared state; review instead of hiding the qualifier or inferring a new state.");
+        }
+        if (FoodCatalogNamingRules.requiresManualDisplayReview(product.getDisplayName())
+                || FoodCatalogNamingRules.requiresManualDisplayReview(product.getShortDisplayName()) || hasUnsafeLocalizedDisplay(row)) {
+            addWarning(warningCounts, warnings, row, identifier, "DISPLAY_TEXT_REQUIRES_REVIEW",
+                    "Display text contains markup, encoding/control characters, invalid parentheses or exceeds the display limit.");
+        }
+        FoodSourceNameRules.match(product.getSourceKey(),
+                firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description"),
+                product.getSourceDataType()).filter(FoodSourceNameRules.Decision::servingReviewRequired).ifPresent(decision ->
+                addWarning(warningCounts, warnings, row, identifier, "SERVING_REVIEW_AFTER_NAMING_CORRECTION",
+                        "Source naming/preparation correction requires serving and alias revalidation before publication."));
+        FoodSourceNameRules.match(product.getSourceKey(),
+                firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description"),
+                product.getSourceDataType()).filter(decision -> hasUnreviewedNamingOverride(row, decision)).ifPresent(decision ->
+                addWarning(warningCounts, warnings, row, identifier, "SOURCE_NAME_OVERRIDE_REQUIRES_REVIEW",
+                        "Explicit name differs from the reviewed source naming profile; independent approval is required."));
         String rawBarcode = firstText(row, "barcode", "code", "gtin", "ean", "upc");
         String normalizedBarcode = FoodProductNormalizationRules.normalizeBarcode(rawBarcode);
         if (normalizedBarcode != null && !normalizedBarcode.matches("\\d{6,18}")) {
@@ -926,7 +1172,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return true;
         }
         if (product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT
-                && (userFacingName.contains(",") || userFacingName.contains(";"))) {
+                && (userFacingName.contains(";") || (userFacingName.contains(",") && !userFacingName.contains("(")))) {
             return true;
         }
         return false;
@@ -1016,7 +1262,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             String rawAliases
     ) {
         String normalizedProductName = FoodProductNormalizationRules.normalizeSearchAlias(product.getName());
-        for (String candidate : rawAliases.split("[|;,]")) {
+        for (String candidate : parseAliasEntries(rawAliases)) {
             String aliasText = FoodProductNormalizationRules.normalizeText(candidate);
             String normalizedAlias = FoodProductNormalizationRules.normalizeSearchAlias(aliasText);
             if (aliasText == null || normalizedAlias == null || normalizedAlias.equals(normalizedProductName)) {
@@ -1038,6 +1284,52 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             alias.setActive(true);
             aliasesToSave.add(alias);
         }
+    }
+
+    private List<String> parseAliasEntries(String input) {
+        List<String> candidates = new ArrayList<>();
+        if (input.stripLeading().startsWith("[")) {
+            try {
+                var array = objectMapper.readTree(input);
+                if (!array.isArray()) throw new IllegalArgumentException("Aliases must be a JSON string array.");
+                for (var value : array) {
+                    if (!value.isTextual()) throw new IllegalArgumentException("Alias array entries must be strings.");
+                    candidates.add(value.textValue());
+                }
+            } catch (JsonProcessingException exception) {
+                throw new IllegalArgumentException("Invalid JSON alias array.");
+            }
+        } else {
+            // Legacy delimiters separate aliases only outside preparation/variant qualifiers.
+            StringBuilder current = new StringBuilder();
+            int depth = 0;
+            for (char character : input.toCharArray()) {
+                if (character == '(') depth++;
+                if (character == ')' && --depth < 0) throw new IllegalArgumentException("Unbalanced alias qualifiers.");
+                if (depth == 0 && (character == ',' || character == ';' || character == '|')) {
+                    candidates.add(current.toString());
+                    current.setLength(0);
+                } else {
+                    current.append(character);
+                }
+            }
+            if (depth != 0) throw new IllegalArgumentException("Unbalanced alias qualifiers.");
+            candidates.add(current.toString());
+        }
+        if (candidates.size() > 100) throw new IllegalArgumentException("At most 100 aliases per input field.");
+        for (String alias : candidates) {
+            if (alias.length() > 255 || alias.codePoints().anyMatch(c -> Character.isISOControl(c)
+                    || Character.getType(c) == Character.FORMAT)) {
+                throw new IllegalArgumentException("Alias exceeds length or contains control characters.");
+            }
+            int depth = 0;
+            for (char character : alias.toCharArray()) {
+                if (character == '(') depth++;
+                if (character == ')' && --depth < 0) throw new IllegalArgumentException("Unbalanced alias qualifiers.");
+            }
+            if (depth != 0) throw new IllegalArgumentException("Unbalanced alias qualifiers.");
+        }
+        return candidates;
     }
 
     private FoodSearchAliasType resolveAliasType(CsvRow row, FoodSearchAliasType fallback) {
@@ -1113,8 +1405,15 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return;
         }
 
-        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, displayNameColumns));
-        String shortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, shortDisplayNameColumns));
+        String displayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, displayNameColumns), language);
+        String shortDisplayName = FoodProductNormalizationRules.normalizeProductDisplayName(firstText(row, shortDisplayNameColumns), language);
+        boolean reviewedFallback = displayName == null && shortDisplayName == null;
+        if (reviewedFallback && !existingLocalizations.containsKey(language)) {
+            var decision = FoodSourceNameRules.match(product.getSourceKey(),
+                    firstText(row, "name", "productname", "product_name", "description", "food_description", "lowercase_description"),
+                    product.getSourceDataType()).orElse(null);
+            if (decision != null) displayName = decision.displayName(language);
+        }
         if (displayName == null) {
             displayName = shortDisplayName;
         }
@@ -1129,7 +1428,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         localization.setLanguage(language);
         localization.setDisplayName(displayName);
         localization.setShortDisplayName(shortDisplayName == null ? displayName : shortDisplayName);
-        localization.setSource("admin-import");
+        localization.setSource(reviewedFallback ? FoodSourceNameRules.VERSION : "admin-import");
         localization.setActive(true);
         if (localization.getCreatedAt() == null) {
             localization.setCreatedAt(now);
@@ -1364,6 +1663,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                         || positiveOrNull(option.mlVolume()) != null;
                 if (label == null || label.length() > 120 || unit == null
                         || !Double.isFinite(quantity) || quantity <= 0 || !hasWeight
+                        || (option.gramWeight() != null && positiveOrNull(option.gramWeight()) == null)
+                        || (option.mlVolume() != null && positiveOrNull(option.mlVolume()) == null)
                         || !labels.add(servingOptionKey(label))) {
                     return new ServingOptionsParseResult(List.of(), false);
                 }
@@ -1492,8 +1793,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 continue;
             }
             try {
-                return Double.parseDouble(value.replace(',', '.'));
-            } catch (NumberFormatException ignored) {
+                double parsed = Double.parseDouble(value.replace(',', '.'));
+                if (!Double.isFinite(parsed) || parsed < 0.0) {
+                    throw new IllegalArgumentException("Finite, non-negative number required for field: " + column);
+                }
+                return parsed;
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException("Invalid numeric value for field: " + column);
             }
         }
         return fallback;
@@ -1660,13 +1966,20 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private Double parseServingSizeGrams(CsvRow row, Double fallback) {
         Double directValue = parseDouble(null, row, "servingsizegrams", "serving_size_grams");
         if (directValue != null) {
-            return NutritionValueNormalizer.servingSize(directValue);
+            Double rounded = NutritionValueNormalizer.servingSize(directValue);
+            if (rounded <= 0.0) {
+                throw new IllegalArgumentException("Positive mass quantity required after rounding for field: serving_size_grams");
+            }
+            return rounded;
         }
 
         Double servingQuantity = parseDouble(null, row, "serving_quantity");
         if (servingQuantity != null) {
             String unit = resolveServingUnit(row);
-            if (unit == null || "g".equalsIgnoreCase(unit) || "ml".equalsIgnoreCase(unit)) {
+            if ("ml".equalsIgnoreCase(unit) || "MILLILITER".equalsIgnoreCase(unit)) {
+                return fallback;
+            }
+            if ("g".equalsIgnoreCase(unit) || "GRAM".equalsIgnoreCase(unit)) {
                 return NutritionValueNormalizer.servingSize(servingQuantity);
             }
         }
@@ -1676,15 +1989,27 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return fallback;
         }
 
-        String[] parts = servingSize.replace(',', '.').replaceAll("[^0-9.]+", " ").trim().split("\\s+");
-        if (parts.length == 0 || parts[0].isBlank()) {
+        // A volume label is not a mass conversion. Named volume options carry mlVolume separately.
+        String servingUnit = resolveServingUnit(row);
+        if (!"g".equalsIgnoreCase(servingUnit) && !"GRAM".equalsIgnoreCase(servingUnit)) {
             return fallback;
         }
-        try {
-            return NutritionValueNormalizer.servingSize(Double.parseDouble(parts[0]));
-        } catch (NumberFormatException ignored) {
-            return fallback;
+        if (servingSize.stripLeading().startsWith("-")) {
+            throw new IllegalArgumentException("Positive serving size required for field: serving_size");
         }
+
+        var quantity = java.util.regex.Pattern.compile(
+                "^\\s*([+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)\\s*(?:g|grams?)(?:\\s*\\(.*\\))?\\s*$",
+                java.util.regex.Pattern.CASE_INSENSITIVE).matcher(servingSize.replace(',', '.'));
+        if (!quantity.matches()) {
+            throw new IllegalArgumentException("Invalid mass quantity for field: serving_size");
+        }
+        double amount = Double.parseDouble(quantity.group(1));
+        Double rounded = NutritionValueNormalizer.servingSize(amount);
+        if (!Double.isFinite(amount) || amount <= 0.0 || rounded <= 0.0) {
+            throw new IllegalArgumentException("Positive, finite mass quantity required for field: serving_size");
+        }
+        return rounded;
     }
 
     private String resolveServingUnit(CsvRow row) {
@@ -1859,7 +2184,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
     private record RegionResolution(MarketRegion region, boolean missing, boolean unsupported) {
     }
 
-    private record ProductImportContext(FoodItemEntity product, RegionResolution regionResolution, CsvRow row) {
+    private record ProductImportContext(FoodItemEntity product, RegionResolution regionResolution, CsvRow row, boolean evidenceBasisKnown) {
     }
 }
 

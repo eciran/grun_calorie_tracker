@@ -1,9 +1,12 @@
 package com.grun.calorietracker.service.support;
 
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -24,6 +27,29 @@ public class FoodProductQualityIssueTracker {
     public void syncReviewIssues(FoodItemEntity product, String actor) {
         syncIssues(product, deriveFieldIssues(product), actor);
     }
+
+    public void syncReviewIssues(FoodItemEntity product, List<FoodItemServingOptionEntity> options, String actor) {
+        syncIssues(product, deriveReviewIssues(product, options), actor);
+    }
+
+    public Map<FoodProductQualityIssue, String> deriveReviewIssues(FoodItemEntity product, List<FoodItemServingOptionEntity> options) {
+        var issues = deriveFieldIssues(product);
+        if (product == null) return issues;
+        boolean structuredPortion = options.stream().anyMatch(option ->
+                option.getQualityStatus() == FoodServingOptionQualityStatus.VERIFIED
+                        && Boolean.TRUE.equals(option.getUserVisible()) && positive(option.getQuantity())
+                        && ((product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100G && positive(option.getGramWeight()))
+                        || (product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML && positive(option.getMlVolume()))));
+        boolean legacyMassPortion = product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100G && positive(product.getServingSizeGrams());
+        if (structuredPortion || legacyMassPortion) {
+            issues.remove(FoodProductQualityIssue.MISSING_SERVING_SIZE);
+        } else {
+            issues.put(FoodProductQualityIssue.MISSING_SERVING_SIZE, "Product has no verified named portion compatible with its nutrition basis or usable legacy mass portion.");
+        }
+        return issues;
+    }
+
+    private boolean positive(Double value) { return value != null && Double.isFinite(value) && value > 0; }
 
     public void syncImportIssues(
             FoodItemEntity product,
@@ -86,13 +112,14 @@ public class FoodProductQualityIssueTracker {
         }
         if (product.getCalories() == null) {
             issues.put(FoodProductQualityIssue.MISSING_CALORIES, "Product has no calories value.");
-        } else if (product.getCalories() > 1000) {
-            issues.put(FoodProductQualityIssue.SUSPICIOUS_CALORIES, "Product calories are unusually high for a 100g/ml nutrition basis.");
+        } else if (!Double.isFinite(product.getCalories()) || product.getCalories() < 0 || product.getCalories() > 1000) {
+            issues.put(FoodProductQualityIssue.SUSPICIOUS_CALORIES, "Product calories are non-finite, negative, or unusually high for a 100g/ml nutrition basis.");
         }
-        if (product.getProtein() == null && product.getFat() == null && product.getCarbs() == null) {
-            issues.put(FoodProductQualityIssue.MISSING_MACROS, "Product has no protein, fat, or carbohydrate values.");
-        } else if (isSuspiciousMacro(product.getProtein()) || isSuspiciousMacro(product.getFat()) || isSuspiciousMacro(product.getCarbs())) {
-            issues.put(FoodProductQualityIssue.SUSPICIOUS_MACROS, "Product macro values are unusually high for a 100g/ml nutrition basis.");
+        if (product.getProtein() == null || product.getFat() == null || product.getCarbs() == null) {
+            issues.put(FoodProductQualityIssue.MISSING_MACROS, "Product is missing at least one protein, fat, or carbohydrate value; unknown is not zero.");
+        }
+        if (isSuspiciousMacro(product.getProtein()) || isSuspiciousMacro(product.getFat()) || isSuspiciousMacro(product.getCarbs())) {
+            issues.put(FoodProductQualityIssue.SUSPICIOUS_MACROS, "Product macro values are non-finite, negative, or unusually high for a 100g/ml nutrition basis.");
         }
         if (isMissingMicronutrients(product)) {
             issues.put(FoodProductQualityIssue.MISSING_MICRONUTRIENTS, "Product has no vitamin or mineral values.");
@@ -103,7 +130,7 @@ public class FoodProductQualityIssueTracker {
         if (hasSuspiciousNutrientQuality(product)) {
             issues.put(FoodProductQualityIssue.SUSPICIOUS_NUTRIENT_QUALITY, "Product nutrient quality values are inconsistent or unusually high for a 100g/ml nutrition basis.");
         }
-        if (product.getServingSizeGrams() == null) {
+        if (!positive(product.getServingSizeGrams())) {
             issues.put(FoodProductQualityIssue.MISSING_SERVING_SIZE, "Product has no serving size value.");
         }
         if (product.getMarketRegion() == null) {
@@ -212,7 +239,7 @@ public class FoodProductQualityIssueTracker {
     }
 
     private boolean isSuspiciousMacro(Double value) {
-        return value != null && value > 100;
+        return value != null && (!Double.isFinite(value) || value < 0 || value > 100);
     }
 
     private boolean isMissingMicronutrients(FoodItemEntity product) {
@@ -249,7 +276,7 @@ public class FoodProductQualityIssueTracker {
     }
 
     private boolean isNegative(Double value) {
-        return value != null && value < 0;
+        return value != null && (!Double.isFinite(value) || value < 0);
     }
 
     private boolean isGreaterThan(Double value, Double limit) {

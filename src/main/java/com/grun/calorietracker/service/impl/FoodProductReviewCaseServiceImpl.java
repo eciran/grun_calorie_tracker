@@ -31,6 +31,19 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseService {
 
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(
+            com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence
+    ) {
+        this.externalFoodImportFence = externalFoodImportFence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
+
     private static final int MAX_JSON_CHARS = 64_000;
     private static final Map<FoodProductReviewCaseStatus, Set<FoodProductReviewCaseStatus>> TRANSITIONS = Map.of(
             FoodProductReviewCaseStatus.SUBMITTED, EnumSet.of(
@@ -64,8 +77,9 @@ public class FoodProductReviewCaseServiceImpl implements FoodProductReviewCaseSe
 
     @Override
     @Transactional
-    public synchronized FoodProductReviewCaseEntity finalizeCase(FoodProductReviewCaseCommand command) {
+    public FoodProductReviewCaseEntity finalizeCase(FoodProductReviewCaseCommand command) {
         validateCommand(command);
+        acquireCatalogWriteFence();
         return reviewCaseRepository.findByIdempotencyKey(command.idempotencyKey())
                 .orElseGet(() -> createCase(command));
     }

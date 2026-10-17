@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.mapper.FoodServingOptionMapper;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -42,7 +43,9 @@ public class FoodServingOptionServiceImpl implements FoodServingOptionService {
     public List<FoodServingOptionDto> getServingOptions(Long foodItemId, String email, PreferredLanguage language) {
         FoodItemEntity foodItem = foodItemRepository.findById(foodItemId)
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
-        if (foodItem.getVerificationStatus() == VerificationStatus.REJECTED || !isVisibleToUser(foodItem, email)) {
+        if (foodItem.getVerificationStatus() == VerificationStatus.REJECTED || !isVisibleToUser(foodItem, email)
+                || (!Boolean.TRUE.equals(foodItem.getIsCustom())
+                    && !FoodProductQualityRules.hasValidCoreNutrition(foodItem))) {
             throw new ProductNotFoundException("Food item not found");
         }
         var options = foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
@@ -89,8 +92,7 @@ public class FoodServingOptionServiceImpl implements FoodServingOptionService {
         if (product.getPublicationStatus() == null) {
             return !Boolean.TRUE.equals(product.getIsCustom()) || isOwnedBy(product, email);
         }
-        if (product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED
-                || product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.INTERNAL_REVIEW) {
+        if (product.getPublicationStatus() == com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED) {
             return true;
         }
         if (product.getPublicationStatus() != com.grun.calorietracker.enums.CatalogPublicationStatus.PRIVATE_USER) {

@@ -24,6 +24,7 @@ public final class FoodServingOptionMapper {
         dto.setSource(entity.getSource());
         dto.setQualityStatus(entity.getQualityStatus());
         dto.setUserVisible(entity.getUserVisible());
+        dto.setAllowedInputUnits(com.grun.calorietracker.service.support.FoodPortionUnitResolver.allowedOptionUnits(entity.getFoodItem(), entity));
         return dto;
     }
 }

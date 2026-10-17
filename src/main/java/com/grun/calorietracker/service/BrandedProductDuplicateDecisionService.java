@@ -13,6 +13,8 @@ import com.grun.calorietracker.repository.FoodBrandedDuplicateDecisionRepository
 import com.grun.calorietracker.repository.FoodBrandedDuplicateSearchCollapseRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
@@ -24,6 +26,16 @@ public class BrandedProductDuplicateDecisionService {
     private final FoodBrandedDuplicateDecisionAuditRepository auditRepository;
     private final FoodItemRepository foodItemRepository;
     private final FoodBrandedDuplicateSearchCollapseRepository collapseRepository;
+    private ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(ExternalFoodImportFence fence) {
+        this.externalFoodImportFence = fence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     public BrandedProductDuplicateDecisionService(
             BrandedProductDuplicateAnalysisService analysisService,
@@ -53,6 +65,7 @@ public class BrandedProductDuplicateDecisionService {
     ) {
         String brandKey = normalizeKey(request.brandKey());
         String nameKey = normalizeKey(request.nameKey());
+        acquireCatalogWriteFence();
         BrandedProductDuplicateGroupDto currentGroup = analysisService.getExactGroup(brandKey, nameKey);
         if (!Objects.equals(currentGroup.candidateFingerprint(), request.candidateFingerprint())) {
             throw new IllegalArgumentException(
@@ -92,6 +105,7 @@ public class BrandedProductDuplicateDecisionService {
         if (reason == null || reason.trim().length() < 10) {
             throw new IllegalArgumentException("A clear reason of at least 10 characters is required.");
         }
+        acquireCatalogWriteFence();
         FoodBrandedDuplicateDecisionEntity entity = decisionRepository
                 .findByBrandKeyAndNameKey(normalizeKey(brandKey), normalizeKey(nameKey))
                 .orElseThrow(() -> new ResourceNotFoundException("Branded duplicate decision was not found."));

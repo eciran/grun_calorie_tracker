@@ -1,0 +1,33 @@
+{
+  "version": "catalog-naming-r7-v1",
+  "source": "Exact USDA full-detail responses fetched 2026-10-13; R4/R6 registries retained unchanged",
+  "entries": [
+    {
+      "sourceKey": "USDA_FOODDATA:fdc:170380",
+      "sourceDescription": "Broccoli, frozen, spears, cooked, boiled, drained, without salt",
+      "targetState": "BOILED",
+      "displayNameEn": "Boiled Broccoli (From Frozen, Spears, Drained, Without Salt)",
+      "displayNameTr": "Haşlanmış Brokoli (Dondurulmuş Üründen, Dallar, Süzülmüş, Tuzsuz)",
+      "stateRationale": "Source explicitly reports boiling, frozen origin, spears, drained edible portion and no added salt. All distinguishable qualifiers remain; not a fresh/raw/chopped equivalent.",
+      "servingReviewRequired": false
+    },
+    {
+      "sourceKey": "USDA_FOODDATA:fdc:169969",
+      "sourceDescription": "Broccoli, frozen, chopped, cooked, boiled, drained, without salt",
+      "targetState": "BOILED",
+      "displayNameEn": "Boiled Broccoli (From Frozen, Chopped, Drained, Without Salt)",
+      "displayNameTr": "Haşlanmış Brokoli (Dondurulmuş Üründen, Doğranmış, Süzülmüş, Tuzsuz)",
+      "stateRationale": "Source explicitly reports boiling, frozen origin, chopped form, draining and no added salt. Keep distinct from spears and salted profiles; no inferred yield or portion change.",
+      "servingReviewRequired": false
+    },
+    {
+      "sourceKey": "USDA_FOODDATA:fdc:168510",
+      "sourceDescription": "Broccoli, cooked, boiled, drained, with salt",
+      "targetState": "BOILED",
+      "displayNameEn": "Boiled Broccoli (Drained, With Salt)",
+      "displayNameTr": "Haşlanmış Brokoli (Süzülmüş, Tuzlu)",
+      "stateRationale": "Source explicitly reports boiling, draining and added salt. Do not infer frozen origin, chopped form or low-sodium equivalence.",
+      "servingReviewRequired": false
+    }
+  ]
+}

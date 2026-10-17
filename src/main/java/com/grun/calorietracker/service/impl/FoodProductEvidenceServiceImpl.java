@@ -8,6 +8,7 @@ import com.grun.calorietracker.entity.FoodProductSourceEvidenceEntity;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodEvidenceBasis;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.FoodEvidenceComparisonState;
 import com.grun.calorietracker.enums.FoodEvidenceField;
 import com.grun.calorietracker.repository.FoodItemRepository;
@@ -42,6 +43,19 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceService {
+
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setExternalFoodImportFence(
+            com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence
+    ) {
+        this.externalFoodImportFence = externalFoodImportFence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     private static final Set<FoodEvidenceField> CRITICAL_FIELDS = EnumSet.of(
             FoodEvidenceField.CALORIES,
@@ -112,6 +126,7 @@ public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceServic
         if (candidates.isEmpty()) {
             return 0;
         }
+        acquireCatalogWriteFence();
         if (candidates.size() >= 1000
                 && evidenceBulkWriter != null
                 && evidenceBulkWriter.supportsConflictSafeBulkInsert()) {
@@ -147,7 +162,7 @@ public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceServic
         Set<FoodEvidenceField> fields = new LinkedHashSet<>(CRITICAL_FIELDS);
         latest.forEach(value -> fields.add(value.getFieldName()));
         List<FoodProductEvidenceComparisonDto> comparisons = fields.stream()
-                .map(field -> compareEvidence(candidates, latest, field, basisFor(field)))
+                .map(field -> compareEvidence(candidates, latest, field, basisFor(product, field)))
                 .toList();
         return new FoodProductEvidenceContextDto(latest.stream().map(this::toDto).toList(), comparisons);
     }
@@ -277,8 +292,13 @@ public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceServic
         };
     }
 
-    private FoodEvidenceBasis basisFor(FoodEvidenceField field) {
-        return field == FoodEvidenceField.SERVING_SIZE_GRAMS ? FoodEvidenceBasis.SERVING : FoodEvidenceBasis.PER_100_G;
+    private FoodEvidenceBasis basisFor(FoodItemEntity product, FoodEvidenceField field) {
+        if (field == FoodEvidenceField.SERVING_SIZE_GRAMS) {
+            return FoodEvidenceBasis.SERVING;
+        }
+        return product != null && product.getNutritionReferenceUnit()
+                == FoodNutritionReferenceUnit.PER_100ML
+                ? FoodEvidenceBasis.PER_100_ML : FoodEvidenceBasis.PER_100_G;
     }
 
     private void add(

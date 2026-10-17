@@ -25,6 +25,16 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class OpenFoodFactsServiceImplTest {
+    @Test void validEmptyResponseIsDistinguishedFromProviderFailure() {
+        var criteria = new FoodSearchCriteriaDto(); criteria.setQuery("missing");
+        String url = "https://world.openfoodfacts.org/cgi/search.pl?search_terms=missing&search_simple=1&action=process&json=1&page_size=20";
+        server.expect(requestTo(url)).andRespond(withServerError());
+        server.expect(requestTo(url)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(url)).andRespond(withSuccess("{\"products\":[]}", MediaType.APPLICATION_JSON));
+        org.junit.jupiter.api.Assertions.assertFalse(service.searchProductsOutcome(criteria).available());
+        org.junit.jupiter.api.Assertions.assertFalse(service.searchProductsOutcome(criteria).available());
+        assertTrue(service.searchProductsOutcome(criteria).available()); server.verify();
+    }
 
     private MockRestServiceServer server;
     private OpenFoodFactsServiceImpl service;
@@ -34,6 +44,37 @@ class OpenFoodFactsServiceImplTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         service = new OpenFoodFactsServiceImpl("https://world.openfoodfacts.org", builder);
+    }
+
+    @Test
+    void volumeServingNormalizesOnlyAgainstExplicitVolumeNutritionBasis() {
+        server.expect(requestTo("https://world.openfoodfacts.org/api/v2/product/446.json"))
+                .andRespond(withSuccess("""
+                        {"status":1,"product":{"code":"446","product_name":"Milk",
+                        "nutrition_data_per":"100ml","serving_quantity":250,"serving_quantity_unit":"ml",
+                        "nutriments":{"energy-kcal_serving":150,"proteins_serving":8}}}
+                        """, MediaType.APPLICATION_JSON));
+        FoodProductDto product = service.getProductByBarcode("446").orElseThrow();
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, product.getNutritionReferenceUnit());
+        assertEquals(60.0, product.getCalories());
+        assertEquals(3.2, product.getProtein());
+        assertNull(com.grun.calorietracker.mapper.FoodItemMapper.mapDtoToEntity(product).getServingSizeGrams());
+        assertEquals("MILLILITER", product.getServingUnit());
+        server.verify();
+    }
+
+    @Test
+    void gramServingCannotNormalizeVolumeBasedNutrition() {
+        server.expect(requestTo("https://world.openfoodfacts.org/api/v2/product/447.json"))
+                .andRespond(withSuccess("""
+                        {"status":1,"product":{"code":"447","product_name":"Milk",
+                        "nutrition_data_per":"100ml","serving_quantity":250,"serving_quantity_unit":"g",
+                        "nutriments":{"energy-kcal_serving":150,"proteins_serving":8}}}
+                        """, MediaType.APPLICATION_JSON));
+        FoodProductDto product = service.getProductByBarcode("447").orElseThrow();
+        assertNull(product.getCalories());
+        assertNull(product.getProtein());
+        server.verify();
     }
 
     @Test

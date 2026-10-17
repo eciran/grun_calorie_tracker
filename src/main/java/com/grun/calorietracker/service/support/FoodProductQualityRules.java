@@ -83,7 +83,7 @@ public final class FoodProductQualityRules {
 
     public static boolean isAutoApprovedForCatalog(FoodItemEntity product) {
         if (product.getVerificationStatus() == VerificationStatus.VERIFIED) {
-            return true;
+            return !hasCriticalIssue(product);
         }
         if (product.getVerificationStatus() == VerificationStatus.REJECTED
                 || product.getVerificationStatus() == VerificationStatus.NEEDS_REVIEW) {
@@ -136,12 +136,7 @@ public final class FoodProductQualityRules {
     }
     public static boolean hasCriticalIssue(FoodItemEntity product) {
         return product == null
-                || product.getCalories() == null
-                || (product.getProtein() == null && product.getFat() == null && product.getCarbs() == null)
-                || isGreaterThan(product.getCalories(), 1000.0)
-                || isGreaterThan(product.getProtein(), 100.0)
-                || isGreaterThan(product.getFat(), 100.0)
-                || isGreaterThan(product.getCarbs(), 100.0)
+                || !hasValidCoreNutrition(product)
                 || isNegative(product.getFiber())
                 || isNegative(product.getSugar())
                 || isNegative(product.getSodium())
@@ -151,8 +146,20 @@ public final class FoodProductQualityRules {
                 || isGreaterThan(product.getSodium(), 10.0);
     }
 
+    public static boolean hasValidCoreNutrition(FoodItemEntity product) {
+        return product != null
+                && validInRange(product.getCalories(), 1000.0)
+                && validInRange(product.getProtein(), 100.0)
+                && validInRange(product.getFat(), 100.0)
+                && validInRange(product.getCarbs(), 100.0);
+    }
+
+    private static boolean validInRange(Double value, double maximum) {
+        return value != null && Double.isFinite(value) && value >= 0.0 && value <= maximum;
+    }
+
     private static boolean isNegative(Double value) {
-        return value != null && value < 0;
+        return value != null && (!Double.isFinite(value) || value < 0);
     }
 
     private static boolean isGreaterThan(Double value, Double limit) {

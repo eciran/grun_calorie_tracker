@@ -28,12 +28,24 @@ public final class FoodPortionCalculator {
         if (portionSize == null) {
             return null;
         }
+        requirePositive(portionSize, "Portion size");
         if (servingOption != null) {
-            return portionSize * servingOptionWeightInGrams(servingOption);
+            if (resolveUnit(portionUnit) == FoodPortionUnit.GRAM) {
+                requireMassVolumeBridge(servingOption);
+                return portionSize;
+            }
+            if (resolveUnit(portionUnit) == FoodPortionUnit.MILLILITER) {
+                requireMassVolumeBridge(servingOption);
+                return scaled(portionSize, servingOption.getGramWeight() / servingOption.getMlVolume());
+            }
+            return scaled(portionSize, servingOptionWeightInGrams(servingOption));
         }
         FoodPortionUnit resolvedUnit = resolveUnit(portionUnit);
         if (resolvedUnit == FoodPortionUnit.SERVING || resolvedUnit == FoodPortionUnit.PIECE || resolvedUnit == FoodPortionUnit.SLICE) {
-            return portionSize * requireServingSizeGrams(foodItem, resolvedUnit);
+            return scaled(portionSize, requireServingSizeGrams(foodItem, resolvedUnit));
+        }
+        if (resolvedUnit == FoodPortionUnit.MILLILITER) {
+            throw new IllegalArgumentException("Milliliters cannot be returned as grams without a product-specific mass conversion.");
         }
         if (resolvedUnit == FoodPortionUnit.TABLESPOON || resolvedUnit == FoodPortionUnit.TEASPOON) {
             throw new IllegalArgumentException(
@@ -52,14 +64,28 @@ public final class FoodPortionCalculator {
         if (portionSize == null) {
             return new NormalizedFoodPortion(null, null, null);
         }
+        requirePositive(portionSize, "Portion size");
         FoodNutritionReferenceUnit referenceUnit = foodItem != null && foodItem.getNutritionReferenceUnit() != null
                 ? foodItem.getNutritionReferenceUnit()
                 : FoodNutritionReferenceUnit.PER_100G;
         Double grams = null;
         Double milliliters = null;
         if (servingOption != null) {
-            grams = positiveScaled(portionSize, servingOption.getGramWeight());
-            milliliters = positiveScaled(portionSize, servingOption.getMlVolume());
+            FoodPortionUnit unit = resolveUnit(portionUnit);
+            if (unit == FoodPortionUnit.GRAM || unit == FoodPortionUnit.MILLILITER) {
+                requireMassVolumeBridge(servingOption);
+                // Physical-unit input is absolute, not a count of named portions.
+                if (unit == FoodPortionUnit.MILLILITER) {
+                    milliliters = portionSize;
+                    grams = scaled(portionSize, servingOption.getGramWeight() / servingOption.getMlVolume());
+                } else {
+                    grams = portionSize;
+                    milliliters = scaled(portionSize, servingOption.getMlVolume() / servingOption.getGramWeight());
+                }
+            } else {
+                grams = positiveScaled(portionSize, servingOption.getGramWeight());
+                milliliters = positiveScaled(portionSize, servingOption.getMlVolume());
+            }
         } else {
             FoodPortionUnit resolvedUnit = resolveUnit(portionUnit);
             if (resolvedUnit == FoodPortionUnit.GRAM) {
@@ -69,7 +95,7 @@ public final class FoodPortionCalculator {
             } else if (resolvedUnit == FoodPortionUnit.SERVING
                     || resolvedUnit == FoodPortionUnit.PIECE
                     || resolvedUnit == FoodPortionUnit.SLICE) {
-                grams = portionSize * requireServingSizeGrams(foodItem, resolvedUnit);
+                grams = scaled(portionSize, requireServingSizeGrams(foodItem, resolvedUnit));
             } else {
                 throw new IllegalArgumentException(
                         resolvedUnit + " requires a product-specific serving option with a verified weight or volume."
@@ -100,6 +126,10 @@ public final class FoodPortionCalculator {
         if (resolvedUnit == FoodPortionUnit.SERVING) {
             return;
         }
+        if (resolvedUnit == FoodPortionUnit.GRAM || resolvedUnit == FoodPortionUnit.MILLILITER) {
+            requireMassVolumeBridge(servingOption);
+            return;
+        }
         boolean compatible = switch (resolvedUnit) {
             case PIECE -> optionUnit == FoodServingOptionUnit.PIECE;
             case SLICE -> optionUnit == FoodServingOptionUnit.SLICE;
@@ -115,21 +145,39 @@ public final class FoodPortionCalculator {
     }
 
     private static Double positiveScaled(Double portionSize, Double conversion) {
-        return conversion != null && conversion > 0 ? portionSize * conversion : null;
+        return conversion == null ? null : scaled(portionSize, conversion);
+    }
+
+    private static double scaled(double portionSize, double conversion) {
+        requirePositive(conversion, "Serving conversion");
+        double result = portionSize * conversion;
+        requirePositive(result, "Normalized portion");
+        return result;
+    }
+
+    private static void requirePositive(double value, String field) {
+        if (!Double.isFinite(value) || value <= 0) {
+            throw new IllegalArgumentException(field + " must be finite and positive.");
+        }
+    }
+
+    private static void requireMassVolumeBridge(FoodItemServingOptionEntity option) {
+        if (option.getGramWeight() == null || option.getMlVolume() == null) {
+            throw new IllegalArgumentException("Physical-unit input with a named option requires an explicit mass-volume pair.");
+        }
+        requirePositive(option.getGramWeight(), "Serving mass");
+        requirePositive(option.getMlVolume(), "Serving volume");
     }
 
     private static double servingOptionWeightInGrams(FoodItemServingOptionEntity servingOption) {
-        if (servingOption.getGramWeight() != null && servingOption.getGramWeight() > 0) {
+        if (servingOption.getGramWeight() != null && Double.isFinite(servingOption.getGramWeight()) && servingOption.getGramWeight() > 0) {
             return servingOption.getGramWeight();
         }
-        if (servingOption.getMlVolume() != null && servingOption.getMlVolume() > 0) {
-            return servingOption.getMlVolume();
-        }
-        throw new IllegalArgumentException("Serving option must define a positive gram weight or milliliter volume.");
+        throw new IllegalArgumentException("Gram normalization requires a finite positive gram weight; volume is not mass.");
     }
 
     private static double requireServingSizeGrams(FoodItemEntity foodItem, FoodPortionUnit portionUnit) {
-        if (foodItem != null && foodItem.getServingSizeGrams() != null && foodItem.getServingSizeGrams() > 0) {
+        if (foodItem != null && foodItem.getServingSizeGrams() != null && Double.isFinite(foodItem.getServingSizeGrams()) && foodItem.getServingSizeGrams() > 0) {
             return foodItem.getServingSizeGrams();
         }
         throw new IllegalArgumentException(

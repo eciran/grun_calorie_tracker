@@ -23,6 +23,16 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FoodItemRepository extends JpaRepository<FoodItemEntity, Long>, JpaSpecificationExecutor<FoodItemEntity> {
+    @Query("select coalesce(max(f.id), 0) from FoodItemEntity f where f.isCustom is null or f.isCustom = false")
+    long maxCatalogAuditId();
+
+    @Query("select f.id from FoodItemEntity f where f.id > :afterId and f.id <= :highWater and (f.isCustom is null or f.isCustom = false) order by f.id")
+    List<Long> findCatalogAuditIds(@Param("afterId") long afterId, @Param("highWater") long highWater, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select f from FoodItemEntity f where f.id = :id")
+    Optional<FoodItemEntity> lockCatalogAuditProduct(@Param("id") Long id);
+
     @Modifying
     @Query("update FoodItemEntity f set f.searchSelectionCount = coalesce(f.searchSelectionCount, 0) + 1 where f.id = :id")
     int incrementSearchSelectionCount(@Param("id") Long id);

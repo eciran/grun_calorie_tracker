@@ -28,8 +28,17 @@ import static org.mockito.Mockito.*;
 class FoodCatalogMaintenanceServiceImplTest {
     @Mock FoodItemRepository foodItemRepository;
     @Mock FoodProductQualityIssueRepository issueRepository;
-    @Mock ProductQualitySuggestionService qualitySuggestionService;
+    @Mock com.grun.calorietracker.service.impl.ProductCatalogAuditService catalogAuditService;
     @InjectMocks FoodCatalogMaintenanceServiceImpl service;
+
+    @Test
+    void scheduledQualityQueueDelegatesOnlyWhenEnabled() {
+        service.runScheduledQualityQueue();
+        verifyNoInteractions(catalogAuditService);
+        ReflectionTestUtils.setField(service, "scheduledQualityEnabled", true);
+        service.runScheduledQualityQueue();
+        verify(catalogAuditService).scheduledStep();
+    }
 
     @Test
     void refreshStaleSourceQueue_createsReviewIssueWithoutChangingProductVisibility() {

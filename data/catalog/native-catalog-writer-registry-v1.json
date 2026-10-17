@@ -1,0 +1,23 @@
+{
+  "version": "NATIVE_CATALOG_WRITER_REGISTRY_V1",
+  "commonFence": "pg_advisory_xact_lock(17491,310)",
+  "activeProductionWriters": [
+    "scripts/approved-common-catalog-operation.py",
+    "scripts/r6-approved-catalog-operation.py",
+    "scripts/r7-approved-presentation-operation.py"
+  ],
+  "runtimeCategoryMapping": {
+    "adminCrudWriterPresent": false,
+    "sourceMappingsManagedBy": "Flyway migrations",
+    "productAssignmentsManagedBy": [
+      "FoodProductImportServiceImpl",
+      "FoodCategoryBackfillBatchService"
+    ],
+    "resolverTransaction": "MANDATORY"
+  },
+  "notes": [
+    "Package builders and rehearsals do not become approved production writers by appearing in the repository.",
+    "Every active production writer must begin a READ COMMITTED transaction and acquire the same application catalog fence before catalog inventory checks or writes.",
+    "The registry does not approve a data package, source decision, serving measure, deployment or rollback."
+  ]
+}

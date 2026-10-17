@@ -40,13 +40,68 @@ class FoodServingOptionServiceImplTest {
     private FoodServingOptionServiceImpl service;
 
     @Test
+    void retiredMeasureIsHiddenWhileSourceReplacementAndHistoryWeightRemainIntact() {
+        var food = new FoodItemEntity();
+        food.setId(180987L);
+        completeNutrition(food);
+        food.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        var old = new FoodItemServingOptionEntity();
+        old.setId(2301L);
+        old.setFoodItem(food);
+        old.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.PIECE);
+        old.setQuantity(1.0);
+        old.setGramWeight(50.0);
+        old.setLabel("Old large egg");
+        old.setUserVisible(false);
+        old.setIsDefault(false);
+        var replacement = new FoodItemServingOptionEntity();
+        replacement.setId(9001L);
+        replacement.setFoodItem(food);
+        replacement.setQuantity(1.0);
+        replacement.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.PIECE);
+        replacement.setGramWeight(46.0);
+        replacement.setUserVisible(true);
+        replacement.setIsDefault(true);
+        replacement.setLabel("1 large egg (46g)");
+        var localized = new FoodItemServingOptionLocalizationEntity();
+        localized.setServingOption(replacement);
+        localized.setLanguage(PreferredLanguage.TR);
+        localized.setLabel("1 büyük yumurta (46g)");
+        localized.setActive(true);
+        when(foodItemRepository.findById(food.getId())).thenReturn(Optional.of(food));
+        when(foodItemServingOptionRepository.findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
+                food, FoodServingOptionQualityStatus.VERIFIED)).thenReturn(List.of(old, replacement));
+        when(foodItemServingOptionLocalizationRepository.findByServingOptionIdInAndLanguageInAndActiveTrue(
+                anyCollection(), anyCollection())).thenReturn(List.of(localized));
+        var result = service.getServingOptions(food.getId(), "user@example.com", PreferredLanguage.TR);
+        assertEquals(List.of(9001L), result.stream().map(FoodServingOptionDto::getId).toList());
+        assertEquals("1 büyük yumurta (46g)", result.get(0).getLabel());
+        assertEquals(46.0, result.get(0).getGramWeight());
+        assertEquals(50.0, old.getGramWeight());
+        assertEquals("Old large egg", old.getLabel());
+    }
+
+    @Test
+    void getServingOptions_hidesInternalReviewProducts() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.grun.calorietracker.exception.ProductNotFoundException.class,
+                () -> service.getServingOptions(12L, "user@example.com", PreferredLanguage.EN));
+        org.mockito.Mockito.verifyNoInteractions(foodItemServingOptionRepository);
+    }
+
+    @Test
     void getServingOptions_whenTurkishRequested_returnsLocalizedLabel() {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setId(12L);
+        completeNutrition(foodItem);
         foodItem.setIsCustom(false);
-        foodItem.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
+        foodItem.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
         FoodItemServingOptionEntity option = new FoodItemServingOptionEntity();
         option.setId(5L);
+        option.setQuantity(1.0);
         option.setFoodItem(foodItem);
         option.setLabel("1 portion Chicken Breast");
         option.setGramWeight(120.0);
@@ -77,9 +132,11 @@ class FoodServingOptionServiceImplTest {
     void getServingOptions_exposesOnlyVerifiedOptions() {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setId(13L);
+        completeNutrition(foodItem);
         foodItem.setIsCustom(false);
         FoodItemServingOptionEntity verified = new FoodItemServingOptionEntity();
         verified.setId(7L);
+        verified.setQuantity(1.0);
         verified.setFoodItem(foodItem);
         verified.setLabel("1 slice");
         verified.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.SLICE);
@@ -104,9 +161,11 @@ class FoodServingOptionServiceImplTest {
     void getServingOptions_hidesSourceEvidenceThatIsNotSuitableForMobile() {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setId(14L);
+        completeNutrition(foodItem);
         foodItem.setIsCustom(false);
         FoodItemServingOptionEntity piece = new FoodItemServingOptionEntity();
         piece.setId(8L);
+        piece.setQuantity(1.0);
         piece.setFoodItem(foodItem);
         piece.setLabel("1 medium peach");
         piece.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.PIECE);
@@ -114,6 +173,7 @@ class FoodServingOptionServiceImplTest {
         piece.setUserVisible(true);
         FoodItemServingOptionEntity cupSlices = new FoodItemServingOptionEntity();
         cupSlices.setId(9L);
+        cupSlices.setQuantity(1.0);
         cupSlices.setFoodItem(foodItem);
         cupSlices.setLabel("1 cup peach slices");
         cupSlices.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.CUP);
@@ -132,5 +192,11 @@ class FoodServingOptionServiceImplTest {
         List<FoodServingOptionDto> result = service.getServingOptions(14L, "user@example.com", PreferredLanguage.EN);
 
         assertEquals(List.of(8L), result.stream().map(FoodServingOptionDto::getId).toList());
+    }
+    private void completeNutrition(FoodItemEntity product) {
+        product.setCalories(120.0);
+        product.setProtein(23.0);
+        product.setFat(3.0);
+        product.setCarbs(0.0);
     }
 }

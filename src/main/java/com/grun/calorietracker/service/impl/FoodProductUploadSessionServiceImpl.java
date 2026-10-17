@@ -20,11 +20,13 @@ import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.FoodProductUploadSessionService;
 import com.grun.calorietracker.service.evidence.FoodProductDirectUploadStorage;
 import com.grun.calorietracker.service.support.FoodProductEvidenceImageInspector;
+import com.grun.calorietracker.service.support.FoodProductDirectUploadStorageInvoker;
 import com.grun.calorietracker.service.support.ProductIntakeRolloutPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -52,6 +54,12 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
     private final FoodProductDirectUploadStorage directStorage;
     private final FoodProductEvidenceImageInspector imageInspector;
     private final ProductIntakeRolloutPolicy rolloutPolicy;
+    private FoodProductDirectUploadStorageInvoker storageInvoker;
+
+    @Autowired
+    void setStorageInvoker(FoodProductDirectUploadStorageInvoker storageInvoker) {
+        this.storageInvoker = storageInvoker;
+    }
 
     @Override
     @Transactional
@@ -107,12 +115,12 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
             throw new RequestConflictException("Product evidence upload session is not ready to finalize.");
         }
         for (FoodProductReviewCaseAssetEntity asset : assets) {
-            FoodProductDirectUploadStorage.StoredObject stored = directStorage.inspect(asset.getStorageKey());
+            FoodProductDirectUploadStorage.StoredObject stored = inspect(asset.getStorageKey());
             if (!asset.getContentType().equalsIgnoreCase(stored.contentType())
                     || asset.getSizeBytes() != stored.sizeBytes()) {
                 throw new IllegalArgumentException("Stored product evidence metadata does not match the reserved upload.");
             }
-            byte[] bytes = directStorage.readBounded(asset.getStorageKey(), properties.getMaxUploadBytes());
+            byte[] bytes = readBounded(asset.getStorageKey(), properties.getMaxUploadBytes());
             FoodProductEvidenceImageInspector.Dimensions dimensions =
                     imageInspector.inspect(bytes, asset.getContentType(), asset.getSha256());
             if (stored.sha256() == null || !asset.getSha256().equalsIgnoreCase(stored.sha256())) {
@@ -203,14 +211,13 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
             List<FoodProductReviewCaseAssetEntity> assets
     ) {
         List<FoodProductUploadSessionDto.Slot> slots = assets.stream().map(asset -> {
-            var authorization = directStorage.authorizeUpload(
+            var authorization = authorizeUpload(
                     new FoodProductDirectUploadStorage.UploadObject(
                             asset.getStorageKey(),
                             asset.getContentType(),
                             asset.getSizeBytes(),
                             asset.getSha256()
-                    ),
-                    properties.getUploadUrlTtl()
+                    )
             );
             return new FoodProductUploadSessionDto.Slot(
                     asset.getId(),
@@ -222,6 +229,27 @@ public class FoodProductUploadSessionServiceImpl implements FoodProductUploadSes
             );
         }).toList();
         return new FoodProductUploadSessionDto(session.getId(), session.getExpiresAt(), slots);
+    }
+
+    private FoodProductDirectUploadStorage.UploadAuthorization authorizeUpload(
+            FoodProductDirectUploadStorage.UploadObject object
+    ) {
+        if (storageInvoker == null) {
+            return directStorage.authorizeUpload(object, properties.getUploadUrlTtl());
+        }
+        return storageInvoker.authorizeUpload(directStorage, object, properties.getUploadUrlTtl());
+    }
+
+    private FoodProductDirectUploadStorage.StoredObject inspect(String storageKey) {
+        return storageInvoker == null
+                ? directStorage.inspect(storageKey)
+                : storageInvoker.inspect(directStorage, storageKey);
+    }
+
+    private byte[] readBounded(String storageKey, long maxBytes) {
+        return storageInvoker == null
+                ? directStorage.readBounded(storageKey, maxBytes)
+                : storageInvoker.readBounded(directStorage, storageKey, maxBytes);
     }
 
     private void validateRequest(FoodProductUploadSessionRequestDto request) {

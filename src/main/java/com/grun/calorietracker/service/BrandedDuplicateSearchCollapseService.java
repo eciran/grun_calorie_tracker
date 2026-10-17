@@ -16,6 +16,8 @@ import com.grun.calorietracker.repository.FoodBrandedDuplicateSearchCollapseMemb
 import com.grun.calorietracker.repository.FoodBrandedDuplicateSearchCollapseRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,16 @@ public class BrandedDuplicateSearchCollapseService {
     private final FoodBrandedDuplicateSearchCollapseMemberRepository memberRepository;
     private final FoodBrandedDuplicateSearchCollapseAuditRepository auditRepository;
     private final FoodItemRepository foodItemRepository;
+    private ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(ExternalFoodImportFence fence) {
+        this.externalFoodImportFence = fence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     public BrandedDuplicateSearchCollapseService(
             BrandedProductDuplicateAnalysisService analysisService,
@@ -57,13 +69,14 @@ public class BrandedDuplicateSearchCollapseService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = "foodProductSearch", allEntries = true)
+    @CacheEvict(cacheNames = "foodProductSearch", allEntries = true, cacheResolver = "foodProductCacheResolver")
     public BrandedDuplicateSearchCollapseDto apply(
             BrandedDuplicateSearchCollapseRequestDto request,
             String performedBy
     ) {
         String brandKey = normalizeKey(request.brandKey());
         String nameKey = normalizeKey(request.nameKey());
+        acquireCatalogWriteFence();
         FoodBrandedDuplicateDecisionEntity decision = decisionRepository
                 .findByBrandKeyAndNameKey(brandKey, nameKey)
                 .orElseThrow(() -> new ResourceNotFoundException("Branded duplicate decision was not found."));
@@ -123,7 +136,7 @@ public class BrandedDuplicateSearchCollapseService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = "foodProductSearch", allEntries = true)
+    @CacheEvict(cacheNames = "foodProductSearch", allEntries = true, cacheResolver = "foodProductCacheResolver")
     public BrandedDuplicateSearchCollapseDto revert(
             String brandKey,
             String nameKey,
@@ -131,6 +144,7 @@ public class BrandedDuplicateSearchCollapseService {
             String performedBy
     ) {
         requireReason(reason);
+        acquireCatalogWriteFence();
         FoodBrandedDuplicateSearchCollapseEntity collapse = collapseRepository
                 .findByBrandKeyAndNameKey(normalizeKey(brandKey), normalizeKey(nameKey))
                 .orElseThrow(() -> new ResourceNotFoundException("Branded duplicate search collapse was not found."));

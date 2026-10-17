@@ -51,6 +51,7 @@ import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
 import com.grun.calorietracker.repository.UserFavoriteRepository;
 import com.grun.calorietracker.service.FoodProductReviewService;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import com.grun.calorietracker.service.support.FoodProductNormalizationRules;
 import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.GtinValidator;
@@ -60,6 +61,8 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -99,6 +102,16 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final FoodItemSearchAliasRepository foodItemSearchAliasRepository;
     private final FoodCanonicalResolutionRepository foodCanonicalResolutionRepository;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
+    private ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(ExternalFoodImportFence fence) {
+        this.externalFoodImportFence = fence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     public FoodProductReviewServiceImpl(
             FoodItemRepository foodItemRepository,
@@ -237,12 +250,13 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request, String reviewedBy) {
         if (request == null) {
             throw new IllegalArgumentException("Review request must not be empty.");
         }
 
+        acquireCatalogWriteFence();
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
 
@@ -464,8 +478,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodSearchAliasDto addProductSearchAlias(Long productId, FoodSearchAliasRequestDto request, String reviewedBy) {
+        acquireCatalogWriteFence();
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
         String aliasText = trimToNull(request.getAlias());
@@ -509,8 +524,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodSearchAliasDto updateProductSearchAliasStatus(Long productId, Long aliasId, boolean active, String reviewedBy) {
+        acquireCatalogWriteFence();
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
         FoodItemSearchAliasEntity alias = foodItemSearchAliasRepository.findByIdAndFoodItemId(aliasId, product.getId())
@@ -631,7 +647,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductDto updateProductBarcode(Long id, FoodProductBarcodeUpdateRequestDto request, String reviewedBy) {
         if (request == null) {
             throw new IllegalArgumentException("Barcode update request must not be empty.");
@@ -644,6 +660,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         if (reason == null) {
             throw new IllegalArgumentException("Barcode change reason is required.");
         }
+        acquireCatalogWriteFence();
         FoodItemEntity product = foodItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
         FoodItemEntity conflict = foodItemRepository.findByNormalizedBarcode(barcode).orElse(null);
@@ -701,8 +718,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductDto createAdminCatalogProduct(AdminFoodProductCreateRequestDto request, String reviewedBy) {
+        acquireCatalogWriteFence();
         AdminFoodProductPreflightDto preflight = preflightAdminCatalogProduct(request);
         if (!preflight.getDuplicateCandidates().isEmpty() && !Boolean.TRUE.equals(request.getAllowPotentialDuplicate())) {
             throw new IllegalArgumentException("Potential duplicate product found. Confirm duplicate creation or use an existing product.");
@@ -829,7 +847,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodCanonicalResolutionDto resolveCanonicalPrimary(
             FoodCanonicalResolutionRequestDto request,
             String reviewedBy
@@ -842,6 +860,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             throw new IllegalArgumentException("Canonical food key and primary product id are required.");
         }
 
+        acquireCatalogWriteFence();
         List<FoodItemEntity> candidates = foodItemRepository.findByCanonicalFoodKeyIn(
                 List.of(canonicalFoodKey),
                 Sort.by(Sort.Order.asc("id"))
@@ -893,12 +912,13 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public void clearCanonicalResolution(String canonicalFoodKey, String reviewedBy) {
         String normalizedKey = FoodProductNormalizationRules.normalizeText(canonicalFoodKey);
         if (normalizedKey == null) {
             throw new IllegalArgumentException("Canonical food key is required.");
         }
+        acquireCatalogWriteFence();
         FoodCanonicalResolutionEntity resolution = foodCanonicalResolutionRepository.findById(normalizedKey)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Canonical resolution not found for key: " + normalizedKey
@@ -920,10 +940,11 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy) {
         validateMergeRequest(request);
 
+        acquireCatalogWriteFence();
         FoodItemEntity targetProduct = foodItemRepository.findById(request.getTargetProductId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Target food product not found with id: " + request.getTargetProductId()
@@ -999,7 +1020,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun, boolean markVerified) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required.");
@@ -1017,6 +1038,8 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             }
             char delimiter = detectDelimiter(headerLine);
             Map<String, Integer> headers = indexHeaders(parseDelimitedLine(headerLine, delimiter));
+            // Acquire before the first row lookup, outside the recoverable row-validation handler.
+            if (!dryRun) acquireCatalogWriteFence();
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) {
@@ -1036,6 +1059,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                         updateProductReview(product.getId(), request, reviewedBy);
                         updatedRows++;
                     }
+                } catch (DataAccessException ex) {
+                    // A failed DB transaction cannot safely continue as a partially successful import.
+                    throw ex;
                 } catch (RuntimeException ex) {
                     if (errors.size() < 50) {
                         errors.add("Row " + row.rowNumber() + ": " + ex.getMessage());

@@ -3,6 +3,7 @@ package com.grun.calorietracker.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
+import com.grun.calorietracker.dto.FoodExternalSearchResult;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -72,16 +73,21 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
 
     @Override
     public List<FoodProductDto> searchProductsByCriteria(FoodSearchCriteriaDto criteria) {
+        return searchProductsOutcome(criteria).products();
+    }
+
+    @Override
+    public FoodExternalSearchResult searchProductsOutcome(FoodSearchCriteriaDto criteria) {
         if (criteria == null) {
-            return List.of();
+            return FoodExternalSearchResult.success(List.of());
         }
 
         String normalizedQuery = normalize(criteria.getQuery());
         if (normalizedQuery == null) {
-            return List.of();
+            return FoodExternalSearchResult.success(List.of());
         }
 
-        return fetchSearchResults(normalizedQuery, criteria.getBrand(), criteria.getNutriScore(), criteria.getMarketRegion());
+        return fetchSearchOutcome(normalizedQuery, criteria.getBrand(), criteria.getNutriScore(), criteria.getMarketRegion());
     }
 
     private List<FoodProductDto> fetchSearchResults(String query, String brand, String nutriScore) {
@@ -89,6 +95,10 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
     }
 
     private List<FoodProductDto> fetchSearchResults(String query, String brand, String nutriScore, MarketRegion marketRegion) {
+        return fetchSearchOutcome(query, brand, nutriScore, marketRegion).products();
+    }
+
+    private FoodExternalSearchResult fetchSearchOutcome(String query, String brand, String nutriScore, MarketRegion marketRegion) {
         try {
             String countryTag = toOpenFoodFactsCountryTag(marketRegion);
             JsonNode response = restClient.get()
@@ -108,7 +118,7 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
 
             JsonNode products = response == null ? null : response.path("products");
             if (products == null || !products.isArray()) {
-                return List.of();
+                return FoodExternalSearchResult.unavailable();
             }
 
             String normalizedBrand = normalizeLower(brand);
@@ -128,9 +138,9 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
                 product.setMarketRegion(marketRegion);
                 result.add(product);
             }
-            return result;
+            return FoodExternalSearchResult.success(result);
         } catch (RestClientException ex) {
-            return List.of();
+            return FoodExternalSearchResult.unavailable();
         }
     }
 
@@ -150,14 +160,15 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
         dto.setNutriScore(normalizeLower(firstText(productNode, null, "nutriscore_grade", "nutri_score")));
         Set<String> sourceCategoryTags = stringSet(productNode.path("categories_tags"));
         dto.setSourceCategoryTags(sourceCategoryTags);
-        FoodNutritionReferenceUnit referenceUnit = "100ml".equals(normalizeLower(text(productNode, "nutrition_data_per")))
-                ? FoodNutritionReferenceUnit.PER_100ML
-                : FoodNutritionReferenceUnit.PER_100G;
+        FoodNutritionReferenceUnit referenceUnit = referenceUnit(productNode);
         dto.setNutritionReferenceUnit(referenceUnit);
-        dto.setServingSize(NutritionValueNormalizer.servingSize(number(productNode, "serving_quantity")));
-        if (dto.getServingSize() != null) {
-            String sourceServingUnit = normalizeLower(text(productNode, "serving_quantity_unit"));
-            dto.setServingUnit("ml".equals(sourceServingUnit) ? "MILLILITER" : "GRAM");
+        String sourceServingUnit = normalizeLower(text(productNode, "serving_quantity_unit"));
+        if (isGramUnit(sourceServingUnit)) {
+            dto.setServingSize(NutritionValueNormalizer.servingSize(number(productNode, "serving_quantity")));
+            dto.setServingUnit("GRAM");
+        } else if (isMlUnit(sourceServingUnit)) {
+            // servingSize is persisted as grams; volume must not become a fabricated mass bridge.
+            dto.setServingUnit("MILLILITER");
         } else if (FoodLiquidUnitClassifier.classify(sourceCategoryTags, referenceUnit)
                 == FoodLiquidUnitClassifier.Decision.ML_SOURCE_SUPPORTED) {
             dto.setServingUnit("MILLILITER");
@@ -200,7 +211,9 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
             }
         }
         String servingUnit = normalizeLower(text(productNode, "serving_quantity_unit"));
-        if (!("g".equals(servingUnit) || "gram".equals(servingUnit) || "grams".equals(servingUnit))) {
+        FoodNutritionReferenceUnit basis = referenceUnit(productNode);
+        if (!(basis == FoodNutritionReferenceUnit.PER_100G && isGramUnit(servingUnit))
+                && !(basis == FoodNutritionReferenceUnit.PER_100ML && isMlUnit(servingUnit))) {
             return null;
         }
         Double servingQuantity = number(productNode, "serving_quantity");
@@ -213,10 +226,31 @@ public class OpenFoodFactsServiceImpl implements OpenFoodFactsService {
                 }
             }
         }
-        if (servingQuantity == null || servingQuantity <= 0.0 || servingValue == null) {
+        if (servingQuantity == null || !Double.isFinite(servingQuantity) || servingQuantity <= 0.0
+                || servingValue == null || !Double.isFinite(servingValue) || servingValue < 0.0) {
             return null;
         }
         return servingValue * 100.0 / servingQuantity;
+    }
+
+    private FoodNutritionReferenceUnit referenceUnit(JsonNode product) {
+        String basis = normalizeLower(text(product, "nutrition_data_per"));
+        if ("100ml".equals(basis)) return FoodNutritionReferenceUnit.PER_100ML;
+        if (basis == null || "100g".equals(basis)) return FoodNutritionReferenceUnit.PER_100G;
+        if ("serving".equals(basis)) {
+            String unit = normalizeLower(text(product, "serving_quantity_unit"));
+            if (isGramUnit(unit)) return FoodNutritionReferenceUnit.PER_100G;
+            if (isMlUnit(unit)) return FoodNutritionReferenceUnit.PER_100ML;
+        }
+        return null;
+    }
+
+    private boolean isGramUnit(String unit) {
+        return "g".equals(unit) || "gram".equals(unit) || "grams".equals(unit);
+    }
+
+    private boolean isMlUnit(String unit) {
+        return "ml".equals(unit) || "milliliter".equals(unit) || "milliliters".equals(unit);
     }
 
     private String toOpenFoodFactsCountryTag(MarketRegion marketRegion) {

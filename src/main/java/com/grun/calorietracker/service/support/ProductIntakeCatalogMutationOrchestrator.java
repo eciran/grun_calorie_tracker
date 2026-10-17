@@ -21,7 +21,7 @@ public class ProductIntakeCatalogMutationOrchestrator {
     private final FoodProductReviewAuditRepository auditRepository;
 
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public void reconcileAndAudit(FoodItemEntity product, String previousCanonicalKey, String actor,
                                   Long reviewCaseId, Map<String, Object> oldValues, Map<String, Object> newValues) {
         List<FoodProductReviewAuditEntity> audits = new ArrayList<>();

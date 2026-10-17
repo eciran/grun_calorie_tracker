@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 
 
-def build(cluster_limit: int, sample_limit: int) -> str:
+def build(cluster_limit: int, sample_limit: int, cte_only: bool = False) -> str:
     if not 1 <= cluster_limit <= 5000:
         raise ValueError("cluster_limit must be between 1 and 5000")
     if not 1 <= sample_limit <= 100:
@@ -20,6 +20,7 @@ def build(cluster_limit: int, sample_limit: int) -> str:
        item.preparation_state,
        item.serving_size_grams,
        item.serving_unit,
+       item.nutrition_reference_unit,
        item.calories, item.protein, item.carbs, item.fat,
        item.quality_score, item.verification_status, item.data_source
 FROM food_items item
@@ -28,10 +29,7 @@ WHERE item.catalog_type = 'BRANDED_PRODUCT'
   AND coalesce(item.is_custom, false) = false
   AND item.publication_status = 'PUBLISHED'
   AND coalesce(item.display_name, item.name) IS NOT NULL"""
-    return f"""BEGIN TRANSACTION READ ONLY;
-SET LOCAL statement_timeout = '5min';
-
-WITH branded_identity AS (
+    cte = f"""WITH branded_identity AS (
 {identity}
 ), groups AS (
 SELECT brand_key, name_key,
@@ -41,13 +39,13 @@ SELECT brand_key, name_key,
        count(DISTINCT barcode) FILTER (WHERE barcode IS NOT NULL) barcode_count,
        count(*) FILTER (WHERE barcode IS NULL) missing_barcode_count,
        count(DISTINCT source_key) FILTER (WHERE source_key IS NOT NULL) source_key_count,
+       count(*) FILTER (WHERE source_key IS NULL) missing_source_key_count,
        count(DISTINCT market_region) market_count,
        count(DISTINCT preparation_state) FILTER (WHERE preparation_state IS NOT NULL) preparation_count,
        count(DISTINCT concat_ws('|', serving_size_grams::text, serving_unit)) serving_count,
        count(*) FILTER (WHERE serving_size_grams IS NULL OR serving_unit IS NULL) serving_missing_count,
-       count(DISTINCT concat_ws('|', round(calories::numeric, 1), round(protein::numeric, 1),
-                                round(carbs::numeric, 1), round(fat::numeric, 1))) nutrition_count
-       ,count(*) FILTER (WHERE calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) nutrition_missing_count
+       count(DISTINCT jsonb_build_array(nutrition_reference_unit, calories, protein, carbs, fat)) nutrition_count
+       ,count(*) FILTER (WHERE nutrition_reference_unit IS NULL OR calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) nutrition_missing_count
 FROM branded_identity
 WHERE name_key <> '' AND brand_key NOT IN ('legacy:', 'legacy:<missingbrand>')
 GROUP BY brand_key, name_key
@@ -55,8 +53,11 @@ HAVING count(*) > 1
 ), classified AS (
 SELECT groups.*,
        CASE
-         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'AUTO_SAFE_SAME_GTIN'
-         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'AUTO_SAFE_SAME_SOURCE_KEY'
+         WHEN market_count > 1 OR preparation_count > 1 OR serving_count > 1 OR nutrition_count > 1 THEN 'REVIEW_VARIANT_CONFLICT'
+         WHEN nutrition_missing_count > 0 THEN 'REVIEW_INCOMPLETE_PROFILE'
+         WHEN missing_source_key_count > 0 THEN 'REVIEW_MISSING_SOURCE_KEY'
+         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'CANDIDATE_SAME_GTIN'
+         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'CANDIDATE_SAME_SOURCE_KEY'
          WHEN barcode_count > 1 THEN 'REVIEW_DIFFERENT_GTIN'
          WHEN missing_barcode_count > 0 THEN 'REVIEW_MISSING_GTIN'
          ELSE 'REVIEW_IDENTITY'
@@ -67,10 +68,15 @@ SELECT groups.*,
        END variant_signal
 FROM groups
 )
-
+"""
+    if cte_only:
+        return cte
+    return f"""BEGIN TRANSACTION READ ONLY;
+SET LOCAL statement_timeout = '5min';
+{cte}
 SELECT 'SUMMARY' section, count(*)::text value1,
        coalesce(sum(product_count), 0)::text value2,
-       count(*) FILTER (WHERE decision LIKE 'AUTO_SAFE%')::text value3,
+       count(*) FILTER (WHERE decision LIKE 'CANDIDATE%')::text value3,
        count(*) FILTER (WHERE decision LIKE 'REVIEW%')::text value4,
        count(*) FILTER (WHERE variant_signal)::text value5
 FROM classified;
@@ -84,21 +90,24 @@ SELECT brand_key, name_key,
        count(DISTINCT barcode) FILTER (WHERE barcode IS NOT NULL) barcode_count,
        count(*) FILTER (WHERE barcode IS NULL) missing_barcode_count,
        count(DISTINCT source_key) FILTER (WHERE source_key IS NOT NULL) source_key_count,
+       count(*) FILTER (WHERE source_key IS NULL) missing_source_key_count,
        count(DISTINCT market_region) market_count,
        count(DISTINCT preparation_state) FILTER (WHERE preparation_state IS NOT NULL) preparation_count,
        count(DISTINCT concat_ws('|', serving_size_grams::text, serving_unit)) serving_count,
        count(*) FILTER (WHERE serving_size_grams IS NULL OR serving_unit IS NULL) serving_missing_count,
-       count(DISTINCT concat_ws('|', round(calories::numeric, 1), round(protein::numeric, 1),
-                                round(carbs::numeric, 1), round(fat::numeric, 1))) nutrition_count
-       ,count(*) FILTER (WHERE calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) nutrition_missing_count
+       count(DISTINCT jsonb_build_array(nutrition_reference_unit, calories, protein, carbs, fat)) nutrition_count
+       ,count(*) FILTER (WHERE nutrition_reference_unit IS NULL OR calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) nutrition_missing_count
 FROM branded_identity
 WHERE name_key <> '' AND brand_key NOT IN ('legacy:', 'legacy:<missingbrand>')
 GROUP BY brand_key, name_key HAVING count(*) > 1
 ), classified AS (
 SELECT groups.*,
        CASE
-         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'AUTO_SAFE_SAME_GTIN'
-         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'AUTO_SAFE_SAME_SOURCE_KEY'
+         WHEN market_count > 1 OR preparation_count > 1 OR serving_count > 1 OR nutrition_count > 1 THEN 'REVIEW_VARIANT_CONFLICT'
+         WHEN nutrition_missing_count > 0 THEN 'REVIEW_INCOMPLETE_PROFILE'
+         WHEN missing_source_key_count > 0 THEN 'REVIEW_MISSING_SOURCE_KEY'
+         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'CANDIDATE_SAME_GTIN'
+         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'CANDIDATE_SAME_SOURCE_KEY'
          WHEN barcode_count > 1 THEN 'REVIEW_DIFFERENT_GTIN'
          WHEN missing_barcode_count > 0 THEN 'REVIEW_MISSING_GTIN'
          ELSE 'REVIEW_IDENTITY'
@@ -118,21 +127,24 @@ SELECT brand_key, name_key,
        count(DISTINCT barcode) FILTER (WHERE barcode IS NOT NULL) barcode_count,
        count(*) FILTER (WHERE barcode IS NULL) missing_barcode_count,
        count(DISTINCT source_key) FILTER (WHERE source_key IS NOT NULL) source_key_count,
+       count(*) FILTER (WHERE source_key IS NULL) missing_source_key_count,
        count(DISTINCT market_region) market_count,
        count(DISTINCT preparation_state) FILTER (WHERE preparation_state IS NOT NULL) preparation_count,
        count(DISTINCT concat_ws('|', serving_size_grams::text, serving_unit)) serving_count,
        count(*) FILTER (WHERE serving_size_grams IS NULL OR serving_unit IS NULL) serving_missing_count,
-       count(DISTINCT concat_ws('|', round(calories::numeric, 1), round(protein::numeric, 1),
-                                round(carbs::numeric, 1), round(fat::numeric, 1))) nutrition_count
-       ,count(*) FILTER (WHERE calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) nutrition_missing_count
+       count(DISTINCT jsonb_build_array(nutrition_reference_unit, calories, protein, carbs, fat)) nutrition_count
+       ,count(*) FILTER (WHERE nutrition_reference_unit IS NULL OR calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) nutrition_missing_count
 FROM branded_identity
 WHERE name_key <> '' AND brand_key NOT IN ('legacy:', 'legacy:<missingbrand>')
 GROUP BY brand_key, name_key HAVING count(*) > 1
 ), classified AS (
 SELECT groups.*,
        CASE
-         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'AUTO_SAFE_SAME_GTIN'
-         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'AUTO_SAFE_SAME_SOURCE_KEY'
+         WHEN market_count > 1 OR preparation_count > 1 OR serving_count > 1 OR nutrition_count > 1 THEN 'REVIEW_VARIANT_CONFLICT'
+         WHEN nutrition_missing_count > 0 THEN 'REVIEW_INCOMPLETE_PROFILE'
+         WHEN missing_source_key_count > 0 THEN 'REVIEW_MISSING_SOURCE_KEY'
+         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'CANDIDATE_SAME_GTIN'
+         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'CANDIDATE_SAME_SOURCE_KEY'
          WHEN barcode_count > 1 THEN 'REVIEW_DIFFERENT_GTIN'
          WHEN missing_barcode_count > 0 THEN 'REVIEW_MISSING_GTIN'
          ELSE 'REVIEW_IDENTITY'

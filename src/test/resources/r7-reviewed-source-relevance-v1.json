@@ -1,0 +1,332 @@
+{
+  "version": "r7-reviewed-source-relevance-v1",
+  "receiptSha256": "329632db679e46a30c87798e7d1a9016aaf7464876eb76f3cc4b2ebf596a1fe2",
+  "expectedRows": 37,
+  "scope": "Independent hand-authored identity/ranking judgments over the frozen applied 2026-10-13 receipt, NOT live AWS or source/nutrition certification.",
+  "judgments": [
+    {
+      "id": "oil-en",
+      "q": "olive oil",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 179890,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171413",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "oil-tr",
+      "q": "zeytinyağı",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 179890,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171413",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "mayo-en",
+      "q": "mayonnaise olive oil",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 49682,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171443",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "mayo-tr",
+      "q": "zeytinyağlı mayonez",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 49682,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171443",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "plain-feta-en",
+      "q": "feta cheese",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 180991,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173420",
+      "preparationState": "UNSPECIFIED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "plain-feta-tr",
+      "q": "feta peyniri",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 180991,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173420",
+      "preparationState": "UNSPECIFIED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "prepared-feta-en",
+      "q": "prepared feta cheese",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 179893,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:2259796",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "prepared-feta-tr",
+      "q": "hazırlanmış beyaz peynir",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 179893,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:2259796",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "raw-yolk-en",
+      "q": "raw egg yolk",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 180984,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172184",
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "raw-yolk-tr",
+      "q": "çiğ yumurta sarısı",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 180984,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172184",
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "dried-white-en",
+      "q": "dried egg white",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 180993,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172204",
+      "preparationState": "UNSPECIFIED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "dried-white-tr",
+      "q": "kurutulmuş yumurta beyazı",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 180993,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172204",
+      "preparationState": "UNSPECIFIED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "raw-turkey-egg-en",
+      "q": "raw turkey egg",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 180990,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172192",
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "raw-turkey-tr",
+      "q": "çiğ hindi yumurtası",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 180990,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172192",
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "ground-turkey-en",
+      "q": "ground turkey cooked",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181458,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171506",
+      "preparationState": "COOKED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "ground-turkey-tr",
+      "q": "pişmiş hindi kıyması",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181458,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171506",
+      "preparationState": "COOKED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "tuna-water-en",
+      "q": "light tuna in water",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181454,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173709",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "tuna-water-tr",
+      "q": "suda light ton balığı",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181454,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173709",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "tuna-oil-en",
+      "q": "light tuna in oil",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181455,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173708",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "tuna-oil-tr",
+      "q": "yağda light ton balığı",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181455,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173708",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "roasted-breast-en",
+      "q": "roasted turkey breast",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181005,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171496",
+      "preparationState": "ROASTED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "roasted-breast-tr",
+      "q": "fırınlanmış hindi göğsü",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181005,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171496",
+      "preparationState": "ROASTED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "lean-beef-en",
+      "q": "95% lean ground beef",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181456,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171790",
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "lean-beef-tr",
+      "q": "çiğ dana kıyması",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181456,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:171790",
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "edamame-en",
+      "q": "edamame from frozen",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181467,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:168411",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "edamame-tr",
+      "q": "dondurulmuştan hazırlanmış edamame",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181467,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:168411",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "lifeway-en",
+      "expectedVisibility": "INTERNAL_REVIEW",
+      "q": "lifeway plain kefir",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181453,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:170904",
+      "preparationState": "PREPARED",
+      "catalogType": "BRANDED_PRODUCT",
+      "brand": "Lifeway"
+    },
+    {
+      "id": "lifeway-tr",
+      "expectedVisibility": "INTERNAL_REVIEW",
+      "q": "lifeway sade kefir",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181453,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:170904",
+      "preparationState": "PREPARED",
+      "catalogType": "BRANDED_PRODUCT",
+      "brand": "Lifeway"
+    },
+    {
+      "id": "rice-cream-en",
+      "q": "cream of rice salted",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181459,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173914",
+      "preparationState": "COOKED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "rice-cream-tr",
+      "q": "tuzlu pirinç kreması",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181459,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:173914",
+      "preparationState": "COOKED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "rye-en",
+      "q": "rye bread",
+      "language": "EN",
+      "region": "UK_IE",
+      "expectedId": 181465,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172684",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    },
+    {
+      "id": "rye-tr",
+      "q": "çavdar ekmeği",
+      "language": "TR",
+      "region": "TR",
+      "expectedId": 181465,
+      "expectedSourceKey": "USDA_FOODDATA:fdc:172684",
+      "preparationState": "PREPARED",
+      "catalogType": "GENERIC_INGREDIENT"
+    }
+  ]
+}

@@ -129,7 +129,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductDto createCustomFood(String email, CustomFoodRequestDto request) {
         UserEntity user = getUser(email);
         FoodItemEntity product = new FoodItemEntity();
@@ -151,7 +151,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public FoodProductDto updateCustomFood(String email, Long productId, CustomFoodRequestDto request) {
         FoodItemEntity product = getOwnedCustomFood(getUser(email), productId);
         updateManualNutrition(product, request);
@@ -161,7 +161,7 @@ public class UserProductLibraryServiceImpl implements UserProductLibraryService 
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public void deleteCustomFood(String email, Long productId) {
         FoodItemEntity product = getOwnedCustomFood(getUser(email), productId);
         if (foodLogsRepository.existsByFoodItem(product) || mealTemplateItemRepository.existsByFoodItem(product)) {

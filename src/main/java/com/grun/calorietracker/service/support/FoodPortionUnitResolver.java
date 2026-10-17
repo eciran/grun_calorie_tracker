@@ -27,9 +27,36 @@ public final class FoodPortionUnitResolver {
     }
 
     public static boolean supportsOption(FoodItemEntity product, FoodItemServingOptionEntity option) {
-        if (option == null || option.getUnitType() == null) return false;
+        if (option == null || option.getUnitType() == null || !positive(option.getQuantity())
+                || (option.getGramWeight() != null && !positive(option.getGramWeight()))
+                || (option.getMlVolume() != null && !positive(option.getMlVolume()))) return false;
         Double amount = defaultUnit(product) == FoodPortionUnit.MILLILITER
                 ? option.getMlVolume() : option.getGramWeight();
+        return positive(amount);
+    }
+
+    private static boolean positive(Double amount) {
         return amount != null && Double.isFinite(amount) && amount > 0;
+    }
+
+    public static List<FoodPortionUnit> allowedOptionUnits(FoodItemEntity product, FoodItemServingOptionEntity option) {
+        if (!supportsOption(product, option) || option.getQualityStatus()
+                != com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                || Boolean.FALSE.equals(option.getUserVisible())) return List.of();
+        var units = new java.util.ArrayList<FoodPortionUnit>();
+        units.add(FoodPortionUnit.SERVING);
+        FoodPortionUnit semantic = switch (option.getUnitType()) {
+            case PIECE -> FoodPortionUnit.PIECE;
+            case SLICE -> FoodPortionUnit.SLICE;
+            case TABLESPOON -> FoodPortionUnit.TABLESPOON;
+            case TEASPOON -> FoodPortionUnit.TEASPOON;
+            default -> null;
+        };
+        if (semantic != null) units.add(semantic);
+        if (positive(option.getGramWeight()) && positive(option.getMlVolume())) {
+            units.add(FoodPortionUnit.GRAM);
+            units.add(FoodPortionUnit.MILLILITER);
+        }
+        return List.copyOf(units);
     }
 }

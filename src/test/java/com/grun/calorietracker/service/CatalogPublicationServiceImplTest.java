@@ -32,6 +32,23 @@ class CatalogPublicationServiceImplTest {
     private CatalogPublicationServiceImpl service;
 
     @Test
+    void publishRejectsMissingAndNonFiniteCoreNutritionWithoutWrites() {
+        for (Double invalid : new Double[]{null, Double.NaN, Double.POSITIVE_INFINITY, -1.0, 101.0}) {
+            FoodItemEntity product = candidate();
+            product.setProtein(invalid);
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.publishNew(product, "owner@grun.local", "Review", null));
+            assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, product.getPublicationStatus());
+        }
+        FoodItemEntity product = candidate();
+        product.setCalories(Double.NaN);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.publishNew(product, "owner@grun.local", "Review", null));
+        org.mockito.Mockito.verifyNoInteractions(adminAuditService);
+        org.mockito.Mockito.verifyNoInteractions(foodItemRepository);
+    }
+
+    @Test
     void publishAppliesGuardPersistsAndAudits() {
         FoodItemEntity product = candidate();
         product.setId(7L);
@@ -70,6 +87,10 @@ class CatalogPublicationServiceImplTest {
         FoodItemEntity product = new FoodItemEntity();
         product.setName("Candidate");
         product.setCalories(120.0);
+        product.setProtein(3.0);
+        product.setFat(4.0);
+        product.setCarbs(18.0);
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
         product.setVerificationStatus(VerificationStatus.VERIFIED);
         product.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
         product.setIsCustom(false);

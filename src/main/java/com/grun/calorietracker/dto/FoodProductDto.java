@@ -42,6 +42,15 @@ public class FoodProductDto {
     @Schema(description = "Normalized food identity used to detect equivalent generic foods across data sources.", example = "GLOBAL:GENERIC_INGREDIENT:RAW:banana")
     private String canonicalFoodKey;
 
+    @Schema(description = "Reviewed, language/market-independent food concept id. Null on unmapped legacy records.")
+    private String foodConceptKey;
+
+    @Schema(description = "Explicit material composition variant; not inferred from a display name.")
+    private String compositionVariantKey;
+
+    @Schema(description = "USDA source subtype, distinct from the internal food catalog type.")
+    private String sourceDataType;
+
     @Schema(description = "Product display name.", example = "Nutella")
     private String productName;
 

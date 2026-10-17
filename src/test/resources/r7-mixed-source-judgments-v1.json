@@ -1,0 +1,407 @@
+{
+  "version": "r7-mixed-source-judgments-v1",
+  "cohortSha256": "8bcdd6857b92c6cbce8b9203c44380870b6bce089daae479d5274bd7aaf15e8d",
+  "judgments": [
+    {
+      "id": "off-1",
+      "q": "Cook chicken korma",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517313893",
+        "barcode:5056517316252",
+        "barcode:5056517319284",
+        "barcode:5056517321935",
+        "barcode:5056517324301"
+      ],
+      "expectedKeys": [
+        "barcode:5056517313893",
+        "barcode:5056517316252",
+        "barcode:5056517319284",
+        "barcode:5056517321935",
+        "barcode:5056517324301"
+      ]
+    },
+    {
+      "id": "off-2",
+      "q": "Cook mac cheese smoky bacon",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517318782",
+        "barcode:5056517318799",
+        "barcode:5056517321331",
+        "barcode:5056517325001"
+      ],
+      "expectedKeys": [
+        "barcode:5056517318782",
+        "barcode:5056517318799",
+        "barcode:5056517321331",
+        "barcode:5056517325001"
+      ]
+    },
+    {
+      "id": "off-3",
+      "q": "Cook naked chicken katsu curry",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517318652",
+        "barcode:5056517318669",
+        "barcode:5056517322543",
+        "barcode:5056517322550"
+      ],
+      "expectedKeys": [
+        "barcode:5056517318652",
+        "barcode:5056517318669",
+        "barcode:5056517322543",
+        "barcode:5056517322550"
+      ]
+    },
+    {
+      "id": "off-4",
+      "q": "Cook butter chicken curry",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517313848",
+        "barcode:5056517316368",
+        "barcode:5056517319369"
+      ],
+      "expectedKeys": [
+        "barcode:5056517313848",
+        "barcode:5056517316368",
+        "barcode:5056517319369"
+      ]
+    },
+    {
+      "id": "off-5",
+      "q": "Cook chicken jalfrezi",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517313886",
+        "barcode:5056517319277",
+        "barcode:5056517321911"
+      ],
+      "expectedKeys": [
+        "barcode:5056517313886",
+        "barcode:5056517319277",
+        "barcode:5056517321911"
+      ]
+    },
+    {
+      "id": "off-6",
+      "q": "Cook keralan prawn mango curry",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517314258",
+        "barcode:5056517319291",
+        "barcode:5056517324806"
+      ],
+      "expectedKeys": [
+        "barcode:5056517314258",
+        "barcode:5056517319291",
+        "barcode:5056517324806"
+      ]
+    },
+    {
+      "id": "cofid-13-502",
+      "q": "broccoli green raw",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-502"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-502"
+      ]
+    },
+    {
+      "id": "cofid-13-583",
+      "q": "broccoli green salted",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "BOILED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-583"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-583"
+      ]
+    },
+    {
+      "id": "cofid-13-503",
+      "q": "broccoli green unsalted",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "BOILED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-503"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-503"
+      ]
+    },
+    {
+      "id": "cofid-13-504",
+      "q": "broccoli green steamed",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "STEAMED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-504"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-504"
+      ]
+    },
+    {
+      "id": "cofid-11-874",
+      "q": "rice thai fragrant raw",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:11-874"
+      ],
+      "expectedKeys": [
+        "COFID_2021:11-874"
+      ]
+    },
+    {
+      "id": "cofid-11-875",
+      "q": "rice thai fragrant boiled",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "BOILED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:11-875"
+      ],
+      "expectedKeys": [
+        "COFID_2021:11-875"
+      ]
+    },
+    {
+      "id": "tr-bulgur_pilavi",
+      "q": "bulgur pilavı",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ]
+    },
+    {
+      "id": "en-bulgur_pilavi",
+      "q": "Turkish bulgur pilaf",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ]
+    },
+    {
+      "id": "tr-menemen",
+      "q": "menemen",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ]
+    },
+    {
+      "id": "en-menemen",
+      "q": "Menemen",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ]
+    },
+    {
+      "id": "tr-mercimek_corbasi",
+      "q": "mercimek çorbası",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ]
+    },
+    {
+      "id": "en-mercimek_corbasi",
+      "q": "Turkish lentil soup",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ]
+    },
+    {
+      "id": "tr-nohut_yemegi",
+      "q": "nohut yemeği",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ]
+    },
+    {
+      "id": "en-nohut_yemegi",
+      "q": "Turkish chickpea stew",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ]
+    },
+    {
+      "id": "tr-pirinc_pilavi",
+      "q": "pirinç pilavı",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ]
+    },
+    {
+      "id": "en-pirinc_pilavi",
+      "q": "Turkish rice pilaf",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ]
+    },
+    {
+      "id": "tr-ascii-soup",
+      "q": "mercimek corbasi",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ]
+    },
+    {
+      "id": "plain-beans",
+      "q": "kuru fasulye",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:classic",
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli"
+      ]
+    },
+    {
+      "id": "meat-beans",
+      "q": "etli kuru fasulye",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli"
+      ]
+    },
+    {
+      "id": "off-wrong-market",
+      "q": "Cook chicken korma",
+      "language": "TR",
+      "region": "TR",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "tr-wrong-market",
+      "q": "mercimek çorbası",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "cofid-held",
+      "q": "broccoli green raw",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "GENERIC_INGREDIENT",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "cofid-wrong-state",
+      "q": "rice thai fragrant",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "GENERIC_INGREDIENT",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "FRIED",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    }
+  ]
+}

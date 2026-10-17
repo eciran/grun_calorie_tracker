@@ -1,0 +1,10 @@
+{
+  "version": "R6_HELD_EXACT_CATEGORY_NOMINATIONS_V1",
+  "applyAllowed": false,
+  "purpose": "Source-category nominations only; existing R5/admin gates remain protected.",
+  "entries": [
+    {"id": "179904", "sourceKey": "USDA_FOODDATA:fdc:173474", "description": "Peppermint, fresh", "foodCategoryCode": "0200", "target": "produce", "rationale": "Fresh herb: use the active broad produce root, not dried spice or a fabricated subtype."},
+    {"id": "179923", "sourceKey": "USDA_FOODDATA:fdc:168820", "description": "Molasses", "foodCategoryCode": "1900", "target": "snacks-sweets", "rationale": "Official Sweets source group; the current taxonomy has no approved dedicated sweetener leaf."},
+    {"id": "179924", "sourceKey": "USDA_FOODDATA:fdc:746784", "description": "Sugars, granulated", "foodCategoryCode": "1900", "target": "snacks-sweets", "rationale": "Official Sweets source group; broad root nomination only, not confectionery or an invented leaf."}
+  ]
+}

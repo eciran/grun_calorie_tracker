@@ -37,10 +37,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class FoodItemServiceImplTest {
@@ -88,12 +90,52 @@ class FoodItemServiceImplTest {
     @InjectMocks
     private FoodItemServiceImpl foodItemService;
 
+    @Test void oversizedQueriesAreRejectedBeforeAnyCatalogOrProviderAccess() {
+        var criteria = new FoodSearchCriteriaDto();
+        for (String query : List.of("a".repeat(257), String.join(" ", java.util.Collections.nCopies(25, "milk")))) {
+            criteria.setQuery(query);
+            assertThrows(IllegalArgumentException.class, () -> foodItemService.searchFoodItems(criteria, 0, 25));
+            assertThrows(IllegalArgumentException.class, () -> com.grun.calorietracker.service.support.FoodProductCacheKeys.search(criteria, 0, 25));
+        }
+        verifyNoInteractions(foodItemRepository, openFoodFactsService, catalogPublicationService);
+    }
+
+    @Test
+    void incompletePublishedCatalogFoodCannotBeReadByIdOrBarcode() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setPublicationStatus(com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED);
+        product.setCalories(60.0);
+        product.setProtein(3.0);
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.findByNormalizedBarcode("123456")).thenReturn(Optional.of(product));
+        assertThrows(ProductNotFoundException.class, () -> foodItemService.getFoodItemById(12L, "user@example.com"));
+        assertThrows(ProductNotFoundException.class, () -> foodItemService.getOrSaveFoodItemByBarcode("123456"));
+        org.mockito.Mockito.verifyNoInteractions(openFoodFactsService);
+    }
+
+    @Test
+    void incompleteExternalFoodIsNotPublishedAndDoesNotRaisePublicationValidationError() {
+        FoodProductDto source = new FoodProductDto();
+        source.setBarcode("123456");
+        source.setProductName("Milk");
+        source.setCalories(60.0);
+        when(foodItemRepository.findByNormalizedBarcode("123456")).thenReturn(Optional.empty());
+        when(foodItemRepository.findByBarcode("123456")).thenReturn(Optional.empty());
+        when(openFoodFactsService.getProductByBarcode("123456")).thenReturn(Optional.of(source));
+        assertThrows(ProductNotFoundException.class, () -> foodItemService.getOrSaveFoodItemByBarcode("123456"));
+        org.mockito.Mockito.verifyNoInteractions(catalogPublicationService, foodProductEvidenceService);
+    }
+
     @Test
     void getOrSaveFoodItemByBarcode_whenLocalProductExists_returnsProduct() {
         FoodItemEntity foodItem = new FoodItemEntity();
         foodItem.setBarcode("123456");
         foodItem.setNormalizedBarcode("123456");
         foodItem.setName("Greek Yogurt");
+        foodItem.setCalories(60.0);
+        foodItem.setProtein(3.0);
+        foodItem.setFat(3.0);
+        foodItem.setCarbs(5.0);
 
         when(foodItemRepository.findByNormalizedBarcode("123456")).thenReturn(Optional.of(foodItem));
 
@@ -136,6 +178,7 @@ class FoodItemServiceImplTest {
         externalProduct.setProductName("Nutella");
         externalProduct.setImageUrl("https://images.openfoodfacts.org/nutella.jpg");
         externalProduct.setCalories(539.0);
+        completeExternalNutrition(externalProduct);
         externalProduct.setMarketRegion(MarketRegion.UK_IE);
 
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
@@ -166,6 +209,7 @@ class FoodItemServiceImplTest {
         externalProduct.setProductName("Nutella");
 
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
+        completeExternalNutrition(externalProduct);
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(openFoodFactsService.getProductByBarcode("3017620422003")).thenReturn(Optional.of(externalProduct));
         when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any()))
@@ -191,6 +235,10 @@ class FoodItemServiceImplTest {
         product.setId(12L);
         product.setName("Greek yogurt");
         product.setIsCustom(false);
+        product.setCalories(60.0);
+        product.setProtein(3.0);
+        product.setFat(3.0);
+        product.setCarbs(5.0);
         when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
 
         FoodProductDto result = foodItemService.getFoodItemById(12L, "user@example.com");
@@ -205,6 +253,10 @@ class FoodItemServiceImplTest {
         product.setId(12L);
         product.setName("Chicken Breast");
         product.setIsCustom(false);
+        product.setCalories(120.0);
+        product.setProtein(23.0);
+        product.setFat(3.0);
+        product.setCarbs(0.0);
         FoodItemLocalizationEntity localization = new FoodItemLocalizationEntity();
         localization.setFoodItem(product);
         localization.setLanguage(PreferredLanguage.TR);
@@ -312,15 +364,19 @@ class FoodItemServiceImplTest {
         externalProduct.setProductName("Nutella");
         externalProduct.setImageUrl("https://images.openfoodfacts.org/nutella.jpg");
         externalProduct.setCalories(539.0);
+        completeExternalNutrition(externalProduct);
 
+        var published = new java.util.concurrent.atomic.AtomicReference<FoodItemEntity>();
         when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of()));
-        when(openFoodFactsService.searchProductsByCriteria(criteria)).thenReturn(List.of(externalProduct));
+                .thenAnswer(call -> new PageImpl<>(published.get() == null ? List.of() : List.of(published.get())));
+        when(openFoodFactsService.searchProductsOutcome(criteria)).thenReturn(com.grun.calorietracker.dto.FoodExternalSearchResult.success(List.of(externalProduct)));
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.empty());
         when(foodItemRepository.findByBarcode("3017620422003")).thenReturn(Optional.empty());
         when(catalogPublicationService.publishNew(any(FoodItemEntity.class), any(), any(), any())).thenAnswer(invocation -> {
             FoodItemEntity entity = invocation.getArgument(0);
             entity.setId(10L);
+            entity.setPublicationStatus(com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED);
+            published.set(entity);
             return entity;
         });
 
@@ -331,7 +387,7 @@ class FoodItemServiceImplTest {
         assertEquals("Nutella", result.getContent().get(0).getProductName());
         assertEquals(FoodDataSource.OPEN_FOOD_FACTS, result.getContent().get(0).getDataSource());
         assertEquals(VerificationStatus.RAW_IMPORTED, result.getContent().get(0).getVerificationStatus());
-        verify(openFoodFactsService).searchProductsByCriteria(criteria);
+        verify(openFoodFactsService).searchProductsOutcome(criteria);
         verify(catalogPublicationService).publishNew(any(FoodItemEntity.class), any(), any(), any());
         verify(foodProductQualityIssueTracker).syncReviewIssues(any(FoodItemEntity.class), org.mockito.Mockito.eq("open-food-facts"));
     }
@@ -353,12 +409,31 @@ class FoodItemServiceImplTest {
 
         when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
-        when(openFoodFactsService.searchProductsByCriteria(criteria)).thenReturn(List.of(externalProduct));
+        when(openFoodFactsService.searchProductsOutcome(criteria)).thenReturn(com.grun.calorietracker.dto.FoodExternalSearchResult.success(List.of(externalProduct)));
         when(foodItemRepository.findByNormalizedBarcode("444444")).thenReturn(Optional.of(rejectedProduct));
 
         FoodProductSearchPageDto result = foodItemService.searchFoodItems(criteria, 0, 25);
 
         assertEquals(0, result.getContent().size());
         verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+    }
+    @Test
+    void outOfRangePageKeepsLocalTotalsWithoutExternalFallback() {
+        var criteria = new FoodSearchCriteriaDto(); criteria.setQuery("milk");
+        when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), org.springframework.data.domain.PageRequest.of(3, 1), 2));
+        var result = foodItemService.searchFoodItems(criteria, 3, 1);
+        assertEquals(2L, result.getTotalElements());
+        assertEquals(2, result.getTotalPages());
+        assertTrue(result.getContent().isEmpty());
+        verifyNoInteractions(openFoodFactsService);
+    }
+
+    private void completeExternalNutrition(FoodProductDto product) {
+        if (product.getCalories() == null) product.setCalories(539.0);
+        product.setProtein(6.3);
+        product.setFat(30.9);
+        product.setCarbs(57.5);
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
     }
 }

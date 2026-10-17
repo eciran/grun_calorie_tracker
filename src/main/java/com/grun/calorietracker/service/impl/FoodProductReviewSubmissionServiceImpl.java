@@ -46,6 +46,18 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "grun.food-contribution-storage", name = "provider", havingValue = "S3")
 public class FoodProductReviewSubmissionServiceImpl implements FoodProductReviewSubmissionService {
+    private com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setExternalFoodImportFence(
+            com.grun.calorietracker.service.support.ExternalFoodImportFence externalFoodImportFence
+    ) {
+        this.externalFoodImportFence = externalFoodImportFence;
+    }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
     private final UserRepository users;
     private final FoodProductUploadSessionRepository sessions;
     private final FoodProductReviewCaseAssetRepository assets;
@@ -63,7 +75,7 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
 
     @Override
     @Transactional
-    public synchronized FoodProductReviewSubmitResponseDto submit(
+    public FoodProductReviewSubmitResponseDto submit(
             String email, String sessionId, FoodProductReviewSubmitRequestDto request) {
         com.grun.calorietracker.service.support.ManualContributionNutrition.validate(request.submittedFields());
         UserEntity user = user(email);
@@ -133,8 +145,9 @@ public class FoodProductReviewSubmissionServiceImpl implements FoodProductReview
 
     @Override
     @Transactional
-    public synchronized FoodProductReviewSubmitResponseDto resubmitEvidence(
+    public FoodProductReviewSubmitResponseDto resubmitEvidence(
             String email, Long caseId, String sessionId) {
+        acquireCatalogWriteFence();
         UserEntity user = user(email);
         rolloutPolicy.requireAvailable(user);
         var review = ownedCase(caseId, user);

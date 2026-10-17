@@ -84,7 +84,8 @@ class FoodProductContributionServiceImplTest {
 
         assertEquals(FoodProductContributionStatus.PENDING_REVIEW, result.getStatus());
         assertEquals("Test Biscuit", result.getProductName());
-        assertEquals("Test Brand", result.getBrand());
+        // Unknown brands retain source spelling until canonical brand review.
+        assertEquals("TEST BRAND", result.getBrand());
         assertEquals("https://api.grun.app/api/v1/admin/products/contributions/11/evidence", result.getEvidenceUrl());
         assertEquals("image/jpeg", result.getEvidenceContentType());
         ArgumentCaptor<FoodProductContributionEntity> captor = ArgumentCaptor.forClass(FoodProductContributionEntity.class);

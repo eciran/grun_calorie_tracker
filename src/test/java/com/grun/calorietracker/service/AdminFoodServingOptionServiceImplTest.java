@@ -47,6 +47,32 @@ class AdminFoodServingOptionServiceImplTest {
     }
 
     @Test
+    void createRejectsVolumeOnlyOptionForMassBasedProductBeforeSaving() {
+        var request = validRequest();
+        request.setGramWeight(null);
+        request.setMlVolume(250.0);
+        assertThrows(IllegalArgumentException.class, () -> service.create(12L, request, "reviewer"));
+        org.mockito.Mockito.verifyNoInteractions(servingOptionRepository, localizationRepository, auditRepository);
+    }
+
+    @Test
+    void createRejectsMassOnlyOptionForVolumeBasedProductBeforeSaving() {
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML);
+        assertThrows(IllegalArgumentException.class, () -> service.create(12L, validRequest(), "reviewer"));
+        org.mockito.Mockito.verifyNoInteractions(servingOptionRepository, localizationRepository, auditRepository);
+    }
+
+    @Test
+    void secondaryDimensionCannotBeInvalidEvenWithValidPrimaryDimension() {
+        for (double invalid : new double[] {Double.NaN, Double.POSITIVE_INFINITY, 0.0, -1.0}) {
+            var request = validRequest();
+            request.setMlVolume(invalid);
+            assertThrows(IllegalArgumentException.class, () -> service.create(12L, request, "reviewer"));
+        }
+        org.mockito.Mockito.verifyNoInteractions(servingOptionRepository, localizationRepository, auditRepository);
+    }
+
+    @Test
     void createStoresAdminOptionAndEnglishTurkishLabels() {
         AdminFoodServingOptionUpsertRequestDto request = validRequest();
         when(servingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product)).thenReturn(List.of());

@@ -19,6 +19,8 @@ import com.grun.calorietracker.service.AdminFoodServingOptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -40,17 +42,26 @@ public class AdminFoodServingOptionServiceImpl implements AdminFoodServingOption
     private final FoodItemServingOptionRepository servingOptionRepository;
     private final FoodItemServingOptionLocalizationRepository localizationRepository;
     private final FoodProductReviewAuditRepository auditRepository;
+    private ExternalFoodImportFence externalFoodImportFence;
+
+    @Autowired
+    void setExternalFoodImportFence(ExternalFoodImportFence fence) { this.externalFoodImportFence = fence; }
+
+    private void acquireCatalogWriteFence() {
+        if (externalFoodImportFence != null) externalFoodImportFence.acquire();
+    }
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public AdminProductQualityWorkbenchDto.ServingOptionDto create(
             Long productId,
             AdminFoodServingOptionUpsertRequestDto request,
             String reviewedBy
     ) {
+        acquireCatalogWriteFence();
         FoodItemEntity product = findProduct(productId);
-        validate(request);
+        validate(product, request);
         ensureUniqueConversion(product, null, request);
 
         FoodItemServingOptionEntity option = new FoodItemServingOptionEntity();
@@ -65,17 +76,18 @@ public class AdminFoodServingOptionServiceImpl implements AdminFoodServingOption
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true)
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
     public AdminProductQualityWorkbenchDto.ServingOptionDto update(
             Long productId,
             Long optionId,
             AdminFoodServingOptionUpsertRequestDto request,
             String reviewedBy
     ) {
+        acquireCatalogWriteFence();
         FoodItemEntity product = findProduct(productId);
         FoodItemServingOptionEntity option = servingOptionRepository.findByIdAndFoodItem(optionId, product)
                 .orElseThrow(() -> new ResourceNotFoundException("Serving option not found: " + optionId));
-        validate(request);
+        validate(product, request);
         ensureUniqueConversion(product, optionId, request);
         preventRemovingOnlyDefault(product, option, request);
 
@@ -94,7 +106,7 @@ public class AdminFoodServingOptionServiceImpl implements AdminFoodServingOption
                 .orElseThrow(() -> new ResourceNotFoundException("Food product not found: " + productId));
     }
 
-    private void validate(AdminFoodServingOptionUpsertRequestDto request) {
+    private void validate(FoodItemEntity product, AdminFoodServingOptionUpsertRequestDto request) {
         if (request == null) {
             throw new IllegalArgumentException("Serving option request must not be empty.");
         }
@@ -110,11 +122,20 @@ public class AdminFoodServingOptionServiceImpl implements AdminFoodServingOption
         if (!isPositive(request.getGramWeight()) && !isPositive(request.getMlVolume())) {
             throw new IllegalArgumentException("A positive gram weight or milliliter volume is required.");
         }
+        if ((request.getGramWeight() != null && !isPositive(request.getGramWeight()))
+                || (request.getMlVolume() != null && !isPositive(request.getMlVolume()))) {
+            throw new IllegalArgumentException("Every supplied serving dimension must be finite and positive.");
+        }
         FoodServingOptionQualityStatus status = request.getQualityStatus() == null
                 ? FoodServingOptionQualityStatus.VERIFIED
                 : request.getQualityStatus();
         boolean visible = !Boolean.FALSE.equals(request.getUserVisible());
         boolean defaultOption = Boolean.TRUE.equals(request.getDefaultOption());
+        boolean volumeBased = product.getNutritionReferenceUnit()
+                == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML;
+        if ((visible || defaultOption) && !isPositive(volumeBased ? request.getMlVolume() : request.getGramWeight())) {
+            throw new IllegalArgumentException("A visible serving option must provide the product's nutrition reference dimension.");
+        }
         if (visible && status != FoodServingOptionQualityStatus.VERIFIED) {
             throw new IllegalArgumentException("A user-visible serving option must be VERIFIED.");
         }

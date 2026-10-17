@@ -21,6 +21,29 @@ import java.util.Map;
 @Service
 public class BrandedProductDuplicateAnalysisService {
 
+    // Compute child/profile evidence only for the selected groups, not while
+    // counting or grouping the entire catalog. Telemetry is not review data.
+    private static final String REVIEW_PROFILE_SQL = """
+            encode(sha256(convert_to(jsonb_build_object(
+                'food', (SELECT to_jsonb(food) - 'usage_count' - 'search_selection_count'
+                         FROM food_items food WHERE food.id = item.id),
+                'brand', (SELECT to_jsonb(brand_row) FROM food_brands brand_row
+                          WHERE brand_row.id = (SELECT food.brand_id FROM food_items food WHERE food.id = item.id)),
+                'sourceTags', coalesce((SELECT jsonb_agg(tag.category_tag ORDER BY tag.category_tag)
+                            FROM food_item_source_categories tag WHERE tag.food_item_id = item.id), '[]'::jsonb),
+                'markets', coalesce((SELECT jsonb_agg(region.market_region ORDER BY region.market_region)
+                            FROM food_item_market_regions region WHERE region.food_item_id = item.id), '[]'::jsonb),
+                'options', coalesce((SELECT jsonb_agg(to_jsonb(option) ORDER BY option.id)
+                            FROM food_item_serving_options option WHERE option.food_item_id = item.id), '[]'::jsonb),
+                'optionLabels', coalesce((SELECT jsonb_agg(to_jsonb(serving_label_row) ORDER BY serving_label_row.id)
+                            FROM food_item_serving_option_localizations serving_label_row
+                            JOIN food_item_serving_options option ON option.id = serving_label_row.serving_option_id
+                            WHERE option.food_item_id = item.id), '[]'::jsonb),
+                'sourceEvidence', coalesce((SELECT jsonb_agg(to_jsonb(evidence) ORDER BY evidence.id)
+                            FROM food_product_source_evidence evidence WHERE evidence.food_item_id = item.id), '[]'::jsonb)
+            )::text, 'UTF8')), 'hex') review_profile_fingerprint
+            """;
+
     private static final String IDENTITY_CTE = """
             WITH branded_identity AS (
                 SELECT item.id,
@@ -33,6 +56,7 @@ public class BrandedProductDuplicateAnalysisService {
                        nullif(trim(item.source_key), '') source_key,
                        item.market_region, item.preparation_state,
                        item.serving_size_grams, item.serving_unit,
+                       item.nutrition_reference_unit,
                        item.calories, item.protein, item.carbs, item.fat,
                        item.quality_score, item.verification_status, item.data_source
                 FROM food_items item
@@ -49,13 +73,13 @@ public class BrandedProductDuplicateAnalysisService {
                        count(DISTINCT barcode) FILTER (WHERE barcode IS NOT NULL) barcode_count,
                        count(*) FILTER (WHERE barcode IS NULL) missing_barcode_count,
                        count(DISTINCT source_key) FILTER (WHERE source_key IS NOT NULL) source_key_count,
+                       count(*) FILTER (WHERE source_key IS NULL) missing_source_key_count,
                        count(DISTINCT market_region) market_count,
                        count(DISTINCT preparation_state) FILTER (WHERE preparation_state IS NOT NULL) preparation_count,
                        count(DISTINCT concat_ws('|', serving_size_grams::text, serving_unit)) serving_count,
                        count(*) FILTER (WHERE serving_size_grams IS NULL OR serving_unit IS NULL) missing_serving_count,
-                       count(DISTINCT concat_ws('|', round(calories::numeric, 1), round(protein::numeric, 1),
-                                                round(carbs::numeric, 1), round(fat::numeric, 1))) nutrition_count,
-                       count(*) FILTER (WHERE calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) missing_nutrition_count
+                       count(DISTINCT jsonb_build_array(nutrition_reference_unit, calories, protein, carbs, fat)) nutrition_count,
+                       count(*) FILTER (WHERE nutrition_reference_unit IS NULL OR calories IS NULL OR protein IS NULL OR carbs IS NULL OR fat IS NULL) missing_nutrition_count
                 FROM branded_identity
                 WHERE name_key <> '' AND brand_key NOT IN ('legacy:', 'legacy:<missingbrand>')
                 GROUP BY brand_key, name_key
@@ -63,8 +87,11 @@ public class BrandedProductDuplicateAnalysisService {
             ), classified AS (
                 SELECT duplicate_groups.*,
                        CASE
-                         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'AUTO_SAFE_SAME_GTIN'
-                         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'AUTO_SAFE_SAME_SOURCE_KEY'
+                         WHEN market_count > 1 OR preparation_count > 1 OR serving_count > 1 OR nutrition_count > 1 THEN 'REVIEW_VARIANT_CONFLICT'
+                         WHEN missing_nutrition_count > 0 THEN 'REVIEW_INCOMPLETE_PROFILE'
+                         WHEN missing_source_key_count > 0 THEN 'REVIEW_MISSING_SOURCE_KEY'
+                         WHEN barcode_count = 1 AND missing_barcode_count = 0 THEN 'CANDIDATE_SAME_GTIN'
+                         WHEN source_key_count = 1 AND missing_barcode_count = product_count THEN 'CANDIDATE_SAME_SOURCE_KEY'
                          WHEN barcode_count > 1 THEN 'REVIEW_DIFFERENT_GTIN'
                          WHEN missing_barcode_count > 0 THEN 'REVIEW_MISSING_GTIN'
                          ELSE 'REVIEW_IDENTITY'
@@ -108,7 +135,8 @@ public class BrandedProductDuplicateAnalysisService {
                    collapse_state.active collapse_active,
                    collapse_state.candidate_fingerprint collapse_fingerprint,
                    collapse_state.applied_by collapse_applied_by, collapse_state.applied_at collapse_applied_at,
-                   collapse_state.reverted_by collapse_reverted_by, collapse_state.reverted_at collapse_reverted_at
+                   collapse_state.reverted_by collapse_reverted_by, collapse_state.reverted_at collapse_reverted_at,
+            """ + REVIEW_PROFILE_SQL + """
             FROM paged_groups group_data
             JOIN branded_identity item
               ON item.brand_key = group_data.brand_key AND item.name_key = group_data.name_key
@@ -137,7 +165,8 @@ public class BrandedProductDuplicateAnalysisService {
                    collapse_state.active collapse_active,
                    collapse_state.candidate_fingerprint collapse_fingerprint,
                    collapse_state.applied_by collapse_applied_by, collapse_state.applied_at collapse_applied_at,
-                   collapse_state.reverted_by collapse_reverted_by, collapse_state.reverted_at collapse_reverted_at
+                   collapse_state.reverted_by collapse_reverted_by, collapse_state.reverted_at collapse_reverted_at,
+            """ + REVIEW_PROFILE_SQL + """
             FROM classified group_data
             JOIN branded_identity item
               ON item.brand_key = group_data.brand_key AND item.name_key = group_data.name_key
@@ -219,6 +248,7 @@ public class BrandedProductDuplicateAnalysisService {
                     resultSet.getString("verification_status"),
                     resultSet.getString("data_source")
             ));
+            group.reviewProfiles.put(resultSet.getLong("id"), resultSet.getString("review_profile_fingerprint"));
         }, query, query, query, variantSignal, variantSignal, size, (long) page * size);
 
         List<BrandedProductDuplicateGroupDto> content = groups.values().stream().map(GroupBuilder::build).toList();
@@ -272,6 +302,7 @@ public class BrandedProductDuplicateAnalysisService {
                 nullableInteger(resultSet, "quality_score"), resultSet.getString("verification_status"),
                 resultSet.getString("data_source")
         ));
+        group.reviewProfiles.put(resultSet.getLong("id"), resultSet.getString("review_profile_fingerprint"));
     }
 
     private static Double nullableDouble(java.sql.ResultSet resultSet, String column) throws java.sql.SQLException {
@@ -349,6 +380,7 @@ public class BrandedProductDuplicateAnalysisService {
         private final BrandedProductDuplicateDecisionDto storedDecision;
         private final BrandedDuplicateSearchCollapseSummaryDto searchCollapse;
         private final List<BrandedProductDuplicateCandidateDto> candidates = new ArrayList<>();
+        private final Map<Long, String> reviewProfiles = new LinkedHashMap<>();
 
         private GroupBuilder(String brandKey, String nameKey, String brandName, String representativeName,
                              int productCount, int barcodeCount, int missingBarcodeCount, int marketCount,
@@ -376,7 +408,7 @@ public class BrandedProductDuplicateAnalysisService {
         }
 
         private BrandedProductDuplicateGroupDto build() {
-            String fingerprint = BrandedDuplicateFingerprint.fromCandidates(candidates);
+            String fingerprint = BrandedDuplicateFingerprint.fromCandidates(candidates, reviewProfiles);
             return new BrandedProductDuplicateGroupDto(
                     brandKey, nameKey, brandName, representativeName, productCount, barcodeCount,
                     missingBarcodeCount, marketCount, preparationCount, servingCount, missingServingCount,

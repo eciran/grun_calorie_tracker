@@ -90,10 +90,11 @@ foreach ($entry in $manifest.entries) {
         $servingAmount = if ($null -ne $variant.serving.gramWeight) { $variant.serving.gramWeight } else { $variant.serving.mlVolume }
         $servingUnit = if ($null -ne $variant.serving.gramWeight) { 'g' } else { 'ml' }
         $dataType = if ([string] $source.source_note -match 'dataType=([^;]+)') { $Matches[1] } else { 'UNKNOWN' }
+        if ($dataType -notin @('Foundation', 'SR Legacy')) { throw "Generic source requires verified USDA subtype: $($source.source_key)" }
         $fdcId = ([string] $source.source_key).Split(':')[-1]
 
         $seedRows.Add([ordered]@{
-            catalog_type='GENERIC_INGREDIENT'; data_source='USDA_FOODDATA'; source_key=$source.source_key
+            catalog_type='GENERIC_INGREDIENT'; data_source='USDA_FOODDATA'; source_data_type=$dataType; source_key=$source.source_key
             name=$source.name; display_name=$displayEn; short_display_name=$displayEn
             calories=$source.calories; protein=$source.protein; fat=$source.fat; carbs=$source.carbs
             fiber=$source.fiber; sugar=$source.sugar; sodium=$source.sodium; potassium=$source.potassium

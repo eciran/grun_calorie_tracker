@@ -65,6 +65,18 @@ class FoodItemControllerTest {
 
     @Test
     @WithMockUser(username = "user@test.com", roles = "USER")
+    void oversizedQAndLegacyQueryReturnBadRequestBeforeSearch() throws Exception {
+        for (String parameter : List.of("q", "query")) {
+            for (String value : List.of("a".repeat(257), String.join(" ", java.util.Collections.nCopies(25, "milk")))) {
+                mockMvc.perform(get("/api/v1/products/search").param(parameter, value))
+                        .andExpect(status().isBadRequest());
+            }
+        }
+        org.mockito.Mockito.verifyNoInteractions(foodItemService, userService);
+    }
+
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
     void searchProducts_whenNoProductsFound_returnsEmptyPageWithOkStatus() throws Exception {
         FoodProductSearchPageDto page = new FoodProductSearchPageDto();
         page.setContent(List.of());

@@ -108,6 +108,22 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
+    void incompletePublishedCatalogFoodCannotCreateZeroFilledNutritionSnapshot() {
+        foodItem.setFat(null);
+        foodItem.setPublicationStatus(com.grun.calorietracker.enums.CatalogPublicationStatus.PUBLISHED);
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(100.0);
+        dto.setMealType("BREAKFAST");
+        dto.setLogDate(LocalDateTime.now());
+        assertThrows(com.grun.calorietracker.exception.ProductNotFoundException.class,
+                () -> foodLogsService.addFoodLog(dto, "test@test.com"));
+        verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
+    }
+
+    @Test
     void getRecentPortions_preservesMilliliterNormalizationAndServingOption() {
         foodItem.setVerificationStatus(VerificationStatus.VERIFIED);
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
@@ -685,6 +701,64 @@ class FoodLogsServiceImplTest {
         assertEquals(1, result.size());
         assertEquals("LUNCH", result.get(0).getMealType());
         assertEquals(entity.getLogDate(), result.get(0).getLogDate());
+    }
+
+    @Test
+    void customMlWithVerifiedExplicitPairUsesMassReferenceWithoutChangingProductNutrition() {
+        var option = new FoodItemServingOptionEntity();
+        option.setId(5L);
+        option.setFoodItem(foodItem);
+        option.setUnitType(FoodServingOptionUnit.GLASS);
+        option.setQuantity(1.0);
+        option.setGramWeight(257.5);
+        option.setMlVolume(250.0);
+        option.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
+        var dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setServingOptionId(5L);
+        dto.setPortionSize(200.0);
+        dto.setPortionUnit(FoodPortionUnit.MILLILITER);
+        dto.setMealType("breakfast");
+        dto.setLogDate(LocalDateTime.now());
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(5L, foodItem, FoodServingOptionQualityStatus.VERIFIED))
+                .thenReturn(Optional.of(option));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity saved = invocation.getArgument(0);
+            saved.setId(99L);
+            return saved;
+        });
+        var result = foodLogsService.addFoodLog(dto, "test@test.com");
+        assertEquals(206.0, result.getNormalizedPortionGrams(), 0.000001);
+        assertEquals(200.0, result.getNormalizedPortionMilliliters());
+        assertEquals(319.3, result.getSnapshotCalories());
+        assertEquals(155.0, foodItem.getCalories());
+    }
+
+    @Test
+    void addFoodLogRejectsHiddenVerifiedSourcePortionBeforeWriting() {
+        var option = new FoodItemServingOptionEntity();
+        option.setId(5L);
+        option.setFoodItem(foodItem);
+        option.setUserVisible(false);
+        option.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
+        option.setUnitType(FoodServingOptionUnit.CUP);
+        option.setQuantity(1.0);
+        option.setGramWeight(158.0);
+        var dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setServingOptionId(5L);
+        dto.setPortionSize(1.0);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("breakfast");
+        dto.setLogDate(LocalDateTime.now());
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodItemServingOptionRepository.findByIdAndFoodItemAndQualityStatus(5L, foodItem, FoodServingOptionQualityStatus.VERIFIED))
+                .thenReturn(Optional.of(option));
+        assertThrows(IllegalArgumentException.class, () -> foodLogsService.addFoodLog(dto, "test@test.com"));
+        verify(foodLogsRepository, never()).save(any(FoodLogsEntity.class));
     }
 
     @Test

@@ -1,0 +1,16 @@
+{
+  "version": "typed-source-observation-r5-v2",
+  "mode": "SOURCE_OBSERVATION_ONLY",
+  "fields": {
+    "USDA_FOODDATA": {
+      "potassium": {"nutrientId":1092,"nutrientNumber":"306","sourceName":"Potassium, K","sourceUnit":"mg","semantic":"POTASSIUM","canonicalUnit":"MG","factor":1},
+      "vitamin_e": {"nutrientId":1109,"nutrientNumber":"323","sourceName":"Vitamin E (alpha-tocopherol)","sourceUnit":"mg","semantic":"VITAMIN_E_ALPHA_TOCOPHEROL","canonicalUnit":"MG","factor":1},
+      "vitamin_b12": {"nutrientId":1178,"nutrientNumber":"418","sourceName":"Vitamin B-12","sourceUnit":"ug","semantic":"VITAMIN_B12","canonicalUnit":"MCG","factor":1}
+    },
+    "OPEN_FOOD_FACTS": {
+      "sodium": {"sourceField":"sodium_100g","sourceUnit":"g","semantic":"SODIUM","canonicalUnit":"MG","factor":1000},
+      "fiber": {"sourceField":"fiber_100g","sourceUnit":"g","semantic":"DIETARY_FIBER_REPORTED","canonicalUnit":"G","factor":1}
+    }
+  },
+  "policy": {"allowLegacyUnitInference":false,"allowMissingAsZero":false,"allowNutritionWrite":false,"allowDensityConversion":false,"allowProviderFetchCertification":false}
+}

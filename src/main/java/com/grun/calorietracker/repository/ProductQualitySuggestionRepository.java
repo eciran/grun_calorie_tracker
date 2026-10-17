@@ -18,6 +18,8 @@ public interface ProductQualitySuggestionRepository extends JpaRepository<Produc
 
     long countByStatus(ProductQualitySuggestionStatus status);
 
+    boolean existsByFoodItemIdAndStatus(Long foodItemId, ProductQualitySuggestionStatus status);
+
     @Query("""
             SELECT s.suggestionType, COUNT(s)
             FROM ProductQualitySuggestionEntity s

@@ -13,16 +13,37 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FoodPortionUnitResolverTest {
 
     @Test
+    void verifiedVisiblePairAdvertisesAbsolutePhysicalUnitsOnlyForThatOption() {
+        var food = new FoodItemEntity();
+        food.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        var option = new com.grun.calorietracker.entity.FoodItemServingOptionEntity();
+        option.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.GLASS);
+        option.setQuantity(1.0);
+        option.setGramWeight(257.5);
+        option.setMlVolume(250.0);
+        option.setQualityStatus(com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED);
+        assertEquals(List.of(FoodPortionUnit.SERVING, FoodPortionUnit.GRAM, FoodPortionUnit.MILLILITER),
+                FoodPortionUnitResolver.allowedOptionUnits(food, option));
+        assertEquals(List.of(FoodPortionUnit.GRAM), FoodPortionUnitResolver.allowedUnits(food));
+        option.setQualityStatus(com.grun.calorietracker.enums.FoodServingOptionQualityStatus.NEEDS_REVIEW);
+        assertEquals(List.of(), FoodPortionUnitResolver.allowedOptionUnits(food, option));
+    }
+
+    @Test
     void namedOptionsMustSupplyTheRequiredReferenceDimension() {
         FoodItemEntity food = new FoodItemEntity();
         food.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
         var option = new com.grun.calorietracker.entity.FoodItemServingOptionEntity();
+        option.setQuantity(1.0);
         option.setUnitType(com.grun.calorietracker.enums.FoodServingOptionUnit.SERVING);
         option.setGramWeight(100.0);
         assertEquals(false, FoodPortionUnitResolver.supportsOption(food, option));
         option.setMlVolume(200.0);
         assertEquals(true, FoodPortionUnitResolver.supportsOption(food, option));
         option.setMlVolume(Double.NaN);
+        assertEquals(false, FoodPortionUnitResolver.supportsOption(food, option));
+        option.setMlVolume(200.0);
+        option.setQuantity(Double.NaN);
         assertEquals(false, FoodPortionUnitResolver.supportsOption(food, option));
     }
 

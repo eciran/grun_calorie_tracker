@@ -1,0 +1,807 @@
+{
+  "version": "r7-retailer-dish-judgments-v1",
+  "cohortSha256": "4ec88a084dd83ddfe99c67725b84006cfcfed5faf8ce8984430b36ffcc37850b",
+  "judgments": [
+    {
+      "id": "off-1",
+      "q": "Cook chicken korma",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517313893",
+        "barcode:5056517316252",
+        "barcode:5056517319284",
+        "barcode:5056517321935",
+        "barcode:5056517324301"
+      ],
+      "expectedKeys": [
+        "barcode:5056517313893",
+        "barcode:5056517316252",
+        "barcode:5056517319284",
+        "barcode:5056517321935",
+        "barcode:5056517324301"
+      ]
+    },
+    {
+      "id": "off-2",
+      "q": "Cook mac cheese smoky bacon",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517318782",
+        "barcode:5056517318799",
+        "barcode:5056517321331",
+        "barcode:5056517325001"
+      ],
+      "expectedKeys": [
+        "barcode:5056517318782",
+        "barcode:5056517318799",
+        "barcode:5056517321331",
+        "barcode:5056517325001"
+      ]
+    },
+    {
+      "id": "off-3",
+      "q": "Cook naked chicken katsu curry",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517318652",
+        "barcode:5056517318669",
+        "barcode:5056517322543",
+        "barcode:5056517322550"
+      ],
+      "expectedKeys": [
+        "barcode:5056517318652",
+        "barcode:5056517318669",
+        "barcode:5056517322543",
+        "barcode:5056517322550"
+      ]
+    },
+    {
+      "id": "off-4",
+      "q": "Cook butter chicken curry",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517313848",
+        "barcode:5056517316368",
+        "barcode:5056517319369"
+      ],
+      "expectedKeys": [
+        "barcode:5056517313848",
+        "barcode:5056517316368",
+        "barcode:5056517319369"
+      ]
+    },
+    {
+      "id": "off-5",
+      "q": "Cook chicken jalfrezi",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517313886",
+        "barcode:5056517319277",
+        "barcode:5056517321911"
+      ],
+      "expectedKeys": [
+        "barcode:5056517313886",
+        "barcode:5056517319277",
+        "barcode:5056517321911"
+      ]
+    },
+    {
+      "id": "off-6",
+      "q": "Cook keralan prawn mango curry",
+      "language": "EN",
+      "region": "UK_IE",
+      "acceptableTopKeys": [
+        "barcode:5056517314258",
+        "barcode:5056517319291",
+        "barcode:5056517324806"
+      ],
+      "expectedKeys": [
+        "barcode:5056517314258",
+        "barcode:5056517319291",
+        "barcode:5056517324806"
+      ]
+    },
+    {
+      "id": "cofid-13-502",
+      "q": "broccoli green raw",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-502"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-502"
+      ]
+    },
+    {
+      "id": "cofid-13-583",
+      "q": "broccoli green salted",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "BOILED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-583"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-583"
+      ]
+    },
+    {
+      "id": "cofid-13-503",
+      "q": "broccoli green unsalted",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "BOILED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-503"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-503"
+      ]
+    },
+    {
+      "id": "cofid-13-504",
+      "q": "broccoli green steamed",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "STEAMED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:13-504"
+      ],
+      "expectedKeys": [
+        "COFID_2021:13-504"
+      ]
+    },
+    {
+      "id": "cofid-11-874",
+      "q": "rice thai fragrant raw",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "RAW",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:11-874"
+      ],
+      "expectedKeys": [
+        "COFID_2021:11-874"
+      ]
+    },
+    {
+      "id": "cofid-11-875",
+      "q": "rice thai fragrant boiled",
+      "language": "EN",
+      "region": "UK_IE",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "BOILED",
+      "catalogType": "GENERIC_INGREDIENT",
+      "acceptableTopKeys": [
+        "COFID_2021:11-875"
+      ],
+      "expectedKeys": [
+        "COFID_2021:11-875"
+      ]
+    },
+    {
+      "id": "tr-bulgur_pilavi",
+      "q": "bulgur pilavı",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ]
+    },
+    {
+      "id": "en-bulgur_pilavi",
+      "q": "Turkish bulgur pilaf",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:bulgur_pilavi:classic"
+      ]
+    },
+    {
+      "id": "tr-menemen",
+      "q": "menemen",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ]
+    },
+    {
+      "id": "en-menemen",
+      "q": "Menemen",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:menemen:classic"
+      ]
+    },
+    {
+      "id": "tr-mercimek_corbasi",
+      "q": "mercimek çorbası",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ]
+    },
+    {
+      "id": "en-mercimek_corbasi",
+      "q": "Turkish lentil soup",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ]
+    },
+    {
+      "id": "tr-nohut_yemegi",
+      "q": "nohut yemeği",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ]
+    },
+    {
+      "id": "en-nohut_yemegi",
+      "q": "Turkish chickpea stew",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:nohut_yemegi:classic"
+      ]
+    },
+    {
+      "id": "tr-pirinc_pilavi",
+      "q": "pirinç pilavı",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ]
+    },
+    {
+      "id": "en-pirinc_pilavi",
+      "q": "Turkish rice pilaf",
+      "language": "EN",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:pirinc_pilavi:classic"
+      ]
+    },
+    {
+      "id": "tr-ascii-soup",
+      "q": "mercimek corbasi",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:mercimek_corbasi:classic"
+      ]
+    },
+    {
+      "id": "plain-beans",
+      "q": "kuru fasulye",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:classic"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:classic",
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli"
+      ]
+    },
+    {
+      "id": "meat-beans",
+      "q": "etli kuru fasulye",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli"
+      ],
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:kuru_fasulye:etli"
+      ]
+    },
+    {
+      "id": "off-wrong-market",
+      "q": "Cook chicken korma",
+      "language": "TR",
+      "region": "TR",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "tr-wrong-market",
+      "q": "mercimek çorbası",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "cofid-held",
+      "q": "broccoli green raw",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "GENERIC_INGREDIENT",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "cofid-wrong-state",
+      "q": "rice thai fragrant",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "GENERIC_INGREDIENT",
+      "fixtureApprovalSimulation": true,
+      "preparationState": "FRIED",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    },
+    {
+      "id": "tesco-ciabatta-0",
+      "q": "Tesco Deli Ciabatta",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:0281022002658",
+        "barcode:0289212002655",
+        "barcode:0281022002405"
+      ],
+      "acceptableTopKeys": [
+        "barcode:0281022002658",
+        "barcode:0289212002655",
+        "barcode:0281022002405"
+      ]
+    },
+    {
+      "id": "tesco-ciabatta-1",
+      "q": "Ciabatta Deli Tesco",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:0281022002658",
+        "barcode:0289212002655",
+        "barcode:0281022002405"
+      ],
+      "acceptableTopKeys": [
+        "barcode:0281022002658",
+        "barcode:0289212002655",
+        "barcode:0281022002405"
+      ]
+    },
+    {
+      "id": "tesco-oats-0",
+      "q": "Tesco Scottish Oats",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5000119092502",
+        "barcode:5057008101036"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5000119092502",
+        "barcode:5057008101036"
+      ]
+    },
+    {
+      "id": "tesco-oats-1",
+      "q": "Oats Scottish Tesco",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5000119092502",
+        "barcode:5057008101036"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5000119092502",
+        "barcode:5057008101036"
+      ]
+    },
+    {
+      "id": "tesco-rice-cakes-0",
+      "q": "Tesco Milk chocolate rice cakes",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5054268138543",
+        "barcode:5057753907761"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5054268138543",
+        "barcode:5057753907761"
+      ]
+    },
+    {
+      "id": "tesco-rice-cakes-1",
+      "q": "rice cakes chocolate milk Tesco",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5054268138543",
+        "barcode:5057753907761"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5054268138543",
+        "barcode:5057753907761"
+      ]
+    },
+    {
+      "id": "dunnes-beef-0",
+      "q": "Dunnes Stores Peppered Irish Beef",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5099874304531",
+        "barcode:5099874380443"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5099874304531",
+        "barcode:5099874380443"
+      ]
+    },
+    {
+      "id": "dunnes-beef-1",
+      "q": "Beef Irish Peppered Dunnes Stores",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5099874304531",
+        "barcode:5099874380443"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5099874304531",
+        "barcode:5099874380443"
+      ]
+    },
+    {
+      "id": "vithit-0",
+      "q": "Vit-Hit Hydration Station",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5034033000480",
+        "barcode:5034033000503"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5034033000480",
+        "barcode:5034033000503"
+      ]
+    },
+    {
+      "id": "vithit-1",
+      "q": "Station Hydration Vit Hit",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:5034033000480",
+        "barcode:5034033000503"
+      ],
+      "acceptableTopKeys": [
+        "barcode:5034033000480",
+        "barcode:5034033000503"
+      ]
+    },
+    {
+      "id": "lidl-plain-ham-0",
+      "q": "Lidl Ham",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:2256121004238",
+        "barcode:2256123003406",
+        "barcode:0284540010716",
+        "barcode:2280141009591",
+        "barcode:2280142008470",
+        "barcode:2280145011712",
+        "barcode:2280148010651"
+      ],
+      "acceptableTopKeys": [
+        "barcode:2256121004238",
+        "barcode:2256123003406"
+      ]
+    },
+    {
+      "id": "lidl-plain-ham-1",
+      "q": "Ham Lidl",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:2256121004238",
+        "barcode:2256123003406",
+        "barcode:0284540010716",
+        "barcode:2280141009591",
+        "barcode:2280142008470",
+        "barcode:2280145011712",
+        "barcode:2280148010651"
+      ],
+      "acceptableTopKeys": [
+        "barcode:2256121004238",
+        "barcode:2256123003406"
+      ]
+    },
+    {
+      "id": "lidl-cured-ham-0",
+      "q": "Lidl Italian Style Dry Cured Ham",
+      "language": "EN",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:0284540010716",
+        "barcode:2280141009591",
+        "barcode:2280142008470",
+        "barcode:2280145011712",
+        "barcode:2280148010651"
+      ],
+      "acceptableTopKeys": [
+        "barcode:0284540010716",
+        "barcode:2280141009591",
+        "barcode:2280142008470",
+        "barcode:2280145011712",
+        "barcode:2280148010651"
+      ]
+    },
+    {
+      "id": "lidl-cured-ham-1",
+      "q": "Dry Cured Ham Italian Style Lidl",
+      "language": "TR",
+      "region": "UK_IE",
+      "catalogType": "BRANDED_PRODUCT",
+      "expectedKeys": [
+        "barcode:0284540010716",
+        "barcode:2280141009591",
+        "barcode:2280142008470",
+        "barcode:2280145011712",
+        "barcode:2280148010651"
+      ],
+      "acceptableTopKeys": [
+        "barcode:0284540010716",
+        "barcode:2280141009591",
+        "barcode:2280142008470",
+        "barcode:2280145011712",
+        "barcode:2280148010651"
+      ]
+    },
+    {
+      "id": "regional-tr-181190",
+      "q": "Adana kebap",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:adana_kebap:classic"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:adana_kebap:classic"
+      ]
+    },
+    {
+      "id": "regional-reordered-181190",
+      "q": "kebap Adana",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:adana_kebap:classic"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:adana_kebap:classic"
+      ]
+    },
+    {
+      "id": "regional-tr-181196",
+      "q": "Sivas Ayran Çorbası",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:ayran_corbasi:sivas"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:ayran_corbasi:sivas"
+      ]
+    },
+    {
+      "id": "regional-reordered-181196",
+      "q": "Çorbası Ayran Sivas",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:ayran_corbasi:sivas"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:ayran_corbasi:sivas"
+      ]
+    },
+    {
+      "id": "regional-tr-181192",
+      "q": "Amasya Çöreği",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:amasya_coregi:classic"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:amasya_coregi:classic"
+      ]
+    },
+    {
+      "id": "regional-reordered-181192",
+      "q": "Çöreği Amasya",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:amasya_coregi:classic"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:amasya_coregi:classic"
+      ]
+    },
+    {
+      "id": "regional-tr-181204",
+      "q": "Börülce Teretoru",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:borulce_teretoru:classic"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:borulce_teretoru:classic"
+      ]
+    },
+    {
+      "id": "regional-reordered-181204",
+      "q": "Teretoru Börülce",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:borulce_teretoru:classic"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:borulce_teretoru:classic"
+      ]
+    },
+    {
+      "id": "regional-tr-181208",
+      "q": "Aydın Ciğer Sote",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:ciger_sote:aydin"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:ciger_sote:aydin"
+      ]
+    },
+    {
+      "id": "regional-reordered-181208",
+      "q": "Sote Ciğer Aydın",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:ciger_sote:aydin"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:ciger_sote:aydin"
+      ]
+    },
+    {
+      "id": "regional-tr-181199",
+      "q": "Tunceli Baklavası",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:baklava:tunceli"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:baklava:tunceli"
+      ]
+    },
+    {
+      "id": "regional-reordered-181199",
+      "q": "Baklavası Tunceli",
+      "language": "TR",
+      "region": "TR",
+      "catalogType": "LOCAL_DISH",
+      "expectedKeys": [
+        "TR:LOCAL_DISH:PREPARED:baklava:tunceli"
+      ],
+      "acceptableTopKeys": [
+        "TR:LOCAL_DISH:PREPARED:baklava:tunceli"
+      ]
+    },
+    {
+      "id": "lidl-wrong-market",
+      "q": "Lidl Ham",
+      "language": "TR",
+      "region": "TR",
+      "expectedKeys": [],
+      "acceptableTopKeys": []
+    }
+  ]
+}

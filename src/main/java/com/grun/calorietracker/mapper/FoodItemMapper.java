@@ -25,6 +25,9 @@ public class FoodItemMapper {
         entity.setNormalizedBarcode(dto.getNormalizedBarcode());
         entity.setSourceKey(dto.getSourceKey());
         entity.setCanonicalFoodKey(dto.getCanonicalFoodKey());
+        entity.setFoodConceptKey(dto.getFoodConceptKey());
+        entity.setCompositionVariantKey(dto.getCompositionVariantKey());
+        entity.setSourceDataType(dto.getSourceDataType());
         String productName = FoodProductNormalizationRules.normalizeProductDisplayName(dto.getProductName());
         entity.setName(productName);
         entity.setDisplayName(FoodProductNormalizationRules.normalizeProductDisplayName(dto.getDisplayName() != null ? dto.getDisplayName() : productName));
@@ -102,6 +105,9 @@ public class FoodItemMapper {
         dto.setNormalizedBarcode(entity.getNormalizedBarcode());
         dto.setSourceKey(entity.getSourceKey());
         dto.setCanonicalFoodKey(entity.getCanonicalFoodKey());
+        dto.setFoodConceptKey(entity.getFoodConceptKey());
+        dto.setCompositionVariantKey(entity.getCompositionVariantKey());
+        dto.setSourceDataType(entity.getSourceDataType());
         dto.setSourceName(entity.getName());
         dto.setCanonicalName(entity.getName());
         dto.setDisplayName(resolveDisplayName(entity));

@@ -2,6 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {classifyOffLiquidUnit} from './analyze-off-liquid-units.mjs';
 
+test('milk and alcoholic/non-alcoholic beverage tags need a basis, not a density guess', () => {
+  for (const tag of ['en:milks', 'en:plant-based-milks', 'en:alcoholic-beverages', 'en:non-alcoholic-beverages']) {
+    assert.equal(classifyOffLiquidUnit({categoriesTags: tag, nutritionDataPer: '100g'}), 'MASS_VOLUME_BRIDGE_REQUIRED');
+  }
+  assert.equal(classifyOffLiquidUnit({categoriesTags: 'en:milks,en:milk-powders', nutritionDataPer: '100ml'}), 'FORM_CONFLICT_REVIEW');
+});
+
 test('beverage category plus 100ml is source-supported', () => {
   assert.equal(classifyOffLiquidUnit({categoriesTags: 'en:beverages,en:milk-drinks', nutritionDataPer: '100ml'}), 'ML_SOURCE_SUPPORTED');
 });

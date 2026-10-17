@@ -13,6 +13,125 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FoodPortionCalculatorTest {
 
     @Test
+    void exactProductMlGramPairAllowsAbsoluteMlWithoutRelabelingItsMassBasis() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        var option = new FoodItemServingOptionEntity();
+        option.setQuantity(1.0); option.setGramWeight(1.0); option.setMlVolume(1.0);
+        var result = FoodPortionCalculator.normalize(250.0, FoodPortionUnit.MILLILITER, product, option);
+        assertEquals(250.0, result.grams());
+        assertEquals(250.0, result.milliliters());
+        assertEquals(250.0, result.nutritionReferenceAmount());
+        assertEquals(FoodNutritionReferenceUnit.PER_100G, product.getNutritionReferenceUnit());
+        assertThrows(IllegalArgumentException.class,
+                () -> FoodPortionCalculator.normalize(250.0, FoodPortionUnit.MILLILITER, product, null));
+    }
+
+    @Test
+    void selectedNamedPortionDoesNotApplySourceCountOrFractionTwice() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        for (double[] source : new double[][] {{.5, 59}, {.25, 29.5}, {3, 85}, {4, 113}, {.5, 40}}) {
+            var option = new FoodItemServingOptionEntity();
+            option.setQuantity(source[0]); option.setGramWeight(source[1]);
+            assertEquals(source[1], FoodPortionCalculator.normalize(1.0, FoodPortionUnit.SERVING, product, option).grams());
+            assertEquals(2 * source[1], FoodPortionCalculator.normalize(2.0, FoodPortionUnit.SERVING, product, option).grams());
+            assertThrows(IllegalArgumentException.class,
+                    () -> FoodPortionCalculator.normalize(100.0, FoodPortionUnit.MILLILITER, product, option));
+        }
+    }
+
+    @Test
+    void reviewedSourceMeasuresScaleFractionsWithoutInventingVolume() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        for (double grams : new double[] {15, 243, 46, 61, 79, 28.35, 245, 6.5, 244, 151, 243, 244, 155}) {
+            var option = new FoodItemServingOptionEntity();
+            option.setQuantity(1.0);
+            option.setGramWeight(grams);
+            for (double count : new double[] {.25, .5, 1, 2}) {
+                var result = FoodPortionCalculator.normalize(count, FoodPortionUnit.SERVING, product, option);
+                assertEquals(count * grams, result.grams(), .000001);
+                assertEquals(count * grams, result.nutritionReferenceAmount(), .000001);
+                assertEquals(null, result.milliliters());
+            }
+            assertThrows(IllegalArgumentException.class,
+                    () -> FoodPortionCalculator.normalize(200.0, FoodPortionUnit.MILLILITER, product, option));
+        }
+    }
+
+    @Test
+    void legacyGramHelperNeverRelabelsMillilitersAsGrams() {
+        assertThrows(IllegalArgumentException.class,
+                () -> FoodPortionCalculator.normalizeToGrams(250.0, FoodPortionUnit.MILLILITER, null));
+        var option = new FoodItemServingOptionEntity();
+        option.setMlVolume(250.0);
+        assertThrows(IllegalArgumentException.class,
+                () -> FoodPortionCalculator.normalizeToGrams(1.0, FoodPortionUnit.SERVING, null, option));
+    }
+
+    @Test
+    void normalizationRejectsInvalidQuantitiesConversionsAndOverflow() {
+        var option = new FoodItemServingOptionEntity();
+        option.setGramWeight(100.0);
+        for (double invalid : new double[] {Double.NaN, Double.POSITIVE_INFINITY, -1.0, 0.0}) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> FoodPortionCalculator.normalize(invalid, FoodPortionUnit.GRAM, null, null));
+            assertThrows(IllegalArgumentException.class,
+                    () -> FoodPortionCalculator.normalizeToGrams(invalid, FoodPortionUnit.GRAM, null));
+        }
+        option.setMlVolume(Double.NaN);
+        assertThrows(IllegalArgumentException.class,
+                () -> FoodPortionCalculator.normalize(1.0, FoodPortionUnit.SERVING, null, option));
+        option.setMlVolume(null);
+        assertThrows(IllegalArgumentException.class,
+                () -> FoodPortionCalculator.normalize(Double.MAX_VALUE, FoodPortionUnit.SERVING, null, option));
+    }
+
+    @Test
+    void customMlUsesSelectedExplicitPairNotAUniversalDensityOrServingCount() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        var option = new FoodItemServingOptionEntity();
+        option.setUnitType(FoodServingOptionUnit.GLASS);
+        option.setGramWeight(257.5);
+        option.setMlVolume(250.0);
+        FoodPortionCalculator.validateServingOptionUnit(FoodPortionUnit.MILLILITER, option);
+        var result = FoodPortionCalculator.normalize(200.0, FoodPortionUnit.MILLILITER, product, option);
+        assertEquals(206.0, result.grams(), 0.000001);
+        assertEquals(200.0, result.milliliters());
+        assertEquals(206.0, result.nutritionReferenceAmount(), 0.000001);
+        assertEquals(206.0, FoodPortionCalculator.normalizeToGrams(200.0, FoodPortionUnit.MILLILITER, product, option), 0.000001);
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100ML);
+        var reverse = FoodPortionCalculator.normalize(206.0, FoodPortionUnit.GRAM, product, option);
+        assertEquals(200.0, reverse.nutritionReferenceAmount(), 0.000001);
+        option.setMlVolume(null);
+        assertThrows(IllegalArgumentException.class, () -> FoodPortionCalculator.normalize(200.0, FoodPortionUnit.MILLILITER, product, option));
+    }
+
+    @Test
+    void fractionalSourceMeasureIsOneSelectedOptionNotASecondQuantityMultiplier() {
+        var sourceQuarterCup = new FoodItemServingOptionEntity();
+        sourceQuarterCup.setQuantity(0.25);
+        sourceQuarterCup.setGramWeight(48.0);
+        assertEquals(48.0, FoodPortionCalculator.normalize(1.0, FoodPortionUnit.SERVING, null, sourceQuarterCup).grams());
+        assertEquals(24.0, FoodPortionCalculator.normalize(0.5, FoodPortionUnit.SERVING, null, sourceQuarterCup).grams());
+    }
+
+    @Test
+    void explicitMassVolumeBridgeRetainsBothDimensionsAndScalesFractions() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        var option = new FoodItemServingOptionEntity();
+        option.setGramWeight(257.5);
+        option.setMlVolume(250.0);
+        var result = FoodPortionCalculator.normalize(0.5, FoodPortionUnit.SERVING, product, option);
+        assertEquals(128.75, result.grams());
+        assertEquals(125.0, result.milliliters());
+        assertEquals(128.75, result.nutritionReferenceAmount());
+    }
+
+    @Test
     void normalizeToGrams_whenTablespoonHasNoProductConversion_rejectsUnsafeFallback() {
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,

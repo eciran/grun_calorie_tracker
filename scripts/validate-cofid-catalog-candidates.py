@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
+import hashlib
 import re
 from collections import Counter
 from pathlib import Path
@@ -48,11 +50,22 @@ def main() -> int:
     report = json.loads(args.report.read_text(encoding="utf-8"))
     failures: list[str] = []
     energy_warnings: list[str] = []
+    require(report.get("ruleset") == "R3_COFID_IDENTITY_V1", "Legacy/unidentified ruleset requires regeneration", failures)
+    for report_field, argument in (("output", "all"), ("prepared_output", "prepared_new"), ("decision_output", "decisions"),
+                                   ("generic_output", "generic_safe"), ("generic_review_output", "generic_review")):
+        require(report.get("artifactSha256", {}).get(report_field) == hashlib.sha256(getattr(args, argument).read_bytes()).hexdigest(),
+                f"Artifact hash mismatch: {report_field}", failures)
+    require(report.get("manifestSha256") == hashlib.sha256(args.manifest.read_bytes()).hexdigest(), "Manifest hash mismatch", failures)
 
     require(len(all_rows) == report["importCandidateRows"], "All-candidate count differs from report", failures)
     require(len(all_rows) == len({row["source_key"] for row in all_rows}), "Duplicate source_key found", failures)
     require(len(all_rows) == len(generic_safe) + len(generic_review) + len(decisions), "Candidate partitions are not exhaustive", failures)
     require(not ({row["source_key"] for row in generic_safe} & {row["source_key"] for row in generic_review}), "Generic partitions overlap", failures)
+    all_by_key = {row["source_key"]: row for row in all_rows}
+    for label, rows in (("generic-safe", generic_safe), ("generic-review", generic_review), ("prepared-new", prepared_new)):
+        require(len(rows) == len({row["source_key"] for row in rows}), f"Duplicate source key in {label}", failures)
+        for row in rows:
+            require(all_by_key.get(row["source_key"]) == row, f"Partition row changed/not present: {label}:{row['source_key']}", failures)
 
     for row in all_rows:
         require(bool(row["calories"]), f"Missing calories: {row['source_key']}", failures)
@@ -65,6 +78,11 @@ def main() -> int:
         require(row["source_registry_id"] == "UK_COFID_2021", f"Unexpected source registry: {row['source_key']}", failures)
         require(row["nutrition_basis"] == "SOURCE_REPORTED", f"Unexpected nutrition basis: {row['source_key']}", failures)
         require(row["nutrition_reference_unit"] in {"PER_100G", "PER_100ML"}, f"Unexpected nutrition reference unit: {row['source_key']}", failures)
+        if row["nutrition_reference_unit"] == "PER_100ML":
+            require(not row["serving_size_grams"], f"Volume amount masquerades as grams: {row['source_key']}", failures)
+        qualifiers = json.loads(row.get("source_value_qualifiers", "{}"))
+        for field, qualifier in qualifiers.items():
+            require(not row.get(field), f"Unknown/trace value replaced by a number: {row['source_key']}:{field}", failures)
         try:
             serving_options = json.loads(row["serving_options_json"])
             require(isinstance(serving_options, list) and len(serving_options) == 1, f"Invalid serving options: {row['source_key']}", failures)
@@ -72,21 +90,22 @@ def main() -> int:
                 expected_key = "mlVolume" if row["nutrition_reference_unit"] == "PER_100ML" else "gramWeight"
                 require(expected_key in serving_options[0], f"Serving basis mismatch: {row['source_key']}", failures)
                 require(serving_options[0].get("unitType") == "SERVING", f"Serving unit mismatch: {row['source_key']}", failures)
-                require(float(serving_options[0].get("quantity", 0)) > 0, f"Serving quantity missing: {row['source_key']}", failures)
-                require(float(serving_options[0].get(expected_key, 0)) > 0, f"Serving conversion missing: {row['source_key']}", failures)
-        except (TypeError, json.JSONDecodeError):
+                for key in ("quantity", expected_key):
+                    value = float(serving_options[0].get(key, 0))
+                    require(math.isfinite(value) and value > 0, f"Invalid serving {key}: {row['source_key']}", failures)
+        except (TypeError, ValueError, KeyError):
             failures.append(f"Invalid serving JSON: {row['source_key']}")
         for field in ("calories", "protein", "fat", "carbs"):
             if row[field]:
                 try:
-                    require(float(row[field]) >= 0, f"Negative {field}: {row['source_key']}", failures)
+                    require(math.isfinite(float(row[field])) and float(row[field]) >= 0, f"Invalid {field}: {row['source_key']}", failures)
                 except ValueError:
                     failures.append(f"Non-numeric {field}: {row['source_key']}")
         if all(row[field] for field in ("calories", "protein", "fat", "carbs")):
-            calories = float(row["calories"])
-            protein = float(row["protein"])
-            fat = float(row["fat"])
-            carbs = float(row["carbs"])
+            try:
+                calories, protein, fat, carbs = (float(row[field]) for field in ("calories", "protein", "fat", "carbs"))
+            except ValueError:
+                continue  # Already reported above; do not abort the other source records.
             require(calories <= 1000, f"Implausible calories: {row['source_key']}", failures)
             require(all(value <= 100 for value in (protein, fat, carbs)), f"Implausible macro: {row['source_key']}", failures)
             require(protein + fat + carbs <= 110, f"Implausible macro sum: {row['source_key']}", failures)
@@ -104,6 +123,8 @@ def main() -> int:
 
     decisions_by_id = {row["source_record_id"]: row for row in decisions}
     require(len(decisions_by_id) == len(decisions), "Prepared decision source IDs are not unique", failures)
+    require(set(decisions_by_id) == {row["source_record_id"] for row in all_rows if row["catalog_type"] == "STANDARD_PREPARED_ITEM"},
+            "Prepared decisions do not cover exactly the prepared source records", failures)
     for row in prepared_new:
         decision = decisions_by_id.get(row["source_record_id"])
         require(decision is not None, f"Prepared new row lacks decision: {row['source_key']}", failures)
@@ -114,14 +135,13 @@ def main() -> int:
 
     manifest_by_key = {row["item_key"]: row for row in manifest}
     for row in decisions:
-        if row["decision"] != "MERGE_AS_EVIDENCE":
-            continue
-        canonical = manifest_by_key.get(row["matched_item_key"])
-        require(canonical is not None, f"Merge target is missing: {row['source_record_id']}", failures)
-        if canonical:
-            require(row["canonical_display_name_en"] == canonical["display_name_en"], f"Canonical EN name drift: {row['source_record_id']}", failures)
-            require(row["canonical_display_name_tr"] == canonical["display_name_tr"], f"Canonical TR name drift: {row['source_record_id']}", failures)
-            require(row["portion_profile"] == canonical["portion_profile"], f"Serving profile drift: {row['source_record_id']}", failures)
+        require(row["decision"] in {"EXACT_NAME_OVERLAP_REVIEW", "POSSIBLE_VARIANT_REVIEW", "NEW_PRODUCT_REVIEW"},
+                f"Unsafe automatic merge decision: {row['source_record_id']}", failures)
+        require(row.get("apply_allowed") == "false", f"Apply must remain disabled: {row['source_record_id']}", failures)
+        require(not any(row.get(field) for field in ("canonical_display_name_en", "canonical_display_name_tr", "portion_profile")),
+                f"Unverified target metadata copied: {row['source_record_id']}", failures)
+        if row["matched_item_key"]:
+            require(row["matched_item_key"] in manifest_by_key, f"Overlap target is missing: {row['source_record_id']}", failures)
 
     decision_counts = Counter(row["decision"] for row in decisions)
     result = {

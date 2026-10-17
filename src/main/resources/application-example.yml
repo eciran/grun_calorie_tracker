@@ -72,6 +72,22 @@ openfoodfacts:
   base-url: ${OPENFOODFACTS_BASE_URL:https://world.openfoodfacts.org}
 
 grun:
+  product-cache:
+    enabled: ${GRUN_PRODUCT_CACHE_ENABLED:true}
+    negative-ttl: ${GRUN_PRODUCT_CACHE_NEGATIVE_TTL:5s}
+    coalescing:
+      enabled: ${GRUN_PRODUCT_CACHE_COALESCING_ENABLED:true}
+      max-concurrent-loads: ${GRUN_PRODUCT_CACHE_COALESCING_MAX_CONCURRENT_LOADS:128}
+      wait-timeout: ${GRUN_PRODUCT_CACHE_COALESCING_WAIT_TIMEOUT:1s}
+    max-payload-budget-bytes: ${GRUN_PRODUCT_CACHE_MAX_PAYLOAD_BUDGET_BYTES:67108864}
+    search:
+      ttl: ${GRUN_PRODUCT_CACHE_SEARCH_TTL:30s}
+      max-entries: ${GRUN_PRODUCT_CACHE_SEARCH_MAX_ENTRIES:256}
+      max-value-bytes: ${GRUN_PRODUCT_CACHE_SEARCH_MAX_VALUE_BYTES:65536}
+    detail:
+      ttl: ${GRUN_PRODUCT_CACHE_DETAIL_TTL:5m}
+      max-entries: ${GRUN_PRODUCT_CACHE_DETAIL_MAX_ENTRIES:512}
+      max-value-bytes: ${GRUN_PRODUCT_CACHE_DETAIL_MAX_VALUE_BYTES:16384}
   error-center:
     proxy-ingest-key: ${GRUN_ERROR_CENTER_PROXY_INGEST_KEY:}
   owner-alerts:
@@ -232,7 +248,19 @@ grun:
       batch-size: ${GRUN_PRODUCT_CATALOG_MAINTENANCE_BATCH_SIZE:500}
       scheduled-quality-enabled: ${GRUN_PRODUCT_CATALOG_SCHEDULED_QUALITY_ENABLED:false}
       stale-scan-cron: ${GRUN_PRODUCT_CATALOG_STALE_SCAN_CRON:0 10 2 * * *}
-      quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 40 2 * * *}
+      quality-scan-cron: ${GRUN_PRODUCT_CATALOG_QUALITY_SCAN_CRON:0 10 5 * * *}
+    audit:
+      enabled: ${GRUN_PRODUCT_CATALOG_AUDIT_ENABLED:false}
+      batch-size: ${GRUN_PRODUCT_CATALOG_AUDIT_BATCH_SIZE:250}
+      time-budget: ${GRUN_PRODUCT_CATALOG_AUDIT_TIME_BUDGET:15s}
+      lease: ${GRUN_PRODUCT_CATALOG_AUDIT_LEASE:2m}
+      max-attempts: ${GRUN_PRODUCT_CATALOG_AUDIT_MAX_ATTEMPTS:3}
+      retry-delay: ${GRUN_PRODUCT_CATALOG_AUDIT_RETRY_DELAY:2m}
+      repeat-interval: ${GRUN_PRODUCT_CATALOG_AUDIT_REPEAT_INTERVAL:24h}
+      tick-ms: ${GRUN_PRODUCT_CATALOG_AUDIT_TICK_MS:60000}
+      zone: ${GRUN_PRODUCT_CATALOG_AUDIT_ZONE:Europe/Dublin}
+      downtime-start: ${GRUN_PRODUCT_CATALOG_AUDIT_DOWNTIME_START:01:30}
+      downtime-end: ${GRUN_PRODUCT_CATALOG_AUDIT_DOWNTIME_END:05:00}
   mail:
     provider: ${GRUN_MAIL_PROVIDER:LOG}
     from-email: ${GRUN_MAIL_FROM_EMAIL:no-reply@gruncalorietracker.com}

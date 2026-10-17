@@ -1,0 +1,12 @@
+{
+  "version": "usda-named-brand-scopes-r6-v1",
+  "entries": [{
+    "sourceKey": "USDA_FOODDATA:fdc:170904",
+    "sourceDataType": "SR Legacy",
+    "sourceDescription": "Kefir, lowfat, plain, LIFEWAY",
+    "acceptedDisplayNames": ["Plain Low-Fat Kefir", "Lifeway Plain Low-Fat Kefir"],
+    "canonicalBrand": "Lifeway",
+    "sourceUrl": "https://fdc.nal.usda.gov/food-details/170904/nutrients",
+    "manufacturerUrl": "https://lifewaykefir.com/products/plain-lowfat-kefir/"
+  }]
+}

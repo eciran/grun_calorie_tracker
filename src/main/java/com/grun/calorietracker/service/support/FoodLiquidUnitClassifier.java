@@ -9,6 +9,10 @@ public final class FoodLiquidUnitClassifier {
 
     private static final Set<String> LIQUID_CATEGORIES = Set.of(
             "en:beverages",
+            "en:non-alcoholic-beverages",
+            "en:alcoholic-beverages",
+            "en:milks",
+            "en:plant-based-milks",
             "en:waters",
             "en:juices-and-nectars",
             "en:fruit-juices",
@@ -33,6 +37,8 @@ public final class FoodLiquidUnitClassifier {
     private static final Set<String> FORM_CONFLICT_CATEGORIES = Set.of(
             "en:powders",
             "en:drink-powders",
+            "en:milk-powders",
+            "en:plant-based-drink-powders",
             "en:concentrates",
             "en:ice-creams",
             "en:frozen-desserts",

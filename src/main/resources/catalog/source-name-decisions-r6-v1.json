@@ -1,0 +1,15 @@
+{
+  "version": "catalog-naming-r6-v1",
+  "source": "Exact USDA FoodData Central full-detail response reviewed 2026-10-13; previous R4 registry remains immutable",
+  "entries": [
+    {
+      "sourceKey": "USDA_FOODDATA:fdc:168411",
+      "sourceDescription": "Edamame, frozen, prepared",
+      "targetState": "PREPARED",
+      "displayNameEn": "Prepared Edamame (From Frozen)",
+      "displayNameTr": "Dondurulmuştan Hazırlanmış Edamame",
+      "stateRationale": "Source explicitly says prepared from frozen, but does not specify cooked, boiled or steamed. PREPARED retains the stated preparation without inventing a heat method. Frozen origin must remain in both names.",
+      "servingReviewRequired": false
+    }
+  ]
+}
