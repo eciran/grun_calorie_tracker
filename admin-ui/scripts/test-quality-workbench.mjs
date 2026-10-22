@@ -32,6 +32,7 @@ assert.match(app, /ai-validate-selected/, "Bulk AI validation endpoint is not wi
 assert.match(app, /selectedOpenSuggestionIds/, "Bulk AI validation must use explicit admin selection.");
 assert.match(app, /Math\.min\(selectedOpenSuggestionIds\.length, 25\)/, "Bulk AI selection must remain capped at 25.");
 assert.match(app, /readProductReviewRouteState/, "Product review filters must be restorable from the page URL.");
+assert.match(productReview, /params\.has\("publication"\) \? "" : defaults\.verificationStatus/, "An explicit publication queue must not retain the RAW_IMPORTED default and hide verified products.");
 assert.match(app, /productReviewRouteSearch/, "Product review state must be serialized into the page URL.");
 assert.match(app, /params\.set\("productId", String\(state\.selectedProductId\)\)/, "Selected product identity must be persisted for reload/back navigation.");
 assert.match(productReview, /"MISSING_CANONICAL_CATEGORY"/, "Canonical category review issue must be available in the product queue.");
@@ -39,6 +40,10 @@ assert.match(productReview, /qualityIssue=MISSING_CANONICAL_CATEGORY&page=0&size
 assert.match(productReview, /function openCategoryQueue\(\)/, "Canonical category queue shortcut is missing.");
 assert.match(productReview, /setVerificationStatus\(""\)[\s\S]*setQualityIssue\("MISSING_CANONICAL_CATEGORY"\)/, "Category shortcut must not retain the raw-import status filter.");
 assert.match(productReview, /QUALITY_ISSUE_GROUPS\.map/, "Product quality issues must be grouped by operational category.");
+assert.doesNotMatch(productReview, /setSelectedPublishIds\(new Set\(\)\); \}, \[data\]\)/, "Background data reloads must not clear batch publication selection.");
+assert.match(productReview, /disabled=\{!publishableRows\.length\}/, "Select-page control must expose when the current page has no publishable products.");
+assert.match(productReview, /product-review-decision-bar/, "Review decisions must remain available without opening the product edit tab.");
+assert.match(productReview, /detailTab === "edit" && <button className="ghost-button"[^>]*onClick=\{onSave\}/, "Data-save action must remain scoped to the edit tab.");
 assert.match(catalogCharts, /categories \+ images \+ nutrition \+ rejected/, "Category workload must be included in the product quality chart total.");
 assert.match(productIntake, /OCR processing history/, "Product intake must expose persisted OCR processing history.");
 assert.match(productIntake, /v3Fields[\s\S]*v4Fields[\s\S]*fallbackFields[\s\S]*confirmedFields/, "OCR review must compare parser, fallback, and user-confirmed fields.");

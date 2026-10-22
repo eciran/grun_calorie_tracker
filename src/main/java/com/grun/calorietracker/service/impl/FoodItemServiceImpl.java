@@ -556,6 +556,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                 if (plainRiceQuery) {
                     orders.add(buildDerivedProductPenalty(root, criteriaBuilder, searchQuery));
                 }
+                orders.add(buildPreparedProductPriority(root, criteriaBuilder));
                 orders.add(buildCoreFoodIdentityRank(
                         root, query, criteriaBuilder, searchQuery
                 ));
@@ -619,6 +620,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                     ), 3)
                     .otherwise(4)));
             if (!coreFoodQuery) {
+                orders.add(buildPreparedProductPriority(root, criteriaBuilder));
                 orders.add(buildCatalogTypeRank(root, criteriaBuilder));
             }
         }
@@ -649,6 +651,28 @@ public class FoodItemServiceImpl implements FoodItemService {
         orders.add(criteriaBuilder.asc(root.get("name")));
         orders.add(criteriaBuilder.asc(root.get("id")));
         return orders;
+    }
+
+    private jakarta.persistence.criteria.Order buildPreparedProductPriority(
+            Root<FoodItemEntity> root,
+            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.asc(criteriaBuilder.selectCase()
+                .when(criteriaBuilder.or(
+                        criteriaBuilder.equal(root.get("catalogType"), FoodCatalogType.STANDARD_PREPARED_ITEM),
+                        criteriaBuilder.equal(root.get("preparationState"), FoodPreparationState.PREPARED)
+                ), 0)
+                .when(root.get("preparationState").in(
+                        FoodPreparationState.COOKED,
+                        FoodPreparationState.BOILED,
+                        FoodPreparationState.GRILLED,
+                        FoodPreparationState.FRIED,
+                        FoodPreparationState.BAKED,
+                        FoodPreparationState.ROASTED,
+                        FoodPreparationState.STEAMED
+                ), 1)
+                .when(criteriaBuilder.equal(root.get("preparationState"), FoodPreparationState.RAW), 2)
+                .otherwise(3));
     }
 
     private jakarta.persistence.criteria.Order buildRegionPriorityOrder(

@@ -58,6 +58,7 @@ import com.grun.calorietracker.service.support.FoodProductQualityIssueTracker;
 import com.grun.calorietracker.service.support.GtinValidator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
+import com.grun.calorietracker.service.support.FoodNutritionUnitContract;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -483,6 +484,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             product.setServingUnit(servingUnit);
         }
 
+        if (product.getNutritionReferenceUnit() != null) {
+            FoodNutritionUnitContract.validate(product.getNutritionReferenceUnit(), product.getServingUnit());
+        }
         validateReviewState(product);
         product.setReviewedBy(trimToNull(reviewedBy) == null ? "unknown" : reviewedBy.trim());
         FoodProductQualityRules.markReviewed(product);

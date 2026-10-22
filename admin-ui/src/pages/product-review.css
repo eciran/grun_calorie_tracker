@@ -233,6 +233,31 @@
 .product-review-modal .nutrition-input-control:hover {
   border-color: color-mix(in srgb, var(--primary) 58%, var(--line-strong));
 }
+.product-review-decision-bar {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-muted);
+}
+.product-review-decision-bar label { display: grid; gap: 7px; }
+.product-review-decision-bar label > span { color: var(--muted-strong); font-size: .78rem; font-weight: 700; }
+.product-review-decision-bar textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 11px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+}
+.product-review-decision-bar textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
 .product-review-modal .nutrition-input-control:focus-within {
   outline: 2px solid color-mix(in srgb, var(--primary) 22%, transparent);
   outline-offset: 2px;

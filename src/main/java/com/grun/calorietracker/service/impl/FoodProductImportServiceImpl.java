@@ -46,6 +46,7 @@ import com.grun.calorietracker.service.support.FoodLiquidUnitClassifier;
 import com.grun.calorietracker.service.support.FoodCategoryImportResolutionService;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
+import com.grun.calorietracker.service.support.FoodNutritionUnitContract;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -248,10 +249,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             }
         }
         syncQualityIssues(savedProducts, productImportContexts, importedBy);
-        syncSearchAliases(savedProducts, productImportContexts);
-        syncLocalizations(savedProducts, productImportContexts);
+        if (normalizeImportMode(importMode) != FoodProductImportMode.SOURCE_REFRESH) {
+            syncSearchAliases(savedProducts, productImportContexts);
+            syncLocalizations(savedProducts, productImportContexts);
+        }
         syncServingOptions(savedProducts, productImportContexts, normalizeImportMode(importMode));
-        if (foodCategoryImportResolutionService != null) {
+        if (foodCategoryImportResolutionService != null
+                && normalizeImportMode(importMode) != FoodProductImportMode.SOURCE_REFRESH) {
             foodCategoryImportResolutionService.resolveAfterImport(savedProducts, importedBy);
         }
         int skippedRows = parsedCsv.rows().size() - productsToSave.size();
@@ -397,7 +401,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
 
         FoodItemEntity product = existingProducts.get(sourceKey);
         boolean inserted = product == null;
-        boolean missingReferenceUnit = firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null;
+        boolean missingReferenceUnit = firstText(row, "nutrition_reference_unit", "nutritionreferenceunit",
+                "nutrition_unit", "nutritionunit", "nutrition_data_per") == null;
         boolean knownReferenceUnit = !missingReferenceUnit;
         FoodNutritionReferenceUnit referenceUnit;
         String conceptKey;
@@ -520,6 +525,13 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         } catch (IllegalArgumentException exception) {
             return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), sourceKey, exception.getMessage()));
         }
+        if (importMode == FoodProductImportMode.SOURCE_REFRESH) {
+            try {
+                return applySourceRefresh(row, product, sourceKey, normalizedBarcode, referenceUnit, sourceFormat);
+            } catch (IllegalArgumentException exception) {
+                return RowResult.error(new FoodProductImportErrorDto(row.rowNumber(), sourceKey, exception.getMessage()));
+            }
+        }
         if (!inserted && importMode == FoodProductImportMode.RAW_EXTERNAL && isCuratedProduct(product)) {
             return new RowResult(product, false, null);
         }
@@ -628,6 +640,75 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             product.setAutoApprovedForCatalog(false);
         }
         return new RowResult(product, inserted, null);
+    }
+
+    private RowResult applySourceRefresh(
+            CsvRow row,
+            FoodItemEntity product,
+            String sourceKey,
+            String normalizedBarcode,
+            FoodNutritionReferenceUnit referenceUnit,
+            FoodProductImportFormat sourceFormat
+    ) {
+        if (product == null) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(), sourceKey, "SOURCE_REFRESH can only update an existing source key."));
+        }
+        String explicitSourceKey = firstText(row, "sourcekey", "source_key");
+        if (explicitSourceKey == null || !explicitSourceKey.equals(product.getSourceKey())) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(), sourceKey, "SOURCE_REFRESH requires the exact existing source_key."));
+        }
+        if (sourceFormat != FoodProductImportFormat.OPEN_FOOD_FACTS_EXPORT) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(), sourceKey, "SOURCE_REFRESH currently accepts only an Open Food Facts export."));
+        }
+        if (normalizedBarcode == null || !normalizedBarcode.equals(product.getNormalizedBarcode())) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(), sourceKey, "SOURCE_REFRESH barcode must match the existing normalized barcode."));
+        }
+        if (!sourceKey.equals("barcode:" + normalizedBarcode)) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(), sourceKey, "SOURCE_REFRESH requires a barcode-bound source key."));
+        }
+        if (firstText(row, "nutrition_data_per") == null) {
+            return RowResult.error(new FoodProductImportErrorDto(
+                    row.rowNumber(), sourceKey, "SOURCE_REFRESH requires OFF nutrition_data_per evidence."));
+        }
+
+        product.setNutritionReferenceUnit(referenceUnit);
+        product.setCalories(NutritionValueNormalizer.calories(parseDouble(product.getCalories(), row, "calories", "energy_kcal_100g", "energy_kcal", "kcal_100g")));
+        product.setProtein(NutritionValueNormalizer.macro(parseDouble(product.getProtein(), row, "protein", "proteins_100g", "protein_100g")));
+        product.setFat(NutritionValueNormalizer.macro(parseDouble(product.getFat(), row, "fat", "fat_100g")));
+        product.setCarbs(NutritionValueNormalizer.macro(parseDouble(product.getCarbs(), row, "carbs", "carbohydrates_100g", "carbohydrate_100g")));
+        product.setFiber(NutritionValueNormalizer.macro(parseDouble(product.getFiber(), row, "fiber", "fiber_100g")));
+        product.setSugar(NutritionValueNormalizer.macro(parseDouble(product.getSugar(), row, "sugar", "sugars_100g")));
+        product.setSodium(NutritionValueNormalizer.sodium(parseDouble(product.getSodium(), row, "sodium", "sodium_100g")));
+        product.setPotassium(NutritionValueNormalizer.micronutrient(parseDouble(product.getPotassium(), row, "potassium", "potassium_100g")));
+        product.setCholesterol(NutritionValueNormalizer.micronutrient(parseDouble(product.getCholesterol(), row, "cholesterol", "cholesterol_100g")));
+        product.setCalcium(NutritionValueNormalizer.micronutrient(parseDouble(product.getCalcium(), row, "calcium", "calcium_100g")));
+        product.setIron(NutritionValueNormalizer.micronutrient(parseDouble(product.getIron(), row, "iron", "iron_100g")));
+        product.setMagnesium(NutritionValueNormalizer.micronutrient(parseDouble(product.getMagnesium(), row, "magnesium", "magnesium_100g")));
+        product.setZinc(NutritionValueNormalizer.micronutrient(parseDouble(product.getZinc(), row, "zinc", "zinc_100g")));
+        product.setVitaminA(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminA(), row, "vitamin_a", "vitamina", "vitamin_a_100g", "vitamina_100g")));
+        product.setVitaminC(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminC(), row, "vitamin_c", "vitaminc", "vitamin_c_100g", "vitaminc_100g")));
+        product.setVitaminD(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminD(), row, "vitamin_d", "vitamind", "vitamin_d_100g", "vitamind_100g")));
+        product.setVitaminE(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminE(), row, "vitamin_e", "vitamine", "vitamin_e_100g", "vitamine_100g")));
+        product.setVitaminB12(NutritionValueNormalizer.micronutrient(parseDouble(product.getVitaminB12(), row, "vitamin_b12", "vitaminb12", "vitamin_b12_100g", "vitaminb12_100g")));
+        product.setSaturatedFat(NutritionValueNormalizer.macro(parseDouble(product.getSaturatedFat(), row, "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g")));
+        product.setTransFat(NutritionValueNormalizer.macro(parseDouble(product.getTransFat(), row, "trans_fat", "transfat", "trans_fat_100g", "transfat_100g")));
+        product.setSugarAlcohol(NutritionValueNormalizer.macro(parseDouble(product.getSugarAlcohol(), row, "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g")));
+
+        String servingUnit = resolveServingUnit(row);
+        if (referenceUnit == FoodNutritionReferenceUnit.PER_100ML) {
+            product.setServingUnit("MILLILITER");
+            product.setServingSizeGrams(null);
+        } else if (servingUnit != null) {
+            product.setServingUnit(servingUnit);
+            product.setServingSizeGrams(parseServingSizeGrams(row, product.getServingSizeGrams()));
+        }
+        FoodNutritionUnitContract.validate(product.getNutritionReferenceUnit(), product.getServingUnit());
+        return new RowResult(product, false, null);
     }
 
     private ProductDisplayNames resolveProductDisplayNames(
@@ -924,7 +1005,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 "nutrition_reference_unit",
                 "nutritionreferenceunit",
                 "nutrition_unit",
-                "nutritionunit"
+                "nutritionunit",
+                "nutrition_data_per"
         );
         if (value == null) {
             return FoodNutritionReferenceUnit.PER_100G;
@@ -1127,7 +1209,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_USDA_DATA_TYPE",
                     "FDC id/provider alone cannot prove classification; source subtype is required before release.");
         }
-        if (firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit", "nutritionunit") == null) {
+        if (firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit",
+                "nutritionunit", "nutrition_data_per") == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_NUTRITION_REFERENCE_UNIT",
                     "Nutrition reference unit was not supplied. Existing basis was retained, or legacy PER_100G used for a new row; verify against the source before publication.");
         }

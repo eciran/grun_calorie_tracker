@@ -575,6 +575,49 @@ class FoodItemServiceSearchIntegrationTest {
         assertEquals(FoodCatalogType.BRANDED_PRODUCT, result.getContent().get(1).getCatalogType());
         assertEquals(MarketRegion.UK_IE, result.getContent().get(1).getMarketRegion());
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void searchFoodItems_defaultRanking_prioritizesPreparedItemsWithoutOverridingExplicitIntent(boolean indexed) {
+        FoodItemEntity prepared = product("Prepared Oats", null, VerificationStatus.VERIFIED);
+        prepared.setSourceKey("fixture:prepared-oats");
+        prepared.setCatalogType(FoodCatalogType.STANDARD_PREPARED_ITEM);
+        prepared.setPreparationState(FoodPreparationState.PREPARED);
+        prepared.setUsageCount(1L);
+
+        FoodItemEntity cooked = product("Cooked Oats", null, VerificationStatus.VERIFIED);
+        cooked.setSourceKey("fixture:cooked-oats");
+        cooked.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        cooked.setPreparationState(FoodPreparationState.COOKED);
+        cooked.setUsageCount(100L);
+
+        FoodItemEntity raw = product("Raw Oats", null, VerificationStatus.VERIFIED);
+        raw.setSourceKey("fixture:raw-oats");
+        raw.setCatalogType(FoodCatalogType.GENERIC_INGREDIENT);
+        raw.setPreparationState(FoodPreparationState.RAW);
+        raw.setUsageCount(1_000L);
+
+        foodItemRepository.saveAllAndFlush(List.of(raw, cooked, prepared));
+        useIndexedSearch(indexed);
+
+        FoodSearchCriteriaDto criteria = new FoodSearchCriteriaDto();
+        criteria.setQuery("oats");
+        FoodProductSearchPageDto defaultResult = foodItemService.searchFoodItems(criteria, 0, 25);
+
+        assertEquals(List.of(prepared.getId(), cooked.getId(), raw.getId()), defaultResult.getContent().stream()
+                .map(com.grun.calorietracker.dto.FoodProductDto::getId)
+                .toList());
+
+        criteria.setQuery("raw oats");
+        assertEquals(raw.getId(), foodItemService.searchFoodItems(criteria, 0, 25).getContent().get(0).getId());
+
+        criteria.setQuery("oats");
+        criteria.setPreparationState(FoodPreparationState.RAW);
+        assertEquals(List.of(raw.getId()), foodItemService.searchFoodItems(criteria, 0, 25).getContent().stream()
+                .map(com.grun.calorietracker.dto.FoodProductDto::getId)
+                .toList());
+    }
+
     @Test
     void searchFoodItems_defaultRanking_prioritizesWholeWordFoodMatchBeforeSubstringMatch() {
         FoodItemEntity milkChocolate = product("Milk Chocolate", "111001", VerificationStatus.RAW_IMPORTED);
@@ -1175,13 +1218,13 @@ class FoodItemServiceSearchIntegrationTest {
                 new SearchReadinessExpectation("banana", PreferredLanguage.EN, MarketRegion.UK_IE, "Raw Banana", 1),
                 new SearchReadinessExpectation("broccoli", PreferredLanguage.EN, MarketRegion.UK_IE, "Raw Broccoli", 1),
                 new SearchReadinessExpectation("milk", PreferredLanguage.EN, MarketRegion.UK_IE, "Whole Milk", 1),
-                new SearchReadinessExpectation("chicken breast", PreferredLanguage.EN, MarketRegion.UK_IE, "Raw Chicken Breast", 2),
-                new SearchReadinessExpectation("rice", PreferredLanguage.EN, MarketRegion.UK_IE, "Raw White Rice", 2),
+                new SearchReadinessExpectation("chicken breast", PreferredLanguage.EN, MarketRegion.UK_IE, "Cooked Chicken Breast", 2),
+                new SearchReadinessExpectation("rice", PreferredLanguage.EN, MarketRegion.UK_IE, "Cooked White Rice", 2),
                 new SearchReadinessExpectation("muz", PreferredLanguage.TR, MarketRegion.TR, "Muz", 1),
                 new SearchReadinessExpectation("brokoli", PreferredLanguage.TR, MarketRegion.TR, "Brokoli", 1),
                 new SearchReadinessExpectation("süt", PreferredLanguage.TR, MarketRegion.TR, "Tam Yağlı Süt", 1),
-                new SearchReadinessExpectation("tavuk göğsü", PreferredLanguage.TR, MarketRegion.TR, "Çiğ Tavuk Göğsü", 2),
-                new SearchReadinessExpectation("pirinç", PreferredLanguage.TR, MarketRegion.TR, "Çiğ Beyaz Pirinç", 2)
+                new SearchReadinessExpectation("tavuk göğsü", PreferredLanguage.TR, MarketRegion.TR, "Pişmiş Tavuk Göğsü", 2),
+                new SearchReadinessExpectation("pirinç", PreferredLanguage.TR, MarketRegion.TR, "Pişmiş Beyaz Pirinç", 2)
         );
 
         for (SearchReadinessExpectation expectation : expectations) {

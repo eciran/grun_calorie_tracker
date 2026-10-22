@@ -189,7 +189,10 @@ export function readProductReviewRouteState(mode: ProductReviewMode, search = wi
   const selectedProductId = Number(params.get("productId"));
   return {
     query: (params.get("query") ?? defaults.query).trim(),
-    verificationStatus: enumValue("verification", VERIFICATION_STATUSES, defaults.verificationStatus),
+    // An explicit publication queue is a complete queue selection of its own. Keeping the
+    // queue's RAW_IMPORTED default here hides VERIFIED products and makes batch publishing
+    // appear unavailable on links such as ?publication=INTERNAL_REVIEW.
+    verificationStatus: enumValue("verification", VERIFICATION_STATUSES, params.has("publication") ? "" : defaults.verificationStatus),
     imageStatus: enumValue("image", IMAGE_STATUSES, defaults.imageStatus),
     region: enumValue("region", MARKET_REGIONS, defaults.region),
     catalogType: enumValue("catalog", CATALOG_TYPES, defaults.catalogType),
@@ -297,6 +300,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
   const [transferState, setTransferState] = useState<LoadState>("idle");
   const [catalogFile, setCatalogFile] = useState<File | null>(null);
+  const [catalogImportMode, setCatalogImportMode] = useState<"RAW_EXTERNAL" | "SOURCE_REFRESH">("RAW_EXTERNAL");
   const [catalogResult, setCatalogResult] = useState<CatalogImportResult | null>(null);
   const [catalogNotice, setCatalogNotice] = useState<CorrectionImportNotice | null>(null);
   const [catalogTransferState, setCatalogTransferState] = useState<LoadState>("idle");
@@ -344,7 +348,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(null, "", next);
   }, [catalogType, dataSource, imageStatus, page, pageSize, publicationStatus, qualityIssue, query, region, selectedProductId, verificationStatus, viewMode]);
 
-  useEffect(() => { setSelectedPublishIds(new Set()); }, [data]);
+  useEffect(() => {
+    setSelectedPublishIds(new Set());
+  }, [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, publicationStatus, page, pageSize]);
 
   useEffect(() => {
     if (!selectedProductId || selectedProduct?.id === selectedProductId) return;
@@ -623,7 +629,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       const formData = new FormData();
       formData.append("file", catalogFile);
       const result = await requestFormData<CatalogImportResult>(
-        `/api/v1/admin/products/import?importMode=RAW_EXTERNAL&importFormat=GRUN_STANDARD&dryRun=${dryRun}`,
+        `/api/v1/admin/products/import?importMode=${catalogImportMode}&importFormat=${catalogImportMode === "SOURCE_REFRESH" ? "OPEN_FOOD_FACTS_EXPORT" : "GRUN_STANDARD"}&dryRun=${dryRun}`,
         formData,
         { timeoutMs: 180000 }
       );
@@ -759,6 +765,13 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
             </ol>
           </div>
           <div className="review-transfer-actions">
+            <label>
+              <span>{locale === "tr" ? "İçe aktarma türü" : "Import type"}</span>
+              <select value={catalogImportMode} onChange={(event) => { setCatalogImportMode(event.target.value as "RAW_EXTERNAL" | "SOURCE_REFRESH"); setCatalogPreviewPassed(false); setCatalogResult(null); setCatalogNotice(null); }}>
+                <option value="RAW_EXTERNAL">{locale === "tr" ? "Yeni katalog kaydı" : "New catalog records"}</option>
+                <option value="SOURCE_REFRESH">{locale === "tr" ? "Kaynak anahtarlı OFF yenilemesi" : "Source-keyed OFF refresh"}</option>
+              </select>
+            </label>
             <label className="file-picker product-review-file-picker">
               <span>{text.catalogFile}</span>
               <input type="file" accept=".csv,text/csv" onChange={(event) => { setCatalogFile(event.target.files?.[0] ?? null); setCatalogResult(null); setCatalogNotice(null); setCatalogPreviewPassed(false); }} />
@@ -818,8 +831,8 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       <section className="product-review-queue" aria-labelledby="product-review-queue-title">
         <div className="product-review-queue-heading"><div><span className="eyebrow">{text.queueEyebrow}</span><h3 id="product-review-queue-title">{text.queueTitle}</h3><p>{text.queueDescription}</p></div><strong>{formatValue(totalElements)}</strong></div>
       {canManage && <div className="product-review-publish-toolbar">
-        <label className="inline-check"><input type="checkbox" aria-label={locale === "tr" ? "Sayfadaki doğrulanmış yayınlanmamış ürünleri seç" : "Select verified unpublished products on this page"} checked={publishableRows.length > 0 && publishableRows.every(item => selectedPublishIds.has(item.id!))} onChange={event => { const ids = publishableRows.map(item => item.id!); setSelectedPublishIds(current => { const next = new Set(current); ids.forEach(id => event.target.checked ? next.add(id) : next.delete(id)); return next; }); }} /><span>{locale === "tr" ? "Sayfayı seç" : "Select page"}</span></label>
-        <span><strong>{selectedPublishIds.size}</strong> {locale === "tr" ? "ürün seçildi" : "products selected"}</span>
+        <label className="inline-check"><input type="checkbox" disabled={!publishableRows.length} aria-label={locale === "tr" ? "Sayfadaki doğrulanmış yayınlanmamış ürünleri seç" : "Select verified unpublished products on this page"} checked={publishableRows.length > 0 && publishableRows.every(item => selectedPublishIds.has(item.id!))} onChange={event => { const ids = publishableRows.map(item => item.id!); setSelectedPublishIds(current => { const next = new Set(current); ids.forEach(id => event.target.checked ? next.add(id) : next.delete(id)); return next; }); }} /><span>{locale === "tr" ? "Sayfayı seç" : "Select page"}</span></label>
+        <span><strong>{selectedPublishIds.size}</strong> {locale === "tr" ? `ürün seçildi · ${publishableRows.length} uygun` : `products selected · ${publishableRows.length} eligible`}</span>
         <input maxLength={500} value={batchPublishReason} onChange={event => setBatchPublishReason(event.target.value)} placeholder={locale === "tr" ? "Toplu yayın gerekçesi" : "Batch publication reason"} />
         <button className="primary-button" type="button" disabled={!selectedPublishIds.size || !batchPublishReason.trim() || batchPublishing} onClick={() => void publishSelectedProducts()}>{batchPublishing ? (locale === "tr" ? "Yayınlanıyor…" : "Publishing…") : (locale === "tr" ? "Seçilenleri yayınla" : "Publish selected")}</button>
       </div>}
@@ -827,7 +840,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
         caption={text.queueTitle}
         columns={[...(canManage ? [locale === "tr" ? "Seç" : "Select"] : []), text.product, text.source, text.review, text.publicationColumn, text.quality, text.nutrition]}
         rows={rows.map((item) => [
-          ...(canManage ? [<input key={`select-${item.id}`} type="checkbox" aria-label={`${productName(item)} ${locale === "tr" ? "ürününü seç" : "select product"}`} disabled={!item.id || item.verificationStatus !== "VERIFIED" || item.publicationStatus === "PUBLISHED"} checked={Boolean(item.id && selectedPublishIds.has(item.id))} onClick={event => event.stopPropagation()} onChange={event => { if (!item.id) return; setSelectedPublishIds(current => { const next = new Set(current); if (event.target.checked) next.add(item.id!); else next.delete(item.id!); return next; }); }} />] : []),
+          ...(canManage ? [<input key={`select-${item.id}`} type="checkbox" aria-label={`${productName(item)} ${locale === "tr" ? "ürününü seç" : "select product"}`} title={item.verificationStatus !== "VERIFIED" ? (locale === "tr" ? "Toplu yayından önce ürün doğrulanmalıdır." : "The product must be verified before batch publication.") : item.publicationStatus === "PUBLISHED" ? (locale === "tr" ? "Ürün zaten yayında." : "The product is already published.") : undefined} disabled={!item.id || item.verificationStatus !== "VERIFIED" || item.publicationStatus === "PUBLISHED"} checked={Boolean(item.id && selectedPublishIds.has(item.id))} onClick={event => event.stopPropagation()} onChange={event => { if (!item.id) return; setSelectedPublishIds(current => { const next = new Set(current); if (event.target.checked) next.add(item.id!); else next.delete(item.id!); return next; }); }} />] : []),
           <ProductCell item={item} />,
           <div className="table-stack">
             <span>{item.marketRegion ?? "-"}</span>
@@ -961,9 +974,9 @@ export function ProductReviewModal({
   const [barcodeConfirmOpen, setBarcodeConfirmOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<"quality" | "edit" | "barcode">("quality");
   const detailText = locale === "tr" ? {
-    eyebrow: "Ürün inceleme", noIdentity: "Marka veya barkod yok", close: "Kapat", quality: "Kalite ve kanıt", edit: "Ürünü düzenle", barcode: "Barkod", snapshot: "Ürün özeti", noImage: "Görsel yok", editIntro: "Katalog bilgileri", editHint: "Temel alanları ve 100 g/ml başına besin değerlerini doğrulayın.", reviewNote: "İnceleme notu", reviewPlaceholder: "Yayın için zorunlu karar ve kaynak notu", reject: "Reddet", save: "Değişiklikleri kaydet", approve: "Doğrula", publish: "Mobil kataloğa yayınla", saving: "Kaydediliyor..."
+    eyebrow: "Ürün inceleme", noIdentity: "Marka veya barkod yok", close: "Kapat", quality: "Kalite ve kanıt", edit: "Ürünü düzenle", barcode: "Barkod", snapshot: "Ürün özeti", noImage: "Görsel yok", editIntro: "Katalog bilgileri", editHint: "Besin değerlerini seçili referans ölçüsüne göre doğrulayın.", reviewNote: "İnceleme notu", reviewPlaceholder: "Yayın için zorunlu karar ve kaynak notu", reject: "Reddet", save: "Değişiklikleri kaydet", approve: "Doğrula", publish: "Mobil kataloğa yayınla", saving: "Kaydediliyor..."
   } : {
-    eyebrow: "Product review", noIdentity: "No brand or barcode", close: "Close", quality: "Quality & evidence", edit: "Edit product", barcode: "Barcode", snapshot: "Product snapshot", noImage: "No image", editIntro: "Catalog information", editHint: "Verify core fields and nutrition values per 100g/ml.", reviewNote: "Review note", reviewPlaceholder: "Required publication decision and source note", reject: "Reject", save: "Save changes", approve: "Verify", publish: "Publish to mobile catalog", saving: "Saving..."
+    eyebrow: "Product review", noIdentity: "No brand or barcode", close: "Close", quality: "Quality & evidence", edit: "Edit product", barcode: "Barcode", snapshot: "Product snapshot", noImage: "No image", editIntro: "Catalog information", editHint: "Verify nutrition values against the selected reference unit.", reviewNote: "Review note", reviewPlaceholder: "Required publication decision and source note", reject: "Reject", save: "Save changes", approve: "Verify", publish: "Publish to mobile catalog", saving: "Saving..."
   };
   const barcodeValidation = validateGtin(barcode);
   const image = item.displayImageUrl ?? item.imageUrl ?? item.externalImageUrl;
@@ -1096,7 +1109,7 @@ export function ProductReviewModal({
               <div className="nutrition-editor-heading">
                 <div>
                   <span>{locale === "tr" ? "Besin değerleri" : "Nutrition values"}</span>
-                  <strong>{locale === "tr" ? "100 g/ml başına düzenlenebilir inceleme verisi" : "Editable per 100g/ml review data"}</strong>
+                  <strong>{nutritionReferenceLabel(draft.nutritionReferenceUnit, locale)}</strong>
                 </div>
                 <small>{locale === "tr" ? "Kaydedilen değerler katalog ürününü doğrudan günceller." : "Saved values update the catalog product directly."}</small>
               </div>
@@ -1120,7 +1133,7 @@ export function ProductReviewModal({
                         value={draft.servingSizeGrams}
                         onChange={(event) => updateDraft("servingSizeGrams", event.target.value)}
                       />
-                      <em>g/ml</em>
+                      <em>{servingUnitLabel(draft.servingUnit, draft.nutritionReferenceUnit, locale)}</em>
                     </div>
                   </label>
                   <label className="nutrition-input">
@@ -1136,17 +1149,19 @@ export function ProductReviewModal({
                 </div>
               </div>
             </div>
-            <label>
-              {detailText.reviewNote}
-              <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder={detailText.reviewPlaceholder} />
-            </label>
-            <div className="modal-actions">
-              <button className="ghost-button danger-action" disabled={saving} onClick={onReject} type="button">{detailText.reject}</button>
-              <button className="ghost-button" disabled={saving} onClick={onSave} type="button">{detailText.save}</button>
-              <button className="primary-button" disabled={saving} onClick={onApprove} type="button">{saving ? detailText.saving : detailText.approve}</button>
-              {item.verificationStatus === "VERIFIED" && item.publicationStatus !== "PUBLISHED" && <button className="primary-button" disabled={saving || !reviewNote.trim()} onClick={onPublish} type="button">{saving ? detailText.saving : detailText.publish}</button>}
-            </div>
             </div>}
+            {canManage && <section className="product-review-decision-bar" aria-label={locale === "tr" ? "İnceleme kararı" : "Review decision"}>
+              <label>
+                <span>{detailText.reviewNote}</span>
+                <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder={detailText.reviewPlaceholder} />
+              </label>
+              <div className="modal-actions">
+                <button className="ghost-button danger-action" disabled={saving} onClick={onReject} type="button">{detailText.reject}</button>
+                {detailTab === "edit" && <button className="ghost-button" disabled={saving} onClick={onSave} type="button">{detailText.save}</button>}
+                {item.verificationStatus !== "VERIFIED" && <button className="primary-button" disabled={saving} onClick={onApprove} type="button">{saving ? detailText.saving : detailText.approve}</button>}
+                {item.verificationStatus === "VERIFIED" && item.publicationStatus !== "PUBLISHED" && <button className="primary-button" disabled={saving || !reviewNote.trim()} onClick={onPublish} type="button">{saving ? detailText.saving : detailText.publish}</button>}
+              </div>
+            </section>}
           </div>
         </div>
       </section>
@@ -1700,5 +1715,18 @@ export function parseOptionalNumber(value: string): number | null {
   if (!trimmed) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function servingUnitLabel(servingUnit: string, referenceUnit: string, locale: "tr" | "en"): string {
+  const normalized = servingUnit.trim().toUpperCase();
+  if (normalized === "ML" || normalized === "MILLILITER" || referenceUnit === "PER_100ML") return "ml";
+  if (normalized === "SERVING" || referenceUnit === "PER_SERVING") return locale === "tr" ? "servis" : "serving";
+  return "g";
+}
+
+export function nutritionReferenceLabel(referenceUnit: string, locale: "tr" | "en"): string {
+  if (referenceUnit === "PER_100ML") return locale === "tr" ? "100 ml başına besin değerleri" : "Nutrition values per 100 ml";
+  if (referenceUnit === "PER_SERVING") return locale === "tr" ? "Servis başına besin değerleri" : "Nutrition values per serving";
+  return locale === "tr" ? "100 g başına besin değerleri" : "Nutrition values per 100 g";
 }
 import "./product-review.css";

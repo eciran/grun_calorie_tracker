@@ -1876,6 +1876,75 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(2, result.getQualityWarningCounts().get("GENERIC_MISSING_PREPARATION_STATE"));
         assertEquals(1, result.getQualityWarningCounts().get("SUSPICIOUS_DISPLAY_NAME"));
     }
+
+    @Test
+    void sourceRefreshUpdatesOnlySourceVerifiedNutritionAndPreservesCatalogIdentity() {
+        FoodItemEntity existing = new FoodItemEntity();
+        existing.setId(42L);
+        existing.setSourceKey("barcode:8692971478821");
+        existing.setBarcode("8692971478821");
+        existing.setNormalizedBarcode("8692971478821");
+        existing.setName("Protected Source Name");
+        existing.setDisplayName("İçimino Muzlu Süt");
+        existing.setShortDisplayName("Muzlu Süt");
+        existing.setBrand("İçim");
+        existing.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        existing.setPreparationState(FoodPreparationState.UNSPECIFIED);
+        existing.setNutritionBasis(FoodNutritionBasis.SOURCE_REPORTED);
+        existing.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        existing.setServingUnit("GRAM");
+        existing.setServingSizeGrams(180.0);
+        existing.setCalories(10.0);
+        existing.setProtein(1.0);
+        existing.setFat(1.0);
+        existing.setCarbs(1.0);
+        existing.setDataSource(FoodDataSource.ADMIN_IMPORT);
+        existing.setVerificationStatus(VerificationStatus.VERIFIED);
+        existing.setMarketRegion(MarketRegion.TR);
+        existing.setMarketRegions(new HashSet<>(Set.of(MarketRegion.TR)));
+
+        when(foodItemRepository.findByNormalizedBarcodeIn(anyList(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.findBySourceKeyIn(anyList(), any(Sort.class))).thenReturn(List.of(existing));
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemServingOptionRepository.findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(anyList()))
+                .thenReturn(List.of());
+
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,code,product_name,brands,energy_kcal_100g,proteins_100g,fat_100g,carbohydrates_100g,nutrition_data_per,serving_quantity,serving_quantity_unit,market_region
+                barcode:8692971478821,8692971478821,Do Not Replace This Name,Wrong Brand,64,3.2,2.1,8.7,100ml,180,ml,TR
+                """), "refresh@test.com", FoodProductImportMode.SOURCE_REFRESH,
+                FoodProductImportFormat.OPEN_FOOD_FACTS_EXPORT);
+
+        assertEquals(1, result.getSavedRows());
+        assertEquals("Protected Source Name", existing.getName());
+        assertEquals("İçimino Muzlu Süt", existing.getDisplayName());
+        assertEquals("Muzlu Süt", existing.getShortDisplayName());
+        assertEquals("İçim", existing.getBrand());
+        assertEquals(FoodDataSource.ADMIN_IMPORT, existing.getDataSource());
+        assertEquals(VerificationStatus.VERIFIED, existing.getVerificationStatus());
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, existing.getNutritionReferenceUnit());
+        assertEquals("MILLILITER", existing.getServingUnit());
+        assertNull(existing.getServingSizeGrams());
+        assertEquals(64.0, existing.getCalories());
+        assertEquals(3.2, existing.getProtein());
+    }
+
+    @Test
+    void sourceRefreshRefusesMissingExistingSourceKey() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(anyList(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.findBySourceKeyIn(anyList(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,code,product_name,energy_kcal_100g,proteins_100g,fat_100g,carbohydrates_100g,nutrition_data_per
+                barcode:8692971478821,8692971478821,Unknown Milk,64,3.2,2.1,8.7,100ml
+                """), "refresh@test.com", FoodProductImportMode.SOURCE_REFRESH,
+                FoodProductImportFormat.OPEN_FOOD_FACTS_EXPORT);
+
+        assertEquals(0, result.getSavedRows());
+        assertEquals(1, result.getSkippedRows());
+        assertTrue(result.getErrors().get(0).getReason().contains("existing source key"));
+    }
     private MockMultipartFile csv(String content) {
         return new MockMultipartFile(
                 "file",
