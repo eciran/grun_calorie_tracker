@@ -2,6 +2,7 @@ package com.grun.calorietracker.security;
 
 import com.grun.calorietracker.enums.AdminPermission;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.entity.UserEntity;
 import org.springframework.http.HttpMethod;
 
 import java.util.EnumSet;
@@ -30,8 +31,35 @@ public final class AdminPermissionMatrix {
                     AdminPermission.FINANCE_MANAGE, AdminPermission.AUDIT_READ);
             case ADMIN_TECHNICAL -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.TECHNICAL_READ,
                     AdminPermission.TECHNICAL_MANAGE, AdminPermission.AUDIT_READ);
+            case ADMIN_CUSTOM -> EnumSet.of(AdminPermission.DASHBOARD_READ);
             default -> Set.of();
         };
+    }
+
+    public static Set<AdminPermission> permissionsFor(UserEntity user) {
+        if (user == null || user.getRole() == null) return Set.of();
+        if (user.getRole() != UserRole.ADMIN_CUSTOM) return permissionsFor(user.getRole());
+        EnumSet<AdminPermission> permissions = EnumSet.of(AdminPermission.DASHBOARD_READ);
+        if (user.getAdminPermissions() != null) permissions.addAll(user.getAdminPermissions());
+        return permissions;
+    }
+
+    public static Set<AdminPermission> normalizeCustomPermissions(Set<AdminPermission> requested) {
+        EnumSet<AdminPermission> permissions = EnumSet.of(AdminPermission.DASHBOARD_READ);
+        if (requested != null) permissions.addAll(requested);
+        // Admin-team mutation remains owner-only even for custom roles.
+        permissions.remove(AdminPermission.ADMIN_TEAM_MANAGE);
+        addReadForManage(permissions, AdminPermission.USERS_MANAGE, AdminPermission.USERS_READ);
+        addReadForManage(permissions, AdminPermission.CATALOG_MANAGE, AdminPermission.CATALOG_READ);
+        addReadForManage(permissions, AdminPermission.GROWTH_MANAGE, AdminPermission.GROWTH_READ);
+        addReadForManage(permissions, AdminPermission.FINANCE_MANAGE, AdminPermission.FINANCE_READ);
+        addReadForManage(permissions, AdminPermission.TECHNICAL_MANAGE, AdminPermission.TECHNICAL_READ);
+        addReadForManage(permissions, AdminPermission.COMPLIANCE_MANAGE, AdminPermission.COMPLIANCE_READ);
+        return permissions;
+    }
+
+    private static void addReadForManage(Set<AdminPermission> permissions, AdminPermission manage, AdminPermission read) {
+        if (permissions.contains(manage)) permissions.add(read);
     }
 
     private static Set<AdminPermission> readOnlyPermissions() {

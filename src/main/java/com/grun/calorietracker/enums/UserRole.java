@@ -10,6 +10,7 @@ public enum UserRole {
     ADMIN_GROWTH,
     ADMIN_FINANCE,
     ADMIN_TECHNICAL,
+    ADMIN_CUSTOM,
     ADMIN_READ_ONLY;
 
     public boolean isAdminRole() {

@@ -9,6 +9,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.enums.AdminPermission;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.security.AdminPermissionMatrix;
@@ -28,6 +29,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +50,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
     public AdminAccessProfileDto currentAccess(String email) {
         UserEntity user = requireAdmin(userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Admin account was not found.")));
-        List<String> permissions = AdminPermissionMatrix.permissionsFor(user.getRole()).stream()
+        List<String> permissions = AdminPermissionMatrix.permissionsFor(user).stream()
                 .map(Enum::name)
                 .sorted()
                 .toList();
@@ -99,6 +102,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         }
         Map<String, Object> before = snapshotPublicAccount(target);
         target.setRole(request.role());
+        target.setAdminPermissions(permissionsFor(request.role(), request.permissions()));
         target.setAccountEnabled(true);
         target.setAdminMfaEnabled(false);
         target.setAdminRoleUpdatedAt(Instant.now());
@@ -133,15 +137,18 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         }
         Map<String, Object> before = snapshot(target);
         UserRole oldRole = target.getRole();
+        Set<AdminPermission> oldPermissions = new LinkedHashSet<>(target.getAdminPermissions());
         boolean oldEnabled = Boolean.TRUE.equals(target.getAccountEnabled());
         target.setRole(request.role());
+        target.setAdminPermissions(permissionsFor(request.role(), request.permissions()));
         target.setAccountEnabled(request.enabled());
-        if (oldRole != request.role()) {
+        if (oldRole != request.role() || !oldPermissions.equals(target.getAdminPermissions())) {
             target.setAdminRoleUpdatedAt(Instant.now());
         }
         UserEntity saved = userRepository.save(target);
 
-        boolean securityChanged = oldRole != request.role()
+        boolean permissionsChanged = !oldPermissions.equals(saved.getAdminPermissions());
+        boolean securityChanged = oldRole != request.role() || permissionsChanged
                 || oldEnabled != request.enabled();
         if (securityChanged) {
             if (adminSessionService != null) adminSessionService.revokeAllForUser(saved);
@@ -149,7 +156,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
             refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(saved)
                     .forEach(token -> token.setRevokedAt(now));
         }
-        if (oldRole != request.role()) {
+        if (oldRole != request.role() || permissionsChanged) {
             audit(actorEmail, AdminAuditActionType.ADMIN_ROLE_UPDATE, saved, before, request, correlationId);
         }
         if (oldEnabled != request.enabled()) {
@@ -196,6 +203,16 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
         }
     }
 
+    private Set<AdminPermission> permissionsFor(UserRole role, Set<AdminPermission> requested) {
+        if (role == UserRole.ADMIN_CUSTOM) {
+            Set<AdminPermission> normalized = AdminPermissionMatrix.normalizeCustomPermissions(requested);
+            if (normalized.size() == 1) throw new IllegalArgumentException("Select at least one custom admin permission.");
+            return new LinkedHashSet<>(normalized);
+        }
+        if (requested != null && !requested.isEmpty()) throw new IllegalArgumentException("Custom permissions require the ADMIN_CUSTOM role.");
+        return new LinkedHashSet<>();
+    }
+
     private AdminTeamMemberDto toDto(UserEntity user) {
         long activeSessions = refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(user).size();
         return new AdminTeamMemberDto(
@@ -203,6 +220,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
                 user.getName(),
                 user.getEmail(),
                 user.getRole().name(),
+                AdminPermissionMatrix.permissionsFor(user).stream().map(Enum::name).sorted().toList(),
                 Boolean.TRUE.equals(user.getAccountEnabled()),
                 Boolean.TRUE.equals(user.getAccountLocked()),
                 Boolean.TRUE.equals(user.getAdminMfaEnabled()),
@@ -215,6 +233,7 @@ public class AdminSecurityServiceImpl implements AdminSecurityService {
     private Map<String, Object> snapshot(UserEntity user) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("role", user.getRole().name());
+        value.put("permissions", AdminPermissionMatrix.permissionsFor(user).stream().map(Enum::name).sorted().toList());
         value.put("enabled", Boolean.TRUE.equals(user.getAccountEnabled()));
         value.put("mfaEnabled", Boolean.TRUE.equals(user.getAdminMfaEnabled()));
         return value;

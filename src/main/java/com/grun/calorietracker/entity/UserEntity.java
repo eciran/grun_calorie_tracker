@@ -5,12 +5,15 @@ import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.UnitPreference;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.enums.AdminPermission;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
@@ -58,6 +61,12 @@ public class UserEntity {
 
     @Column(name = "admin_role_updated_at")
     private Instant adminRoleUpdatedAt;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "admin_user_permissions", joinColumns = @JoinColumn(name = "user_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "permission", nullable = false, length = 64)
+    private Set<AdminPermission> adminPermissions = new LinkedHashSet<>();
 
     @Column(name = "admin_mfa_secret_encrypted", columnDefinition = "TEXT")
     private String adminMfaSecretEncrypted;

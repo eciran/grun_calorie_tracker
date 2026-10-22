@@ -270,6 +270,7 @@ export function formatContributionBytes(value?: number): string {
 
 export type AdminInvitation = {
   id?: number; email?: string; role?: string; status?: string; invitedBy?: string;
+  permissions?: string[];
   expiresAt?: string; acceptedAt?: string; revokedAt?: string; createdAt?: string;
 };
 

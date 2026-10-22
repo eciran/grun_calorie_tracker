@@ -2,12 +2,15 @@ package com.grun.calorietracker.entity;
 
 import com.grun.calorietracker.enums.AdminInvitationStatus;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.enums.AdminPermission;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "admin_invitations")
@@ -25,6 +28,12 @@ public class AdminInvitationEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 64)
     private UserRole role;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "admin_invitation_permissions", joinColumns = @JoinColumn(name = "invitation_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "permission", nullable = false, length = 64)
+    private Set<AdminPermission> permissions = new LinkedHashSet<>();
 
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;

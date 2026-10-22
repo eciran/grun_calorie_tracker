@@ -3,6 +3,7 @@ package com.grun.calorietracker.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grun.calorietracker.enums.AdminPermission;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.entity.UserEntity;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -13,6 +14,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,6 +38,23 @@ class AdminPermissionMatrixTest {
     void legacyAdminHasOnlyReadOnlyPermissions() {
         assertEquals(AdminPermissionMatrix.permissionsFor(UserRole.ADMIN_READ_ONLY),
                 AdminPermissionMatrix.permissionsFor(UserRole.ADMIN));
+    }
+
+    @Test
+    void customAdminUsesOnlyOwnerSelectedPermissionsAndDashboard() {
+        UserEntity user = new UserEntity();
+        user.setRole(UserRole.ADMIN_CUSTOM);
+        user.setAdminPermissions(Set.of(AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_MANAGE));
+
+        assertEquals(Set.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_MANAGE),
+                AdminPermissionMatrix.permissionsFor(user));
+    }
+
+    @Test
+    void customManagePermissionsAutomaticallyIncludeReadPermissions() {
+        assertEquals(Set.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ, AdminPermission.USERS_MANAGE,
+                        AdminPermission.CATALOG_READ, AdminPermission.CATALOG_MANAGE),
+                AdminPermissionMatrix.normalizeCustomPermissions(Set.of(AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_MANAGE)));
     }
 
     @Test

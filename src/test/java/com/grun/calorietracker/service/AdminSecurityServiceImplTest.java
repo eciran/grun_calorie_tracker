@@ -6,6 +6,7 @@ import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.AdminAuditActionType;
 import com.grun.calorietracker.enums.AdminAuditTargetType;
 import com.grun.calorietracker.enums.UserRole;
+import com.grun.calorietracker.enums.AdminPermission;
 import com.grun.calorietracker.repository.RefreshTokenRepository;
 import com.grun.calorietracker.repository.UserRepository;
 import com.grun.calorietracker.service.impl.AdminSecurityServiceImpl;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -81,6 +83,29 @@ class AdminSecurityServiceImplTest {
                 new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN_SUPPORT, true, true, "Forbidden"),
                 "cid-2"));
         verify(userRepository, never()).findByIdForUpdate(any());
+    }
+
+    @Test
+    void customPermissionChangeRevokesSessionsAndIsAudited() {
+        UserEntity actor = admin(1L, "owner@grun.app", UserRole.OWNER);
+        UserEntity target = admin(7L, "operations@grun.app", UserRole.ADMIN_CUSTOM);
+        target.setAdminPermissions(new java.util.LinkedHashSet<>(Set.of(AdminPermission.USERS_READ)));
+        RefreshTokenEntity token = new RefreshTokenEntity();
+        when(userRepository.findByEmail("owner@grun.app")).thenReturn(Optional.of(actor));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(target));
+        when(userRepository.save(target)).thenReturn(target);
+        when(refreshTokenRepository.findByUserAndRevokedAtIsNullAndUsedAtIsNull(target)).thenReturn(List.of(token), List.of());
+
+        service.updateMember("owner@grun.app", 7L,
+                new AdminTeamMemberUpdateRequestDto(UserRole.ADMIN_CUSTOM,
+                        Set.of(AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_MANAGE), true, true, "Operations scope"),
+                "cid-custom");
+
+        assertEquals(Set.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ, AdminPermission.USERS_MANAGE,
+                AdminPermission.CATALOG_READ, AdminPermission.CATALOG_MANAGE), target.getAdminPermissions());
+        assertNotNull(token.getRevokedAt());
+        verify(adminAuditService).record(eq("owner@grun.app"), eq(AdminAuditActionType.ADMIN_ROLE_UPDATE),
+                eq(AdminAuditTargetType.ADMIN_ACCOUNT), eq("7"), any(), any(), eq("cid-custom"));
     }
 
     @Test

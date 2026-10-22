@@ -36,7 +36,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 true,
                 true,
                 !Boolean.TRUE.equals(user.getAccountLocked()) && !isTemporarilyLoginLocked(user),
-                getAuthorities(user.getRole())
+                getAuthorities(user)
         );
     }
 
@@ -45,12 +45,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(LocalDateTime.now());
     }
 
-    private List<GrantedAuthority> getAuthorities(UserRole role) {
+    private List<GrantedAuthority> getAuthorities(UserEntity user) {
+        UserRole role = user.getRole();
         List<String> authorities = new ArrayList<>();
         authorities.add("ROLE_" + role.name());
         if (role.isAdminRole()) {
             authorities.add("ROLE_ADMIN");
-            AdminPermissionMatrix.permissionsFor(role).stream()
+            AdminPermissionMatrix.permissionsFor(user).stream()
                     .map(AdminPermissionMatrix::authority)
                     .forEach(authorities::add);
         }

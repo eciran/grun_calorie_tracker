@@ -308,6 +308,42 @@ export function OwnerAdminSessionsPanel({ onError }: { onError: (message: string
 
 export type AdminInvitationPage = PageResponse<AdminInvitation>;
 
+const CUSTOM_PERMISSION_GROUPS = [
+  { key: "users", en: "Users", tr: "Kullanıcılar", read: "USERS_READ", manage: "USERS_MANAGE" },
+  { key: "catalog", en: "Catalog, recipes & exercise", tr: "Ürün, tarif ve egzersiz", read: "CATALOG_READ", manage: "CATALOG_MANAGE" },
+  { key: "growth", en: "Growth & notifications", tr: "Büyüme ve bildirimler", read: "GROWTH_READ", manage: "GROWTH_MANAGE" },
+  { key: "finance", en: "Finance & subscriptions", tr: "Finans ve abonelikler", read: "FINANCE_READ", manage: "FINANCE_MANAGE" },
+  { key: "technical", en: "Technical operations", tr: "Teknik operasyonlar", read: "TECHNICAL_READ", manage: "TECHNICAL_MANAGE" },
+  { key: "compliance", en: "Compliance", tr: "Uyumluluk", read: "COMPLIANCE_READ", manage: "COMPLIANCE_MANAGE" },
+  { key: "audit", en: "Audit records", tr: "Denetim kayıtları", read: "AUDIT_READ" },
+  { key: "team", en: "Admin team", tr: "Admin ekibi", read: "ADMIN_TEAM_READ" }
+] as const;
+
+function adminRoleLabel(role: string | undefined, tr: boolean) {
+  if (role === "ADMIN_CUSTOM") return tr ? "Özel yetkilendirme" : "Custom permissions";
+  return humanizeFeature(role);
+}
+
+function permissionSignature(permissions: string[] | undefined) {
+  return [...(permissions ?? [])].sort().join("|");
+}
+
+function CustomPermissionSelector({ value, onChange, tr }: { value: string[]; onChange: (value: string[]) => void; tr: boolean }) {
+  const selected = new Set(value);
+  function toggle(group: (typeof CUSTOM_PERMISSION_GROUPS)[number], permission: string, enabled: boolean) {
+    const next = new Set(selected);
+    if (enabled) {
+      next.add(permission);
+      if ("manage" in group && permission === group.manage) next.add(group.read);
+    } else {
+      next.delete(permission);
+      if ("manage" in group && permission === group.read) next.delete(group.manage);
+    }
+    onChange([...next].sort());
+  }
+  return <fieldset className="admin-custom-permissions"><legend>{tr ? "Özel yetkiler" : "Custom permissions"}</legend><p>{tr ? "Yönet yetkisi ilgili görüntüleme yetkisini de içerir. Görüntüleme kaldırılırsa yönetme yetkisi de kaldırılır." : "Manage includes the related read permission. Removing read also removes manage."}</p><div>{CUSTOM_PERMISSION_GROUPS.map((group) => <section key={group.key}><strong>{tr ? group.tr : group.en}</strong><label><input type="checkbox" checked={selected.has(group.read)} onChange={(event) => toggle(group, group.read, event.target.checked)} />{tr ? "Görüntüle" : "Read"}</label>{"manage" in group && <label><input type="checkbox" checked={selected.has(group.manage)} onChange={(event) => toggle(group, group.manage, event.target.checked)} />{tr ? "Yönet" : "Manage"}</label>}</section>)}</div></fieldset>;
+}
+
 function OwnerLiveSessionMetric({ tr, onOpen, onError }: { tr: boolean; onOpen: () => void; onError: (message: string | null) => void }) {
   const { data } = useEndpoint<OwnerAdminSessionPage>("/api/v1/admin/security/owner-sessions?page=0&size=100", onError);
   const sessions = data?.content ?? [];
@@ -324,7 +360,7 @@ export function AdminInvitationPanel({ onError }: { onError: (message: string | 
   const tx = (en: string, trText: string) => tr ? trText : en;
   const [page, setPage] = useState(0);
   const { data, state, reload } = useEndpoint<AdminInvitationPage>("/api/v1/admin/security/invitations?page=" + page + "&size=10", onError);
-  const [form, setForm] = useState({ email: "", role: "ADMIN_READ_ONLY" });
+  const [form, setForm] = useState({ email: "", role: "ADMIN_READ_ONLY", permissions: [] as string[] });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{ id: number; method: "resend" | "revoke" } | null>(null);
@@ -332,7 +368,7 @@ export function AdminInvitationPanel({ onError }: { onError: (message: string | 
   const invitations = data?.content ?? [];
   async function create(event: FormEvent) {
     event.preventDefault(); setBusy(true); setFormError(null);
-    try { await request("/api/v1/admin/security/invitations", { method: "POST", body: { email: form.email.trim(), role: form.role } }); setForm((current) => ({ ...current, email: "" })); setInviteOpen(false); await reload(); }
+    try { await request("/api/v1/admin/security/invitations", { method: "POST", body: { email: form.email.trim(), role: form.role, permissions: form.role === "ADMIN_CUSTOM" ? form.permissions : [] } }); setForm((current) => ({ ...current, email: "", permissions: [] })); setInviteOpen(false); await reload(); }
     catch (error) { setFormError(formatRequestError(error)); } finally { setBusy(false); }
   }
   function action(id: number | undefined, method: "resend" | "revoke") {
@@ -359,17 +395,17 @@ export function AdminInvitationPanel({ onError }: { onError: (message: string | 
       <div className="admin-invitation-history-heading"><div><span>{tx("INVITATION LEDGER", "DAVET KAYITLARI")}</span><h3>{tx("Invitation history", "Davet geçmişi")}</h3><p>{tx("Pending, accepted, revoked and expired links.", "Bekleyen, kabul edilen, iptal edilen ve süresi dolan bağlantılar.")}</p></div><div><b>{data?.totalElements ?? invitations.length}</b><button className="ghost-button" type="button" onClick={() => void reload()}>{tx("Refresh", "Yenile")}</button></div></div>
       <DataTable columns={[tx("Recipient", "Alıcı"),tx("Role", "Rol"),tx("Status", "Durum"),tx("Sent", "Gönderim"),tx("Expires", "Bitiş"),tx("Actions", "İşlemler")]} rows={invitations.map((item) => [
         <div className="entity-cell"><strong>{item.email}</strong><small>{tx("Invited by", "Davet eden")} {item.invitedBy}</small></div>,
-        <Badge value={item.role} />, <Badge value={item.status} tone={item.status === "ACCEPTED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />,
+        <div className="badge-stack"><Badge value={adminRoleLabel(item.role, tr)} />{item.role === "ADMIN_CUSTOM" && <small>{item.permissions?.length ?? 0} {tx("permissions", "yetki")}</small>}</div>, <Badge value={item.status} tone={item.status === "ACCEPTED" ? "good" : item.status === "PENDING" ? "warn" : "danger"} />,
         formatDate(item.createdAt), formatDate(item.expiresAt),
         item.status === "PENDING" ? <div className="table-actions"><button className="ghost-button compact" disabled={busy} type="button" onClick={() => void action(item.id, "resend")}>{tx("Resend", "Yeniden gönder")}</button><button className="danger-button compact" disabled={busy} type="button" onClick={() => void action(item.id, "revoke")}>{tx("Revoke", "İptal et")}</button></div> : "-"
       ])} empty={state === "loading" ? tx("Loading invitations...", "Davetler yükleniyor...") : tx("No admin invitations yet.", "Henüz yönetici daveti yok.")} />
       <PaginationControls page={data?.page ?? page} pageSize={10} totalElements={data?.totalElements ?? 0} totalPages={Math.max(1,data?.totalPages ?? 1)} first={data?.first ?? page === 0} last={data?.last ?? true} onPageChange={setPage} onPageSizeChange={() => undefined} />
     </div>
-    {inviteOpen && <div className="modal-backdrop" role="presentation" onClick={() => !busy && setInviteOpen(false)}><form className="modal-card admin-invite-modal" role="dialog" aria-modal="true" aria-label={tx("Invite an administrator", "Yönetici davet et")} onSubmit={create} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>{tx("SECURE ONBOARDING", "GÜVENLİ KATILIM")}</span><h2>{tx("Invite an administrator", "Yönetici davet et")}</h2><p>{tx("The invitation is single-use and expires automatically.", "Davet tek kullanımlıktır ve otomatik olarak sona erer.")}</p></div><button className="icon-button" disabled={busy} type="button" onClick={() => setInviteOpen(false)}>×</button></header><div className="modal-body admin-invite-body"><label>{tx("Email address", "E-posta adresi")}<input type="email" required value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label><label>{tx("Least-privilege role", "En az yetkili rol")}<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT","ADMIN_CATALOG","ADMIN_GROWTH","ADMIN_FINANCE","ADMIN_TECHNICAL","ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label><div className="admin-invite-preview"><span>{tx("ACCESS PREVIEW", "ERİŞİM ÖNİZLEMESİ")}</span><strong>{humanizeFeature(form.role)}</strong><p>{tr ? ROLE_MATRIX.find((item) => item.role === form.role)?.tr : ROLE_MATRIX.find((item) => item.role === form.role)?.en}</p></div>{formError && <div className="form-error admin-invitation-error" role="alert"><strong>{tx("Invitation could not be sent", "Davet gönderilemedi")}</strong><span>{formError}</span></div>}</div><footer className="modal-actions"><button className="ghost-button" disabled={busy} type="button" onClick={() => setInviteOpen(false)}>{tx("Cancel", "İptal")}</button><button className="primary-button" disabled={busy || !form.email.trim()} type="submit">{busy ? tx("Sending...", "Gönderiliyor...") : tx("Send invitation", "Daveti gönder")}</button></footer></form></div>}
+    {inviteOpen && <div className="modal-backdrop" role="presentation" onClick={() => !busy && setInviteOpen(false)}><form className="modal-card admin-invite-modal" role="dialog" aria-modal="true" aria-label={tx("Invite an administrator", "Yönetici davet et")} onSubmit={create} onClick={(event) => event.stopPropagation()}><header className="modal-header"><div><span>{tx("SECURE ONBOARDING", "GÜVENLİ KATILIM")}</span><h2>{tx("Invite an administrator", "Yönetici davet et")}</h2><p>{tx("The invitation is single-use and expires automatically.", "Davet tek kullanımlıktır ve otomatik olarak sona erer.")}</p></div><button className="icon-button" disabled={busy} type="button" onClick={() => setInviteOpen(false)} aria-label={tx("Close invitation form", "Davet formunu kapat")}>×</button></header><div className="modal-body admin-invite-body"><label>{tx("Email address", "E-posta adresi")}<input type="email" required value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="admin@company.com" /></label><label>{tx("Least-privilege role", "En az yetkili rol")}<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value, permissions: event.target.value === "ADMIN_CUSTOM" ? current.permissions : [] }))}>{["ADMIN_SUPPORT","ADMIN_CATALOG","ADMIN_GROWTH","ADMIN_FINANCE","ADMIN_TECHNICAL","ADMIN_CUSTOM","ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{adminRoleLabel(role, tr)}</option>)}</select></label>{form.role === "ADMIN_CUSTOM" && <CustomPermissionSelector value={form.permissions} onChange={(permissions) => setForm((current) => ({ ...current, permissions }))} tr={tr} />}<div className="admin-invite-preview"><span>{tx("ACCESS PREVIEW", "ERİŞİM ÖNİZLEMESİ")}</span><strong>{adminRoleLabel(form.role, tr)}</strong><p>{form.role === "ADMIN_CUSTOM" ? tx(`${form.permissions.length} operational permissions selected`, `${form.permissions.length} operasyon yetkisi seçildi`) : tr ? ROLE_MATRIX.find((item) => item.role === form.role)?.tr : ROLE_MATRIX.find((item) => item.role === form.role)?.en}</p></div>{formError && <div className="form-error admin-invitation-error" role="alert"><strong>{tx("Invitation could not be sent", "Davet gönderilemedi")}</strong><span>{formError}</span></div>}</div><footer className="modal-actions"><button className="ghost-button" disabled={busy} type="button" onClick={() => setInviteOpen(false)}>{tx("Cancel", "İptal")}</button><button className="primary-button" disabled={busy || !form.email.trim() || (form.role === "ADMIN_CUSTOM" && !form.permissions.length)} type="submit">{busy ? tx("Sending...", "Gönderiliyor...") : tx("Send invitation", "Daveti gönder")}</button></footer></form></div>}
     {pendingAction && <ConfirmDialog
-      title={pendingAction.method === "revoke" ? "Revoke admin invitation?" : "Send a new invitation link?"}
-      message={pendingAction.method === "revoke" ? "This invitation link will stop working immediately." : "The existing invitation link will be invalidated before a new one is sent."}
-      confirmLabel={pendingAction.method === "revoke" ? "Revoke invitation" : "Resend invitation"}
+      title={pendingAction.method === "revoke" ? tx("Revoke admin invitation?", "Yönetici daveti iptal edilsin mi?") : tx("Send a new invitation link?", "Yeni davet bağlantısı gönderilsin mi?")}
+      message={pendingAction.method === "revoke" ? tx("This invitation link will stop working immediately.", "Bu davet bağlantısı hemen geçersiz olacaktır.") : tx("The existing invitation link will be invalidated before a new one is sent.", "Yeni bağlantı gönderilmeden önce mevcut davet bağlantısı geçersiz kılınacaktır.")}
+      confirmLabel={pendingAction.method === "revoke" ? tx("Revoke invitation", "Daveti iptal et") : tx("Resend invitation", "Daveti yeniden gönder")}
       danger={pendingAction.method === "revoke"}
       busy={busy}
       onCancel={() => !busy && setPendingAction(null)}
@@ -393,7 +429,7 @@ export function AdminSecurityView({ accessProfile, onError, targetContext }: { a
   const path = `/api/v1/admin/security/team?page=${page}&size=${pageSize}`;
   const { data, state, reload } = useEndpoint<AdminTeamPage>(path, onError);
   const [selected, setSelected] = useState<AdminTeamMember | null>(null);
-  const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", enabled: true, mfaEnabled: false, reason: "" });
+  const [draft, setDraft] = useState({ role: "ADMIN_READ_ONLY", permissions: [] as string[], enabled: true, mfaEnabled: false, reason: "" });
   const [saving, setSaving] = useState(false);
   const [passwordResetConfirmationOpen, setPasswordResetConfirmationOpen] = useState(false);
   const memberDialogRef = useDialogAccessibility(() => !saving && setSelected(null), Boolean(selected));
@@ -427,6 +463,7 @@ export function AdminSecurityView({ accessProfile, onError, targetContext }: { a
     setSelected(member);
     setDraft({
       role: member.role ?? "ADMIN_READ_ONLY",
+      permissions: member.permissions ?? [],
       enabled: member.enabled !== false,
       mfaEnabled: Boolean(member.mfaEnabled),
       reason: ""
@@ -492,13 +529,13 @@ export function AdminSecurityView({ accessProfile, onError, targetContext }: { a
         <header><div><span>{tx("TEAM DIRECTORY", "EKİP DİZİNİ")}</span><h3>{tx("Administrator accounts", "Yönetici hesapları")}</h3><p>{tx("Search, narrow and inspect effective access without leaving the roster.", "Listeden ayrılmadan arayın, daraltın ve etkin erişimi inceleyin.")}</p></div><button className="ghost-button" type="button" onClick={() => setFiltersOpen(value => !value)}>{filtersOpen ? tx("Hide filters", "Filtreleri kapat") : tx("Filter team", "Ekibi filtrele")}</button></header>
         {filtersOpen && <div className="admin-team-filters">
           <label>{tx("Search", "Ara")}<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tx("Name or email", "İsim veya e-posta")} /></label>
-          <label>{tx("Role", "Rol")}<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}><option value="">{tx("All roles", "Tüm roller")}</option>{Object.keys(roleCounts).map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select></label>
+          <label>{tx("Role", "Rol")}<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}><option value="">{tx("All roles", "Tüm roller")}</option>{Object.keys(roleCounts).map((role) => <option key={role} value={role}>{adminRoleLabel(role, tr)}</option>)}</select></label>
           <label>{tx("Access", "Erişim")}<select value={accessFilter} onChange={(event) => setAccessFilter(event.target.value)}><option value="">{tx("All states", "Tüm durumlar")}</option><option value="ENABLED">{tx("Enabled", "Etkin")}</option><option value="DISABLED">{tx("Disabled", "Devre dışı")}</option><option value="LOCKED">{tx("Locked", "Kilitli")}</option></select></label>
           <label>MFA<select value={mfaFilter} onChange={(event) => setMfaFilter(event.target.value)}><option value="">{tx("All", "Tümü")}</option><option value="ENABLED">{tx("Enabled", "Etkin")}</option><option value="MISSING">{tx("Not enrolled", "Kurulmamış")}</option></select></label>
           <button className="ghost-button" type="button" onClick={() => { setQuery(""); setRoleFilter(""); setAccessFilter(""); setMfaFilter(""); }}>{tx("Clear", "Temizle")}</button>
         </div>}
         <DataTable columns={[tx("Admin", "Yönetici"), tx("Role", "Rol"), tx("Access", "Erişim"), "MFA", tx("Sessions", "Oturum"), tx("Last active", "Son etkinlik")]} rows={filteredMembers.map((member) => [
-          <div className="entity-cell"><strong>{member.name ?? tx("Admin", "Yönetici")}</strong><small>{member.email ?? "-"}</small></div>, <Badge value={member.role} />,
+          <div className="entity-cell"><strong>{member.name ?? tx("Admin", "Yönetici")}</strong><small>{member.email ?? "-"}</small></div>, <Badge value={adminRoleLabel(member.role, tr)} />,
           <Badge value={member.enabled === false ? tx("Disabled", "Devre dışı") : member.locked ? tx("Locked", "Kilitli") : tx("Enabled", "Etkin")} tone={member.enabled === false || member.locked ? "danger" : "good"} />,
           <Badge value={member.mfaEnabled ? tx("Enabled", "Etkin") : tx("Not enrolled", "Kurulmamış")} tone={member.mfaEnabled ? "good" : "warn"} />, formatValue(member.activeSessions), formatDate(member.lastActiveAt)
         ])} rowData={filteredMembers} onRowClick={canManage ? selectMember : undefined} empty={tx("No administrators match these filters.", "Bu filtrelerle eşleşen yönetici yok.")} />
@@ -506,7 +543,7 @@ export function AdminSecurityView({ accessProfile, onError, targetContext }: { a
       </section>
       <aside className="admin-team-insights">
         <div><span>{tx("ROLE DISTRIBUTION", "ROL DAĞILIMI")}</span><h3>{tx("Current responsibility mix", "Mevcut sorumluluk dağılımı")}</h3><p>{tx("Select a role to filter the directory.", "Dizini filtrelemek için bir role tıklayın.")}</p></div>
-        <div className="admin-role-bars">{roleEntries.map(([role, count]) => <button type="button" key={role} onClick={() => showTeamFilters({ role })}><span><b>{humanizeFeature(role)}</b><strong>{count}</strong></span><i><b style={{ width: `${Math.max(8, count / maximumRoleCount * 100)}%` }} /></i></button>)}</div>
+        <div className="admin-role-bars">{roleEntries.map(([role, count]) => <button type="button" key={role} onClick={() => showTeamFilters({ role })}><span><b>{adminRoleLabel(role, tr)}</b><strong>{count}</strong></span><i><b style={{ width: `${Math.max(8, count / maximumRoleCount * 100)}%` }} /></i></button>)}</div>
         {!roleEntries.length && <p className="muted-text">{tx("Role distribution will appear when the team loads.", "Ekip yüklendiğinde rol dağılımı görünür.")}</p>}
         <div className="admin-security-posture"><span>{tx("SECURITY POSTURE", "GÜVENLİK DURUMU")}</span><strong>{members.length ? Math.round((members.length - mfaMissing) / members.length * 100) : 0}%</strong><small>{tx("of loaded accounts have MFA", "yüklenen hesaplarda MFA etkin")}</small><i><b style={{ width: `${members.length ? (members.length - mfaMissing) / members.length * 100 : 0}%` }} /></i></div>
       </aside>
@@ -517,19 +554,20 @@ export function AdminSecurityView({ accessProfile, onError, targetContext }: { a
     {activeWorkspace === "roles" && <RolePermissionMatrix tr={tr} currentRole={accessProfile?.role} onSelectRole={(role) => showTeamFilters({ role })} />}
     {selected && <div className="modal-backdrop" role="presentation" onClick={() => !saving && setSelected(null)}><section ref={memberDialogRef} tabIndex={-1} className="modal-card admin-member-modal admin-member-drawer" role="dialog" aria-modal="true" aria-label={`${tx("Manage", "Yönet")} ${selected.email ?? "admin"}`} onClick={(event) => event.stopPropagation()}>
       <header className="modal-header"><div><span>{tx("ADMIN ACCESS", "ADMIN ERİŞİMİ")}</span><h2>{selected.name ?? tx("Administrator", "Yönetici")}</h2><p>{selected.email ?? "-"}</p></div><button className="icon-button" disabled={saving} type="button" onClick={() => setSelected(null)} aria-label={tx("Close admin management", "Admin yönetimini kapat")}>×</button></header>
-      <div className="admin-member-profile-strip"><div><span>{tx("Current role", "Mevcut rol")}</span><strong>{humanizeFeature(selected.role)}</strong></div><div><span>{tx("Access", "Erişim")}</span><strong>{selected.enabled === false ? tx("Disabled", "Devre dışı") : selected.locked ? tx("Locked", "Kilitli") : tx("Enabled", "Etkin")}</strong></div><div><span>MFA</span><strong>{selected.mfaEnabled ? tx("Enabled", "Etkin") : tx("Not enrolled", "Kurulmamış")}</strong></div><div><span>{tx("Live sessions", "Canlı oturum")}</span><strong>{formatValue(selected.activeSessions)}</strong></div></div>
+      <div className="admin-member-profile-strip"><div><span>{tx("Current role", "Mevcut rol")}</span><strong>{adminRoleLabel(selected.role, tr)}</strong></div><div><span>{tx("Access", "Erişim")}</span><strong>{selected.enabled === false ? tx("Disabled", "Devre dışı") : selected.locked ? tx("Locked", "Kilitli") : tx("Enabled", "Etkin")}</strong></div><div><span>MFA</span><strong>{selected.mfaEnabled ? tx("Enabled", "Etkin") : tx("Not enrolled", "Kurulmamış")}</strong></div><div><span>{tx("Live sessions", "Canlı oturum")}</span><strong>{formatValue(selected.activeSessions)}</strong></div></div>
       {selected.role === "OWNER" ? <div className="admin-owner-protection"><strong>{tx("Protected owner account", "Korumalı Owner hesabı")}</strong><p>{tx("Owner roles cannot be changed through team management. Session and password controls remain available through their dedicated security flows.", "Owner rolleri ekip yönetimi üzerinden değiştirilemez. Oturum ve parola kontrolleri ilgili güvenlik akışlarından kullanılabilir.")}</p></div> : <form className="admin-security-form modal-body" onSubmit={(event) => { event.preventDefault(); void saveMember(); }}>
-        <label>{tx("Role", "Rol")}<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{humanizeFeature(role)}</option>)}</select><small>{tx("Only least-privilege roles can be assigned.", "Yalnızca en az yetkili roller atanabilir.")}</small></label>
+        <label>{tx("Role", "Rol")}<select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value, permissions: event.target.value === "ADMIN_CUSTOM" ? current.permissions : [] }))}>{["ADMIN_SUPPORT", "ADMIN_CATALOG", "ADMIN_GROWTH", "ADMIN_FINANCE", "ADMIN_TECHNICAL", "ADMIN_CUSTOM", "ADMIN_READ_ONLY"].map((role) => <option key={role} value={role}>{adminRoleLabel(role, tr)}</option>)}</select><small>{tx("Only least-privilege roles can be assigned.", "Yalnızca en az yetkili roller atanabilir.")}</small></label>
         <label className="admin-enabled-control"><span>{tx("Account access", "Hesap erişimi")}</span><span className="toggle-field"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />{draft.enabled ? tx("Enabled", "Etkin") : tx("Disabled", "Devre dışı")}</span></label>
-        <div className="admin-member-role-preview"><span>{tx("EFFECTIVE SCOPE", "ETKİN KAPSAM")}</span><strong>{humanizeFeature(draft.role)}</strong><p>{tr ? ROLE_MATRIX.find((item) => item.role === draft.role)?.tr : ROLE_MATRIX.find((item) => item.role === draft.role)?.en}</p><small>{draft.role !== selected.role ? tx("Changing the role revokes existing sessions.", "Rol değişikliği mevcut oturumları sonlandırır.") : tx("No role change selected.", "Rol değişikliği seçilmedi.")}</small></div>
+        {draft.role === "ADMIN_CUSTOM" && <CustomPermissionSelector value={draft.permissions} onChange={(permissions) => setDraft((current) => ({ ...current, permissions }))} tr={tr} />}
+        <div className="admin-member-role-preview"><span>{tx("EFFECTIVE SCOPE", "ETKİN KAPSAM")}</span><strong>{adminRoleLabel(draft.role, tr)}</strong><p>{draft.role === "ADMIN_CUSTOM" ? tx(`${draft.permissions.length} operational permissions selected`, `${draft.permissions.length} operasyon yetkisi seçildi`) : tr ? ROLE_MATRIX.find((item) => item.role === draft.role)?.tr : ROLE_MATRIX.find((item) => item.role === draft.role)?.en}</p><small>{draft.role !== selected.role || permissionSignature(draft.permissions) !== permissionSignature(selected.permissions) ? tx("Changing access revokes existing sessions.", "Erişim değişikliği mevcut oturumları sonlandırır.") : tx("No access change selected.", "Erişim değişikliği seçilmedi.")}</small></div>
         <label className="wide-field">{tx("Required audit reason", "Zorunlu denetim gerekçesi")}<textarea maxLength={500} required value={draft.reason} onChange={(event) => setDraft((current) => ({ ...current, reason: event.target.value }))} placeholder={tx("Explain why this role or access state is changing.", "Bu rolün veya erişim durumunun neden değiştiğini açıklayın.")} /><small>{draft.reason.length}/500</small></label>
       </form>}
-      <footer className="modal-actions admin-member-actions"><button className="ghost-button" disabled={saving} type="button" onClick={() => setSelected(null)}>{tx("Cancel", "Kapat")}</button>{selected.role !== "OWNER" && <button className="ghost-button" disabled={saving} type="button" onClick={() => setPasswordResetConfirmationOpen(true)}>{tx("Send password reset", "Parola sıfırlama gönder")}</button>}{selected.role !== "OWNER" && <button className="primary-button" disabled={saving || !draft.reason.trim()} type="button" onClick={() => void saveMember()}>{saving ? tx("Applying...", "Uygulanıyor...") : tx("Apply access change", "Erişim değişikliğini uygula")}</button>}</footer>
+      <footer className="modal-actions admin-member-actions"><button className="ghost-button" disabled={saving} type="button" onClick={() => setSelected(null)}>{tx("Cancel", "Kapat")}</button>{selected.role !== "OWNER" && <button className="ghost-button" disabled={saving} type="button" onClick={() => setPasswordResetConfirmationOpen(true)}>{tx("Send password reset", "Parola sıfırlama gönder")}</button>}{selected.role !== "OWNER" && <button className="primary-button" disabled={saving || !draft.reason.trim() || (draft.role === "ADMIN_CUSTOM" && !draft.permissions.length)} type="button" onClick={() => void saveMember()}>{saving ? tx("Applying...", "Uygulanıyor...") : tx("Apply access change", "Erişim değişikliğini uygula")}</button>}</footer>
     </section></div>}
     {selected && passwordResetConfirmationOpen && <ConfirmDialog
-      title="Send password reset link?"
-      message={`A single-use password reset link will be sent to ${selected.email}. Existing sessions will be revoked only after the password is changed.`}
-      confirmLabel="Send reset link"
+      title={tx("Send password reset link?", "Parola sıfırlama bağlantısı gönderilsin mi?")}
+      message={tx(`A single-use password reset link will be sent to ${selected.email}. Existing sessions will be revoked only after the password is changed.`, `${selected.email} adresine tek kullanımlık parola sıfırlama bağlantısı gönderilecek. Mevcut oturumlar yalnızca parola değiştirildikten sonra sonlandırılacaktır.`)}
+      confirmLabel={tx("Send reset link", "Sıfırlama bağlantısı gönder")}
       busy={saving}
       onCancel={() => !saving && setPasswordResetConfirmationOpen(false)}
       onConfirm={() => void sendPasswordReset()}
@@ -543,16 +581,17 @@ const ROLE_MATRIX = [
   { role: "ADMIN_GROWTH", areas: [false, false, true, false, false], en: "Campaigns, notifications and analytics", tr: "Kampanyalar, bildirimler ve analitik" },
   { role: "ADMIN_FINANCE", areas: [false, false, false, true, false], en: "Subscriptions, quotas and commercial audit", tr: "Abonelikler, kotalar ve ticari denetim" },
   { role: "ADMIN_TECHNICAL", areas: [false, false, false, false, true], en: "Runtime, integrations, delivery and AI", tr: "Çalışma zamanı, entegrasyon, teslimat ve AI" },
+  { role: "ADMIN_CUSTOM", areas: ["custom", "custom", "custom", "custom", "custom"], en: "Owner-selected permissions vary by administrator", tr: "Yetkiler Owner seçimine göre yönetici bazında değişir" },
   { role: "ADMIN_READ_ONLY", areas: [true, true, true, true, true], en: "Broad inspection with all writes blocked", tr: "Yazma işlemleri kapalı geniş inceleme erişimi" }
 ];
 
 function RolePermissionMatrix({ tr, currentRole, onSelectRole }: { tr: boolean; currentRole?: string; onSelectRole: (role: string) => void }) {
   const headers = tr ? ["Destek", "Katalog", "Büyüme", "Finans", "Teknik"] : ["Support", "Catalog", "Growth", "Finance", "Technical"];
   return <Panel className="admin-role-matrix-panel" title={tr ? "Rol ve yetki sınırları" : "Role and permission boundaries"} description={tr ? "Her rolün operasyon alanını karşılaştırın; bir role tıklayarak ekip dizinini filtreleyin." : "Compare each operational boundary, then select a role to filter the team directory."}>
-    <div className="admin-role-overview">{ROLE_MATRIX.map((item, index) => <button type="button" key={item.role} className={currentRole === item.role ? "current" : ""} onClick={() => onSelectRole(item.role)}><span>{String(index + 1).padStart(2,"0")}</span><div><strong>{humanizeFeature(item.role)}</strong><small>{tr ? item.tr : item.en}</small></div><b>→</b></button>)}</div>
+    <div className="admin-role-overview">{ROLE_MATRIX.map((item, index) => <button type="button" key={item.role} className={currentRole === item.role ? "current" : ""} onClick={() => onSelectRole(item.role)}><span>{String(index + 1).padStart(2,"0")}</span><div><strong>{adminRoleLabel(item.role, tr)}</strong><small>{tr ? item.tr : item.en}</small></div><b>→</b></button>)}</div>
     <div className="admin-role-matrix" role="table" aria-label={tr ? "Rol yetki karşılaştırması" : "Role permission comparison"}>
       <div className="admin-role-matrix-row admin-role-matrix-head" role="row"><span role="columnheader">{tr ? "Rol" : "Role"}</span>{headers.map((header) => <span key={header} role="columnheader">{header}</span>)}<span role="columnheader">{tr ? "Kapsam" : "Scope"}</span></div>
-      {ROLE_MATRIX.map((item) => <button className={`admin-role-matrix-row ${currentRole === item.role ? "current" : ""}`} type="button" role="row" key={item.role} onClick={() => onSelectRole(item.role)}><strong role="cell">{humanizeFeature(item.role)}{currentRole === item.role && <small>{tr ? "Sizin rolünüz" : "Your role"}</small>}</strong>{item.areas.map((enabled, index) => <span role="cell" key={`${item.role}-${headers[index]}`} className={enabled ? "allowed" : "blocked"}>{enabled ? "✓" : "–"}</span>)}<span role="cell">{tr ? item.tr : item.en}</span></button>)}
+      {ROLE_MATRIX.map((item) => <button className={`admin-role-matrix-row ${currentRole === item.role ? "current" : ""}`} type="button" role="row" key={item.role} onClick={() => onSelectRole(item.role)}><strong role="cell">{adminRoleLabel(item.role, tr)}{currentRole === item.role && <small>{tr ? "Sizin rolünüz" : "Your role"}</small>}</strong>{item.areas.map((access, index) => <span role="cell" key={`${item.role}-${headers[index]}`} className={access === true ? "allowed" : access === "custom" ? "custom" : "blocked"} title={access === "custom" ? tr ? "Owner seçimi" : "Owner selection" : undefined}>{access === true ? "✓" : access === "custom" ? "•" : "–"}</span>)}<span role="cell">{tr ? item.tr : item.en}</span></button>)}
     </div>
     <div className="admin-role-guidance"><strong>{tr ? "En az yetki ilkesi" : "Least-privilege guidance"}</strong><p>{tr ? "Yöneticiyi yalnızca günlük sorumluluğu için gereken role atayın. Read-only rolü geniş görünürlük sağlar ancak tüm yazma işlemlerini backend seviyesinde engeller." : "Assign each administrator only to the role required for their daily responsibility. Read-only provides broad visibility while backend enforcement blocks every write."}</p></div>
   </Panel>;

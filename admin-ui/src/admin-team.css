@@ -82,12 +82,14 @@ button.admin-role-matrix-row:hover, .admin-role-matrix-row.current { background:
 .admin-role-matrix-head { min-height: 46px; color: var(--muted); font-size: .74rem; font-weight: 700; background: var(--surface-muted); }
 .admin-role-matrix-row > strong { display: grid; gap: 3px; }
 .admin-role-matrix-row > strong small { color: var(--primary); }
-.admin-role-matrix-row .allowed, .admin-role-matrix-row .blocked { text-align: center; font-size: 1.05rem; }
+.admin-role-matrix-row .allowed, .admin-role-matrix-row .blocked, .admin-role-matrix-row .custom { text-align: center; font-size: 1.05rem; }
 .admin-role-matrix-row .allowed { color: #20835c; }
 .admin-role-matrix-row .blocked { color: var(--muted); }
+.admin-role-matrix-row .custom { color: var(--primary); font-size: 1.35rem; }
 .admin-role-guidance { margin-top: 16px; padding: 16px 18px; border-left: 4px solid var(--accent); border-radius: 8px; background: var(--surface-muted); }
 .admin-role-guidance p { margin: 6px 0 0; color: var(--muted); }
-.admin-member-drawer { width: min(860px,calc(100vw - 32px)); max-height: calc(100vh - 32px); margin: auto; border-radius: 22px; box-shadow:0 28px 80px rgba(22,16,31,.24); }
+.admin-member-drawer { display:flex; flex-direction:column; width: min(860px,calc(100vw - 32px)); max-height: calc(100vh - 32px); margin: auto; overflow:hidden; border-radius: 22px; box-shadow:0 28px 80px rgba(22,16,31,.24); }
+.admin-member-drawer > .modal-body { min-height:0; overflow-y:auto; }
 .admin-member-profile-strip { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--surface-muted); }
 .admin-member-profile-strip > div { display: grid; gap: 5px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .admin-member-profile-strip span { color: var(--muted); font-size: .76rem; }
@@ -110,9 +112,16 @@ button.admin-role-matrix-row:hover, .admin-role-matrix-row.current { background:
 .admin-invitation-history-heading > div:first-child { display:grid; gap:4px; }
 .admin-invitation-history-heading > div:last-child { display:flex; align-items:center; gap:10px; }
 .admin-invitation-history-heading b { display:grid; place-items:center; min-width:34px; height:34px; padding:0 9px; border-radius:10px; color:var(--primary); background:color-mix(in srgb,var(--primary) 9%,var(--surface)); }
-.admin-invite-modal { width: min(680px,calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: hidden; border-radius: 20px; }
-.admin-invite-body { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; overflow-y: auto; }
+.admin-invite-modal { display:grid; grid-template-rows:auto minmax(0,1fr) auto; width: min(680px,calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: hidden; border-radius: 20px; }
+.admin-invite-body { display: grid; grid-template-columns: 1fr 1fr; min-height:0; gap: 15px; padding: 20px; overflow-y: auto; }
 .admin-invite-body > label { display: grid; gap: 7px; }
+.admin-custom-permissions { grid-column:1 / -1; margin:0; padding:14px; border:1px solid var(--line); border-radius:13px; background:var(--surface-muted); }
+.admin-custom-permissions legend { padding:0 6px; font-weight:700; }
+.admin-custom-permissions > p { margin:0 0 12px; color:var(--muted); font-size:.78rem; }
+.admin-custom-permissions > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.admin-custom-permissions section { display:grid; grid-template-columns:minmax(130px,1fr) auto auto; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
+.admin-custom-permissions section label { display:flex; align-items:center; gap:5px; font-size:.78rem; }
+.admin-custom-permissions section input { width:16px; height:16px; }
 .admin-invite-preview { grid-column: 1 / -1; display: grid; gap: 5px; padding: 16px; border: 1px solid color-mix(in srgb,var(--primary) 20%,var(--line)); border-radius: 14px; background: color-mix(in srgb,var(--primary) 6%,var(--surface)); }
 .admin-invite-preview > span { color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .1em; }
 .admin-invite-preview p { margin: 0; color: var(--muted); }
@@ -141,5 +150,7 @@ button.admin-role-matrix-row:hover, .admin-role-matrix-row.current { background:
   .admin-member-drawer { width: calc(100vw - 12px); max-height: calc(100vh - 12px); border-radius: 16px; }
   .admin-member-profile-strip { grid-template-columns: 1fr 1fr; padding: 12px; }
   .admin-invite-body { grid-template-columns: 1fr; padding: 15px; }
+  .admin-custom-permissions > div { grid-template-columns:1fr; }
+  .admin-custom-permissions section { grid-template-columns:1fr auto auto; }
   .admin-invite-preview { grid-column: auto; }
 }

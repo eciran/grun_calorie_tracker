@@ -1596,6 +1596,7 @@ export type AdminTeamMember = {
   name?: string;
   email?: string;
   role?: string;
+  permissions?: string[];
   enabled?: boolean;
   locked?: boolean;
   mfaEnabled?: boolean;
