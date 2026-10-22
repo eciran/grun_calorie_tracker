@@ -24,10 +24,11 @@ type Props = {
   onProductSaved?: (product: FoodProduct) => void;
 };
 
-type CatalogFilters = { verificationStatus: string; imageStatus: string; region: string; catalogType: string; dataSource: string };
-const EMPTY_FILTERS: CatalogFilters = { verificationStatus: "", imageStatus: "", region: "", catalogType: "", dataSource: "" };
+type CatalogFilters = { verificationStatus: string; publicationStatus: string; imageStatus: string; region: string; catalogType: string; dataSource: string };
+const EMPTY_FILTERS: CatalogFilters = { verificationStatus: "", publicationStatus: "", imageStatus: "", region: "", catalogType: "", dataSource: "" };
 const CATALOG_TYPES = ["BRANDED_PRODUCT", "GENERIC_INGREDIENT", "LOCAL_DISH", "USER_CUSTOM"];
 const DATA_SOURCES = ["MANUAL", "OPEN_FOOD_FACTS", "USDA_FOODDATA", "COFID", "EDAMAM", "NUTRITIONIX", "LOCAL_CURATED", "ADMIN_IMPORT", "USER_SUBMITTED_LABEL", "ADMIN_REVIEWED_LABEL"];
+const PUBLICATION_STATUSES = ["INTERNAL_REVIEW", "PUBLISHED", "HIDDEN", "PRIVATE_USER"];
 
 export function CatalogProductFinder({ compact = false, initialProductId, onError, onSelect, onSelectionClear, refreshToken = 0, canManage = false, allowInlineEdit = false, detailContext, onProductSaved }: Props) {
   const { locale } = useAdminLocale();
@@ -115,6 +116,7 @@ export function CatalogProductFinder({ compact = false, initialProductId, onErro
     {!compact && <CollapsiblePanel className="catalog-search-filter-panel" title={tx("Catalog filters", "Katalog filtreleri")} description={activeFilterCount ? tx(`${activeFilterCount} active criteria`, `${activeFilterCount} etkin ölçüt`) : tx("Narrow the full database by catalog attributes", "Tüm veritabanını katalog özelliklerine göre daraltın")} open={filtersOpen} onToggle={() => setFiltersOpen(value => !value)}>
       <div className="catalog-search-filter-grid">
         <FilterSelect label={tx("Verification", "Doğrulama")} value={draftFilters.verificationStatus} values={VERIFICATION_STATUSES} all={tx("All states", "Tüm durumlar")} onChange={value => setDraftFilters(current => ({ ...current, verificationStatus: value }))} />
+        <FilterSelect label={tx("Publication", "Yayın durumu")} value={draftFilters.publicationStatus} values={PUBLICATION_STATUSES} all={tx("All publication states", "Tüm yayın durumları")} onChange={value => setDraftFilters(current => ({ ...current, publicationStatus: value }))} />
         <FilterSelect label={tx("Image status", "Görsel durumu")} value={draftFilters.imageStatus} values={IMAGE_STATUSES} all={tx("All image states", "Tüm görsel durumları")} onChange={value => setDraftFilters(current => ({ ...current, imageStatus: value }))} />
         <FilterSelect label={tx("Market", "Pazar")} value={draftFilters.region} values={MARKET_REGIONS} all={tx("All markets", "Tüm pazarlar")} labelFor={value => marketRegionLabel(value, locale)} onChange={value => setDraftFilters(current => ({ ...current, region: value }))} />
         <FilterSelect label={tx("Catalog type", "Katalog tipi")} value={draftFilters.catalogType} values={CATALOG_TYPES} all={tx("All catalog types", "Tüm katalog tipleri")} onChange={value => setDraftFilters(current => ({ ...current, catalogType: value }))} />
@@ -127,7 +129,7 @@ export function CatalogProductFinder({ compact = false, initialProductId, onErro
       {rows.map((product) => <button className={`catalog-product-result${selected?.id === product.id ? " selected" : ""}`} key={product.id ?? product.normalizedBarcode} type="button" onClick={() => choose(product)}>
         <div className="catalog-product-thumb">{product.displayImageUrl || product.imageUrl || product.externalImageUrl ? <img src={product.displayImageUrl ?? product.imageUrl ?? product.externalImageUrl} alt="" /> : <span>{(productName(product) || "?").charAt(0)}</span>}</div>
         <div><strong>{productName(product) || tx("Unnamed product", "Adsız ürün")}</strong><span>{product.brand || tx("No brand", "Marka yok")}</span><small>#{product.id} · {product.normalizedBarcode ?? product.barcode ?? tx("No barcode", "Barkod yok")}</small></div>
-        <div className="catalog-product-result-status"><Badge value={product.verificationStatus} tone={product.verificationStatus === "VERIFIED" ? "good" : product.verificationStatus === "REJECTED" ? "danger" : "warn"} /><small>{product.marketRegion ?? "GLOBAL"}</small></div>
+        <div className="catalog-product-result-status"><Badge value={product.verificationStatus} tone={product.verificationStatus === "VERIFIED" ? "good" : product.verificationStatus === "REJECTED" ? "danger" : "warn"} /><Badge value={product.publicationStatus ?? "INTERNAL_REVIEW"} tone={product.publicationStatus === "PUBLISHED" ? "good" : product.publicationStatus === "HIDDEN" ? "danger" : "warn"} /><small>{product.marketRegion ?? "GLOBAL"}</small></div>
       </button>)}
       {!loading && !rows.length && <div className="empty-state"><strong>{tx("No catalog product found", "Katalog ürünü bulunamadı")}</strong><span>{tx("Try a product name, brand, exact barcode or numeric product ID.", "Ürün adı, marka, tam barkod veya sayısal ürün kimliği deneyin.")}</span></div>}
     </div>

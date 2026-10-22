@@ -1,6 +1,8 @@
 package com.grun.calorietracker.controller;
 
 import com.grun.calorietracker.dto.AdminFoodProductCreateRequestDto;
+import com.grun.calorietracker.dto.CatalogProductPublishRequestDto;
+import com.grun.calorietracker.dto.CatalogProductsBatchPublishRequestDto;
 import com.grun.calorietracker.dto.AdminFoodServingOptionUpsertRequestDto;
 import com.grun.calorietracker.dto.AdminFoodProductPreflightDto;
 import com.grun.calorietracker.dto.AdminProductQualityWorkbenchDto;
@@ -33,6 +35,7 @@ import com.grun.calorietracker.dto.ProductQualitySuggestionDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionPageDto;
 import com.grun.calorietracker.dto.ProductQualitySuggestionScanResultDto;
 import com.grun.calorietracker.enums.ImageStatus;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductImportFormat;
@@ -44,9 +47,11 @@ import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.AdminFoodServingOptionService;
+import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.FoodCategoryBackfillService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
+import com.grun.calorietracker.mapper.FoodItemMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -97,6 +102,7 @@ public class AdminFoodProductReviewController {
     private final FoodProductImportService foodProductImportService;
     private final ProductQualitySuggestionService productQualitySuggestionService;
     private final AdminFoodServingOptionService adminFoodServingOptionService;
+    private final CatalogPublicationService catalogPublicationService;
 
     @PostMapping("/preflight")
     @Operation(summary = "Check an admin catalog product before creation", description = "Returns potential duplicates and nutrition consistency warnings without writing catalog data.")
@@ -142,13 +148,13 @@ public class AdminFoodProductReviewController {
             @RequestParam(defaultValue = "CURATED_ADMIN") FoodProductImportMode importMode,
             @Parameter(description = "Column mapping format. AUTO detects GRUN, Open Food Facts export, or USDA-like files.", example = "AUTO")
             @RequestParam(defaultValue = "AUTO") FoodProductImportFormat importFormat,
+            @Parameter(description = "Validate the complete import transaction and roll it back without persisting catalog changes.", example = "true")
+            @RequestParam(defaultValue = "false") boolean dryRun,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(foodProductImportService.importCsv(
-                file,
-                userDetails == null ? null : userDetails.getUsername(),
-                importMode,
-                importFormat
-        ));
+        String importedBy = userDetails == null ? null : userDetails.getUsername();
+        return ResponseEntity.ok(dryRun
+                ? foodProductImportService.previewCsv(file, importedBy, importMode, importFormat)
+                : foodProductImportService.importCsv(file, importedBy, importMode, importFormat));
     }
 
 
@@ -398,7 +404,7 @@ public class AdminFoodProductReviewController {
     @PostMapping(value = "/nutrition-corrections/import", consumes = "multipart/form-data")
     @Operation(
             summary = "Import product nutrition corrections",
-            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Use markVerified=true to approve valid imported rows after correction. Supported correction headers include product_name, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
+            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Use markVerified=true to approve valid imported rows after correction. Supported correction headers include product_name, brand, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Nutrition correction import completed."),
@@ -490,6 +496,8 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
             @Parameter(description = "Optional product name, brand, barcode, or source key search text.", example = "almond")
             @RequestParam(required = false) String query,
+            @Parameter(description = "Optional mobile catalog publication status.", example = "PUBLISHED")
+            @RequestParam(required = false) CatalogPublicationStatus publicationStatus,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
@@ -502,6 +510,7 @@ public class AdminFoodProductReviewController {
                 dataSource,
                 qualityIssue,
                 query,
+                publicationStatus,
                 page,
                 size
         ));
@@ -516,10 +525,11 @@ public class AdminFoodProductReviewController {
             @RequestParam(required = false) MarketRegion region,
             @RequestParam(required = false) FoodCatalogType catalogType,
             @RequestParam(required = false) FoodDataSource dataSource,
+            @RequestParam(required = false) CatalogPublicationStatus publicationStatus,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(foodProductReviewService.searchCatalog(query, verificationStatus, imageStatus,
-                region, catalogType, dataSource, page, size));
+                region, catalogType, dataSource, publicationStatus, page, size));
     }
 
 
@@ -759,6 +769,40 @@ public class AdminFoodProductReviewController {
                 request,
                 userDetails == null ? null : userDetails.getUsername()
         ));
+    }
+
+    @PostMapping("/{id}/publish")
+    @Operation(
+            summary = "Publish a reviewed catalog product",
+            description = "Moves a reviewed product into the mobile-search catalog. Publication is rejected when core nutrition, reference-unit, private-product, or rejection safety gates fail."
+    )
+    public ResponseEntity<FoodProductDto> publishProduct(
+            @PathVariable Long id,
+            @RequestBody @Valid CatalogProductPublishRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        String actor = userDetails == null ? null : userDetails.getUsername();
+        return ResponseEntity.ok(FoodItemMapper.mapEntityToDto(catalogPublicationService.publish(
+                id,
+                actor,
+                request.reason(),
+                null
+        )));
+    }
+
+    @PostMapping("/publish-batch")
+    @Operation(
+            summary = "Publish multiple reviewed catalog products",
+            description = "Validates every selected product before writing. If any product fails a publication safety gate, the complete batch is rolled back. Maximum 100 products."
+    )
+    public ResponseEntity<List<FoodProductDto>> publishProducts(
+            @RequestBody @Valid CatalogProductsBatchPublishRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        String actor = userDetails == null ? null : userDetails.getUsername();
+        return ResponseEntity.ok(catalogPublicationService.publishBatch(
+                        request.productIds(), actor, request.reason(), null
+                ).stream()
+                .map(FoodItemMapper::mapEntityToDto)
+                .toList());
     }
 
     @PostMapping("/{id}/serving-options")

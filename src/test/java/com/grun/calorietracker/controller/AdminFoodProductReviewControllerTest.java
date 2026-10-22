@@ -47,8 +47,11 @@ import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
 import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
+import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.service.FoodProductImportService;
 import com.grun.calorietracker.service.AdminFoodServingOptionService;
+import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.FoodCategoryBackfillService;
 import com.grun.calorietracker.service.FoodProductReviewService;
 import com.grun.calorietracker.service.ProductQualitySuggestionService;
@@ -104,6 +107,9 @@ class AdminFoodProductReviewControllerTest {
 
     @MockBean
     private AdminFoodServingOptionService adminFoodServingOptionService;
+
+    @MockBean
+    private CatalogPublicationService catalogPublicationService;
 
     @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
@@ -275,6 +281,34 @@ class AdminFoodProductReviewControllerTest {
 
     @Test
     @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void importProducts_whenDryRun_previewsWithoutCallingPersistentImport() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "products.csv",
+                "text/csv",
+                "source_key,name\nCATALOG:test:1,Test Product\n".getBytes()
+        );
+        FoodProductImportResultDto response = new FoodProductImportResultDto(1, 1, 0, 0, 1, List.of());
+        when(foodProductImportService.previewCsv(any(), eq("admin@test.com"),
+                eq(FoodProductImportMode.RAW_EXTERNAL), eq(FoodProductImportFormat.GRUN_STANDARD)))
+                .thenReturn(response);
+
+        mockMvc.perform(multipart("/api/v1/admin/products/import")
+                        .file(file)
+                        .param("importMode", "RAW_EXTERNAL")
+                        .param("importFormat", "GRUN_STANDARD")
+                        .param("dryRun", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRows").value(1))
+                .andExpect(jsonPath("$.insertedRows").value(1));
+
+        verify(foodProductImportService).previewCsv(any(), eq("admin@test.com"),
+                eq(FoodProductImportMode.RAW_EXTERNAL), eq(FoodProductImportFormat.GRUN_STANDARD));
+        verify(foodProductImportService, never()).importCsv(any(), any(), any(), any());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void getProductsForReview_whenAdmin_returnsProducts() throws Exception {
         FoodProductDto product = new FoodProductDto();
         product.setId(1L);
@@ -294,6 +328,7 @@ class AdminFoodProductReviewControllerTest {
         when(foodProductReviewService.getProductsForReview(
                 VerificationStatus.RAW_IMPORTED,
                 ImageStatus.NEEDS_REVIEW,
+                null,
                 null,
                 null,
                 null,
@@ -332,7 +367,7 @@ class AdminFoodProductReviewControllerTest {
         page.setLast(true);
 
         when(foodProductReviewService.searchCatalog("181541", VerificationStatus.VERIFIED, null,
-                MarketRegion.UK_IE, FoodCatalogType.BRANDED_PRODUCT, FoodDataSource.USER_SUBMITTED_LABEL, 0, 20)).thenReturn(page);
+                MarketRegion.UK_IE, FoodCatalogType.BRANDED_PRODUCT, FoodDataSource.USER_SUBMITTED_LABEL, null, 0, 20)).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/admin/products/catalog-search")
                         .param("query", "181541")
@@ -347,7 +382,7 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.content[0].productName").value("Falafel and Piri Piri Humus Wrap"));
 
         verify(foodProductReviewService).searchCatalog("181541", VerificationStatus.VERIFIED, null,
-                MarketRegion.UK_IE, FoodCatalogType.BRANDED_PRODUCT, FoodDataSource.USER_SUBMITTED_LABEL, 0, 20);
+                MarketRegion.UK_IE, FoodCatalogType.BRANDED_PRODUCT, FoodDataSource.USER_SUBMITTED_LABEL, null, 0, 20);
     }
 
     @Test
@@ -366,6 +401,7 @@ class AdminFoodProductReviewControllerTest {
                 VerificationStatus.RAW_IMPORTED,
                 ImageStatus.NEEDS_REVIEW,
                 MarketRegion.TR,
+                null,
                 null,
                 null,
                 null,
@@ -646,6 +682,7 @@ class AdminFoodProductReviewControllerTest {
                 null,
                 null,
                 null,
+                null,
                 0,
                 25
         )).thenReturn(page);
@@ -677,6 +714,7 @@ class AdminFoodProductReviewControllerTest {
                 MarketRegion.TR,
                 FoodCatalogType.BRANDED_PRODUCT,
                 FoodDataSource.OPEN_FOOD_FACTS,
+                null,
                 null,
                 null,
                 0,
@@ -712,6 +750,7 @@ class AdminFoodProductReviewControllerTest {
                 FoodCatalogType.BRANDED_PRODUCT,
                 FoodDataSource.OPEN_FOOD_FACTS,
                 FoodProductQualityIssue.MISSING_CALORIES,
+                null,
                 null,
                 0,
                 25
@@ -932,6 +971,49 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.imageStatus").value("APPROVED"));
 
         verify(foodProductReviewService).updateProductReview(eq(1L), any(FoodProductReviewRequestDto.class), eq("admin@test.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void publishProduct_whenAdmin_returnsPublishedProduct() throws Exception {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(1L);
+        product.setName("Mini Original Glazed Doughnut");
+        product.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        when(catalogPublicationService.publish(eq(1L), eq("admin@test.com"), eq("Verified source and nutrition."), eq(null)))
+                .thenReturn(product);
+
+        mockMvc.perform(post("/api/v1/admin/products/1/publish")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Verified source and nutrition.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.productName").value("Mini Original Glazed Doughnut"))
+                .andExpect(jsonPath("$.publicationStatus").value("PUBLISHED"));
+
+        verify(catalogPublicationService).publish(1L, "admin@test.com", "Verified source and nutrition.", null);
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void publishProducts_whenAdmin_returnsPublishedProducts() throws Exception {
+        FoodItemEntity first = new FoodItemEntity();
+        first.setId(1L);
+        first.setName("First");
+        first.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        FoodItemEntity second = new FoodItemEntity();
+        second.setId(2L);
+        second.setName("Second");
+        second.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        when(catalogPublicationService.publishBatch(eq(java.util.List.of(1L, 2L)), eq("admin@test.com"), eq("Reviewed batch."), eq(null)))
+                .thenReturn(java.util.List.of(first, second));
+
+        mockMvc.perform(post("/api/v1/admin/products/publish-batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productIds\":[1,2],\"reason\":\"Reviewed batch.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].publicationStatus").value("PUBLISHED"))
+                .andExpect(jsonPath("$[1].publicationStatus").value("PUBLISHED"));
     }
 
     @Test

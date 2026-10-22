@@ -22,6 +22,9 @@ public final class FoodPortionUnitResolver {
     }
 
     public static FoodPortionUnit defaultUnit(FoodItemEntity product) {
+        if (product != null && product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_SERVING) {
+            return FoodPortionUnit.SERVING;
+        }
         return product != null && product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML
                 ? FoodPortionUnit.MILLILITER : FoodPortionUnit.GRAM;
     }
@@ -30,9 +33,13 @@ public final class FoodPortionUnitResolver {
         if (option == null || option.getUnitType() == null || !positive(option.getQuantity())
                 || (option.getGramWeight() != null && !positive(option.getGramWeight()))
                 || (option.getMlVolume() != null && !positive(option.getMlVolume()))) return false;
-        Double amount = defaultUnit(product) == FoodPortionUnit.MILLILITER
-                ? option.getMlVolume() : option.getGramWeight();
-        return positive(amount);
+        FoodPortionUnit base = defaultUnit(product);
+        if (base == FoodPortionUnit.SERVING) {
+            return option.getUnitType() == com.grun.calorietracker.enums.FoodServingOptionUnit.SERVING
+                    || option.getUnitType() == com.grun.calorietracker.enums.FoodServingOptionUnit.PORTION
+                    || option.getUnitType() == com.grun.calorietracker.enums.FoodServingOptionUnit.PIECE;
+        }
+        return positive(base == FoodPortionUnit.MILLILITER ? option.getMlVolume() : option.getGramWeight());
     }
 
     private static boolean positive(Double amount) {

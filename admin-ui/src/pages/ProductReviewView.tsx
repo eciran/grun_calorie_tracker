@@ -15,6 +15,7 @@ export const CATALOG_TYPES = ["BRANDED_PRODUCT", "GENERIC_INGREDIENT", "LOCAL_DI
 export const PREPARATION_STATES = ["UNSPECIFIED", "RAW", "COOKED", "BOILED", "GRILLED", "FRIED", "BAKED", "ROASTED", "STEAMED", "PREPARED"];
 
 export const DATA_SOURCES = ["OPEN_FOOD_FACTS", "ADMIN_IMPORT", "USDA_FOODDATA", "USER_CUSTOM"];
+export const PUBLICATION_STATUSES = ["INTERNAL_REVIEW", "PUBLISHED", "HIDDEN", "PRIVATE_USER"];
 
 export const FOOD_SEARCH_ALIAS_TYPES = ["ADMIN_MANUAL", "TRANSLATION", "SYNONYM", "ASCII_NORMALIZED", "COMMON_NAME"];
 export const FOOD_SERVING_OPTION_UNITS = ["SERVING", "PIECE", "SLICE", "SCOOP", "CUP", "TABLESPOON", "TEASPOON", "CAN", "BOTTLE", "GLASS", "MUG", "SHOT", "PACKAGE", "BAR", "BOWL", "PLATE", "PORTION"];
@@ -153,6 +154,7 @@ export type ProductReviewRouteState = {
   catalogType: string;
   dataSource: string;
   qualityIssue: string;
+  publicationStatus: string;
   page: number;
   size: number;
   selectedProductId?: number;
@@ -169,6 +171,7 @@ export function defaultProductReviewRouteState(mode: ProductReviewMode): Product
     catalogType: "",
     dataSource: "",
     qualityIssue: mode === "images" ? "MISSING_IMAGE" : mode === "nutrition" ? "SUSPICIOUS_MACROS" : "",
+    publicationStatus: "",
     page: 0,
     size: 20
   };
@@ -192,6 +195,7 @@ export function readProductReviewRouteState(mode: ProductReviewMode, search = wi
     catalogType: enumValue("catalog", CATALOG_TYPES, defaults.catalogType),
     dataSource: enumValue("source", DATA_SOURCES, defaults.dataSource),
     qualityIssue: enumValue("issue", QUALITY_ISSUES, defaults.qualityIssue),
+    publicationStatus: enumValue("publication", PUBLICATION_STATUSES, defaults.publicationStatus),
     page: Number.isSafeInteger(page) && page >= 0 ? page : defaults.page,
     size: Number.isSafeInteger(size) && PRODUCT_PAGE_SIZES.has(size) ? size : defaults.size,
     selectedProductId: Number.isSafeInteger(selectedProductId) && selectedProductId > 0 ? selectedProductId : undefined
@@ -208,6 +212,7 @@ export function productReviewRouteSearch(state: ProductReviewRouteState, mode: P
   if (state.catalogType) params.set("catalog", state.catalogType);
   if (state.dataSource) params.set("source", state.dataSource);
   if (state.qualityIssue !== defaults.qualityIssue) params.set("issue", state.qualityIssue);
+  if (state.publicationStatus) params.set("publication", state.publicationStatus);
   if (state.page > 0) params.set("page", String(state.page));
   if (state.size !== defaults.size) params.set("size", String(state.size));
   if (state.selectedProductId) params.set("productId", String(state.selectedProductId));
@@ -224,6 +229,20 @@ export type NutritionCorrectionImportResult = {
   errors?: string[];
 };
 
+type CatalogImportIssue = { rowNumber?: number; identifier?: string | null; reason?: string; code?: string };
+type CatalogImportResult = {
+  totalRows?: number;
+  insertedRows?: number;
+  updatedRows?: number;
+  skippedRows?: number;
+  savedRows?: number;
+  duplicateInputRows?: number;
+  reviewRequiredRows?: number;
+  importQualityScore?: number;
+  errors?: CatalogImportIssue[];
+  warnings?: CatalogImportIssue[];
+};
+
 type CorrectionImportNotice = { tone: "success" | "warning" | "info"; message: string };
 
 const productReviewMessages = {
@@ -231,19 +250,19 @@ const productReviewMessages = {
     modeTitle: { queue: "Ürün inceleme kuyruğu", images: "Ürün görseli inceleme", nutrition: "Besin değeri inceleme", rejected: "Reddedilen ürünler" },
     modeDescription: { queue: "Öncelikli ürünleri bulun, kanıtları kontrol edin ve katalog kararını tamamlayın.", images: "Eksik veya inceleme bekleyen ürün görsellerini doğrulayın.", nutrition: "Şüpheli besin değerlerini kaynak kanıtlarıyla karşılaştırın.", rejected: "Reddedilen ürünleri ve karar gerekçelerini yeniden değerlendirin." },
     resetFilters: "Filtreleri sıfırla", returnedProducts: "Eşleşen ürün", returnedProductsHint: "Geçerli filtre sonucundaki toplam", highPriority: "Yüksek öncelik", highPriorityHint: "Öncelik puanı 100 ve üzeri", missingImages: "Görseli eksik", missingImagesHint: "Kullanılabilir görseli olmayan satırlar", activeFilters: "Etkin filtre", activeFiltersHint: "Kuyruğa uygulanan ölçütler",
-    filtersTitle: "Kuyruğu daralt", filtersDescription: "İncelenecek ürünleri görev, kaynak ve kalite sorununa göre odaklayın.", productSearch: "Ürün ara", productSearchPlaceholder: "Ad, marka veya barkod", verification: "Doğrulama", imageStatus: "Görsel durumu", region: "Bölge", catalog: "Katalog", dataSource: "Veri kaynağı", qualityIssue: "Kalite sorunu", all: "Tümü", anyIssue: "Tüm sorunlar",
+    filtersTitle: "Kuyruğu daralt", filtersDescription: "İncelenecek ürünleri görev, kaynak ve kalite sorununa göre odaklayın.", productSearch: "Ürün ara", productSearchPlaceholder: "Ad, marka veya barkod", verification: "Doğrulama", publication: "Yayın durumu", imageStatus: "Görsel durumu", region: "Bölge", catalog: "Katalog", dataSource: "Veri kaynağı", qualityIssue: "Kalite sorunu", all: "Tümü", anyIssue: "Tüm sorunlar",
     categoryQueue: "Kategori kararları", categoryQueueHint: "Birincil kategorisi bulunmayan ürünler", openQueue: "Kuyruğu aç",
-    bulkTools: "Toplu düzeltme araçları", bulkWorkflow: "Toplu düzeltme akışı", bulkDescription: "Mevcut filtreyi dışa aktarın, değerleri dosyada düzeltin, önce prova çalıştırın ve sonuç temizse uygulayın.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Aktarılan satırları doğrulandı olarak işaretle", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
-    queueEyebrow: "ÇALIŞMA KUYRUĞU", queueTitle: "İncelenecek ürünler", queueDescription: "Bir satır seçerek kanıt, kalite önerileri ve düzenleme alanlarını açın.", product: "Ürün", source: "Kaynak", review: "İnceleme", quality: "Kalite", nutrition: "Besin değerleri", empty: "Bu filtre için incelenecek ürün bulunamadı.", rejectTitle: "Ürün reddedilsin mi?", rejectMessage: "Ürün ve görsel reddedildi olarak işaretlenecek; karar denetim geçmişine kaydedilecek.", rejectAction: "Ürünü reddet"
+    bulkTools: "CSV işlemleri", bulkWorkflow: "Mevcut ürün düzeltme akışı", bulkDescription: "Bu bölüm yalnızca katalogda bulunan ürünleri günceller. Yeni ürün eklemek için aşağıdaki katalog içe aktarma alanını kullanın.", catalogImport: "Yeni ürün kataloğu içe aktar", catalogImportDescription: "GRUN_STANDARD CSV dosyasını önce geri alınabilir prova ile doğrulayın. Uygulanan kayıtlar RAW_EXTERNAL olarak inceleme kuyruğuna eklenir.", catalogFile: "Yeni katalog dosyası", previewRequired: "Gerçek içe aktarmadan önce hatasız prova zorunludur.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Mevcut ürün düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Aktarılan satırları doğrulandı olarak işaretle", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
+    queueEyebrow: "ÇALIŞMA KUYRUĞU", queueTitle: "İncelenecek ürünler", queueDescription: "Bir satır seçerek kanıt, kalite önerileri ve düzenleme alanlarını açın.", product: "Ürün", source: "Kaynak", review: "İnceleme", publicationColumn: "Yayın", quality: "Kalite", nutrition: "Besin değerleri", empty: "Bu filtre için incelenecek ürün bulunamadı.", rejectTitle: "Ürün reddedilsin mi?", rejectMessage: "Ürün ve görsel reddedildi olarak işaretlenecek; karar denetim geçmişine kaydedilecek.", rejectAction: "Ürünü reddet"
   },
   en: {
     modeTitle: { queue: "Product review queue", images: "Product image review", nutrition: "Nutrition review", rejected: "Rejected products" },
     modeDescription: { queue: "Find priority products, verify evidence, and complete the catalog decision.", images: "Validate missing product images and images waiting for review.", nutrition: "Compare suspicious nutrition values against source evidence.", rejected: "Reassess rejected products and their decision history." },
     resetFilters: "Reset filters", returnedProducts: "Matching products", returnedProductsHint: "Total in the current filter", highPriority: "High priority", highPriorityHint: "Priority score 100 or above", missingImages: "Missing images", missingImagesHint: "Rows without a usable image", activeFilters: "Active filters", activeFiltersHint: "Criteria applied to the queue",
-    filtersTitle: "Refine the queue", filtersDescription: "Focus the workload by task, source, and quality issue.", productSearch: "Product search", productSearchPlaceholder: "Name, brand, or barcode", verification: "Verification", imageStatus: "Image status", region: "Region", catalog: "Catalog", dataSource: "Data source", qualityIssue: "Quality issue", all: "All", anyIssue: "Any issue",
+    filtersTitle: "Refine the queue", filtersDescription: "Focus the workload by task, source, and quality issue.", productSearch: "Product search", productSearchPlaceholder: "Name, brand, or barcode", verification: "Verification", publication: "Publication", imageStatus: "Image status", region: "Region", catalog: "Catalog", dataSource: "Data source", qualityIssue: "Quality issue", all: "All", anyIssue: "Any issue",
     categoryQueue: "Category decisions", categoryQueueHint: "Products without a primary category", openQueue: "Open queue",
-    bulkTools: "Bulk correction tools", bulkWorkflow: "Bulk correction workflow", bulkDescription: "Export the current filter, correct values in the file, run a dry run, and apply only after the result is clean.", exportFilter: "Export current filter", correctionFile: "Correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Mark imported rows verified", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
-    queueEyebrow: "WORK QUEUE", queueTitle: "Products to review", queueDescription: "Select a row to open evidence, quality recommendations, and editing fields.", product: "Product", source: "Source", review: "Review", quality: "Quality", nutrition: "Nutrition", empty: "No products need review for this filter.", rejectTitle: "Reject product?", rejectMessage: "The product and its image will be marked rejected and the decision will be recorded in audit history.", rejectAction: "Reject product"
+    bulkTools: "CSV operations", bulkWorkflow: "Existing product correction workflow", bulkDescription: "This section only updates products already in the catalog. Use the catalog import area below to add new products.", catalogImport: "Import new product catalog", catalogImportDescription: "Validate the GRUN_STANDARD CSV with a rollback-only dry run first. Applied rows enter the review queue as RAW_EXTERNAL.", catalogFile: "New catalog file", previewRequired: "A clean dry run is required before the real import.", exportFilter: "Export current filter", correctionFile: "Existing product correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Mark imported rows verified", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
+    queueEyebrow: "WORK QUEUE", queueTitle: "Products to review", queueDescription: "Select a row to open evidence, quality recommendations, and editing fields.", product: "Product", source: "Source", review: "Review", publicationColumn: "Publication", quality: "Quality", nutrition: "Nutrition", empty: "No products need review for this filter.", rejectTitle: "Reject product?", rejectMessage: "The product and its image will be marked rejected and the decision will be recorded in audit history.", rejectAction: "Reject product"
   }
 } as const;
 
@@ -261,6 +280,7 @@ export function ProductReviewView({ mode, onError, canManage = false }: { mode: 
   const [catalogType, setCatalogType] = useState(initialRouteState.catalogType);
   const [dataSource, setDataSource] = useState(initialRouteState.dataSource);
   const [qualityIssue, setQualityIssue] = useState(initialRouteState.qualityIssue);
+  const [publicationStatus, setPublicationStatus] = useState(initialRouteState.publicationStatus);
   const [page, setPage] = useState(initialRouteState.page);
   const [pageSize, setPageSize] = useState(initialRouteState.size);
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(initialRouteState.selectedProductId);
@@ -276,6 +296,14 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [correctionNotice, setCorrectionNotice] = useState<CorrectionImportNotice | null>(null);
   const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
   const [transferState, setTransferState] = useState<LoadState>("idle");
+  const [catalogFile, setCatalogFile] = useState<File | null>(null);
+  const [catalogResult, setCatalogResult] = useState<CatalogImportResult | null>(null);
+  const [catalogNotice, setCatalogNotice] = useState<CorrectionImportNotice | null>(null);
+  const [catalogTransferState, setCatalogTransferState] = useState<LoadState>("idle");
+  const [catalogPreviewPassed, setCatalogPreviewPassed] = useState(false);
+  const [selectedPublishIds, setSelectedPublishIds] = useState<Set<number>>(new Set());
+  const [batchPublishReason, setBatchPublishReason] = useState("");
+  const [batchPublishing, setBatchPublishing] = useState(false);
   const path = buildProductReviewPath({
     query,
     verificationStatus,
@@ -284,6 +312,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     catalogType,
     dataSource,
     qualityIssue,
+    publicationStatus,
     page,
     size: pageSize
   });
@@ -293,11 +322,12 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const { data: categoryWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?qualityIssue=MISSING_CANONICAL_CATEGORY&page=0&size=1", onError);
   const { data: rejectedWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?verificationStatus=REJECTED&page=0&size=1", onError);
   const rows = data?.content ?? [];
+  const publishableRows = rows.filter((item) => item.id && item.verificationStatus === "VERIFIED" && item.publicationStatus !== "PUBLISHED");
   const totalElements = data?.totalElements ?? rows.length;
   const highPriorityCount = rows.filter((item) => (item.reviewPriority ?? 0) >= 100).length;
   const missingImageCount = rows.filter((item) => !item.displayImageUrl && !item.imageUrl && !item.externalImageUrl).length;
   const averageQuality = rows.length ? Math.round(rows.reduce((sum, item) => sum + Number(item.qualityScore ?? 0), 0) / rows.length) : 0;
-  const activeFilterCount = [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue].filter(Boolean).length;
+  const activeFilterCount = [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, publicationStatus].filter(Boolean).length;
   const qualityWorkspace = mode !== "queue";
   const modeTitle = qualityWorkspace ? (locale === "tr" ? "Ürün kalite merkezi" : "Product quality center") : text.modeTitle[viewMode];
 
@@ -307,12 +337,14 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       return;
     }
     setPage(0);
-  }, [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, pageSize]);
+  }, [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, publicationStatus, pageSize]);
 
   useEffect(() => {
-    const next = `${window.location.pathname}${productReviewRouteSearch({ query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, page, size: pageSize, selectedProductId }, viewMode)}`;
+    const next = `${window.location.pathname}${productReviewRouteSearch({ query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, publicationStatus, page, size: pageSize, selectedProductId }, viewMode)}`;
     if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(null, "", next);
-  }, [catalogType, dataSource, imageStatus, page, pageSize, qualityIssue, query, region, selectedProductId, verificationStatus, viewMode]);
+  }, [catalogType, dataSource, imageStatus, page, pageSize, publicationStatus, qualityIssue, query, region, selectedProductId, verificationStatus, viewMode]);
+
+  useEffect(() => { setSelectedPublishIds(new Set()); }, [data]);
 
   useEffect(() => {
     if (!selectedProductId || selectedProduct?.id === selectedProductId) return;
@@ -326,6 +358,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     setRegion("");
     setCatalogType("");
     setDataSource("");
+    setPublicationStatus("");
     setPage(0);
     setPageSize(defaults.size);
     setSelectedProductId(undefined);
@@ -369,6 +402,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     setRegion("");
     setCatalogType("");
     setDataSource("");
+    setPublicationStatus("");
     setQualityIssue("MISSING_CANONICAL_CATEGORY");
     setPage(0);
     setSelectedProductId(undefined);
@@ -488,6 +522,21 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     }
   }
 
+  async function publishSelectedProducts() {
+    const ids = [...selectedPublishIds];
+    if (!ids.length || !batchPublishReason.trim()) return;
+    setBatchPublishing(true); onError(null);
+    try {
+      await request<FoodProduct[]>("/api/v1/admin/products/publish-batch", {
+        method: "POST", body: { productIds: ids, reason: batchPublishReason.trim() }
+      });
+      setSelectedPublishIds(new Set()); setBatchPublishReason("");
+      setSavedNotice(locale === "tr" ? `${ids.length} ürün mobil kataloğa yayınlandı.` : `${ids.length} products published to the mobile catalog.`);
+      await reload();
+    } catch (error) { onError(formatRequestError(error)); }
+    finally { setBatchPublishing(false); }
+  }
+
   async function exportCurrentFilter() {
     setTransferState("loading");
     onError(null);
@@ -500,6 +549,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
         catalogType,
         dataSource,
         qualityIssue,
+        publicationStatus,
         limit: 10000
       });
       const blob = await requestBlob(exportPath, { timeoutMs: 60000 });
@@ -561,6 +611,42 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     }
   }
 
+  async function importNewCatalog(dryRun: boolean) {
+    if (!catalogFile) {
+      onError(locale === "tr" ? "Yeni katalog CSV dosyası zorunludur." : "New catalog CSV file is required.");
+      return;
+    }
+    setCatalogTransferState("loading");
+    setCatalogNotice(null);
+    onError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", catalogFile);
+      const result = await requestFormData<CatalogImportResult>(
+        `/api/v1/admin/products/import?importMode=RAW_EXTERNAL&importFormat=GRUN_STANDARD&dryRun=${dryRun}`,
+        formData,
+        { timeoutMs: 180000 }
+      );
+      setCatalogResult(result);
+      setCatalogTransferState("ready");
+      const errors = result.errors?.length ?? 0;
+      const skipped = result.skippedRows ?? 0;
+      const complete = errors === 0 && skipped === 0 && (result.savedRows ?? 0) === (result.totalRows ?? 0);
+      setCatalogPreviewPassed(dryRun && complete);
+      setCatalogNotice({
+        tone: complete ? "success" : "warning",
+        message: locale === "tr"
+          ? `${dryRun ? "Prova" : "İçe aktarma"} tamamlandı. ${result.totalRows ?? 0} satır kontrol edildi; ${result.insertedRows ?? 0} yeni, ${result.updatedRows ?? 0} güncelleme, ${skipped} atlanan satır.${dryRun ? " Prova değişiklikleri geri alındı." : " Kayıtlar inceleme kuyruğuna gönderildi."}`
+          : `${dryRun ? "Dry run" : "Import"} completed. ${result.totalRows ?? 0} rows checked; ${result.insertedRows ?? 0} new, ${result.updatedRows ?? 0} updates, ${skipped} skipped.${dryRun ? " Dry-run changes were rolled back." : " Records were sent to the review queue."}`
+      });
+      if (!dryRun) await reload();
+    } catch (err) {
+      setCatalogTransferState("error");
+      setCatalogPreviewPassed(false);
+      onError(formatRequestError(err));
+    }
+  }
+
   return (
     <div className="stack product-review-page modern-operations-page">
       <SectionToolbar title={modeTitle} description={qualityWorkspace ? (locale === "tr" ? "Görsel, besin değeri ve reddedilen ürün incelemelerini tek çalışma alanından yönetin." : "Manage image, nutrition, and rejected-product reviews from one workspace.") : text.modeDescription[viewMode]} state={state} onReload={reload}>
@@ -602,6 +688,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
         catalogType && `${text.catalog}: ${humanizeFeature(catalogType)}`,
         dataSource && `${text.dataSource}: ${humanizeFeature(dataSource)}`,
         qualityIssue && `${text.qualityIssue}: ${humanizeFeature(qualityIssue)}`
+        ,publicationStatus && `${text.publication}: ${humanizeFeature(publicationStatus)}`
       ].filter(Boolean).map((item) => <span key={String(item)}>{item}</span>)}</div>}
 
       <CollapsiblePanel title={text.filtersTitle} description={text.filtersDescription} open={filtersOpen} onToggle={() => setFiltersOpen((current) => !current)}>
@@ -616,6 +703,13 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
             <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)}>
               <option value="">{text.all}</option>
               {VERIFICATION_STATUSES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
+            </select>
+          </label>
+          <label>
+            {text.publication}
+            <select value={publicationStatus} onChange={(event) => setPublicationStatus(event.target.value)}>
+              <option value="">{text.all}</option>
+              {PUBLICATION_STATUSES.map((value) => <option key={value} value={value}>{humanizeFeature(value)}</option>)}
             </select>
           </label>
           <label>
@@ -657,6 +751,36 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
         <details className="review-transfer-panel product-review-bulk-tools">
           <summary>{text.bulkTools}</summary>
           <div className="product-review-bulk-intro">
+            <div><span>GRUN_STANDARD</span><strong>{text.catalogImport}</strong><p>{text.catalogImportDescription}</p></div>
+            <ol aria-label={text.catalogImport}>
+              <li><b>1</b><span>{text.catalogFile}</span></li>
+              <li><b>2</b><span>{text.dryRun}</span></li>
+              <li><b>3</b><span>{text.applyImport}</span></li>
+            </ol>
+          </div>
+          <div className="review-transfer-actions">
+            <label className="file-picker product-review-file-picker">
+              <span>{text.catalogFile}</span>
+              <input type="file" accept=".csv,text/csv" onChange={(event) => { setCatalogFile(event.target.files?.[0] ?? null); setCatalogResult(null); setCatalogNotice(null); setCatalogPreviewPassed(false); }} />
+              <span className="product-review-file-control"><b>{text.chooseFile}</b><em>{catalogFile?.name ?? text.noFile}</em></span>
+            </label>
+            <span className="muted-text">{text.previewRequired}</span>
+            <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={catalogTransferState === "loading" || !catalogFile} onClick={() => importNewCatalog(true)}>{text.dryRun}</button><button className="primary-button" type="button" disabled={catalogTransferState === "loading" || !catalogFile || !catalogPreviewPassed} onClick={() => importNewCatalog(false)}>{text.applyImport}</button></div>
+          </div>
+          {catalogNotice && <div className={`product-review-import-notice ${catalogNotice.tone}`} role="status" aria-live="polite"><strong>{catalogNotice.tone === "success" ? (locale === "tr" ? "Katalog dosyası hazır" : "Catalog file ready") : (locale === "tr" ? "Kontrol gerekli" : "Attention required")}</strong><span>{catalogNotice.message}</span></div>}
+          {catalogResult && <div className="correction-result-grid">
+            <MetricPill label={text.totalRows} value={formatValue(catalogResult.totalRows)} />
+            <MetricPill label={locale === "tr" ? "Yeni ürün" : "New products"} value={formatValue(catalogResult.insertedRows)} />
+            <MetricPill label={text.updatedRows} value={formatValue(catalogResult.updatedRows)} />
+            <MetricPill label={text.skippedRows} value={formatValue(catalogResult.skippedRows)} />
+            <MetricPill label={locale === "tr" ? "İnceleme gerekli" : "Review required"} value={formatValue(catalogResult.reviewRequiredRows)} />
+            <MetricPill label={locale === "tr" ? "Kalite puanı" : "Quality score"} value={formatValue(catalogResult.importQualityScore)} />
+          </div>}
+          {catalogResult?.errors?.length ? <div className="correction-error-list">
+            {catalogResult.errors.slice(0, 5).map((error, index) => <span key={`${error.rowNumber ?? index}-${error.identifier ?? "row"}`}>{locale === "tr" ? "Satır" : "Row"} {error.rowNumber ?? "-"}: {error.reason ?? error.code ?? "Import error"}</span>)}
+          </div> : null}
+          <hr />
+          <div className="product-review-bulk-intro">
             <div><span>CSV / TSV</span><strong>{text.bulkWorkflow}</strong><p>{text.bulkDescription}</p></div>
             <ol aria-label={text.bulkWorkflow}>
               <li><b>1</b><span>{text.exportFilter}</span></li>
@@ -693,10 +817,17 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
 
       <section className="product-review-queue" aria-labelledby="product-review-queue-title">
         <div className="product-review-queue-heading"><div><span className="eyebrow">{text.queueEyebrow}</span><h3 id="product-review-queue-title">{text.queueTitle}</h3><p>{text.queueDescription}</p></div><strong>{formatValue(totalElements)}</strong></div>
+      {canManage && <div className="product-review-publish-toolbar">
+        <label className="inline-check"><input type="checkbox" aria-label={locale === "tr" ? "Sayfadaki doğrulanmış yayınlanmamış ürünleri seç" : "Select verified unpublished products on this page"} checked={publishableRows.length > 0 && publishableRows.every(item => selectedPublishIds.has(item.id!))} onChange={event => { const ids = publishableRows.map(item => item.id!); setSelectedPublishIds(current => { const next = new Set(current); ids.forEach(id => event.target.checked ? next.add(id) : next.delete(id)); return next; }); }} /><span>{locale === "tr" ? "Sayfayı seç" : "Select page"}</span></label>
+        <span><strong>{selectedPublishIds.size}</strong> {locale === "tr" ? "ürün seçildi" : "products selected"}</span>
+        <input maxLength={500} value={batchPublishReason} onChange={event => setBatchPublishReason(event.target.value)} placeholder={locale === "tr" ? "Toplu yayın gerekçesi" : "Batch publication reason"} />
+        <button className="primary-button" type="button" disabled={!selectedPublishIds.size || !batchPublishReason.trim() || batchPublishing} onClick={() => void publishSelectedProducts()}>{batchPublishing ? (locale === "tr" ? "Yayınlanıyor…" : "Publishing…") : (locale === "tr" ? "Seçilenleri yayınla" : "Publish selected")}</button>
+      </div>}
       <DataTable
         caption={text.queueTitle}
-        columns={[text.product, text.source, text.review, text.quality, text.nutrition]}
+        columns={[...(canManage ? [locale === "tr" ? "Seç" : "Select"] : []), text.product, text.source, text.review, text.publicationColumn, text.quality, text.nutrition]}
         rows={rows.map((item) => [
+          ...(canManage ? [<input key={`select-${item.id}`} type="checkbox" aria-label={`${productName(item)} ${locale === "tr" ? "ürününü seç" : "select product"}`} disabled={!item.id || item.verificationStatus !== "VERIFIED" || item.publicationStatus === "PUBLISHED"} checked={Boolean(item.id && selectedPublishIds.has(item.id))} onClick={event => event.stopPropagation()} onChange={event => { if (!item.id) return; setSelectedPublishIds(current => { const next = new Set(current); if (event.target.checked) next.add(item.id!); else next.delete(item.id!); return next; }); }} />] : []),
           <ProductCell item={item} />,
           <div className="table-stack">
             <span>{item.marketRegion ?? "-"}</span>
@@ -706,6 +837,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
             <Badge value={item.verificationStatus} />
             <Badge value={item.imageStatus} tone="neutral" />
           </div>,
+          <Badge value={item.publicationStatus ?? "INTERNAL_REVIEW"} tone={item.publicationStatus === "PUBLISHED" ? "good" : item.publicationStatus === "HIDDEN" ? "danger" : "warn"} />,
           <div className="table-stack">
             <strong>{formatValue(item.qualityScore)} / 100</strong>
             <small>Priority {formatValue(item.reviewPriority)}</small>
@@ -737,6 +869,19 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
           onApprove={() => updateReview(selectedProduct, "VERIFIED")}
           onReject={() => setRejectConfirmationOpen(true)}
           onSave={() => saveReviewChanges(selectedProduct, reviewDraft)}
+          onPublish={async () => {
+            if (!selectedProduct.id || !reviewNote.trim()) return;
+            setSaving(true);
+            onError(null);
+            try {
+              const published = await request<FoodProduct>(`/api/v1/admin/products/${selectedProduct.id}/publish`, { method: "POST", body: { reason: reviewNote.trim() } });
+              setSelectedProduct(published);
+              setReviewDraft(toProductReviewDraft(published));
+              setReviewNote("");
+              await reload();
+            } catch (error) { onError(formatRequestError(error)); }
+            finally { setSaving(false); }
+          }}
           draft={reviewDraft}
           reviewNote={reviewNote}
           saving={saving}
@@ -777,6 +922,7 @@ export function ProductReviewModal({
   onApprove,
   onReject,
   onSave,
+  onPublish,
   draft,
   reviewNote,
   saving,
@@ -791,6 +937,7 @@ export function ProductReviewModal({
   onApprove: () => void;
   onReject: () => void;
   onSave: () => void;
+  onPublish: () => void;
   draft: ProductReviewDraft;
   reviewNote: string;
   saving: boolean;
@@ -814,9 +961,9 @@ export function ProductReviewModal({
   const [barcodeConfirmOpen, setBarcodeConfirmOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<"quality" | "edit" | "barcode">("quality");
   const detailText = locale === "tr" ? {
-    eyebrow: "Ürün inceleme", noIdentity: "Marka veya barkod yok", close: "Kapat", quality: "Kalite ve kanıt", edit: "Ürünü düzenle", barcode: "Barkod", snapshot: "Ürün özeti", noImage: "Görsel yok", editIntro: "Katalog bilgileri", editHint: "Temel alanları ve 100 g/ml başına besin değerlerini doğrulayın.", reviewNote: "İnceleme notu", reviewPlaceholder: "Bu karar için isteğe bağlı not", reject: "Reddet", save: "Değişiklikleri kaydet", approve: "Onayla", saving: "Kaydediliyor..."
+    eyebrow: "Ürün inceleme", noIdentity: "Marka veya barkod yok", close: "Kapat", quality: "Kalite ve kanıt", edit: "Ürünü düzenle", barcode: "Barkod", snapshot: "Ürün özeti", noImage: "Görsel yok", editIntro: "Katalog bilgileri", editHint: "Temel alanları ve 100 g/ml başına besin değerlerini doğrulayın.", reviewNote: "İnceleme notu", reviewPlaceholder: "Yayın için zorunlu karar ve kaynak notu", reject: "Reddet", save: "Değişiklikleri kaydet", approve: "Doğrula", publish: "Mobil kataloğa yayınla", saving: "Kaydediliyor..."
   } : {
-    eyebrow: "Product review", noIdentity: "No brand or barcode", close: "Close", quality: "Quality & evidence", edit: "Edit product", barcode: "Barcode", snapshot: "Product snapshot", noImage: "No image", editIntro: "Catalog information", editHint: "Verify core fields and nutrition values per 100g/ml.", reviewNote: "Review note", reviewPlaceholder: "Optional note for this decision", reject: "Reject", save: "Save changes", approve: "Approve", saving: "Saving..."
+    eyebrow: "Product review", noIdentity: "No brand or barcode", close: "Close", quality: "Quality & evidence", edit: "Edit product", barcode: "Barcode", snapshot: "Product snapshot", noImage: "No image", editIntro: "Catalog information", editHint: "Verify core fields and nutrition values per 100g/ml.", reviewNote: "Review note", reviewPlaceholder: "Required publication decision and source note", reject: "Reject", save: "Save changes", approve: "Verify", publish: "Publish to mobile catalog", saving: "Saving..."
   };
   const barcodeValidation = validateGtin(barcode);
   const image = item.displayImageUrl ?? item.imageUrl ?? item.externalImageUrl;
@@ -853,6 +1000,7 @@ export function ProductReviewModal({
             </div>
             <div className="product-review-snapshot-meta">
               <Badge value={item.verificationStatus} />
+              <Badge value={item.publicationStatus} tone={item.publicationStatus === "PUBLISHED" ? "good" : "warn"} />
               <Badge value={item.imageStatus} tone="neutral" />
               <div><span>{locale === "tr" ? "Kalite" : "Quality"}</span><strong>{formatValue(item.qualityScore)} / 100</strong></div>
               <div><span>{locale === "tr" ? "Öncelik" : "Priority"}</span><strong>{formatValue(item.reviewPriority)}</strong></div>
@@ -930,7 +1078,7 @@ export function ProductReviewModal({
               <header><div><span>{locale === "tr" ? "Ölçüm ve kaynak" : "Measurement & source"}</span><strong>{locale === "tr" ? "Besin referansı ve katalog kaynağı" : "Nutrition reference and catalog provenance"}</strong></div><small>{locale === "tr" ? "Mobil uygulama bu ölçüye göre doğru porsiyon seçeneklerini gösterir." : "The mobile app uses this basis to present the correct portion options."}</small></header>
               <div className="product-review-editor-grid">
                 <label><span>{locale === "tr" ? "Besin verisinin türü" : "Nutrition provenance"}</span><select value={draft.nutritionBasis} onChange={(event) => updateDraft("nutritionBasis", event.target.value)}><option value="SOURCE_REPORTED">{locale === "tr" ? "Kaynakta bildirilen" : "Source reported"}</option><option value="CALCULATED">{locale === "tr" ? "Hesaplanan" : "Calculated"}</option><option value="ESTIMATED">{locale === "tr" ? "Tahmini" : "Estimated"}</option></select></label>
-                <label><span>{locale === "tr" ? "Referans ölçü" : "Reference unit"}</span><select value={draft.nutritionReferenceUnit} onChange={(event) => updateDraft("nutritionReferenceUnit", event.target.value)}><option value="PER_100G">100 g</option><option value="PER_100ML">100 ml</option></select></label>
+                <label><span>{locale === "tr" ? "Referans ölçü" : "Reference unit"}</span><select value={draft.nutritionReferenceUnit} onChange={(event) => updateDraft("nutritionReferenceUnit", event.target.value)}><option value="PER_100G">100 g</option><option value="PER_100ML">100 ml</option><option value="PER_SERVING">{locale === "tr" ? "1 servis" : "1 serving"}</option></select></label>
                 <label className="wide"><span>{locale === "tr" ? "Kaynak kategori etiketleri" : "Source category tags"}</span><input value={draft.sourceCategoryTags} onChange={(event) => updateDraft("sourceCategoryTags", event.target.value)} placeholder={locale === "tr" ? "Virgülle ayırın" : "Comma separated"} /></label>
                 <label><span>{locale === "tr" ? "Kaynak adı" : "Source name"}</span><input maxLength={160} value={draft.adminSourceName} onChange={(event) => updateDraft("adminSourceName", event.target.value)} /></label>
                 <label><span>{locale === "tr" ? "Kaynak bağlantısı" : "Source URL"}</span><input type="url" maxLength={1000} value={draft.adminSourceUrl} onChange={(event) => updateDraft("adminSourceUrl", event.target.value)} placeholder="https://..." /></label>
@@ -996,6 +1144,7 @@ export function ProductReviewModal({
               <button className="ghost-button danger-action" disabled={saving} onClick={onReject} type="button">{detailText.reject}</button>
               <button className="ghost-button" disabled={saving} onClick={onSave} type="button">{detailText.save}</button>
               <button className="primary-button" disabled={saving} onClick={onApprove} type="button">{saving ? detailText.saving : detailText.approve}</button>
+              {item.verificationStatus === "VERIFIED" && item.publicationStatus !== "PUBLISHED" && <button className="primary-button" disabled={saving || !reviewNote.trim()} onClick={onPublish} type="button">{saving ? detailText.saving : detailText.publish}</button>}
             </div>
             </div>}
           </div>
@@ -1163,7 +1312,7 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
         <div><strong>{locale === "tr" ? "Manuel porsiyon seçenekleri" : "Manual serving options"}</strong><small>{locale === "tr" ? "Gram/ml dönüşümü ve EN/TR etiketleri birlikte yönetilir." : "Manage gram/ml conversion and EN/TR labels together."}</small></div>
         <button className="primary-button" type="button" onClick={() => openServingEditor()}>{locale === "tr" ? "Porsiyon ekle" : "Add serving"}</button>
       </div>
-      {servingEditor && <ServingOptionEditor editor={servingEditor} locale={locale} busy={state === "loading"} onChange={setServingEditor} onCancel={() => setServingEditor(null)} onSave={saveServingOption} />}
+      {servingEditor && <ServingOptionEditor editor={servingEditor} locale={locale} busy={state === "loading"} allowNativeServing={product.nutritionReferenceUnit === "PER_SERVING"} onChange={setServingEditor} onCancel={() => setServingEditor(null)} onSave={saveServingOption} />}
       <DataTable columns={locale === "tr" ? ["Porsiyon", "Dönüşüm", "Kaynak", "Kalite", "Diller", "İşlem"] : ["Serving", "Conversion", "Source", "Quality", "Localizations", "Action"]} rows={(data?.servingOptions ?? []).map((item) => [<div className="entity-cell"><strong>{item.label ?? "-"}</strong><small>{item.defaultOption ? (locale === "tr" ? "Varsayılan" : "Default") : item.unitType ?? "-"} · {item.userVisible === false ? (locale === "tr" ? "Gizli" : "Hidden") : (locale === "tr" ? "Görünür" : "Visible")}</small></div>, [item.gramWeight != null ? `${item.gramWeight} g` : null, item.mlVolume != null ? `${item.mlVolume} ml` : null].filter(Boolean).join(" / ") || `${formatValue(item.quantity)} ${item.unitType ?? ""}`, item.source ?? "-", <Badge value={item.qualityStatus ?? "-"} tone={item.qualityStatus === "VERIFIED" ? "good" : "warn"} />, (item.localizations ?? []).map((value) => `${value.language}: ${value.label}`).join(", ") || "-", <button className="ghost-button" type="button" onClick={() => openServingEditor(item)}>{locale === "tr" ? "Düzenle" : "Edit"}</button>])} empty={locale === "tr" ? "Porsiyon seçeneği yok." : "No serving options."} />
       <WorkbenchSuggestionTable suggestions={servingSuggestions} comparisons={comparisons} onReview={reviewSuggestion} />
     </div>}
@@ -1178,11 +1327,12 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
   </section>;
 }
 
-export function ServingOptionEditor({ editor, locale, busy, onChange, onCancel, onSave }: { editor: { id?: number; value: AdminFoodServingOptionUpsert }; locale: "tr" | "en"; busy: boolean; onChange: (value: { id?: number; value: AdminFoodServingOptionUpsert }) => void; onCancel: () => void; onSave: () => void }) {
+export function ServingOptionEditor({ editor, locale, busy, allowNativeServing, onChange, onCancel, onSave }: { editor: { id?: number; value: AdminFoodServingOptionUpsert }; locale: "tr" | "en"; busy: boolean; allowNativeServing: boolean; onChange: (value: { id?: number; value: AdminFoodServingOptionUpsert }) => void; onCancel: () => void; onSave: () => void }) {
   const tr = locale === "tr";
   const update = (patch: Partial<AdminFoodServingOptionUpsert>) => onChange({ ...editor, value: { ...editor.value, ...patch } });
   const updateLocalization = (language: "EN" | "TR", label: string) => update({ localizations: editor.value.localizations.map((item) => item.language === language ? { ...item, label } : item) });
-  const valid = editor.value.label.trim() && editor.value.quantity > 0 && (Number(editor.value.gramWeight) > 0 || Number(editor.value.mlVolume) > 0) && editor.value.localizations.every((item) => item.label.trim()) && (!editor.value.defaultOption || (editor.value.userVisible && editor.value.qualityStatus === "VERIFIED")) && (!editor.value.userVisible || editor.value.qualityStatus === "VERIFIED");
+  const nativeServing = allowNativeServing && ["SERVING", "PORTION", "PIECE"].includes(editor.value.unitType);
+  const valid = editor.value.label.trim() && editor.value.quantity > 0 && (nativeServing || Number(editor.value.gramWeight) > 0 || Number(editor.value.mlVolume) > 0) && editor.value.localizations.every((item) => item.label.trim()) && (!editor.value.defaultOption || (editor.value.userVisible && editor.value.qualityStatus === "VERIFIED")) && (!editor.value.userVisible || editor.value.qualityStatus === "VERIFIED");
   return <section className="serving-option-editor" aria-label={tr ? "Porsiyon seçeneği düzenleyici" : "Serving option editor"}>
     <header><div><span className="eyebrow">{editor.id ? (tr ? "PORSİYON DÜZENLE" : "EDIT SERVING") : (tr ? "YENİ PORSİYON" : "NEW SERVING")}</span><strong>{tr ? "Kullanıcıya sunulacak ölçüyü tanımlayın" : "Define the measure shown to users"}</strong></div></header>
     <div className="serving-option-form-grid">
@@ -1199,7 +1349,7 @@ export function ServingOptionEditor({ editor, locale, busy, onChange, onCancel, 
       <label><input type="checkbox" checked={editor.value.userVisible} onChange={(event) => update({ userVisible: event.target.checked })} /><span>{tr ? "Mobil uygulamada göster" : "Show in mobile app"}</span></label>
       <label><input type="checkbox" checked={editor.value.defaultOption} onChange={(event) => update({ defaultOption: event.target.checked })} /><span>{tr ? "Varsayılan seçenek" : "Default option"}</span></label>
     </div>
-    <p className="serving-option-help">{tr ? "En az bir dönüşüm değeri zorunludur. Görünür ve varsayılan seçenekler doğrulanmış olmalıdır." : "At least one conversion is required. Visible and default options must be verified."}</p>
+    <p className="serving-option-help">{allowNativeServing ? (tr ? "Servis bazlı üründe gram/ml dönüşümü yalnızca kaynakta varsa girilir. Görünür ve varsayılan seçenekler doğrulanmış olmalıdır." : "For per-serving products, add gram/ml only when the source provides it. Visible and default options must be verified.") : (tr ? "En az bir dönüşüm değeri zorunludur. Görünür ve varsayılan seçenekler doğrulanmış olmalıdır." : "At least one conversion is required. Visible and default options must be verified.")}</p>
     <div className="inline-actions"><button className="ghost-button" type="button" onClick={onCancel}>{tr ? "İptal" : "Cancel"}</button><button className="primary-button" type="button" disabled={busy || !valid} onClick={onSave}>{busy ? (tr ? "Kaydediliyor…" : "Saving...") : (tr ? "Kaydet" : "Save")}</button></div>
   </section>;
 }
@@ -1435,6 +1585,7 @@ export function buildProductReviewPath(filters: {
   catalogType: string;
   dataSource: string;
   qualityIssue: string;
+  publicationStatus: string;
   page: number;
   size: number;
 }): string {
@@ -1456,6 +1607,7 @@ export function buildProductReviewExportPath(filters: {
   catalogType: string;
   dataSource: string;
   qualityIssue: string;
+  publicationStatus: string;
   limit: number;
 }): string {
   const params = new URLSearchParams();

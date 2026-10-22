@@ -83,13 +83,14 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setPortionSize(dto.getPortionSize());
         entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
         FoodPortionCalculator.validateServingOptionUnit(entity.getPortionUnit(), entity.getServingOption());
-        applyNormalizedPortion(entity, FoodPortionCalculator.normalize(
+        NormalizedFoodPortion normalized = FoodPortionCalculator.normalize(
                 dto.getPortionSize(),
                 entity.getPortionUnit(),
                 foodItem,
                 entity.getServingOption()
-        ));
-        applyNutritionSnapshot(entity, foodItem);
+        );
+        applyNormalizedPortion(entity, normalized);
+        applyNutritionSnapshot(entity, foodItem, normalized.nutritionReferenceAmount());
         entity.setMealType(normalizeMealType(dto.getMealType()));
         entity.setLogDate(dto.getLogDate());
         entity.setSource(resolveSource(dto.getSource(), FoodLogSource.MANUAL));
@@ -187,13 +188,14 @@ public class FoodLogsServiceImpl implements FoodLogsService {
             entity.setPortionSize(dto.getPortionSize());
             entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
             FoodPortionCalculator.validateServingOptionUnit(entity.getPortionUnit(), entity.getServingOption());
-            applyNormalizedPortion(entity, FoodPortionCalculator.normalize(
+            NormalizedFoodPortion normalized = FoodPortionCalculator.normalize(
                     dto.getPortionSize(),
                     entity.getPortionUnit(),
                     foodItem,
                     entity.getServingOption()
-            ));
-            applyNutritionSnapshot(entity, foodItem);
+            );
+            applyNormalizedPortion(entity, normalized);
+            applyNutritionSnapshot(entity, foodItem, normalized.nutritionReferenceAmount());
         } else {
             updateSnapshotOnlyPortion(entity, dto);
         }
@@ -467,8 +469,10 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                         return 0.0;
                     }
                     Double value = nutrient.apply(log.getFoodItem());
-                    Double grams = log.getNormalizedPortionGrams() != null ? log.getNormalizedPortionGrams() : log.getPortionSize();
-                    return (value == null ? 0.0 : value) * (grams == null ? 0.0 : grams) / 100.0;
+                    Double amount = resolveReferenceAmount(log, log.getFoodItem());
+                    double divisor = log.getFoodItem().getNutritionReferenceUnit()
+                            == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING ? 1.0 : 100.0;
+                    return (value == null ? 0.0 : value) * (amount == null ? 0.0 : amount) / divisor;
                 })
                 .sum());
     }
@@ -690,6 +694,9 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         entity.setPortionSize(dto.getPortionSize());
         entity.setPortionUnit(FoodPortionCalculator.resolveUnit(dto.getPortionUnit()));
         entity.setNormalizedPortionGrams(scaleSnapshotValue(entity.getNormalizedPortionGrams(), ratio));
+        entity.setNormalizedPortionMilliliters(scaleSnapshotValue(entity.getNormalizedPortionMilliliters(), ratio));
+        entity.setNormalizedNutritionReferenceAmount(scaleSnapshotValue(
+                entity.getNormalizedNutritionReferenceAmount(), ratio));
         entity.setSnapshotCalories(scaleSnapshotValue(entity.getSnapshotCalories(), ratio));
         entity.setSnapshotProtein(scaleSnapshotValue(entity.getSnapshotProtein(), ratio));
         entity.setSnapshotCarbs(scaleSnapshotValue(entity.getSnapshotCarbs(), ratio));
@@ -754,6 +761,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         copy.setPortionUnit(FoodPortionCalculator.resolveUnit(source.getPortionUnit()));
         copy.setNormalizedPortionGrams(source.getNormalizedPortionGrams());
         copy.setNormalizedPortionMilliliters(source.getNormalizedPortionMilliliters());
+        copy.setNormalizedNutritionReferenceAmount(source.getNormalizedNutritionReferenceAmount());
         copy.setSnapshotCalories(source.getSnapshotCalories());
         copy.setSnapshotProtein(source.getSnapshotProtein());
         copy.setSnapshotCarbs(source.getSnapshotCarbs());
@@ -858,6 +866,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         dto.setPortionUnit(FoodPortionCalculator.resolveUnit(entity.getPortionUnit()));
         dto.setNormalizedPortionGrams(entity.getNormalizedPortionGrams());
         dto.setNormalizedPortionMilliliters(entity.getNormalizedPortionMilliliters());
+        dto.setNormalizedNutritionReferenceAmount(entity.getNormalizedNutritionReferenceAmount());
         dto.setSnapshotCalories(entity.getSnapshotCalories());
         dto.setSnapshotProtein(entity.getSnapshotProtein());
         dto.setSnapshotCarbs(entity.getSnapshotCarbs());
@@ -917,47 +926,66 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         return "";
     }
 
-    private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem) {
-        Double referenceAmount = foodItem.getNutritionReferenceUnit() == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML
-                ? entity.getNormalizedPortionMilliliters()
-                : entity.getNormalizedPortionGrams();
-        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), referenceAmount));
-        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), referenceAmount));
-        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), referenceAmount));
-        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), referenceAmount));
-        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), referenceAmount));
-        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), referenceAmount));
-        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), referenceAmount));
-        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), referenceAmount));
-        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), referenceAmount));
-        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), referenceAmount));
-        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), referenceAmount));
-        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), referenceAmount));
-        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), referenceAmount));
-        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), referenceAmount));
-        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), referenceAmount));
-        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), referenceAmount));
-        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), referenceAmount));
-        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), referenceAmount));
-        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), referenceAmount));
+    private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem, Double referenceAmount) {
+        boolean perServing = foodItem.getNutritionReferenceUnit()
+                == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING;
+        double divisor = perServing ? 1.0 : 100.0;
+        entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), referenceAmount, divisor));
+        entity.setSnapshotProtein(calculateNutritionValue(foodItem.getProtein(), referenceAmount, divisor));
+        entity.setSnapshotCarbs(calculateNutritionValue(foodItem.getCarbs(), referenceAmount, divisor));
+        entity.setSnapshotFat(calculateNutritionValue(foodItem.getFat(), referenceAmount, divisor));
+        entity.setSnapshotFiber(calculateNullableNutritionValue(foodItem.getFiber(), referenceAmount, divisor));
+        entity.setSnapshotSugar(calculateNullableNutritionValue(foodItem.getSugar(), referenceAmount, divisor));
+        entity.setSnapshotSaturatedFat(calculateNullableNutritionValue(foodItem.getSaturatedFat(), referenceAmount, divisor));
+        entity.setSnapshotSodium(calculateNullableNutritionValue(foodItem.getSodium(), referenceAmount, divisor));
+        entity.setSnapshotPotassium(calculateNullableNutritionValue(foodItem.getPotassium(), referenceAmount, divisor));
+        entity.setSnapshotCholesterol(calculateNullableNutritionValue(foodItem.getCholesterol(), referenceAmount, divisor));
+        entity.setSnapshotCalcium(calculateNullableNutritionValue(foodItem.getCalcium(), referenceAmount, divisor));
+        entity.setSnapshotIron(calculateNullableNutritionValue(foodItem.getIron(), referenceAmount, divisor));
+        entity.setSnapshotMagnesium(calculateNullableNutritionValue(foodItem.getMagnesium(), referenceAmount, divisor));
+        entity.setSnapshotZinc(calculateNullableNutritionValue(foodItem.getZinc(), referenceAmount, divisor));
+        entity.setSnapshotVitaminA(calculateNullableNutritionValue(foodItem.getVitaminA(), referenceAmount, divisor));
+        entity.setSnapshotVitaminC(calculateNullableNutritionValue(foodItem.getVitaminC(), referenceAmount, divisor));
+        entity.setSnapshotVitaminD(calculateNullableNutritionValue(foodItem.getVitaminD(), referenceAmount, divisor));
+        entity.setSnapshotVitaminE(calculateNullableNutritionValue(foodItem.getVitaminE(), referenceAmount, divisor));
+        entity.setSnapshotVitaminB12(calculateNullableNutritionValue(foodItem.getVitaminB12(), referenceAmount, divisor));
     }
 
     private void applyNormalizedPortion(FoodLogsEntity entity, NormalizedFoodPortion normalized) {
         entity.setNormalizedPortionGrams(normalized.grams());
         entity.setNormalizedPortionMilliliters(normalized.milliliters());
+        entity.setNormalizedNutritionReferenceAmount(normalized.nutritionReferenceAmount());
     }
 
-    private Double calculateNutritionValue(Double perHundredGrams, Double grams) {
-        return round((perHundredGrams == null ? 0.0 : perHundredGrams)
-                * (grams == null ? 0.0 : grams)
-                / 100.0);
+    private Double resolveReferenceAmount(FoodLogsEntity entity, FoodItemEntity foodItem) {
+        if (entity.getNormalizedNutritionReferenceAmount() != null) {
+            return entity.getNormalizedNutritionReferenceAmount();
+        }
+        if (foodItem == null || foodItem.getNutritionReferenceUnit() == null) {
+            return entity.getNormalizedPortionGrams() != null
+                    ? entity.getNormalizedPortionGrams()
+                    : entity.getPortionSize();
+        }
+        return switch (foodItem.getNutritionReferenceUnit()) {
+            case PER_100ML -> entity.getNormalizedPortionMilliliters();
+            case PER_100G -> entity.getNormalizedPortionGrams() != null
+                    ? entity.getNormalizedPortionGrams()
+                    : entity.getPortionSize();
+            case PER_SERVING -> entity.getPortionUnit() == FoodPortionUnit.SERVING
+                    ? entity.getPortionSize()
+                    : null;
+        };
     }
 
-    private Double calculateNullableNutritionValue(Double perHundredGrams, Double grams) {
-        if (perHundredGrams == null || grams == null) {
+    private Double calculateNutritionValue(Double value, Double amount, double divisor) {
+        return round((value == null ? 0.0 : value) * (amount == null ? 0.0 : amount) / divisor);
+    }
+
+    private Double calculateNullableNutritionValue(Double value, Double amount, double divisor) {
+        if (value == null || amount == null) {
             return null;
         }
-        return round(perHundredGrams * grams / 100.0);
+        return round(value * amount / divisor);
     }
 
     private FoodItemServingOptionEntity resolveServingOption(Long servingOptionId, FoodItemEntity foodItem) {

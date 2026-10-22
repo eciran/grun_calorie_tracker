@@ -39,7 +39,9 @@ public class FoodProductQualityIssueTracker {
                 option.getQualityStatus() == FoodServingOptionQualityStatus.VERIFIED
                         && Boolean.TRUE.equals(option.getUserVisible()) && positive(option.getQuantity())
                         && ((product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100G && positive(option.getGramWeight()))
-                        || (product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML && positive(option.getMlVolume()))));
+                        || (product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML && positive(option.getMlVolume()))
+                        || (product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_SERVING
+                            && option.getUnitType() != null)));
         boolean legacyMassPortion = product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100G && positive(product.getServingSizeGrams());
         if (structuredPortion || legacyMassPortion) {
             issues.remove(FoodProductQualityIssue.MISSING_SERVING_SIZE);

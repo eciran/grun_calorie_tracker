@@ -49,6 +49,8 @@ public class FoodLogsEntity {
 
     private Double normalizedPortionMilliliters;
 
+    private Double normalizedNutritionReferenceAmount;
+
     private Double snapshotCalories;
 
     private Double snapshotProtein;

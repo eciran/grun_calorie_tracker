@@ -134,11 +134,12 @@ export function UsersView({
       const start = new Date(`${selectedActivityDay}T00:00:00`); const end = new Date(start); end.setDate(end.getDate() + 1);
       params.set("activeFrom", start.toISOString()); params.set("activeTo", end.toISOString());
     } else {
-      if (from) params.set("createdFrom", new Date(`${from}T00:00:00`).toISOString());
-      if (to) { const end = new Date(`${to}T00:00:00`); end.setDate(end.getDate() + 1); params.set("createdTo", end.toISOString()); }
+      const datePrefix = trendMetric === "active" ? "active" : "created";
+      if (from) params.set(`${datePrefix}From`, new Date(`${from}T00:00:00`).toISOString());
+      if (to) { const end = new Date(`${to}T00:00:00`); end.setDate(end.getDate() + 1); params.set(`${datePrefix}To`, end.toISOString()); }
     }
     return `/api/v1/admin/users?${params.toString()}`;
-  }, [mode, userPage, userPageSize, appliedSearch, accountState, plan, region, language, verification, activity, from, to, selectedActivityDay]);
+  }, [mode, userPage, userPageSize, appliedSearch, accountState, plan, region, language, verification, activity, from, to, trendMetric, selectedActivityDay]);
   const analyticsTo = to || isoDay(new Date());
   const earliestAnalyticsDate = daysBefore(analyticsTo, 365);
   const requestedAnalyticsFrom = from || daysBefore(analyticsTo, 89);
@@ -172,7 +173,7 @@ export function UsersView({
       return;
     }
     setUserPage(0);
-  }, [mode, userPageSize, accountState, plan, region, language, verification, activity, appliedSearch, from, to]);
+  }, [mode, userPageSize, accountState, plan, region, language, verification, activity, appliedSearch, from, to, trendMetric]);
 
   useEffect(() => {
     const query = usersRouteSearch({ search: appliedSearch, accountState, plan, region, language, verification, activity, from, to, page: userPage, size: userPageSize, selectedUserId });
@@ -219,7 +220,7 @@ export function UsersView({
       <div className="user-filter-panel">
         <button className="user-filter-toggle" type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(value => !value)}><span><strong>{locale === "tr" ? "Kullanıcı filtreleri" : "User filters"}</strong><small>{locale === "tr" ? "Tarih, hesap ve kullanıcı özelliklerine göre listeyi daraltın." : "Narrow the directory by date, account and user attributes."}</small></span><b aria-hidden="true">{filtersOpen ? "−" : "+"}</b></button>
         {filtersOpen && <div className="user-filter-content">
-        <section className="user-date-filter"><div><strong>{locale === "tr" ? "Kayıt tarihi" : "Registration date"}</strong><small>{locale === "tr" ? "Varsayılan görünüm tüm kayıtları listeler. Tarih seçerseniz yalnızca o dönemde kaydolan kullanıcılar gösterilir." : "The default view lists every account. Choose dates only to limit users by registration period."}</small></div><div className="user-range-presets"><button className={!from && !to ? "active" : ""} type="button" onClick={() => { setFrom(""); setTo(""); }}>{locale === "tr" ? "Tüm zamanlar" : "All time"}</button>{([7,30,90] as const).map(days => <button className={from === daysAgo(days - 1) && to === isoDay(new Date()) ? "active" : ""} key={days} type="button" onClick={() => { setFrom(daysAgo(days - 1)); setTo(isoDay(new Date())); }}>{days} {locale === "tr" ? "gün" : "days"}</button>)}</div><div className="user-date-controls"><DatePickerButton label={locale === "tr" ? "Başlangıç" : "From"} value={from} max={to || undefined} onChange={setFrom}/><span>→</span><DatePickerButton label={locale === "tr" ? "Bitiş" : "To"} value={to} min={from || undefined} onChange={setTo}/></div></section>
+        <section className="user-date-filter"><div><strong>{trendMetric === "active" ? (locale === "tr" ? "Aktivite dönemi" : "Activity period") : (locale === "tr" ? "Kayıt dönemi" : "Registration period")}</strong><small>{trendMetric === "active" ? (locale === "tr" ? "Seçilen dönemde en az bir kez aktif olan kullanıcılar listelenir." : "Lists users who were active at least once during the selected period.") : (locale === "tr" ? "Seçilen dönemde kaydolan kullanıcılar listelenir." : "Lists users registered during the selected period.")}</small></div><div className="user-range-presets"><button className={!from && !to ? "active" : ""} type="button" onClick={() => { setFrom(""); setTo(""); }}>{locale === "tr" ? "Tüm zamanlar" : "All time"}</button>{([7,30,90] as const).map(days => <button className={from === daysAgo(days - 1) && to === isoDay(new Date()) ? "active" : ""} key={days} type="button" onClick={() => { setFrom(daysAgo(days - 1)); setTo(isoDay(new Date())); }}>{days} {locale === "tr" ? "gün" : "days"}</button>)}</div><div className="user-date-controls"><DatePickerButton label={locale === "tr" ? "Başlangıç" : "From"} value={from} max={to || undefined} onChange={setFrom}/><span>→</span><DatePickerButton label={locale === "tr" ? "Bitiş" : "To"} value={to} min={from || undefined} onChange={setTo}/></div></section>
         <section className="user-filter-main">
           <label className="user-filter-search">{copy.search}<span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.placeholder} />{search && <button type="button" onClick={() => setSearch("")} aria-label={copy.clear}>×</button>}</span></label>
           <label>{copy.account}<select value={accountState} onChange={(event) => setAccountState(event.target.value)}><option value="ANY">{copy.anyState}</option><option value="ENABLED">{copy.enabled}</option><option value="DISABLED">{copy.disabled}</option><option value="LOCKED">{copy.locked}</option></select></label>

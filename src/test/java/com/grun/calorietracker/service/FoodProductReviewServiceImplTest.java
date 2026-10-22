@@ -1000,6 +1000,7 @@ class FoodProductReviewServiceImplTest {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);
         product.setName("Raw Product");
+        product.setBrand("Old Brand");
         product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
         product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
         product.setImageStatus(ImageStatus.NEEDS_REVIEW);
@@ -1008,7 +1009,7 @@ class FoodProductReviewServiceImplTest {
                 "file",
                 "corrections.csv",
                 "text/csv",
-                "barcode,calories,protein,display_image_url\n3017620422003,539,6.3,https://cdn.grun.app/products/3017620422003.jpg\n".getBytes()
+                "barcode,brand,calories,protein,display_image_url\n3017620422003,Canonical Brand,539,6.3,https://cdn.grun.app/products/3017620422003.jpg\n".getBytes()
         );
 
         when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.of(product));
@@ -1022,6 +1023,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals(0, result.getSkippedRows());
         assertEquals(539.0, product.getCalories());
         assertEquals(6.3, product.getProtein());
+        assertEquals("Canonical Brand", product.getBrand());
         assertEquals("https://cdn.grun.app/products/3017620422003.jpg", product.getDisplayImageUrl());
         verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
     }

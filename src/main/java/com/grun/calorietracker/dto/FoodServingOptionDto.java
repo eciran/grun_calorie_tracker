@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 @Data
-@Schema(description = "Product-specific serving option with explicit mass/volume conversions for the product's nutrition reference dimension.")
+@Schema(description = "Product-specific serving option. PER_SERVING products may use a native serving without an invented mass/volume conversion.")
 public class FoodServingOptionDto {
 
     @Schema(description = "Serving option id.", example = "5")

@@ -16,6 +16,7 @@ public class MealTemplateItemDto {
     private String servingOptionLabel;
     private Double normalizedPortionGrams;
     private Double normalizedPortionMilliliters;
+    private Double normalizedNutritionReferenceAmount;
 
     @Schema(description = "Calories for this template item using its stored portion.", example = "180.0")
     private Double calories;

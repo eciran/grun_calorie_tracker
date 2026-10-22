@@ -20,4 +20,15 @@ class ManualContributionNutritionTest {
    assertThrows(IllegalArgumentException.class, () -> ManualContributionNutrition.validate(Map.of("nutritionReferenceUnit", "LITER")));
    assertThrows(IllegalArgumentException.class, () -> ManualContributionNutrition.validate(Map.of("servingAmount", 0)));
  }
+ @Test void perServingContributionDoesNotPersistServingCountAsGramWeight() {
+   var food = new FoodItemEntity();
+   ManualContributionNutrition.apply(food, Map.of(
+       "nutritionReferenceUnit", "PER_SERVING",
+       "servingAmount", 1.0,
+       "servingUnit", "serving"
+   ));
+   assertEquals(FoodNutritionReferenceUnit.PER_SERVING, food.getNutritionReferenceUnit());
+   assertNull(food.getServingSizeGrams());
+   assertEquals("serving", food.getServingUnit());
+ }
 }

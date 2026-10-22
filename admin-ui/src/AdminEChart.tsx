@@ -78,8 +78,10 @@ export function AdminEChart({
   const optionRef = useRef(buildOption);
   const seriesClickRef = useRef(onSeriesDataClick);
   const dataPointClickRef = useRef(onDataPointClick);
+  const dataPointCountRef = useRef(dataPointCount);
   seriesClickRef.current = onSeriesDataClick;
   dataPointClickRef.current = onDataPointClick;
+  dataPointCountRef.current = dataPointCount;
   optionRef.current = buildOption;
 
   const render = useCallback(() => {
@@ -107,6 +109,16 @@ export function AdminEChart({
         seriesClickRef.current?.(params.dataIndex, params.name ?? "");
       }
     });
+    const handlePlotClick = (event: { offsetX: number; offsetY: number; target?: unknown }) => {
+      const pointCount = dataPointCountRef.current;
+      if (event.target || !dataPointClickRef.current || !pointCount) return;
+      if (!chart.containPixel({ gridIndex: 0 }, [event.offsetX, event.offsetY])) return;
+      const converted = chart.convertFromPixel({ xAxisIndex: 0 }, [event.offsetX, event.offsetY]);
+      const categoryIndex = Number(Array.isArray(converted) ? converted[0] : converted);
+      if (!Number.isFinite(categoryIndex)) return;
+      dataPointClickRef.current(Math.max(0, Math.min(pointCount - 1, Math.round(categoryIndex))));
+    };
+    chart.getZr().on("click", handlePlotClick);
     const resizeObserver = new ResizeObserver(() => chart.resize());
     const themeObserver = new MutationObserver(render);
 
@@ -123,6 +135,7 @@ export function AdminEChart({
       document.fonts.removeEventListener("loadingdone", render);
       resizeObserver.disconnect();
       themeObserver.disconnect();
+      chart.getZr().off("click", handlePlotClick);
       chartRef.current = null;
       chart.dispose();
     };

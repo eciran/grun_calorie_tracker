@@ -63,7 +63,7 @@ class ProductCatalogAuditPostgresIntegrationTest extends ProductCatalogAuditInte
 
     @Test
     void validatesFullMigrationChainAndDatabaseConstraints() {
-        assertEquals("311", flyway.info().current().getVersion().getVersion());
+        assertEquals("313", flyway.info().current().getVersion().getVersion());
         assertEquals(0, flyway.info().pending().length);
         assertTrue(flyway.validateWithResult().validationSuccessful);
         assertEquals(1L, jdbc.queryForObject("select count(*) from product_catalog_audit_state", Long.class));

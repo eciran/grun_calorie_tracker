@@ -473,6 +473,35 @@ class FoodLogsServiceImplTest {
     }
 
     @Test
+    void addFoodLog_whenNutritionIsPerServing_scalesByServingCountWithoutInventingMass() {
+        foodItem.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_SERVING);
+        foodItem.setCalories(650.0);
+        foodItem.setProtein(24.0);
+        FoodLogsDto dto = new FoodLogsDto();
+        dto.setFoodItemId(1L);
+        dto.setPortionSize(1.5);
+        dto.setPortionUnit(FoodPortionUnit.SERVING);
+        dto.setMealType("lunch");
+        dto.setLogDate(LocalDateTime.now());
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(foodItem));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(foodLogsRepository.save(any(FoodLogsEntity.class))).thenAnswer(invocation -> {
+            FoodLogsEntity entity = invocation.getArgument(0);
+            entity.setId(13L);
+            return entity;
+        });
+
+        FoodLogsDto result = foodLogsService.addFoodLog(dto, "test@test.com");
+
+        assertNull(result.getNormalizedPortionGrams());
+        assertNull(result.getNormalizedPortionMilliliters());
+        assertEquals(1.5, result.getNormalizedNutritionReferenceAmount());
+        assertEquals(975.0, result.getSnapshotCalories());
+        assertEquals(36.0, result.getSnapshotProtein());
+    }
+
+    @Test
     void addFoodLog_whenPortionSizeIsNotPositive_rejectsBeforeSaving() {
         FoodLogsDto dto = new FoodLogsDto();
         dto.setFoodItemId(1L);

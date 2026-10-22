@@ -52,6 +52,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
@@ -238,8 +239,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                     .filter(product -> product.getNutritionReferenceUnit() == unit).toList();
             if (!sameBasis.isEmpty()) {
                 foodProductEvidenceService.recordImportEvidence(sameBasis,
-                        unit == FoodNutritionReferenceUnit.PER_100ML
-                                ? FoodEvidenceBasis.PER_100_ML : FoodEvidenceBasis.PER_100_G,
+                        switch (unit) {
+                            case PER_100ML -> FoodEvidenceBasis.PER_100_ML;
+                            case PER_SERVING -> FoodEvidenceBasis.SERVING;
+                            case PER_100G -> FoodEvidenceBasis.PER_100_G;
+                        },
                         evidenceObservedAt, parsedCsv.sourceFormat().name(), importedBy);
             }
         }
@@ -276,6 +280,18 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 errors,
                 warnings
         );
+    }
+
+    @Override
+    public FoodProductImportResultDto previewCsv(
+            MultipartFile file,
+            String importedBy,
+            FoodProductImportMode importMode,
+            FoodProductImportFormat importFormat
+    ) {
+        FoodProductImportResultDto result = importCsv(file, importedBy, importMode, importFormat);
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        return result;
     }
 
     private ParsedCsv parseCsv(MultipartFile file, FoodProductImportFormat requestedFormat) {
@@ -415,6 +431,16 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             if (missingReferenceUnit
                     && product != null && product.getNutritionReferenceUnit() != null) {
                 referenceUnit = product.getNutritionReferenceUnit();
+            }
+            if (referenceUnit == FoodNutritionReferenceUnit.PER_SERVING) {
+                String servingOptionsJson = firstText(
+                        row, "serving_options_json", "servingoptionsjson", "portion_options_json");
+                ServingOptionsParseResult servingOptions = parseServingOptions(row, referenceUnit);
+                if (servingOptionsJson == null || !servingOptions.valid() || servingOptions.options().isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "PER_SERVING nutrition requires exactly one default native serving option."
+                    );
+                }
             }
             sourceDataType = isUsdaRow(row) ? com.grun.calorietracker.service.support.UsdaCatalogClassificationRules.normalizeDataType(
                     firstText(row, "source_data_type", "data_type", "datatype")) : null;
@@ -910,12 +936,14 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             normalized = FoodNutritionReferenceUnit.PER_100G.name();
         } else if ("100ML".equals(normalized) || "PER100ML".equals(normalized)) {
             normalized = FoodNutritionReferenceUnit.PER_100ML.name();
+        } else if ("SERVING".equals(normalized) || "PERSERVING".equals(normalized)) {
+            normalized = FoodNutritionReferenceUnit.PER_SERVING.name();
         }
         try {
             return FoodNutritionReferenceUnit.valueOf(normalized);
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Unsupported nutrition reference unit: " + value
-                    + ". Supply PER_100G or PER_100ML from the nutrition source.");
+                    + ". Supply PER_100G, PER_100ML, or PER_SERVING from the nutrition source.");
         }
     }
 
@@ -1115,13 +1143,17 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (product.getProtein() == null || product.getFat() == null || product.getCarbs() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_MACROS", "Product is missing at least one protein, fat, or carbohydrate value; unknown is not zero.");
         }
-        if (product.getServingSizeGrams() == null) {
+        if (product.getNutritionReferenceUnit() != FoodNutritionReferenceUnit.PER_SERVING
+                && product.getServingSizeGrams() == null) {
             addWarning(warningCounts, warnings, row, identifier, "MISSING_SERVING_SIZE", "Product has no serving size value.");
         }
         String servingOptionsJson = firstText(row, "serving_options_json", "servingoptionsjson", "portion_options_json");
-        if (servingOptionsJson != null && !parseServingOptions(row).valid()) {
+        ServingOptionsParseResult servingOptions = parseServingOptions(row, product.getNutritionReferenceUnit());
+        if ((servingOptionsJson != null && !servingOptions.valid())
+                || (product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_SERVING
+                    && (servingOptionsJson == null || servingOptions.options().isEmpty()))) {
             addWarning(warningCounts, warnings, row, identifier, "INVALID_SERVING_OPTIONS",
-                    "Serving options JSON is invalid, duplicated, has multiple defaults, or lacks a positive gram/ml conversion.");
+                    "Serving options JSON is invalid, duplicated, has an invalid default, or lacks the conversion required by its nutrition reference.");
         }
         if (product.getCatalogType() == FoodCatalogType.GENERIC_INGREDIENT
                 && (product.getPreparationState() == null || product.getPreparationState() == FoodPreparationState.UNSPECIFIED)) {
@@ -1463,7 +1495,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 continue;
             }
 
-            ServingOptionsParseResult parsed = parseServingOptions(context.row());
+            ServingOptionsParseResult parsed = parseServingOptions(context.row(), product.getNutritionReferenceUnit());
             String explicitServingOptions = firstText(
                     context.row(), "serving_options_json", "servingoptionsjson", "portion_options_json");
             if (!parsed.valid() || explicitServingOptions == null) {
@@ -1636,7 +1668,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return null;
         }
     }
-    private ServingOptionsParseResult parseServingOptions(CsvRow row) {
+    private ServingOptionsParseResult parseServingOptions(
+            CsvRow row,
+            FoodNutritionReferenceUnit nutritionReferenceUnit
+    ) {
         String rawJson = firstText(row, "serving_options_json", "servingoptionsjson", "portion_options_json");
         if (rawJson == null) {
             return new ServingOptionsParseResult(List.of(), true);
@@ -1661,8 +1696,12 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 double quantity = option.quantity() == null ? 1.0 : option.quantity();
                 boolean hasWeight = positiveOrNull(option.gramWeight()) != null
                         || positiveOrNull(option.mlVolume()) != null;
+                boolean nativeServing = nutritionReferenceUnit == FoodNutritionReferenceUnit.PER_SERVING
+                        && (unit == FoodServingOptionUnit.SERVING
+                            || unit == FoodServingOptionUnit.PORTION
+                            || unit == FoodServingOptionUnit.PIECE);
                 if (label == null || label.length() > 120 || unit == null
-                        || !Double.isFinite(quantity) || quantity <= 0 || !hasWeight
+                        || !Double.isFinite(quantity) || quantity <= 0 || (!hasWeight && !nativeServing)
                         || (option.gramWeight() != null && positiveOrNull(option.gramWeight()) == null)
                         || (option.mlVolume() != null && positiveOrNull(option.mlVolume()) == null)
                         || !labels.add(servingOptionKey(label))) {
@@ -1682,7 +1721,9 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                     defaultCount++;
                 }
             }
-            if (defaultCount > 1) {
+            if (defaultCount > 1
+                    || (nutritionReferenceUnit == FoodNutritionReferenceUnit.PER_SERVING
+                        && !options.isEmpty() && defaultCount != 1)) {
                 return new ServingOptionsParseResult(List.of(), false);
             }
             return new ServingOptionsParseResult(options, true);

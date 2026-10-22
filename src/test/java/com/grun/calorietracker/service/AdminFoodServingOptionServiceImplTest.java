@@ -93,6 +93,29 @@ class AdminFoodServingOptionServiceImplTest {
     }
 
     @Test
+    void createAllowsNativeServingWithoutInventedMassForPerServingProduct() {
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING);
+        AdminFoodServingOptionUpsertRequestDto request = validRequest();
+        request.setUnitType(FoodServingOptionUnit.SERVING);
+        request.setGramWeight(null);
+        request.setMlVolume(null);
+        when(servingOptionRepository.findByFoodItemOrderByIsDefaultDescLabelAsc(product)).thenReturn(List.of());
+        when(servingOptionRepository.save(any())).thenAnswer(invocation -> {
+            FoodItemServingOptionEntity value = invocation.getArgument(0);
+            value.setId(45L);
+            return value;
+        });
+        when(localizationRepository.findByServingOptionIdIn(List.of(45L))).thenReturn(List.of());
+        when(localizationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.create(12L, request, "admin@grun.app");
+
+        assertEquals(45L, result.id());
+        assertEquals(null, result.gramWeight());
+        assertEquals(null, result.mlVolume());
+    }
+
+    @Test
     void createRejectsEquivalentConversion() {
         AdminFoodServingOptionUpsertRequestDto request = validRequest();
         FoodItemServingOptionEntity existing = new FoodItemServingOptionEntity();

@@ -115,7 +115,7 @@ public class FoodProductDto {
     @Schema(description = "How the nutrition values were obtained. Estimated local dishes must be explicit.", example = "SOURCE_REPORTED")
     private FoodNutritionBasis nutritionBasis;
 
-    @Schema(description = "Reference quantity used by the nutrition values. This is separate from nutrition data provenance.", example = "PER_100G")
+    @Schema(description = "Reference quantity used by the nutrition values. PER_SERVING means values describe one source-defined serving.", example = "PER_100G", allowableValues = {"PER_100G", "PER_100ML", "PER_SERVING"})
     private FoodNutritionReferenceUnit nutritionReferenceUnit;
 
     @Schema(description = "Normalized category tags retained from the external source for deterministic catalog review.", example = "[\"en:beverages\", \"en:milk-drinks\"]")

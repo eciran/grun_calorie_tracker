@@ -14,12 +14,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class CatalogPublicationServiceImplTest {
@@ -81,6 +83,53 @@ class CatalogPublicationServiceImplTest {
                 IllegalArgumentException.class,
                 () -> service.publish(8L, "owner@grun.local", "Invalid attempt", null)
         );
+    }
+
+    @Test
+    void publishRejectsProductThatIsNotVerified() {
+        FoodItemEntity product = candidate();
+        product.setId(9L);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        when(foodItemRepository.findById(9L)).thenReturn(Optional.of(product));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.publish(9L, "owner@grun.local", "Not reviewed", null));
+
+        verify(foodItemRepository, never()).save(any());
+    }
+
+    @Test
+    void publishBatchValidatesEveryProductBeforeAnyWrite() {
+        FoodItemEntity valid = candidate();
+        valid.setId(10L);
+        FoodItemEntity invalid = candidate();
+        invalid.setId(11L);
+        invalid.setCalories(null);
+        when(foodItemRepository.findAllById(List.of(10L, 11L))).thenReturn(List.of(valid, invalid));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.publishBatch(List.of(10L, 11L), "owner@grun.local", "Batch review", null));
+
+        assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, valid.getPublicationStatus());
+        verify(foodItemRepository, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(adminAuditService);
+    }
+
+    @Test
+    void publishBatchPublishesInRequestedOrder() {
+        FoodItemEntity first = candidate();
+        first.setId(10L);
+        FoodItemEntity second = candidate();
+        second.setId(11L);
+        when(foodItemRepository.findAllById(List.of(11L, 10L))).thenReturn(List.of(first, second));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<FoodItemEntity> result = service.publishBatch(
+                List.of(11L, 10L), "owner@grun.local", "Batch review", "batch-1");
+
+        assertEquals(List.of(11L, 10L), result.stream().map(FoodItemEntity::getId).toList());
+        result.forEach(product -> assertEquals(CatalogPublicationStatus.PUBLISHED, product.getPublicationStatus()));
+        verify(foodItemRepository, org.mockito.Mockito.times(2)).save(any(FoodItemEntity.class));
     }
 
     private FoodItemEntity candidate() {

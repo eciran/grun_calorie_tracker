@@ -12,4 +12,6 @@ public interface FoodProductImportService {
     FoodProductImportResultDto importCsv(MultipartFile file, String importedBy, FoodProductImportMode importMode);
 
     FoodProductImportResultDto importCsv(MultipartFile file, String importedBy, FoodProductImportMode importMode, FoodProductImportFormat importFormat);
+
+    FoodProductImportResultDto previewCsv(MultipartFile file, String importedBy, FoodProductImportMode importMode, FoodProductImportFormat importFormat);
 }

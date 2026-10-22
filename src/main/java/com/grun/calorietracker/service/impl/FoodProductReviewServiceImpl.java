@@ -41,6 +41,7 @@ import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
@@ -226,9 +227,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             int page,
             int size
     ) {
+        return getProductsForReview(verificationStatus, imageStatus, marketRegion, catalogType, dataSource,
+                qualityIssue, searchQuery, null, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FoodProductReviewPageDto getProductsForReview(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery,
+            CatalogPublicationStatus publicationStatus,
+            int page,
+            int size
+    ) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
         Page<FoodItemEntity> products = foodItemRepository.findAll(
-                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery),
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery, publicationStatus),
                 pageable
         );
         return toPageDto(products);
@@ -240,9 +259,20 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                                                   ImageStatus imageStatus, MarketRegion marketRegion,
                                                   FoodCatalogType catalogType, FoodDataSource dataSource,
                                                   int page, int size) {
+        return searchCatalog(searchQuery, verificationStatus, imageStatus, marketRegion, catalogType, dataSource,
+                null, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FoodProductReviewPageDto searchCatalog(String searchQuery, VerificationStatus verificationStatus,
+                                                  ImageStatus imageStatus, MarketRegion marketRegion,
+                                                  FoodCatalogType catalogType, FoodDataSource dataSource,
+                                                  CatalogPublicationStatus publicationStatus,
+                                                  int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), normalizePageSize(size), buildReviewSort());
         Page<FoodItemEntity> products = foodItemRepository.findAll(
-                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, searchQuery, true),
+                buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, null, searchQuery, publicationStatus, true),
                 pageable
         );
         return toPageDto(products);
@@ -1444,6 +1474,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private FoodProductReviewRequestDto toCorrectionRequest(CsvCorrectionRow row) {
         FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
         request.setProductName(firstText(row, "product_name", "productname", "name"));
+        request.setBrand(firstText(row, "brand", "brand_name", "brandname", "brands"));
         request.setCalories(parseDouble(row, "calories", "energy_kcal_100g", "energy_kcal"));
         request.setProtein(parseDouble(row, "protein", "proteins_100g", "protein_100g"));
         request.setFat(parseDouble(row, "fat", "fat_100g"));
@@ -1616,7 +1647,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductQualityIssue qualityIssue,
             String searchQuery
     ) {
-        return buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery, false);
+        return buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource, qualityIssue, searchQuery, null, false);
     }
 
     private Specification<FoodItemEntity> buildReviewSpecification(
@@ -1627,6 +1658,21 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodDataSource dataSource,
             FoodProductQualityIssue qualityIssue,
             String searchQuery,
+            CatalogPublicationStatus publicationStatus
+    ) {
+        return buildReviewSpecification(verificationStatus, imageStatus, marketRegion, catalogType, dataSource,
+                qualityIssue, searchQuery, publicationStatus, false);
+    }
+
+    private Specification<FoodItemEntity> buildReviewSpecification(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery,
+            CatalogPublicationStatus publicationStatus,
             boolean includeAllStatuses
     ) {
         String normalizedSearchQuery = trimToNull(searchQuery);
@@ -1649,6 +1695,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             }
             if (dataSource != null) {
                 predicates.add(criteriaBuilder.equal(root.get("dataSource"), dataSource));
+            }
+            if (publicationStatus != null) {
+                predicates.add(criteriaBuilder.equal(root.get("publicationStatus"), publicationStatus));
             }
             Predicate qualityPredicate = buildQualityIssuePredicate(root, query, criteriaBuilder, qualityIssue);
             if (qualityPredicate != null) {

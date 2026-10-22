@@ -68,6 +68,9 @@ public final class FoodPortionCalculator {
         FoodNutritionReferenceUnit referenceUnit = foodItem != null && foodItem.getNutritionReferenceUnit() != null
                 ? foodItem.getNutritionReferenceUnit()
                 : FoodNutritionReferenceUnit.PER_100G;
+        if (referenceUnit == FoodNutritionReferenceUnit.PER_SERVING) {
+            return normalizePerServing(portionSize, portionUnit, servingOption);
+        }
         Double grams = null;
         Double milliliters = null;
         if (servingOption != null) {
@@ -109,6 +112,47 @@ public final class FoodPortionCalculator {
             );
         }
         return new NormalizedFoodPortion(grams, milliliters, referenceAmount);
+    }
+
+    private static NormalizedFoodPortion normalizePerServing(
+            Double portionSize,
+            FoodPortionUnit portionUnit,
+            FoodItemServingOptionEntity servingOption
+    ) {
+        FoodPortionUnit unit = resolveUnit(portionUnit);
+        if (unit == FoodPortionUnit.GRAM || unit == FoodPortionUnit.MILLILITER) {
+            if (servingOption == null) {
+                throw new IllegalArgumentException(
+                        "Physical-unit input for PER_SERVING nutrition requires a verified serving conversion."
+                );
+            }
+            Double conversion = unit == FoodPortionUnit.GRAM
+                    ? servingOption.getGramWeight()
+                    : servingOption.getMlVolume();
+            if (conversion == null) {
+                throw new IllegalArgumentException(
+                        "The selected serving option does not provide the requested physical-unit conversion."
+                );
+            }
+            requirePositive(conversion, "Serving conversion");
+            double servings = portionSize / conversion;
+            requirePositive(servings, "Normalized serving count");
+            return new NormalizedFoodPortion(
+                    unit == FoodPortionUnit.GRAM ? portionSize : null,
+                    unit == FoodPortionUnit.MILLILITER ? portionSize : null,
+                    servings
+            );
+        }
+        if (unit != FoodPortionUnit.SERVING && servingOption == null) {
+            throw new IllegalArgumentException(
+                    unit + " requires a verified serving option for PER_SERVING nutrition."
+            );
+        }
+        return new NormalizedFoodPortion(
+                servingOption == null ? null : positiveScaled(portionSize, servingOption.getGramWeight()),
+                servingOption == null ? null : positiveScaled(portionSize, servingOption.getMlVolume()),
+                portionSize
+        );
     }
 
     public static void validateServingOptionUnit(

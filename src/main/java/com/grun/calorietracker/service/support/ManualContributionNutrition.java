@@ -6,7 +6,7 @@ import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.dto.CustomFoodRequestDto;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 
-/** Backward-compatible extension of the persisted review submission contract. Values are per 100 g or 100 ml. */
+/** Backward-compatible extension of the persisted review submission contract. */
 public final class ManualContributionNutrition {
   private ManualContributionNutrition() {}
   public static Map<String,Object> parse(String json) {
@@ -28,7 +28,8 @@ public final class ManualContributionNutrition {
     return ((Number)raw).doubleValue();
   }
   public static double serving(Map<String,Object> fields) {
-    Object raw = fields.getOrDefault("servingAmount", fields.getOrDefault("servingSizeGrams", 100));
+    double defaultAmount = reference(fields) == FoodNutritionReferenceUnit.PER_SERVING ? 1 : 100;
+    Object raw = fields.getOrDefault("servingAmount", fields.getOrDefault("servingSizeGrams", defaultAmount));
     if (!(raw instanceof Number n) || !Double.isFinite(n.doubleValue()) || n.doubleValue() <= 0 || n.doubleValue() > 100000)
       throw new IllegalArgumentException("Invalid serving amount");
     return ((Number)raw).doubleValue();
@@ -69,7 +70,7 @@ public final class ManualContributionNutrition {
     food.setVitaminD(nutrient(fields, "vitaminD"));
     food.setVitaminE(nutrient(fields, "vitaminE"));
     food.setVitaminB12(nutrient(fields, "vitaminB12"));
-    food.setServingSizeGrams(serving(fields));
+    food.setServingSizeGrams(reference(fields) == FoodNutritionReferenceUnit.PER_SERVING ? null : serving(fields));
     Object servingUnit = fields.get("servingUnit");
     food.setServingUnit(servingUnit instanceof String value && !value.isBlank() ? value.trim() : null);
   }

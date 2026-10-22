@@ -58,6 +58,9 @@ public class FoodLogsDto {
     @Schema(description = "Portion converted to milliliters when volume conversion is available.", example = "250.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double normalizedPortionMilliliters;
 
+    @Schema(description = "Normalized amount in the product's nutrition reference unit. PER_SERVING products use a serving multiplier.", example = "1.5", accessMode = Schema.AccessMode.READ_ONLY)
+    private Double normalizedNutritionReferenceAmount;
+
     @Schema(description = "Calories captured at log time for the entered portion.", example = "155.0", accessMode = Schema.AccessMode.READ_ONLY)
     private Double snapshotCalories;
 

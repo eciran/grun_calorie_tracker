@@ -13,6 +13,39 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FoodPortionCalculatorTest {
 
     @Test
+    void perServingNutritionUsesServingCountWithoutInventingMass() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_SERVING);
+        var option = new FoodItemServingOptionEntity();
+        option.setUnitType(FoodServingOptionUnit.SERVING);
+        option.setQuantity(1.0);
+
+        var normalized = FoodPortionCalculator.normalize(1.5, FoodPortionUnit.SERVING, product, option);
+
+        assertEquals(null, normalized.grams());
+        assertEquals(null, normalized.milliliters());
+        assertEquals(1.5, normalized.nutritionReferenceAmount());
+    }
+
+    @Test
+    void perServingNutritionAllowsPhysicalInputOnlyWithVerifiedConversion() {
+        var product = new FoodItemEntity();
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_SERVING);
+        var option = new FoodItemServingOptionEntity();
+        option.setUnitType(FoodServingOptionUnit.SERVING);
+        option.setQuantity(1.0);
+        option.setGramWeight(240.0);
+
+        var normalized = FoodPortionCalculator.normalize(360.0, FoodPortionUnit.GRAM, product, option);
+
+        assertEquals(360.0, normalized.grams());
+        assertEquals(1.5, normalized.nutritionReferenceAmount());
+        option.setGramWeight(null);
+        assertThrows(IllegalArgumentException.class,
+                () -> FoodPortionCalculator.normalize(360.0, FoodPortionUnit.GRAM, product, option));
+    }
+
+    @Test
     void exactProductMlGramPairAllowsAbsoluteMlWithoutRelabelingItsMassBasis() {
         var product = new FoodItemEntity();
         product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);

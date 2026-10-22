@@ -150,7 +150,7 @@ def collect(args):
     definition = json.loads(args.template.read_text(encoding="utf-8-sig"))
     if len(definition.get("containerDefinitions", [])) != 1:
         raise ValueError("Only one read-only PostgreSQL container is allowed")
-    is_r6 = args.scope in {"r6-audit", "r6-everyday", "r6-release", "r6-integrity", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation"}
+    is_r6 = args.scope in {"r6-audit", "r6-everyday", "r6-release", "r6-integrity", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation", "r7-title-case"}
     is_r5 = args.scope in {"r5-servings", "r5-release", "r5-comparison"} or is_r6
     prefix = "r6-readonly" if is_r6 else "r5-readonly" if is_r5 else "r3-readonly"
     family = "grun-staging-r6-audit-readonly" if is_r6 else "grun-staging-r5-serving-readonly" if is_r5 else "grun-staging-r3-source-readonly"
@@ -201,6 +201,12 @@ ROLLBACK;
             raise ValueError("Exact five R7 source-presentation identities required")
         sql = name_review_sql(args.decisions).replace("ROLLBACK;",
             Path(__file__).with_name("sql").joinpath("export-r7-presentation-dependencies.sql").read_text(encoding="utf-8") + "\nROLLBACK;")
+    if args.scope == "r7-title-case":
+        sql = Path(__file__).with_name("sql").joinpath("export-r7-title-case-candidates.sql").read_text(encoding="utf-8")
+    if args.scope == "r7-naming-metrics":
+        sql = Path(__file__).with_name("sql").joinpath("export-r7-naming-metrics.sql").read_text(encoding="utf-8")
+    if args.scope == "r7-naming-issues":
+        sql = Path(__file__).with_name("sql").joinpath("export-r7-naming-issues.sql").read_text(encoding="utf-8")
     if args.scope == "r6-identities":
         sql = identity_review_sql(args.decisions)
     if args.scope == 'r6-lifeway':
@@ -339,7 +345,7 @@ if __name__ == "__main__":
     parser.add_argument("--cluster", default="grun-staging-cluster")
     parser.add_argument("--service", default="grun-staging-api-service")
     parser.add_argument("--existing-task", help="Recover logs of an already completed owned R3 task")
-    parser.add_argument("--scope", choices=("r3-sources", "r5-servings", "r5-release", "r5-comparison", "r6-audit", "r6-everyday", "r6-release", "r6-integrity", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation"), default="r3-sources")
+    parser.add_argument("--scope", choices=("r3-sources", "r5-servings", "r5-release", "r5-comparison", "r6-audit", "r6-everyday", "r6-release", "r6-integrity", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation", "r7-title-case", "r7-naming-metrics", "r7-naming-issues"), default="r3-sources")
     parser.add_argument("--operation", help="Exact approved R6 operation marker for a read-only post-check")
     parser.add_argument("--decisions", type=Path, help="Exact product IDs for the R5 full before-image read")
     collect(parser.parse_args())

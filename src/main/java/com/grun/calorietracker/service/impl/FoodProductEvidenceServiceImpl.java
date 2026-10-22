@@ -296,9 +296,14 @@ public class FoodProductEvidenceServiceImpl implements FoodProductEvidenceServic
         if (field == FoodEvidenceField.SERVING_SIZE_GRAMS) {
             return FoodEvidenceBasis.SERVING;
         }
-        return product != null && product.getNutritionReferenceUnit()
-                == FoodNutritionReferenceUnit.PER_100ML
-                ? FoodEvidenceBasis.PER_100_ML : FoodEvidenceBasis.PER_100_G;
+        if (product == null || product.getNutritionReferenceUnit() == null) {
+            return FoodEvidenceBasis.PER_100_G;
+        }
+        return switch (product.getNutritionReferenceUnit()) {
+            case PER_100ML -> FoodEvidenceBasis.PER_100_ML;
+            case PER_SERVING -> FoodEvidenceBasis.SERVING;
+            case PER_100G -> FoodEvidenceBasis.PER_100_G;
+        };
     }
 
     private void add(

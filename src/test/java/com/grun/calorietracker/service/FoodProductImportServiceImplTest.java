@@ -106,6 +106,33 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_acceptsNativePerServingMenuProductWithoutInventedMass() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> values = invocation.getArgument(0);
+            for (int index = 0; index < values.size(); index++) values.get(index).setId((long) index + 1);
+            return values;
+        });
+        when(foodItemServingOptionRepository.findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(anyList()))
+                .thenReturn(List.of());
+        when(foodItemServingOptionRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var result = foodProductImportService.importCsv(csv("""
+                catalog_type,source_key,name,brand,calories,protein,fat,carbs,nutrition_reference_unit,serving_options_json
+                STANDARD_PREPARED_ITEM,menu:test:1,Test Burger,Test Brand,650,30,35,50,PER_SERVING,"[{""label"":""1 serving"",""unitType"":""SERVING"",""quantity"":1,""defaultOption"":true,""labels"":{""EN"":""1 serving"",""TR"":""1 servis""}}]"
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        assertEquals(FoodNutritionReferenceUnit.PER_SERVING,
+                products.getValue().get(0).getNutritionReferenceUnit());
+        ArgumentCaptor<List<FoodItemServingOptionEntity>> options = ArgumentCaptor.forClass(List.class);
+        verify(foodItemServingOptionRepository).saveAll(options.capture());
+        assertEquals(1, options.getValue().size());
+        assertNull(options.getValue().get(0).getGramWeight());
+        assertNull(options.getValue().get(0).getMlVolume());
+    }
+
+    @Test
     void usdaFoundationSourceKeyClassifiesWithoutFdcIdColumn() {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         var result = foodProductImportService.importCsv(csv("""

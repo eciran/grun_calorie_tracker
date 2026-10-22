@@ -38,6 +38,7 @@ public class MealTemplateItemEntity {
 
     private Double normalizedPortionGrams;
     private Double normalizedPortionMilliliters;
+    private Double normalizedNutritionReferenceAmount;
     private LocalTime logTime;
     private Integer itemOrder;
 

@@ -119,7 +119,13 @@ public class AdminFoodServingOptionServiceImpl implements AdminFoodServingOption
         if (!isPositive(request.getQuantity())) {
             throw new IllegalArgumentException("Serving option quantity must be positive.");
         }
-        if (!isPositive(request.getGramWeight()) && !isPositive(request.getMlVolume())) {
+        boolean perServing = product.getNutritionReferenceUnit()
+                == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING;
+        boolean nativeServingUnit = request.getUnitType() == com.grun.calorietracker.enums.FoodServingOptionUnit.SERVING
+                || request.getUnitType() == com.grun.calorietracker.enums.FoodServingOptionUnit.PORTION
+                || request.getUnitType() == com.grun.calorietracker.enums.FoodServingOptionUnit.PIECE;
+        if (!isPositive(request.getGramWeight()) && !isPositive(request.getMlVolume())
+                && !(perServing && nativeServingUnit)) {
             throw new IllegalArgumentException("A positive gram weight or milliliter volume is required.");
         }
         if ((request.getGramWeight() != null && !isPositive(request.getGramWeight()))
@@ -133,7 +139,8 @@ public class AdminFoodServingOptionServiceImpl implements AdminFoodServingOption
         boolean defaultOption = Boolean.TRUE.equals(request.getDefaultOption());
         boolean volumeBased = product.getNutritionReferenceUnit()
                 == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML;
-        if ((visible || defaultOption) && !isPositive(volumeBased ? request.getMlVolume() : request.getGramWeight())) {
+        if (!perServing && (visible || defaultOption)
+                && !isPositive(volumeBased ? request.getMlVolume() : request.getGramWeight())) {
             throw new IllegalArgumentException("A visible serving option must provide the product's nutrition reference dimension.");
         }
         if (visible && status != FoodServingOptionQualityStatus.VERIFIED) {

@@ -24,6 +24,7 @@ import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.VerificationStatus;
+import com.grun.calorietracker.enums.CatalogPublicationStatus;
 
 import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,9 +39,14 @@ public interface FoodProductReviewService {
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, int page, int size);
+    FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, CatalogPublicationStatus publicationStatus, int page, int size);
     FoodProductReviewPageDto searchCatalog(String query, VerificationStatus verificationStatus, ImageStatus imageStatus,
                                            MarketRegion marketRegion, FoodCatalogType catalogType,
                                            FoodDataSource dataSource, int page, int size);
+    FoodProductReviewPageDto searchCatalog(String query, VerificationStatus verificationStatus, ImageStatus imageStatus,
+                                           MarketRegion marketRegion, FoodCatalogType catalogType,
+                                           FoodDataSource dataSource, CatalogPublicationStatus publicationStatus,
+                                           int page, int size);
     default FoodProductDto updateProductReview(Long id, FoodProductReviewRequestDto request) {
         return updateProductReview(id, request, null);
     }
