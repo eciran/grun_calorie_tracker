@@ -311,7 +311,8 @@ export type AdminInvitationPage = PageResponse<AdminInvitation>;
 const CUSTOM_PERMISSION_GROUPS = [
   { key: "users", icon: "U", en: "Users", tr: "Kullanıcılar", enHint: "Accounts and customer support", trHint: "Hesaplar ve kullanıcı desteği", read: "USERS_READ", manage: "USERS_MANAGE" },
   { key: "catalog", icon: "K", en: "Catalog, recipes & exercise", tr: "Ürün, tarif ve egzersiz", enHint: "Catalog content and review queues", trHint: "Katalog içeriği ve inceleme kuyrukları", read: "CATALOG_READ", manage: "CATALOG_MANAGE" },
-  { key: "growth", icon: "B", en: "Growth & notifications", tr: "Büyüme ve bildirimler", enHint: "Campaigns, messaging and analytics", trHint: "Kampanyalar, mesajlaşma ve analitik", read: "GROWTH_READ", manage: "GROWTH_MANAGE" },
+  { key: "growth", icon: "B", en: "Growth & analytics", tr: "Büyüme ve analitik", enHint: "Adoption, funnels and product analytics", trHint: "Benimseme, dönüşüm ve ürün analitiği", read: "GROWTH_READ", manage: "GROWTH_MANAGE" },
+  { key: "notifications", icon: "N", en: "Notifications", tr: "Bildirimler", enHint: "Definitions, campaigns and meal reminders", trHint: "Tanımlar, kampanyalar ve öğün hatırlatıcıları", read: "NOTIFICATIONS_READ", manage: "NOTIFICATIONS_MANAGE" },
   { key: "finance", icon: "F", en: "Finance & subscriptions", tr: "Finans ve abonelikler", enHint: "Plans, revenue and provider events", trHint: "Planlar, gelir ve sağlayıcı olayları", read: "FINANCE_READ", manage: "FINANCE_MANAGE" },
   { key: "technical", icon: "T", en: "Technical operations", tr: "Teknik operasyonlar", enHint: "Runtime, integrations and AI", trHint: "Çalışma zamanı, entegrasyonlar ve AI", read: "TECHNICAL_READ", manage: "TECHNICAL_MANAGE" },
   { key: "compliance", icon: "Y", en: "Compliance", tr: "Uyumluluk", enHint: "Policies and regulated workflows", trHint: "Politikalar ve denetimli iş akışları", read: "COMPLIANCE_READ", manage: "COMPLIANCE_MANAGE" },

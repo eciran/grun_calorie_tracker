@@ -24,6 +24,7 @@ import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
@@ -46,6 +47,7 @@ import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.mapper.FoodItemMapper;
 import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
@@ -97,6 +99,7 @@ import java.util.stream.Collectors;
 public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     private final FoodItemRepository foodItemRepository;
+    private final FoodItemLocalizationRepository foodItemLocalizationRepository;
     private final FoodLogsRepository foodLogsRepository;
     private final UserFavoriteRepository userFavoriteRepository;
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
@@ -117,6 +120,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
     public FoodProductReviewServiceImpl(
             FoodItemRepository foodItemRepository,
+            FoodItemLocalizationRepository foodItemLocalizationRepository,
             FoodLogsRepository foodLogsRepository,
             UserFavoriteRepository userFavoriteRepository,
             FoodProductReviewAuditRepository foodProductReviewAuditRepository,
@@ -126,6 +130,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductQualityIssueTracker foodProductQualityIssueTracker
     ) {
         this.foodItemRepository = foodItemRepository;
+        this.foodItemLocalizationRepository = foodItemLocalizationRepository;
         this.foodLogsRepository = foodLogsRepository;
         this.userFavoriteRepository = userFavoriteRepository;
         this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
@@ -1084,13 +1089,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 try {
                     FoodItemEntity product = resolveCorrectionProduct(row);
                     FoodProductReviewRequestDto request = toCorrectionRequest(row);
-                    if (markVerified && request.getVerificationStatus() == null) {
+                    CorrectionDisplayNames displayNames = correctionDisplayNames(row);
+                    if (markVerified) {
                         request.setVerificationStatus(VerificationStatus.VERIFIED);
                     }
                     if (dryRun) {
                         candidateRows++;
                     } else {
                         updateProductReview(product.getId(), request, reviewedBy);
+                        applyCorrectionDisplayNames(product, displayNames, reviewedBy, request.getReviewNote());
                         updatedRows++;
                     }
                 } catch (DataAccessException ex) {
@@ -1128,11 +1135,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 PageRequest.of(0, safeLimit, buildReviewSort())
         );
         StringBuilder csv = new StringBuilder();
+        List<FoodItemEntity> exportedProducts = products.getContent();
+        Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations = exportedProducts.isEmpty()
+                ? Map.of()
+                : foodItemLocalizationRepository.findByFoodItemIdInAndLanguageIn(
+                        exportedProducts.stream().map(FoodItemEntity::getId).toList(),
+                        List.of(PreferredLanguage.EN, PreferredLanguage.TR)
+                ).stream().collect(Collectors.groupingBy(
+                        localization -> localization.getFoodItem().getId(),
+                        Collectors.toMap(FoodItemLocalizationEntity::getLanguage, localization -> localization)
+                ));
         csv.append(String.join(",",
                 "id",
                 "barcode",
                 "source_key",
                 "product_name",
+                "display_name",
+                "short_display_name",
+                "display_name_en",
+                "short_display_name_en",
+                "display_name_tr",
+                "short_display_name_tr",
                 "brand",
                 "market_region",
                 "catalog_type",
@@ -1165,15 +1188,23 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 "serving_size_grams",
                 "serving_unit"
         )).append('\n');
-        products.getContent().forEach(product -> appendExportRow(csv, product));
+        exportedProducts.forEach(product -> appendExportRow(csv, product, localizations.getOrDefault(product.getId(), Map.of())));
         return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private void appendExportRow(StringBuilder csv, FoodItemEntity product) {
+    private void appendExportRow(StringBuilder csv, FoodItemEntity product, Map<PreferredLanguage, FoodItemLocalizationEntity> localizations) {
+        FoodItemLocalizationEntity english = localizations.get(PreferredLanguage.EN);
+        FoodItemLocalizationEntity turkish = localizations.get(PreferredLanguage.TR);
         csv.append(csv(product.getId()))
                 .append(',').append(csv(product.getBarcode()))
                 .append(',').append(csv(product.getSourceKey()))
                 .append(',').append(csv(product.getName()))
+                .append(',').append(csv(product.getDisplayName()))
+                .append(',').append(csv(product.getShortDisplayName()))
+                .append(',').append(csv(english == null ? null : english.getDisplayName()))
+                .append(',').append(csv(english == null ? null : english.getShortDisplayName()))
+                .append(',').append(csv(turkish == null ? null : turkish.getDisplayName()))
+                .append(',').append(csv(turkish == null ? null : turkish.getShortDisplayName()))
                 .append(',').append(csv(product.getBrand()))
                 .append(',').append(csv(product.getMarketRegion()))
                 .append(',').append(csv(product.getCatalogType()))
@@ -1511,6 +1542,75 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         String reviewNote = firstText(row, "reviewnote", "review_note", "note");
         request.setReviewNote(reviewNote == null ? "Bulk nutrition correction import." : reviewNote);
         return request;
+    }
+
+    private CorrectionDisplayNames correctionDisplayNames(CsvCorrectionRow row) {
+        CorrectionDisplayNames names = new CorrectionDisplayNames(
+                firstText(row, "display_name", "displayname"),
+                firstText(row, "short_display_name", "shortdisplayname"),
+                firstText(row, "display_name_en", "displaynameen"),
+                firstText(row, "short_display_name_en", "shortdisplaynameen"),
+                firstText(row, "display_name_tr", "displaynametr"),
+                firstText(row, "short_display_name_tr", "shortdisplaynametr")
+        );
+        validateDisplayNameLength("display_name", names.displayName());
+        validateDisplayNameLength("short_display_name", names.shortDisplayName());
+        validateDisplayNameLength("display_name_en", names.displayNameEn());
+        validateDisplayNameLength("short_display_name_en", names.shortDisplayNameEn());
+        validateDisplayNameLength("display_name_tr", names.displayNameTr());
+        validateDisplayNameLength("short_display_name_tr", names.shortDisplayNameTr());
+        return names;
+    }
+
+    private void validateDisplayNameLength(String field, String value) {
+        if (value != null && value.length() > 255) {
+            throw new IllegalArgumentException(field + " must not exceed 255 characters.");
+        }
+    }
+
+    private void applyCorrectionDisplayNames(FoodItemEntity product, CorrectionDisplayNames names,
+                                             String reviewedBy, String reviewNote) {
+        if (!names.hasAnyValue()) return;
+        List<FoodProductReviewAuditEntity> audits = new ArrayList<>();
+        if (names.displayName() != null) {
+            applyTextChange(audits, product, reviewedBy, "displayName", product.getDisplayName(), names.displayName(), product::setDisplayName, reviewNote);
+        }
+        if (names.shortDisplayName() != null) {
+            applyTextChange(audits, product, reviewedBy, "shortDisplayName", product.getShortDisplayName(), names.shortDisplayName(), product::setShortDisplayName, reviewNote);
+        }
+        upsertCorrectionLocalization(product, PreferredLanguage.EN, names.displayNameEn(), names.shortDisplayNameEn(), audits, reviewedBy, reviewNote);
+        upsertCorrectionLocalization(product, PreferredLanguage.TR, names.displayNameTr(), names.shortDisplayNameTr(), audits, reviewedBy, reviewNote);
+        foodItemRepository.save(product);
+        foodProductReviewAuditRepository.saveAll(audits);
+    }
+
+    private void upsertCorrectionLocalization(FoodItemEntity product, PreferredLanguage language,
+                                              String displayName, String shortDisplayName,
+                                              List<FoodProductReviewAuditEntity> audits,
+                                              String reviewedBy, String reviewNote) {
+        if (displayName == null && shortDisplayName == null) return;
+        FoodItemLocalizationEntity localization = foodItemLocalizationRepository
+                .findByFoodItemIdAndLanguage(product.getId(), language)
+                .orElseGet(() -> {
+                    FoodItemLocalizationEntity created = new FoodItemLocalizationEntity();
+                    created.setFoodItem(product);
+                    created.setLanguage(language);
+                    created.setActive(true);
+                    created.setCreatedAt(LocalDateTime.now());
+                    return created;
+                });
+        String resolvedDisplayName = firstNonBlank(displayName, localization.getDisplayName(), shortDisplayName);
+        String resolvedShortDisplayName = firstNonBlank(shortDisplayName, displayName, localization.getShortDisplayName());
+        addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE,
+                "localizations." + language + ".displayName", localization.getDisplayName(), resolvedDisplayName, reviewNote);
+        addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE,
+                "localizations." + language + ".shortDisplayName", localization.getShortDisplayName(), resolvedShortDisplayName, reviewNote);
+        localization.setDisplayName(resolvedDisplayName);
+        localization.setShortDisplayName(resolvedShortDisplayName);
+        localization.setSource("ADMIN_CSV");
+        localization.setActive(true);
+        localization.setUpdatedAt(LocalDateTime.now());
+        foodItemLocalizationRepository.save(localization);
     }
 
     private Double parseDouble(CsvCorrectionRow row, String... columns) {
@@ -2049,6 +2149,15 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 return null;
             }
             return values.get(index);
+        }
+    }
+
+    private record CorrectionDisplayNames(String displayName, String shortDisplayName,
+                                          String displayNameEn, String shortDisplayNameEn,
+                                          String displayNameTr, String shortDisplayNameTr) {
+        private boolean hasAnyValue() {
+            return displayName != null || shortDisplayName != null || displayNameEn != null
+                    || shortDisplayNameEn != null || displayNameTr != null || shortDisplayNameTr != null;
         }
     }
 }

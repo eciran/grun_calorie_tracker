@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class MealReminderAdminPermissionMatrixTest {
  @Test void mealReminderAdminPathNeverFallsBackToDashboardPermission(){
   String path="/api/v1/admin/meal-reminder-automation/config";
-  assertEquals(AdminPermission.GROWTH_READ,AdminPermissionMatrix.requiredPermission("GET",path));
-  assertEquals(AdminPermission.GROWTH_MANAGE,AdminPermissionMatrix.requiredPermission("POST",path));
+  assertEquals(AdminPermission.NOTIFICATIONS_READ,AdminPermissionMatrix.requiredPermission("GET",path));
+  assertEquals(AdminPermission.NOTIFICATIONS_MANAGE,AdminPermissionMatrix.requiredPermission("POST",path));
  }
 }

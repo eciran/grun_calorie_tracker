@@ -404,7 +404,7 @@ public class AdminFoodProductReviewController {
     @PostMapping(value = "/nutrition-corrections/import", consumes = "multipart/form-data")
     @Operation(
             summary = "Import product nutrition corrections",
-            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Use markVerified=true to approve valid imported rows after correction. Supported correction headers include product_name, brand, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
+            description = "Applies admin CSV/TSV corrections to existing products matched by id, source_key, or barcode. Successfully imported rows are marked VERIFIED by default because this is a trusted admin transfer. Display-name headers support the base catalog name and language-specific app names: display_name, short_display_name, display_name_en, short_display_name_en, display_name_tr, and short_display_name_tr. Other supported correction headers include product_name, brand, calories, protein, fat, carbs, fiber, sugar, sodium, potassium, cholesterol, calcium, iron, magnesium, zinc, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_b12, saturated_fat, trans_fat, sugar_alcohol, serving_size_grams, serving_unit, display_image_url, market_region, catalog_type, verification_status, and image_status."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Nutrition correction import completed."),
@@ -417,8 +417,8 @@ public class AdminFoodProductReviewController {
             @RequestParam("file") MultipartFile file,
             @Parameter(description = "Validate the file and report candidate rows without applying changes.", example = "true")
             @RequestParam(defaultValue = "false") boolean dryRun,
-            @Parameter(description = "Mark successfully imported products as VERIFIED when the row does not provide verification_status.", example = "true")
-            @RequestParam(defaultValue = "false") boolean markVerified,
+            @Parameter(description = "Mark every successfully imported product as VERIFIED. Defaults to true for trusted admin transfers.", example = "true")
+            @RequestParam(defaultValue = "true") boolean markVerified,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(foodProductReviewService.importNutritionCorrections(
                 file,

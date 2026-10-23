@@ -9,7 +9,6 @@ import com.grun.calorietracker.exception.ProductNotFoundException;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.service.AdminAuditService;
 import com.grun.calorietracker.service.CatalogPublicationService;
-import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +17,7 @@ import com.grun.calorietracker.service.support.ExternalFoodImportFence;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -128,7 +128,15 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
                 .collect(java.util.stream.Collectors.toMap(FoodItemEntity::getId, product -> product));
         List<FoodItemEntity> ordered = uniqueIds.stream().map(byId::get).toList();
 
-        ordered.forEach(product -> validateReadyForVerificationAndPublication(product, actor, reason));
+        List<String> validationFailures = ordered.stream()
+                .flatMap(product -> publicationIssues(product, false).stream()
+                        .map(issue -> describeProduct(product) + ": " + issue))
+                .toList();
+        if (!validationFailures.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Publication validation failed: " + String.join("; ", validationFailures)
+            );
+        }
         return ordered.stream().map(product -> {
             VerificationStatus previousVerification = product.getVerificationStatus();
             if (previousVerification != VerificationStatus.VERIFIED) {
@@ -160,34 +168,88 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
     private void validatePublishable(FoodItemEntity product, String actor, String reason) {
         requireText(actor, "Publication actor is required");
         requireText(reason, "Publication reason is required");
-        validatePublicationCore(product);
-        if (product.getVerificationStatus() != VerificationStatus.VERIFIED) {
-            throw new IllegalArgumentException("Only verified products can be published");
+        validatePublication(product, true);
+    }
+
+    private void validatePublication(FoodItemEntity product, boolean requireVerified) {
+        List<String> issues = publicationIssues(product, requireVerified);
+        if (!issues.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Publication validation failed: " + describeProduct(product) + ": " + String.join(", ", issues)
+            );
         }
     }
 
-    private void validateReadyForVerificationAndPublication(FoodItemEntity product, String actor, String reason) {
-        requireText(actor, "Publication actor is required");
-        requireText(reason, "Publication reason is required");
-        validatePublicationCore(product);
-        if (product.getVerificationStatus() == VerificationStatus.REJECTED) {
-            throw new IllegalArgumentException("Rejected products must be reviewed individually before publication");
+    private List<String> publicationIssues(FoodItemEntity product, boolean requireVerified) {
+        List<String> issues = new ArrayList<>();
+        if (product == null) {
+            issues.add("product is missing");
+            return issues;
         }
-        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
-            throw new IllegalArgumentException("Published products cannot be included in verify-and-publish batches");
-        }
-    }
-
-    private void validatePublicationCore(FoodItemEntity product) {
         if (Boolean.TRUE.equals(product.getIsCustom())
                 || product.getPublicationStatus() == CatalogPublicationStatus.PRIVATE_USER) {
-            throw new IllegalArgumentException("Private user products cannot be published directly");
+            issues.add("publicationStatus: private user products cannot be published directly");
         }
-        requireText(product.getName(), "Product name is required for publication");
-        if (FoodProductQualityRules.hasCriticalIssue(product)
-                || product.getNutritionReferenceUnit() == null) {
-            throw new IllegalArgumentException("Complete, finite, non-negative core nutrition and an explicit nutrition reference unit are required for publication");
+        if (product.getName() == null || product.getName().isBlank()) {
+            issues.add("name: required");
         }
+        addNutritionIssue(issues, "calories", product.getCalories(), 1000.0);
+        addNutritionIssue(issues, "protein", product.getProtein(), 100.0);
+        addNutritionIssue(issues, "fat", product.getFat(), 100.0);
+        addNutritionIssue(issues, "carbs", product.getCarbs(), 100.0);
+        addOptionalNonNegativeIssue(issues, "fiber", product.getFiber());
+        addOptionalNonNegativeIssue(issues, "sugar", product.getSugar());
+        addOptionalNonNegativeIssue(issues, "sodium", product.getSodium());
+        if (product.getSugar() != null && product.getCarbs() != null && product.getSugar() > product.getCarbs()) {
+            issues.add("sugar: cannot exceed carbs");
+        }
+        if (product.getSaturatedFat() != null && product.getFat() != null && product.getSaturatedFat() > product.getFat()) {
+            issues.add("saturatedFat: cannot exceed fat");
+        }
+        if (product.getTransFat() != null && product.getFat() != null && product.getTransFat() > product.getFat()) {
+            issues.add("transFat: cannot exceed fat");
+        }
+        if (product.getSodium() != null && Double.isFinite(product.getSodium()) && product.getSodium() > 10.0) {
+            issues.add("sodium: must be at most 10");
+        }
+        if (product.getNutritionReferenceUnit() == null) {
+            issues.add("nutritionReferenceUnit: required (PER_100G, PER_100ML or PER_SERVING)");
+        }
+        if (requireVerified && product.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            issues.add("verificationStatus: must be VERIFIED");
+        } else if (!requireVerified && product.getVerificationStatus() == VerificationStatus.REJECTED) {
+            issues.add("verificationStatus: rejected products require individual review");
+        }
+        if (!requireVerified && product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
+            issues.add("publicationStatus: product is already PUBLISHED");
+        }
+        return issues;
+    }
+
+    private void addNutritionIssue(List<String> issues, String field, Double value, double maximum) {
+        if (value == null) {
+            issues.add(field + ": required");
+        } else if (!Double.isFinite(value)) {
+            issues.add(field + ": must be a finite number");
+        } else if (value < 0.0) {
+            issues.add(field + ": must be non-negative");
+        } else if (value > maximum) {
+            issues.add(field + ": must be at most " + (int) maximum);
+        }
+    }
+
+    private void addOptionalNonNegativeIssue(List<String> issues, String field, Double value) {
+        if (value != null && (!Double.isFinite(value) || value < 0.0)) {
+            issues.add(field + ": must be a finite non-negative number when provided");
+        }
+    }
+
+    private String describeProduct(FoodItemEntity product) {
+        if (product == null) return "Product <missing>";
+        String identity = product.getId() == null ? product.getSourceKey() : "#" + product.getId();
+        if (identity == null || identity.isBlank()) identity = "<unsaved>";
+        String name = product.getName() == null || product.getName().isBlank() ? "unnamed" : product.getName();
+        return "Product " + identity + " (" + name + ")";
     }
 
     private FoodItemEntity publishValidated(

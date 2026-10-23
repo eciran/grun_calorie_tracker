@@ -136,6 +136,7 @@ class CatalogWriterFenceOrderingTest {
 
     private static class ReviewFixture {
         final FoodItemRepository products = mock(FoodItemRepository.class);
+        final com.grun.calorietracker.repository.FoodItemLocalizationRepository localizations = mock(com.grun.calorietracker.repository.FoodItemLocalizationRepository.class);
         final FoodLogsRepository logs = mock(FoodLogsRepository.class);
         final UserFavoriteRepository favorites = mock(UserFavoriteRepository.class);
         final FoodProductReviewAuditRepository audits = mock(FoodProductReviewAuditRepository.class);
@@ -146,7 +147,7 @@ class CatalogWriterFenceOrderingTest {
         final ExternalFoodImportFence fence = mock(ExternalFoodImportFence.class);
         final RuntimeException denied = new IllegalStateException("fence denied before read");
         final FoodProductReviewServiceImpl service = new FoodProductReviewServiceImpl(
-                products, logs, favorites, audits, issues, aliases, canonical, tracker);
+                products, localizations, logs, favorites, audits, issues, aliases, canonical, tracker);
         ReviewFixture() { doThrow(denied).when(fence).acquire(); installIfPresent(service, fence); }
     }
 }

@@ -583,7 +583,7 @@ class AdminFoodProductReviewControllerTest {
         FoodProductNutritionCorrectionImportResultDto response =
                 new FoodProductNutritionCorrectionImportResultDto(1, 1, 0, List.of());
 
-        when(foodProductReviewService.importNutritionCorrections(any(), eq("admin@test.com"), eq(false), eq(false))).thenReturn(response);
+        when(foodProductReviewService.importNutritionCorrections(any(), eq("admin@test.com"), eq(false), eq(true))).thenReturn(response);
 
         mockMvc.perform(multipart("/api/v1/admin/products/nutrition-corrections/import")
                         .file(file))
@@ -592,7 +592,7 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.updatedRows").value(1))
                 .andExpect(jsonPath("$.skippedRows").value(0));
 
-        verify(foodProductReviewService).importNutritionCorrections(any(), eq("admin@test.com"), eq(false), eq(false));
+        verify(foodProductReviewService).importNutritionCorrections(any(), eq("admin@test.com"), eq(false), eq(true));
     }
 
     @Test

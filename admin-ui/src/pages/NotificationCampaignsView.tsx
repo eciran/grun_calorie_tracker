@@ -20,6 +20,7 @@ export const CampaignStatusChart = lazy(() => import("../CampaignOperationsChart
 
 export function NotificationCampaignsView({ onError, onNavigate, accessProfile }: { onError: (message: string | null) => void; onNavigate: (section: SectionKey) => void; accessProfile: AdminAccessProfile | null }) {
   const { locale } = useAdminLocale(); const tx = (en: string, tr: string) => locale === "tr" ? tr : en;
+  const canManage = Boolean(accessProfile?.permissions?.includes("NOTIFICATIONS_MANAGE"));
   const emptyDraft = { name: "", title: "", message: "", category: "SYSTEM", channel: "IN_APP_AND_PUSH", emailTemplateId: "", targetRoute: "", targetPlan: "", targetRegion: "", targetLanguage: "", frequencyCapHours: 24, frequencyCapMax: 3 };
   const [statusFilter, setStatusFilter] = useState("");
   const [campaignWindowDays, setCampaignWindowDays] = useState(31);
@@ -63,6 +64,7 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
   }
 
   function startNewDraft() {
+    if (!canManage) return;
     resetDraft();
     setComposerOpen(true);
     setActionState("idle");
@@ -139,7 +141,7 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
     setScheduledAt(date + "T" + value);
   }
   function editCampaign(item: NotificationCampaign) {
-    if (item.status !== "DRAFT" || !item.id) return;
+    if (!canManage || item.status !== "DRAFT" || !item.id) return;
     setSelectedId(item.id);
     setComposerOpen(true);
     setDraft({
@@ -166,6 +168,7 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
 
   async function saveDraft(event: FormEvent) {
     event.preventDefault();
+    if (!canManage) return;
     setActionState("loading");
     setNotice(null);
     try {
@@ -259,7 +262,8 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
       <SectionToolbar title={tx("Notification campaigns", "Bildirim kampanyaları")} state={combineStates([state, summaryState, templateState, actionState === "idle" ? "ready" : actionState])} onReload={() => { void reload(); void reloadSummary(); void reloadTemplates(); }}>
         <button className="ghost-button" type="button" onClick={() => onNavigate("notificationDefinitions")}>{tx("Manage system rules", "Sistem kurallarını yönet")}</button>
       </SectionToolbar>
-      <CommunicationHero eyebrow={tx("Audience delivery", "Kitle teslimatı")} title={tx("Plan campaigns, verify consent and follow engagement in one workspace.", "Kampanyaları planlayın, onayı doğrulayın ve etkileşimi tek çalışma alanından izleyin.")} description={tx("Campaign creation remains separate from system notifications while delivery and conversion stay measurable.", "Kampanya oluşturma sistem bildirimlerinden ayrı kalırken teslimat ve dönüşüm ölçülebilir olur.")} status={<span className="communication-status-pill good">{active} {tx("ACTIVE", "AKTİF")}</span>} actions={<button className="primary-button" type="button" onClick={startNewDraft}>{tx("Create campaign", "Kampanya oluştur")}</button>} />
+      <CommunicationHero eyebrow={tx("Audience delivery", "Kitle teslimatı")} title={tx("Plan campaigns, verify consent and follow engagement in one workspace.", "Kampanyaları planlayın, onayı doğrulayın ve etkileşimi tek çalışma alanından izleyin.")} description={tx("Campaign creation remains separate from system notifications while delivery and conversion stay measurable.", "Kampanya oluşturma sistem bildirimlerinden ayrı kalırken teslimat ve dönüşüm ölçülebilir olur.")} status={<span className="communication-status-pill good">{active} {tx("ACTIVE", "AKTİF")}</span>} actions={<button className="primary-button" disabled={!canManage} type="button" onClick={startNewDraft}>{tx("Create campaign", "Kampanya oluştur")}</button>} />
+      {!canManage && <div className="form-notice warning" role="note"><strong>{tx("Read-only access.", "Salt okunur erişim.")}</strong> {tx("Notification management permission is required to create, schedule, or cancel campaigns.", "Kampanya oluşturmak, zamanlamak veya iptal etmek için bildirim yönetme izni gerekir.")}</div>}
       {approvalNotice && <ApprovalSubmissionNotice {...approvalNotice} isOwner={accessProfile?.role === "OWNER"} />}
       {notice && <div className="form-notice">{notice}</div>}
       <div className="metric-grid compact-grid">
@@ -294,7 +298,7 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
 
       <section className={`campaign-composer-launcher ${composerOpen ? "is-open" : ""}`}>
         <div><p className="eyebrow">{tx("Controlled broadcast", "Kontrollü yayın")}</p><h3>{selectedId ? tx("Editing campaign draft", "Kampanya taslağı düzenleniyor") : tx("Campaign composer", "Kampanya oluşturucu")}</h3><p>{tx("Build the audience, consent policy and delivery time in one focused workspace.", "Kitleyi, onay politikasını ve teslimat zamanını tek odaklı alanda hazırlayın.")}</p></div>
-        <button className={composerOpen ? "ghost-button" : "primary-button"} type="button" onClick={() => { if (composerOpen) { setComposerOpen(false); resetDraft(); } else { startNewDraft(); } }}>{composerOpen ? tx("Close composer", "Oluşturucuyu kapat") : tx("Create campaign", "Kampanya oluştur")}</button>
+        <button className={composerOpen ? "ghost-button" : "primary-button"} disabled={!canManage && !composerOpen} type="button" onClick={() => { if (composerOpen) { setComposerOpen(false); resetDraft(); } else { startNewDraft(); } }}>{composerOpen ? tx("Close composer", "Oluşturucuyu kapat") : tx("Create campaign", "Kampanya oluştur")}</button>
       </section>
       {composerOpen && <form className="panel campaign-composer" ref={composerRef} onSubmit={saveDraft}>
         <div className="campaign-composer-header">
@@ -358,8 +362,8 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
         <div className="inline-actions campaign-actions">
           <div><strong>{selectedId ? tx(`Draft #${selectedId} is ready for review`, `#${selectedId} taslağı incelemeye hazır`) : tx("Save the draft to unlock audience preview and delivery", "Kitle önizlemesi ve teslimatı açmak için taslağı kaydedin")}</strong><small>{tx("No message is sent while you edit this workspace.", "Bu çalışma alanını düzenlerken hiçbir mesaj gönderilmez.")}</small></div>
           <button className="ghost-button" disabled={!selectedId || actionState === "loading"} type="button" onClick={() => void previewAudience()}>{tx("Preview audience", "Kitleyi önizle")}</button>
-          <button className="primary-button" disabled={actionState === "loading"} type="submit">{tx("Save draft", "Taslağı kaydet")}</button>
-          <button className="ghost-button campaign-delivery-button" disabled={!selectedId || actionState === "loading"} type="button" onClick={() => setConfirmSchedule(true)}>{scheduledAt ? tx("Schedule delivery", "Teslimatı zamanla") : tx("Send now", "Şimdi gönder")}</button>
+          <button className="primary-button" disabled={!canManage || actionState === "loading"} type="submit">{tx("Save draft", "Taslağı kaydet")}</button>
+          <button className="ghost-button campaign-delivery-button" disabled={!canManage || !selectedId || actionState === "loading"} type="button" onClick={() => setConfirmSchedule(true)}>{scheduledAt ? tx("Schedule delivery", "Teslimatı zamanla") : tx("Send now", "Şimdi gönder")}</button>
         </div>
       </form>}
 
@@ -377,9 +381,9 @@ export function NotificationCampaignsView({ onError, onNavigate, accessProfile }
             <div className="table-stack"><strong>{formatValue(item.processedCount)} processed</strong><small>{formatValue(item.pushSentCount)} push · {formatValue(item.emailSentCount)} email / {formatValue((item.pushFailedCount??0)+(item.emailFailedCount??0))} failed</small></div>,
             formatDate(item.scheduledAt ?? item.createdAt),
             <div className="inline-actions">
-              {item.status === "DRAFT" && <button className="ghost-button" type="button" onClick={() => editCampaign(item)}>Edit</button>}
+              {canManage && item.status === "DRAFT" && <button className="ghost-button" type="button" onClick={() => editCampaign(item)}>Edit</button>}
               {item.id && <button className="ghost-button" type="button" onClick={() => void openHistoryPreview(item)}>Preview</button>}
-              {(item.status === "SCHEDULED" || item.status === "PROCESSING") && <button className="ghost-button danger-text" type="button" onClick={() => void cancelCampaign(item)}>Cancel</button>}
+              {canManage && (item.status === "SCHEDULED" || item.status === "PROCESSING") && <button className="ghost-button danger-text" type="button" onClick={() => void cancelCampaign(item)}>Cancel</button>}
             </div>
           ])}
           empty="No notification campaigns returned."

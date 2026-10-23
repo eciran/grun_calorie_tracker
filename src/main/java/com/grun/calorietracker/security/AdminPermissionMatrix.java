@@ -22,11 +22,13 @@ public final class AdminPermissionMatrix {
             case OWNER -> EnumSet.allOf(AdminPermission.class);
             case ADMIN, ADMIN_READ_ONLY -> readOnlyPermissions();
             case ADMIN_SUPPORT -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ,
-                    AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ);
+                    AdminPermission.USERS_MANAGE, AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ,
+                    AdminPermission.NOTIFICATIONS_READ);
             case ADMIN_CATALOG -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.CATALOG_READ,
                     AdminPermission.CATALOG_MANAGE);
             case ADMIN_GROWTH -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.GROWTH_READ,
-                    AdminPermission.GROWTH_MANAGE);
+                    AdminPermission.GROWTH_MANAGE, AdminPermission.NOTIFICATIONS_READ,
+                    AdminPermission.NOTIFICATIONS_MANAGE);
             case ADMIN_FINANCE -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.FINANCE_READ,
                     AdminPermission.FINANCE_MANAGE, AdminPermission.AUDIT_READ);
             case ADMIN_TECHNICAL -> EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.TECHNICAL_READ,
@@ -52,6 +54,7 @@ public final class AdminPermissionMatrix {
         addReadForManage(permissions, AdminPermission.USERS_MANAGE, AdminPermission.USERS_READ);
         addReadForManage(permissions, AdminPermission.CATALOG_MANAGE, AdminPermission.CATALOG_READ);
         addReadForManage(permissions, AdminPermission.GROWTH_MANAGE, AdminPermission.GROWTH_READ);
+        addReadForManage(permissions, AdminPermission.NOTIFICATIONS_MANAGE, AdminPermission.NOTIFICATIONS_READ);
         addReadForManage(permissions, AdminPermission.FINANCE_MANAGE, AdminPermission.FINANCE_READ);
         addReadForManage(permissions, AdminPermission.TECHNICAL_MANAGE, AdminPermission.TECHNICAL_READ);
         addReadForManage(permissions, AdminPermission.COMPLIANCE_MANAGE, AdminPermission.COMPLIANCE_READ);
@@ -64,7 +67,8 @@ public final class AdminPermissionMatrix {
 
     private static Set<AdminPermission> readOnlyPermissions() {
         return EnumSet.of(AdminPermission.DASHBOARD_READ, AdminPermission.USERS_READ,
-                AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ, AdminPermission.FINANCE_READ,
+                AdminPermission.CATALOG_READ, AdminPermission.GROWTH_READ, AdminPermission.NOTIFICATIONS_READ,
+                AdminPermission.FINANCE_READ,
                 AdminPermission.TECHNICAL_READ, AdminPermission.COMPLIANCE_READ, AdminPermission.AUDIT_READ,
                 AdminPermission.ADMIN_TEAM_READ);
     }
@@ -89,7 +93,7 @@ public final class AdminPermissionMatrix {
             return AdminPermission.AUDIT_READ;
         }
         if (path.startsWith("/api/v1/admin/meal-reminder-automation")) {
-            return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
+            return write ? AdminPermission.NOTIFICATIONS_MANAGE : AdminPermission.NOTIFICATIONS_READ;
         }
         if (path.startsWith("/api/v1/admin/free-promotion")) {
             return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
@@ -106,7 +110,10 @@ public final class AdminPermissionMatrix {
         if (containsAny(path, "/catalog", "/products", "/recipes", "/food", "/achievements", "/exercises")) {
             return write ? AdminPermission.CATALOG_MANAGE : AdminPermission.CATALOG_READ;
         }
-        if (containsAny(path, "/notification-campaigns", "/notification-definitions", "/engagement", "/tracking", "/growth", "/onboarding")) {
+        if (containsAny(path, "/notification-campaigns", "/notification-definitions")) {
+            return write ? AdminPermission.NOTIFICATIONS_MANAGE : AdminPermission.NOTIFICATIONS_READ;
+        }
+        if (containsAny(path, "/engagement", "/tracking", "/growth", "/onboarding")) {
             return write ? AdminPermission.GROWTH_MANAGE : AdminPermission.GROWTH_READ;
         }
         if (containsAny(path, "/system", "/mail", "/brevo", "/push", "/ai/requests", "/ai/monitoring", "/ai/meal-drafts")) {

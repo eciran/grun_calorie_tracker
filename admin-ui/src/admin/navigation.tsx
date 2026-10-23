@@ -219,7 +219,8 @@ export function permissionForSection(section: SectionKey): string {
   if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSearch", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
   if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "subscriptionNotifications", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
   if (section === "notifications") return "DASHBOARD_READ";
-  if (["notificationDefinitions", "mealReminderAutomation", "notificationCampaigns", "engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "freePromotion", "testFeedback"].includes(section)) return "GROWTH_READ";
+  if (["notificationDefinitions", "mealReminderAutomation", "notificationCampaigns"].includes(section)) return "NOTIFICATIONS_READ";
+  if (["engagement", "tracking", "trackingWater", "trackingFasting", "trackingSteps", "freePromotion", "testFeedback"].includes(section)) return "GROWTH_READ";
   if (section === "ownerAlerts") return "TECHNICAL_READ";
   if (section === "retentionPolicies") return "COMPLIANCE_READ";
   if (section === "audits") return "AUDIT_READ";

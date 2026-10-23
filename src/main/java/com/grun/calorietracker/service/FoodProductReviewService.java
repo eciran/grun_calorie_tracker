@@ -67,10 +67,10 @@ public interface FoodProductReviewService {
     FoodProductMergeResponseDto mergeDuplicateProducts(FoodProductMergeRequestDto request, String reviewedBy);
     FoodProductQualityIssueBackfillResultDto backfillQualityIssues(int pageSize, String triggeredBy);
     default FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy) {
-        return importNutritionCorrections(file, reviewedBy, false, false);
+        return importNutritionCorrections(file, reviewedBy, false, true);
     }
     default FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun) {
-        return importNutritionCorrections(file, reviewedBy, dryRun, false);
+        return importNutritionCorrections(file, reviewedBy, dryRun, true);
     }
     FoodProductNutritionCorrectionImportResultDto importNutritionCorrections(MultipartFile file, String reviewedBy, boolean dryRun, boolean markVerified);
     byte[] exportProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, int limit);

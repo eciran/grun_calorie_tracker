@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -169,6 +170,35 @@ class CatalogPublicationServiceImplTest {
 
         assertEquals(VerificationStatus.RAW_IMPORTED, valid.getVerificationStatus());
         assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, valid.getPublicationStatus());
+        verify(foodItemRepository, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(adminAuditService);
+    }
+
+    @Test
+    void verifyAndPublishBatchReportsEveryInvalidProductAndField() {
+        FoodItemEntity missingReference = candidate();
+        missingReference.setId(21L);
+        missingReference.setName("Missing reference");
+        missingReference.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        missingReference.setNutritionReferenceUnit(null);
+
+        FoodItemEntity invalidNutrition = candidate();
+        invalidNutrition.setId(22L);
+        invalidNutrition.setName("Invalid nutrition");
+        invalidNutrition.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        invalidNutrition.setCalories(null);
+        invalidNutrition.setSugar(12.0);
+        invalidNutrition.setCarbs(10.0);
+        when(foodItemRepository.findAllById(List.of(21L, 22L)))
+                .thenReturn(List.of(missingReference, invalidNutrition));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.verifyAndPublishBatch(
+                        List.of(21L, 22L), "owner@grun.local", "Batch review", "cid-fields"));
+
+        assertTrue(error.getMessage().contains("Product #21 (Missing reference): nutritionReferenceUnit: required"));
+        assertTrue(error.getMessage().contains("Product #22 (Invalid nutrition): calories: required"));
+        assertTrue(error.getMessage().contains("sugar: cannot exceed carbs"));
         verify(foodItemRepository, never()).save(any());
         org.mockito.Mockito.verifyNoInteractions(adminAuditService);
     }

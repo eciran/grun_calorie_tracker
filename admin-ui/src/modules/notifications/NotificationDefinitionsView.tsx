@@ -36,6 +36,7 @@ const EMPTY_DRAFT: NotificationDefinitionDraft = {
 
 export function NotificationDefinitionsView({ onError, accessProfile }: { onError: (message: string | null) => void; accessProfile: AdminAccessProfile | null }) {
   const { locale } = useAdminLocale(); const tx = (en: string, tr: string) => locale === "tr" ? tr : en;
+  const canManage = Boolean(accessProfile?.permissions?.includes("NOTIFICATIONS_MANAGE"));
   const [definitions, setDefinitions] = useState<NotificationDefinition[]>([]);
   const [state, setState] = useState<LoadState>("idle");
   const [actionState, setActionState] = useState<LoadState>("idle");
@@ -109,6 +110,7 @@ export function NotificationDefinitionsView({ onError, accessProfile }: { onErro
   }
 
   function startNewDefinition() {
+    if (!canManage) return;
     reset();
     setNotice("New definition form opened. Enter a backend event key, localized copy, and delivery policy.");
     window.requestAnimationFrame(() => {
@@ -123,6 +125,7 @@ export function NotificationDefinitionsView({ onError, accessProfile }: { onErro
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (!canManage) return;
     setActionState("loading");
     setNotice(null);
     const payload = {
@@ -187,9 +190,10 @@ export function NotificationDefinitionsView({ onError, accessProfile }: { onErro
         state={state}
         onReload={() => void load()}
       >
-        <button className="primary-button" type="button" onClick={startNewDefinition}>{tx("New definition", "Yeni tanım")}</button>
+        <button className="primary-button" disabled={!canManage} type="button" onClick={startNewDefinition}>{tx("New definition", "Yeni tanım")}</button>
       </SectionToolbar>
       <CommunicationHero eyebrow={tx("Message contract", "Mesaj sözleşmesi")} title={tx("Keep system notifications consistent across channels and languages.", "Sistem bildirimlerini kanallar ve diller arasında tutarlı tutun.")} description={tx("Search definitions, review protected templates and update eligible rules without mixing campaign content into system messaging.", "Tanımları arayın, korumalı şablonları inceleyin ve kampanya içeriğini sistem mesajlarıyla karıştırmadan uygun kuralları güncelleyin.")} status={<span className="communication-status-pill good">{enabledCount} {tx("ENABLED", "ETKİN")}</span>} />
+      {!canManage && <div className="form-notice warning" role="note"><strong>{tx("Read-only access.", "Salt okunur erişim.")}</strong> {tx("Notification management permission is required to create or change definitions.", "Bildirim tanımı oluşturmak veya değiştirmek için bildirim yönetme izni gerekir.")}</div>}
 
       <div className="metric-grid notification-definition-metrics">
         <MetricCard label={tx("Definitions", "Tanımlar")} value={String(definitions.length)} hint={tx("Registered notification types", "Kayıtlı bildirim türleri")} />
@@ -276,7 +280,7 @@ export function NotificationDefinitionsView({ onError, accessProfile }: { onErro
             {requiresApproval && <label className="wide-field">Required approval reason<textarea required maxLength={500} value={approvalReason} onChange={(event) => setApprovalReason(event.target.value)} placeholder="Explain why this user-facing copy should change." /><small>{approvalReason.length}/500</small></label>}
             <div className="inline-actions notification-definition-actions">
               {selectedId && <button className="ghost-button" type="button" onClick={reset}>{tx("Cancel editing", "Düzenlemeyi iptal et")}</button>}
-              <button className="primary-button" disabled={actionState === "loading" || (requiresApproval && !approvalReason.trim())} type="submit">{actionState === "loading" ? tx("Saving...", "Kaydediliyor...") : requiresApproval ? tx("Request copy publication", "Metin yayını talep et") : selectedId ? tx("Save changes", "Değişiklikleri kaydet") : tx("Create definition", "Tanım oluştur")}</button>
+              <button className="primary-button" disabled={!canManage || actionState === "loading" || (requiresApproval && !approvalReason.trim())} type="submit">{actionState === "loading" ? tx("Saving...", "Kaydediliyor...") : requiresApproval ? tx("Request copy publication", "Metin yayını talep et") : selectedId ? tx("Save changes", "Değişiklikleri kaydet") : tx("Create definition", "Tanım oluştur")}</button>
             </div>
           </form>
         </Panel>

@@ -129,6 +129,18 @@ class AdminPermissionMatrixTest {
     }
 
     @Test
+    void customNotificationReadAndManagePermissionsAreIndependent() throws Exception {
+        authenticatePermissions(AdminPermission.NOTIFICATIONS_READ);
+        assertEquals(200, execute("GET", "/api/v1/admin/notification-definitions").getStatus());
+        assertEquals(403, execute("POST", "/api/v1/admin/notification-campaigns").getStatus());
+
+        authenticatePermissions(AdminPermission.NOTIFICATIONS_READ, AdminPermission.NOTIFICATIONS_MANAGE);
+        assertEquals(200, execute("POST", "/api/v1/admin/notification-campaigns").getStatus());
+        assertEquals(403, execute("GET", "/api/v1/admin/users").getStatus());
+        assertEquals(403, execute("POST", "/api/v1/admin/products/quality-scan").getStatus());
+    }
+
+    @Test
     void catalogAdminCannotReadUsersOrAuditLogs() throws Exception {
         authenticate(UserRole.ADMIN_CATALOG);
 
@@ -159,6 +171,16 @@ class AdminPermissionMatrixTest {
                 .toList();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("admin@example.com", null, authorities)
+        );
+    }
+
+    private void authenticatePermissions(AdminPermission... permissions) {
+        List<SimpleGrantedAuthority> authorities = java.util.Arrays.stream(permissions)
+                .map(AdminPermissionMatrix::authority)
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("custom-admin@example.com", null, authorities)
         );
     }
 

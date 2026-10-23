@@ -255,7 +255,7 @@ const productReviewMessages = {
     resetFilters: "Filtreleri sıfırla", returnedProducts: "Eşleşen ürün", returnedProductsHint: "Geçerli filtre sonucundaki toplam", highPriority: "Yüksek öncelik", highPriorityHint: "Öncelik puanı 100 ve üzeri", missingImages: "Görseli eksik", missingImagesHint: "Kullanılabilir görseli olmayan satırlar", activeFilters: "Etkin filtre", activeFiltersHint: "Kuyruğa uygulanan ölçütler",
     filtersTitle: "Kuyruğu daralt", filtersDescription: "İncelenecek ürünleri görev, kaynak ve kalite sorununa göre odaklayın.", productSearch: "Ürün ara", productSearchPlaceholder: "Ad, marka veya barkod", verification: "Doğrulama", publication: "Yayın durumu", imageStatus: "Görsel durumu", region: "Bölge", catalog: "Katalog", dataSource: "Veri kaynağı", qualityIssue: "Kalite sorunu", all: "Tümü", anyIssue: "Tüm sorunlar",
     categoryQueue: "Kategori kararları", categoryQueueHint: "Birincil kategorisi bulunmayan ürünler", openQueue: "Kuyruğu aç",
-    bulkTools: "CSV işlemleri", bulkWorkflow: "Mevcut ürün düzeltme akışı", bulkDescription: "Bu bölüm yalnızca katalogda bulunan ürünleri günceller. Yeni ürün eklemek için aşağıdaki katalog içe aktarma alanını kullanın.", catalogImport: "Yeni ürün kataloğu içe aktar", catalogImportDescription: "GRUN_STANDARD CSV dosyasını önce geri alınabilir prova ile doğrulayın. Uygulanan kayıtlar RAW_EXTERNAL olarak inceleme kuyruğuna eklenir.", catalogFile: "Yeni katalog dosyası", previewRequired: "Gerçek içe aktarmadan önce hatasız prova zorunludur.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Mevcut ürün düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Aktarılan satırları doğrulandı olarak işaretle", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
+    bulkTools: "CSV işlemleri", bulkWorkflow: "Mevcut ürün düzeltme akışı", bulkDescription: "Bu bölüm yalnızca katalogda bulunan ürünleri günceller. Dışa aktarılan dosyadaki display_name alanları ile ana görünen adı, display_name_en ve display_name_tr alanları ile uygulamadaki İngilizce ve Türkçe adları topluca güncelleyebilirsiniz. Başarıyla aktarılan satırlar doğrulanır.", catalogImport: "Yeni ürün kataloğu içe aktar", catalogImportDescription: "GRUN_STANDARD CSV dosyasını önce geri alınabilir prova ile doğrulayın. Başarıyla uygulanan kayıtlar VERIFIED olarak kaydedilir ve doğrudan yayınlanabilir.", catalogFile: "Yeni katalog dosyası", previewRequired: "Gerçek içe aktarmadan önce hatasız prova zorunludur.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Mevcut ürün düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Başarıyla aktarılan satırlar otomatik doğrulanır", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
     queueEyebrow: "ÇALIŞMA KUYRUĞU", queueTitle: "İncelenecek ürünler", queueDescription: "Bir satır seçerek kanıt, kalite önerileri ve düzenleme alanlarını açın.", product: "Ürün", source: "Kaynak", review: "İnceleme", publicationColumn: "Yayın", quality: "Kalite", nutrition: "Besin değerleri", empty: "Bu filtre için incelenecek ürün bulunamadı.", rejectTitle: "Ürün reddedilsin mi?", rejectMessage: "Ürün ve görsel reddedildi olarak işaretlenecek; karar denetim geçmişine kaydedilecek.", rejectAction: "Ürünü reddet"
   },
   en: {
@@ -264,7 +264,7 @@ const productReviewMessages = {
     resetFilters: "Reset filters", returnedProducts: "Matching products", returnedProductsHint: "Total in the current filter", highPriority: "High priority", highPriorityHint: "Priority score 100 or above", missingImages: "Missing images", missingImagesHint: "Rows without a usable image", activeFilters: "Active filters", activeFiltersHint: "Criteria applied to the queue",
     filtersTitle: "Refine the queue", filtersDescription: "Focus the workload by task, source, and quality issue.", productSearch: "Product search", productSearchPlaceholder: "Name, brand, or barcode", verification: "Verification", publication: "Publication", imageStatus: "Image status", region: "Region", catalog: "Catalog", dataSource: "Data source", qualityIssue: "Quality issue", all: "All", anyIssue: "Any issue",
     categoryQueue: "Category decisions", categoryQueueHint: "Products without a primary category", openQueue: "Open queue",
-    bulkTools: "CSV operations", bulkWorkflow: "Existing product correction workflow", bulkDescription: "This section only updates products already in the catalog. Use the catalog import area below to add new products.", catalogImport: "Import new product catalog", catalogImportDescription: "Validate the GRUN_STANDARD CSV with a rollback-only dry run first. Applied rows enter the review queue as RAW_EXTERNAL.", catalogFile: "New catalog file", previewRequired: "A clean dry run is required before the real import.", exportFilter: "Export current filter", correctionFile: "Existing product correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Mark imported rows verified", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
+    bulkTools: "CSV operations", bulkWorkflow: "Existing product correction workflow", bulkDescription: "This section only updates products already in the catalog. Use display_name for the base catalog label and display_name_en / display_name_tr for the English and Turkish names shown in the app. Successfully imported rows are verified automatically.", catalogImport: "Import new product catalog", catalogImportDescription: "Validate the GRUN_STANDARD CSV with a rollback-only dry run first. Successfully applied records are stored as VERIFIED and can be published directly.", catalogFile: "New catalog file", previewRequired: "A clean dry run is required before the real import.", exportFilter: "Export current filter", correctionFile: "Existing product correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Successfully imported rows are verified automatically", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
     queueEyebrow: "WORK QUEUE", queueTitle: "Products to review", queueDescription: "Select a row to open evidence, quality recommendations, and editing fields.", product: "Product", source: "Source", review: "Review", publicationColumn: "Publication", quality: "Quality", nutrition: "Nutrition", empty: "No products need review for this filter.", rejectTitle: "Reject product?", rejectMessage: "The product and its image will be marked rejected and the decision will be recorded in audit history.", rejectAction: "Reject product"
   }
 } as const;
@@ -297,10 +297,9 @@ export function ProductReviewView({ mode, onError, canManage = false }: { mode: 
 const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [correctionResult, setCorrectionResult] = useState<NutritionCorrectionImportResult | null>(null);
   const [correctionNotice, setCorrectionNotice] = useState<CorrectionImportNotice | null>(null);
-  const [markVerifiedOnImport, setMarkVerifiedOnImport] = useState(false);
   const [transferState, setTransferState] = useState<LoadState>("idle");
   const [catalogFile, setCatalogFile] = useState<File | null>(null);
-  const [catalogImportMode, setCatalogImportMode] = useState<"RAW_EXTERNAL" | "SOURCE_REFRESH">("RAW_EXTERNAL");
+  const [catalogImportMode, setCatalogImportMode] = useState<"CURATED_ADMIN" | "SOURCE_REFRESH">("CURATED_ADMIN");
   const [catalogResult, setCatalogResult] = useState<CatalogImportResult | null>(null);
   const [catalogNotice, setCatalogNotice] = useState<CorrectionImportNotice | null>(null);
   const [catalogTransferState, setCatalogTransferState] = useState<LoadState>("idle");
@@ -585,7 +584,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       const formData = new FormData();
       formData.append("file", correctionFile);
       const result = await requestFormData<NutritionCorrectionImportResult>(
-        `/api/v1/admin/products/nutrition-corrections/import?dryRun=${dryRun}&markVerified=${markVerifiedOnImport}`,
+        `/api/v1/admin/products/nutrition-corrections/import?dryRun=${dryRun}&markVerified=true`,
         formData,
         { timeoutMs: 120000 }
       );
@@ -648,8 +647,8 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       setCatalogNotice({
         tone: complete ? "success" : "warning",
         message: locale === "tr"
-          ? `${dryRun ? "Prova" : "İçe aktarma"} tamamlandı. ${result.totalRows ?? 0} satır kontrol edildi; ${result.insertedRows ?? 0} yeni, ${result.updatedRows ?? 0} güncelleme, ${skipped} atlanan satır.${dryRun ? " Prova değişiklikleri geri alındı." : " Kayıtlar inceleme kuyruğuna gönderildi."}`
-          : `${dryRun ? "Dry run" : "Import"} completed. ${result.totalRows ?? 0} rows checked; ${result.insertedRows ?? 0} new, ${result.updatedRows ?? 0} updates, ${skipped} skipped.${dryRun ? " Dry-run changes were rolled back." : " Records were sent to the review queue."}`
+          ? `${dryRun ? "Prova" : "İçe aktarma"} tamamlandı. ${result.totalRows ?? 0} satır kontrol edildi; ${result.insertedRows ?? 0} yeni, ${result.updatedRows ?? 0} güncelleme, ${skipped} atlanan satır.${dryRun ? " Prova değişiklikleri geri alındı." : catalogImportMode === "CURATED_ADMIN" ? " Başarılı kayıtlar doğrulandı ve yayına hazırlandı." : " Kaynak verileri yenilendi."}`
+          : `${dryRun ? "Dry run" : "Import"} completed. ${result.totalRows ?? 0} rows checked; ${result.insertedRows ?? 0} new, ${result.updatedRows ?? 0} updates, ${skipped} skipped.${dryRun ? " Dry-run changes were rolled back." : catalogImportMode === "CURATED_ADMIN" ? " Successful records were verified and are ready to publish." : " Source data was refreshed."}`
       });
       if (!dryRun) await reload();
     } catch (err) {
@@ -773,8 +772,8 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
           <div className="review-transfer-actions">
             <label>
               <span>{locale === "tr" ? "İçe aktarma türü" : "Import type"}</span>
-              <select value={catalogImportMode} onChange={(event) => { setCatalogImportMode(event.target.value as "RAW_EXTERNAL" | "SOURCE_REFRESH"); setCatalogPreviewPassed(false); setCatalogResult(null); setCatalogNotice(null); }}>
-                <option value="RAW_EXTERNAL">{locale === "tr" ? "Yeni katalog kaydı" : "New catalog records"}</option>
+              <select value={catalogImportMode} onChange={(event) => { setCatalogImportMode(event.target.value as "CURATED_ADMIN" | "SOURCE_REFRESH"); setCatalogPreviewPassed(false); setCatalogResult(null); setCatalogNotice(null); }}>
+                <option value="CURATED_ADMIN">{locale === "tr" ? "Doğrulanmış admin aktarımı" : "Verified admin import"}</option>
                 <option value="SOURCE_REFRESH">{locale === "tr" ? "Kaynak anahtarlı OFF yenilemesi" : "Source-keyed OFF refresh"}</option>
               </select>
             </label>
@@ -814,10 +813,10 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
               <input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onChange={(event) => { setCorrectionFile(event.target.files?.[0] ?? null); setCorrectionResult(null); setCorrectionNotice(null); }} />
               <span className="product-review-file-control"><b>{text.chooseFile}</b><em>{correctionFile?.name ?? text.noFile}</em></span>
             </label>
-            <label className="inline-check review-transfer-check">
-              <input type="checkbox" checked={markVerifiedOnImport} onChange={(event) => setMarkVerifiedOnImport(event.target.checked)} />
+            <div className="inline-check review-transfer-check" role="status">
+              <span aria-hidden="true">✓</span>
               <span>{text.markVerified}</span>
-            </label>
+            </div>
             <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(true)}>{text.dryRun}</button><button className="primary-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(false)}>{text.applyImport}</button></div>
           </div>
           {correctionNotice && <div className={`product-review-import-notice ${correctionNotice.tone}`} role="status" aria-live="polite"><strong>{correctionNotice.tone === "success" ? (locale === "tr" ? "İçe aktarma başarılı" : "Import successful") : correctionNotice.tone === "warning" ? (locale === "tr" ? "İşlem tamamlandı, kontrol gerekli" : "Completed with attention required") : (locale === "tr" ? "Prova sonucu" : "Dry-run result")}</strong><span>{correctionNotice.message}</span></div>}

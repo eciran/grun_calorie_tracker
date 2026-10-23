@@ -575,7 +575,7 @@ function LoginView({
   theme: ThemeMode;
   toggleTheme: () => void;
 }) {
-  const [email, setEmail] = useState("admin@grun.local");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [mfaCode, setMfaCode] = useState("");

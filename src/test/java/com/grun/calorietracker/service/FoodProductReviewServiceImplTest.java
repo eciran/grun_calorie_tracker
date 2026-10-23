@@ -17,6 +17,7 @@ import com.grun.calorietracker.dto.FoodProductReviewPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
+import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
@@ -29,9 +30,11 @@ import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
+import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
@@ -53,6 +56,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -70,6 +74,9 @@ class FoodProductReviewServiceImplTest {
 
     @Mock
     private FoodItemRepository foodItemRepository;
+
+    @Mock
+    private FoodItemLocalizationRepository foodItemLocalizationRepository;
 
     @Mock
     private FoodLogsRepository foodLogsRepository;
@@ -1025,6 +1032,7 @@ class FoodProductReviewServiceImplTest {
         assertEquals(6.3, product.getProtein());
         assertEquals("Canonical Brand", product.getBrand());
         assertEquals("https://cdn.grun.app/products/3017620422003.jpg", product.getDisplayImageUrl());
+        assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
         verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
     }
     @Test
@@ -1052,6 +1060,103 @@ class FoodProductReviewServiceImplTest {
         assertEquals(1, result.getUpdatedRows());
         assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
         assertEquals(539.0, product.getCalories());
+    }
+
+    @Test
+    void importNutritionCorrections_whenTrustedImport_overridesCsvVerificationStatus() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(3L);
+        product.setName("Corrected Product");
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "corrections.csv",
+                "text/csv",
+                "barcode,product_name,calories,verification_status\n3017620422003,Corrected Product,539,RAW_IMPORTED\n".getBytes()
+        );
+
+        when(foodItemRepository.findByNormalizedBarcode("3017620422003")).thenReturn(Optional.of(product));
+        when(foodItemRepository.findById(3L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductReviewService.importNutritionCorrections(file, "admin@grun.app", false, true);
+
+        assertEquals(1, result.getUpdatedRows());
+        assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
+    }
+
+    @Test
+    void importNutritionCorrections_updatesBaseAndLocalizedDisplayNames() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(4L);
+        product.setName("Original product name");
+        product.setDisplayName("Original display name");
+        product.setShortDisplayName("Original short name");
+        product.setCatalogType(FoodCatalogType.BRANDED_PRODUCT);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "localized-corrections.csv", "text/csv",
+                ("id,display_name,short_display_name,display_name_en,short_display_name_en,display_name_tr,short_display_name_tr\n"
+                        + "4,Global Product,Global,English Product,English,Turkce Urun,Turkce\n").getBytes(StandardCharsets.UTF_8)
+        );
+
+        when(foodItemRepository.findById(4L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguage(4L, PreferredLanguage.EN)).thenReturn(Optional.empty());
+        when(foodItemLocalizationRepository.findByFoodItemIdAndLanguage(4L, PreferredLanguage.TR)).thenReturn(Optional.empty());
+        when(foodItemLocalizationRepository.save(any(FoodItemLocalizationEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductReviewService.importNutritionCorrections(file, "admin@grun.app", false, true);
+
+        assertEquals(1, result.getUpdatedRows());
+        assertEquals("Global Product", product.getDisplayName());
+        assertEquals("Global", product.getShortDisplayName());
+        ArgumentCaptor<FoodItemLocalizationEntity> localizationCaptor = ArgumentCaptor.forClass(FoodItemLocalizationEntity.class);
+        verify(foodItemLocalizationRepository, org.mockito.Mockito.times(2)).save(localizationCaptor.capture());
+        var localized = localizationCaptor.getAllValues().stream().collect(java.util.stream.Collectors.toMap(
+                FoodItemLocalizationEntity::getLanguage, value -> value));
+        assertEquals("English Product", localized.get(PreferredLanguage.EN).getDisplayName());
+        assertEquals("English", localized.get(PreferredLanguage.EN).getShortDisplayName());
+        assertEquals("Turkce Urun", localized.get(PreferredLanguage.TR).getDisplayName());
+        assertEquals("Turkce", localized.get(PreferredLanguage.TR).getShortDisplayName());
+        assertEquals("ADMIN_CSV", localized.get(PreferredLanguage.TR).getSource());
+    }
+
+    @Test
+    void exportProductsForReview_includesBaseAndLocalizedDisplayNames() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(8L);
+        product.setName("Canonical Product");
+        product.setDisplayName("Global Product");
+        product.setShortDisplayName("Global");
+
+        FoodItemLocalizationEntity english = new FoodItemLocalizationEntity();
+        english.setFoodItem(product);
+        english.setLanguage(PreferredLanguage.EN);
+        english.setDisplayName("English Product");
+        english.setShortDisplayName("English");
+        FoodItemLocalizationEntity turkish = new FoodItemLocalizationEntity();
+        turkish.setFoodItem(product);
+        turkish.setLanguage(PreferredLanguage.TR);
+        turkish.setDisplayName("Türkçe Ürün");
+        turkish.setShortDisplayName("Türkçe");
+
+        when(foodItemRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(product)));
+        when(foodItemLocalizationRepository.findByFoodItemIdInAndLanguageIn(
+                List.of(8L), List.of(PreferredLanguage.EN, PreferredLanguage.TR)))
+                .thenReturn(List.of(english, turkish));
+
+        String csv = new String(foodProductReviewService.exportProductsForReview(
+                null, null, null, null, null, null, null, 100), StandardCharsets.UTF_8);
+
+        assertTrue(csv.startsWith("id,barcode,source_key,product_name,display_name,short_display_name,display_name_en,short_display_name_en,display_name_tr,short_display_name_tr,"));
+        assertTrue(csv.contains("Canonical Product,Global Product,Global,English Product,English,Türkçe Ürün,Türkçe,"));
     }
     private FoodItemEntity canonicalCandidate(Long id, String canonicalKey) {
         FoodItemEntity product = new FoodItemEntity();
