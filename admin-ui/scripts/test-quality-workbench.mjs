@@ -41,7 +41,9 @@ assert.match(productReview, /function openCategoryQueue\(\)/, "Canonical categor
 assert.match(productReview, /setVerificationStatus\(""\)[\s\S]*setQualityIssue\("MISSING_CANONICAL_CATEGORY"\)/, "Category shortcut must not retain the raw-import status filter.");
 assert.match(productReview, /QUALITY_ISSUE_GROUPS\.map/, "Product quality issues must be grouped by operational category.");
 assert.doesNotMatch(productReview, /setSelectedPublishIds\(new Set\(\)\); \}, \[data\]\)/, "Background data reloads must not clear batch publication selection.");
-assert.match(productReview, /disabled=\{!publishableRows\.length\}/, "Select-page control must expose when the current page has no publishable products.");
+assert.match(productReview, /disabled=\{!batchSelectableRows\.length\}/, "Select-page control must expose when the current page has no batch-selectable products.");
+assert.match(productReview, /\/api\/v1\/admin\/products\/verify-publish-batch/, "Batch selection must use the atomic verify-and-publish endpoint.");
+assert.match(productReview, /item\.verificationStatus !== "REJECTED"/, "Rejected products must remain outside batch verification and publication.");
 assert.match(productReview, /product-review-decision-bar/, "Review decisions must remain available without opening the product edit tab.");
 assert.match(productReview, /detailTab === "edit" && <button className="ghost-button"[^>]*onClick=\{onSave\}/, "Data-save action must remain scoped to the edit tab.");
 assert.match(catalogCharts, /categories \+ images \+ nutrition \+ rejected/, "Category workload must be included in the product quality chart total.");

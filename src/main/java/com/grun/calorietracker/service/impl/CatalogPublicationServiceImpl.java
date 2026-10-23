@@ -100,6 +100,53 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
                 .toList();
     }
 
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {"foodProductById", "foodProductByBarcode", "foodProductSearch"}, allEntries = true, cacheResolver = "foodProductCacheResolver")
+    public List<FoodItemEntity> verifyAndPublishBatch(
+            List<Long> productIds,
+            String actor,
+            String reason,
+            String correlationId
+    ) {
+        requireText(actor, "Publication actor is required");
+        requireText(reason, "Publication reason is required");
+        if (productIds == null || productIds.isEmpty() || productIds.size() > 100) {
+            throw new IllegalArgumentException("Between 1 and 100 product ids are required");
+        }
+        List<Long> uniqueIds = List.copyOf(new LinkedHashSet<>(productIds));
+        if (uniqueIds.size() != productIds.size()) {
+            throw new IllegalArgumentException("Duplicate product ids are not allowed");
+        }
+
+        acquireCatalogWriteFence();
+        List<FoodItemEntity> products = foodItemRepository.findAllById(uniqueIds);
+        if (products.size() != uniqueIds.size()) {
+            throw new ProductNotFoundException("One or more food items were not found");
+        }
+        Map<Long, FoodItemEntity> byId = products.stream()
+                .collect(java.util.stream.Collectors.toMap(FoodItemEntity::getId, product -> product));
+        List<FoodItemEntity> ordered = uniqueIds.stream().map(byId::get).toList();
+
+        ordered.forEach(product -> validateReadyForVerificationAndPublication(product, actor, reason));
+        return ordered.stream().map(product -> {
+            VerificationStatus previousVerification = product.getVerificationStatus();
+            if (previousVerification != VerificationStatus.VERIFIED) {
+                product.setVerificationStatus(VerificationStatus.VERIFIED);
+                adminAuditService.record(
+                        actor,
+                        AdminAuditActionType.CATALOG_REVIEW_ASSIGNMENT,
+                        AdminAuditTargetType.CATALOG_REVIEW_ITEM,
+                        product.getId() == null ? product.getSourceKey() : product.getId().toString(),
+                        Map.of("verificationStatus", String.valueOf(previousVerification)),
+                        Map.of("verificationStatus", VerificationStatus.VERIFIED.name(), "reason", reason),
+                        correlationId
+                );
+            }
+            return publishValidated(product, actor, reason, correlationId);
+        }).toList();
+    }
+
     private FoodItemEntity publishGuarded(
             FoodItemEntity product,
             String actor,
@@ -113,12 +160,28 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
     private void validatePublishable(FoodItemEntity product, String actor, String reason) {
         requireText(actor, "Publication actor is required");
         requireText(reason, "Publication reason is required");
+        validatePublicationCore(product);
+        if (product.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            throw new IllegalArgumentException("Only verified products can be published");
+        }
+    }
+
+    private void validateReadyForVerificationAndPublication(FoodItemEntity product, String actor, String reason) {
+        requireText(actor, "Publication actor is required");
+        requireText(reason, "Publication reason is required");
+        validatePublicationCore(product);
+        if (product.getVerificationStatus() == VerificationStatus.REJECTED) {
+            throw new IllegalArgumentException("Rejected products must be reviewed individually before publication");
+        }
+        if (product.getPublicationStatus() == CatalogPublicationStatus.PUBLISHED) {
+            throw new IllegalArgumentException("Published products cannot be included in verify-and-publish batches");
+        }
+    }
+
+    private void validatePublicationCore(FoodItemEntity product) {
         if (Boolean.TRUE.equals(product.getIsCustom())
                 || product.getPublicationStatus() == CatalogPublicationStatus.PRIVATE_USER) {
             throw new IllegalArgumentException("Private user products cannot be published directly");
-        }
-        if (product.getVerificationStatus() != VerificationStatus.VERIFIED) {
-            throw new IllegalArgumentException("Only verified products can be published");
         }
         requireText(product.getName(), "Product name is required for publication");
         if (FoodProductQualityRules.hasCriticalIssue(product)

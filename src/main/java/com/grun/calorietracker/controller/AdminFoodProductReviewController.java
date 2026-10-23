@@ -805,6 +805,22 @@ public class AdminFoodProductReviewController {
                 .toList());
     }
 
+    @PostMapping("/verify-publish-batch")
+    @Operation(
+            summary = "Verify and publish multiple catalog products",
+            description = "Preflights every selected product before writing, then verifies and publishes the complete batch atomically. Rejected, private, or incomplete products fail the complete batch. Maximum 100 products."
+    )
+    public ResponseEntity<List<FoodProductDto>> verifyAndPublishProducts(
+            @RequestBody @Valid CatalogProductsBatchPublishRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        String actor = userDetails == null ? null : userDetails.getUsername();
+        return ResponseEntity.ok(catalogPublicationService.verifyAndPublishBatch(
+                        request.productIds(), actor, request.reason(), null
+                ).stream()
+                .map(FoodItemMapper::mapEntityToDto)
+                .toList());
+    }
+
     @PostMapping("/{id}/serving-options")
     @Operation(
             summary = "Create a manual product serving option",

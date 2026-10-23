@@ -309,14 +309,14 @@ export function OwnerAdminSessionsPanel({ onError }: { onError: (message: string
 export type AdminInvitationPage = PageResponse<AdminInvitation>;
 
 const CUSTOM_PERMISSION_GROUPS = [
-  { key: "users", en: "Users", tr: "Kullanıcılar", read: "USERS_READ", manage: "USERS_MANAGE" },
-  { key: "catalog", en: "Catalog, recipes & exercise", tr: "Ürün, tarif ve egzersiz", read: "CATALOG_READ", manage: "CATALOG_MANAGE" },
-  { key: "growth", en: "Growth & notifications", tr: "Büyüme ve bildirimler", read: "GROWTH_READ", manage: "GROWTH_MANAGE" },
-  { key: "finance", en: "Finance & subscriptions", tr: "Finans ve abonelikler", read: "FINANCE_READ", manage: "FINANCE_MANAGE" },
-  { key: "technical", en: "Technical operations", tr: "Teknik operasyonlar", read: "TECHNICAL_READ", manage: "TECHNICAL_MANAGE" },
-  { key: "compliance", en: "Compliance", tr: "Uyumluluk", read: "COMPLIANCE_READ", manage: "COMPLIANCE_MANAGE" },
-  { key: "audit", en: "Audit records", tr: "Denetim kayıtları", read: "AUDIT_READ" },
-  { key: "team", en: "Admin team", tr: "Admin ekibi", read: "ADMIN_TEAM_READ" }
+  { key: "users", icon: "U", en: "Users", tr: "Kullanıcılar", enHint: "Accounts and customer support", trHint: "Hesaplar ve kullanıcı desteği", read: "USERS_READ", manage: "USERS_MANAGE" },
+  { key: "catalog", icon: "K", en: "Catalog, recipes & exercise", tr: "Ürün, tarif ve egzersiz", enHint: "Catalog content and review queues", trHint: "Katalog içeriği ve inceleme kuyrukları", read: "CATALOG_READ", manage: "CATALOG_MANAGE" },
+  { key: "growth", icon: "B", en: "Growth & notifications", tr: "Büyüme ve bildirimler", enHint: "Campaigns, messaging and analytics", trHint: "Kampanyalar, mesajlaşma ve analitik", read: "GROWTH_READ", manage: "GROWTH_MANAGE" },
+  { key: "finance", icon: "F", en: "Finance & subscriptions", tr: "Finans ve abonelikler", enHint: "Plans, revenue and provider events", trHint: "Planlar, gelir ve sağlayıcı olayları", read: "FINANCE_READ", manage: "FINANCE_MANAGE" },
+  { key: "technical", icon: "T", en: "Technical operations", tr: "Teknik operasyonlar", enHint: "Runtime, integrations and AI", trHint: "Çalışma zamanı, entegrasyonlar ve AI", read: "TECHNICAL_READ", manage: "TECHNICAL_MANAGE" },
+  { key: "compliance", icon: "Y", en: "Compliance", tr: "Uyumluluk", enHint: "Policies and regulated workflows", trHint: "Politikalar ve denetimli iş akışları", read: "COMPLIANCE_READ", manage: "COMPLIANCE_MANAGE" },
+  { key: "audit", icon: "D", en: "Audit records", tr: "Denetim kayıtları", enHint: "Read-only operational history", trHint: "Salt okunur işlem geçmişi", read: "AUDIT_READ" },
+  { key: "team", icon: "A", en: "Admin team", tr: "Admin ekibi", enHint: "View administrators and access", trHint: "Yöneticileri ve erişimleri görüntüleme", read: "ADMIN_TEAM_READ" }
 ] as const;
 
 function adminRoleLabel(role: string | undefined, tr: boolean) {
@@ -341,7 +341,7 @@ function CustomPermissionSelector({ value, onChange, tr }: { value: string[]; on
     }
     onChange([...next].sort());
   }
-  return <fieldset className="admin-custom-permissions"><legend>{tr ? "Özel yetkiler" : "Custom permissions"}</legend><p>{tr ? "Yönet yetkisi ilgili görüntüleme yetkisini de içerir. Görüntüleme kaldırılırsa yönetme yetkisi de kaldırılır." : "Manage includes the related read permission. Removing read also removes manage."}</p><div>{CUSTOM_PERMISSION_GROUPS.map((group) => <section key={group.key}><strong>{tr ? group.tr : group.en}</strong><label><input type="checkbox" checked={selected.has(group.read)} onChange={(event) => toggle(group, group.read, event.target.checked)} />{tr ? "Görüntüle" : "Read"}</label>{"manage" in group && <label><input type="checkbox" checked={selected.has(group.manage)} onChange={(event) => toggle(group, group.manage, event.target.checked)} />{tr ? "Yönet" : "Manage"}</label>}</section>)}</div></fieldset>;
+  return <fieldset className="admin-custom-permissions"><legend>{tr ? "Özel yetkiler" : "Custom permissions"}</legend><header><div><strong>{tr ? "Erişim kapsamını belirleyin" : "Define the access scope"}</strong><p>{tr ? "Yönet yetkisi görüntüleme yetkisini de içerir." : "Manage permission also includes read access."}</p></div><span>{value.length} {tr ? "yetki" : "permissions"}</span></header><div>{CUSTOM_PERMISSION_GROUPS.map((group) => <section key={group.key} className={selected.has(group.read) || ("manage" in group && selected.has(group.manage)) ? "selected" : ""}><span className="admin-permission-icon" aria-hidden="true">{group.icon}</span><div className="admin-permission-copy"><strong>{tr ? group.tr : group.en}</strong><small>{tr ? group.trHint : group.enHint}</small></div><div className="admin-permission-actions"><label className={selected.has(group.read) ? "active" : ""}><input type="checkbox" checked={selected.has(group.read)} onChange={(event) => toggle(group, group.read, event.target.checked)} /><span>{tr ? "Görüntüle" : "Read"}</span></label>{"manage" in group && <label className={selected.has(group.manage) ? "active" : ""}><input type="checkbox" checked={selected.has(group.manage)} onChange={(event) => toggle(group, group.manage, event.target.checked)} /><span>{tr ? "Yönet" : "Manage"}</span></label>}</div></section>)}</div><footer>{tr ? "Görüntüleme kaldırılırsa bağlı yönetme yetkisi de kaldırılır." : "Removing read access also removes its related manage permission."}</footer></fieldset>;
 }
 
 function OwnerLiveSessionMetric({ tr, onOpen, onError }: { tr: boolean; onOpen: () => void; onError: (message: string | null) => void }) {

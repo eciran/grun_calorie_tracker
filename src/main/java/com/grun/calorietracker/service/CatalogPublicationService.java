@@ -26,4 +26,11 @@ public interface CatalogPublicationService {
             String reason,
             String correlationId
     );
+
+    List<FoodItemEntity> verifyAndPublishBatch(
+            List<Long> productIds,
+            String actor,
+            String reason,
+            String correlationId
+    );
 }

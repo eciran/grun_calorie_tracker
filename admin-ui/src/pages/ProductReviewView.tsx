@@ -326,7 +326,13 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const { data: categoryWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?qualityIssue=MISSING_CANONICAL_CATEGORY&page=0&size=1", onError);
   const { data: rejectedWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?verificationStatus=REJECTED&page=0&size=1", onError);
   const rows = data?.content ?? [];
-  const publishableRows = rows.filter((item) => item.id && item.verificationStatus === "VERIFIED" && item.publicationStatus !== "PUBLISHED");
+  const batchSelectableRows = rows.filter((item) => item.id
+    && item.verificationStatus !== "REJECTED"
+    && item.publicationStatus !== "PUBLISHED"
+    && item.publicationStatus !== "PRIVATE_USER");
+  const selectedNeedsVerification = rows.filter((item) => item.id
+    && selectedPublishIds.has(item.id)
+    && item.verificationStatus !== "VERIFIED").length;
   const totalElements = data?.totalElements ?? rows.length;
   const highPriorityCount = rows.filter((item) => (item.reviewPriority ?? 0) >= 100).length;
   const missingImageCount = rows.filter((item) => !item.displayImageUrl && !item.imageUrl && !item.externalImageUrl).length;
@@ -533,11 +539,11 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     if (!ids.length || !batchPublishReason.trim()) return;
     setBatchPublishing(true); onError(null);
     try {
-      await request<FoodProduct[]>("/api/v1/admin/products/publish-batch", {
+      await request<FoodProduct[]>("/api/v1/admin/products/verify-publish-batch", {
         method: "POST", body: { productIds: ids, reason: batchPublishReason.trim() }
       });
       setSelectedPublishIds(new Set()); setBatchPublishReason("");
-      setSavedNotice(locale === "tr" ? `${ids.length} ürün mobil kataloğa yayınlandı.` : `${ids.length} products published to the mobile catalog.`);
+      setSavedNotice(locale === "tr" ? `${ids.length} ürün doğrulandı ve mobil kataloğa yayınlandı.` : `${ids.length} products verified and published to the mobile catalog.`);
       await reload();
     } catch (error) { onError(formatRequestError(error)); }
     finally { setBatchPublishing(false); }
@@ -831,16 +837,16 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       <section className="product-review-queue" aria-labelledby="product-review-queue-title">
         <div className="product-review-queue-heading"><div><span className="eyebrow">{text.queueEyebrow}</span><h3 id="product-review-queue-title">{text.queueTitle}</h3><p>{text.queueDescription}</p></div><strong>{formatValue(totalElements)}</strong></div>
       {canManage && <div className="product-review-publish-toolbar">
-        <label className="inline-check"><input type="checkbox" disabled={!publishableRows.length} aria-label={locale === "tr" ? "Sayfadaki doğrulanmış yayınlanmamış ürünleri seç" : "Select verified unpublished products on this page"} checked={publishableRows.length > 0 && publishableRows.every(item => selectedPublishIds.has(item.id!))} onChange={event => { const ids = publishableRows.map(item => item.id!); setSelectedPublishIds(current => { const next = new Set(current); ids.forEach(id => event.target.checked ? next.add(id) : next.delete(id)); return next; }); }} /><span>{locale === "tr" ? "Sayfayı seç" : "Select page"}</span></label>
-        <span><strong>{selectedPublishIds.size}</strong> {locale === "tr" ? `ürün seçildi · ${publishableRows.length} uygun` : `products selected · ${publishableRows.length} eligible`}</span>
+        <label className="inline-check"><input type="checkbox" disabled={!batchSelectableRows.length} aria-label={locale === "tr" ? "Sayfadaki yayınlanabilir ürünleri seç" : "Select publishable products on this page"} checked={batchSelectableRows.length > 0 && batchSelectableRows.every(item => selectedPublishIds.has(item.id!))} onChange={event => { const ids = batchSelectableRows.map(item => item.id!); setSelectedPublishIds(current => { const next = new Set(current); ids.forEach(id => event.target.checked ? next.add(id) : next.delete(id)); return next; }); }} /><span>{locale === "tr" ? "Sayfayı seç" : "Select page"}</span></label>
+        <span><strong>{selectedPublishIds.size}</strong> {locale === "tr" ? `ürün seçildi · ${batchSelectableRows.length} uygun${selectedNeedsVerification ? ` · ${selectedNeedsVerification} doğrulanacak` : ""}` : `products selected · ${batchSelectableRows.length} eligible${selectedNeedsVerification ? ` · ${selectedNeedsVerification} will be verified` : ""}`}</span>
         <input maxLength={500} value={batchPublishReason} onChange={event => setBatchPublishReason(event.target.value)} placeholder={locale === "tr" ? "Toplu yayın gerekçesi" : "Batch publication reason"} />
-        <button className="primary-button" type="button" disabled={!selectedPublishIds.size || !batchPublishReason.trim() || batchPublishing} onClick={() => void publishSelectedProducts()}>{batchPublishing ? (locale === "tr" ? "Yayınlanıyor…" : "Publishing…") : (locale === "tr" ? "Seçilenleri yayınla" : "Publish selected")}</button>
+        <button className="primary-button" type="button" disabled={!selectedPublishIds.size || !batchPublishReason.trim() || batchPublishing} onClick={() => void publishSelectedProducts()}>{batchPublishing ? (locale === "tr" ? "Doğrulanıyor ve yayınlanıyor…" : "Verifying and publishing…") : selectedNeedsVerification ? (locale === "tr" ? "Doğrula ve yayınla" : "Verify and publish") : (locale === "tr" ? "Seçilenleri yayınla" : "Publish selected")}</button>
       </div>}
       <DataTable
         caption={text.queueTitle}
         columns={[...(canManage ? [locale === "tr" ? "Seç" : "Select"] : []), text.product, text.source, text.review, text.publicationColumn, text.quality, text.nutrition]}
         rows={rows.map((item) => [
-          ...(canManage ? [<input key={`select-${item.id}`} type="checkbox" aria-label={`${productName(item)} ${locale === "tr" ? "ürününü seç" : "select product"}`} title={item.verificationStatus !== "VERIFIED" ? (locale === "tr" ? "Toplu yayından önce ürün doğrulanmalıdır." : "The product must be verified before batch publication.") : item.publicationStatus === "PUBLISHED" ? (locale === "tr" ? "Ürün zaten yayında." : "The product is already published.") : undefined} disabled={!item.id || item.verificationStatus !== "VERIFIED" || item.publicationStatus === "PUBLISHED"} checked={Boolean(item.id && selectedPublishIds.has(item.id))} onClick={event => event.stopPropagation()} onChange={event => { if (!item.id) return; setSelectedPublishIds(current => { const next = new Set(current); if (event.target.checked) next.add(item.id!); else next.delete(item.id!); return next; }); }} />] : []),
+          ...(canManage ? [<input key={`select-${item.id}`} type="checkbox" aria-label={`${productName(item)} ${locale === "tr" ? "ürününü seç" : "select product"}`} title={item.verificationStatus === "REJECTED" ? (locale === "tr" ? "Reddedilen ürün önce ayrı olarak incelenmelidir." : "Rejected products must be reviewed individually first.") : item.publicationStatus === "PUBLISHED" ? (locale === "tr" ? "Ürün zaten yayında." : "The product is already published.") : item.publicationStatus === "PRIVATE_USER" ? (locale === "tr" ? "Özel kullanıcı ürünleri toplu yayınlanamaz." : "Private user products cannot be batch published.") : item.verificationStatus !== "VERIFIED" ? (locale === "tr" ? "Seçildiğinde güvenlik kontrollerinden sonra doğrulanıp yayınlanır." : "When selected, it will be verified and published after safety checks.") : undefined} disabled={!item.id || item.verificationStatus === "REJECTED" || item.publicationStatus === "PUBLISHED" || item.publicationStatus === "PRIVATE_USER"} checked={Boolean(item.id && selectedPublishIds.has(item.id))} onClick={event => event.stopPropagation()} onChange={event => { if (!item.id) return; setSelectedPublishIds(current => { const next = new Set(current); if (event.target.checked) next.add(item.id!); else next.delete(item.id!); return next; }); }} />] : []),
           <ProductCell item={item} />,
           <div className="table-stack">
             <span>{item.marketRegion ?? "-"}</span>

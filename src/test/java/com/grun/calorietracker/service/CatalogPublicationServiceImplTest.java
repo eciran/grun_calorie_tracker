@@ -132,6 +132,47 @@ class CatalogPublicationServiceImplTest {
         verify(foodItemRepository, org.mockito.Mockito.times(2)).save(any(FoodItemEntity.class));
     }
 
+    @Test
+    void verifyAndPublishBatchPromotesRawImportedProductsAtomically() {
+        FoodItemEntity raw = candidate();
+        raw.setId(12L);
+        raw.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        FoodItemEntity needsReview = candidate();
+        needsReview.setId(13L);
+        needsReview.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        when(foodItemRepository.findAllById(List.of(12L, 13L))).thenReturn(List.of(raw, needsReview));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<FoodItemEntity> result = service.verifyAndPublishBatch(
+                List.of(12L, 13L), "owner@grun.local", "Reviewed import batch", "batch-verify-1");
+
+        result.forEach(product -> {
+            assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
+            assertEquals(CatalogPublicationStatus.PUBLISHED, product.getPublicationStatus());
+        });
+        verify(foodItemRepository, org.mockito.Mockito.times(2)).save(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void verifyAndPublishBatchPreflightsEveryProductBeforeMutation() {
+        FoodItemEntity valid = candidate();
+        valid.setId(14L);
+        valid.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        FoodItemEntity invalid = candidate();
+        invalid.setId(15L);
+        invalid.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
+        invalid.setCalories(null);
+        when(foodItemRepository.findAllById(List.of(14L, 15L))).thenReturn(List.of(valid, invalid));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.verifyAndPublishBatch(List.of(14L, 15L), "owner@grun.local", "Batch review", null));
+
+        assertEquals(VerificationStatus.RAW_IMPORTED, valid.getVerificationStatus());
+        assertEquals(CatalogPublicationStatus.INTERNAL_REVIEW, valid.getPublicationStatus());
+        verify(foodItemRepository, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(adminAuditService);
+    }
+
     private FoodItemEntity candidate() {
         FoodItemEntity product = new FoodItemEntity();
         product.setName("Candidate");

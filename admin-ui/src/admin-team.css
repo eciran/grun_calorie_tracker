@@ -115,13 +115,28 @@ button.admin-role-matrix-row:hover, .admin-role-matrix-row.current { background:
 .admin-invite-modal { display:grid; grid-template-rows:auto minmax(0,1fr) auto; width: min(680px,calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: hidden; border-radius: 20px; }
 .admin-invite-body { display: grid; grid-template-columns: 1fr 1fr; min-height:0; gap: 15px; padding: 20px; overflow-y: auto; }
 .admin-invite-body > label { display: grid; gap: 7px; }
-.admin-custom-permissions { grid-column:1 / -1; margin:0; padding:14px; border:1px solid var(--line); border-radius:13px; background:var(--surface-muted); }
-.admin-custom-permissions legend { padding:0 6px; font-weight:700; }
-.admin-custom-permissions > p { margin:0 0 12px; color:var(--muted); font-size:.78rem; }
-.admin-custom-permissions > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-.admin-custom-permissions section { display:grid; grid-template-columns:minmax(130px,1fr) auto auto; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
-.admin-custom-permissions section label { display:flex; align-items:center; gap:5px; font-size:.78rem; }
-.admin-custom-permissions section input { width:16px; height:16px; }
+.admin-custom-permissions { grid-column:1 / -1; margin:0; padding:16px; border:1px solid color-mix(in srgb,var(--primary) 20%,var(--line)); border-radius:16px; background:color-mix(in srgb,var(--primary) 3%,var(--surface)); }
+.admin-custom-permissions legend { padding:0 8px; color:var(--primary); font-size:.78rem; font-weight:750; letter-spacing:.04em; }
+.admin-custom-permissions > header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:14px; }
+.admin-custom-permissions > header > div { display:grid; gap:3px; }
+.admin-custom-permissions > header strong { font-size:.95rem; }
+.admin-custom-permissions > header p { margin:0; color:var(--muted); font-size:.78rem; }
+.admin-custom-permissions > header > span { flex:0 0 auto; padding:6px 9px; border-radius:999px; color:var(--primary); font-size:.72rem; font-weight:700; background:color-mix(in srgb,var(--primary) 10%,var(--surface)); }
+.admin-custom-permissions > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.admin-custom-permissions section { display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 10px; min-width:0; padding:12px; border:1px solid var(--line); border-radius:13px; background:var(--surface); transition:border-color .16s,background .16s,box-shadow .16s; }
+.admin-custom-permissions section.selected { border-color:color-mix(in srgb,var(--primary) 32%,var(--line)); background:color-mix(in srgb,var(--primary) 5%,var(--surface)); box-shadow:0 7px 18px color-mix(in srgb,var(--primary) 7%,transparent); }
+.admin-permission-icon { display:grid; place-items:center; grid-row:1 / 3; width:34px; height:34px; border-radius:10px; color:var(--primary); font-size:.75rem; font-weight:800; background:color-mix(in srgb,var(--primary) 10%,var(--surface)); }
+.admin-permission-copy { display:grid; gap:2px; min-width:0; }
+.admin-permission-copy strong { line-height:1.25; }
+.admin-permission-copy small { overflow:hidden; color:var(--muted); font-size:.72rem; text-overflow:ellipsis; white-space:nowrap; }
+.admin-permission-actions { display:flex; grid-column:1 / -1; gap:7px; margin-top:8px; }
+.admin-permission-actions label { position:relative; display:flex; flex:1; cursor:pointer; }
+.admin-permission-actions input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.admin-permission-actions label span { display:grid; place-items:center; width:100%; min-height:34px; padding:6px 9px; border:1px solid var(--line); border-radius:9px; color:var(--muted-strong); font-size:.75rem; font-weight:650; background:var(--surface-muted); }
+.admin-permission-actions label:hover span { border-color:color-mix(in srgb,var(--primary) 35%,var(--line)); }
+.admin-permission-actions label.active span { color:#fff; border-color:var(--primary); background:var(--primary); }
+.admin-permission-actions input:focus-visible + span { outline:3px solid color-mix(in srgb,var(--accent) 38%,transparent); outline-offset:2px; }
+.admin-custom-permissions > footer { margin-top:12px; padding-top:11px; color:var(--muted); font-size:.74rem; border-top:1px solid var(--line); }
 .admin-invite-preview { grid-column: 1 / -1; display: grid; gap: 5px; padding: 16px; border: 1px solid color-mix(in srgb,var(--primary) 20%,var(--line)); border-radius: 14px; background: color-mix(in srgb,var(--primary) 6%,var(--surface)); }
 .admin-invite-preview > span { color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .1em; }
 .admin-invite-preview p { margin: 0; color: var(--muted); }
@@ -151,6 +166,7 @@ button.admin-role-matrix-row:hover, .admin-role-matrix-row.current { background:
   .admin-member-profile-strip { grid-template-columns: 1fr 1fr; padding: 12px; }
   .admin-invite-body { grid-template-columns: 1fr; padding: 15px; }
   .admin-custom-permissions > div { grid-template-columns:1fr; }
-  .admin-custom-permissions section { grid-template-columns:1fr auto auto; }
+  .admin-custom-permissions { padding:13px; }
+  .admin-custom-permissions > header { align-items:flex-start; }
   .admin-invite-preview { grid-column: auto; }
 }

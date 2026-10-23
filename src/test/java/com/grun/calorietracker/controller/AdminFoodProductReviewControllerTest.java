@@ -1017,6 +1017,28 @@ class AdminFoodProductReviewControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "admin@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_MANAGE"})
+    void verifyAndPublishProducts_whenAdmin_returnsPublishedProducts() throws Exception {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(3L);
+        product.setName("Reviewed import");
+        product.setVerificationStatus(com.grun.calorietracker.enums.VerificationStatus.VERIFIED);
+        product.setPublicationStatus(CatalogPublicationStatus.PUBLISHED);
+        when(catalogPublicationService.verifyAndPublishBatch(eq(java.util.List.of(3L)), eq("admin@test.com"), eq("Reviewed import batch."), eq(null)))
+                .thenReturn(java.util.List.of(product));
+
+        mockMvc.perform(post("/api/v1/admin/products/verify-publish-batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productIds\":[3],\"reason\":\"Reviewed import batch.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].verificationStatus").value("VERIFIED"))
+                .andExpect(jsonPath("$[0].publicationStatus").value("PUBLISHED"));
+
+        verify(catalogPublicationService).verifyAndPublishBatch(
+                java.util.List.of(3L), "admin@test.com", "Reviewed import batch.", null);
+    }
+
+    @Test
     @WithMockUser(username = "catalog@test.com", authorities = {"ROLE_ADMIN", "ADMIN_PERMISSION_CATALOG_READ", "ADMIN_PERMISSION_CATALOG_MANAGE"})
     void updateProductBarcode_whenCatalogManager_returnsUpdatedProduct() throws Exception {
         FoodProductDto response = new FoodProductDto();
