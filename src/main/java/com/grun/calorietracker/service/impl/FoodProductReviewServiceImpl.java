@@ -1069,6 +1069,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         int updatedRows = 0;
         int candidateRows = 0;
         List<String> errors = new ArrayList<>();
+        List<CsvCorrectionRow> rows = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String headerLine = reader.readLine();
@@ -1077,17 +1078,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             }
             char delimiter = detectDelimiter(headerLine);
             Map<String, Integer> headers = indexHeaders(parseDelimitedLine(headerLine, delimiter));
-            // Acquire before the first row lookup, outside the recoverable row-validation handler.
-            if (!dryRun) acquireCatalogWriteFence();
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) {
                     continue;
                 }
                 totalRows++;
-                CsvCorrectionRow row = new CsvCorrectionRow(totalRows + 1, headers, parseDelimitedLine(line, delimiter));
+                rows.add(new CsvCorrectionRow(totalRows + 1, headers, parseDelimitedLine(line, delimiter)));
+            }
+
+            // Exported correction files contain product ids. Loading those products in one query
+            // keeps large dry runs below the load balancer timeout instead of issuing one lookup
+            // per CSV row. Rows without ids retain the source-key/barcode fallback behavior.
+            Map<Long, FoodItemEntity> dryRunProductsById = dryRun
+                    ? preloadCorrectionProductsById(rows)
+                    : Map.of();
+
+            // Acquire before the first row lookup, outside the recoverable row-validation handler.
+            if (!dryRun) acquireCatalogWriteFence();
+            for (CsvCorrectionRow row : rows) {
                 try {
-                    FoodItemEntity product = resolveCorrectionProduct(row);
+                    FoodItemEntity product = resolveCorrectionProduct(row, dryRunProductsById, dryRun);
                     FoodProductReviewRequestDto request = toCorrectionRequest(row);
                     CorrectionDisplayNames displayNames = correctionDisplayNames(row);
                     if (markVerified) {
@@ -1115,6 +1126,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
 
         int successfulRows = dryRun ? candidateRows : updatedRows;
         return new FoodProductNutritionCorrectionImportResultDto(totalRows, updatedRows, totalRows - successfulRows, errors, dryRun, candidateRows);
+    }
+
+    private Map<Long, FoodItemEntity> preloadCorrectionProductsById(List<CsvCorrectionRow> rows) {
+        Set<Long> ids = rows.stream()
+                .map(row -> firstText(row, "id", "fooditemid", "food_item_id", "productid", "product_id"))
+                .filter(Objects::nonNull)
+                .map(value -> {
+                    try {
+                        return Long.parseLong(value);
+                    } catch (NumberFormatException ignored) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, FoodItemEntity> products = new HashMap<>();
+        foodItemRepository.findAllById(ids).forEach(product -> products.put(product.getId(), product));
+        return products;
     }
 
     @Override
@@ -1479,10 +1511,24 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     }
 
     private FoodItemEntity resolveCorrectionProduct(CsvCorrectionRow row) {
+        return resolveCorrectionProduct(row, Map.of(), false);
+    }
+
+    private FoodItemEntity resolveCorrectionProduct(CsvCorrectionRow row,
+                                                    Map<Long, FoodItemEntity> prefetchedProductsById,
+                                                    boolean usePrefetchedIds) {
         String id = firstText(row, "id", "fooditemid", "food_item_id", "productid", "product_id");
         if (id != null) {
             try {
-                return foodItemRepository.findById(Long.parseLong(id))
+                long productId = Long.parseLong(id);
+                if (usePrefetchedIds) {
+                    FoodItemEntity prefetched = prefetchedProductsById.get(productId);
+                    if (prefetched != null) {
+                        return prefetched;
+                    }
+                    throw new ResourceNotFoundException("Food product not found with id: " + id);
+                }
+                return foodItemRepository.findById(productId)
                         .orElseThrow(() -> new ResourceNotFoundException("Food product not found with id: " + id));
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException("Product id must be numeric.");

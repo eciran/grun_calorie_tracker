@@ -65,6 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -1035,6 +1036,31 @@ class FoodProductReviewServiceImplTest {
         assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
         verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
     }
+
+    @Test
+    void importNutritionCorrections_dryRunPrefetchesExportedProductIdsInOneQuery() {
+        FoodItemEntity first = new FoodItemEntity();
+        first.setId(41L);
+        FoodItemEntity second = new FoodItemEntity();
+        second.setId(42L);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "corrections.csv", "text/csv",
+                "id,brand\n41,Canonical Brand\n42,Canonical Brand\n".getBytes(StandardCharsets.UTF_8)
+        );
+
+        when(foodItemRepository.findAllById(any())).thenReturn(List.of(first, second));
+
+        var result = foodProductReviewService.importNutritionCorrections(file, "admin@grun.app", true, true);
+
+        assertEquals(2, result.getTotalRows());
+        assertEquals(2, result.getCandidateRows());
+        assertEquals(0, result.getUpdatedRows());
+        assertEquals(0, result.getSkippedRows());
+        verify(foodItemRepository).findAllById(any());
+        verify(foodItemRepository, never()).findById(anyLong());
+        verify(foodItemRepository, never()).save(any(FoodItemEntity.class));
+    }
+
     @Test
     void importNutritionCorrections_whenMarkVerified_marksImportedProductVerified() {
         FoodItemEntity product = new FoodItemEntity();
