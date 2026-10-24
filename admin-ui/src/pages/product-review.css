@@ -49,6 +49,14 @@
 .product-review-bulk-tools .review-transfer-check span { font-size:.78rem; line-height:1.3; }
 .product-review-import-actions { display:flex; gap:8px; }
 .product-review-import-actions button { white-space:nowrap; }
+.product-review-import-progress { display:flex; align-items:center; gap:13px; margin:0 18px 12px; padding:13px 14px; border:1px solid color-mix(in srgb,var(--primary) 35%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--primary) 7%,var(--surface)); color:var(--muted-strong); }
+.product-review-import-progress > div { display:grid; gap:3px; min-width:0; }
+.product-review-import-progress strong { color:var(--primary); font-size:.86rem; }
+.product-review-import-progress span,.product-review-import-progress small { overflow-wrap:anywhere; font-size:.78rem; }
+.product-review-import-progress small { color:var(--muted); }
+.product-review-import-spinner { flex:0 0 22px; width:22px; height:22px; border:3px solid color-mix(in srgb,var(--primary) 22%,transparent); border-top-color:var(--primary); border-radius:50%; animation:product-review-import-spin .8s linear infinite; }
+@keyframes product-review-import-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .product-review-import-spinner { animation-duration:1.8s; } }
 .product-review-import-notice{display:grid;gap:4px;margin:0 18px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font-size:.82rem;line-height:1.45}.product-review-import-notice strong{font-size:.86rem}.product-review-import-notice.success{border-color:color-mix(in srgb,var(--success) 38%,var(--line));background:color-mix(in srgb,var(--success) 9%,var(--surface));color:var(--success)}.product-review-import-notice.warning{border-color:color-mix(in srgb,var(--warning) 45%,var(--line));background:color-mix(in srgb,var(--warning) 11%,var(--surface));color:var(--warning-text)}.product-review-import-notice.info{border-color:color-mix(in srgb,var(--primary) 35%,var(--line));background:color-mix(in srgb,var(--primary) 7%,var(--surface));color:var(--muted-strong)}
 .product-review-bulk-tools .correction-result-grid,.product-review-bulk-tools .correction-error-list { margin:0 18px 18px; }
 

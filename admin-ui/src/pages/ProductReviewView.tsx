@@ -303,10 +303,21 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [catalogResult, setCatalogResult] = useState<CatalogImportResult | null>(null);
   const [catalogNotice, setCatalogNotice] = useState<CorrectionImportNotice | null>(null);
   const [catalogTransferState, setCatalogTransferState] = useState<LoadState>("idle");
+  const [catalogOperation, setCatalogOperation] = useState<"preview" | "import" | null>(null);
+  const [catalogOperationStartedAt, setCatalogOperationStartedAt] = useState<number | null>(null);
+  const [catalogElapsedSeconds, setCatalogElapsedSeconds] = useState(0);
   const [catalogPreviewPassed, setCatalogPreviewPassed] = useState(false);
   const [selectedPublishIds, setSelectedPublishIds] = useState<Set<number>>(new Set());
   const [batchPublishReason, setBatchPublishReason] = useState("");
   const [batchPublishing, setBatchPublishing] = useState(false);
+
+  useEffect(() => {
+    if (catalogOperationStartedAt === null) return;
+    const updateElapsed = () => setCatalogElapsedSeconds(Math.floor((Date.now() - catalogOperationStartedAt) / 1000));
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [catalogOperationStartedAt]);
   const path = buildProductReviewPath({
     query,
     verificationStatus,
@@ -628,6 +639,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       return;
     }
     setCatalogTransferState("loading");
+    setCatalogOperation(dryRun ? "preview" : "import");
+    setCatalogOperationStartedAt(Date.now());
+    setCatalogElapsedSeconds(0);
     setCatalogNotice(null);
     onError(null);
     try {
@@ -636,7 +650,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       const result = await requestFormData<CatalogImportResult>(
         `/api/v1/admin/products/import?importMode=${catalogImportMode}&importFormat=${catalogImportMode === "SOURCE_REFRESH" ? "OPEN_FOOD_FACTS_EXPORT" : "GRUN_STANDARD"}&dryRun=${dryRun}`,
         formData,
-        { timeoutMs: 180000 }
+        { timeoutMs: 900000 }
       );
       setCatalogResult(result);
       setCatalogTransferState("ready");
@@ -655,6 +669,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       setCatalogTransferState("error");
       setCatalogPreviewPassed(false);
       onError(formatRequestError(err));
+    } finally {
+      setCatalogOperation(null);
+      setCatalogOperationStartedAt(null);
     }
   }
 
@@ -783,8 +800,16 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
               <span className="product-review-file-control"><b>{text.chooseFile}</b><em>{catalogFile?.name ?? text.noFile}</em></span>
             </label>
             <span className="muted-text">{text.previewRequired}</span>
-            <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={catalogTransferState === "loading" || !catalogFile} onClick={() => importNewCatalog(true)}>{text.dryRun}</button><button className="primary-button" type="button" disabled={catalogTransferState === "loading" || !catalogFile || !catalogPreviewPassed} onClick={() => importNewCatalog(false)}>{text.applyImport}</button></div>
+            <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={catalogTransferState === "loading" || !catalogFile} onClick={() => importNewCatalog(true)}>{catalogOperation === "preview" ? (locale === "tr" ? "Prova çalışıyor…" : "Dry run in progress…") : text.dryRun}</button><button className="primary-button" type="button" disabled={catalogTransferState === "loading" || !catalogFile || !catalogPreviewPassed} onClick={() => importNewCatalog(false)}>{catalogOperation === "import" ? (locale === "tr" ? "İçe aktarılıyor…" : "Importing…") : text.applyImport}</button></div>
           </div>
+          {catalogTransferState === "loading" && <div className="product-review-import-progress" role="status" aria-live="polite">
+            <span className="product-review-import-spinner" aria-hidden="true" />
+            <div>
+              <strong>{catalogOperation === "preview" ? (locale === "tr" ? "Katalog provası devam ediyor" : "Catalog dry run in progress") : (locale === "tr" ? "Katalog içe aktarılıyor" : "Catalog import in progress")}</strong>
+              <span>{catalogFile?.name} · {`${Math.floor(catalogElapsedSeconds / 60)}:${String(catalogElapsedSeconds % 60).padStart(2, "0")}`}</span>
+              <small>{locale === "tr" ? "Büyük dosyalar birkaç dakika sürebilir. Sonuç raporu gelene kadar bu sayfayı açık tutun." : "Large files can take several minutes. Keep this page open until the result report arrives."}</small>
+            </div>
+          </div>}
           {catalogNotice && <div className={`product-review-import-notice ${catalogNotice.tone}`} role="status" aria-live="polite"><strong>{catalogNotice.tone === "success" ? (locale === "tr" ? "Katalog dosyası hazır" : "Catalog file ready") : (locale === "tr" ? "Kontrol gerekli" : "Attention required")}</strong><span>{catalogNotice.message}</span></div>}
           {catalogResult && <div className="correction-result-grid">
             <MetricPill label={text.totalRows} value={formatValue(catalogResult.totalRows)} />
